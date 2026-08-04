@@ -540,9 +540,9 @@ class _StepPersonalState extends State<StepPersonal> {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-fontWeight: FontWeight.bold
-),
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         child,
@@ -602,10 +602,9 @@ fontWeight: FontWeight.bold
           Text(
             'I. PERSONAL DATA',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
               fontWeight: FontWeight.bold,
-              color: Colors.brown
-),
+              color: Colors.brown,
+            ),
           ),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 20),
@@ -805,10 +804,9 @@ fontWeight: FontWeight.bold
           Text(
             'PERMANENT ADDRESS',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
               fontWeight: FontWeight.bold,
-              color: Colors.brown
-),
+              color: Colors.brown,
+            ),
           ),
           const SizedBox(height: 20),
           _row([
@@ -956,10 +954,9 @@ fontWeight: FontWeight.bold
           Text(
             'CONTACT INFORMATION',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
               fontWeight: FontWeight.bold,
-              color: Colors.brown
-),
+              color: Colors.brown,
+            ),
           ),
           const SizedBox(height: 20),
           _row([

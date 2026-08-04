@@ -108,7 +108,9 @@ class ApplicationSubmissionValidator {
     return text.split(RegExp(r'\s+')).length;
   }
 
-  List<ApplicationSubmissionIssue> _validateAccountFields(ApplicationData data) {
+  List<ApplicationSubmissionIssue> _validateAccountFields(
+    ApplicationData data,
+  ) {
     final issues = <ApplicationSubmissionIssue>[];
 
     if (_isBlank(data.openingId)) {
@@ -118,7 +120,8 @@ class ApplicationSubmissionValidator {
           section: ApplicationSubmissionSection.account,
           field: 'openingId',
           message: 'Choose a scholarship before submitting.',
-          repairAction: 'Return to Available Scholarships and select a scholarship.',
+          repairAction:
+              'Return to Available Scholarships and select a scholarship.',
         ),
       );
     }
@@ -155,10 +158,7 @@ class ApplicationSubmissionValidator {
   ) {
     final issues = <ApplicationSubmissionIssue>[];
 
-    void requireText({
-      required String field,
-      required String label,
-    }) {
+    void requireText({required String field, required String label}) {
       if (_isBlank(_valueForField(data, field))) {
         issues.add(
           ApplicationSubmissionIssue(
@@ -227,7 +227,8 @@ class ApplicationSubmissionValidator {
             section: ApplicationSubmissionSection.personal,
             field: 'age',
             message: 'Age must be at least 16.',
-            repairAction: 'Update the age to reflect an applicant who is 16 or older.',
+            repairAction:
+                'Update the age to reflect an applicant who is 16 or older.',
           ),
         );
       } else {
@@ -258,9 +259,9 @@ class ApplicationSubmissionValidator {
           repairAction: 'Enter a mobile number.',
         ),
       );
-    } else if (!RegExp(r'^\+?\d+$').hasMatch(
-      rawMobile.replaceAll(RegExp(r'[\s-]+'), ''),
-    )) {
+    } else if (!RegExp(
+      r'^\+?\d+$',
+    ).hasMatch(rawMobile.replaceAll(RegExp(r'[\s-]+'), ''))) {
       issues.add(
         const ApplicationSubmissionIssue(
           code: 'contact.mobile.format',
@@ -277,7 +278,8 @@ class ApplicationSubmissionValidator {
           section: ApplicationSubmissionSection.personal,
           field: 'mobileNumber',
           message: 'Mobile number must start with 09 or +639.',
-          repairAction: 'Use a Philippine mobile number that starts with 09 or +639.',
+          repairAction:
+              'Use a Philippine mobile number that starts with 09 or +639.',
         ),
       );
     } else if (normalizedMobile.length < 11) {
@@ -324,7 +326,8 @@ class ApplicationSubmissionValidator {
         );
       }
     }
-    final hasStreetAddress = data.houseLotBlockNo.trim().isNotEmpty ||
+    final hasStreetAddress =
+        data.houseLotBlockNo.trim().isNotEmpty ||
         data.unitBldgNo.trim().isNotEmpty ||
         data.street.trim().isNotEmpty ||
         data.subdivision.trim().isNotEmpty;
@@ -369,25 +372,27 @@ class ApplicationSubmissionValidator {
   List<ApplicationSubmissionIssue> _validateFamilyFields(ApplicationData data) {
     final issues = <ApplicationSubmissionIssue>[];
 
-    if (!data.sameAddressAsApplicant &&
-        _isBlank(data.parentGuardianAddress)) {
+    if (!data.sameAddressAsApplicant && _isBlank(data.parentGuardianAddress)) {
       issues.add(
         const ApplicationSubmissionIssue(
           code: 'family.parent_address.required',
           section: ApplicationSubmissionSection.family,
           field: 'parentGuardianAddress',
           message: 'Parent or guardian address is required.',
-          repairAction: 'Enter the parent or guardian address or mark it as the same as the applicant.',
+          repairAction:
+              'Enter the parent or guardian address or mark it as the same as the applicant.',
         ),
       );
     }
 
     final hasNamedFather =
         data.fatherPresent &&
-        _hasText(data.fatherFirstName) && _hasText(data.fatherLastName);
+        _hasText(data.fatherFirstName) &&
+        _hasText(data.fatherLastName);
     final hasNamedMother =
         data.motherPresent &&
-        _hasText(data.motherFirstName) && _hasText(data.motherLastName);
+        _hasText(data.motherFirstName) &&
+        _hasText(data.motherLastName);
     final hasNamedGuardian =
         _hasText(data.guardianFirstName) && _hasText(data.guardianLastName);
 
@@ -397,8 +402,10 @@ class ApplicationSubmissionValidator {
           code: 'family.primary_carer.required',
           section: ApplicationSubmissionSection.family,
           field: 'familyPrimaryCarer',
-          message: 'Enter the complete name of at least one parent or guardian.',
-          repairAction: 'Enter both the first and last name of at least one parent or guardian.',
+          message:
+              'Enter the complete name of at least one parent or guardian.',
+          repairAction:
+              'Enter both the first and last name of at least one parent or guardian.',
         ),
       );
     }
@@ -425,22 +432,40 @@ class ApplicationSubmissionValidator {
             code: 'family.residency.required',
             section: ApplicationSubmissionSection.family,
             field: 'parentMarilaoResidencyDuration',
-            message: 'Residency duration is required when parents are native of Marilao.',
-            repairAction: 'Enter how long the parent or parents have lived in Marilao.',
+            message:
+                'Residency duration is required when parents are native of Marilao.',
+            repairAction:
+                'Enter how long the parent or parents have lived in Marilao.',
           ),
         );
       }
-    } else if (parentNativeStatus == 'No' &&
-        _isBlank(data.parentPreviousTownProvince)) {
-      issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'family.origin.required',
-          section: ApplicationSubmissionSection.family,
-          field: 'parentPreviousTownProvince',
-          message: 'Previous town or province is required when parents are not native of Marilao.',
-          repairAction: 'Enter the town or province the parent or parents came from.',
-        ),
-      );
+    } else if (parentNativeStatus == 'No') {
+      if (_isBlank(data.parentPreviousTownMunicipality)) {
+        issues.add(
+          const ApplicationSubmissionIssue(
+            code: 'family.origin_town.required',
+            section: ApplicationSubmissionSection.family,
+            field: 'parentPreviousTownMunicipality',
+            message:
+                'Town or municipality is required when parents are not native of Marilao.',
+            repairAction:
+                'Enter the town or municipality the parent or parents came from.',
+          ),
+        );
+      }
+      if (_isBlank(data.parentPreviousProvince)) {
+        issues.add(
+          const ApplicationSubmissionIssue(
+            code: 'family.origin_province.required',
+            section: ApplicationSubmissionSection.family,
+            field: 'parentPreviousProvince',
+            message:
+                'Province is required when parents are not native of Marilao.',
+            repairAction:
+                'Select the province the parent or parents came from.',
+          ),
+        );
+      }
     }
 
     return issues;
@@ -451,10 +476,7 @@ class ApplicationSubmissionValidator {
   ) {
     final issues = <ApplicationSubmissionIssue>[];
 
-    void requireText({
-      required String field,
-      required String label,
-    }) {
+    void requireText({required String field, required String label}) {
       if (_isBlank(_valueForField(data, field))) {
         issues.add(
           ApplicationSubmissionIssue(
@@ -501,7 +523,10 @@ class ApplicationSubmissionValidator {
       );
     }
 
-    if (data.financialSupport.trim() == 'Other' &&
+    if (data.financialSupport
+            .split(',')
+            .map((v) => v.trim())
+            .contains('Other') &&
         _isBlank(data.scholarshipOthersSpecify)) {
       issues.add(
         const ApplicationSubmissionIssue(
@@ -514,8 +539,46 @@ class ApplicationSubmissionValidator {
       );
     }
 
-    if (data.disciplinaryAction &&
-        _isBlank(data.disciplinaryExplanation)) {
+    if (!data.scholarshipHistoryAnswered) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.scholarship_history.answer.required',
+          section: ApplicationSubmissionSection.academic,
+          field: 'scholarshipHistory',
+          message: 'Answer the scholarship history question.',
+          repairAction: 'Select Yes or No before continuing.',
+        ),
+      );
+    } else if (data.scholarshipHistory &&
+        !(data.scholarshipElementary ||
+            data.scholarshipHighSchool ||
+            data.scholarshipCollege ||
+            data.scholarshipOthers)) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.scholarship_history.level.required',
+          section: ApplicationSubmissionSection.academic,
+          field: 'scholarshipHistory',
+          message: 'Select at least one scholarship history level.',
+          repairAction:
+              'Choose Elementary, Junior High School, College, or Others.',
+        ),
+      );
+    }
+
+    if (!data.disciplinaryActionAnswered) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.disciplinary.answer.required',
+          section: ApplicationSubmissionSection.academic,
+          field: 'disciplinaryAction',
+          message: 'Answer the disciplinary action question.',
+          repairAction: 'Select Yes or No before continuing.',
+        ),
+      );
+    }
+
+    if (data.disciplinaryAction && _isBlank(data.disciplinaryExplanation)) {
       issues.add(
         const ApplicationSubmissionIssue(
           code: 'academic.disciplinary_explanation.required',

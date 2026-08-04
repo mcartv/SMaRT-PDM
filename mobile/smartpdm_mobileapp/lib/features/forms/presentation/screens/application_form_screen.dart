@@ -155,10 +155,9 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                 Text(
                   'Personal Information',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
                     fontWeight: FontWeight.w900,
-                    color: AppColors.darkBrown
-),
+                    color: AppColors.darkBrown,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -347,17 +346,17 @@ class _HeaderCard extends StatelessWidget {
           Text(
             'Scholarship Application',
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-
               fontWeight: FontWeight.w900,
-              color: AppColors.darkBrown
-),
+              color: AppColors.darkBrown,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             'Complete your details carefully. If you leave, your progress is treated as a draft.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
- color: Colors.black54, height: 1.4
-),
+              color: Colors.black54,
+              height: 1.4,
+            ),
           ),
         ],
       ),

@@ -114,19 +114,17 @@ class _FaqsScreenState extends State<FaqsScreen> {
                   Text(
                     'Scholarship Help Center',
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-
                       fontWeight: FontWeight.w900,
-                      color: titleColor
-),
+                      color: titleColor,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Browse the most common questions from applicants and scholars. Pull down to refresh any time.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
                       height: 1.45,
-                      color: subtitleColor
-),
+                      color: subtitleColor,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -162,10 +160,9 @@ class _FaqsScreenState extends State<FaqsScreen> {
                         ? '${_faqs.length} questions available'
                         : '${filteredFaqs.length} matching questions',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                       fontWeight: FontWeight.w600,
-                      color: subtitleColor
-),
+                      color: subtitleColor,
+                    ),
                   ),
                 ],
               ),
@@ -236,11 +233,10 @@ class _FaqCard extends StatelessWidget {
           title: Text(
             item.question,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
               fontWeight: FontWeight.w800,
               color: titleColor,
-              height: 1.3
-),
+              height: 1.3,
+            ),
           ),
           children: [
             Align(
@@ -248,8 +244,9 @@ class _FaqCard extends StatelessWidget {
               child: Text(
                 item.answer,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
- height: 1.55, color: bodyColor
-),
+                  height: 1.55,
+                  color: bodyColor,
+                ),
               ),
             ),
           ],
@@ -337,10 +334,7 @@ class _FaqsErrorState extends StatelessWidget {
               const SizedBox(height: 8),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: onRetry,
-                child: Text('Try again'),
-              ),
+              ElevatedButton(onPressed: onRetry, child: Text('Try again')),
             ],
           ),
         ),

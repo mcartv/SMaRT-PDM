@@ -238,7 +238,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw Exception('Enable location services before taking the attendance photo.');
+      throw Exception(
+        'Enable location services before taking the attendance photo.',
+      );
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
@@ -267,7 +269,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
     final originalBytes = await pickedFile.readAsBytes();
     final decoded = img.decodeImage(originalBytes);
-    if (decoded == null) throw Exception('The captured image could not be processed.');
+    if (decoded == null)
+      throw Exception('The captured image could not be processed.');
 
     final localTime = capturedAt.toLocal();
     final stampLines = <String>[
@@ -305,7 +308,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
 
     final bytes = Uint8List.fromList(img.encodeJpg(decoded, quality: 88));
-    final fileName = 'ro-${_captureAction.toLowerCase().replaceAll(' ', '-')}-${capturedAt.millisecondsSinceEpoch}.jpg';
+    final fileName =
+        'ro-${_captureAction.toLowerCase().replaceAll(' ', '-')}-${capturedAt.millisecondsSinceEpoch}.jpg';
 
     return RoPickedPhoto(
       file: pickedFile,
@@ -757,7 +761,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                     ? null
                                     : () {
                                         if (selectedPhoto == null) {
-                                          _showSnack('Take the required live camera photo first.');
+                                          _showSnack(
+                                            'Take the required live camera photo first.',
+                                          );
                                           return;
                                         }
                                         Navigator.pop(
@@ -923,7 +929,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   Future<void> _reportConcern(RoAssignment item) async {
     final concern = await _showNoteSheet(
       title: 'Report Required-Assignment Conflict',
-      hint: 'Explain the legitimate schedule, location, medical, or academic conflict. This report is sent to OSFA for review and does not automatically cancel the assignment.',
+      hint:
+          'Explain the legitimate schedule, location, medical, or academic conflict. This report is sent to OSFA for review and does not automatically cancel the assignment.',
       primaryLabel: 'Submit Concern',
       requiredInput: true,
     );
@@ -2294,4 +2301,3 @@ DateTime? _toDate(dynamic value) {
   if (value == null) return null;
   return DateTime.tryParse(value.toString());
 }
-

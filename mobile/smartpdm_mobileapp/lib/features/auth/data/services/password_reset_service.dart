@@ -30,10 +30,7 @@ class PasswordResetService {
   }) async {
     final response = await _apiClient.postJson(
       '/api/auth/verify-reset-otp',
-      body: {
-        'studentId': normalizeStudentId(studentId),
-        'otp': otp.trim(),
-      },
+      body: {'studentId': normalizeStudentId(studentId), 'otp': otp.trim()},
     );
 
     return response['message']?.toString() ?? 'Verification successful.';

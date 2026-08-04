@@ -40,10 +40,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     AppNavigator.pushDetail(
       context,
       AppRoutes.chatThread,
-      arguments: {
-        'roomId': roomId,
-        'title': roomName,
-      },
+      arguments: {'roomId': roomId, 'title': roomName},
     );
   }
 
@@ -93,17 +90,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
               Text(
                 'OSFA Support',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: titleColor,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: titleColor,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Use this private conversation for questions, document concerns, and application follow-ups.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor,
-                      height: 1.45,
-                    ),
+                  color: mutedColor,
+                  height: 1.45,
+                ),
               ),
               const SizedBox(height: 12),
               _ConversationTile(
@@ -122,9 +119,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     child: Text(
                       'Scholarship Group Chats',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: titleColor,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: titleColor,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                   if (provider.isLoading)
@@ -138,9 +135,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
               const SizedBox(height: 8),
               Text(
                 'Groups assigned by OSFA will appear here.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: mutedColor),
               ),
               const SizedBox(height: 12),
               if (provider.rooms.isEmpty)
@@ -160,10 +157,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           ? '${room.unreadCount} unread message${room.unreadCount == 1 ? '' : 's'}'
                           : 'Open group conversation',
                       unreadCount: room.unreadCount,
-                      onTap: () => _openGroupThread(
-                        room.roomId,
-                        room.roomName,
-                      ),
+                      onTap: () => _openGroupThread(room.roomId, room.roomName),
                     ),
                   ),
                 ),
@@ -176,10 +170,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 }
 
 class _MessagesHeader extends StatelessWidget {
-  const _MessagesHeader({
-    required this.isConnected,
-    required this.totalUnread,
-  });
+  const _MessagesHeader({required this.isConnected, required this.totalUnread});
 
   final bool isConnected;
   final int totalUnread;
@@ -231,18 +222,18 @@ class _MessagesHeader extends StatelessWidget {
                 Text(
                   'Your Conversations',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   totalUnread > 0
                       ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
                       : 'You are all caught up.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white70,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -252,9 +243,7 @@ class _MessagesHeader extends StatelessWidget {
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: isDark ? 0.25 : 0.18),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: statusColor.withValues(alpha: 0.45),
-              ),
+              border: Border.all(color: statusColor.withValues(alpha: 0.45)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -271,9 +260,9 @@ class _MessagesHeader extends StatelessWidget {
                 Text(
                   isConnected ? 'Live' : 'Syncing',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ],
             ),
@@ -340,9 +329,9 @@ class _ConversationTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: isDark ? Colors.white : AppColors.darkBrown,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: isDark ? Colors.white : AppColors.darkBrown,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -350,11 +339,11 @@ class _ConversationTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? Colors.white60
-                                : AppColors.brown.withValues(alpha: 0.64),
-                            height: 1.3,
-                          ),
+                        color: isDark
+                            ? Colors.white60
+                            : AppColors.brown.withValues(alpha: 0.64),
+                        height: 1.3,
+                      ),
                     ),
                   ],
                 ),
@@ -362,8 +351,14 @@ class _ConversationTile extends StatelessWidget {
               const SizedBox(width: 10),
               if (unreadCount > 0)
                 Container(
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE53935),
                     borderRadius: BorderRadius.circular(999),
@@ -372,9 +367,9 @@ class _ConversationTile extends StatelessWidget {
                     unreadCount > 99 ? '99+' : '$unreadCount',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 )
               else
@@ -432,12 +427,12 @@ class _EmptyGroupsCard extends StatelessWidget {
             isLoading
                 ? 'Loading group chats...'
                 : errorMessage != null
-                    ? 'Unable to load group chats'
-                    : 'No group chats yet',
+                ? 'Unable to load group chats'
+                : 'No group chats yet',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
@@ -445,11 +440,11 @@ class _EmptyGroupsCard extends StatelessWidget {
                 'Once OSFA adds you to a scholarship group, it will appear here.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.64),
-                  height: 1.4,
-                ),
+              color: isDark
+                  ? Colors.white60
+                  : AppColors.brown.withValues(alpha: 0.64),
+              height: 1.4,
+            ),
           ),
           if (errorMessage != null) ...[
             const SizedBox(height: 12),

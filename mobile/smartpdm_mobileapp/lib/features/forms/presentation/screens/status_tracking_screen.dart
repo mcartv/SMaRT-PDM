@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -106,20 +104,16 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
 
     try {
       final download = await _applicationService.downloadMyEndorsementSlip();
-      final directory = await getApplicationDocumentsDirectory();
-      final safeFileName = download.fileName
-          .replaceAll(RegExp(r'[^a-zA-Z0-9._-]+'), '_')
-          .replaceAll(RegExp(r'_+'), '_');
-      final file = File('${directory.path}/$safeFileName');
-
-      await file.writeAsBytes(download.bytes, flush: true);
-
+      final message = await saveAndOpenDownloadedFile(
+        bytes: download.bytes,
+        fileName: download.fileName,
+        contentType: download.contentType,
+      );
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Endorsement slip saved as $safeFileName.')),
-      );
-      await OpenFilex.open(file.path);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
 
@@ -623,9 +617,9 @@ class _StatusSummaryView extends StatelessWidget {
               children: [
                 Text(
                   'Quick Actions',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -1083,10 +1077,7 @@ class _EndorsementSlipCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                _StatusPill(
-                  label: endorsement.statusLabel,
-                  color: statusColor,
-                ),
+                _StatusPill(label: endorsement.statusLabel, color: statusColor),
               ],
             ),
             const SizedBox(height: 14),
@@ -1095,10 +1086,7 @@ class _EndorsementSlipCard extends StatelessWidget {
               value: slip.slipCode ?? 'Will be assigned once available',
             ),
             if (slip.fileName?.trim().isNotEmpty == true)
-              _StatusDetailRow(
-                label: 'PDF File',
-                value: slip.fileName!,
-              ),
+              _StatusDetailRow(label: 'PDF File', value: slip.fileName!),
             _StatusDetailRow(
               label: 'Current Office',
               value: endorsement.currentOffice ?? 'No active office',
@@ -1185,8 +1173,8 @@ class _EndorsementSlipCard extends StatelessWidget {
                   isDownloadingSlip
                       ? 'Downloading Endorsement Slip...'
                       : slip.available
-                          ? 'Download My Endorsement Slip'
-                          : 'PDF Available After Completion',
+                      ? 'Download My Endorsement Slip'
+                      : 'PDF Available After Completion',
                 ),
               ),
             ),
@@ -1292,9 +1280,9 @@ class _PriorityActionCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                height: 1.4,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.4),
             ),
             const SizedBox(height: 14),
             ElevatedButton.icon(
@@ -1351,9 +1339,9 @@ class _MiniTag extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }

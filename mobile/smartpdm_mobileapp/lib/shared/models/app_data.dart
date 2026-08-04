@@ -75,6 +75,8 @@ class ApplicationData {
   String parentNativeStatus = 'Yes, father only';
   String parentMarilaoResidencyDuration = '';
   String parentPreviousTownProvince = '';
+  String parentPreviousTownMunicipality = '';
+  String parentPreviousProvince = '';
 
   // Academic Data
   String collegeSchool = '';
@@ -107,7 +109,9 @@ class ApplicationData {
   String studentNumber = '';
   String gwa = '';
 
-  String financialSupport = 'Parents';
+  String financialSupport = '';
+  bool scholarshipHistoryAnswered = false;
+  bool disciplinaryActionAnswered = false;
   bool scholarshipHistory = false;
   bool scholarshipElementary = false;
   bool scholarshipHighSchool = false;
@@ -138,6 +142,9 @@ class ApplicationData {
     }
     if (trimmed.startsWith('63') && trimmed.length == 12) {
       return '0${trimmed.substring(2)}';
+    }
+    if (RegExp(r'^9\d{9}$').hasMatch(trimmed)) {
+      return '0$trimmed';
     }
     return trimmed;
   }
@@ -531,6 +538,32 @@ class ApplicationData {
         'parentPreviousTownProvince',
       ]),
     );
+    _setIfPresent(
+      (value) => parentPreviousTownMunicipality = value,
+      _firstSavedString(family, [
+        'parent_previous_town_municipality',
+        'parentPreviousTownMunicipality',
+      ]),
+    );
+    _setIfPresent(
+      (value) => parentPreviousProvince = value,
+      _firstSavedString(family, [
+        'parent_previous_province',
+        'parentPreviousProvince',
+      ]),
+    );
+    if (parentPreviousTownMunicipality.isEmpty &&
+        parentPreviousProvince.isEmpty &&
+        parentPreviousTownProvince.contains(',')) {
+      final parts = parentPreviousTownProvince
+          .split(',')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (parts.isNotEmpty) parentPreviousTownMunicipality = parts.first;
+      if (parts.length > 1)
+        parentPreviousProvince = parts.sublist(1).join(', ');
+    }
 
     _setIfPresent(
       (value) => collegeSchool = value,
@@ -632,17 +665,28 @@ class ApplicationData {
     );
     _setIfPresent((value) => gwa = value, _savedString(academic['gwa']));
 
-    _setIfPresent(
-      (value) => financialSupport = value,
-      _firstSavedString(support, [
-        'financial_support',
-        'financial_support_type',
-      ]),
-    );
-    _setBoolIfPresent(
-      (value) => scholarshipHistory = value,
-      support['scholarship_history'] ?? support['has_prior_scholarship'],
-    );
+    final savedSupportChoices = support['financial_support_choices'];
+    if (savedSupportChoices is List) {
+      final choices = savedSupportChoices
+          .map((value) => _savedString(value))
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (choices.isNotEmpty) financialSupport = choices.join(', ');
+    } else {
+      _setIfPresent(
+        (value) => financialSupport = value,
+        _firstSavedString(support, [
+          'financial_support',
+          'financial_support_type',
+        ]),
+      );
+    }
+    final scholarshipAnswer =
+        support['scholarship_history'] ?? support['has_prior_scholarship'];
+    _setBoolIfPresent((value) {
+      scholarshipHistory = value;
+      scholarshipHistoryAnswered = true;
+    }, scholarshipAnswer);
     _setBoolIfPresent(
       (value) => scholarshipElementary = value,
       support['scholarship_elementary'],
@@ -675,7 +719,10 @@ class ApplicationData {
     );
 
     _setBoolIfPresent(
-      (value) => disciplinaryAction = value,
+      (value) {
+        disciplinaryAction = value;
+        disciplinaryActionAnswered = true;
+      },
       discipline['disciplinary_action'] ??
           discipline['has_disciplinary_record'],
     );
@@ -821,6 +868,9 @@ class ApplicationData {
           'first_name': _title(siblingFirstName),
           'middle_name': _title(siblingMiddleName),
           'mobile': normalizeMobileNumber(siblingMobile),
+          'educational_attainment': siblingEducationalAttainment.trim(),
+          'occupation': _title(siblingOccupation),
+          'company_name_and_address': _title(siblingCompanyNameAndAddress),
         },
         'guardian': {
           'last_name': _title(guardianLastName),
@@ -835,7 +885,16 @@ class ApplicationData {
         'parent_marilao_residency_duration': _title(
           parentMarilaoResidencyDuration,
         ),
-        'parent_previous_town_province': _title(parentPreviousTownProvince),
+        'parent_previous_town_municipality': _title(
+          parentPreviousTownMunicipality,
+        ),
+        'parent_previous_province': _title(parentPreviousProvince),
+        'parent_previous_town_province': _title(
+          [
+            parentPreviousTownMunicipality,
+            parentPreviousProvince,
+          ].where((value) => value.trim().isNotEmpty).join(', '),
+        ),
       },
       'academic': {
         'college_school': _title(collegeSchool),
@@ -866,6 +925,12 @@ class ApplicationData {
       },
       'support': {
         'financial_support': financialSupport.trim(),
+        'financial_support_choices': financialSupport
+            .split(',')
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toList(),
+        'scholarship_history_answered': scholarshipHistoryAnswered,
         'scholarship_history': scholarshipHistory,
         'scholarship_elementary': scholarshipElementary,
         'scholarship_high_school': scholarshipHighSchool,
@@ -875,6 +940,7 @@ class ApplicationData {
         'scholarship_details': _title(scholarshipDetails),
       },
       'discipline': {
+        'disciplinary_action_answered': disciplinaryActionAnswered,
         'disciplinary_action': disciplinaryAction,
         'disciplinary_explanation': _title(disciplinaryExplanation),
       },

@@ -72,7 +72,7 @@ class _StepAcademicState extends State<StepAcademic> {
   ];
   static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
 
-  String selectedFinancialSupport = 'Parents';
+  final Set<String> selectedFinancialSupports = <String>{};
   String? selectedCourse;
   String? selectedYearLevel;
   late final List<String> sectionOptions;
@@ -206,8 +206,7 @@ class _StepAcademicState extends State<StepAcademic> {
 
     selectedCourse = normalizedCourse.isNotEmpty ? normalizedCourse : null;
 
-    if (selectedCourse != null &&
-        widget.data.currentCourse != selectedCourse) {
+    if (selectedCourse != null && widget.data.currentCourse != selectedCourse) {
       widget.data.currentCourse = selectedCourse!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.onChanged();
@@ -225,9 +224,12 @@ class _StepAcademicState extends State<StepAcademic> {
     selectedSection = sectionOptions.contains(normalizedSection)
         ? normalizedSection
         : null;
-    selectedFinancialSupport = widget.data.financialSupport.isNotEmpty
-        ? widget.data.financialSupport
-        : supportOptions.first;
+    selectedFinancialSupports.addAll(
+      widget.data.financialSupport
+          .split(',')
+          .map((value) => value.trim())
+          .where(supportOptions.contains),
+    );
     scholarshipHistory = widget.data.scholarshipHistory;
     scholarshipElementary = widget.data.scholarshipElementary;
     scholarshipHighSchool = widget.data.scholarshipHighSchool;
@@ -418,7 +420,8 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   String? _otherSupportError() {
-    if (!widget.showErrors || selectedFinancialSupport != 'Other') return null;
+    if (!widget.showErrors || !selectedFinancialSupports.contains('Other'))
+      return null;
     return scholarshipOthersSpecifyController.text.trim().isEmpty
         ? 'Please specify the other financial support.'
         : null;
@@ -505,13 +508,35 @@ class _StepAcademicState extends State<StepAcademic> {
                 title == 'College'
                     ? 'Year Graduated (if completed)'
                     : 'Year Graduated',
-                TextFormField(
-                  controller: year,
-                  keyboardType: TextInputType.number,
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: year.text.trim().isEmpty
+                      ? null
+                      : year.text.trim(),
                   decoration: _dec(
-                    title == 'College' ? 'Optional' : 'YYYY',
+                    title == 'College' ? 'Optional' : 'Select year',
                     suffixIcon: intakeCompletionIcon(year.text),
                   ),
+                  items:
+                      <String>{
+                            if (year.text.trim().isNotEmpty) year.text.trim(),
+                            ...List<String>.generate(
+                              DateTime.now().year - 1949,
+                              (index) =>
+                                  (DateTime.now().year - index).toString(),
+                            ),
+                          }
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) {
+                    year.text = value ?? '';
+                    widget.onChanged();
+                  },
                 ),
               ),
             ],
@@ -523,41 +548,40 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   Widget _supportChoice(String option) {
-    final selected = selectedFinancialSupport == option;
-    return InkWell(
-      onTap: () {
+    final selected = selectedFinancialSupports.contains(option);
+    return CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Text(
+        option,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: IntakePalette.text,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+      value: selected,
+      onChanged: (value) {
         setState(() {
-          selectedFinancialSupport = option;
-          widget.data.financialSupport = option;
-          if (option != 'Other') {
+          if (value == true) {
+            selectedFinancialSupports.add(option);
+          } else {
+            selectedFinancialSupports.remove(option);
+          }
+          widget.data.financialSupport = selectedFinancialSupports.join(', ');
+          if (!selectedFinancialSupports.contains('Other')) {
             scholarshipOthersSpecifyController.clear();
             widget.data.scholarshipOthersSpecify = '';
           }
         });
         widget.onChanged();
       },
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Checkbox(value: selected, onChanged: (_) {}),
-            Text(
-              option,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: IntakePalette.text,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
   Widget _binaryQuestion({
     required String title,
     required bool value,
+    required bool answered,
     required ValueChanged<bool> onChanged,
   }) {
     return Column(
@@ -576,8 +600,11 @@ class _StepAcademicState extends State<StepAcademic> {
             ButtonSegment<bool>(value: true, label: Text('Yes')),
             ButtonSegment<bool>(value: false, label: Text('No')),
           ],
-          selected: {value},
-          onSelectionChanged: (selection) => onChanged(selection.first),
+          emptySelectionAllowed: true,
+          selected: answered ? {value} : <bool>{},
+          onSelectionChanged: (selection) {
+            if (selection.isNotEmpty) onChanged(selection.first);
+          },
         ),
       ],
     );
@@ -614,7 +641,7 @@ class _StepAcademicState extends State<StepAcademic> {
 
   @override
   Widget build(BuildContext context) {
-    final isOtherSupport = selectedFinancialSupport == 'Other';
+    final isOtherSupport = selectedFinancialSupports.contains('Other');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -632,7 +659,7 @@ class _StepAcademicState extends State<StepAcademic> {
           year: collegeYearController,
         ),
         _educationCard(
-          title: 'High School',
+          title: 'Junior High School',
           school: highSchoolSchoolController,
           address: highSchoolAddressController,
           honors: highSchoolHonorsController,
@@ -798,10 +825,12 @@ class _StepAcademicState extends State<StepAcademic> {
               _binaryQuestion(
                 title: 'Have you ever been a scholar?',
                 value: scholarshipHistory,
+                answered: widget.data.scholarshipHistoryAnswered,
                 onChanged: (value) {
                   setState(() {
                     scholarshipHistory = value;
                     widget.data.scholarshipHistory = value;
+                    widget.data.scholarshipHistoryAnswered = true;
                     if (!value) {
                       scholarshipElementary = false;
                       scholarshipHighSchool = false;
@@ -830,7 +859,7 @@ class _StepAcademicState extends State<StepAcademic> {
                 ),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('High School'),
+                  title: const Text('Junior High School'),
                   value: scholarshipHighSchool,
                   onChanged: (value) {
                     setState(() {
@@ -918,10 +947,12 @@ class _StepAcademicState extends State<StepAcademic> {
                 title:
                     'Have you ever been subject to disciplinary action from any school or institution attended?',
                 value: disciplinaryAction,
+                answered: widget.data.disciplinaryActionAnswered,
                 onChanged: (value) {
                   setState(() {
                     disciplinaryAction = value;
                     widget.data.disciplinaryAction = value;
+                    widget.data.disciplinaryActionAnswered = true;
                     if (!value) {
                       disciplinaryExplanationController.clear();
                       widget.data.disciplinaryExplanation = '';

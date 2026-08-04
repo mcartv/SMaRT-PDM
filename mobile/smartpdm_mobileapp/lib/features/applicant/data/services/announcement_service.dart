@@ -21,8 +21,7 @@ class MobileAnnouncement {
       title: json['title']?.toString() ?? 'Announcement',
       content: json['content']?.toString() ?? '',
       audienceKey: json['audienceKey']?.toString() ?? 'all',
-      date:
-          DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
+      date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }
@@ -40,9 +39,8 @@ class AnnouncementService {
     return items
         .whereType<Map>()
         .map(
-          (item) => MobileAnnouncement.fromJson(
-            Map<String, dynamic>.from(item),
-          ),
+          (item) =>
+              MobileAnnouncement.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
   }

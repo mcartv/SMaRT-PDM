@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
@@ -80,7 +78,8 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     });
 
     try {
-      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
       if (!mounted) return;
       setState(() => _summary = summary);
     } catch (error) {
@@ -99,19 +98,16 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
 
     try {
       final download = await _applicationService.downloadMyEndorsementSlip();
-      final directory = await getApplicationDocumentsDirectory();
-      final safeFileName = download.fileName
-          .replaceAll(RegExp(r'[^a-zA-Z0-9._-]+'), '_')
-          .replaceAll(RegExp(r'_+'), '_');
-      final file = File('${directory.path}/$safeFileName');
-
-      await file.writeAsBytes(download.bytes, flush: true);
+      final message = await saveAndOpenDownloadedFile(
+        bytes: download.bytes,
+        fileName: download.fileName,
+        contentType: download.contentType,
+      );
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Endorsement slip saved as $safeFileName.')),
-      );
-      await OpenFilex.open(file.path);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,10 +159,8 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
                 message:
                     'Submit a scholarship application first before endorsement tracking becomes available.',
                 primaryActionLabel: 'View Scholarship Openings',
-                onPrimaryAction: () => Navigator.pushNamed(
-                  context,
-                  AppRoutes.scholarshipOpenings,
-                ),
+                onPrimaryAction: () =>
+                    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
               )
             else
               _EndorsementView(
@@ -351,9 +345,9 @@ class _EndorsementView extends StatelessWidget {
                       child: Text(
                         friendlyStatus,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: statusColor,
-                            ),
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                        ),
                       ),
                     ),
                   ],
@@ -361,9 +355,9 @@ class _EndorsementView extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   _nextActionMessage(workflow, endorsement),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        height: 1.45,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
                 const SizedBox(height: 14),
                 Wrap(
@@ -397,7 +391,9 @@ class _EndorsementView extends StatelessWidget {
                     Expanded(
                       child: _OverviewMiniItem(
                         label: 'Current Step',
-                        value: _friendlyCurrentOffice(endorsement.currentOffice),
+                        value: _friendlyCurrentOffice(
+                          endorsement.currentOffice,
+                        ),
                         icon: Icons.location_on_outlined,
                         color: statusColor,
                       ),
@@ -424,9 +420,9 @@ class _EndorsementView extends StatelessWidget {
                   child: Text(
                     'Your endorsement moves in this order: SDO, Guidance, then Program Director.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
                   ),
                 ),
               ],
@@ -518,7 +514,10 @@ class _EndorsementView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _DetailRow(label: 'Slip Code', value: slip.slipCode ?? 'Pending'),
+                _DetailRow(
+                  label: 'Slip Code',
+                  value: slip.slipCode ?? 'Pending',
+                ),
                 _DetailRow(
                   label: 'Current Step',
                   value: _friendlyStatusLabel(
@@ -531,15 +530,17 @@ class _EndorsementView extends StatelessWidget {
                 ),
                 _DetailRow(
                   label: 'Completed',
-                  value: _formatDate(endorsement.completedAt ?? slip.completedAt),
+                  value: _formatDate(
+                    endorsement.completedAt ?? slip.completedAt,
+                  ),
                 ),
                 if (endorsement.remarks?.trim().isNotEmpty == true) ...[
                   const SizedBox(height: 10),
                   Text(
                     endorsement.remarks!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          height: 1.4,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(height: 1.4),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -563,9 +564,9 @@ class _EndorsementView extends StatelessWidget {
                       Text(
                         'Endorsement Slip PDF',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF1C1917),
-                            ),
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1C1917),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -573,9 +574,9 @@ class _EndorsementView extends StatelessWidget {
                             ? 'Your printable endorsement slip is ready. Download it here.'
                             : 'Your PDF copy becomes available after the endorsement slip is completed.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              height: 1.35,
-                              color: const Color(0xFF57534E),
-                            ),
+                          height: 1.35,
+                          color: const Color(0xFF57534E),
+                        ),
                       ),
                     ],
                   ),
@@ -609,8 +610,8 @@ class _EndorsementView extends StatelessWidget {
                       isDownloadingSlip
                           ? 'Downloading Endorsement Slip...'
                           : slip.available
-                              ? 'Download My Endorsement Slip'
-                              : 'PDF Available After Completion',
+                          ? 'Download My Endorsement Slip'
+                          : 'PDF Available After Completion',
                     ),
                   ),
                 ),
@@ -670,8 +671,8 @@ class _EndorsementView extends StatelessWidget {
                 Text(
                   'Quick Actions',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -687,7 +688,8 @@ class _EndorsementView extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.status),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.status),
                     icon: const Icon(Icons.fact_check_rounded),
                     label: const Text('Open Full Application Status'),
                   ),
@@ -726,20 +728,23 @@ class _EndorsementStageList extends StatelessWidget {
           children: steps.map((entry) {
             final key = entry.$1;
             final label = entry.$2;
-            final isActive = currentStage == key || (key == 'completed' && overallStatus == 'completed');
+            final isActive =
+                currentStage == key ||
+                (key == 'completed' && overallStatus == 'completed');
             final isDone = key == 'pending_sdo'
                 ? currentStage != 'pending_sdo'
                 : key == 'pending_guidance'
-                    ? ['pending_pd', 'completed'].contains(currentStage) || overallStatus == 'completed'
-                    : key == 'pending_pd'
-                        ? overallStatus == 'completed'
-                        : overallStatus == 'completed';
+                ? ['pending_pd', 'completed'].contains(currentStage) ||
+                      overallStatus == 'completed'
+                : key == 'pending_pd'
+                ? overallStatus == 'completed'
+                : overallStatus == 'completed';
 
             final color = isActive
                 ? const Color(0xFF3366CC)
                 : isDone
-                    ? Colors.green
-                    : Colors.grey.shade400;
+                ? Colors.green
+                : Colors.grey.shade400;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -763,16 +768,18 @@ class _EndorsementStageList extends StatelessWidget {
                     child: Text(
                       label,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                          ),
+                        fontWeight: isActive
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
                     ),
                   ),
                   _StatusBadge(
                     label: isActive
                         ? 'You are here'
                         : isDone
-                            ? 'Done'
-                            : 'Pending',
+                        ? 'Done'
+                        : 'Pending',
                     color: color,
                   ),
                 ],
@@ -829,7 +836,8 @@ class _ReviewTile extends StatelessWidget {
     final remarks = review?.remarks;
     final offenseType = review?.offenseDetail['offense_type']?.toString();
     final incidentDate = review?.offenseDetail['incident_date']?.toString();
-    final caseReference = review?.offenseDetail['case_reference_number']?.toString();
+    final caseReference = review?.offenseDetail['case_reference_number']
+        ?.toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -847,9 +855,9 @@ class _ReviewTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               _StatusBadge(label: _decisionLabel(), color: _decisionColor()),
@@ -867,16 +875,18 @@ class _ReviewTile extends StatelessWidget {
             Text(
               'Reviewed by: $actedByName',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
           if (remarks?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 8),
             Text(
               remarks!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.35),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(height: 1.35),
             ),
           ],
           if ((offenseType?.trim().isNotEmpty ?? false) ||
@@ -920,9 +930,9 @@ class _RelatedStatusRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
         _StatusBadge(label: value, color: color),
@@ -960,18 +970,18 @@ class _OverviewMiniItem extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -1013,9 +1023,9 @@ class _EndorsementAlertCard extends StatelessWidget {
                   child: Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: color,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
                   ),
                 ),
               ],
@@ -1051,17 +1061,17 @@ class _EndorsementSectionHeading extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade700,
-                height: 1.35,
-              ),
+            color: Colors.grey.shade700,
+            height: 1.35,
+          ),
         ),
       ],
     );
@@ -1084,9 +1094,9 @@ class _EndorsementTag extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -1173,16 +1183,16 @@ class _EndorsementMessageCard extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 10),
             Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    height: 1.45,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.45),
             ),
             const SizedBox(height: 18),
             SizedBox(

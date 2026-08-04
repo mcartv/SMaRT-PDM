@@ -51,8 +51,7 @@ class SmartPdmBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final safeIndex = selectedIndex.clamp(0, _routes.length - 1);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor =
-        isDark ? const Color(0xFF2D1E12) : AppColors.white;
+    final backgroundColor = isDark ? const Color(0xFF2D1E12) : AppColors.white;
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.08)
         : AppColors.brown.withValues(alpha: 0.10);
@@ -74,8 +73,7 @@ class SmartPdmBottomNav extends StatelessWidget {
               final selected = index == safeIndex;
               final locked =
                   _scholarOnlyIndexes.contains(index) && !isVerifiedScholar;
-              final showBadge =
-                  index == 1 && unreadPayoutNotifications > 0;
+              final showBadge = index == 1 && unreadPayoutNotifications > 0;
 
               return Expanded(
                 child: _NavDestination(
@@ -94,11 +92,7 @@ class SmartPdmBottomNav extends StatelessWidget {
     );
   }
 
-  void _handleTap(
-    BuildContext context,
-    int index,
-    int safeIndex,
-  ) {
+  void _handleTap(BuildContext context, int index, int safeIndex) {
     if (index == safeIndex) return;
 
     if (_scholarOnlyIndexes.contains(index) && !isVerifiedScholar) {
@@ -136,16 +130,18 @@ class _NavDestination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inactiveColor =
-        isDark ? Colors.white70 : AppColors.brown.withValues(alpha: 0.72);
-    final disabledColor =
-        isDark ? Colors.white38 : AppColors.brown.withValues(alpha: 0.32);
+    final inactiveColor = isDark
+        ? Colors.white70
+        : AppColors.brown.withValues(alpha: 0.72);
+    final disabledColor = isDark
+        ? Colors.white38
+        : AppColors.brown.withValues(alpha: 0.32);
     final activeColor = AppColors.gold;
     final foreground = locked
         ? disabledColor
         : selected
-            ? activeColor
-            : inactiveColor;
+        ? activeColor
+        : inactiveColor;
 
     return Semantics(
       button: true,
@@ -188,10 +184,7 @@ class _NavDestination extends StatelessWidget {
                               ? const Color(0xFF24180F)
                               : AppColors.white,
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: disabledColor,
-                            width: 1,
-                          ),
+                          border: Border.all(color: disabledColor, width: 1),
                         ),
                         child: Icon(
                           Icons.lock_rounded,

@@ -82,7 +82,8 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = 'Unable to load scholarships. Check your connection and try again.';
+        _error =
+            'Unable to load scholarships. Check your connection and try again.';
       });
     } finally {
       if (mounted) {
@@ -117,11 +118,12 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return cleaned.isEmpty ? fallback : cleaned;
   }
 
-
   List<String> _scholarshipRules(ProgramOpening opening) {
     final rules = <String>[];
     if (opening.gwaThreshold != null) {
-      rules.add('Required GWA: ${opening.gwaThreshold!.toStringAsFixed(2)} or better');
+      rules.add(
+        'Required GWA: ${opening.gwaThreshold!.toStringAsFixed(2)} or better',
+      );
     }
     if (opening.targetAudience.trim().isNotEmpty) {
       rules.add('For: ${opening.targetAudience.trim()}');
@@ -130,7 +132,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         opening.renewalCycle.toLowerCase() != 'none') {
       rules.add('Renewal: ${opening.renewalCycle.trim()}');
     }
-    rules.add('${opening.availableSlots} slot${opening.availableSlots == 1 ? '' : 's'} available');
+    rules.add(
+      '${opening.availableSlots} slot${opening.availableSlots == 1 ? '' : 's'} available',
+    );
     if (opening.waitingListEnabled) {
       rules.add('Waiting list available when slots are filled');
     }
@@ -245,19 +249,17 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
             Text(
               'Uploaded',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
                 fontWeight: FontWeight.w700,
-                color: titleColor
-),
+                color: titleColor,
+              ),
             ),
             const Spacer(),
             Text(
               '$uploadedCount/$requiredCount',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
                 fontWeight: FontWeight.w700,
-                color: subtitleColor
-),
+                color: subtitleColor,
+              ),
             ),
           ],
         ),
@@ -274,9 +276,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         const SizedBox(height: 6),
         Text(
           '$uploadedCount of $requiredCount required documents uploaded.',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(color: subtitleColor),
         ),
       ],
     );
@@ -313,19 +315,17 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   Text(
                     'Available Scholarships',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
                       fontWeight: FontWeight.w800,
-                      color: titleColor
-),
+                      color: titleColor,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Select a scholarship to start your application. After applying, only your selected scholarship will remain visible until that application is completed.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
                       height: 1.45,
-                      color: subtitleColor
-),
+                      color: subtitleColor,
+                    ),
                   ),
                 ],
               ),
@@ -345,10 +345,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     Text(
                       'Saved application available',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
                         fontWeight: FontWeight.w700,
-                        color: titleColor
-),
+                        color: titleColor,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -441,11 +440,13 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                                 children: [
                                   Text(
                                     _displayScholarshipTitle(opening),
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                                      fontWeight: FontWeight.w800,
-                                      color: titleColor
-),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: titleColor,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -490,24 +491,21 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                           const SizedBox(height: 10),
                           Text(
                             opening.announcementText,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                              height: 1.4,
-                              color: subtitleColor
-),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(height: 1.4, color: subtitleColor),
                           ),
                         ],
                         if (opening.programDescription.trim().isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
                             opening.programDescription.trim(),
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              height: 1.4,
-                              color: subtitleColor,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(height: 1.4, color: subtitleColor),
                           ),
                         ],
-                        if ((opening.benefactorName ?? '').trim().isNotEmpty) ...[
+                        if ((opening.benefactorName ?? '')
+                            .trim()
+                            .isNotEmpty) ...[
                           const SizedBox(height: 12),
                           Container(
                             width: double.infinity,
@@ -526,13 +524,18 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                                     color: titleColor,
                                   ),
                                 ),
-                                if ((opening.benefactorDescription ?? '').trim().isNotEmpty) ...[
+                                if ((opening.benefactorDescription ?? '')
+                                    .trim()
+                                    .isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
                                     opening.benefactorDescription!.trim(),
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: subtitleColor, height: 1.35),
+                                    style: TextStyle(
+                                      color: subtitleColor,
+                                      height: 1.35,
+                                    ),
                                   ),
                                 ],
                               ],
@@ -544,21 +547,26 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                           spacing: 8,
                           runSpacing: 8,
                           children: _scholarshipRules(opening)
-                              .map((rule) => Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: accentColor.withOpacity(0.10),
-                                      borderRadius: BorderRadius.circular(999),
+                              .map(
+                                (rule) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: accentColor.withOpacity(0.10),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    rule,
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
                                     ),
-                                    child: Text(
-                                      rule,
-                                      style: TextStyle(
-                                        color: titleColor,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ))
+                                  ),
+                                ),
+                              )
                               .toList(),
                         ),
                         if (showUploadProgress) ...[
@@ -572,10 +580,8 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                           const SizedBox(height: 8),
                           Text(
                             'Open Manage Documents to upload, replace, or review your submitted requirements.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: subtitleColor,
-                                  height: 1.35,
-                                ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: subtitleColor, height: 1.35),
                           ),
                         ],
                         const SizedBox(height: 14),

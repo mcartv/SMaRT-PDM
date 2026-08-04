@@ -62,9 +62,9 @@ class _ModuleGuidanceCardState extends State<ModuleGuidanceCard> {
                     child: Text(
                       widget.title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: isDark ? Colors.white : AppColors.darkBrown,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: isDark ? Colors.white : AppColors.darkBrown,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   Icon(
@@ -90,9 +90,9 @@ class _ModuleGuidanceCardState extends State<ModuleGuidanceCard> {
                 child: Text(
                   widget.message,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark ? Colors.white70 : AppColors.brown,
-                        height: 1.5,
-                      ),
+                    color: isDark ? Colors.white70 : AppColors.brown,
+                    height: 1.5,
+                  ),
                 ),
               ),
             ),

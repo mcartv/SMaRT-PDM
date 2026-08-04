@@ -187,9 +187,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         'No announcements are available right now.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey,
-                        ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                       ),
                     ),
                   )
@@ -222,11 +222,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               children: [
                                 Text(
                                   announcement.title,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
@@ -249,7 +246,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                             .labelMedium
                                             ?.copyWith(
                                               fontWeight: FontWeight.bold,
-                                              color: _getCategoryColor(category),
+                                              color: _getCategoryColor(
+                                                category,
+                                              ),
                                             ),
                                       ),
                                     ),
@@ -268,9 +267,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                   announcement.content,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
+                                  style: Theme.of(context).textTheme.bodyMedium
                                       ?.copyWith(
                                         color: Colors.grey,
                                         height: 1.4,
@@ -279,9 +276,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 const SizedBox(height: 12),
                                 Text(
                                   'Tap to read more ->',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelMedium
+                                  style: Theme.of(context).textTheme.labelMedium
                                       ?.copyWith(
                                         color: primaryColor,
                                         fontWeight: FontWeight.bold,

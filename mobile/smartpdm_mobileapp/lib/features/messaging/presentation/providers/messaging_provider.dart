@@ -387,8 +387,7 @@ class MessagingProvider extends ChangeNotifier {
         _currentUserId.trim().isNotEmpty &&
         (senderId == _currentUserId || receiverId == _currentUserId);
 
-    final isViewingPrivateThread =
-        _isViewingThread && _activeGroupId == null;
+    final isViewingPrivateThread = _isViewingThread && _activeGroupId == null;
 
     final isActiveGroupMessage =
         _isViewingThread &&
@@ -651,4 +650,3 @@ class MessagingProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-

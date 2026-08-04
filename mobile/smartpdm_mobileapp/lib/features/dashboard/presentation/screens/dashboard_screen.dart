@@ -58,11 +58,11 @@ class DashboardScreen extends StatelessWidget {
                   Text(
                     'SMaRT-PDM',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: isDark ? Colors.white : AppColors.darkBrown,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
                   ),
                 ],
               ),
@@ -78,10 +78,11 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-typedef DashboardScholarAccessResolver = Future<bool> Function(
-  NotificationProvider provider,
-  SessionService sessionService,
-);
+typedef DashboardScholarAccessResolver =
+    Future<bool> Function(
+      NotificationProvider provider,
+      SessionService sessionService,
+    );
 
 /// The optional constructor fields are retained so existing widget tests and
 /// callers do not break. The redesigned dashboard uses the existing services
@@ -152,11 +153,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   Color get _background =>
       _isDark ? const Color(0xFF17110B) : const Color(0xFFF7F4EF);
 
-  Color get _surface =>
-      _isDark ? const Color(0xFF2A1D13) : AppColors.white;
+  Color get _surface => _isDark ? const Color(0xFF2A1D13) : AppColors.white;
 
-  Color get _primaryText =>
-      _isDark ? Colors.white : AppColors.darkBrown;
+  Color get _primaryText => _isDark ? Colors.white : AppColors.darkBrown;
 
   Color get _secondaryText =>
       _isDark ? Colors.white70 : AppColors.brown.withValues(alpha: 0.72);
@@ -260,9 +259,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   Future<void> _loadIdentity() async {
     final session = await widget.sessionService.getCurrentUser();
-    final fullName = [session.firstName.trim(), session.lastName.trim()]
-        .where((part) => part.isNotEmpty)
-        .join(' ');
+    final fullName = [
+      session.firstName.trim(),
+      session.lastName.trim(),
+    ].where((part) => part.isNotEmpty).join(' ');
 
     if (!mounted) return;
 
@@ -277,8 +277,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   Future<void> _loadApplicationStatus() async {
     try {
-      final summary =
-          await _applicationService.fetchMyApplicationStatusSummary();
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
 
       if (!mounted) return;
       setState(() {
@@ -321,8 +321,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       setState(() {
         _requirementsPackage = null;
         _needsBaseApplication = false;
-        _requirementsError =
-            error.toString().replaceFirst('Exception: ', '').trim();
+        _requirementsError = error
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .trim();
         _isLoadingRequirements = false;
       });
     }
@@ -474,19 +476,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                     Text(
                       'Welcome, ${_displayFirstName()}',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: _primaryText,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            height: 1.1,
-                          ),
+                        color: _primaryText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       _studentId,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _secondaryText,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: _secondaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -509,7 +511,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       _hasScholarAccess
                           ? 'Stay on track with your scholarship'
                           : 'Track your scholarship journey',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
                             color: _primaryText,
                             fontSize: 23,
                             fontWeight: FontWeight.w900,
@@ -522,11 +525,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                           ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
                           : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _secondaryText,
-                            fontSize: 13,
-                            height: 1.45,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: _secondaryText,
+                        fontSize: 13,
+                        height: 1.45,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -569,7 +572,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                     children: [
                       Text(
                         program,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               color: _primaryText,
                               fontWeight: FontWeight.w900,
                             ),
@@ -578,27 +582,24 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       Text(
                         'Your scholar account is active.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: _secondaryText,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          color: _secondaryText,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const _StateBadge(
-                  label: 'ACTIVE',
-                  color: Color(0xFF2E8B57),
-                ),
+                const _StateBadge(label: 'ACTIVE', color: Color(0xFF2E8B57)),
               ],
             ),
             const SizedBox(height: 16),
             Text(
               'Use the dashboard as your overview. Detailed payout, obligation, and renewal records remain available through the bottom navigation.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _secondaryText,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: _secondaryText,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -633,11 +634,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final workflow = summary.workflow;
     final status = _safeText(
       workflow?.stageLabel,
-      fallback: _safeText(summary.applicationStatus, fallback: 'Pending Review'),
+      fallback: _safeText(
+        summary.applicationStatus,
+        fallback: 'Pending Review',
+      ),
     );
     final title = _safeText(
       summary.programName,
-      fallback: _safeText(summary.openingTitle, fallback: 'Scholarship Application'),
+      fallback: _safeText(
+        summary.openingTitle,
+        fallback: 'Scholarship Application',
+      ),
     );
 
     return _SurfaceCard(
@@ -658,17 +665,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: _primaryText,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: _primaryText,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       status,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.gold,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: AppColors.gold,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ],
                 ),
@@ -710,16 +717,18 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.orange.withValues(alpha: _isDark ? 0.18 : 0.09),
+                color: AppColors.orange.withValues(
+                  alpha: _isDark ? 0.18 : 0.09,
+                ),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
                 workflow!.primaryBlocker!.message,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: _isDark ? const Color(0xFFFFD6A8) : AppColors.brown,
-                      height: 1.4,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: _isDark ? const Color(0xFFFFD6A8) : AppColors.brown,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -818,7 +827,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final documents = package.documents;
     final uploaded = documents.where((item) => item.isSubmitted).length;
     final total = documents.length;
-    final pending = documents.where((item) => !item.isSubmitted).take(3).toList();
+    final pending = documents
+        .where((item) => !item.isSubmitted)
+        .take(3)
+        .toList();
     final progress = total == 0 ? 0.0 : uploaded / total;
 
     return _SurfaceCard(
@@ -839,17 +851,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: _primaryText,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: _primaryText,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '$uploaded of $total documents uploaded',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: _secondaryText,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: _secondaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -868,7 +880,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             child: LinearProgressIndicator(
               value: progress.clamp(0.0, 1.0),
               minHeight: 9,
-              backgroundColor: _isDark ? Colors.white12 : const Color(0xFFEAE1D6),
+              backgroundColor: _isDark
+                  ? Colors.white12
+                  : const Color(0xFFEAE1D6),
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
             ),
           ),
@@ -901,8 +915,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           item.type.toLowerCase().contains('renewal') ||
           item.title.toLowerCase().contains('renewal'),
     );
-    final obligation = _latestMatching(provider, (item) => item.isRoNotification);
-    final payout = _latestMatching(provider, (item) => item.isPayoutNotification);
+    final obligation = _latestMatching(
+      provider,
+      (item) => item.isRoNotification,
+    );
+    final payout = _latestMatching(
+      provider,
+      (item) => item.isPayoutNotification,
+    );
 
     return _SurfaceCard(
       isDark: _isDark,
@@ -911,7 +931,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           _ResponsibilityRow(
             icon: Icons.description_rounded,
             title: 'Renewal',
-            subtitle: renewal?.previewText ??
+            subtitle:
+                renewal?.previewText ??
                 'No renewal requirement has been posted for your account.',
             isDark: _isDark,
           ),
@@ -922,7 +943,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           _ResponsibilityRow(
             icon: Icons.work_history_rounded,
             title: 'Return of Obligation',
-            subtitle: obligation?.previewText ??
+            subtitle:
+                obligation?.previewText ??
                 'No new obligation update has been posted.',
             isDark: _isDark,
           ),
@@ -1146,9 +1168,7 @@ class _DashboardIllustration extends StatelessWidget {
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF3A291D) : const Color(0xFFFFF8E5),
               borderRadius: BorderRadius.circular(25),
-              border: Border.all(
-                color: AppColors.gold.withValues(alpha: 0.45),
-              ),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
               boxShadow: isDark
                   ? const []
                   : const [
@@ -1215,22 +1235,22 @@ class _SectionHeader extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      height: 1.1,
-                    ),
+                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? Colors.white60
-                          : AppColors.brown.withValues(alpha: 0.67),
-                      height: 1.3,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: isDark
+                      ? Colors.white60
+                      : AppColors.brown.withValues(alpha: 0.67),
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -1339,19 +1359,19 @@ class _StateCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: isDark ? Colors.white : AppColors.darkBrown,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: isDark ? Colors.white : AppColors.darkBrown,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       message,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? Colors.white70
-                                : AppColors.brown.withValues(alpha: 0.72),
-                            height: 1.4,
-                          ),
+                        color: isDark
+                            ? Colors.white70
+                            : AppColors.brown.withValues(alpha: 0.72),
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -1418,10 +1438,10 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isDark ? Colors.white : AppColors.darkBrown,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-            ),
+          color: isDark ? Colors.white : AppColors.darkBrown,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -1445,10 +1465,10 @@ class _StateBadge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.3,
-            ),
+          color: color,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }
@@ -1483,9 +1503,9 @@ class _StatusMetric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: isDark ? Colors.white54 : const Color(0xFF8B7968),
-                  fontWeight: FontWeight.w700,
-                ),
+              color: isDark ? Colors.white54 : const Color(0xFF8B7968),
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 5),
           Text(
@@ -1493,10 +1513,10 @@ class _StatusMetric extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                  height: 1.15,
-                ),
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w900,
+              height: 1.15,
+            ),
           ),
         ],
       ),
@@ -1543,11 +1563,7 @@ class _AnnouncementCard extends StatelessWidget {
                   color: AppColors.gold.withValues(alpha: isDark ? 0.22 : 0.13),
                   borderRadius: BorderRadius.circular(15),
                 ),
-                child: Icon(
-                  notification.icon,
-                  color: AppColors.gold,
-                  size: 23,
-                ),
+                child: Icon(notification.icon, color: AppColors.gold, size: 23),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -1561,9 +1577,7 @@ class _AnnouncementCard extends StatelessWidget {
                             notification.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
+                            style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(
                                   color: isDark
                                       ? Colors.white
@@ -1591,19 +1605,21 @@ class _AnnouncementCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? Colors.white70
-                                : AppColors.brown.withValues(alpha: 0.70),
-                            height: 1.4,
-                          ),
+                        color: isDark
+                            ? Colors.white70
+                            : AppColors.brown.withValues(alpha: 0.70),
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       dateLabel,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: isDark ? Colors.white54 : const Color(0xFF958575),
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: isDark
+                            ? Colors.white54
+                            : const Color(0xFF958575),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -1646,19 +1662,19 @@ class _RequirementRow extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? Colors.white60
-                          : AppColors.brown.withValues(alpha: 0.67),
-                      height: 1.3,
-                    ),
+                  color: isDark
+                      ? Colors.white60
+                      : AppColors.brown.withValues(alpha: 0.67),
+                  height: 1.3,
+                ),
               ),
             ],
           ),
@@ -1695,9 +1711,9 @@ class _ResponsibilityRow extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1705,11 +1721,11 @@ class _ResponsibilityRow extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? Colors.white70
-                          : AppColors.brown.withValues(alpha: 0.70),
-                      height: 1.35,
-                    ),
+                  color: isDark
+                      ? Colors.white70
+                      : AppColors.brown.withValues(alpha: 0.70),
+                  height: 1.35,
+                ),
               ),
             ],
           ),
@@ -1741,7 +1757,9 @@ class _RecentUpdateRow extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: notification.accentColor.withValues(alpha: isDark ? 0.18 : 0.10),
+          color: notification.accentColor.withValues(
+            alpha: isDark ? 0.18 : 0.10,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
@@ -1755,18 +1773,18 @@ class _RecentUpdateRow extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: isDark ? Colors.white : AppColors.darkBrown,
-              fontWeight: FontWeight.w800,
-            ),
+          color: isDark ? Colors.white : AppColors.darkBrown,
+          fontWeight: FontWeight.w800,
+        ),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(
           dateLabel,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: isDark ? Colors.white54 : const Color(0xFF958575),
-                fontWeight: FontWeight.w700,
-              ),
+            color: isDark ? Colors.white54 : const Color(0xFF958575),
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       trailing: !notification.isRead
@@ -1830,9 +1848,9 @@ class _OpeningCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: isDark ? Colors.white : AppColors.darkBrown,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: isDark ? Colors.white : AppColors.darkBrown,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -1840,9 +1858,9 @@ class _OpeningCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppColors.gold,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: AppColors.gold,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -1850,11 +1868,11 @@ class _OpeningCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? Colors.white60
-                                : AppColors.brown.withValues(alpha: 0.66),
-                            height: 1.3,
-                          ),
+                        color: isDark
+                            ? Colors.white60
+                            : AppColors.brown.withValues(alpha: 0.66),
+                        height: 1.3,
+                      ),
                     ),
                   ],
                 ),

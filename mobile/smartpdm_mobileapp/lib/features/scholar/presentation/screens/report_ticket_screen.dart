@@ -209,7 +209,9 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final surfaceMutedColor = isDark ? const Color(0xFF2D1E12) : Colors.blue[50]!;
+    final surfaceMutedColor = isDark
+        ? const Color(0xFF2D1E12)
+        : Colors.blue[50]!;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
 
@@ -232,14 +234,17 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    Icon(Icons.support_agent, color: isDark ? accentColor : Colors.blue),
+                    Icon(
+                      Icons.support_agent,
+                      color: isDark ? accentColor : Colors.blue,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Submit concerns directly to OSFA. Ticket status and handling will follow the live support_tickets table.',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: titleColor,
-                        ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelMedium?.copyWith(color: titleColor),
                       ),
                     ),
                   ],
@@ -396,7 +401,11 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      Icon(Icons.inbox_outlined, size: 36, color: subtitleColor),
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 36,
+                        color: subtitleColor,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         'No support tickets yet.',
@@ -437,17 +446,21 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                   children: [
                                     Text(
                                       ticket.issueCategory,
-                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: titleColor,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: titleColor,
+                                          ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       ticket.ticketId,
-                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                        color: subtitleColor,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(color: subtitleColor),
                                     ),
                                   ],
                                 ),
@@ -463,10 +476,11 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                 ),
                                 child: Text(
                                   ticket.status,
-                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: statusColor,
-                                    fontWeight: FontWeight.bold
-),
+                                  style: Theme.of(context).textTheme.labelMedium
+                                      ?.copyWith(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                 ),
                               ),
                             ],

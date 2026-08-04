@@ -56,7 +56,9 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   Map<String, String>? _getArgs() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map) {
-      return args.map((key, value) => MapEntry(key.toString(), value.toString()));
+      return args.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
     }
     return null;
   }
@@ -130,10 +132,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
       Navigator.pushNamed(
         context,
         AppRoutes.resetPassword,
-        arguments: {
-          'studentId': studentId,
-          'otp': _otpValue,
-        },
+        arguments: {'studentId': studentId, 'otp': _otpValue},
       );
     } on ApiException catch (e) {
       _showMessage(e.message, isError: true);
@@ -191,9 +190,9 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
           LengthLimitingTextInputFormatter(6),
           FilteringTextInputFormatter.digitsOnly,
         ],
-        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w700),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
@@ -296,9 +295,8 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                       Text(
                         'Enter Reset Code',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.displayLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -320,15 +318,16 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                       Text(
                         'The code must be exactly 6 digits.',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(color: Colors.grey.shade600),
                       ),
                       const SizedBox(height: 24),
                       SizedBox(
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: (_isLoading || !_isOtpComplete) ? null : _verifyOtp,
+                          onPressed: (_isLoading || !_isOtpComplete)
+                              ? null
+                              : _verifyOtp,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: accentColor,
                             foregroundColor: Colors.white,
@@ -348,10 +347,11 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                                 )
                               : Text(
                                   'VERIFY',
-                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.3,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.3,
+                                      ),
                                 ),
                         ),
                       ),
@@ -363,14 +363,18 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                             style: TextStyle(color: Colors.grey.shade700),
                           ),
                           TextButton(
-                            onPressed: _resendCooldown > 0 || _isLoading ? null : _resendOtp,
+                            onPressed: _resendCooldown > 0 || _isLoading
+                                ? null
+                                : _resendOtp,
                             child: Text(
                               _resendCooldown > 0
                                   ? 'Resend in ${_resendCooldown}s'
                                   : 'Resend code',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: _resendCooldown > 0 ? Colors.grey : accentColor,
+                                color: _resendCooldown > 0
+                                    ? Colors.grey
+                                    : accentColor,
                               ),
                             ),
                           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 
 class StudentLookupScreen extends StatefulWidget {
@@ -31,17 +32,16 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   }
 
   Future<void> _checkStudent() async {
+    final validationError = StudentIdInputFormatter.validationMessage(
+      _controller.text,
+    );
+
+    if (validationError != null) {
+      setState(() => _error = validationError);
+      return;
+    }
+
     final studentId = StudentIdInputFormatter.toFullStudentId(_controller.text);
-
-    if (studentId.isEmpty) {
-      setState(() => _error = 'Enter your official Student ID.');
-      return;
-    }
-
-    if (!RegExp(r'^PDM-\d{4}-\d{6}$').hasMatch(studentId)) {
-      setState(() => _error = 'Use the format PDM-0000-000000.');
-      return;
-    }
 
     setState(() {
       _loading = true;
@@ -116,8 +116,17 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
         AppRoutes.register,
         arguments: _registrationArguments(studentId, student),
       );
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
     } catch (_) {
-      setState(() => _error = 'Unable to connect to the server.');
+      if (mounted) {
+        setState(
+          () => _error =
+              'Unable to verify the Student ID right now. Please try again.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -136,9 +145,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -151,7 +160,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final title = _isExisting ? 'Find your account' : 'Verify your student record';
+    final title = _isExisting
+        ? 'Find your account'
+        : 'Verify your student record';
     final subtitle = _isExisting
         ? 'Enter your Student ID first. We will carry it to the login screen so you only need to enter your password.'
         : 'Account registration starts with a registry check. Only verified PDM students can continue.';
@@ -305,8 +316,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                                 prefixText: 'PDM-',
                                 hintText: '0000-000000',
                                 errorText: _error,
-                                prefixIcon:
-                                    const Icon(Icons.school_rounded),
+                                prefixIcon: const Icon(Icons.school_rounded),
                                 filled: true,
                                 fillColor: const Color(0xFFFAF8F4),
                                 border: OutlineInputBorder(
@@ -399,10 +409,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
 }
 
 class _DecorativeCircle extends StatelessWidget {
-  const _DecorativeCircle({
-    required this.size,
-    required this.color,
-  });
+  const _DecorativeCircle({required this.size, required this.color});
 
   final double size;
   final Color color;
@@ -413,10 +420,7 @@ class _DecorativeCircle extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }

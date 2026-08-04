@@ -67,7 +67,8 @@ class AboutPdmScreen extends StatelessWidget {
                       children: [
                         Text(
                           'SMaRT-PDM',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -75,10 +76,8 @@ class AboutPdmScreen extends StatelessWidget {
                         const SizedBox(height: 5),
                         Text(
                           'Scholarship Monitoring and Return-of-Obligation System',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.white70,
-                                height: 1.35,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.white70, height: 1.35),
                         ),
                       ],
                     ),
@@ -162,19 +161,19 @@ class _AboutSection extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: isDark ? Colors.white : AppColors.darkBrown,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 7),
                 Text(
                   body,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? Colors.white60
-                            : AppColors.brown.withValues(alpha: 0.68),
-                        height: 1.5,
-                      ),
+                    color: isDark
+                        ? Colors.white60
+                        : AppColors.brown.withValues(alpha: 0.68),
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),
@@ -237,9 +236,9 @@ class _ProductionInformationCard extends StatelessWidget {
                 child: Text(
                   'Production Information',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: primaryText,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: primaryText,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -279,10 +278,10 @@ class _ProductionInformationCard extends StatelessWidget {
                     child: Text(
                       developer,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: secondaryText,
-                            height: 1.45,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: secondaryText,
+                        height: 1.45,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -298,18 +297,17 @@ class _ProductionInformationCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Developed for Pambayang Dalubhasaan ng Marilao — Office for Scholarship and Financial Assistance.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: secondaryText,
-                  height: 1.5,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: secondaryText, height: 1.5),
           ),
           const SizedBox(height: 8),
           Text(
             '© 2026 GALE. All rights reserved.',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: secondaryText,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: secondaryText,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -338,22 +336,21 @@ class _InformationRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: secondaryText,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.25,
-              ),
+            color: secondaryText,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.25,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: primaryText,
-                fontWeight: FontWeight.w800,
-                height: 1.35,
-              ),
+            color: primaryText,
+            fontWeight: FontWeight.w800,
+            height: 1.35,
+          ),
         ),
       ],
     );
   }
 }
-

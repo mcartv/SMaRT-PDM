@@ -66,10 +66,7 @@ class _SplashScreenState extends State<SplashScreen> {
         return null;
       }
 
-      return {
-        ...response,
-        'fullStudentId': studentId,
-      };
+      return {...response, 'fullStudentId': studentId};
     } catch (_) {
       setState(() => _error = 'Unable to connect to the server.');
       return null;
@@ -82,8 +79,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final result = await _lookupStudent();
     if (result == null || !mounted) return;
 
-    final student =
-        (result['student'] as Map?)?.cast<String, dynamic>() ?? {};
+    final student = (result['student'] as Map?)?.cast<String, dynamic>() ?? {};
     final studentId = result['fullStudentId']?.toString() ?? '';
 
     if (result['hasAccount'] != true) {
@@ -115,8 +111,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final result = await _lookupStudent();
     if (result == null || !mounted) return;
 
-    final student =
-        (result['student'] as Map?)?.cast<String, dynamic>() ?? {};
+    final student = (result['student'] as Map?)?.cast<String, dynamic>() ?? {};
     final studentId = result['fullStudentId']?.toString() ?? '';
 
     if (result['hasAccount'] == true) {
@@ -155,9 +150,9 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -183,18 +178,12 @@ class _SplashScreenState extends State<SplashScreen> {
             Positioned(
               top: -70,
               right: -80,
-              child: _Orb(
-                size: 230,
-                color: AppColors.gold.withOpacity(0.24),
-              ),
+              child: _Orb(size: 230, color: AppColors.gold.withOpacity(0.24)),
             ),
             Positioned(
               top: 145,
               left: -110,
-              child: _Orb(
-                size: 250,
-                color: AppColors.brown.withOpacity(0.07),
-              ),
+              child: _Orb(size: 250, color: AppColors.brown.withOpacity(0.07)),
             ),
             Center(
               child: SingleChildScrollView(
@@ -286,8 +275,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 prefixText: 'PDM-',
                                 hintText: '0000-000000',
                                 errorText: _error,
-                                prefixIcon:
-                                    const Icon(Icons.badge_rounded),
+                                prefixIcon: const Icon(Icons.badge_rounded),
                                 filled: true,
                                 fillColor: const Color(0xFFFAF8F4),
                                 border: OutlineInputBorder(
@@ -318,8 +306,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             SizedBox(
                               height: 52,
                               child: FilledButton(
-                                onPressed:
-                                    _isLookingUp ? null : _goToLogin,
+                                onPressed: _isLookingUp ? null : _goToLogin,
                                 style: FilledButton.styleFrom(
                                   backgroundColor: AppColors.gold,
                                   foregroundColor: AppColors.darkBrown,
@@ -348,8 +335,9 @@ class _SplashScreenState extends State<SplashScreen> {
                             SizedBox(
                               height: 52,
                               child: OutlinedButton(
-                                onPressed:
-                                    _isLookingUp ? null : _goToRegistration,
+                                onPressed: _isLookingUp
+                                    ? null
+                                    : _goToRegistration,
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.darkBrown,
                                   side: const BorderSide(
@@ -361,9 +349,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 child: const Text(
                                   'Create account',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
                               ),
                             ),
@@ -393,10 +379,7 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 class _Orb extends StatelessWidget {
-  const _Orb({
-    required this.size,
-    required this.color,
-  });
+  const _Orb({required this.size, required this.color});
 
   final double size;
   final Color color;
@@ -407,10 +390,7 @@ class _Orb extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }

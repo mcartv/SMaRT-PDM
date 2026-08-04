@@ -365,23 +365,73 @@ class ApiClient {
       try {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
-          final message = decoded['error'] ?? decoded['message'];
-          if (message is String && message.trim().isNotEmpty) {
+          final directMessage = decoded['error'] ?? decoded['message'];
+          if (directMessage is String && directMessage.trim().isNotEmpty) {
             return ApiException.fromDynamicStatus(
-              message,
+              directMessage.trim(),
               decoded['statusCode'] ?? response.statusCode,
             );
           }
+
+          final validationErrors = decoded['errors'];
+          if (validationErrors is List) {
+            final messages = validationErrors
+                .map((item) {
+                  if (item is String) return item.trim();
+                  if (item is Map) {
+                    return (item['message'] ?? item['error'])
+                            ?.toString()
+                            .trim() ??
+                        '';
+                  }
+                  return '';
+                })
+                .where((message) => message.isNotEmpty)
+                .toList(growable: false);
+
+            if (messages.isNotEmpty) {
+              return ApiException(
+                messages.join('\n'),
+                statusCode: response.statusCode,
+              );
+            }
+          }
         }
       } catch (_) {
-        // Fall through to the generic message below.
+        // Fall through to the status-aware message below.
       }
     }
 
     return ApiException(
-      'Request failed with status ${response.statusCode}.',
+      _friendlyStatusMessage(response.statusCode),
       statusCode: response.statusCode,
     );
+  }
+
+  String _friendlyStatusMessage(int statusCode) {
+    switch (statusCode) {
+      case 400:
+        return 'Some information is invalid or incomplete. Review the form and try again.';
+      case 401:
+        return 'Your session has expired. Log in again.';
+      case 403:
+        return 'You do not have permission to perform this action.';
+      case 404:
+        return 'The requested record is no longer available.';
+      case 409:
+        return 'This request conflicts with an existing record. Refresh and try again.';
+      case 413:
+        return 'The selected file is too large.';
+      case 422:
+        return 'Some required information is missing or invalid.';
+      case 429:
+        return 'Too many requests. Wait a moment before trying again.';
+      default:
+        if (statusCode >= 500) {
+          return 'The server could not complete the request. Try again shortly.';
+        }
+        return 'The request could not be completed.';
+    }
   }
 
   String _fileNameFromDisposition(String? value) {

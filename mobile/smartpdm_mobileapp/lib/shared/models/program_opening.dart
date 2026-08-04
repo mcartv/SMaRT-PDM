@@ -30,6 +30,9 @@ class ProgramOpening {
     this.waitingListCount = 0,
     this.canJoinWaitingList = false,
     this.selectionStatus = 'Unranked',
+    this.isArchived = false,
+    this.isProgramArchived = false,
+    this.isBenefactorArchived = false,
   });
 
   static const int applicationUploadRequirementCount = 4;
@@ -65,12 +68,22 @@ class ProgramOpening {
   final int waitingListCount;
   final bool canJoinWaitingList;
   final String selectionStatus;
+  final bool isArchived;
+  final bool isProgramArchived;
+  final bool isBenefactorArchived;
+
+  bool get isVisible =>
+      openingId.trim().isNotEmpty &&
+      !isArchived &&
+      !isProgramArchived &&
+      !isBenefactorArchived;
 
   factory ProgramOpening.fromJson(Map<String, dynamic> json) {
     final rawRequiredCount =
         (json['required_document_count'] as num?)?.toInt() ??
         applicationUploadRequirementCount;
-    final requiredCount = rawRequiredCount <= 0 ||
+    final requiredCount =
+        rawRequiredCount <= 0 ||
             rawRequiredCount > applicationUploadRequirementCount
         ? applicationUploadRequirementCount
         : rawRequiredCount;
@@ -110,9 +123,13 @@ class ProgramOpening {
       waitingListCount: (json['waiting_list_count'] as num?)?.toInt() ?? 0,
       canJoinWaitingList: json['can_join_waiting_list'] == true,
       selectionStatus:
-          json['existing_selection_status']?.toString().trim().isNotEmpty == true
-              ? json['existing_selection_status'].toString()
-              : json['selection_status']?.toString() ?? 'Unranked',
+          json['existing_selection_status']?.toString().trim().isNotEmpty ==
+              true
+          ? json['existing_selection_status'].toString()
+          : json['selection_status']?.toString() ?? 'Unranked',
+      isArchived: json['is_archived'] == true,
+      isProgramArchived: json['program_is_archived'] == true,
+      isBenefactorArchived: json['benefactor_is_archived'] == true,
     );
   }
 }

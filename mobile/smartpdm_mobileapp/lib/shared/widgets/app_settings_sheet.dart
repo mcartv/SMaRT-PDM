@@ -81,10 +81,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
         activeThumbColor: accentColor,
         title: Text(
           title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
         ),
         secondary: Icon(icon, color: iconColor),
       ),
@@ -115,10 +112,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
         leading: Icon(icon, color: iconColor),
         title: Text(
           title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
         ),
         trailing: Icon(Icons.chevron_right, color: trailingColor),
       ),
@@ -163,10 +157,11 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     Expanded(
                       child: Text(
                         'App Settings',
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: titleColor,
-                        ),
+                        style: Theme.of(context).textTheme.displayLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: titleColor,
+                            ),
                       ),
                     ),
                   ],

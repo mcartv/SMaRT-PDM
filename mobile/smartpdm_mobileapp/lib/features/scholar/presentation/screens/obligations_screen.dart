@@ -209,7 +209,8 @@ class ObligationCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            if (hours.isNotEmpty) Text(hours, style: TextStyle(color: subtitleColor)),
+            if (hours.isNotEmpty)
+              Text(hours, style: TextStyle(color: subtitleColor)),
             Text(deadline, style: TextStyle(color: subtitleColor)),
             const SizedBox(height: 8),
             Container(
@@ -221,9 +222,9 @@ class ObligationCard extends StatelessWidget {
               child: Text(
                 status,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: statusColor,
-                  fontWeight: FontWeight.bold
-),
+                  color: statusColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             if (progress > 0) ...[

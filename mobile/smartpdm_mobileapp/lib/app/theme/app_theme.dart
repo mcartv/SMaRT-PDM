@@ -4,16 +4,17 @@ import 'package:smartpdm_mobileapp/app/theme/app_typography.dart';
 
 class AppTheme {
   static ThemeData light() {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: primaryColor,
-      primary: primaryColor,
-      secondary: accentColor,
-      brightness: Brightness.light,
-    ).copyWith(
-      surface: Colors.white,
-      onSurface: textColor,
-      onPrimary: Colors.white,
-    );
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: primaryColor,
+          primary: primaryColor,
+          secondary: accentColor,
+          brightness: Brightness.light,
+        ).copyWith(
+          surface: Colors.white,
+          onSurface: textColor,
+          onPrimary: Colors.white,
+        );
 
     final baseTheme = ThemeData(
       useMaterial3: true,

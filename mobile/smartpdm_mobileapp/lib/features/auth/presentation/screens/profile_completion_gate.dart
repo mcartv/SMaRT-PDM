@@ -3,10 +3,7 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class ProfileCompletionGate extends StatefulWidget {
-  const ProfileCompletionGate({
-    super.key,
-    required this.child,
-  });
+  const ProfileCompletionGate({super.key, required this.child});
 
   final Widget child;
 
@@ -51,11 +48,7 @@ class _ProfileCompletionGateState extends State<ProfileCompletionGate> {
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return widget.child;

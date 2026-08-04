@@ -3,16 +3,15 @@ import 'package:flutter/services.dart';
 class StudentIdInputFormatter extends TextInputFormatter {
   const StudentIdInputFormatter();
 
+  static final RegExp _studentIdPattern = RegExp(r'^PDM-\d{4}-\d{6}$');
+
   static String digitsOnly(String value) {
-    return value
-        .replaceAll(RegExp(r'\D'), '')
-        .substring(0, value.replaceAll(RegExp(r'\D'), '').length.clamp(0, 10));
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    return digits.length > 10 ? digits.substring(0, 10) : digits;
   }
 
   static String formatVisible(String value) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-
-    final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+    final limited = digitsOnly(value);
 
     if (limited.length <= 4) {
       return limited;
@@ -22,7 +21,7 @@ class StudentIdInputFormatter extends TextInputFormatter {
   }
 
   static String toFullStudentId(String value) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
+    final digits = digitsOnly(value);
 
     if (digits.length != 10) {
       return '';
@@ -32,10 +31,29 @@ class StudentIdInputFormatter extends TextInputFormatter {
   }
 
   static String stripPdmPrefix(String value) {
-    return value
-        .toUpperCase()
-        .replaceAll('PDM-', '')
-        .replaceAll(RegExp(r'[^0-9]'), '');
+    return digitsOnly(value.toUpperCase().replaceAll('PDM-', ''));
+  }
+
+  static bool isValid(String value) {
+    return _studentIdPattern.hasMatch(toFullStudentId(value));
+  }
+
+  static String? validationMessage(String? value) {
+    final digits = digitsOnly(value ?? '');
+
+    if (digits.isEmpty) {
+      return 'Student ID is required.';
+    }
+
+    if (digits.length < 10) {
+      return 'Student ID must contain 10 digits.';
+    }
+
+    if (!_studentIdPattern.hasMatch(toFullStudentId(value ?? ''))) {
+      return 'Use the format PDM-0000-000000.';
+    }
+
+    return null;
   }
 
   @override
@@ -43,11 +61,7 @@ class StudentIdInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-
-    final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
-
-    final formatted = formatVisible(limited);
+    final formatted = formatVisible(newValue.text);
 
     return TextEditingValue(
       text: formatted,

@@ -36,9 +36,8 @@ class MessagingBubble extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'global-messaging-bubble',
               tooltip: 'Messages',
-              onPressed: () => Navigator.of(context).pushNamed(
-                AppRoutes.messaging,
-              ),
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.messaging),
               elevation: 0,
               highlightElevation: 0,
               backgroundColor: isDark ? AppColors.gold : AppColors.darkBrown,
@@ -71,10 +70,10 @@ class MessagingBubble extends StatelessWidget {
                   unreadCount > 99 ? '99+' : '$unreadCount',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
                 ),
               ),
             ),

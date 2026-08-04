@@ -131,6 +131,16 @@ class _ScholarRenewalRequirementsScreenState
     final filePath = kIsWeb ? null : pickedFile.path;
     final fileBytes = pickedFile.bytes;
     final extension = fileName.split('.').last.toLowerCase();
+    const maxFileSizeBytes = 10 * 1024 * 1024;
+    if (pickedFile.size <= 0) {
+      _showSnackBar('The selected file is empty. Choose another file.');
+      return;
+    }
+    if (pickedFile.size > maxFileSizeBytes) {
+      _showSnackBar('File is too large. Maximum size is 10 MB.');
+      return;
+    }
+
     const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png'};
 
     if (!allowedExtensions.contains(extension)) {
@@ -141,6 +151,13 @@ class _ScholarRenewalRequirementsScreenState
     if (kIsWeb && (fileBytes == null || fileBytes.isEmpty)) {
       _showSnackBar(
         'The selected file could not be read in the browser. Please try another file.',
+      );
+      return;
+    }
+
+    if (!kIsWeb && (filePath == null || filePath.trim().isEmpty)) {
+      _showSnackBar(
+        'The selected file could not be accessed. Choose the file again.',
       );
       return;
     }
@@ -305,10 +322,8 @@ class _ScholarRenewalRequirementsScreenState
       appBar: widget.showTopBar
           ? AppBar(
               title: const Text('Renewal Documents'),
-              backgroundColor:
-                  isDark ? const Color(0xFF24180F) : Colors.white,
-              foregroundColor:
-                  isDark ? Colors.white : AppColors.darkBrown,
+              backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+              foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
               elevation: 0,
             )
           : null,
@@ -348,17 +363,16 @@ class _ScholarRenewalRequirementsScreenState
               Text(
                 'Required Documents',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
                   fontWeight: FontWeight.bold,
-                  color: titleColor
-),
+                  color: titleColor,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Upload your Certificate of Registration and latest Grade Form / Transcript. Allowed files: PDF, JPG, and PNG.',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: subtitleColor),
               ),
               const SizedBox(height: 14),
               ...documents.map(
@@ -468,19 +482,17 @@ class _ScholarRenewalRequirementsScreenState
                     Text(
                       'Renewal Progress',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
                         fontWeight: FontWeight.bold,
-                        color: titleColor
-),
+                        color: titleColor,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _renewalSummary(package),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                         color: subtitleColor,
-                        height: 1.4
-),
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -489,10 +501,9 @@ class _ScholarRenewalRequirementsScreenState
               Text(
                 '${package.documents.where((doc) => doc.hasFile).length}/${package.documents.length}',
                 style: Theme.of(context).textTheme.displayLarge?.copyWith(
-
                   fontWeight: FontWeight.w900,
-                  color: accentColor
-),
+                  color: accentColor,
+                ),
               ),
             ],
           ),
@@ -583,18 +594,18 @@ class _ScholarRenewalRequirementsScreenState
                 Text(
                   document.documentType,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-fontWeight: FontWeight.bold,
-                    color: titleColor
-),
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   document.documentType == 'Certificate of Registration'
                       ? 'Official COR from the registrar for the current term.'
                       : 'Latest semester grades or transcript for renewal validation.',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: subtitleColor),
                 ),
                 if (document.hasFile || document.submittedAt != null) ...[
                   const SizedBox(height: 6),
@@ -602,30 +613,27 @@ fontWeight: FontWeight.bold,
                     Text(
                       'Submitted file available',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                         color: isDark ? Colors.white60 : Colors.grey.shade700,
-                        fontWeight: FontWeight.w600
-),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   if (document.submittedAt != null)
                     Text(
                       document.submittedAt!,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                        color: isDark ? Colors.white54 : Colors.black45
-),
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
                     ),
                   if (document.adminComment.trim().isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       document.adminComment,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                         height: 1.35,
                         color: isDark
                             ? Colors.orange.shade200
-                            : Colors.orange.shade900
-),
+                            : Colors.orange.shade900,
+                      ),
                     ),
                   ],
                 ],
@@ -697,9 +705,9 @@ fontWeight: FontWeight.bold,
             child: Text(
               _statusLabel(document),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: statusColor,
-                fontWeight: FontWeight.w700
-),
+                color: statusColor,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -731,10 +739,9 @@ class _InfoChip extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                 fontWeight: FontWeight.w600,
-                color: AppColors.darkBrown
-),
+                color: AppColors.darkBrown,
+              ),
             ),
           ),
         ],

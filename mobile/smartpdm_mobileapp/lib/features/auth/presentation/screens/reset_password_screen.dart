@@ -58,7 +58,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Map<String, String>? _getArgs() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map) {
-      return args.map((key, value) => MapEntry(key.toString(), value.toString()));
+      return args.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
     }
     return null;
   }
@@ -115,7 +117,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final otp = _getOtp();
 
     if (studentId == null || otp == null) {
-      setState(() => _error = 'Session expired. Please start the reset process again.');
+      setState(
+        () => _error = 'Session expired. Please start the reset process again.',
+      );
       return;
     }
 
@@ -138,9 +142,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
 
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -207,9 +211,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Choose a strong password that meets all requirements below.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: mutedColor,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: mutedColor),
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -229,7 +233,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 : Icons.visibility_outlined,
                           ),
                           onPressed: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
                           },
                         ),
                       ),
@@ -237,7 +243,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 12),
-                    PasswordStrengthIndicator(password: _passwordController.text),
+                    PasswordStrengthIndicator(
+                      password: _passwordController.text,
+                    ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _confirmPasswordController,
@@ -257,7 +265,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           ),
                           onPressed: () {
                             setState(
-                              () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
                             );
                           },
                         ),
@@ -273,7 +282,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               child: SizedBox(
                                 height: 22,
                                 width: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2.5),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
                               ),
                             )
                           : GoldButton(label: 'Reset Password', onTap: _submit),

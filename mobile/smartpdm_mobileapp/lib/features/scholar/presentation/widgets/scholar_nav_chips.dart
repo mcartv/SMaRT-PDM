@@ -13,10 +13,7 @@ class ScholarNavChips extends StatelessWidget {
     this.hasNewPayouts = false,
   });
 
-  static const List<String> _labels = [
-    'Payout Schedule',
-    'Renewal Documents',
-  ];
+  static const List<String> _labels = ['Payout Schedule', 'Renewal Documents'];
 
   @override
   Widget build(BuildContext context) {
@@ -99,10 +96,13 @@ class ScholarNavChips extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: isSelected ? Colors.white : unselectedTextColor,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : unselectedTextColor,
+                            ),
                       ),
                     ),
 

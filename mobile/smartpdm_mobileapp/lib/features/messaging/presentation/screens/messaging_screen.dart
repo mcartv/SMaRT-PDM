@@ -10,11 +10,7 @@ import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class MessagingScreen extends StatefulWidget {
-  const MessagingScreen({
-    super.key,
-    this.roomId,
-    this.title,
-  });
+  const MessagingScreen({super.key, this.roomId, this.title});
 
   final String? roomId;
   final String? title;
@@ -73,8 +69,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
       _isRefreshing = true;
       try {
-        await (_provider ?? context.read<MessagingProvider>())
-            .reloadOpenThread(markAsRead: true);
+        await (_provider ?? context.read<MessagingProvider>()).reloadOpenThread(
+          markAsRead: true,
+        );
       } finally {
         _isRefreshing = false;
       }
@@ -178,21 +175,23 @@ class _MessagingScreenState extends State<MessagingScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isDark ? Colors.white : AppColors.darkBrown,
-                    fontWeight: FontWeight.w900,
-                  ),
+                color: isDark ? Colors.white : AppColors.darkBrown,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
               provider.isConnected
-                  ? (_isGroupChat ? 'Group conversation · Live' : 'OSFA support · Live')
+                  ? (_isGroupChat
+                        ? 'Group conversation · Live'
+                        : 'OSFA support · Live')
                   : 'Reconnecting...',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: provider.isConnected
-                        ? const Color(0xFF2E9B61)
-                        : const Color(0xFFB7791F),
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: provider.isConnected
+                    ? const Color(0xFF2E9B61)
+                    : const Color(0xFFB7791F),
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ),
@@ -223,9 +222,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
         color: background,
         child: Column(
           children: [
-            Expanded(
-              child: _buildMessageArea(provider, isDark),
-            ),
+            Expanded(child: _buildMessageArea(provider, isDark)),
             _MessageComposer(
               controller: _messageController,
               isSending: _isSending,
@@ -278,9 +275,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
               'No messages yet',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isDark ? Colors.white : AppColors.darkBrown,
-                    fontWeight: FontWeight.w900,
-                  ),
+                color: isDark ? Colors.white : AppColors.darkBrown,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -289,11 +286,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   : 'Send a message to contact the OSFA support admin.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark
-                        ? Colors.white60
-                        : AppColors.brown.withValues(alpha: 0.66),
-                    height: 1.45,
-                  ),
+                color: isDark
+                    ? Colors.white60
+                    : AppColors.brown.withValues(alpha: 0.66),
+                height: 1.45,
+              ),
             ),
           ],
         ),
@@ -314,15 +311,15 @@ class _MessagingScreenState extends State<MessagingScreen> {
           final previous = index + 1 < messages.length
               ? messages[index + 1]
               : null;
-          final showDate = previous == null ||
+          final showDate =
+              previous == null ||
               previous.sentAt.year != message.sentAt.year ||
               previous.sentAt.month != message.sentAt.month ||
               previous.sentAt.day != message.sentAt.day;
 
           return Column(
             children: [
-              if (showDate)
-                _DateDivider(label: _formatDate(message.sentAt)),
+              if (showDate) _DateDivider(label: _formatDate(message.sentAt)),
               _MessageBubble(
                 message: message,
                 isMe: isMe,
@@ -377,11 +374,11 @@ class _DateDivider extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isDark
-                        ? Colors.white60
-                        : AppColors.brown.withValues(alpha: 0.62),
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: isDark
+                    ? Colors.white60
+                    : AppColors.brown.withValues(alpha: 0.62),
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -421,8 +418,9 @@ class _MessageBubble extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(
-          mainAxisAlignment:
-              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment: isMe
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (!isMe) ...[
@@ -431,8 +429,9 @@ class _MessageBubble extends StatelessWidget {
             ],
             Flexible(
               child: Column(
-                crossAxisAlignment:
-                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
                 children: [
                   if (!isMe && isGroupChat && message.senderName != null) ...[
                     Padding(
@@ -440,11 +439,11 @@ class _MessageBubble extends StatelessWidget {
                       child: Text(
                         message.senderName!,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: isDark
-                                  ? Colors.white60
-                                  : AppColors.brown.withValues(alpha: 0.64),
-                              fontWeight: FontWeight.w800,
-                            ),
+                          color: isDark
+                              ? Colors.white60
+                              : AppColors.brown.withValues(alpha: 0.64),
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ],
@@ -465,12 +464,14 @@ class _MessageBubble extends StatelessWidget {
                         color: isMe
                             ? AppColors.gold.withValues(alpha: 0.42)
                             : (isDark
-                                ? Colors.white.withValues(alpha: 0.07)
-                                : AppColors.brown.withValues(alpha: 0.08)),
+                                  ? Colors.white.withValues(alpha: 0.07)
+                                  : AppColors.brown.withValues(alpha: 0.08)),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.18 : 0.06,
+                          ),
                           blurRadius: 12,
                           offset: const Offset(0, 5),
                         ),
@@ -481,10 +482,13 @@ class _MessageBubble extends StatelessWidget {
                       children: [
                         Text(
                           message.messageBody,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
                                 color: isMe
                                     ? Colors.white
-                                    : (isDark ? Colors.white : AppColors.darkBrown),
+                                    : (isDark
+                                          ? Colors.white
+                                          : AppColors.darkBrown),
                                 height: 1.38,
                               ),
                         ),
@@ -494,12 +498,15 @@ class _MessageBubble extends StatelessWidget {
                           children: [
                             Text(
                               timeLabel,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
                                     color: isMe
                                         ? Colors.white60
                                         : (isDark
-                                            ? Colors.white54
-                                            : AppColors.brown.withValues(alpha: 0.52)),
+                                              ? Colors.white54
+                                              : AppColors.brown.withValues(
+                                                  alpha: 0.52,
+                                                )),
                                     fontWeight: FontWeight.w700,
                                   ),
                             ),
@@ -546,11 +553,7 @@ class _SenderAvatar extends StatelessWidget {
           ? NetworkImage(avatarUrl)
           : null,
       child: avatarUrl == null || avatarUrl.isEmpty
-          ? const Icon(
-              Icons.person_rounded,
-              color: AppColors.gold,
-              size: 18,
-            )
+          ? const Icon(Icons.person_rounded, color: AppColors.gold, size: 18)
           : null,
     );
   }
@@ -664,10 +667,7 @@ class _MessageComposer extends StatelessWidget {
 }
 
 class _MessageErrorState extends StatelessWidget {
-  const _MessageErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _MessageErrorState({required this.message, required this.onRetry});
 
   final String message;
   final Future<void> Function() onRetry;
@@ -692,20 +692,20 @@ class _MessageErrorState extends StatelessWidget {
               'Unable to load conversation',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isDark ? Colors.white : AppColors.darkBrown,
-                    fontWeight: FontWeight.w900,
-                  ),
+                color: isDark ? Colors.white : AppColors.darkBrown,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 7),
             Text(
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isDark
-                        ? Colors.white60
-                        : AppColors.brown.withValues(alpha: 0.64),
-                    height: 1.4,
-                  ),
+                color: isDark
+                    ? Colors.white60
+                    : AppColors.brown.withValues(alpha: 0.64),
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(

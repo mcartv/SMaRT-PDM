@@ -32,12 +32,21 @@ class ApplicantDocumentsService {
 
     Map<String, dynamic> response;
 
+    if (fileName.trim().isEmpty) {
+      throw ArgumentError('File name is required.');
+    }
+
+    if (fileBytes != null && fileBytes.isEmpty) {
+      throw ArgumentError('The selected file is empty.');
+    }
+
     if (fileBytes != null) {
       response = await _apiClient.uploadBytes(
         path,
         fieldName: 'document',
         bytes: fileBytes,
         fileName: fileName,
+        timeout: const Duration(seconds: 60),
       );
     } else {
       if (filePath == null || filePath.isEmpty) {
@@ -48,6 +57,7 @@ class ApplicantDocumentsService {
         path,
         fieldName: 'document',
         filePath: filePath,
+        timeout: const Duration(seconds: 60),
       );
     }
 

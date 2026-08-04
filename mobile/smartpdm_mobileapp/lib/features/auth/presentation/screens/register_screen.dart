@@ -712,8 +712,8 @@ By creating an account, you acknowledge that your information may be stored, rev
                                 arguments: {
                                   'prefillStudentId':
                                       StudentIdInputFormatter.toFullStudentId(
-                                    _identifierController.text,
-                                  ),
+                                        _identifierController.text,
+                                      ),
                                   'focusPassword': true,
                                 },
                               ),

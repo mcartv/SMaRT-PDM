@@ -9,8 +9,23 @@ const {
     isRequestBoundSnapshotFresh,
 } = require('../utils/iotOcrSnapshotFreshness');
 
-const STORAGE_BUCKET =
-    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
+function normalizeStorageBucketName(value, fallback = 'documents') {
+    const normalized = String(value || fallback)
+        .trim()
+        .replace(/^\/+|\/+$/g, '');
+
+    if (!normalized) return fallback;
+
+    // Supabase Storage accepts a bucket name only. A value such as
+    // "documents/applications" means bucket "documents" and folder
+    // "applications"; the folder must remain in the object path.
+    return normalized.split('/').filter(Boolean)[0] || fallback;
+}
+
+const STORAGE_BUCKET = normalizeStorageBucketName(
+    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET,
+    'documents'
+);
 const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
 const IOT_OCR_ENDPOINT_URL =

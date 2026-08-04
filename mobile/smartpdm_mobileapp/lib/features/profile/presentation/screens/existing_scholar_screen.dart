@@ -14,7 +14,9 @@ class ExistingScholarScreen extends StatelessWidget {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(padding),
-          child: const Text('This is the form for existing scholars to update their personal data. Content coming soon!'),
+          child: const Text(
+            'This is the form for existing scholars to update their personal data. Content coming soon!',
+          ),
         ),
       ),
     );

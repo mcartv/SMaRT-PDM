@@ -64,10 +64,7 @@ class PasswordStrengthResult {
 }
 
 class PasswordStrengthIndicator extends StatelessWidget {
-  const PasswordStrengthIndicator({
-    super.key,
-    required this.password,
-  });
+  const PasswordStrengthIndicator({super.key, required this.password});
 
   final String password;
 
@@ -141,20 +138,14 @@ class PasswordStrengthIndicator extends StatelessWidget {
           label: 'One lowercase letter',
           met: result.hasLowercase,
         ),
-        _RequirementRow(
-          label: 'One number',
-          met: result.hasNumber,
-        ),
+        _RequirementRow(label: 'One number', met: result.hasNumber),
       ],
     );
   }
 }
 
 class _RequirementRow extends StatelessWidget {
-  const _RequirementRow({
-    required this.label,
-    required this.met,
-  });
+  const _RequirementRow({required this.label, required this.met});
 
   final String label;
   final bool met;

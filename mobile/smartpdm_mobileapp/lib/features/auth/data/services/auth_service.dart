@@ -182,7 +182,8 @@ class AuthService {
         firstName: profile['first_name']?.toString() ?? firstName,
         lastName: profile['last_name']?.toString() ?? lastName,
         phone: profile['phone_number']?.toString() ?? phoneNumber,
-        course: profile['course_name']?.toString() ??
+        course:
+            profile['course_name']?.toString() ??
             profile['course_code']?.toString(),
         address: profile['barangay']?.toString() ?? barangay,
       );

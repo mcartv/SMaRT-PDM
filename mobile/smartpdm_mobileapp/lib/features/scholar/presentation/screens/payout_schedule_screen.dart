@@ -159,8 +159,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       appBar: widget.showTopBar
           ? AppBar(
               title: const Text('Payout Schedule'),
-              backgroundColor:
-                  isDark ? const Color(0xFF24180F) : Colors.white,
+              backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
               foregroundColor: isDark ? Colors.white : textColor,
               elevation: 0,
               automaticallyImplyLeading: false,
@@ -179,33 +178,35 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             children: [
               if (widget.showTopBar)
                 ScholarNavChips(
-                selectedLabel: _selectedScholarView,
-                hasNewPayouts: context.select<NotificationProvider, bool>(
-                  (provider) => provider.unreadPayoutCount > 0,
-                ),
-                onTap: (label) {
-                  setState(() {
-                    _selectedScholarView = label;
-                  });
+                  selectedLabel: _selectedScholarView,
+                  hasNewPayouts: context.select<NotificationProvider, bool>(
+                    (provider) => provider.unreadPayoutCount > 0,
+                  ),
+                  onTap: (label) {
+                    setState(() {
+                      _selectedScholarView = label;
+                    });
 
-                  switch (label) {
-                    case 'Payout Schedule':
-                      AppNavigator.goToTopLevel(context, AppRoutes.payouts);
-                      break;
-                    case 'Renewal Documents':
-                      Navigator.pushNamed(context, AppRoutes.renewalDocuments);
-                      break;
-                  }
-                },
-              ),
+                    switch (label) {
+                      case 'Payout Schedule':
+                        AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+                        break;
+                      case 'Renewal Documents':
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.renewalDocuments,
+                        );
+                        break;
+                    }
+                  },
+                ),
               if (widget.showTopBar) const SizedBox(height: 20),
               Text(
                 'Payment Schedule',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
                   fontWeight: FontWeight.bold,
-                  color: titleColor
-),
+                  color: titleColor,
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -234,9 +235,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                         Text(
                           _error!,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: subtitleColor),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
@@ -297,28 +297,31 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                     children: [
                                       Text(
                                         payout.title,
-                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-fontWeight: FontWeight.bold,
-                                          color: titleColor
-),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: titleColor,
+                                            ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         payout.programName,
-                                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                          color: subtitleColor
-),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(color: subtitleColor),
                                       ),
                                       if ((payout.benefactorName ?? '')
                                           .isNotEmpty) ...[
                                         const SizedBox(height: 2),
                                         Text(
                                           payout.benefactorName!,
-                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                            color: subtitleColor
-),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(color: subtitleColor),
                                         ),
                                       ],
                                     ],
@@ -329,10 +332,13 @@ fontWeight: FontWeight.bold,
                                   children: [
                                     Text(
                                       _formatAmount(payout.amount),
-                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-fontWeight: FontWeight.bold,
-                                        color: titleColor
-),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: titleColor,
+                                          ),
                                     ),
                                     const SizedBox(height: 4),
                                     Container(
@@ -348,10 +354,15 @@ fontWeight: FontWeight.bold,
                                       ),
                                       child: Text(
                                         payout.status,
-                                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: _getStatusColor(payout.status),
-                                          fontWeight: FontWeight.w600
-),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color: _getStatusColor(
+                                                payout.status,
+                                              ),
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                       ),
                                     ),
                                   ],
@@ -422,16 +433,18 @@ color: _getStatusColor(payout.status),
             child: Text(
               '$label:',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                 fontWeight: FontWeight.w600,
-                color: color
-),
+                color: color,
+              ),
             ),
           ),
           Expanded(
-            child: Text(value, style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: color
-)),
+            child: Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: color),
+            ),
           ),
         ],
       ),

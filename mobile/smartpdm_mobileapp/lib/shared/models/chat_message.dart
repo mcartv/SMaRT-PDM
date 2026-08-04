@@ -1,7 +1,8 @@
 class ChatMessage {
   final String messageId;
   final String senderId;
-  final String? receiverId; // Now nullable because group chats don't have a single receiver
+  final String?
+  receiverId; // Now nullable because group chats don't have a single receiver
   final String? roomId;
   final String? senderName;
   final String? senderAvatarUrl;

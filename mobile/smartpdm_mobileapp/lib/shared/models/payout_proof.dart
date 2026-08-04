@@ -21,8 +21,7 @@ class PayoutProof {
 
   bool get mayReplace {
     final normalized = status.trim().toLowerCase();
-    return normalized == 'rejected' ||
-        normalized == 'resubmission required';
+    return normalized == 'rejected' || normalized == 'resubmission required';
   }
 
   factory PayoutProof.fromJson(Map<String, dynamic> json) {

@@ -10,11 +10,9 @@ enum NetworkAvailability { checking, online, offline }
 
 class ConnectivityController extends ChangeNotifier
     with WidgetsBindingObserver {
-  ConnectivityController({
-    Connectivity? connectivity,
-    http.Client? httpClient,
-  }) : _connectivity = connectivity ?? Connectivity(),
-       _httpClient = httpClient ?? http.Client();
+  ConnectivityController({Connectivity? connectivity, http.Client? httpClient})
+    : _connectivity = connectivity ?? Connectivity(),
+      _httpClient = httpClient ?? http.Client();
 
   final Connectivity _connectivity;
   final http.Client _httpClient;

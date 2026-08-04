@@ -160,10 +160,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
       _showMessage('Profile completed successfully.');
 
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.home,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
     } catch (e) {
       _showMessage(e.toString(), isError: true);
     } finally {
@@ -236,16 +235,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           'Course',
           hintText: _isLoadingCourses
               ? 'Loading courses...'
-              : (_courses.isEmpty ? 'No courses available' : 'Select your course'),
+              : (_courses.isEmpty
+                    ? 'No courses available'
+                    : 'Select your course'),
         ),
         items: _courses
             .map(
               (course) => DropdownMenuItem<CourseOption>(
                 value: course,
-                child: Text(
-                  course.label,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Text(course.label, overflow: TextOverflow.ellipsis),
               ),
             )
             .toList(),
@@ -272,10 +270,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         ),
         items: _yearLevels
             .map(
-              (year) => DropdownMenuItem<int>(
-                value: year,
-                child: Text('Year $year'),
-              ),
+              (year) =>
+                  DropdownMenuItem<int>(value: year, child: Text('Year $year')),
             )
             .toList(),
         onChanged: (value) {
@@ -337,9 +333,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       Text(
                         'Complete Your Profile',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.displayLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -415,10 +410,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                                   _isLoadingCourses
                                       ? 'LOADING COURSES...'
                                       : 'SAVE PROFILE',
-                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.3,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.3,
+                                      ),
                                 ),
                         ),
                       ),

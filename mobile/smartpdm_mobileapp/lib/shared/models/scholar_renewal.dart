@@ -85,8 +85,7 @@ class ScholarRenewal {
       programId: json['program_id']?.toString() ?? '',
       semesterLabel: json['semester_label']?.toString() ?? '',
       schoolYearLabel: json['school_year_label']?.toString() ?? '',
-      renewalStatus:
-          json['renewal_status']?.toString() ?? 'Pending Submission',
+      renewalStatus: json['renewal_status']?.toString() ?? 'Pending Submission',
       documentStatus: json['document_status']?.toString() ?? 'Missing Docs',
       adminComment: json['admin_comment']?.toString(),
       submittedAt: json['submitted_at']?.toString(),
@@ -116,43 +115,38 @@ class ScholarRenewalPackage {
   final String semesterLabel;
   final String schoolYearLabel;
 
-  bool get allRequiredUploaded => documents.every((document) => document.hasFile);
+  bool get allRequiredUploaded =>
+      documents.every((document) => document.hasFile);
 
   factory ScholarRenewalPackage.fromJson(Map<String, dynamic> json) {
-    final renewalJson =
-        json['renewal'] is Map<String, dynamic>
-            ? json['renewal'] as Map<String, dynamic>
-            : Map<String, dynamic>.from(
-                (json['renewal'] as Map?) ?? const <String, dynamic>{},
-              );
-    final scholarJson =
-        json['scholar'] is Map<String, dynamic>
-            ? json['scholar'] as Map<String, dynamic>
-            : Map<String, dynamic>.from(
-                (json['scholar'] as Map?) ?? const <String, dynamic>{},
-              );
-    final studentJson =
-        json['student'] is Map<String, dynamic>
-            ? json['student'] as Map<String, dynamic>
-            : Map<String, dynamic>.from(
-                (json['student'] as Map?) ?? const <String, dynamic>{},
-              );
-    final cycleJson =
-        json['cycle'] is Map<String, dynamic>
-            ? json['cycle'] as Map<String, dynamic>
-            : Map<String, dynamic>.from(
-                (json['cycle'] as Map?) ?? const <String, dynamic>{},
-              );
+    final renewalJson = json['renewal'] is Map<String, dynamic>
+        ? json['renewal'] as Map<String, dynamic>
+        : Map<String, dynamic>.from(
+            (json['renewal'] as Map?) ?? const <String, dynamic>{},
+          );
+    final scholarJson = json['scholar'] is Map<String, dynamic>
+        ? json['scholar'] as Map<String, dynamic>
+        : Map<String, dynamic>.from(
+            (json['scholar'] as Map?) ?? const <String, dynamic>{},
+          );
+    final studentJson = json['student'] is Map<String, dynamic>
+        ? json['student'] as Map<String, dynamic>
+        : Map<String, dynamic>.from(
+            (json['student'] as Map?) ?? const <String, dynamic>{},
+          );
+    final cycleJson = json['cycle'] is Map<String, dynamic>
+        ? json['cycle'] as Map<String, dynamic>
+        : Map<String, dynamic>.from(
+            (json['cycle'] as Map?) ?? const <String, dynamic>{},
+          );
 
-    final documents =
-        (json['documents'] as List<dynamic>? ?? const [])
-            .whereType<Map>()
-            .map(
-              (item) => ScholarRenewalDocument.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .toList();
+    final documents = (json['documents'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) =>
+              ScholarRenewalDocument.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
 
     return ScholarRenewalPackage(
       renewal: ScholarRenewal.fromJson(renewalJson),

@@ -393,28 +393,30 @@ class _StepPersonalState extends State<StepPersonal> {
         ? 'Other'
         : null;
 
-    final province = widget.data.province;
-    selectedProvince = locationData.containsKey(province) ? province : null;
+    final province = widget.data.province.trim();
+    if (province.isNotEmpty && !locationData.containsKey(province)) {
+      locationData[province] = <String, List<String>>{};
+    }
+    selectedProvince = province.isNotEmpty ? province : null;
     provinceController = TextEditingController(text: selectedProvince ?? '');
 
     if (selectedProvince != null) {
       final city = widget.data.city;
-      selectedCity =
-          (locationData[selectedProvince!]?.containsKey(city) ?? false)
-          ? city
-          : null;
+      if (city.trim().isNotEmpty &&
+          !(locationData[selectedProvince!]?.containsKey(city) ?? false)) {
+        locationData[selectedProvince!]![city] = <String>[];
+      }
+      selectedCity = city.trim().isNotEmpty ? city : null;
     }
     cityController = TextEditingController(text: selectedCity ?? '');
 
     if (selectedProvince != null && selectedCity != null) {
       final barangay = widget.data.barangay;
-      selectedBarangay =
-          (locationData[selectedProvince!]![selectedCity!]?.contains(
-                barangay,
-              ) ??
-              false)
-          ? barangay
-          : null;
+      final barangays = locationData[selectedProvince!]![selectedCity!]!;
+      if (barangay.trim().isNotEmpty && !barangays.contains(barangay)) {
+        barangays.add(barangay);
+      }
+      selectedBarangay = barangay.trim().isNotEmpty ? barangay : null;
     }
     barangayController = TextEditingController(text: selectedBarangay ?? '');
   }
@@ -604,6 +606,7 @@ class _StepPersonalState extends State<StepPersonal> {
     return _field(
       label: label,
       child: DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: currentValue.trim().isEmpty ? null : currentValue,
         decoration: _dec(
           hint,
@@ -612,7 +615,12 @@ class _StepPersonalState extends State<StepPersonal> {
           hasValue: currentValue.trim().isNotEmpty,
         ),
         items: items
-            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+            .map(
+              (item) => DropdownMenuItem(
+                value: item,
+                child: Text(item, overflow: TextOverflow.ellipsis),
+              ),
+            )
             .toList(),
         onChanged: (value) {
           if (value == null) return;

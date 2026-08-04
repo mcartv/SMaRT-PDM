@@ -19,10 +19,7 @@ import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart'
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_bottom_nav.dart';
 
 class TopLevelShellScreen extends StatefulWidget {
-  const TopLevelShellScreen({
-    super.key,
-    required this.initialIndex,
-  });
+  const TopLevelShellScreen({super.key, required this.initialIndex});
 
   final int initialIndex;
 
@@ -44,21 +41,12 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   bool _isRevertingLockedSwipe = false;
 
   late final List<Widget> _pages = <Widget>[
-    const DashboardScreen(
-      showBottomNav: false,
-      showTopBar: false,
+    const DashboardScreen(showBottomNav: false, showTopBar: false),
+    const ScholarAccessGate(
+      child: PayoutScheduleScreen(showBottomNav: false, showTopBar: false),
     ),
     const ScholarAccessGate(
-      child: PayoutScheduleScreen(
-        showBottomNav: false,
-        showTopBar: false,
-      ),
-    ),
-    const ScholarAccessGate(
-      child: ROAssignmentScreen(
-        showBottomNav: false,
-        showTopBar: false,
-      ),
+      child: ROAssignmentScreen(showBottomNav: false, showTopBar: false),
     ),
     const ScholarAccessGate(
       child: ScholarRenewalRequirementsScreen(
@@ -101,8 +89,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     if (!mounted) return;
 
     setState(() {
-      _isVerifiedScholar =
-          prefs.getBool('user_has_scholar_access') ?? false;
+      _isVerifiedScholar = prefs.getBool('user_has_scholar_access') ?? false;
     });
   }
 
@@ -115,10 +102,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     }
   }
 
-  Future<void> switchToIndex(
-    int index, {
-    bool animated = true,
-  }) async {
+  Future<void> switchToIndex(int index, {bool animated = true}) async {
     if (!mounted) return;
 
     final notificationProvider = context.read<NotificationProvider>();
@@ -147,10 +131,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     _pageController.jumpToPage(targetIndex);
   }
 
-  Future<void> _handlePageChanged(
-    int index,
-    bool hasScholarAccess,
-  ) async {
+  Future<void> _handlePageChanged(int index, bool hasScholarAccess) async {
     if (_isRevertingLockedSwipe) return;
 
     if (_scholarOnlyIndexes.contains(index) && !hasScholarAccess) {
@@ -224,10 +205,10 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: isDark ? Colors.white : AppColors.darkBrown,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -235,11 +216,11 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: isDark
-                              ? Colors.white70
-                              : AppColors.brown.withValues(alpha: 0.78),
-                          fontWeight: FontWeight.w700,
-                        ),
+                      color: isDark
+                          ? Colors.white70
+                          : AppColors.brown.withValues(alpha: 0.78),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),

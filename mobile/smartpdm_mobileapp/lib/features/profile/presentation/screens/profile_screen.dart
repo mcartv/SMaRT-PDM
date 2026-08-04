@@ -14,10 +14,7 @@ import 'package:smartpdm_mobileapp/features/profile/data/services/profile_servic
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({
-    super.key,
-    this.showBottomNav = false,
-  });
+  const ProfileScreen({super.key, this.showBottomNav = false});
 
   final bool showBottomNav;
 
@@ -98,7 +95,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           lastName: profile['last_name']?.toString() ?? session.lastName,
           email: profile['email']?.toString() ?? session.email,
           course: profile['course_code']?.toString() ?? '',
-          section: profile['section']?.toString() ??
+          section:
+              profile['section']?.toString() ??
               prefs.getString('user_section') ??
               '',
           phone: profile['phone_number']?.toString() ?? '',
@@ -140,7 +138,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       lastName.trim(),
     ].where((part) => part.isNotEmpty).join(' ');
 
-    final incomplete = firstName.trim().isEmpty ||
+    final incomplete =
+        firstName.trim().isEmpty ||
         lastName.trim().isEmpty ||
         email.trim().isEmpty ||
         course.trim().isEmpty;
@@ -156,7 +155,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _studentIdController.text = studentId;
 
       _displayName = fullName.isEmpty ? 'SMaRT-PDM User' : fullName;
-      _avatarUrl = avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null;
+      _avatarUrl = avatarUrl?.trim().isNotEmpty == true
+          ? avatarUrl!.trim()
+          : null;
       _hasScholarAccess = hasScholarAccess;
       _avatarReviewStatus = avatarReviewStatus?.trim().isNotEmpty == true
           ? avatarReviewStatus!.trim().toLowerCase()
@@ -195,10 +196,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       if (kIsWeb) {
         final bytes = await picked.readAsBytes();
-        await _profileService.uploadAvatar(
-          bytes: bytes,
-          fileName: picked.name,
-        );
+        await _profileService.uploadAvatar(bytes: bytes, fileName: picked.name);
       } else {
         await _profileService.uploadAvatar(filePath: picked.path);
       }
@@ -207,14 +205,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile photo submitted for review.'),
-        ),
+        const SnackBar(content: Text('Profile photo submitted for review.')),
       );
     } on ApiException catch (error) {
       if (!mounted) return;
 
-      final pending = error.statusCode == 409 ||
+      final pending =
+          error.statusCode == 409 ||
           error.message.toLowerCase().contains('pending review');
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -228,9 +225,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to upload photo: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to upload photo: $error')));
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
@@ -304,10 +301,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showMessage('Profile updated successfully.');
 
       if (wasIncomplete && mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.home,
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
       }
     } catch (error) {
       _showMessage('Unable to update profile: $error');
@@ -324,9 +320,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showMessage(String value) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(value)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
   void _handleBack() {
@@ -343,22 +337,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatar = _avatarUrl;
 
     if (avatar == null || avatar.isEmpty) {
-      return const Icon(
-        Icons.person_rounded,
-        size: 48,
-        color: AppColors.gold,
-      );
+      return const Icon(Icons.person_rounded, size: 48, color: AppColors.gold);
     }
 
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
       return Image.network(
         avatar,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(
-          Icons.person_rounded,
-          size: 48,
-          color: AppColors.gold,
-        ),
+        errorBuilder: (_, _, _) =>
+            const Icon(Icons.person_rounded, size: 48, color: AppColors.gold),
       );
     }
 
@@ -366,19 +353,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return Image.file(
         File(avatar),
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(
-          Icons.person_rounded,
-          size: 48,
-          color: AppColors.gold,
-        ),
+        errorBuilder: (_, _, _) =>
+            const Icon(Icons.person_rounded, size: 48, color: AppColors.gold),
       );
     }
 
-    return const Icon(
-      Icons.person_rounded,
-      size: 48,
-      color: AppColors.gold,
-    );
+    return const Icon(Icons.person_rounded, size: 48, color: AppColors.gold);
   }
 
   @override
@@ -426,10 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Personal Information',
                       icon: Icons.person_outline_rounded,
                       children: [
-                        _InfoRow(
-                          label: 'Full Name',
-                          value: _displayName,
-                        ),
+                        _InfoRow(label: 'Full Name', value: _displayName),
                         _InfoRow(
                           label: 'Student ID',
                           value: _studentIdController.text,
@@ -583,19 +560,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        height: 1.08,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    height: 1.08,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _studentIdController.text.isEmpty
                       ? 'Student Account'
                       : _studentIdController.text,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white70,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                 ),
                 const SizedBox(height: 10),
                 Container(
@@ -610,10 +587,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Text(
                     _hasScholarAccess ? 'SCHOLAR' : 'APPLICANT',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.darkBrown,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.7,
-                        ),
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.7,
+                    ),
                   ),
                 ),
               ],
@@ -629,8 +606,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final color = rejected ? Colors.redAccent : AppColors.gold;
     final message = rejected
         ? (_avatarRejectionReason.isEmpty
-            ? 'Your profile photo was rejected. Upload a new clear photo.'
-            : 'Photo rejected: $_avatarRejectionReason')
+              ? 'Your profile photo was rejected. Upload a new clear photo.'
+              : 'Photo rejected: $_avatarRejectionReason')
         : 'Your new profile photo is pending review.';
 
     return Container(
@@ -644,7 +621,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            rejected ? Icons.error_outline_rounded : Icons.hourglass_top_rounded,
+            rejected
+                ? Icons.error_outline_rounded
+                : Icons.hourglass_top_rounded,
             color: color,
           ),
           const SizedBox(width: 10),
@@ -652,9 +631,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                  ),
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -699,9 +678,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: isDark ? Colors.white : AppColors.darkBrown,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -733,9 +712,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(
             _isProfileIncomplete ? 'Complete Your Profile' : 'Edit Profile',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 16),
           _ProfileField(
@@ -792,7 +771,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ? null
                       : () {
                           if (_isProfileIncomplete) {
-                            _showMessage('Complete the required profile fields first.');
+                            _showMessage(
+                              'Complete the required profile fields first.',
+                            );
                             return;
                           }
                           setState(() => _isEditing = false);
@@ -891,11 +872,11 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isDark
-                        ? Colors.white60
-                        : AppColors.brown.withValues(alpha: 0.66),
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: isDark
+                    ? Colors.white60
+                    : AppColors.brown.withValues(alpha: 0.66),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -903,10 +884,10 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value.trim().isEmpty ? 'Not provided' : value.trim(),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark ? Colors.white : AppColors.darkBrown,
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
-                  ),
+                color: isDark ? Colors.white : AppColors.darkBrown,
+                fontWeight: FontWeight.w800,
+                height: 1.35,
+              ),
             ),
           ),
         ],
@@ -953,11 +934,11 @@ class _ProfileField extends StatelessWidget {
           filled: true,
           fillColor: enabled
               ? (isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : const Color(0xFFFAF7F2))
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : const Color(0xFFFAF7F2))
               : (isDark
-                  ? Colors.white.withValues(alpha: 0.03)
-                  : const Color(0xFFF1EEE9)),
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : const Color(0xFFF1EEE9)),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,

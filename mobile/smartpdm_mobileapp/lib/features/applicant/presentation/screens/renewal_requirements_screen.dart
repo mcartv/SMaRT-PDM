@@ -222,20 +222,17 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                           children: [
                             Text(
                               'Renewal Progress',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                                fontWeight: FontWeight.bold,
-                                color: titleColor
-),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: titleColor,
+                                  ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Submit all required documents to maintain your scholarship for the next release cycle.',
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                color: subtitleColor,
-                                height: 1.4
-),
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(color: subtitleColor, height: 1.4),
                             ),
                           ],
                         ),
@@ -243,11 +240,11 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                       const SizedBox(width: 12),
                       Text(
                         '$_uploadedCount/${_requirements.length}',
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-
-                          fontWeight: FontWeight.w900,
-                          color: accentColor
-),
+                        style: Theme.of(context).textTheme.displayLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: accentColor,
+                            ),
                       ),
                     ],
                   ),
@@ -274,11 +271,11 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                       const SizedBox(width: 6),
                       Text(
                         'Renewal deadline: April 30, 2026',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                          color: Colors.orange.shade800,
-                          fontWeight: FontWeight.w600
-),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ],
                   ),
@@ -289,17 +286,16 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
             Text(
               'Required Documents',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
                 fontWeight: FontWeight.bold,
-                color: titleColor
-),
+                color: titleColor,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'Upload each document below. Allowed files: PDF, JPG, and PNG. You can replace files before final submission.',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: subtitleColor),
             ),
             const SizedBox(height: 14),
             ..._sortedRequirements.map(_buildDocumentRow),
@@ -384,16 +380,16 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                 Text(
                   document.title,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-fontWeight: FontWeight.bold,
-                    color: titleColor
-),
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   document.description,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: subtitleColor),
                 ),
                 if (hasFile || document.updatedAt != null) ...[
                   const SizedBox(height: 6),
@@ -401,30 +397,27 @@ fontWeight: FontWeight.bold,
                     Text(
                       'Submitted file',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                         color: isDark ? Colors.white60 : Colors.grey.shade600,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3
-),
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   if (hasFile) ...[
                     const SizedBox(height: 2),
                     Text(
                       document.fileName!,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                         color: isDark ? Colors.white70 : Colors.grey.shade700,
-                        fontWeight: FontWeight.w600
-),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                   if (document.updatedAt != null)
                     Text(
                       document.updatedAt!,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                        color: isDark ? Colors.white54 : Colors.black45
-),
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
                     ),
                 ],
                 _buildDocumentActions(document),
@@ -444,9 +437,9 @@ fontWeight: FontWeight.bold,
                 child: Text(
                   _statusLabel(document.status),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: statusColor,
-                    fontWeight: FontWeight.w700
-),
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],

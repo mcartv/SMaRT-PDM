@@ -99,10 +99,9 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     await _sessionService.clearSession();
     if (!mounted) return;
 
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.login,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 
   void _openRoute(String route) {
@@ -114,33 +113,23 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
 
     Widget image;
     if (avatar == null || avatar.isEmpty) {
-      image = Image.asset(
-        'assets/images/school_logo.png',
-        fit: BoxFit.contain,
-      );
+      image = Image.asset('assets/images/school_logo.png', fit: BoxFit.contain);
     } else if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
       image = Image.network(
         avatar,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Image.asset(
-          'assets/images/school_logo.png',
-          fit: BoxFit.contain,
-        ),
+        errorBuilder: (_, _, _) =>
+            Image.asset('assets/images/school_logo.png', fit: BoxFit.contain),
       );
     } else if (!kIsWeb) {
       image = Image.file(
         File(avatar),
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Image.asset(
-          'assets/images/school_logo.png',
-          fit: BoxFit.contain,
-        ),
+        errorBuilder: (_, _, _) =>
+            Image.asset('assets/images/school_logo.png', fit: BoxFit.contain),
       );
     } else {
-      image = Image.asset(
-        'assets/images/school_logo.png',
-        fit: BoxFit.contain,
-      );
+      image = Image.asset('assets/images/school_logo.png', fit: BoxFit.contain);
     }
 
     return ClipOval(child: image);
@@ -179,9 +168,9 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             Text(
               'Account',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: titleColor,
-                    fontWeight: FontWeight.w900,
-                  ),
+                color: titleColor,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -241,9 +230,9 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             Text(
               'Information',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: titleColor,
-                    fontWeight: FontWeight.w900,
-                  ),
+                color: titleColor,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -303,10 +292,9 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   ? 'Scholar services are available from the navigation bar.'
                   : 'Scholar-only services remain locked until your application is accepted and activated.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor,
-                    height: 1.45,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: mutedColor, height: 1.45),
             ),
           ],
         ),
@@ -382,7 +370,8 @@ class _ProfileSummaryCard extends StatelessWidget {
                             displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -402,9 +391,9 @@ class _ProfileSummaryCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       studentId.isEmpty ? 'Student Account' : studentId,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.white70,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                     ),
                     const SizedBox(height: 9),
                     Container(
@@ -419,20 +408,17 @@ class _ProfileSummaryCard extends StatelessWidget {
                       child: Text(
                         hasScholarAccess ? 'SCHOLAR' : 'APPLICANT',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppColors.darkBrown,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.7,
-                            ),
+                          color: AppColors.darkBrown,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.7,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white70,
-              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white70),
             ],
           ),
         ),
@@ -486,10 +472,10 @@ class _MenuActionCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontWeight: FontWeight.w900,
-                      height: 1.12,
-                    ),
+                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  fontWeight: FontWeight.w900,
+                  height: 1.12,
+                ),
               ),
               const Spacer(),
               Text(
@@ -497,11 +483,11 @@ class _MenuActionCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? Colors.white60
-                          : AppColors.brown.withValues(alpha: 0.62),
-                      height: 1.25,
-                    ),
+                  color: isDark
+                      ? Colors.white60
+                      : AppColors.brown.withValues(alpha: 0.62),
+                  height: 1.25,
+                ),
               ),
             ],
           ),
@@ -543,19 +529,19 @@ class _MenuListTile extends StatelessWidget {
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: isDark ? Colors.white : AppColors.darkBrown,
-              fontWeight: FontWeight.w900,
-            ),
+          color: isDark ? Colors.white : AppColors.darkBrown,
+          fontWeight: FontWeight.w900,
+        ),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? Colors.white60
-                    : AppColors.brown.withValues(alpha: 0.63),
-              ),
+            color: isDark
+                ? Colors.white60
+                : AppColors.brown.withValues(alpha: 0.63),
+          ),
         ),
       ),
       trailing: Icon(

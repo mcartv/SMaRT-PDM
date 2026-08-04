@@ -38,9 +38,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               children: [
                 Text(
                   'Scholarship requirement uploads now live in Documents.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(

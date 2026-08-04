@@ -324,9 +324,9 @@ class _StepFamilyState extends State<StepFamily> {
     children: [
       Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-fontWeight: FontWeight.bold
-),
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
       const SizedBox(height: 8),
       child,
@@ -498,10 +498,13 @@ fontWeight: FontWeight.bold
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('FATHER\'S NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+        Text(
+          'FATHER\'S NAME',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.brown,
+          ),
+        ),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -579,10 +582,13 @@ fontWeight: FontWeight.bold
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('MOTHER\'S MAIDEN NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+        Text(
+          'MOTHER\'S MAIDEN NAME',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.brown,
+          ),
+        ),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -660,10 +666,13 @@ fontWeight: FontWeight.bold
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('SIBLING\'S NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+        Text(
+          'SIBLING\'S NAME',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.brown,
+          ),
+        ),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -707,10 +716,13 @@ fontWeight: FontWeight.bold
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('GUARDIAN\'S NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+        Text(
+          'GUARDIAN\'S NAME',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.brown,
+          ),
+        ),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -788,10 +800,13 @@ fontWeight: FontWeight.bold
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ARE YOUR PARENTS A NATIVE OF MARILAO?', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+        Text(
+          'ARE YOUR PARENTS A NATIVE OF MARILAO?',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.brown,
+          ),
+        ),
         const SizedBox(height: 4),
         Wrap(
           children: parentNativeOptions.map((option) {
@@ -886,17 +901,23 @@ fontWeight: FontWeight.bold
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('II. FAMILY DATA', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'II. FAMILY DATA',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
 
-          Text('ADDRESS OF PARENTS / GUARDIAN', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'ADDRESS OF PARENTS / GUARDIAN',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const SizedBox(height: 8),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -972,4 +993,3 @@ fontWeight: FontWeight.bold
     );
   }
 }
-

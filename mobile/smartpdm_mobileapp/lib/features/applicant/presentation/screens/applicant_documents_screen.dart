@@ -104,7 +104,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Unable to load your documents. Check your connection and try again.';
+        _errorMessage =
+            'Unable to load your documents. Check your connection and try again.';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -168,7 +169,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return 99;
   }
 
-
   void _showUploadMessage(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -202,7 +202,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     const maxFileSizeBytes = 10 * 1024 * 1024;
     if (pickedFile.size > maxFileSizeBytes) {
-      _showUploadMessage('File is too large. Maximum size is 10 MB.', isError: true);
+      _showUploadMessage(
+        'File is too large. Maximum size is 10 MB.',
+        isError: true,
+      );
       return;
     }
 
@@ -215,6 +218,14 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     if (kIsWeb && (fileBytes == null || fileBytes.isEmpty)) {
       _showSnackBar('The selected file could not be read. Try another file.');
+      return;
+    }
+
+    if (!kIsWeb && (filePath == null || filePath.trim().isEmpty)) {
+      _showUploadMessage(
+        'The selected file could not be accessed. Choose the file again.',
+        isError: true,
+      );
       return;
     }
 
@@ -233,7 +244,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       _showSnackBar('${document.documentType} uploaded successfully.');
     } catch (error) {
       if (!mounted) return;
-      _showSnackBar(error.toString().replaceFirst('Exception: ', '').trim());
+      _showUploadMessage(
+        error.toString().replaceFirst('Exception: ', '').trim(),
+        isError: true,
+      );
     } finally {
       if (mounted) {
         setState(() => _uploadingDocuments.remove(document.id));
@@ -385,10 +399,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               Text(
                 'Required Documents',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
                   fontWeight: FontWeight.w900,
-                  color: titleColor
-),
+                  color: titleColor,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -481,26 +494,25 @@ class _HeaderCard extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
               fontWeight: FontWeight.w900,
-              color: titleColor
-),
+              color: titleColor,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             programName,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
               fontWeight: FontWeight.w800,
-              color: accentColor
-),
+              color: accentColor,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             description,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
- height: 1.45, color: subtitleColor
-),
+              height: 1.45,
+              color: subtitleColor,
+            ),
           ),
           if (package != null) ...[
             const SizedBox(height: 16),
@@ -637,9 +649,9 @@ class _SimpleCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
- fontWeight: FontWeight.w900
-),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           Text(message, style: const TextStyle(height: 1.45)),
@@ -713,16 +725,19 @@ class _DocumentCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      size: 18, color: Color(0xFFC76917)),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 18,
+                    color: Color(0xFFC76917),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Required before Program Director approval',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF8F4E10),
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: const Color(0xFF8F4E10),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -743,10 +758,9 @@ class _DocumentCard extends StatelessWidget {
                 child: Text(
                   document.documentType,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
                     fontWeight: FontWeight.w900,
-                    color: titleColor
-),
+                    color: titleColor,
+                  ),
                 ),
               ),
               _StatusPill(label: statusLabel, color: statusColor),
@@ -843,9 +857,9 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: color,
-          fontWeight: FontWeight.w800
-),
+          color: color,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -876,17 +890,16 @@ class _InfoChip extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
               fontWeight: FontWeight.w700,
-              color: accentColor
-),
+              color: accentColor,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
- fontWeight: FontWeight.w800
-),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
         ],
       ),

@@ -222,11 +222,12 @@ function calculateAgeFromDate(value) {
 }
 
 function educationRowByLevel(rows = [], level = '') {
-    const normalizedLevel = safeText(level).toLowerCase();
+    const aliases = Array.isArray(level) ? level : [level];
+    const normalizedLevels = aliases.map((value) => safeText(value).toLowerCase());
 
     return (
-        rows.find(
-            (row) => safeText(row.education_level).toLowerCase() === normalizedLevel
+        rows.find((row) =>
+            normalizedLevels.includes(safeText(row.education_level).toLowerCase())
         ) || {}
     );
 }
@@ -389,6 +390,27 @@ function deriveFinancialSupport(master = {}, profile = {}) {
     if (master?.financial_support_other === true) return 'Other';
 
     return 'Parents';
+}
+
+function deriveFinancialSupportChoices(master = {}, profile = {}) {
+    const choices = [];
+    if (master?.financial_support_parents === true) choices.push('Parents');
+    if (master?.financial_support_scholarship === true) choices.push('Scholarship');
+    if (master?.financial_support_loan === true) choices.push('Loan');
+    if (master?.financial_support_other === true) choices.push('Other');
+
+    if (!choices.length) {
+        const profileSupport = safeText(profile?.financial_support_type);
+        if (profileSupport) {
+            profileSupport
+                .split(',')
+                .map((value) => safeText(value))
+                .filter(Boolean)
+                .forEach((value) => choices.push(value));
+        }
+    }
+
+    return [...new Set(choices)];
 }
 
 async function getUser(userId) {
@@ -718,12 +740,24 @@ async function getMyFormData(userId) {
             first_name: safeText(master?.sibling_first_name),
             middle_name: safeText(master?.sibling_middle_name),
             mobile_number: safeText(master?.sibling_mobile_no),
+            highest_educational_attainment: rawSnapshotValue(
+                master?.raw_snapshot,
+                ['Sibling Highest Educational Attainment', 'Sibling Educational Attainment']
+            ),
+            occupation: rawSnapshotValue(master?.raw_snapshot, ['Sibling Occupation']),
+            company_name_address: rawSnapshotValue(
+                master?.raw_snapshot,
+                ['Sibling Company Name and Address', 'Sibling Company Address']
+            ),
         };
     const guardian =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Guardian') ||
         rawFamilyMember(master?.raw_snapshot, 'Guardian');
     const collegeEducation = educationRowByLevel(educationRows, 'College');
-    const highSchoolEducation = educationRowByLevel(educationRows, 'High School');
+    const highSchoolEducation = educationRowByLevel(educationRows, [
+        'Junior High School',
+        'High School',
+    ]);
     const seniorHighEducation = educationRowByLevel(
         educationRows,
         'Senior High School'
@@ -928,7 +962,9 @@ async function getMyFormData(userId) {
         },
 
         support: {
+            financial_support_choices: deriveFinancialSupportChoices(master, profile),
             financial_support:
+                deriveFinancialSupportChoices(master, profile).join(', ') ||
                 deriveFinancialSupport(master, profile),
             financial_support_type: safeText(profile?.financial_support_type),
             financial_support_other: safeText(profile?.financial_support_other),

@@ -4,7 +4,7 @@ import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 
 class ProgramOpeningService {
   ProgramOpeningService({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 
@@ -13,6 +13,7 @@ class ProgramOpeningService {
     final items = (response['items'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((item) => ProgramOpening.fromJson(Map<String, dynamic>.from(item)))
+        .where((opening) => opening.isVisible)
         .toList(growable: false);
 
     return ProgramOpeningsResult(

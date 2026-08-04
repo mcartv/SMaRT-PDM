@@ -22,6 +22,18 @@ class RenewalService {
   }) async {
     final path = '/api/renewals/me/documents/$routeParam/upload';
 
+    if (routeParam.trim().isEmpty) {
+      throw ArgumentError('Renewal document ID is required.');
+    }
+
+    if (fileName.trim().isEmpty) {
+      throw ArgumentError('File name is required.');
+    }
+
+    if (fileBytes != null && fileBytes.isEmpty) {
+      throw ArgumentError('The selected file is empty.');
+    }
+
     if (fileBytes == null && (filePath == null || filePath.isEmpty)) {
       throw ArgumentError('filePath or fileBytes is required.');
     }
@@ -32,11 +44,13 @@ class RenewalService {
             fieldName: 'document',
             bytes: fileBytes,
             fileName: fileName,
+            timeout: const Duration(seconds: 60),
           )
         : await _apiClient.uploadFile(
             path,
             fieldName: 'document',
             filePath: filePath!,
+            timeout: const Duration(seconds: 60),
           );
 
     return ScholarRenewalPackage.fromJson(response);

@@ -23,5 +23,7 @@ router.post(
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/verify-reset-otp', authController.verifyResetOtp);
 router.post('/reset-password', authController.resetPassword);
+router.post('/request-email-change', protect, authController.requestEmailChange);
+router.post('/verify-email-change', protect, authController.verifyEmailChange);
 
 module.exports = router;

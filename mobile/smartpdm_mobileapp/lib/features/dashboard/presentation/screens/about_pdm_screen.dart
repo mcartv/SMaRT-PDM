@@ -47,15 +47,11 @@ class AboutPdmScreen extends StatelessWidget {
                   Text(
                     section.title,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                      fontWeight: FontWeight.w800
-),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    section.body,
-                    style: const TextStyle(height: 1.45),
-                  ),
+                  Text(section.body, style: const TextStyle(height: 1.45)),
                 ],
               ),
             ),

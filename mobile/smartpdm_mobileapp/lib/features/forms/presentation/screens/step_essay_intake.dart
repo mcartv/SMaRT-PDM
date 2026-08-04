@@ -55,7 +55,9 @@ class _StepEssayState extends State<StepEssay> {
 
   String? _essayError(String field) {
     if (!widget.showErrors) return null;
-    return _validator.validateEssayProgression(widget.data).issueForField(field)
+    return _validator
+        .validateEssayProgression(widget.data)
+        .issueForField(field)
         ?.message;
   }
 

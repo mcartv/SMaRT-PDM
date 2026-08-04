@@ -342,7 +342,11 @@ class _StepSubmitState extends State<StepSubmit> {
           ),
         ]),
         _previewSection('Scholarship / Discipline', [
-          _previewRow('Financial Support', widget.data.financialSupport, required: true),
+          _previewRow(
+            'Financial Support',
+            widget.data.financialSupport,
+            required: true,
+          ),
           _previewRow(
             'Scholarship History',
             widget.data.scholarshipHistory ? 'Yes' : 'No',

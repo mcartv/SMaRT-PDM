@@ -182,7 +182,7 @@ class GhostButton extends StatelessWidget {
 
 class NavyButton extends StatelessWidget {
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const NavyButton({super.key, required this.label, required this.onTap});
 
@@ -192,6 +192,8 @@ class NavyButton extends StatelessWidget {
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.gold,
+        disabledBackgroundColor: const Color(0xFFF0D8A0),
+        disabledForegroundColor: AppColors.darkBrown.withValues(alpha: 0.55),
         foregroundColor: AppColors.darkBrown,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),

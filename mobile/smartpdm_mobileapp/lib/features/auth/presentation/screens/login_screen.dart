@@ -39,9 +39,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final firstName = args?['prefillFirstName']?.toString().trim() ?? '';
     final lastName = args?['prefillLastName']?.toString().trim() ?? '';
 
-    _studentName = [firstName, lastName]
-        .where((value) => value.isNotEmpty)
-        .join(' ');
+    _studentName = [
+      firstName,
+      lastName,
+    ].where((value) => value.isNotEmpty).join(' ');
 
     if (prefillStudentId.isNotEmpty) {
       _studentIdController.text = StudentIdInputFormatter.formatVisible(
@@ -81,9 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
     } on TimeoutException {
-      _showMessage(
-        'Request timed out. Check your connection and try again.',
-      );
+      _showMessage('Request timed out. Check your connection and try again.');
     } on ApiException catch (error) {
       _showMessage(error.message);
     } catch (error) {
@@ -95,9 +94,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -174,9 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             _studentName.isEmpty
                                 ? 'Welcome back'
                                 : 'Welcome back, $_studentName',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
+                            style: Theme.of(context).textTheme.headlineMedium
                                 ?.copyWith(
                                   color: AppColors.darkBrown,
                                   fontWeight: FontWeight.w800,
@@ -187,9 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             hasPrefilledId
                                 ? 'Your Student ID is ready. Enter your password to continue.'
                                 : 'Enter your Student ID and password to continue.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: Colors.grey.shade700,
                                   height: 1.45,
@@ -229,10 +224,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   TextButton(
                                     onPressed: () =>
                                         Navigator.pushReplacementNamed(
-                                      context,
-                                      AppRoutes.studentLookup,
-                                      arguments: 'existing',
-                                    ),
+                                          context,
+                                          AppRoutes.studentLookup,
+                                          arguments: 'existing',
+                                        ),
                                     child: const Text('Change'),
                                   ),
                                 ],
@@ -251,17 +246,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 prefixText: 'PDM-',
                                 icon: Icons.badge_outlined,
                               ),
-                              validator: (value) {
-                                final fullStudentId =
-                                    StudentIdInputFormatter.toFullStudentId(
-                                  value ?? '',
-                                );
-                                if (!RegExp(r'^PDM-\d{4}-\d{6}$')
-                                    .hasMatch(fullStudentId)) {
-                                  return 'Enter a valid Student ID.';
-                                }
-                                return null;
-                              },
+                              validator:
+                                  StudentIdInputFormatter.validationMessage,
                             ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -270,27 +256,27 @@ class _LoginScreenState extends State<LoginScreen> {
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => _handleLogin(),
-                            decoration: _inputDecoration(
-                              label: 'Password',
-                              hint: 'Enter your password',
-                              icon: Icons.lock_outline_rounded,
-                            ).copyWith(
-                              suffixIcon: IconButton(
-                                onPressed: () => setState(
-                                  () => _obscurePassword =
-                                      !_obscurePassword,
+                            decoration:
+                                _inputDecoration(
+                                  label: 'Password',
+                                  hint: 'Enter your password',
+                                  icon: Icons.lock_outline_rounded,
+                                ).copyWith(
+                                  suffixIcon: IconButton(
+                                    onPressed: () => setState(
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
+                                    ),
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                    ),
+                                  ),
                                 ),
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_rounded
-                                      : Icons.visibility_rounded,
-                                ),
-                              ),
-                            ),
-                            validator: (value) =>
-                                value == null || value.isEmpty
-                                    ? 'Enter your password.'
-                                    : null,
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Enter your password.'
+                                : null,
                           ),
                           const SizedBox(height: 10),
                           Align(
@@ -313,8 +299,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           SizedBox(
                             height: 52,
                             child: FilledButton(
-                              onPressed:
-                                  _isLoading ? null : _handleLogin,
+                              onPressed: _isLoading ? null : _handleLogin,
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.gold,
                                 foregroundColor: AppColors.darkBrown,
@@ -339,33 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                             ),
                           ),
-                          const SizedBox(height: 18),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'No account yet?',
-                                style: TextStyle(
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.pushReplacementNamed(
-                                  context,
-                                  AppRoutes.studentLookup,
-                                  arguments: 'new',
-                                ),
-                                child: const Text(
-                                  'Create account',
-                                  style: TextStyle(
-                                    color: AppColors.brown,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          const SizedBox(height: 8),
                         ],
                       ),
                     ),
@@ -398,16 +357,11 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(
-          color: AppColors.gold.withOpacity(0.24),
-        ),
+        borderSide: BorderSide(color: AppColors.gold.withOpacity(0.24)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(
-          color: AppColors.brown,
-          width: 1.6,
-        ),
+        borderSide: const BorderSide(color: AppColors.brown, width: 1.6),
       ),
     );
   }

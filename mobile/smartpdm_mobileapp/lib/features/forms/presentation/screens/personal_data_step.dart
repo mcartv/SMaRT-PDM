@@ -39,9 +39,9 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
           children: [
             Text(
               'Personal Information',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 24.h),
             TextFormField(
@@ -51,7 +51,8 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Please enter your first name';
+                if (value == null || value.isEmpty)
+                  return 'Please enter your first name';
                 return null;
               },
             ),
@@ -63,7 +64,8 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Please enter your last name';
+                if (value == null || value.isEmpty)
+                  return 'Please enter your last name';
                 return null;
               },
             ),

@@ -470,9 +470,25 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       if (_data.financialSupport.trim().isEmpty) {
         return 'Financial support is required.';
       }
-      if (_data.financialSupport == 'Other' &&
+      if (_data.financialSupport
+              .split(',')
+              .map((v) => v.trim())
+              .contains('Other') &&
           _data.scholarshipOthersSpecify.trim().isEmpty) {
         return 'Please specify the other financial support.';
+      }
+      if (!_data.scholarshipHistoryAnswered) {
+        return 'Answer the scholarship history question.';
+      }
+      if (_data.scholarshipHistory &&
+          !(_data.scholarshipElementary ||
+              _data.scholarshipHighSchool ||
+              _data.scholarshipCollege ||
+              _data.scholarshipOthers)) {
+        return 'Select at least one scholarship history level.';
+      }
+      if (!_data.disciplinaryActionAnswered) {
+        return 'Answer the disciplinary action question.';
       }
       if (_data.disciplinaryAction &&
           _data.disciplinaryExplanation.trim().isEmpty) {
@@ -505,6 +521,16 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
       if (_data.guardianOnly && !hasNamedGuardian) {
         return 'Guardian name is required.';
+      }
+      if (_data.parentNativeStatus == 'No') {
+        if (_data.parentPreviousTownMunicipality.trim().isEmpty) {
+          return 'Town or municipality is required.';
+        }
+        if (_data.parentPreviousProvince.trim().isEmpty) {
+          return 'Province is required.';
+        }
+      } else if (_data.parentMarilaoResidencyDuration.trim().isEmpty) {
+        return 'Marilao residency duration is required.';
       }
 
       return null;
@@ -820,6 +846,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         .isValid;
     final submitEnabled =
         _hasSelectedOpening && submissionReady && !provider.isLoading;
+    final currentStepReady = _validateCurrentForm() == null;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
@@ -840,7 +867,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: !_hasSelectedOpening
                 ? const SizedBox.shrink()
                 : _step < 4
-                ? NavyButton(label: 'Next', onTap: _next)
+                ? NavyButton(
+                    label: 'Next',
+                    onTap: currentStepReady ? _next : null,
+                  )
                 : provider.isLoading
                 ? const Center(
                     child: SizedBox(

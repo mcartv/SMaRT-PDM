@@ -153,10 +153,7 @@ class AppRouter {
         );
 
       case AppRoutes.about:
-        return _buildProtectedRoute(
-          settings,
-          (_) => const AboutPdmScreen(),
-        );
+        return _buildProtectedRoute(settings, (_) => const AboutPdmScreen());
 
       case AppRoutes.faqs:
         return _buildProtectedRoute(settings, (_) => const FaqsScreen());
@@ -277,4 +274,3 @@ class _PlaceholderScreen extends StatelessWidget {
     );
   }
 }
-

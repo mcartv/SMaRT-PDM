@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
@@ -166,6 +167,18 @@ async function logMessageAudit({
   }
 }
 
+function relayToStudentBackend(eventName, payload, targetUserIds = []) {
+  studentRealtimeRelayService
+    .relayMessageEvent({
+      event: eventName,
+      payload,
+      targetUserIds: uniqueIds(targetUserIds),
+    })
+    .catch((error) => {
+      console.error('STUDENT REALTIME RELAY ERROR:', error.message);
+    });
+}
+
 function emitToUsers(io, eventName, payload, targetUserIds = []) {
   if (!io) return;
 
@@ -191,6 +204,8 @@ function emitMessageCreated(io, message, targetUserIds = []) {
 
   io.emit('message:new', payload);
   io.emit('message:created', payload);
+
+  relayToStudentBackend('message:new', payload, targets);
 }
 
 function emitMessageRead(io, payload, targetUserIds = []) {
@@ -203,18 +218,23 @@ function emitMessageRead(io, payload, targetUserIds = []) {
   } else {
     emitToUsers(io, 'message:read', payload, targetUserIds);
   }
+
+  relayToStudentBackend('message:read', payload, targetUserIds);
 }
 
 function emitMessageUnread(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:unread', payload, targetUserIds);
+  relayToStudentBackend('message:unread', payload, targetUserIds);
 }
 
 function emitThreadArchived(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:thread-archived', payload, targetUserIds);
+  relayToStudentBackend('message:thread-archived', payload, targetUserIds);
 }
 
 function emitThreadRestored(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:thread-restored', payload, targetUserIds);
+  relayToStudentBackend('message:thread-restored', payload, targetUserIds);
 }
 
 async function getPrimarySupportAdminId(currentUserId) {

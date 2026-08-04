@@ -687,6 +687,14 @@ async function markThreadRead({ readerId, senderId }) {
 
     emitToUser(readerId, 'message:read', payload);
     emitToUser(senderId, 'message:read', payload);
+
+    adminRealtimeRelayService.relayMessageEvent(
+      'message:read',
+      payload,
+      [readerId, senderId]
+    ).catch((error) => {
+      console.error('[Admin Realtime Relay] read event error:', error.message);
+    });
   }
 
   return {

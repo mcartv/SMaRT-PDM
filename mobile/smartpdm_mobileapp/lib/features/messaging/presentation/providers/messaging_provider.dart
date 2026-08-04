@@ -104,7 +104,7 @@ class MessagingProvider extends ChangeNotifier {
         backendBaseUrl: AppConfig.apiBaseUrl,
       );
 
-      _isRealtimeConnected = true;
+      _isRealtimeConnected = MobileRealtimeService.instance.isConnected;
       _ensureRealtimeListener();
     } else {
       _isRealtimeConnected = false;
@@ -192,7 +192,7 @@ class MessagingProvider extends ChangeNotifier {
       _syncTotalUnreadCount();
       _errorMessage = null;
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = _readableError(error);
       debugPrint('[MessagingProvider] fetch groups error: $error');
     } finally {
       if (notify) {
@@ -250,7 +250,7 @@ class MessagingProvider extends ChangeNotifier {
       _upsertMessage(message);
       _notify();
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = _readableError(error);
       _notify();
       rethrow;
     }
@@ -311,7 +311,7 @@ class MessagingProvider extends ChangeNotifier {
       _sortMessagesNewestFirst();
       _errorMessage = null;
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = _readableError(error);
       debugPrint('[MessagingProvider] refresh thread error: $error');
     } finally {
       _isLoading = false;
@@ -324,7 +324,13 @@ class MessagingProvider extends ChangeNotifier {
 
   void _ensureRealtimeListener() {
     _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
-      MobileRealtimeEvents.messageEvents,
+      <String>{
+        ...MobileRealtimeEvents.messageEvents,
+        'socket:connected',
+        'socket:reconnected',
+        'socket:disconnected',
+        'socket:error',
+      },
       _handleRealtimeEvent,
     );
   }
@@ -333,6 +339,19 @@ class MessagingProvider extends ChangeNotifier {
     debugPrint('[MessagingProvider] realtime event: ${event.name}');
 
     switch (event.name) {
+      case 'socket:connected':
+      case 'socket:reconnected':
+        _isRealtimeConnected = true;
+        _errorMessage = null;
+        _notify();
+        return;
+
+      case 'socket:disconnected':
+      case 'socket:error':
+        _isRealtimeConnected = false;
+        _notify();
+        return;
+
       case MobileRealtimeEvents.messageNew:
       case MobileRealtimeEvents.messageCreated:
       case MobileRealtimeEvents.messageUpdated:
@@ -387,7 +406,8 @@ class MessagingProvider extends ChangeNotifier {
         _currentUserId.trim().isNotEmpty &&
         (senderId == _currentUserId || receiverId == _currentUserId);
 
-    final isViewingPrivateThread = _isViewingThread && _activeGroupId == null;
+    final isViewingPrivateThread =
+        _isViewingThread && _activeGroupId == null;
 
     final isActiveGroupMessage =
         _isViewingThread &&
@@ -610,6 +630,28 @@ class MessagingProvider extends ChangeNotifier {
         .toList();
   }
 
+  String _readableError(Object error) {
+    final text = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+    final lower = text.toLowerCase();
+
+    if (lower.contains('timeout')) {
+      return 'The messaging server took too long to respond. Try again.';
+    }
+
+    if (lower.contains('socket') ||
+        lower.contains('connection') ||
+        lower.contains('network') ||
+        lower.contains('failed host lookup')) {
+      return 'Messaging is temporarily offline. Check your connection and retry.';
+    }
+
+    if (lower.contains('401') || lower.contains('unauthorized')) {
+      return 'Your session expired. Sign in again to continue messaging.';
+    }
+
+    return text.isEmpty ? 'Unable to load messages.' : text;
+  }
+
   void _notify() {
     if (_isDisposed) {
       return;
@@ -650,3 +692,4 @@ class MessagingProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+

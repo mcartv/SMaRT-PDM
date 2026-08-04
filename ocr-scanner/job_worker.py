@@ -199,6 +199,58 @@ def _fast_indigency_field_reader(
         return ""
 
 
+def _normalize_indigency_snapshot_value(value: Any) -> str:
+    return " ".join(str(value or "").split()).strip()
+
+
+def _build_indigency_structured_raw_text(
+    extracted_fields: Dict[str, Any],
+) -> str:
+    # Persist only successful values returned by structured OCR.
+    definitions = (
+        ("certificate_subject_name", "Certificate Subject Name"),
+        ("issue_date", "Issue Date"),
+        ("issuing_barangay", "Issuing Barangay"),
+    )
+    fields = (
+        extracted_fields.get("fields", {})
+        if isinstance(extracted_fields, dict)
+        else {}
+    )
+    lines = []
+    observed_values = []
+
+    for field_key, label in definitions:
+        field = fields.get(field_key, {})
+        if not isinstance(field, dict):
+            continue
+
+        value = _normalize_indigency_snapshot_value(
+            field.get("raw_text")
+        )
+        if field.get("success") is not True or not value:
+            continue
+
+        observed_values.append(value)
+        lines.append(f"{label}: {value}")
+
+    snapshot = "\n".join(lines)
+    normalized_snapshot = _normalize_indigency_snapshot_value(
+        snapshot
+    ).casefold()
+
+    if any(
+        _normalize_indigency_snapshot_value(value).casefold()
+        not in normalized_snapshot
+        for value in observed_values
+    ):
+        raise RuntimeError(
+            "Structured indigency field does not match raw_text."
+        )
+
+    return snapshot
+
+
 def _registration_context(registration_result: Any) -> Dict[str, Any]:
     return {
         "status": getattr(registration_result, "status", ""),
@@ -606,6 +658,24 @@ def _run_generic_document_scan(
             raw_text,
             extraction_result,
         )
+        structured_raw_text = _build_indigency_structured_raw_text(
+            extracted_fields
+        )
+
+        if structured_raw_text:
+            raw_text = structured_raw_text
+            corrected_text = structured_raw_text
+            status = "review_required"
+            error_message = None
+        else:
+            raw_text = ""
+            corrected_text = ""
+            status = "failed"
+            error_message = (
+                "Approved structured Certificate of Indigency fields "
+                "were not extracted."
+            )
+
         preprocessing_variant = str(
             extracted_fields.get("preprocessing_variant") or "positional_ocr"
         )
@@ -640,6 +710,9 @@ def _run_generic_document_scan(
                 "structured_field_keys": sorted(
                     extracted_fields.get("fields", {}).keys()
                 ),
+                "raw_text_mode": "structured_ocr_fields_only",
+                "structured_raw_text_consistent": bool(raw_text),
+                "generic_page_text_persisted": False,
                 "generic_ocr_seconds": round(generic_ocr_seconds, 3),
                 "structured_ocr_seconds": round(extraction_seconds, 3),
                 "processing_seconds": round(

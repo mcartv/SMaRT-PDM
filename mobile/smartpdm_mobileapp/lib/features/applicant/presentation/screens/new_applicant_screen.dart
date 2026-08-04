@@ -91,9 +91,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.currentCourse = prefs.getString('user_course') ?? '';
     _data.currentSection = prefs.getString('user_section') ?? '';
 
-    if ((widget.initialOpeningId ?? '').trim().isNotEmpty) {
+    /*
+   * An opening passed through navigation takes priority initially.
+   */
+    final initialOpeningId = widget.initialOpeningId?.trim() ?? '';
+
+    if (initialOpeningId.isNotEmpty) {
       _applyOpeningSelection(
-        openingId: widget.initialOpeningId!.trim(),
+        openingId: initialOpeningId,
         openingTitle: widget.initialOpeningTitle?.trim() ?? '',
         programName: widget.initialProgramName?.trim() ?? '',
       );
@@ -101,6 +106,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
     try {
       final savedFormData = await _applicationService.fetchMySavedFormData();
+
       debugPrint('APPLICATION FORM PREFILL RESPONSE: $savedFormData');
 
       final savedOpening = Map<String, dynamic>.from(
@@ -111,22 +117,71 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
       final shouldReplaceDraft =
           widget.replaceExistingDraft &&
-          (widget.initialOpeningId ?? '').trim().isNotEmpty &&
+          initialOpeningId.isNotEmpty &&
           savedOpeningId.isNotEmpty &&
-          savedOpeningId != (widget.initialOpeningId ?? '').trim();
+          savedOpeningId != initialOpeningId;
 
       if (!shouldReplaceDraft) {
         _data.applySavedForm(savedFormData);
+
         _hasDraftLoaded = savedFormData['has_saved_form'] == true;
+
         await _syncAccountHolderCache();
       }
     } catch (error) {
       debugPrint('APPLICATION FORM PREFILL ERROR: $error');
     }
 
-    if (!mounted) return;
-    setState(() => _isBootstrapping = false);
+    /*
+   * Submitted applications no longer have an application-form draft
+   * because the backend deletes the draft after submission.
+   *
+   * When the saved form response does not contain an opening, retrieve
+   * the opening from the applicant's current submitted application.
+   */
+    if (!_hasSelectedOpening) {
+      try {
+        final statusSummary = await _applicationService
+            .fetchMyApplicationStatusSummary();
 
+        final submittedOpeningId = statusSummary.openingId?.trim() ?? '';
+
+        if (statusSummary.hasApplication && submittedOpeningId.isNotEmpty) {
+          _applyOpeningSelection(
+            openingId: submittedOpeningId,
+            openingTitle: statusSummary.openingTitle?.trim() ?? '',
+            programName: statusSummary.programName?.trim() ?? '',
+          );
+
+          /*
+         * Treat the submitted application as existing saved form data.
+         * The form fields were reconstructed by the form-data endpoint,
+         * while the opening came from the application status endpoint.
+         */
+          _hasDraftLoaded = true;
+
+          debugPrint(
+            'APPLICATION FORM OPENING RESTORED: '
+            '$submittedOpeningId',
+          );
+        }
+      } catch (error) {
+        debugPrint('APPLICATION STATUS OPENING FALLBACK ERROR: $error');
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isBootstrapping = false;
+    });
+
+    /*
+   * When a new opening was selected and no previous application or draft
+   * exists, immediately create the first autosave.
+   */
     if (_hasSelectedOpening && !_hasDraftLoaded) {
       _queueAutosave(immediate: true);
     }
@@ -221,20 +276,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     if (!_hasSelectedOpening) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Choose a scholarship opening before submitting.'),
+          content: Text('Choose a scholarship before submitting.'),
         ),
       );
       return;
     }
 
-    final validationResult =
-        _submissionValidator.validateSubmissionPreflight(_data);
+    final validationResult = _submissionValidator.validateSubmissionPreflight(
+      _data,
+    );
     if (!validationResult.isValid) {
       setState(() => _showValidationErrors = true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(content: Text(validationResult.firstMessage ?? 'Review the form before submitting.')),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            validationResult.firstMessage ??
+                'Review the form before submitting.',
+          ),
+        ),
       );
       return;
     }
@@ -360,19 +419,18 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         return 'Mobile number is too long.';
       }
 
-      final address = [
-        _data.unitBldgNo,
-        _data.houseLotBlockNo,
-        _data.street,
-        _data.subdivision,
-        _data.barangay,
-        _data.city,
-        _data.province,
-        _data.zipCode,
-      ].any((value) => value.trim().isNotEmpty);
-      if (!address) {
-        return 'Address is required.';
+      final hasStreetAddress =
+          _data.unitBldgNo.trim().isNotEmpty ||
+          _data.houseLotBlockNo.trim().isNotEmpty ||
+          _data.street.trim().isNotEmpty ||
+          _data.subdivision.trim().isNotEmpty;
+      if (!hasStreetAddress) {
+        return 'House, building, street, or subdivision is required.';
       }
+      if (_data.barangay.trim().isEmpty) return 'Barangay is required.';
+      if (_data.city.trim().isEmpty) return 'City is required.';
+      if (_data.province.trim().isEmpty) return 'Province is required.';
+      if (_data.zipCode.trim().isEmpty) return 'ZIP code is required.';
 
       final email = _data.email.trim();
       if (email.isEmpty) {
@@ -425,26 +483,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     String? validateEssay() {
-      return _submissionValidator
-          .validateEssayProgression(_data)
-          .firstMessage;
+      return _submissionValidator.validateEssayProgression(_data).firstMessage;
     }
 
     String? validateFamily() {
       final hasNamedFather =
           _data.fatherPresent &&
-          (_data.fatherFirstName.trim().isNotEmpty ||
-              _data.fatherLastName.trim().isNotEmpty);
+          _data.fatherFirstName.trim().isNotEmpty &&
+          _data.fatherLastName.trim().isNotEmpty;
       final hasNamedMother =
           _data.motherPresent &&
-          (_data.motherFirstName.trim().isNotEmpty ||
-              _data.motherLastName.trim().isNotEmpty);
+          _data.motherFirstName.trim().isNotEmpty &&
+          _data.motherLastName.trim().isNotEmpty;
       final hasNamedGuardian =
-          _data.guardianFirstName.trim().isNotEmpty ||
+          _data.guardianFirstName.trim().isNotEmpty &&
           _data.guardianLastName.trim().isNotEmpty;
 
       if (!hasNamedFather && !hasNamedMother && !hasNamedGuardian) {
-        return 'Add at least one parent or guardian.';
+        return 'Enter the complete name of at least one parent or guardian.';
       }
 
       if (_data.guardianOnly && !hasNamedGuardian) {
@@ -464,7 +520,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case 3:
         return validateEssay();
       case 4:
-        return _submissionValidator.validateSubmissionPreflight(_data).firstMessage;
+        return _submissionValidator
+            .validateSubmissionPreflight(_data)
+            .firstMessage;
       default:
         return null;
     }
@@ -488,6 +546,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             setState(() {});
             _queueAutosave();
           },
+          showErrors: _showValidationErrors,
         );
       case 2:
         return StepAcademic(
@@ -568,7 +627,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 child: Column(
                   children: [
                     AppHeader(
-                      subtitle: 'Student Profile Intake Form',
+                      subtitle: 'Scholarship Application Form',
                       onBack: () => Navigator.maybePop(context),
                     ),
                     Padding(
@@ -756,8 +815,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildFooter(NewScholarProvider provider) {
-    final submissionReady =
-        _submissionValidator.validateSubmissionPreflight(_data).isValid;
+    final submissionReady = _submissionValidator
+        .validateSubmissionPreflight(_data)
+        .isValid;
     final submitEnabled =
         _hasSelectedOpening && submissionReady && !provider.isLoading;
 
@@ -795,8 +855,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.darkBrown,
                       disabledBackgroundColor: const Color(0xFFF0D8A0),
-                      disabledForegroundColor: AppColors.darkBrown
-                          .withValues(alpha: 0.6),
+                      disabledForegroundColor: AppColors.darkBrown.withValues(
+                        alpha: 0.6,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),

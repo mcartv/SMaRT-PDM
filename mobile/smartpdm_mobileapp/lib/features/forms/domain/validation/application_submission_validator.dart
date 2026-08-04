@@ -111,6 +111,18 @@ class ApplicationSubmissionValidator {
   List<ApplicationSubmissionIssue> _validateAccountFields(ApplicationData data) {
     final issues = <ApplicationSubmissionIssue>[];
 
+    if (_isBlank(data.openingId)) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'application.scholarship.required',
+          section: ApplicationSubmissionSection.account,
+          field: 'openingId',
+          message: 'Choose a scholarship before submitting.',
+          repairAction: 'Return to Available Scholarships and select a scholarship.',
+        ),
+      );
+    }
+
     if (_isBlank(data.userId)) {
       issues.add(
         const ApplicationSubmissionIssue(
@@ -290,24 +302,40 @@ class ApplicationSubmissionValidator {
       );
     }
 
-    final addressFields = <String>[
-      data.unitBldgNo,
-      data.houseLotBlockNo,
-      data.street,
-      data.subdivision,
-      data.barangay,
-      data.city,
-      data.province,
-      data.zipCode,
-    ];
-    if (!addressFields.any((value) => value.trim().isNotEmpty)) {
+    final requiredAddressFields = <String, String>{
+      'barangay': data.barangay,
+      'city': data.city,
+      'province': data.province,
+      'zipCode': data.zipCode,
+    };
+    for (final entry in requiredAddressFields.entries) {
+      if (_isBlank(entry.value)) {
+        final label = entry.key == 'zipCode'
+            ? 'ZIP code'
+            : '${entry.key[0].toUpperCase()}${entry.key.substring(1)}';
+        issues.add(
+          ApplicationSubmissionIssue(
+            code: 'personal.address.${entry.key}.required',
+            section: ApplicationSubmissionSection.personal,
+            field: entry.key,
+            message: '$label is required.',
+            repairAction: 'Enter your $label.',
+          ),
+        );
+      }
+    }
+    final hasStreetAddress = data.houseLotBlockNo.trim().isNotEmpty ||
+        data.unitBldgNo.trim().isNotEmpty ||
+        data.street.trim().isNotEmpty ||
+        data.subdivision.trim().isNotEmpty;
+    if (!hasStreetAddress) {
       issues.add(
         const ApplicationSubmissionIssue(
-          code: 'personal.address.required',
+          code: 'personal.address.street.required',
           section: ApplicationSubmissionSection.personal,
-          field: 'address',
-          message: 'Permanent address is required.',
-          repairAction: 'Fill in at least one permanent address field.',
+          field: 'streetAddress',
+          message: 'House, building, street, or subdivision is required.',
+          repairAction: 'Enter at least one detailed street address field.',
         ),
       );
     }
@@ -356,12 +384,12 @@ class ApplicationSubmissionValidator {
 
     final hasNamedFather =
         data.fatherPresent &&
-        (_hasText(data.fatherFirstName) || _hasText(data.fatherLastName));
+        _hasText(data.fatherFirstName) && _hasText(data.fatherLastName);
     final hasNamedMother =
         data.motherPresent &&
-        (_hasText(data.motherFirstName) || _hasText(data.motherLastName));
+        _hasText(data.motherFirstName) && _hasText(data.motherLastName);
     final hasNamedGuardian =
-        _hasText(data.guardianFirstName) || _hasText(data.guardianLastName);
+        _hasText(data.guardianFirstName) && _hasText(data.guardianLastName);
 
     if (!hasNamedFather && !hasNamedMother && !hasNamedGuardian) {
       issues.add(
@@ -369,8 +397,8 @@ class ApplicationSubmissionValidator {
           code: 'family.primary_carer.required',
           section: ApplicationSubmissionSection.family,
           field: 'familyPrimaryCarer',
-          message: 'Add at least one parent or guardian.',
-          repairAction: 'Add the parent or guardian who should appear in the family section.',
+          message: 'Enter the complete name of at least one parent or guardian.',
+          repairAction: 'Enter both the first and last name of at least one parent or guardian.',
         ),
       );
     }

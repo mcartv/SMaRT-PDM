@@ -103,9 +103,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   }
 
   String _displayScholarshipTitle(ProgramOpening opening) {
-    final fallback = opening.programName.trim().isEmpty
-        ? 'Scholarship'
-        : opening.programName.trim();
+    const fallback = 'Scholarship';
 
     final cleaned = opening.openingTitle
         .replaceAll(
@@ -193,18 +191,18 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         context: context,
         builder: (dialogContext) {
           return AlertDialog(
-            title: Text('Existing draft found'),
+            title: Text('Saved application found'),
             content: Text(
-              'You already have a saved draft for ${result.draftOpeningTitle.isNotEmpty ? result.draftOpeningTitle : 'another scholarship'}. Continue that draft or replace it with ${opening.openingTitle}?',
+              'You already have a saved application for ${result.draftOpeningTitle.isNotEmpty ? result.draftOpeningTitle : 'another scholarship'}. Continue it or replace it with ${opening.openingTitle}?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text('Continue Draft'),
+                child: Text('Continue Application'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text('Replace Draft'),
+                child: Text('Replace Application'),
               ),
             ],
           );
@@ -345,7 +343,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Saved draft available',
+                      'Saved application available',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                         fontWeight: FontWeight.w700,
@@ -354,13 +352,13 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'} or choose a different scholarship to replace it.',
+                      'Continue your saved application for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'}, or choose another scholarship to replace it.',
                       style: TextStyle(color: subtitleColor, height: 1.4),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: () => _openApplicationForm(),
-                      child: Text('Continue Draft'),
+                      child: Text('Continue Application'),
                     ),
                   ],
                 ),
@@ -447,15 +445,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
 
                                       fontWeight: FontWeight.w800,
                                       color: titleColor
-),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    opening.programName,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                                      fontWeight: FontWeight.w700,
-                                      color: accentColor
 ),
                                   ),
                                 ],

@@ -3,10 +3,16 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_fo
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
 class StepFamily extends StatefulWidget {
-  const StepFamily({super.key, required this.data, required this.onChanged});
+  const StepFamily({
+    super.key,
+    required this.data,
+    required this.onChanged,
+    this.showErrors = false,
+  });
 
   final ApplicationData data;
   final VoidCallback onChanged;
+  final bool showErrors;
 
   @override
   State<StepFamily> createState() => _StepFamilyState();
@@ -304,8 +310,42 @@ class _StepFamilyState extends State<StepFamily> {
     return educationalOptions.contains(value.trim()) ? value.trim() : null;
   }
 
-  InputDecoration _dec(String hint, {Widget? suffixIcon}) =>
-      intakeInputDecoration(hint: hint, suffixIcon: suffixIcon);
+  InputDecoration _dec(
+    String hint, {
+    String? errorText,
+    Widget? suffixIcon,
+  }) => intakeInputDecoration(
+    hint: hint,
+    errorText: errorText,
+    suffixIcon: suffixIcon,
+  );
+
+  String? _requiredError(String value, String label) {
+    if (!widget.showErrors || value.trim().isNotEmpty) return null;
+    return '$label is required.';
+  }
+
+  String? _parentAddressError() {
+    if (!widget.showErrors || sameAddress) return null;
+    return parentAddressController.text.trim().isEmpty
+        ? 'Parent or guardian address is required.'
+        : null;
+  }
+
+  String? _primaryCarerError() {
+    if (!widget.showErrors) return null;
+    final hasFatherName = hasFather &&
+        fatherFirstNameController.text.trim().isNotEmpty &&
+        fatherLastNameController.text.trim().isNotEmpty;
+    final hasMotherName = hasMother &&
+        motherFirstNameController.text.trim().isNotEmpty &&
+        motherLastNameController.text.trim().isNotEmpty;
+    final hasGuardianName = guardianFirstNameController.text.trim().isNotEmpty &&
+        guardianLastNameController.text.trim().isNotEmpty;
+    return (hasFatherName || hasMotherName || hasGuardianName)
+        ? null
+        : 'Enter the complete name of at least one parent or guardian.';
+  }
 
   Widget _field(String label, Widget child) {
     return Column(
@@ -469,6 +509,9 @@ class _StepFamilyState extends State<StepFamily> {
                 controller: lastNameController,
                 decoration: _dec(
                   'Last Name',
+                  errorText: widget.showErrors && _primaryCarerError() != null
+                      ? _requiredError(lastNameController.text, 'Last name')
+                      : null,
                   suffixIcon: intakeCompletionIcon(lastNameController.text),
                 ),
               ),
@@ -479,6 +522,9 @@ class _StepFamilyState extends State<StepFamily> {
                 controller: firstNameController,
                 decoration: _dec(
                   'First Name',
+                  errorText: widget.showErrors && _primaryCarerError() != null
+                      ? _requiredError(firstNameController.text, 'First name')
+                      : null,
                   suffixIcon: intakeCompletionIcon(firstNameController.text),
                 ),
               ),
@@ -593,9 +639,20 @@ class _StepFamilyState extends State<StepFamily> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const IntakeSectionHeader(
-          title: 'FAMILY DATA',
+          title: 'II. FAMILY INFORMATION',
           icon: Icons.family_restroom,
         ),
+        if (_primaryCarerError() != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              _primaryCarerError()!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
           child: Column(
@@ -623,6 +680,7 @@ class _StepFamilyState extends State<StepFamily> {
                 maxLines: 2,
                 decoration: _dec(
                   'Parent or guardian address',
+                  errorText: _parentAddressError(),
                   suffixIcon: intakeCompletionIcon(
                     parentAddressController.text,
                   ),

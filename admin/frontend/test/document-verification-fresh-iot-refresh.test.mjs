@@ -86,7 +86,11 @@ test('fresh snapshot override renders the latest structured and raw OCR values',
 test('frontend waits for the exact fresh request instead of stopping on old OCR data', () => {
   assert.match(source, /ocr-snapshot\?request_id=/);
   assert.match(source, /latestRequestId === requestId/);
-  assert.match(source, /setRawOcrSnapshot\('\(Waiting for fresh OCR result\.\.\.\)'\)/);
+  assert.match(
+    source,
+    /setBlankIotOverride\(\s*null,\s*'\(Waiting for fresh OCR result\.\.\.\)'\s*\)/
+  );
+  assert.match(source, /setRawOcrSnapshot\(rawSnapshot\)/);
   assert.match(source, /const maxAttempts = 180/);
   assert.doesNotMatch(source, /if \(hasDocumentOcrResult\(latestDoc\)\)/);
 });

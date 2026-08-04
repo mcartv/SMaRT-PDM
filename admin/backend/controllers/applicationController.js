@@ -152,6 +152,7 @@ exports.getApplicationDocumentOcrSnapshot = async (req, res) => {
         const result = await applicationService.fetchApplicationDocumentOcrSnapshot({
             applicationId: id,
             documentKey,
+            requestId: req.query?.request_id || null,
         });
 
         res.status(200).json({
@@ -161,7 +162,7 @@ exports.getApplicationDocumentOcrSnapshot = async (req, res) => {
     } catch (err) {
         console.error('GET APPLICATION DOCUMENT OCR SNAPSHOT CONTROLLER ERROR:', err.message);
 
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             error: err.message || 'Failed to fetch OCR snapshot',
         });
     }

@@ -5,6 +5,9 @@ const pool = require('../config/db');
 const _ = require('lodash');
 const iotOcrRequestService = require('./iotOcrRequestService');
 const documentTypes = require('../utils/documentTypes');
+const {
+    isRequestBoundSnapshotFresh,
+} = require('../utils/iotOcrSnapshotFreshness');
 
 const STORAGE_BUCKET =
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
@@ -1719,6 +1722,7 @@ exports.runApplicationDocumentIotOcr = async ({
 exports.fetchApplicationDocumentOcrSnapshot = async ({
     applicationId,
     documentKey,
+    requestId = null,
 }) => {
     if (!applicationId) {
         throw new Error('applicationId is required');
@@ -1792,6 +1796,7 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .order('updated_at', { ascending: false })
         .limit(1);
 
     if (ocrError) {
@@ -1800,25 +1805,51 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
     }
 
     const ocrRow = ocrRows?.[0] || null;
-    const latestRequest = await iotOcrRequestService.getLatestRequestForDocument({
-        applicationId,
-        documentKey: normalizedDocumentKey,
-    });
+    const requestedRequest = requestId
+        ? await iotOcrRequestService.getRequestById({
+            requestId,
+            applicationId,
+            documentKey: normalizedDocumentKey,
+        })
+        : null;
+
+    if (requestId && !requestedRequest) {
+        throw buildHttpError(
+            404,
+            'IoT OCR request not found for this application document'
+        );
+    }
+
+    const latestRequest =
+        requestedRequest ||
+        await iotOcrRequestService.getLatestRequestForDocument({
+            applicationId,
+            documentKey: normalizedDocumentKey,
+        });
+    const snapshotFresh = requestId
+        ? isRequestBoundSnapshotFresh({
+            request: latestRequest,
+            ocrRow,
+        })
+        : !!ocrRow;
+    const visibleOcrRow = snapshotFresh ? ocrRow : null;
 
     return {
-        document_id: ocrRow?.document_id || null,
+        document_id: visibleOcrRow?.document_id || null,
         application_id: applicationId,
         student_id: applicationRow.student_id,
         student_name: studentName || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_type: documentTypeName,
-        ocr: buildOcrProjection(ocrRow || {}),
-        ocr_confidence: ocrRow?.ocr_confidence ?? null,
-        raw_text: ocrRow?.ocr_raw_text || '',
-        scanned_via_iot: !!ocrRow?.scanned_via_iot,
-        iot_device_id: ocrRow?.iot_device_id || null,
-        scanned_at: ocrRow?.scanned_at || null,
-        updated_at: ocrRow?.updated_at || null,
+        ocr: buildOcrProjection(visibleOcrRow || {}),
+        ocr_confidence: visibleOcrRow?.ocr_confidence ?? null,
+        raw_text: visibleOcrRow?.ocr_raw_text || '',
+        scanned_via_iot: !!visibleOcrRow?.scanned_via_iot,
+        iot_device_id: visibleOcrRow?.iot_device_id || null,
+        scanned_at: visibleOcrRow?.scanned_at || null,
+        updated_at: visibleOcrRow?.updated_at || null,
+        requested_request_id: requestId ? String(requestId) : null,
+        snapshot_fresh: snapshotFresh,
         iot_ocr_request: latestRequest,
     };
 };

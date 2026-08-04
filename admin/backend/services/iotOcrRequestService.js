@@ -444,6 +444,55 @@ exports.completeRequest = async (input = {}) => {
     }
 };
 
+exports.getRequestById = async ({
+    requestId,
+    applicationId = null,
+    documentKey = null,
+}) => {
+    if (!isUuid(requestId)) {
+        throw buildHttpError(400, 'Valid request_id is required');
+    }
+
+    const normalizedDocumentKey = documentKey
+        ? documentTypes.normalizeDocumentType(documentKey)
+        : null;
+
+    if (documentKey && !normalizedDocumentKey) {
+        throw buildHttpError(400, 'Invalid document_key');
+    }
+
+    const client = await pool.connect();
+
+    try {
+        const parameters = [String(requestId).trim()];
+        const filters = ['request_id = $1::uuid'];
+
+        if (applicationId) {
+            parameters.push(applicationId);
+            filters.push(`application_id = $${parameters.length}::uuid`);
+        }
+
+        if (normalizedDocumentKey) {
+            parameters.push(normalizedDocumentKey);
+            filters.push(`document_key = $${parameters.length}`);
+        }
+
+        const requestResult = await client.query(
+            `
+            SELECT *
+            FROM iot_ocr_requests
+            WHERE ${filters.join('\n              AND ')}
+            LIMIT 1
+            `,
+            parameters
+        );
+
+        return mapRequestRow(requestResult.rows[0] || null);
+    } finally {
+        client.release();
+    }
+};
+
 exports.getLatestRequestForDocument = async ({
     applicationId,
     documentKey,
@@ -480,5 +529,6 @@ module.exports = {
     createRequest: exports.createRequest,
     claimNextRequest: exports.claimNextRequest,
     completeRequest: exports.completeRequest,
+    getRequestById: exports.getRequestById,
     getLatestRequestForDocument: exports.getLatestRequestForDocument,
 };

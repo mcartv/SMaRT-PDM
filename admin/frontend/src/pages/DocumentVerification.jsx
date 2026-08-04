@@ -2122,32 +2122,30 @@ export default function DocumentVerification() {
     if (!activeDoc || activeDoc.id === 'application_form') return;
 
     const targetDocumentId = activeDoc.id;
-    const clearIotOverride = () => {
-      setIotOcrResults((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, targetDocumentId)) {
-          return prev;
-        }
-
-        const next = { ...prev };
-        delete next[targetDocumentId];
-        return next;
-      });
+    const setBlankIotOverride = (
+      request = null,
+      rawSnapshot = '(No fresh OCR result was produced.)'
+    ) => {
+      setIotOcrResults((prev) => ({
+        ...prev,
+        [targetDocumentId]: {
+          ocr: {},
+          ocr_confidence: '',
+          iot_ocr_request: request,
+          ocr_job: request,
+        },
+      }));
+      setRawOcrSnapshot(rawSnapshot);
     };
 
     try {
       stopPolling();
       setRunningIotOcr(true);
       setIotOcrError('');
-      setIotOcrResults((prev) => ({
-        ...prev,
-        [targetDocumentId]: {
-          ocr: {},
-          ocr_confidence: '',
-          iot_ocr_request: null,
-          ocr_job: null,
-        },
-      }));
-      setRawOcrSnapshot('(Waiting for fresh OCR result...)');
+      setBlankIotOverride(
+        null,
+        '(Waiting for fresh OCR result...)'
+      );
 
       const res = await fetch(
         `${API_BASE}/api/applications/${id}/documents/${targetDocumentId}/iot-ocr`,
@@ -2174,9 +2172,20 @@ export default function DocumentVerification() {
         throw new Error('The OCR backend did not return a request ID.');
       }
 
+      const requestContext = {
+        ...request,
+        request_id: requestId,
+      };
+
+      setBlankIotOverride(
+        requestContext,
+        '(Waiting for fresh OCR result...)'
+      );
+
       activeIotRequestRef.current = {
         documentId: targetDocumentId,
         requestId,
+        request: requestContext,
       };
 
       let attempts = 0;
@@ -2219,9 +2228,10 @@ export default function DocumentVerification() {
           const latestRequest = snapshot?.iot_ocr_request || {};
           const latestRequestId = getIotOcrRequestId(latestRequest);
           const requestStatus = String(latestRequest?.status || '').toLowerCase();
+          const snapshotFresh = snapshot?.snapshot_fresh === true;
 
           if (latestRequestId === requestId) {
-            if (requestStatus === 'completed') {
+            if (requestStatus === 'completed' && snapshotFresh) {
               const freshOverride = buildIotOcrSnapshotOverride(snapshot);
               const freshDocument = {
                 id: targetDocumentId,
@@ -2242,7 +2252,10 @@ export default function DocumentVerification() {
 
             if (requestStatus === 'failed' || requestStatus === 'cancelled') {
               await fetchApplicationDocuments({ soft: true });
-              clearIotOverride();
+              setBlankIotOverride(
+                latestRequest,
+                '(No fresh OCR result was produced.)'
+              );
               stopPolling();
               setRunningIotOcr(false);
               setIotOcrError(
@@ -2260,7 +2273,10 @@ export default function DocumentVerification() {
 
         if (attempts >= maxAttempts) {
           await fetchApplicationDocuments({ soft: true });
-          clearIotOverride();
+          setBlankIotOverride(
+            activeIotRequestRef.current?.request || null,
+            '(No fresh OCR result was produced.)'
+          );
           stopPolling();
           setRunningIotOcr(false);
           setIotOcrError(
@@ -2275,7 +2291,10 @@ export default function DocumentVerification() {
       await pollFreshSnapshot();
     } catch (err) {
       console.error('RUN IOT OCR ERROR:', err);
-      clearIotOverride();
+      setBlankIotOverride(
+        activeIotRequestRef.current?.request || null,
+        '(No fresh OCR result was produced.)'
+      );
       stopPolling();
       setIotOcrError(getOcrFailureMessage(err));
       setRunningIotOcr(false);

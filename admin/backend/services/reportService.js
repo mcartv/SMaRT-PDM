@@ -29,7 +29,6 @@ function normalizeReportType(value) {
         'applications',
         'scholars',
         'payouts',
-        'support',
         'sdo',
         'guidance',
         'pd',
@@ -103,11 +102,6 @@ async function getReportMetadata() {
                 id: 'payouts',
                 name: 'Payout Batch Report',
                 sub: 'Payout batches, release status, amount, and recipients',
-            },
-            {
-                id: 'support',
-                name: 'Support Ticket Report',
-                sub: 'Student concerns, ticket status, and handler records',
             },
             {
                 id: 'endorsements',
@@ -389,27 +383,6 @@ async function getPayoutRows({ academicYearId, semester, programId }) {
   `;
 
     const { rows } = await pool.query(query, params);
-    return rows;
-}
-
-async function getSupportRows() {
-    const query = `
-    SELECT
-      st.pdm_id,
-      CONCAT(st.last_name, ', ', st.first_name) AS student_name,
-      t.issue_category,
-      t.description,
-      t.status,
-      CONCAT(ap.last_name, ', ', ap.first_name) AS handled_by,
-      t.created_at,
-      t.resolved_at
-    FROM support_tickets t
-    LEFT JOIN students st ON t.student_id = st.student_id
-    LEFT JOIN admin_profiles ap ON t.handled_by = ap.admin_id
-    ORDER BY t.created_at DESC;
-  `;
-
-    const { rows } = await pool.query(query);
     return rows;
 }
 
@@ -824,9 +797,6 @@ async function getRowsByReportType({
         });
     }
 
-    if (reportType === 'support') {
-        return await getSupportRows();
-    }
 
     if (reportType === 'scholars_by_benefactor') {
         return await getScholarCountRows({
@@ -1032,22 +1002,6 @@ async function generateExcelReport(query = {}) {
         ];
         rows = await getPayoutRows(normalized);
         filename = 'payout_batch_report.xlsx';
-    }
-
-    if (normalized.reportType === 'support') {
-        sheet = workbook.addWorksheet('Support Tickets');
-        sheet.columns = [
-            { header: 'Student Number', key: 'pdm_id' },
-            { header: 'Student Name', key: 'student_name' },
-            { header: 'Category', key: 'issue_category' },
-            { header: 'Description', key: 'description' },
-            { header: 'Status', key: 'status' },
-            { header: 'Handled By', key: 'handled_by' },
-            { header: 'Created At', key: 'created_at' },
-            { header: 'Resolved At', key: 'resolved_at' },
-        ];
-        rows = await getSupportRows();
-        filename = 'support_ticket_report.xlsx';
     }
 
     if (normalized.reportType === 'sdo') {

@@ -220,9 +220,9 @@ export default function ReportGeneration({
     () => selected === 'scholars_by_benefactor',
     [selected]
   );
-  const supportsPeriodFilters = selected !== 'support';
-  const supportsProgramFilter = selected !== 'support';
-  const supportsBenefactorFilter = !['payouts', 'support'].includes(selected);
+  const supportsPeriodFilters = true;
+  const supportsProgramFilter = true;
+  const supportsBenefactorFilter = selected !== 'payouts';
 
   const previewColumns = useMemo(() => {
     if (!previewRows.length) return [];
@@ -452,17 +452,8 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('ticket:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
-  useSocketEvent('ticket:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
-  useSocketEvent('ticket:resolved', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
   useSocketEvent('announcement:created', () => {
     refreshReportData();
@@ -488,13 +479,7 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('ticket:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
-  useSocketEvent('ticket:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
   async function handleGenerateReport() {
     await handleDownloadByFormat('xlsx');
@@ -1014,7 +999,7 @@ export default function ReportGeneration({
 
         <CardContent className="p-5 text-sm text-stone-500">
           Reports are generated directly from applications, active scholars,
-          payout batches, and support tickets based on the filters above.
+          payout batches, and endorsement records based on the filters above.
         </CardContent>
       </Card>
     </div>

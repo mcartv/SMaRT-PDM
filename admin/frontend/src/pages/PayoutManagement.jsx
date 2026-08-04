@@ -824,6 +824,11 @@ export default function PayoutManagement() {
         return;
       }
 
+      const confirmed = window.confirm(
+        `Archive “${batch.payout_title || 'this payout batch'}”? This hides it from active payout records but preserves its audit history.`
+      );
+      if (!confirmed) return;
+
       setArchivingBatchId(batch.payout_batch_id);
 
       const res = await fetch(`${API_BASE}/payouts/${batch.payout_batch_id}/archive`, {
@@ -851,6 +856,11 @@ export default function PayoutManagement() {
   const handleRestoreBatch = async (batch) => {
     try {
       if (!batch?.payout_batch_id) return;
+
+      const confirmed = window.confirm(
+        `Restore “${batch.payout_title || 'this payout batch'}” to active payout records?`
+      );
+      if (!confirmed) return;
 
       setRestoringBatchId(batch.payout_batch_id);
 

@@ -944,6 +944,46 @@ function ApplicationFormPreview({ application }) {
 
 function DocumentPreviewPanel({ activeDoc, application }) {
   const fileType = getFileType(activeDoc);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+
+    const loadPreview = async () => {
+      setPreviewError('');
+      setPreviewUrl('');
+
+      if (!activeDoc?.url || activeDoc?.id === 'application_form') return;
+
+      try {
+        setPreviewLoading(true);
+        const response = await fetch(activeDoc.url, { cache: 'no-store' });
+        if (!response.ok) throw new Error('The document preview could not be loaded.');
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setPreviewUrl(objectUrl);
+      } catch (error) {
+        if (!cancelled) {
+          setPreviewError(
+            error?.message ||
+              'Preview unavailable. Use Open file to review the document in a separate tab.'
+          );
+        }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activeDoc?.id, activeDoc?.url]);
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -957,7 +997,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
             <p className="text-[11px] text-stone-400">
               {activeDoc?.id === 'application_form'
                 ? 'Submitted text-based form'
-                : 'Uploaded by student'}
+                : 'Previewed without automatic download'}
             </p>
           </div>
         </div>
@@ -966,7 +1006,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
           <a
             href={activeDoc.url}
             target="_blank"
-            rel="noreferrer"
+            rel="noreferrer noopener"
             className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
           >
             Open file
@@ -978,30 +1018,35 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       <div className="p-4 min-h-[520px] flex items-center justify-center bg-stone-50/20">
         {activeDoc?.id === 'application_form' ? (
           <ApplicationFormPreview application={application} />
-        ) : activeDoc?.url ? (
+        ) : previewLoading ? (
+          <div className="flex flex-col items-center gap-3 text-stone-500">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <p className="text-xs">Loading secure document preview…</p>
+          </div>
+        ) : previewError ? (
+          <div className="w-full max-w-md rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <AlertTriangle className="mx-auto h-6 w-6 text-amber-600" />
+            <p className="mt-3 text-sm font-semibold text-amber-900">Preview unavailable</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-700">{previewError}</p>
+          </div>
+        ) : previewUrl ? (
           fileType === 'image' ? (
             <div className="w-full h-[520px] flex items-center justify-center rounded-lg border border-stone-200 bg-white overflow-auto">
               <img
-                src={activeDoc.url}
+                src={previewUrl}
                 alt={activeDoc.name}
                 className="max-w-full max-h-full object-contain"
               />
             </div>
           ) : fileType === 'pdf' ? (
-            <object
-              data={activeDoc.url}
-              type="application/pdf"
+            <iframe
+              src={`${previewUrl}#toolbar=0&navpanes=0`}
+              title={activeDoc.name}
               className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
-            >
-              <iframe
-                src={activeDoc.url}
-                title={activeDoc.name}
-                className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
-              />
-            </object>
+            />
           ) : (
             <iframe
-              src={activeDoc.url}
+              src={previewUrl}
               title={activeDoc.name}
               className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
             />

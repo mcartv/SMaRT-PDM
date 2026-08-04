@@ -33,6 +33,25 @@ function normalizeLimit(value, fallback = 0) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function validateApplicantGwa(gwa, threshold = null) {
+  const numericGwa = Number(gwa);
+  if (!Number.isFinite(numericGwa) || numericGwa < 1 || numericGwa > 5) {
+    throw httpError(409, 'A valid GWA from 1.00 to 5.00 is required before selection.');
+  }
+
+  const numericThreshold = Number(threshold);
+  if (Number.isFinite(numericThreshold) && numericThreshold >= 1 && numericThreshold <= 5) {
+    // PDM uses the Philippine grading scale where a lower GWA is better.
+    if (numericGwa > numericThreshold) {
+      throw httpError(
+        409,
+        `Applicant GWA ${numericGwa.toFixed(2)} does not meet the required ${numericThreshold.toFixed(2)} threshold.`
+      );
+    }
+  }
+  return numericGwa;
+}
+
 function applicationName(row = {}) {
   return [row.first_name, row.middle_name, row.last_name]
     .filter(Boolean)
@@ -47,6 +66,7 @@ async function getOpeningForUpdate(client, openingId) {
       SELECT
         po.*,
         sp.program_name,
+        sp.gwa_threshold,
         ay.label AS academic_year,
         ap.term AS semester
       FROM program_openings po
@@ -353,9 +373,13 @@ async function markApplicationQualified(applicationId, actor = {}) {
           a.opening_id,
           a.verification_status,
           a.is_disqualified,
-          es.overall_status AS endorsement_status
+          es.overall_status AS endorsement_status,
+          st.gwa,
+          sp.gwa_threshold
         FROM applications a
         LEFT JOIN endorsement_slips es ON es.application_id = a.application_id
+        LEFT JOIN students st ON st.student_id = a.student_id
+        LEFT JOIN scholarship_program sp ON sp.program_id = a.program_id
         WHERE a.application_id = $1
         LIMIT 1
         FOR UPDATE OF a
@@ -372,6 +396,8 @@ async function markApplicationQualified(applicationId, actor = {}) {
     if (String(application.endorsement_status || '').toLowerCase() !== 'completed') {
       throw httpError(409, 'Complete the endorsement workflow before marking this applicant qualified.');
     }
+
+    validateApplicantGwa(application.gwa, application.gwa_threshold);
 
     const updated = await client.query(
       `
@@ -471,6 +497,7 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
 
     const occupiedBefore = await countOccupiedSlots(client, openingId);
     const queue = await getQualifiedQueue(client, openingId, { forUpdate: true });
+    queue.forEach((entry) => validateApplicantGwa(entry.gwa, opening.gwa_threshold));
     if (!queue.length) {
       throw httpError(409, 'No qualified applicants are ready for final selection.');
     }
@@ -898,16 +925,6 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       );
     }
 
-    await client.query(
-      `
-        UPDATE program_openings
-        SET filled_slots = GREATEST(COALESCE(filled_slots, 0) - 1, 0),
-            updated_at = now()
-        WHERE opening_id = $1
-      `,
-      [scholar.opening_id]
-    );
-
     promotionResult = await promoteNextWaitlisted({
       openingId: scholar.opening_id,
       releasedStudentId: studentId,
@@ -915,6 +932,19 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       reason: `Promoted after a slot was released: ${normalizedReason}`,
       client,
     });
+
+    // Always reconcile the stored slot count from actual active scholar rows.
+    // This prevents stale counts after remove + automatic replacement.
+    const occupiedAfter = await countOccupiedSlots(client, scholar.opening_id);
+    await client.query(
+      `
+        UPDATE program_openings
+        SET filled_slots = LEAST(allocated_slots, $2),
+            updated_at = now()
+        WHERE opening_id = $1
+      `,
+      [scholar.opening_id, occupiedAfter]
+    );
 
     await client.query('COMMIT');
     return {

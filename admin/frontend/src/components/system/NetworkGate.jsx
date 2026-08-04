@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, RefreshCw, WifiOff } from 'lucide-react';
+import { Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import pdmLogo from '@/assets/pdm-logo.png';
 
 const CHECK_INTERVAL_MS = 15_000;
-const CHECK_TIMEOUT_MS = 5_000;
+const CHECK_TIMEOUT_MS = 8_000;
+const SLOW_CONNECTION_MS = 2_500;
 const LANDING_REFRESH_LOADER_MIN_MS = 1_500;
 const LANDING_VISIT_LOADER_MIN_MS = 250;
 
@@ -203,9 +204,11 @@ export default function NetworkGate({ children }) {
   const contentRef = useRef(null);
   const [status, setStatus] = useState('checking');
   const [isRetrying, setIsRetrying] = useState(false);
+  const [slowConnection, setSlowConnection] = useState(false);
 
   const checkConnection = useCallback(async ({ manual = false } = {}) => {
     const checkStartedAt = Date.now();
+    setSlowConnection(false);
     if (manual) setIsRetrying(true);
 
     if (!navigator.onLine) {
@@ -231,7 +234,9 @@ export default function NetworkGate({ children }) {
         }
       );
 
+      const elapsed = Date.now() - checkStartedAt;
       const connected = response.ok;
+      setSlowConnection(connected && elapsed >= SLOW_CONNECTION_MS);
       const landingPath = ['/', '/landing'].includes(window.location.pathname);
 
       if (connected && landingPath) {
@@ -297,6 +302,16 @@ export default function NetworkGate({ children }) {
 
   return (
     <>
+      {status === 'online' && slowConnection ? (
+        <div className="fixed right-4 top-4 z-[100] flex max-w-sm items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-lg" role="status">
+          <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+          <div>
+            <p className="text-xs font-semibold text-amber-900">Slow network detected</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-amber-700">Pages and uploads may take longer than usual. Your current work remains available.</p>
+          </div>
+          <button type="button" onClick={() => setSlowConnection(false)} className="text-xs font-semibold text-amber-800" aria-label="Dismiss slow network message">×</button>
+        </div>
+      ) : null}
       <div ref={contentRef} className={blocked ? 'hidden' : undefined}>
         {children}
       </div>

@@ -1,6 +1,40 @@
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 
+
+function payoutError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function normalizeRequiredText(value, field, maxLength = 180) {
+  const normalized = String(value || '').trim();
+  if (!normalized) throw payoutError(400, `${field} is required.`);
+  if (normalized.length > maxLength) throw payoutError(400, `${field} is too long.`);
+  return normalized;
+}
+
+function validatePayoutDate(value) {
+  const normalized = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw payoutError(400, 'Payout date must use YYYY-MM-DD format.');
+  }
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
+    throw payoutError(400, 'Payout date is invalid.');
+  }
+  return normalized;
+}
+
+function validateMoney(value, field) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
+    throw payoutError(400, `${field} must be greater than zero and no more than 1,000,000.`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
 // =========================
 // FETCH PAYOUT BATCHES
 // =========================
@@ -229,8 +263,12 @@ async function createPayoutBatchFromOpening({
   scholar_ids,
 }) {
   if (!opening_id) {
-    throw new Error('opening_id is required');
+    throw payoutError(400, 'opening_id is required');
   }
+
+  const normalizedTitle = normalizeRequiredText(payout_title, 'Payout title');
+  const normalizedDate = validatePayoutDate(payout_date);
+  const normalizedPaymentMode = normalizeRequiredText(payment_mode, 'Payment mode', 60);
 
   let uniqueStudentIds = Array.isArray(scholar_ids)
     ? [...new Set(scholar_ids.filter(Boolean))]
@@ -304,7 +342,7 @@ async function createPayoutBatchFromOpening({
     throw new Error('One or more selected scholars do not belong to the selected opening');
   }
 
-  const amount = Number(opening.amount_per_scholar || 0);
+  const amount = validateMoney(opening.amount_per_scholar, 'Amount per scholar');
   const totalAmount = amount * uniqueStudentIds.length;
 
   const client = await pool.connect();
@@ -335,9 +373,9 @@ async function createPayoutBatchFromOpening({
         opening.program_id,
         opening.academic_year_id,
         opening.period_id,
-        payout_title || opening.opening_title || `${opening.program_name || 'Program'} Payout Batch`,
-        payout_date || new Date().toISOString().slice(0, 10),
-        payment_mode || 'Cash',
+        normalizedTitle,
+        normalizedDate,
+        normalizedPaymentMode,
         amount,
         totalAmount,
         remarks || null,
@@ -459,6 +497,17 @@ async function updateScholarPayoutStatus({
     throw err;
   }
 
+  const normalizedRemarks = String(remarks || '').trim();
+  const normalizedCheckNumber = String(check_number || '').trim();
+  if (normalizedRemarks.length > 500) throw payoutError(400, 'Remarks must not exceed 500 characters.');
+  if (normalizedCheckNumber.length > 100) throw payoutError(400, 'Check/reference number must not exceed 100 characters.');
+  if (next_status === 'On Hold' && !normalizedRemarks) {
+    throw payoutError(400, 'Remarks are required when placing a payout on hold.');
+  }
+  if (next_status === 'Released' && normalizedCheckNumber && !/^[A-Za-z0-9._\-/ ]+$/.test(normalizedCheckNumber)) {
+    throw payoutError(400, 'Check/reference number contains invalid characters.');
+  }
+
   const releasedAt = next_status === 'Released' ? new Date() : null;
 
   const updateQuery = `
@@ -476,8 +525,8 @@ async function updateScholarPayoutStatus({
   const { rows } = await pool.query(updateQuery, [
     next_status,
     releasedAt,
-    remarks,
-    check_number,
+    normalizedRemarks || null,
+    normalizedCheckNumber || null,
     payout_entry_id,
   ]);
 

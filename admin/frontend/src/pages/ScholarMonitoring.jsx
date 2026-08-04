@@ -1403,7 +1403,7 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
             <div>
               <p className="text-xs font-medium text-stone-700">Also archive student record</p>
               <p className="text-[11px] text-stone-500 mt-0.5">
-                Enable only if the student record should also be hidden from active records.
+                When enabled, the student remains in the students table with is_archived=true and is shown only in archived-record views. Scholarship history and audit data are preserved.
               </p>
             </div>
           </label>

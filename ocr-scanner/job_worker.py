@@ -16,6 +16,7 @@ import os
 import signal
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import cv2
@@ -44,7 +45,8 @@ from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
 from ocr import extract_text
 
-load_dotenv()
+WORKER_ENV_PATH = Path(__file__).resolve().with_name(".env")
+load_dotenv(dotenv_path=WORKER_ENV_PATH, override=True)
 
 POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "1"))
 FAST_REVIEW_OCR_ENABLED = (
@@ -761,6 +763,10 @@ def main():
                 continue
 
             log.info("Claimed request=%s", _safe_request_ref(request_id))
+            log.info(
+                "Request received; opening camera preview request=%s",
+                _safe_request_ref(request_id),
+            )
             _success, payload = run_scan(request)
             submit_and_verify(api, request_id, payload)
 
@@ -768,7 +774,7 @@ def main():
             _shutdown_requested.set()
             break
         except Exception:
-            log.error("Unexpected worker error")
+            log.exception("Unexpected worker error")
 
         if not _shutdown_requested.is_set():
             time.sleep(POLL_INTERVAL_SECONDS)

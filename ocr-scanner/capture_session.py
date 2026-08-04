@@ -1,6 +1,7 @@
-"""Preview-first, OCR-independent Raspberry Pi capture session."""
+"""Automatic preview-first Raspberry Pi capture session."""
 
 import os
+import time
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -37,73 +38,157 @@ def run_capture_session(
     path_exists: Callable[[str], bool] = os.path.isfile,
     should_stop: Optional[Callable[[], bool]] = None,
 ) -> CaptureSessionResult:
-    """Capture one image after LEFT, or cancel before capture with RIGHT."""
+    """
+    Open the preview immediately after a request is claimed.
+
+    LEFT finalizes one capture. RIGHT cancels before capture.
+    No button press is required to open the preview.
+    """
 
     resolved_camera = camera if camera is not None else CameraController()
     resolved_buttons = buttons if buttons is not None else ButtonReader()
+    session_started_at = time.monotonic()
 
     try:
         try:
             if not resolved_camera.check_available():
-                return CaptureSessionResult(FAILED, error_code="CAMERA_UNAVAILABLE")
+                return CaptureSessionResult(
+                    FAILED,
+                    error_code="CAMERA_UNAVAILABLE",
+                )
         except (InterruptedError, KeyboardInterrupt):
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
         except Exception:
-            return CaptureSessionResult(FAILED, error_code="CAMERA_UNAVAILABLE")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAMERA_UNAVAILABLE",
+            )
 
         try:
             resolved_buttons.start()
         except (InterruptedError, KeyboardInterrupt):
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
         except Exception:
-            return CaptureSessionResult(FAILED, error_code="INPUT_DEVICE_UNAVAILABLE")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="INPUT_DEVICE_UNAVAILABLE",
+            )
 
+        # Preview is intentionally started before waiting for either button.
         try:
+            preview_started_at = time.monotonic()
+
             if not resolved_camera.start_preview():
-                return CaptureSessionResult(FAILED, error_code="PREVIEW_START_FAILED")
+                return CaptureSessionResult(
+                    FAILED,
+                    error_code="PREVIEW_START_FAILED",
+                )
+
+            print(
+                "Camera preview ready in "
+                f"{time.monotonic() - preview_started_at:.2f}s; "
+                "press LEFT to capture or RIGHT to cancel."
+            )
         except (InterruptedError, KeyboardInterrupt):
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
         except Exception:
-            return CaptureSessionResult(FAILED, error_code="PREVIEW_START_FAILED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="PREVIEW_START_FAILED",
+            )
 
         try:
-            pressed = resolved_buttons.wait_for_press(should_stop=should_stop)
+            pressed = resolved_buttons.wait_for_press(
+                should_stop=should_stop,
+            )
         except (InterruptedError, KeyboardInterrupt):
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
         except Exception:
-            return CaptureSessionResult(FAILED, error_code="INPUT_DEVICE_UNAVAILABLE")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="INPUT_DEVICE_UNAVAILABLE",
+            )
 
         if pressed == "right":
             return CaptureSessionResult(CANCELLED)
+
         if pressed != "left":
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
 
         try:
-            captured = resolved_camera.capture_image(restart_preview=False)
+            captured = resolved_camera.capture_image(
+                restart_preview=False,
+            )
         except (InterruptedError, KeyboardInterrupt):
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
         except Exception:
             captured = False
-        if not captured:
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_FAILED")
 
-        capture_path = str(getattr(resolved_camera, "capture_file", "") or "")
+        if not captured:
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_FAILED",
+            )
+
+        capture_path = str(
+            getattr(
+                resolved_camera,
+                "capture_file",
+                "",
+            )
+            or ""
+        )
+
         try:
-            output_exists = bool(capture_path and path_exists(capture_path))
+            output_exists = bool(
+                capture_path and path_exists(capture_path)
+            )
         except Exception:
             output_exists = False
+
         if not output_exists:
-            return CaptureSessionResult(FAILED, error_code="CAPTURE_OUTPUT_UNAVAILABLE")
-        return CaptureSessionResult(CAPTURED, capture_path=capture_path)
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_OUTPUT_UNAVAILABLE",
+            )
+
+        print(
+            "Capture session finalized in "
+            f"{time.monotonic() - session_started_at:.2f}s."
+        )
+        return CaptureSessionResult(
+            CAPTURED,
+            capture_path=capture_path,
+        )
     finally:
         try:
             resolved_camera.stop_preview()
         except Exception:
             pass
+
         try:
             resolved_buttons.close()
         except Exception:
             pass
+
         try:
             resolved_camera.cleanup()
         except Exception:

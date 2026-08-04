@@ -1,0 +1,169 @@
+import unittest
+from pathlib import Path
+
+import camera
+import capture_session
+
+
+class OrderedCamera:
+    def __init__(self, events):
+        self.events = events
+        self.capture_file = "/tmp/raw_capture.jpg"
+
+    def check_available(self):
+        self.events.append("camera_check")
+        return True
+
+    def start_preview(self):
+        self.events.append("preview_start")
+        return True
+
+    def capture_image(self, *, restart_preview=True):
+        self.events.append("capture")
+        return True
+
+    def stop_preview(self):
+        self.events.append("preview_stop")
+
+    def cleanup(self):
+        self.events.append("cleanup")
+
+
+class OrderedButtons:
+    def __init__(self, events):
+        self.events = events
+
+    def start(self):
+        self.events.append("buttons_start")
+
+    def wait_for_press(self, *, should_stop=None):
+        self.events.append("button_wait")
+        return "left"
+
+    def close(self):
+        self.events.append("buttons_close")
+
+
+class PreviewAndSpeedContractTest(unittest.TestCase):
+    def test_request_opens_preview_before_waiting_for_button(self):
+        events = []
+        result = capture_session.run_capture_session(
+            camera=OrderedCamera(events),
+            buttons=OrderedButtons(events),
+            path_exists=lambda _path: True,
+        )
+
+        self.assertEqual(
+            result.status,
+            capture_session.CAPTURED,
+        )
+        self.assertLess(
+            events.index("preview_start"),
+            events.index("button_wait"),
+        )
+        self.assertEqual(events.count("capture"), 1)
+
+    def test_camera_fast_defaults_remain_bounded(self):
+        controller = camera.CameraController()
+
+        self.assertLessEqual(
+            controller.capture_timeout_ms,
+            1000,
+        )
+        self.assertLessEqual(
+            controller.preview_startup_seconds,
+            1.0,
+        )
+        self.assertLessEqual(
+            controller.release_settle_seconds,
+            0.25,
+        )
+
+    def test_preprocessing_does_not_require_debug_disk_write(self):
+        source = Path("ocr.py").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn(
+            "OCR_SAVE_PROCESSED_DEBUG",
+            source,
+        )
+        self.assertIn(
+            "cv2.IMREAD_GRAYSCALE",
+            source,
+        )
+        self.assertNotIn(
+            "cv2.imwrite(PROC_FILE, processed)",
+            source,
+        )
+
+    def test_local_contract_test_imports_only_stdlib_and_local_modules(self):
+        tree = __import__("ast").parse(
+            Path(__file__).read_text(
+                encoding="utf-8",
+            )
+        )
+        allowed = {
+            "ast",
+            "pathlib",
+            "unittest",
+            "camera",
+            "capture_session",
+        }
+
+        for node in __import__("ast").walk(tree):
+            if isinstance(node, __import__("ast").Import):
+                names = [
+                    alias.name.split(".", 1)[0]
+                    for alias in node.names
+                ]
+            elif isinstance(node, __import__("ast").ImportFrom):
+                names = [
+                    (node.module or "").split(".", 1)[0]
+                ]
+            else:
+                continue
+
+            for name in names:
+                self.assertIn(name, allowed)
+
+    def test_api_loads_colocated_environment(self):
+        source = Path("api.py").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn(
+            'Path(__file__).resolve().with_name(".env")',
+            source,
+        )
+        self.assertIn(
+            "_load_colocated_env",
+            source,
+        )
+        self.assertIn(
+            "SMaRT-PDM-Pi-IoT-OCR/3",
+            source,
+        )
+
+    def test_worker_starts_capture_session_directly_after_claim(self):
+        source = Path("job_worker.py").read_text(
+            encoding="utf-8",
+        )
+
+        claimed_index = source.index(
+            'log.info("Claimed request=%s"'
+        )
+        preview_index = source.index(
+            "run_scan(request)",
+            claimed_index,
+        )
+
+        self.assertGreater(preview_index, claimed_index)
+        self.assertIn(
+            "opening camera preview",
+            source.lower(),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

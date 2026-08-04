@@ -40,8 +40,7 @@ class SmartPdmApp extends StatelessWidget {
 
             // Keep the user's accessibility preference, but apply a bounded
             // responsive adjustment so very narrow screens remain usable.
-            final systemTextScale =
-                mediaQuery.textScaler.scale(16) / 16;
+            final systemTextScale = mediaQuery.textScaler.scale(16) / 16;
             final effectiveTextScale = (systemTextScale * responsiveFactor)
                 .clamp(0.85, 1.15)
                 .toDouble();

@@ -454,7 +454,6 @@ export function buildExtractedData(activeDoc, application) {
   } else if (hasStructuredIndigencyFields) {
     const indigencyFieldDefinitions = [
       ['certificate_subject_name', 'Certificate Subject Name'],
-      ['issue_date', 'Issue Date'],
       ['issuing_barangay', 'Issuing Barangay'],
     ];
 

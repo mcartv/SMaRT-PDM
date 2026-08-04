@@ -172,11 +172,6 @@ test('structured indigency fields render provisionally without identity matching
       badge: 'Provisional OCR',
     },
     {
-      label: 'Issue Date',
-      value: 'Not extracted',
-      badge: 'Provisional OCR',
-    },
-    {
       label: 'Issuing Barangay',
       value: 'SAMPLE BARANGAY',
       badge: 'Provisional OCR',

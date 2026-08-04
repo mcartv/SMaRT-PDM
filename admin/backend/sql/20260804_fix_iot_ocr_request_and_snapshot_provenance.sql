@@ -34,6 +34,7 @@ ALTER TABLE public.ocr_extracted_documents
 
 -- Remove only legacy uniqueness rules that force one mutable OCR row per
 -- application/document. Immutable snapshots must be append-only.
+-- SMARTPDM_IOT_OCR_NAME_ARRAY_CAST_V1: pg_attribute.attname is name; cast it to text so text[] containment is valid.
 DO $$
 DECLARE
     item RECORD;
@@ -44,7 +45,7 @@ BEGIN
             SELECT
                 c.conname,
                 ARRAY(
-                    SELECT a.attname
+                    SELECT a.attname::text
                     FROM unnest(c.conkey) WITH ORDINALITY AS key(attnum, ordinality)
                     JOIN pg_attribute a
                       ON a.attrelid = c.conrelid

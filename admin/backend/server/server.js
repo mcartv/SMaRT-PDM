@@ -209,6 +209,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     socket: 'enabled',
     iot_ocr_fix: 'immutable-snapshot-provenance-v2',
+    iot_ocr_schema_fix: 'name-array-cast-rollback-v1',
     time: new Date().toISOString(),
   });
 });

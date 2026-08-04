@@ -8,9 +8,16 @@ import 'package:smartpdm_mobileapp/app/theme/theme_provider.dart';
 class SmartPdmApp extends StatelessWidget {
   const SmartPdmApp({super.key});
 
-  double _smallScreenTextScale(double width) {
-    if (width <= 360) return 1.14;
-    if (width <= 400) return 1.08;
+  /// Slightly reduces typography on narrow phones so navigation labels,
+  /// status cards, buttons, and form labels do not overflow.
+  ///
+  /// The previous implementation enlarged text by 8–14% on small screens,
+  /// which caused otherwise valid one-line labels to wrap or clip.
+  double _responsiveTextFactor(double width) {
+    if (width <= 340) return 0.88;
+    if (width <= 360) return 0.91;
+    if (width <= 400) return 0.95;
+    if (width <= 480) return 0.98;
     return 1.0;
   }
 
@@ -27,11 +34,21 @@ class SmartPdmApp extends StatelessWidget {
           onGenerateRoute: AppRouter.onGenerateRoute,
           builder: (context, child) {
             final mediaQuery = MediaQuery.of(context);
-            final textScale = _smallScreenTextScale(mediaQuery.size.width);
+            final responsiveFactor = _responsiveTextFactor(
+              mediaQuery.size.width,
+            );
+
+            // Keep the user's accessibility preference, but apply a bounded
+            // responsive adjustment so very narrow screens remain usable.
+            final systemTextScale =
+                mediaQuery.textScaler.scale(16) / 16;
+            final effectiveTextScale = (systemTextScale * responsiveFactor)
+                .clamp(0.85, 1.15)
+                .toDouble();
 
             return MediaQuery(
               data: mediaQuery.copyWith(
-                textScaler: TextScaler.linear(textScale),
+                textScaler: TextScaler.linear(effectiveTextScale),
               ),
               child: child ?? const SizedBox.shrink(),
             );

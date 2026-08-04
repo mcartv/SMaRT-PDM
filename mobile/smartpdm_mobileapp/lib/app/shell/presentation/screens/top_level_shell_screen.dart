@@ -115,7 +115,15 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       return;
     }
 
-    if (targetIndex == _currentIndex) return;
+    if (targetIndex == _currentIndex) {
+      ScholarAccessService.dismissLockedMessage(context);
+      return;
+    }
+
+    // Remove a previous scholar-only warning before opening an allowed tab
+    // such as Dashboard or Menu. This prevents the warning from remaining
+    // visible after the user has moved to a valid destination.
+    ScholarAccessService.dismissLockedMessage(context);
 
     setState(() => _currentIndex = targetIndex);
 

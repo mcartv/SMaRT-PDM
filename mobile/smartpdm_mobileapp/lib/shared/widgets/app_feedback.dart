@@ -44,16 +44,16 @@ class AppFeedback {
   }
 
   static Color _color(AppFeedbackTone tone) => switch (tone) {
-        AppFeedbackTone.success => const Color(0xFF2E7D32),
-        AppFeedbackTone.error => const Color(0xFFB3261E),
-        AppFeedbackTone.warning => const Color(0xFF9A5A00),
-        AppFeedbackTone.info => const Color(0xFF5C2D0E),
-      };
+    AppFeedbackTone.success => const Color(0xFF2E7D32),
+    AppFeedbackTone.error => const Color(0xFFB3261E),
+    AppFeedbackTone.warning => const Color(0xFF9A5A00),
+    AppFeedbackTone.info => const Color(0xFF5C2D0E),
+  };
 
   static IconData _icon(AppFeedbackTone tone) => switch (tone) {
-        AppFeedbackTone.success => Icons.check_circle_outline_rounded,
-        AppFeedbackTone.error => Icons.error_outline_rounded,
-        AppFeedbackTone.warning => Icons.warning_amber_rounded,
-        AppFeedbackTone.info => Icons.info_outline_rounded,
-      };
+    AppFeedbackTone.success => Icons.check_circle_outline_rounded,
+    AppFeedbackTone.error => Icons.error_outline_rounded,
+    AppFeedbackTone.warning => Icons.warning_amber_rounded,
+    AppFeedbackTone.info => Icons.info_outline_rounded,
+  };
 }

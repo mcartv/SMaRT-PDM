@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 
 class ScholarAccessService {
+  static DateTime? _lastLockedMessageAt;
+  static const Duration _lockedMessageCooldown = Duration(seconds: 2);
   static const String lockedMessage =
       'Scholar features are available only to approved scholars.';
 
@@ -57,11 +59,29 @@ class ScholarAccessService {
     return hasAccess;
   }
 
+  static void dismissLockedMessage(BuildContext context) {
+    ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+  }
+
   static void showLockedMessage(BuildContext context) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
 
+    final now = DateTime.now();
+    final lastShownAt = _lastLockedMessageAt;
+    if (lastShownAt != null &&
+        now.difference(lastShownAt) < _lockedMessageCooldown) {
+      return;
+    }
+
+    _lastLockedMessageAt = now;
     messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(const SnackBar(content: Text(lockedMessage)));
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(lockedMessage),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 }

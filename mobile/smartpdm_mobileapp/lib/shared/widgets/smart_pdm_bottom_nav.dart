@@ -100,6 +100,10 @@ class SmartPdmBottomNav extends StatelessWidget {
       return;
     }
 
+    // Clear a previously displayed scholar-only warning before navigating
+    // to an allowed destination such as Dashboard or Menu.
+    ScholarAccessService.dismissLockedMessage(context);
+
     final callback = onTap;
     if (callback != null) {
       callback(index);

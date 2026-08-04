@@ -173,15 +173,15 @@ class MobileRealtimeService extends ChangeNotifier {
         'extraHeaders': {'Authorization': 'Bearer $_token'},
     };
 
-   final socket = IO.io(
-  'https://smart-pdm-3tbv.onrender.com',
-  IO.OptionBuilder()
-      .setTransports(['websocket', 'polling'])
-      .disableAutoConnect()
-      .enableReconnection()
-      .setTimeout(10000)
-      .build()
-);
+    final socket = IO.io(
+      'https://smart-pdm-3tbv.onrender.com',
+      IO.OptionBuilder()
+          .setTransports(['websocket', 'polling'])
+          .disableAutoConnect()
+          .enableReconnection()
+          .setTimeout(10000)
+          .build(),
+    );
   }
 
   Future<void> disconnect({bool silent = false}) async {

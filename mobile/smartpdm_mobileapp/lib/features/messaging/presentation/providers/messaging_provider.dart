@@ -323,16 +323,13 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void _ensureRealtimeListener() {
-    _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
-      <String>{
-        ...MobileRealtimeEvents.messageEvents,
-        'socket:connected',
-        'socket:reconnected',
-        'socket:disconnected',
-        'socket:error',
-      },
-      _handleRealtimeEvent,
-    );
+    _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(<String>{
+      ...MobileRealtimeEvents.messageEvents,
+      'socket:connected',
+      'socket:reconnected',
+      'socket:disconnected',
+      'socket:error',
+    }, _handleRealtimeEvent);
   }
 
   Future<void> _handleRealtimeEvent(MobileRealtimeEvent event) async {
@@ -406,8 +403,7 @@ class MessagingProvider extends ChangeNotifier {
         _currentUserId.trim().isNotEmpty &&
         (senderId == _currentUserId || receiverId == _currentUserId);
 
-    final isViewingPrivateThread =
-        _isViewingThread && _activeGroupId == null;
+    final isViewingPrivateThread = _isViewingThread && _activeGroupId == null;
 
     final isActiveGroupMessage =
         _isViewingThread &&
@@ -631,7 +627,10 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   String _readableError(Object error) {
-    final text = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+    final text = error
+        .toString()
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .trim();
     final lower = text.toLowerCase();
 
     if (lower.contains('timeout')) {
@@ -692,4 +691,3 @@ class MessagingProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-

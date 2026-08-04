@@ -58,11 +58,11 @@ class DashboardScreen extends StatelessWidget {
                   Text(
                     'SMaRT-PDM',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
+                          color: isDark ? Colors.white : AppColors.darkBrown,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
                   ),
                 ],
               ),
@@ -78,11 +78,10 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-typedef DashboardScholarAccessResolver =
-    Future<bool> Function(
-      NotificationProvider provider,
-      SessionService sessionService,
-    );
+typedef DashboardScholarAccessResolver = Future<bool> Function(
+  NotificationProvider provider,
+  SessionService sessionService,
+);
 
 /// The optional constructor fields are retained so existing widget tests and
 /// callers do not break. The redesigned dashboard uses the existing services
@@ -139,6 +138,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   String? _statusError;
   String? _requirementsError;
   bool _needsBaseApplication = false;
+  bool _guideChecked = false;
 
   int _lastApplicationRevision = 0;
   int _lastAnnouncementRevision = 0;
@@ -153,9 +153,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   Color get _background =>
       _isDark ? const Color(0xFF17110B) : const Color(0xFFF7F4EF);
 
-  Color get _surface => _isDark ? const Color(0xFF2A1D13) : AppColors.white;
+  Color get _surface =>
+      _isDark ? const Color(0xFF2A1D13) : AppColors.white;
 
-  Color get _primaryText => _isDark ? Colors.white : AppColors.darkBrown;
+  Color get _primaryText =>
+      _isDark ? Colors.white : AppColors.darkBrown;
 
   Color get _secondaryText =>
       _isDark ? Colors.white70 : AppColors.brown.withValues(alpha: 0.72);
@@ -171,7 +173,40 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _loadDashboardData(refreshNotifications: false);
+      _showFirstTimeGuideIfNeeded();
     });
+  }
+
+
+  Future<void> _showFirstTimeGuideIfNeeded() async {
+    if (_guideChecked) return;
+    _guideChecked = true;
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenGuide = prefs.getBool('mobile_dashboard_guide_seen_v1') ?? false;
+    if (hasSeenGuide || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _FirstTimeGuideDialog(
+        onFinish: () async {
+          await prefs.setBool('mobile_dashboard_guide_seen_v1', true);
+          if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+        },
+      ),
+    );
+  }
+
+  Future<void> _openGuide() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FirstTimeGuideDialog(
+        onFinish: () async {
+          if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+        },
+      ),
+    );
   }
 
   @override
@@ -259,10 +294,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   Future<void> _loadIdentity() async {
     final session = await widget.sessionService.getCurrentUser();
-    final fullName = [
-      session.firstName.trim(),
-      session.lastName.trim(),
-    ].where((part) => part.isNotEmpty).join(' ');
+    final fullName = [session.firstName.trim(), session.lastName.trim()]
+        .where((part) => part.isNotEmpty)
+        .join(' ');
 
     if (!mounted) return;
 
@@ -277,8 +311,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   Future<void> _loadApplicationStatus() async {
     try {
-      final summary = await _applicationService
-          .fetchMyApplicationStatusSummary();
+      final summary =
+          await _applicationService.fetchMyApplicationStatusSummary();
 
       if (!mounted) return;
       setState(() {
@@ -321,10 +355,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       setState(() {
         _requirementsPackage = null;
         _needsBaseApplication = false;
-        _requirementsError = error
-            .toString()
-            .replaceFirst('Exception: ', '')
-            .trim();
+        _requirementsError =
+            error.toString().replaceFirst('Exception: ', '').trim();
         _isLoadingRequirements = false;
       });
     }
@@ -476,19 +508,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                     Text(
                       'Welcome, ${_displayFirstName()}',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: _primaryText,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        height: 1.1,
-                      ),
+                            color: _primaryText,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       _studentId,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _secondaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: _secondaryText,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -511,8 +543,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       _hasScholarAccess
                           ? 'Stay on track with your scholarship'
                           : 'Track your scholarship journey',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             color: _primaryText,
                             fontSize: 23,
                             fontWeight: FontWeight.w900,
@@ -525,11 +556,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                           ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
                           : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _secondaryText,
-                        fontSize: 13,
-                        height: 1.45,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: _secondaryText,
+                            fontSize: 13,
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ],
                 ),
@@ -572,8 +603,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                     children: [
                       Text(
                         program,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               color: _primaryText,
                               fontWeight: FontWeight.w900,
                             ),
@@ -582,24 +612,27 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       Text(
                         'Your scholar account is active.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _secondaryText,
-                          fontWeight: FontWeight.w600,
-                        ),
+                              color: _secondaryText,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ],
                   ),
                 ),
-                const _StateBadge(label: 'ACTIVE', color: Color(0xFF2E8B57)),
+                const _StateBadge(
+                  label: 'ACTIVE',
+                  color: Color(0xFF2E8B57),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Text(
               'Use the dashboard as your overview. Detailed payout, obligation, and renewal records remain available through the bottom navigation.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: _secondaryText,
-                height: 1.45,
-                fontWeight: FontWeight.w600,
-              ),
+                    color: _secondaryText,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ],
         ),
@@ -634,17 +667,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final workflow = summary.workflow;
     final status = _safeText(
       workflow?.stageLabel,
-      fallback: _safeText(
-        summary.applicationStatus,
-        fallback: 'Pending Review',
-      ),
+      fallback: _safeText(summary.applicationStatus, fallback: 'Pending Review'),
     );
     final title = _safeText(
       summary.programName,
-      fallback: _safeText(
-        summary.openingTitle,
-        fallback: 'Scholarship Application',
-      ),
+      fallback: _safeText(summary.openingTitle, fallback: 'Scholarship Application'),
     );
 
     return _SurfaceCard(
@@ -665,17 +692,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _primaryText,
-                        fontWeight: FontWeight.w900,
-                      ),
+                            color: _primaryText,
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       status,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.gold,
-                        fontWeight: FontWeight.w900,
-                      ),
+                            color: AppColors.gold,
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                   ],
                 ),
@@ -711,24 +738,30 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 ),
               ],
             ),
+          if (workflow != null) ...[
+            const SizedBox(height: 16),
+            _EndorsementProgressCard(
+              endorsement: workflow.endorsement,
+              officeReviews: workflow.officeReviews,
+              isDark: _isDark,
+            ),
+          ],
           if (workflow?.primaryBlocker?.message.trim().isNotEmpty == true) ...[
             const SizedBox(height: 14),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.orange.withValues(
-                  alpha: _isDark ? 0.18 : 0.09,
-                ),
+                color: AppColors.orange.withValues(alpha: _isDark ? 0.18 : 0.09),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
                 workflow!.primaryBlocker!.message,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _isDark ? const Color(0xFFFFD6A8) : AppColors.brown,
-                  height: 1.4,
-                  fontWeight: FontWeight.w700,
-                ),
+                      color: _isDark ? const Color(0xFFFFD6A8) : AppColors.brown,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
             ),
           ],
@@ -827,10 +860,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final documents = package.documents;
     final uploaded = documents.where((item) => item.isSubmitted).length;
     final total = documents.length;
-    final pending = documents
-        .where((item) => !item.isSubmitted)
-        .take(3)
-        .toList();
+    final pending = documents.where((item) => !item.isSubmitted).take(3).toList();
     final progress = total == 0 ? 0.0 : uploaded / total;
 
     return _SurfaceCard(
@@ -851,17 +881,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _primaryText,
-                        fontWeight: FontWeight.w900,
-                      ),
+                            color: _primaryText,
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '$uploaded of $total documents uploaded',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _secondaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: _secondaryText,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -880,9 +910,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             child: LinearProgressIndicator(
               value: progress.clamp(0.0, 1.0),
               minHeight: 9,
-              backgroundColor: _isDark
-                  ? Colors.white12
-                  : const Color(0xFFEAE1D6),
+              backgroundColor: _isDark ? Colors.white12 : const Color(0xFFEAE1D6),
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
             ),
           ),
@@ -915,14 +943,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           item.type.toLowerCase().contains('renewal') ||
           item.title.toLowerCase().contains('renewal'),
     );
-    final obligation = _latestMatching(
-      provider,
-      (item) => item.isRoNotification,
-    );
-    final payout = _latestMatching(
-      provider,
-      (item) => item.isPayoutNotification,
-    );
+    final obligation = _latestMatching(provider, (item) => item.isRoNotification);
+    final payout = _latestMatching(provider, (item) => item.isPayoutNotification);
 
     return _SurfaceCard(
       isDark: _isDark,
@@ -931,8 +953,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           _ResponsibilityRow(
             icon: Icons.description_rounded,
             title: 'Renewal',
-            subtitle:
-                renewal?.previewText ??
+            subtitle: renewal?.previewText ??
                 'No renewal requirement has been posted for your account.',
             isDark: _isDark,
           ),
@@ -943,8 +964,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           _ResponsibilityRow(
             icon: Icons.work_history_rounded,
             title: 'Return of Obligation',
-            subtitle:
-                obligation?.previewText ??
+            subtitle: obligation?.previewText ??
                 'No new obligation update has been posted.',
             isDark: _isDark,
           ),
@@ -1041,7 +1061,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
     final announcements = _latestAnnouncements(provider);
-    final recentUpdates = _recentUpdates(provider);
 
     return ColoredBox(
       color: _background,
@@ -1056,7 +1075,16 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHero(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _openGuide,
+                    icon: const Icon(Icons.help_outline_rounded, size: 18),
+                    label: const Text('How to use SMaRT-PDM'),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 const _SectionHeader(
                   title: 'Current Status',
                   subtitle: 'Your latest scholarship or application standing',
@@ -1086,16 +1114,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 _hasScholarAccess
                     ? _buildScholarResponsibilities(provider)
                     : _buildApplicantRequirements(),
-                const SizedBox(height: 24),
-                _SectionHeader(
-                  title: 'Recent Updates',
-                  subtitle: 'Changes related to your account and scholarship',
-                  actionLabel: 'View all',
-                  onAction: () =>
-                      Navigator.pushNamed(context, AppRoutes.notifications),
-                ),
-                const SizedBox(height: 12),
-                _buildRecentUpdates(recentUpdates),
                 if (!_hasScholarAccess) ...[
                   const SizedBox(height: 24),
                   _SectionHeader(
@@ -1122,6 +1140,231 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   void dispose() {
     _notificationProvider?.removeListener(_handleProviderChange);
     super.dispose();
+  }
+}
+
+
+class _FirstTimeGuideDialog extends StatefulWidget {
+  const _FirstTimeGuideDialog({required this.onFinish});
+
+  final Future<void> Function() onFinish;
+
+  @override
+  State<_FirstTimeGuideDialog> createState() => _FirstTimeGuideDialogState();
+}
+
+class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
+  int _index = 0;
+
+  static const _steps = [
+    (
+      Icons.school_rounded,
+      'Choose a scholarship',
+      'Open Available Scholarships and select the opening that matches your eligibility.'
+    ),
+    (
+      Icons.edit_document,
+      'Complete your application',
+      'Fill in every required field. Your progress is saved so you can return before submission.'
+    ),
+    (
+      Icons.upload_file_rounded,
+      'Upload requirements',
+      'Upload clear PDF or image files, then check the review remarks for anything that must be replaced.'
+    ),
+    (
+      Icons.route_rounded,
+      'Track endorsement',
+      'Current Status shows whether your application is with SDO, Guidance, or the Program Director.'
+    ),
+    (
+      Icons.notifications_active_rounded,
+      'Watch for updates',
+      'Use Notifications and Messages for official OSFA announcements, requests, and replies.'
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final step = _steps[_index];
+    final isLast = _index == _steps.length - 1;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Text('Getting started ${_index + 1}/${_steps.length}'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(step.$1, size: 34, color: AppColors.brown),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              step.$2,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              step.$3,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        if (_index > 0)
+          TextButton(
+            onPressed: () => setState(() => _index -= 1),
+            child: const Text('Back'),
+          ),
+        FilledButton(
+          onPressed: isLast
+              ? widget.onFinish
+              : () => setState(() => _index += 1),
+          child: Text(isLast ? 'Got it' : 'Next'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EndorsementProgressCard extends StatelessWidget {
+  const _EndorsementProgressCard({
+    required this.endorsement,
+    required this.officeReviews,
+    required this.isDark,
+  });
+
+  final EndorsementStateSummary endorsement;
+  final Map<String, OfficeReviewSummary> officeReviews;
+  final bool isDark;
+
+  int _activeIndex() {
+    if (endorsement.status == 'completed' || endorsement.currentStage == 'completed') return 3;
+    switch (endorsement.currentStage) {
+      case 'pending_guidance':
+        return 1;
+      case 'pending_pd':
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      ('sdo', 'SDO'),
+      ('guidance', 'Guidance'),
+      ('pd', 'Program Director'),
+      ('completed', 'Completed'),
+    ];
+    final active = _activeIndex();
+    final stopped = ['rejected', 'held', 'major_offense', 'disqualified_major']
+        .contains(endorsement.status);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8F3EC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white10 : const Color(0xFFE8DED1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Endorsement progress',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 12),
+          for (int i = 0; i < steps.length; i++) ...[
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: i < active || (i == 3 && active == 3)
+                        ? const Color(0xFF2E8B57).withValues(alpha: 0.14)
+                        : i == active
+                            ? AppColors.gold.withValues(alpha: 0.18)
+                            : Colors.grey.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    i < active || (i == 3 && active == 3)
+                        ? Icons.check_rounded
+                        : i == active
+                            ? Icons.circle
+                            : Icons.more_horiz,
+                    size: 16,
+                    color: i < active || (i == 3 && active == 3)
+                        ? const Color(0xFF2E8B57)
+                        : i == active
+                            ? AppColors.brown
+                            : Colors.grey,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    steps[i].$2,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: i == active ? FontWeight.w900 : FontWeight.w700,
+                        ),
+                  ),
+                ),
+                Text(
+                  i < active || (i == 3 && active == 3)
+                      ? 'Done'
+                      : i == active
+                          ? (stopped ? 'Stopped' : 'Current')
+                          : 'Pending',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: i == active ? AppColors.brown : Colors.grey,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
+            ),
+            if (i != steps.length - 1)
+              Container(
+                margin: const EdgeInsets.only(left: 13),
+                width: 2,
+                height: 10,
+                color: i < active ? const Color(0xFF2E8B57) : Colors.grey.shade300,
+              ),
+          ],
+          if (endorsement.currentOffice?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Currently with ${endorsement.currentOffice}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -1168,7 +1411,9 @@ class _DashboardIllustration extends StatelessWidget {
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF3A291D) : const Color(0xFFFFF8E5),
               borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
+              border: Border.all(
+                color: AppColors.gold.withValues(alpha: 0.45),
+              ),
               boxShadow: isDark
                   ? const []
                   : const [
@@ -1235,22 +1480,22 @@ class _SectionHeader extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                  height: 1.1,
-                ),
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                    ),
               ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.67),
-                  height: 1.3,
-                  fontWeight: FontWeight.w600,
-                ),
+                      color: isDark
+                          ? Colors.white60
+                          : AppColors.brown.withValues(alpha: 0.67),
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
             ],
           ),
@@ -1359,19 +1604,19 @@ class _StateCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: FontWeight.w900,
-                      ),
+                            color: isDark ? Colors.white : AppColors.darkBrown,
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       message,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? Colors.white70
-                            : AppColors.brown.withValues(alpha: 0.72),
-                        height: 1.4,
-                      ),
+                            color: isDark
+                                ? Colors.white70
+                                : AppColors.brown.withValues(alpha: 0.72),
+                            height: 1.4,
+                          ),
                     ),
                   ],
                 ),
@@ -1438,10 +1683,10 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: isDark ? Colors.white : AppColors.darkBrown,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
-        ),
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
       ),
     );
   }
@@ -1465,10 +1710,10 @@ class _StateBadge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
-        ),
+              color: color,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+            ),
       ),
     );
   }
@@ -1503,9 +1748,9 @@ class _StatusMetric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isDark ? Colors.white54 : const Color(0xFF8B7968),
-              fontWeight: FontWeight.w700,
-            ),
+                  color: isDark ? Colors.white54 : const Color(0xFF8B7968),
+                  fontWeight: FontWeight.w700,
+                ),
           ),
           const SizedBox(height: 5),
           Text(
@@ -1513,10 +1758,10 @@ class _StatusMetric extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: isDark ? Colors.white : AppColors.darkBrown,
-              fontWeight: FontWeight.w900,
-              height: 1.15,
-            ),
+                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                ),
           ),
         ],
       ),
@@ -1563,7 +1808,11 @@ class _AnnouncementCard extends StatelessWidget {
                   color: AppColors.gold.withValues(alpha: isDark ? 0.22 : 0.13),
                   borderRadius: BorderRadius.circular(15),
                 ),
-                child: Icon(notification.icon, color: AppColors.gold, size: 23),
+                child: Icon(
+                  notification.icon,
+                  color: AppColors.gold,
+                  size: 23,
+                ),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -1577,7 +1826,9 @@ class _AnnouncementCard extends StatelessWidget {
                             notification.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
                                 ?.copyWith(
                                   color: isDark
                                       ? Colors.white
@@ -1605,21 +1856,19 @@ class _AnnouncementCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? Colors.white70
-                            : AppColors.brown.withValues(alpha: 0.70),
-                        height: 1.4,
-                      ),
+                            color: isDark
+                                ? Colors.white70
+                                : AppColors.brown.withValues(alpha: 0.70),
+                            height: 1.4,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       dateLabel,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isDark
-                            ? Colors.white54
-                            : const Color(0xFF958575),
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: isDark ? Colors.white54 : const Color(0xFF958575),
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -1662,19 +1911,19 @@ class _RequirementRow extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w800,
-                ),
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w800,
+                    ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.67),
-                  height: 1.3,
-                ),
+                      color: isDark
+                          ? Colors.white60
+                          : AppColors.brown.withValues(alpha: 0.67),
+                      height: 1.3,
+                    ),
               ),
             ],
           ),
@@ -1711,9 +1960,9 @@ class _ResponsibilityRow extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                ),
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                    ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1721,11 +1970,11 @@ class _ResponsibilityRow extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white70
-                      : AppColors.brown.withValues(alpha: 0.70),
-                  height: 1.35,
-                ),
+                      color: isDark
+                          ? Colors.white70
+                          : AppColors.brown.withValues(alpha: 0.70),
+                      height: 1.35,
+                    ),
               ),
             ],
           ),
@@ -1757,9 +2006,7 @@ class _RecentUpdateRow extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: notification.accentColor.withValues(
-            alpha: isDark ? 0.18 : 0.10,
-          ),
+          color: notification.accentColor.withValues(alpha: isDark ? 0.18 : 0.10),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
@@ -1773,18 +2020,18 @@ class _RecentUpdateRow extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: isDark ? Colors.white : AppColors.darkBrown,
-          fontWeight: FontWeight.w800,
-        ),
+              color: isDark ? Colors.white : AppColors.darkBrown,
+              fontWeight: FontWeight.w800,
+            ),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(
           dateLabel,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: isDark ? Colors.white54 : const Color(0xFF958575),
-            fontWeight: FontWeight.w700,
-          ),
+                color: isDark ? Colors.white54 : const Color(0xFF958575),
+                fontWeight: FontWeight.w700,
+              ),
         ),
       ),
       trailing: !notification.isRead
@@ -1848,9 +2095,9 @@ class _OpeningCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: FontWeight.w900,
-                      ),
+                            color: isDark ? Colors.white : AppColors.darkBrown,
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -1858,9 +2105,9 @@ class _OpeningCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.gold,
-                        fontWeight: FontWeight.w800,
-                      ),
+                            color: AppColors.gold,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -1868,11 +2115,11 @@ class _OpeningCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? Colors.white60
-                            : AppColors.brown.withValues(alpha: 0.66),
-                        height: 1.3,
-                      ),
+                            color: isDark
+                                ? Colors.white60
+                                : AppColors.brown.withValues(alpha: 0.66),
+                            height: 1.3,
+                          ),
                     ),
                   ],
                 ),

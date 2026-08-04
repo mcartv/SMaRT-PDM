@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from api import ApiClient
+from api import ApiClient, resolve_device_id
 
 
 class ApiClientTest(unittest.TestCase):
@@ -9,7 +9,7 @@ class ApiClientTest(unittest.TestCase):
         client = ApiClient.__new__(ApiClient)
         client.base_url = "https://example.invalid"
         client.pi_token = "test-token"
-        client.device_id = "test-device"
+        client.device_id = "2e4e1e90-3d8a-4c59-b1ef-b7ae8a8d2b11"
         client.timeout = 10
         return client
 
@@ -61,6 +61,22 @@ class ApiClientTest(unittest.TestCase):
         )
 
         self.assertEqual(mock_post.call_args.kwargs["json"]["status"], "review_required")
+
+    def test_configured_device_id_must_be_uuid(self):
+        self.assertEqual(
+            resolve_device_id("2E4E1E90-3D8A-4C59-B1EF-B7AE8A8D2B11"),
+            "2e4e1e90-3d8a-4c59-b1ef-b7ae8a8d2b11",
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "must be a valid UUID"):
+            resolve_device_id("pi-001")
+
+    @patch("api._read_machine_identity", return_value="raspberry-pi-test")
+    def test_missing_device_id_derives_stable_uuid(self, _mock_identity):
+        first = resolve_device_id("")
+        second = resolve_device_id("")
+        self.assertEqual(first, second)
+        self.assertEqual(len(first), 36)
 
 
 if __name__ == "__main__":

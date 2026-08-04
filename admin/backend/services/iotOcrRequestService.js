@@ -1,5 +1,7 @@
 const pool = require('../config/db');
 const documentTypes = require('../utils/documentTypes');
+const { normalizeDeviceId, normalizeUserId } = require('../utils/iotOcrIdentity');
+const { ensureIotOcrSchema } = require('./iotOcrSchemaService');
 
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
@@ -112,7 +114,14 @@ const CLAIM_STALE_TIMEOUT_SQL = `NOW() - INTERVAL '5 minutes'`;
 const PENDING_STALE_TIMEOUT_SQL = `NOW() - INTERVAL '10 minutes'`;
 
 exports.createRequest = async (input = {}) => {
+    await ensureIotOcrSchema();
     const { applicationId, documentKey, requestedBy = null } = normalizeCreateInput(input);
+    const requestedByUuid = normalizeUserId(requestedBy);
+
+    if (!requestedByUuid) {
+        throw buildHttpError(401, 'Authenticated requester user_id is required for IoT OCR');
+    }
+
     const client = await pool.connect();
 
     try {
@@ -179,8 +188,6 @@ exports.createRequest = async (input = {}) => {
             `,
             [context.application_id, context.document_key]
         );
-
-        const requestedByUuid = isUuid(requestedBy) ? String(requestedBy).trim() : null;
 
         let insertResult;
         try {
@@ -253,6 +260,12 @@ exports.createRequest = async (input = {}) => {
 };
 
 exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
+    await ensureIotOcrSchema();
+    const claimedByDeviceId = normalizeDeviceId(claimedBy);
+
+    if (!claimedByDeviceId) {
+        throw buildHttpError(400, 'A valid Pi device UUID is required to claim an OCR request');
+    }
     const client = await pool.connect();
 
     try {
@@ -304,7 +317,7 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
             WHERE request_id IN (SELECT request_id FROM next_request)
             RETURNING *
             `,
-            [claimedBy || null]
+            [claimedByDeviceId]
         );
 
         if (!claimResult.rows.length) {
@@ -322,6 +335,7 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
 };
 
 exports.completeRequest = async (input = {}) => {
+    await ensureIotOcrSchema();
     const {
         requestId,
         status,
@@ -339,6 +353,11 @@ exports.completeRequest = async (input = {}) => {
 
     if (!['completed', 'failed', 'cancelled'].includes(status)) {
         throw buildHttpError(400, 'status must be completed, failed, or cancelled');
+    }
+
+    const claimedByDeviceId = normalizeDeviceId(claimedBy);
+    if (!claimedByDeviceId) {
+        throw buildHttpError(400, 'A valid Pi device UUID is required to submit an OCR result');
     }
 
     const client = await pool.connect();
@@ -364,8 +383,40 @@ exports.completeRequest = async (input = {}) => {
         const requestRow = requestResult.rows[0];
 
         if (!['pending', 'claimed'].includes(requestRow.status)) {
-            throw buildHttpError(409, 'IoT OCR request is already finalized');
+            if (requestRow.status === status) {
+                await client.query('COMMIT');
+                return {
+                    request: mapRequestRow(requestRow),
+                    snapshot: null,
+                    idempotent: true,
+                };
+            }
+
+            throw buildHttpError(
+                409,
+                `IoT OCR request is already finalized as ${requestRow.status}`
+            );
         }
+
+        const existingClaimedBy = normalizeDeviceId(requestRow.claimed_by);
+        if (existingClaimedBy && existingClaimedBy !== claimedByDeviceId) {
+            throw buildHttpError(409, 'IoT OCR request is owned by another Pi device');
+        }
+
+        const effectiveDeviceId = existingClaimedBy || claimedByDeviceId;
+
+        await client.query(
+            `
+            UPDATE iot_ocr_requests
+            SET
+                status = CASE WHEN status = 'pending' THEN 'claimed' ELSE status END,
+                claimed_by = $2,
+                claimed_at = COALESCE(claimed_at, NOW()),
+                updated_at = NOW()
+            WHERE request_id = $1::uuid
+            `,
+            [requestId, effectiveDeviceId]
+        );
 
         if (status === 'completed') {
             const normalizedPayload = applicationService.normalizeOcrPayload({
@@ -383,7 +434,8 @@ exports.completeRequest = async (input = {}) => {
                 extractedFields: normalizedPayload.extracted_fields,
                 sourcePayload: normalizedPayload.source_payload,
                 scannedViaIot: true,
-                iotDeviceId: claimedBy || requestRow.claimed_by || null,
+                iotDeviceId: effectiveDeviceId,
+                iotRequestId: requestId,
                 scannedAt: new Date().toISOString(),
             });
 
@@ -392,14 +444,14 @@ exports.completeRequest = async (input = {}) => {
                 UPDATE iot_ocr_requests
                 SET
                     status = 'completed',
-                    claimed_by = COALESCE($2, claimed_by),
+                    claimed_by = $2,
                     error_message = NULL,
                     completed_at = NOW(),
                     updated_at = NOW()
                 WHERE request_id = $1::uuid
                 RETURNING *
                 `,
-                [requestId, claimedBy || null]
+                [requestId, effectiveDeviceId]
             );
 
             await client.query('COMMIT');
@@ -407,6 +459,7 @@ exports.completeRequest = async (input = {}) => {
             return {
                 request: mapRequestRow(completedResult.rows[0]),
                 snapshot,
+                idempotent: false,
             };
         }
 
@@ -415,7 +468,7 @@ exports.completeRequest = async (input = {}) => {
             UPDATE iot_ocr_requests
             SET
                 status = $2,
-                claimed_by = COALESCE($3, claimed_by),
+                claimed_by = $3,
                 error_message = $4,
                 completed_at = NOW(),
                 updated_at = NOW()
@@ -425,8 +478,11 @@ exports.completeRequest = async (input = {}) => {
             [
                 requestId,
                 status,
-                claimedBy || null,
-                String(errorMessage || (status === 'cancelled' ? 'OCR request cancelled' : 'OCR request failed')),
+                effectiveDeviceId,
+                String(
+                    errorMessage ||
+                    (status === 'cancelled' ? 'OCR request cancelled' : 'OCR request failed')
+                ),
             ]
         );
 
@@ -435,6 +491,7 @@ exports.completeRequest = async (input = {}) => {
         return {
             request: mapRequestRow(failedResult.rows[0]),
             snapshot: null,
+            idempotent: false,
         };
     } catch (error) {
         await client.query('ROLLBACK');

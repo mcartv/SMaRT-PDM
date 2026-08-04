@@ -208,6 +208,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     socket: 'enabled',
+    iot_ocr_fix: 'immutable-snapshot-provenance-v2',
     time: new Date().toISOString(),
   });
 });

@@ -19,6 +19,7 @@ import time
 from typing import Any, Dict, Tuple
 
 import cv2
+import pytesseract
 
 try:
     from dotenv import load_dotenv
@@ -34,7 +35,10 @@ from document_contracts import (
     build_indigency_extracted_fields_from_result,
     get_contract,
 )
-from extraction.indigency_core_field_extraction import extract_indigency_core_fields
+from extraction.indigency_core_field_extraction import (
+    IndigencyExtractionConfig,
+    extract_indigency_core_fields,
+)
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
@@ -43,6 +47,22 @@ from ocr import extract_text
 load_dotenv()
 
 POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "1"))
+FAST_REVIEW_OCR_ENABLED = (
+    os.getenv("FAST_REVIEW_OCR_ENABLED", "true").strip().lower()
+    not in {"0", "false", "no", "off"}
+)
+INDIGENCY_MAX_WIDTH = max(
+    960,
+    int(os.getenv("INDIGENCY_MAX_WIDTH", "1600")),
+)
+INDIGENCY_OCR_TIMEOUT_SECONDS = max(
+    5.0,
+    float(os.getenv("INDIGENCY_OCR_TIMEOUT_SECONDS", "25")),
+)
+INDIGENCY_FIELD_TIMEOUT_SECONDS = max(
+    3.0,
+    float(os.getenv("INDIGENCY_FIELD_TIMEOUT_SECONDS", "8")),
+)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -87,15 +107,18 @@ def _run_generic_ocr(
         return "", ""
 
     try:
-        if text_corrector is None:
-            from spell_check import correct_ocr_text
+        if text_corrector is None and FAST_REVIEW_OCR_ENABLED:
+            corrected_text = raw_text
+        else:
+            if text_corrector is None:
+                from spell_check import correct_ocr_text
 
-            text_corrector = correct_ocr_text
+                text_corrector = correct_ocr_text
 
-        corrected_text = (
-            (text_corrector(raw_text, aggressive=False) or raw_text).strip()
-            or raw_text
-        )
+            corrected_text = (
+                (text_corrector(raw_text, aggressive=False) or raw_text).strip()
+                or raw_text
+            )
     except Exception:
         corrected_text = raw_text
 
@@ -151,6 +174,27 @@ def _load_registered_image(path: str) -> Any:
     if image is None or image.size == 0:
         return None
     return image
+
+
+def _fast_indigency_field_reader(
+    image: Any,
+    _field_name: str,
+) -> str:
+    config = "--oem 3 --psm 7 -l eng"
+    try:
+        try:
+            return pytesseract.image_to_string(
+                image,
+                config=config,
+                timeout=INDIGENCY_FIELD_TIMEOUT_SECONDS,
+            )
+        except TypeError:
+            return pytesseract.image_to_string(
+                image,
+                config=config,
+            )
+    except Exception:
+        return ""
 
 
 def _registration_context(registration_result: Any) -> Dict[str, Any]:
@@ -493,7 +537,15 @@ def _run_generic_document_scan(
     document_key = str(request.get("document_key") or "")
     document_type = str(build_document_type(request))
 
+    processing_started_at = time.monotonic()
     raw_text, corrected_text = _run_generic_ocr(capture_path)
+    generic_ocr_seconds = time.monotonic() - processing_started_at
+    log.info(
+        "Whole-document OCR finished request=%s document=%s seconds=%.1f",
+        _safe_request_ref(request_id),
+        document_key,
+        generic_ocr_seconds,
+    )
     extracted_fields = build_extracted_fields(document_key, raw_text)
     contract = get_contract(document_key)
     if raw_text:
@@ -507,6 +559,7 @@ def _run_generic_document_scan(
         extraction_result = None
         extraction_status = "not_started"
         extraction_issue_codes: list[str] = []
+        extraction_seconds = 0.0
         if status == "completed":
             try:
                 source_image = _load_registered_image(capture_path)
@@ -514,7 +567,26 @@ def _run_generic_document_scan(
                     extraction_status = "failed"
                     extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
                 else:
-                    extraction_result = extract_indigency_core_fields(source_image)
+                    extraction_started_at = time.monotonic()
+                    extraction_result = extract_indigency_core_fields(
+                        source_image,
+                        field_reader=_fast_indigency_field_reader,
+                        config=IndigencyExtractionConfig(
+                            fast_mode=FAST_REVIEW_OCR_ENABLED,
+                            maximum_detection_width=INDIGENCY_MAX_WIDTH,
+                            ocr_timeout_seconds=INDIGENCY_OCR_TIMEOUT_SECONDS,
+                        ),
+                    )
+                    extraction_seconds = (
+                        time.monotonic() - extraction_started_at
+                    )
+                    log.info(
+                        "Indigency structured OCR finished "
+                        "request=%s seconds=%.1f fast_mode=%s",
+                        _safe_request_ref(request_id),
+                        extraction_seconds,
+                        FAST_REVIEW_OCR_ENABLED,
+                    )
                     extraction_status = str(
                         getattr(extraction_result, "status", "failed") or "failed"
                     )
@@ -566,6 +638,13 @@ def _run_generic_document_scan(
                 "structured_field_keys": sorted(
                     extracted_fields.get("fields", {}).keys()
                 ),
+                "generic_ocr_seconds": round(generic_ocr_seconds, 3),
+                "structured_ocr_seconds": round(extraction_seconds, 3),
+                "processing_seconds": round(
+                    time.monotonic() - processing_started_at,
+                    3,
+                ),
+                "fast_review_ocr": FAST_REVIEW_OCR_ENABLED,
             },
             "error_message": error_message,
         }
@@ -591,6 +670,12 @@ def _run_generic_document_scan(
             "capture_error_code": None,
             "cancelled": False,
             "returncode": 0 if raw_text else 1,
+            "generic_ocr_seconds": round(generic_ocr_seconds, 3),
+            "processing_seconds": round(
+                time.monotonic() - processing_started_at,
+                3,
+            ),
+            "fast_review_ocr": FAST_REVIEW_OCR_ENABLED,
         },
         "error_message": error_message,
     }
@@ -643,12 +728,12 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict) -> bool:
 
 
 def main():
-    log.info(
-        "Starting Pi IoT OCR worker | poll=%ss | mode=interactive",
-        POLL_INTERVAL_SECONDS,
-    )
-
     api = ApiClient()
+    log.info(
+        "Starting Pi IoT OCR worker | poll=%ss | mode=interactive | device=%s",
+        POLL_INTERVAL_SECONDS,
+        api.device_id,
+    )
     last_idle_log = 0.0
 
     def request_shutdown(_signal_number, _frame) -> None:

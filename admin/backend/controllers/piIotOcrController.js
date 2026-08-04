@@ -1,6 +1,30 @@
 const iotOcrRequestService = require('../services/iotOcrRequestService');
+const { ensureIotOcrSchema } = require('../services/iotOcrSchemaService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+
+exports.getIotOcrSchemaStatus = async (_req, res) => {
+    try {
+        await ensureIotOcrSchema();
+        return res.status(200).json({
+            status: 'ok',
+            iot_ocr_fix: 'immutable-snapshot-provenance-v2',
+        });
+    } catch (err) {
+        console.error('IOT OCR SCHEMA STATUS ERROR:', {
+            message: err.message,
+            code: err.code || null,
+            constraint: err.constraint || null,
+            detail: err.detail || null,
+        });
+
+        return res.status(err.statusCode || 500).json({
+            status: 'error',
+            code: err.code || null,
+            error: err.message || 'IoT OCR schema compatibility failed',
+        });
+    }
+};
 
 exports.getNextIotOcrRequest = async (req, res) => {
     try {
@@ -8,13 +32,22 @@ exports.getNextIotOcrRequest = async (req, res) => {
             claimedBy: req.piAuth?.deviceId || null,
         });
 
-        res.status(200).json({
+        return res.status(200).json({
             message: 'IoT OCR request claimed successfully',
             data: result,
         });
     } catch (err) {
-        console.error('CLAIM IOT OCR REQUEST CONTROLLER ERROR:', err.message);
-        res.status(err.statusCode || 500).json({
+        if ((err.statusCode || 500) !== 404) {
+            console.error('CLAIM IOT OCR REQUEST CONTROLLER ERROR:', {
+                message: err.message,
+                code: err.code || null,
+                constraint: err.constraint || null,
+                detail: err.detail || null,
+            });
+        }
+
+        return res.status(err.statusCode || 500).json({
+            code: err.code || null,
             error: err.message || 'Failed to claim IoT OCR request',
         });
     }
@@ -33,18 +66,24 @@ exports.submitIotOcrRequestResult = async (req, res) => {
             claimedBy: req.piAuth?.deviceId || null,
         });
 
-        res.status(200).json({
+        return res.status(200).json({
             message: 'IoT OCR request result saved successfully',
             data: result,
         });
     } catch (err) {
-        console.error('SAVE IOT OCR REQUEST RESULT CONTROLLER ERROR:', err.message);
-        res.status(err.statusCode || 500).json({
+        console.error('SAVE IOT OCR REQUEST RESULT CONTROLLER ERROR:', {
+            message: err.message,
+            code: err.code || null,
+            constraint: err.constraint || null,
+            detail: err.detail || null,
+        });
+
+        return res.status(err.statusCode || 500).json({
+            code: err.code || null,
             error: err.message || 'Failed to save IoT OCR request result',
         });
     }
 };
-
 
 /* Realtime + audit wrapper
  * This adds audit trail coverage to controller actions that previously had realtime only,

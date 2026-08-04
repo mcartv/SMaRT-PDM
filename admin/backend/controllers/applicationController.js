@@ -1,6 +1,7 @@
 const applicationService = require('../services/applicationService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const { resolveActorUserId } = require('../utils/iotOcrIdentity');
 const ExcelJS = require('exceljs');
 
 function isApprovalStateError(message) {
@@ -105,11 +106,7 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
         const result = await applicationService.runApplicationDocumentIotOcr({
             applicationId: req.params.id,
             documentKey: req.params.documentKey,
-            requestedBy:
-                req.user?.user_id ||
-                req.user?.admin_id ||
-                req.user?.id ||
-                null,
+            requestedBy: resolveActorUserId(req),
         });
 
         const io = req.app.get('io');

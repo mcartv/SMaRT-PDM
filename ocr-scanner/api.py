@@ -9,6 +9,9 @@ POST /api/pi/iot-ocr/:requestId/result
 
 import logging
 import os
+import socket
+import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
@@ -29,11 +32,46 @@ logging.basicConfig(
 log = logging.getLogger("iot-api")
 
 
+def _read_machine_identity() -> str:
+    for path in (Path("/etc/machine-id"), Path("/var/lib/dbus/machine-id")):
+        try:
+            value = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            value = ""
+        if value:
+            return value
+
+    return socket.gethostname().strip() or "unknown-device"
+
+
+def resolve_device_id(configured_value: Optional[str] = None) -> str:
+    raw_value = (
+        configured_value
+        if configured_value is not None
+        else os.getenv("IOT_DEVICE_ID", "")
+    )
+    normalized = str(raw_value or "").strip()
+
+    if normalized:
+        try:
+            return str(uuid.UUID(normalized))
+        except ValueError as exc:
+            raise RuntimeError("IOT_DEVICE_ID must be a valid UUID") from exc
+
+    machine_identity = _read_machine_identity()
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"https://smart-pdm.local/iot-device/{machine_identity}",
+        )
+    )
+
+
 class ApiClient:
     def __init__(self):
         self.base_url = os.getenv("RENDER_API_BASE_URL", "").rstrip("/")
         self.pi_token = os.getenv("PI_SHARED_TOKEN", "")
-        self.device_id = os.getenv("IOT_DEVICE_ID", "pi-001")
+        self.device_id = resolve_device_id()
         self.timeout = int(os.getenv("HTTP_TIMEOUT_SECONDS", "60"))
 
         if not self.base_url:

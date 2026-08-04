@@ -51,6 +51,9 @@ class IndigencyExtractionConfig:
     minimum_confidence_drop: float = 40.0
     minimum_detached_gap_ratio: float = 2.0
     maximum_detached_tokens_removed: int = 1
+    fast_mode: bool = False
+    maximum_detection_width: int = 1600
+    ocr_timeout_seconds: float = 25.0
 
 
 @dataclass(frozen=True)
@@ -186,6 +189,24 @@ def _grayscale(image: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(image, code)
 
 
+def _resize_for_detection(
+    image: np.ndarray,
+    maximum_width: int,
+) -> np.ndarray:
+    width = int(image.shape[1])
+    if width <= maximum_width:
+        return image.copy()
+    scale = maximum_width / float(width)
+    return cv2.resize(
+        image,
+        (
+            maximum_width,
+            max(1, int(round(image.shape[0] * scale))),
+        ),
+        interpolation=cv2.INTER_AREA,
+    )
+
+
 def _estimate_deskew_angle(image: np.ndarray, maximum: float) -> float:
     gray = _grayscale(image)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -238,12 +259,19 @@ def _default_word_reader(
     config: IndigencyExtractionConfig,
 ) -> Mapping[str, Sequence[Any]]:
     tesseract_config = f"--oem {config.oem} --psm {config.page_segmentation_mode}"
-    return pytesseract.image_to_data(
-        image,
-        lang=config.language,
-        config=tesseract_config,
-        output_type=pytesseract.Output.DICT,
-    )
+    kwargs = {
+        "lang": config.language,
+        "config": tesseract_config,
+        "output_type": pytesseract.Output.DICT,
+    }
+    try:
+        return pytesseract.image_to_data(
+            image,
+            timeout=max(5.0, float(config.ocr_timeout_seconds)),
+            **kwargs,
+        )
+    except TypeError:
+        return pytesseract.image_to_data(image, **kwargs)
 
 
 def _default_field_reader(image: np.ndarray, _field_name: str) -> str:
@@ -583,6 +611,26 @@ def _read_field(
     if not words:
         return _empty_field(name, variant, issue_code)
     bounds = _bounds(words, source_image.shape)
+    if config.fast_mode and name == "certificate_subject_name":
+        positional_text = _normalize_field_text(
+            " ".join(word.text for word in words)
+        )
+        if positional_text and any(
+            character.isalpha() for character in positional_text
+        ):
+            return IndigencyFieldResult(
+                name=name,
+                raw_text=positional_text,
+                success=True,
+                review_required=True,
+                issue_codes=(),
+                detection_variant=variant,
+                anchor=anchor,
+                normalized_bounds=_normalized_bounds(
+                    bounds,
+                    source_image.shape,
+                ),
+            )
     crop = _crop(source_image, bounds, config.crop_padding_pixels)
     if crop.size == 0:
         return _empty_field(name, variant, issue_code)
@@ -1036,6 +1084,12 @@ def extract_indigency_core_fields(
             metrics={"manual_review_required": True},
         )
 
+    if resolved.fast_mode:
+        source = _resize_for_detection(
+            source,
+            max(960, int(resolved.maximum_detection_width)),
+        )
+
     detection_reader = word_reader or _default_word_reader
     ocr_reader = field_reader or _default_field_reader
     candidates: list[
@@ -1049,13 +1103,27 @@ def extract_indigency_core_fields(
         ]
     ] = []
     candidate_count = 0
-    for orientation, oriented_source in _orientation_candidates(source):
-        angle = _estimate_deskew_angle(
-            oriented_source,
-            resolved.maximum_deskew_degrees,
+    orientation_candidates = (
+        (("original", source.copy()),)
+        if resolved.fast_mode
+        else _orientation_candidates(source)
+    )
+    for orientation, oriented_source in orientation_candidates:
+        angle = (
+            0.0
+            if resolved.fast_mode
+            else _estimate_deskew_angle(
+                oriented_source,
+                resolved.maximum_deskew_degrees,
+            )
         )
         transformed_candidate = _deskew(oriented_source, -angle)
-        for variant, detection_image in _detection_variants(transformed_candidate):
+        detection_variants = (
+            (("grayscale", _grayscale(transformed_candidate)),)
+            if resolved.fast_mode
+            else _detection_variants(transformed_candidate)
+        )
+        for variant, detection_image in detection_variants:
             candidate_count += 1
             try:
                 words = _parse_words(

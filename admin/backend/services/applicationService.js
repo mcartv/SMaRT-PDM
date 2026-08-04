@@ -1212,7 +1212,9 @@ async function buildApplicationDetails(applicationId) {
             `)
             .eq('linked_record_id', applicationId)
             .eq('student_id', applicationRecord.student_id)
-            .eq('linked_record_type', 'application'),
+            .eq('linked_record_type', 'application')
+            .order('scanned_at', { ascending: false })
+            .order('updated_at', { ascending: false }),
         supabase
             .from('iot_ocr_requests')
             .select(`
@@ -1291,15 +1293,19 @@ async function buildApplicationDetails(applicationId) {
     const reviewByKey = new Map(
         (reviewsResult.data || []).map((review) => [review.document_key, review])
     );
-    const ocrByKey = new Map(
-        (ocrResult.data || []).map((ocrRow) => {
-            const resolvedKey = normalizeDocumentType(
-                ocrRow.document_key || ocrRow.document_type || ''
-            );
+    const ocrByKey = new Map();
 
-            return [resolvedKey, buildOcrProjection(ocrRow)];
-        })
-    );
+    (ocrResult.data || []).forEach((ocrRow) => {
+        const resolvedKey = normalizeDocumentType(
+            ocrRow.document_key || ocrRow.document_type || ''
+        );
+
+        if (!resolvedKey || ocrByKey.has(resolvedKey)) {
+            return;
+        }
+
+        ocrByKey.set(resolvedKey, buildOcrProjection(ocrRow));
+    });
     const latestIotOcrRequestByKey = new Map();
 
     (iotOcrRequestsResult.data || []).forEach((requestRow) => {
@@ -1811,6 +1817,7 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .order('scanned_at', { ascending: false })
         .order('updated_at', { ascending: false })
         .limit(1);
 
@@ -1878,6 +1885,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     sourcePayload = null,
     scannedViaIot = null,
     iotDeviceId = null,
+    iotRequestId = null,
     scannedAt = null,
 }) => {
     if (!applicationId) {
@@ -1937,6 +1945,17 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     const now = new Date().toISOString();
     const normalizedRawText = String(rawText || '');
     const normalizedIotDeviceId = isUuid(iotDeviceId) ? String(iotDeviceId).trim() : null;
+    const normalizedIotRequestId = isUuid(iotRequestId)
+        ? String(iotRequestId).trim()
+        : null;
+
+    if (scannedViaIot === true && !normalizedIotDeviceId) {
+        throw new Error('A valid IoT device UUID is required for an IoT OCR snapshot');
+    }
+
+    if (scannedViaIot === true && !normalizedIotRequestId) {
+        throw new Error('A valid IoT request UUID is required for an IoT OCR snapshot');
+    }
     const normalizedExtractedFields =
         extractedFields && typeof extractedFields === 'object'
             ? extractedFields
@@ -1978,6 +1997,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
             scanned_via_iot,
             file_url,
             iot_device_id,
+            iot_request_id,
             scanned_at,
             ocr_extracted_name,
             ocr_extracted_gwa,
@@ -1990,6 +2010,8 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .order('scanned_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1);
 
     if (existingOcrError) {
@@ -1998,6 +2020,35 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     }
 
     const existingRow = existingOcrRows?.[0] || null;
+
+    if (normalizedIotRequestId) {
+        const { data: requestSnapshot, error: requestSnapshotError } = await supabase
+            .from('ocr_extracted_documents')
+            .select('*')
+            .eq('iot_request_id', normalizedIotRequestId)
+            .maybeSingle();
+
+        if (requestSnapshotError) {
+            console.error('SUPABASE OCR SNAPSHOT REQUEST FETCH ERROR:', requestSnapshotError);
+            throw new Error(requestSnapshotError.message);
+        }
+
+        if (requestSnapshot) {
+            return {
+                document_id: requestSnapshot.document_id,
+                application_id: applicationId,
+                student_id: applicationRow.student_id,
+                student_name: studentName || 'Unknown Student',
+                document_key: normalizedDocumentKey,
+                document_type: documentTypeName,
+                ocr: buildOcrProjection(requestSnapshot),
+                ocr_confidence: requestSnapshot.ocr_confidence ?? null,
+                raw_text: requestSnapshot.ocr_raw_text || '',
+                idempotent: true,
+            };
+        }
+    }
+
     const structuredPersistence = buildStructuredOcrPersistence({
         documentKey: normalizedDocumentKey,
         extractedFields,
@@ -2020,6 +2071,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         iot_device_id:
             normalizedIotDeviceId ||
             (isUuid(existingRow?.iot_device_id) ? existingRow.iot_device_id : null),
+        iot_request_id: normalizedIotRequestId,
         ocr_extracted_name: resolveStoredExtractedName({
             extractedFields: normalizedExtractedFields,
             scannedViaIot,
@@ -2040,35 +2092,38 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         updated_at: now,
     };
 
-    let result;
+    const { data: result, error: insertError } = await supabase
+        .from('ocr_extracted_documents')
+        .insert(payload)
+        .select()
+        .single();
 
-    if (existingRow?.document_id) {
-        const { data, error } = await supabase
-            .from('ocr_extracted_documents')
-            .update(payload)
-            .eq('document_id', existingRow.document_id)
-            .select()
-            .single();
+    if (insertError) {
+        if (insertError.code === '23505' && normalizedIotRequestId) {
+            const { data: duplicateSnapshot, error: duplicateError } = await supabase
+                .from('ocr_extracted_documents')
+                .select('*')
+                .eq('iot_request_id', normalizedIotRequestId)
+                .maybeSingle();
 
-        if (error) {
-            console.error('SUPABASE OCR SNAPSHOT UPDATE ERROR:', error);
-            throw new Error(error.message);
+            if (!duplicateError && duplicateSnapshot) {
+                return {
+                    document_id: duplicateSnapshot.document_id,
+                    application_id: applicationId,
+                    student_id: applicationRow.student_id,
+                    student_name: studentName || 'Unknown Student',
+                    document_key: normalizedDocumentKey,
+                    document_type: documentTypeName,
+                    ocr: buildOcrProjection(duplicateSnapshot),
+                    ocr_confidence: duplicateSnapshot.ocr_confidence ?? null,
+                    raw_text: duplicateSnapshot.ocr_raw_text || '',
+                    idempotent: true,
+                };
+            }
         }
 
-        result = data;
-    } else {
-        const { data, error } = await supabase
-            .from('ocr_extracted_documents')
-            .insert(payload)
-            .select()
-            .single();
-
-        if (error) {
-            console.error('SUPABASE OCR SNAPSHOT INSERT ERROR:', error);
-            throw new Error(error.message);
-        }
-
-        result = data;
+        console.error('SUPABASE OCR SNAPSHOT INSERT ERROR:', insertError);
+        throw new Error(insertError.message);
     }
 
     return {

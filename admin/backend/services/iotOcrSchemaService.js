@@ -16,6 +16,18 @@ async function runMigration() {
     try {
         await client.query(sql);
         console.log('IOT_OCR_SCHEMA_COMPATIBILITY=PASSED');
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+            console.log('IOT_OCR_SCHEMA_ROLLBACK=PASSED');
+        } catch (rollbackError) {
+            console.error('IOT_OCR_SCHEMA_ROLLBACK=FAILED', {
+                message: rollbackError.message,
+                code: rollbackError.code || null,
+            });
+        }
+
+        throw error;
     } finally {
         client.release();
     }

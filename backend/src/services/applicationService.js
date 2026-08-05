@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
@@ -222,12 +223,11 @@ function calculateAgeFromDate(value) {
 }
 
 function educationRowByLevel(rows = [], level = '') {
-    const aliases = Array.isArray(level) ? level : [level];
-    const normalizedLevels = aliases.map((value) => safeText(value).toLowerCase());
+    const normalizedLevel = safeText(level).toLowerCase();
 
     return (
-        rows.find((row) =>
-            normalizedLevels.includes(safeText(row.education_level).toLowerCase())
+        rows.find(
+            (row) => safeText(row.education_level).toLowerCase() === normalizedLevel
         ) || {}
     );
 }
@@ -390,27 +390,6 @@ function deriveFinancialSupport(master = {}, profile = {}) {
     if (master?.financial_support_other === true) return 'Other';
 
     return 'Parents';
-}
-
-function deriveFinancialSupportChoices(master = {}, profile = {}) {
-    const choices = [];
-    if (master?.financial_support_parents === true) choices.push('Parents');
-    if (master?.financial_support_scholarship === true) choices.push('Scholarship');
-    if (master?.financial_support_loan === true) choices.push('Loan');
-    if (master?.financial_support_other === true) choices.push('Other');
-
-    if (!choices.length) {
-        const profileSupport = safeText(profile?.financial_support_type);
-        if (profileSupport) {
-            profileSupport
-                .split(',')
-                .map((value) => safeText(value))
-                .filter(Boolean)
-                .forEach((value) => choices.push(value));
-        }
-    }
-
-    return [...new Set(choices)];
 }
 
 async function getUser(userId) {
@@ -740,24 +719,12 @@ async function getMyFormData(userId) {
             first_name: safeText(master?.sibling_first_name),
             middle_name: safeText(master?.sibling_middle_name),
             mobile_number: safeText(master?.sibling_mobile_no),
-            highest_educational_attainment: rawSnapshotValue(
-                master?.raw_snapshot,
-                ['Sibling Highest Educational Attainment', 'Sibling Educational Attainment']
-            ),
-            occupation: rawSnapshotValue(master?.raw_snapshot, ['Sibling Occupation']),
-            company_name_address: rawSnapshotValue(
-                master?.raw_snapshot,
-                ['Sibling Company Name and Address', 'Sibling Company Address']
-            ),
         };
     const guardian =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Guardian') ||
         rawFamilyMember(master?.raw_snapshot, 'Guardian');
     const collegeEducation = educationRowByLevel(educationRows, 'College');
-    const highSchoolEducation = educationRowByLevel(educationRows, [
-        'Junior High School',
-        'High School',
-    ]);
+    const highSchoolEducation = educationRowByLevel(educationRows, 'High School');
     const seniorHighEducation = educationRowByLevel(
         educationRows,
         'Senior High School'
@@ -962,9 +929,7 @@ async function getMyFormData(userId) {
         },
 
         support: {
-            financial_support_choices: deriveFinancialSupportChoices(master, profile),
             financial_support:
-                deriveFinancialSupportChoices(master, profile).join(', ') ||
                 deriveFinancialSupport(master, profile),
             financial_support_type: safeText(profile?.financial_support_type),
             financial_support_other: safeText(profile?.financial_support_other),
@@ -2182,9 +2147,13 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
         );
     }
 
+    if (!Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+        throw createHttpError(400, 'The selected file is empty or unreadable.');
+    }
+
     const { data: targetDocument, error: targetDocumentError } = await supabase
         .from('application_documents')
-        .select('document_id, application_id, document_type')
+        .select('document_id, application_id, document_type, file_path')
         .eq('document_id', documentId)
         .maybeSingle();
 
@@ -2209,6 +2178,10 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const normalizedType = normalizeRequiredDocumentType(targetDocument.document_type);
     const safeFileName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const contentSha256 = crypto
+        .createHash('sha256')
+        .update(file.buffer)
+        .digest('hex');
 
     const filePath = `applications/${application.application_id}/${normalizedType.replace(
         /[^a-zA-Z0-9]/g,
@@ -2219,7 +2192,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
         .from('documents')
         .upload(filePath, file.buffer, {
             contentType: file.mimetype || 'application/octet-stream',
-            upsert: true,
+            upsert: false,
         });
 
     if (uploadError) throw uploadError;
@@ -2230,33 +2203,45 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const fileUrl = publicUrlData?.publicUrl || null;
 
-    const { data: previousDocument, error: previousDocumentError } = await supabase
-        .from('application_documents')
-        .select('file_path')
-        .eq('document_id', documentId)
-        .maybeSingle();
+    const { data: finalizedUpload, error: finalizeError } = await supabase.rpc(
+        'finalize_application_document_upload',
+        {
+            p_document_id: documentId,
+            p_uploaded_by: student.student_id,
+            p_created_by: userId,
+            p_file_path: filePath,
+            p_file_url: fileUrl,
+            p_file_name: originalName,
+            p_content_sha256: contentSha256,
+            p_file_size_bytes: file.buffer.length,
+        }
+    );
 
-    if (previousDocumentError) throw previousDocumentError;
+    if (finalizeError) {
+        const { error: cleanupError } = await supabase.storage
+            .from('documents')
+            .remove([filePath]);
 
-    const { error: updateError } = await supabase
-        .from('application_documents')
-        .update({
-            uploaded_by: student.student_id,
-            is_submitted: true,
-            file_url: fileUrl,
-            file_name: originalName,
-            file_path: filePath,
-            source_type: 'upload',
-            review_status: 'pending',
-            submitted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .eq('document_id', documentId);
+        if (cleanupError) {
+            console.error('FAILED UPLOAD CLEANUP ERROR:', cleanupError);
+        }
 
-    if (updateError) throw updateError;
+        throw finalizeError;
+    }
 
-    if (previousDocument?.file_path && previousDocument.file_path !== filePath) {
-        await supabase.storage.from('documents').remove([previousDocument.file_path]);
+    if (!finalizedUpload) {
+        await supabase.storage.from('documents').remove([filePath]);
+        throw createHttpError(500, 'The uploaded document could not be finalized.');
+    }
+
+    if (targetDocument.file_path && targetDocument.file_path !== filePath) {
+        const { error: oldFileDeleteError } = await supabase.storage
+            .from('documents')
+            .remove([targetDocument.file_path]);
+
+        if (oldFileDeleteError) {
+            console.warn('OLD DOCUMENT FILE CLEANUP ERROR:', oldFileDeleteError);
+        }
     }
 
     const { data: submittedDocuments, error: submittedDocumentsError } = await supabase
@@ -2268,19 +2253,28 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const completedTypes = new Set(
         (submittedDocuments || [])
-            .filter((row) => row.is_submitted === true && (safeText(row.file_path) || safeText(row.file_url)))
+            .filter(
+                (row) =>
+                    row.is_submitted === true &&
+                    (safeText(row.file_path) || safeText(row.file_url))
+            )
             .map((row) => normalizeRequiredDocumentType(row.document_type).toLowerCase())
     );
+
     const allRequiredUploaded = REQUIRED_UPLOAD_DOCUMENT_TYPES.every((type) =>
         completedTypes.has(type.toLowerCase())
     );
 
-    await supabase
+    const { error: applicationUpdateError } = await supabase
         .from('applications')
         .update({
             document_status: allRequiredUploaded ? 'Documents Ready' : 'Missing Docs',
         })
         .eq('application_id', application.application_id);
+
+    if (applicationUpdateError) {
+        console.error('APPLICATION DOCUMENT STATUS UPDATE ERROR:', applicationUpdateError);
+    }
 
     const studentName = getStudentDisplayName(student);
     const wasDocumentsReady =

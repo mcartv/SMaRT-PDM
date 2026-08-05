@@ -3,9 +3,24 @@ const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 
+function normalizeStorageBucketName(value) {
+    const normalized = String(value || '')
+        .trim()
+        .replace(/^\/+|\/+$/g, '');
+
+    if (!normalized) return 'documents';
+    return normalized.split('/').filter(Boolean)[0] || 'documents';
+}
+
 const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
-const ENDORSEMENT_SLIP_BUCKET =
-    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
+const APPLICATION_DOCUMENT_BUCKET = normalizeStorageBucketName(
+    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents'
+);
+const ENDORSEMENT_SLIP_BUCKET = normalizeStorageBucketName(
+    process.env.SUPABASE_ENDORSEMENT_SLIP_BUCKET ||
+        process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET ||
+        'documents'
+);
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
     'birth_certificate',
@@ -92,6 +107,43 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+async function createApplicationDocumentSignedUrl(filePath) {
+    const normalizedPath = safeText(filePath);
+    if (!normalizedPath) return null;
+
+    const { data, error } = await supabase.storage
+        .from(APPLICATION_DOCUMENT_BUCKET)
+        .createSignedUrl(normalizedPath, 60 * 60, { download: false });
+
+    if (error) {
+        console.error('[APPLICATION DOCUMENT SIGNED URL ERROR]', {
+            bucket: APPLICATION_DOCUMENT_BUCKET,
+            path: normalizedPath,
+            message: error.message,
+        });
+        return null;
+    }
+
+    return safeText(data?.signedUrl) || null;
+}
+
+async function attachSignedUrlsToDocuments(documents = []) {
+    return Promise.all(
+        (documents || []).map(async (document) => {
+            const signedUrl = document.is_submitted === true
+                ? await createApplicationDocumentSignedUrl(document.file_path)
+                : null;
+
+            return {
+                ...document,
+                file_url: signedUrl,
+                signed_url: signedUrl,
+                view_url: signedUrl,
+            };
+        })
+    );
 }
 
 function getStudentDisplayName(student = {}) {
@@ -1096,7 +1148,6 @@ async function getMyDocuments(userId) {
     }
 
     const student = await getStudent(userId);
-
     if (!student?.student_id) {
         return {
             hasApplication: false,
@@ -1109,16 +1160,16 @@ async function getMyDocuments(userId) {
     const { data: applications, error: appError } = await supabase
         .from('applications')
         .select(`
-      application_id,
-      student_id,
-      opening_id,
-      program_id,
-      application_status,
-      document_status,
-      verification_status,
-      submission_date,
-      created_at
-    `)
+            application_id,
+            student_id,
+            opening_id,
+            program_id,
+            application_status,
+            document_status,
+            verification_status,
+            submission_date,
+            created_at
+        `)
         .eq('student_id', student.student_id)
         .eq('is_archived', false)
         .neq('application_status', 'Rejected')
@@ -1128,10 +1179,9 @@ async function getMyDocuments(userId) {
 
     if (appError) throw appError;
 
-    const application =
-        Array.isArray(applications) && applications.length > 0
-            ? applications[0]
-            : null;
+    const application = Array.isArray(applications) && applications.length > 0
+        ? applications[0]
+        : null;
 
     if (!application) {
         return {
@@ -1152,30 +1202,13 @@ async function getMyDocuments(userId) {
 
     const { data: existingDocuments, error: existingDocsError } = await supabase
         .from('application_documents')
-        .select(`
-      document_id,
-      application_id,
-      document_type,
-      is_submitted,
-      file_url,
-      file_name,
-      file_path,
-      source_type,
-      notes,
-      remarks,
-      review_status,
-      submitted_at,
-      created_at,
-      updated_at
-    `)
+        .select('document_type')
         .eq('application_id', application.application_id);
 
     if (existingDocsError) throw existingDocsError;
 
     const existingTypes = new Set(
-        (existingDocuments || []).map((doc) =>
-            String(doc.document_type || '').trim().toLowerCase()
-        )
+        (existingDocuments || []).map((doc) => safeText(doc.document_type).toLowerCase())
     );
 
     const missingDocuments = requiredDocuments
@@ -1189,42 +1222,46 @@ async function getMyDocuments(userId) {
             source_type: 'upload',
             remarks: null,
             notes: null,
+            ocr: {},
         }));
 
     if (missingDocuments.length > 0) {
         const { error: insertDocsError } = await supabase
             .from('application_documents')
             .insert(missingDocuments);
-
         if (insertDocsError) throw insertDocsError;
     }
 
     const { data: documents, error: docsError } = await supabase
         .from('application_documents')
         .select(`
-      document_id,
-      application_id,
-      document_type,
-      is_submitted,
-      file_url,
-      file_name,
-      file_path,
-      source_type,
-      notes,
-      remarks,
-      review_status,
-      submitted_at,
-      created_at,
-      updated_at
-    `)
+            document_id,
+            application_id,
+            document_type,
+            is_submitted,
+            file_url,
+            file_name,
+            file_path,
+            source_type,
+            notes,
+            remarks,
+            review_status,
+            submitted_at,
+            created_at,
+            updated_at,
+            current_version_id
+        `)
         .eq('application_id', application.application_id)
         .in('document_type', requiredDocuments)
         .order('created_at', { ascending: true });
 
     if (docsError) throw docsError;
 
-    const uploadedCount = (documents || []).filter(
-        (doc) => doc.is_submitted === true
+    const documentsWithSignedUrls = await attachSignedUrlsToDocuments(documents || []);
+    const uploadedCount = documentsWithSignedUrls.filter((doc) =>
+        doc.is_submitted === true &&
+        Boolean(safeText(doc.file_path)) &&
+        Boolean(safeText(doc.current_version_id))
     ).length;
 
     return {
@@ -1232,14 +1269,13 @@ async function getMyDocuments(userId) {
         contextTitle: 'Scholarship Requirements',
         programName: 'Current Application',
         applicationStatus: application.application_status || 'Pending Review',
-        documentStatus:
-            uploadedCount >= requiredDocuments.length
-                ? 'Documents Ready'
-                : 'Missing Docs',
+        documentStatus: uploadedCount >= requiredDocuments.length
+            ? 'Documents Ready'
+            : 'Missing Docs',
         uploadedCount,
         allRequiredUploaded: uploadedCount >= requiredDocuments.length,
         application,
-        documents: documents || [],
+        documents: documentsWithSignedUrls,
     };
 }
 
@@ -2189,7 +2225,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     )}_${Date.now()}_${safeFileName}`;
 
     const { error: uploadError } = await supabase.storage
-        .from('documents')
+        .from(APPLICATION_DOCUMENT_BUCKET)
         .upload(filePath, file.buffer, {
             contentType: file.mimetype || 'application/octet-stream',
             upsert: false,
@@ -2197,11 +2233,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     if (uploadError) throw uploadError;
 
-    const { data: publicUrlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-    const fileUrl = publicUrlData?.publicUrl || null;
+    const fileUrl = null;
 
     const { data: finalizedUpload, error: finalizeError } = await supabase.rpc(
         'finalize_application_document_upload',
@@ -2219,7 +2251,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     if (finalizeError) {
         const { error: cleanupError } = await supabase.storage
-            .from('documents')
+            .from(APPLICATION_DOCUMENT_BUCKET)
             .remove([filePath]);
 
         if (cleanupError) {
@@ -2230,13 +2262,13 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     }
 
     if (!finalizedUpload) {
-        await supabase.storage.from('documents').remove([filePath]);
+        await supabase.storage.from(APPLICATION_DOCUMENT_BUCKET).remove([filePath]);
         throw createHttpError(500, 'The uploaded document could not be finalized.');
     }
 
     if (targetDocument.file_path && targetDocument.file_path !== filePath) {
         const { error: oldFileDeleteError } = await supabase.storage
-            .from('documents')
+            .from(APPLICATION_DOCUMENT_BUCKET)
             .remove([targetDocument.file_path]);
 
         if (oldFileDeleteError) {

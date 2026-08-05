@@ -13,7 +13,6 @@ import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_do
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class ApplicantDocumentsScreen extends StatefulWidget {
   const ApplicantDocumentsScreen({
@@ -255,23 +254,154 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
   }
 
-  Future<void> _openFile(ApplicantRequirementDocument document) async {
-    final fileUrl = document.fileUrl;
+  Future<void> _showDocumentPreview(
+    ApplicantRequirementDocument document,
+  ) async {
+    final fileUrl = document.fileUrl?.trim() ?? '';
 
-    if (fileUrl == null || fileUrl.trim().isEmpty) {
+    if (fileUrl.isEmpty) {
       _showSnackBar('No uploaded file is available yet.');
       return;
     }
 
     final uri = Uri.tryParse(fileUrl);
-    if (uri == null) {
+    if (uri == null || !uri.hasScheme) {
       _showSnackBar('The uploaded file URL is invalid.');
       return;
     }
 
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      _showSnackBar('Unable to open the uploaded file.');
+    final path = uri.path.toLowerCase();
+    final isImage = path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.webp');
+    final isPdf = path.endsWith('.pdf');
+
+    final shouldReupload = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        final previewHeight = (size.height * 0.48).clamp(240.0, 430.0);
+
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 22,
+            vertical: 28,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          document.documentType,
+                          style: Theme.of(dialogContext)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    height: previewHeight,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: Theme.of(dialogContext)
+                          .colorScheme
+                          .surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: primaryColor.withOpacity(0.18),
+                      ),
+                    ),
+                    child: isImage
+                        ? InteractiveViewer(
+                            minScale: 0.8,
+                            maxScale: 4,
+                            child: Image.network(
+                              fileUrl,
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return const _PreviewUnavailable(
+                                  message:
+                                      'The image preview could not be loaded. Try reopening this document.',
+                                );
+                              },
+                            ),
+                          )
+                        : _PreviewUnavailable(
+                            icon: isPdf
+                                ? Icons.picture_as_pdf_outlined
+                                : Icons.insert_drive_file_outlined,
+                            message: isPdf
+                                ? 'PDF uploaded successfully. In-app PDF rendering is not available on this screen yet.'
+                                : 'This uploaded file type cannot be previewed here.',
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Uploaded: ${_formatTimestamp(document.uploadedAt)}',
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                          child: const Text('Back'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Re-upload'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (shouldReupload == true && mounted) {
+      await _pickAndUploadDocument(document);
     }
   }
 
@@ -435,7 +565,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     isGradeReport: isGradeReport,
                     onUpload: () => _pickAndUploadDocument(document),
                     onOpen: document.isSubmitted
-                        ? () => _openFile(document)
+                        ? () => _showDocumentPreview(document)
                         : null,
                   );
                 }),
@@ -794,30 +924,23 @@ class _DocumentCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              ElevatedButton.icon(
-                onPressed: isUploading ? null : onUpload,
-                icon: isUploading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        document.isSubmitted ? Icons.sync : Icons.upload_file,
-                      ),
-                label: Text(
-                  isUploading
-                      ? 'Uploading...'
-                      : document.isSubmitted
-                      ? 'Replace File'
-                      : 'Upload File',
+              if (!document.isSubmitted)
+                ElevatedButton.icon(
+                  onPressed: isUploading ? null : onUpload,
+                  icon: isUploading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.upload_file),
+                  label: Text(isUploading ? 'Uploading...' : 'Upload File'),
                 ),
-              ),
               if (onOpen != null)
                 OutlinedButton.icon(
                   onPressed: onOpen,
-                  icon: const Icon(Icons.open_in_new),
-                  label: Text('View File'),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('View File'),
                 ),
             ],
           ),
@@ -837,6 +960,40 @@ class _DocumentCard extends StatelessWidget {
     if (text.contains('request')) return Icons.mail_outline;
 
     return Icons.description_outlined;
+  }
+}
+
+class _PreviewUnavailable extends StatelessWidget {
+  const _PreviewUnavailable({
+    required this.message,
+    this.icon = Icons.broken_image_outlined,
+  });
+
+  final String message;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 56, color: primaryColor),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

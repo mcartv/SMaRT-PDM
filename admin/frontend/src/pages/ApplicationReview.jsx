@@ -1267,15 +1267,19 @@ export default function ApplicationReview() {
     });
   }, [registryRows, search, filters]);
 
+  const isReadyForScholarHandling = (row) =>
+    row.scholar_activation_ready === true ||
+    (row.requirements_complete === true && row.endorsement_complete === true);
+
   const pendingRegistryRows = useMemo(
-    () => filteredRegistryRows.filter((row) => !row.scholar_activation_ready),
+    () => filteredRegistryRows.filter((row) => !isReadyForScholarHandling(row)),
     [filteredRegistryRows]
   );
 
   const readinessRows = useMemo(
     () =>
       filteredRegistryRows
-        .filter((row) => row.scholar_activation_ready)
+        .filter(isReadyForScholarHandling)
         .sort(compareFcfs),
     [filteredRegistryRows]
   );

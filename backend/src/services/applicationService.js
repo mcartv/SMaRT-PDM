@@ -115,7 +115,7 @@ async function createApplicationDocumentSignedUrl(filePath) {
 
     const { data, error } = await supabase.storage
         .from(APPLICATION_DOCUMENT_BUCKET)
-        .createSignedUrl(normalizedPath, 60 * 60, { download: false });
+        .createSignedUrl(normalizedPath, 60 * 60);
 
     if (error) {
         console.error('[APPLICATION DOCUMENT SIGNED URL ERROR]', {

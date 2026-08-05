@@ -7,6 +7,7 @@ const { transporter } = require('../config/mailer');
 const notificationService = require('./notificationService');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const pdCourseAssignmentService = require('./pdCourseAssignmentService');
+const readinessQueueService = require('./readinessQueueService');
 
 function normalizeStorageBucketName(value, fallback = 'documents') {
     const normalized = String(value || fallback)
@@ -1495,6 +1496,20 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
                 finalizedDetail = await finalizeCompletedSlip(slipId);
             } catch (error) {
                 pdfError = error.message || 'Failed to generate final PDF.';
+            }
+
+            // The applicant becomes FCFS-ready at the exact time the second
+            // readiness requirement is completed. Recalculate the opening
+            // queue immediately after PD completion.
+            try {
+                await readinessQueueService.syncApplicationReadiness(
+                    finalizedDetail.application_id
+                );
+            } catch (queueError) {
+                console.error(
+                    'ENDORSEMENT READINESS QUEUE SYNC ERROR:',
+                    queueError.message || queueError
+                );
             }
         }
 

@@ -209,38 +209,108 @@ function findRequiredDocConfig(rawDoc = {}) {
   );
 }
 
+function getDocumentCandidateScore(rawDoc = {}) {
+  const resolvedUrl =
+    rawDoc.url ||
+    rawDoc.signed_url ||
+    rawDoc.view_url ||
+    rawDoc.document_url ||
+    rawDoc.file_url ||
+    '';
+
+  let score = 0;
+  if (resolvedUrl) score += 100;
+  if (rawDoc.file_path) score += 60;
+  if (rawDoc.current_version_id) score += 50;
+  if (rawDoc.is_submitted === true) score += 40;
+  if (rawDoc.submitted_at || rawDoc.uploaded_at) score += 20;
+  if (rawDoc.file_name) score += 10;
+  if (rawDoc.status === 'verified') score += 8;
+  if (rawDoc.status === 'uploaded') score += 6;
+  if (rawDoc.status === 'rejected') score += 4;
+
+  return score;
+}
+
 function normalizeRequiredDocuments(rawDocs = []) {
   const mapped = new Map();
 
   rawDocs.forEach((rawDoc) => {
     const config = findRequiredDocConfig(rawDoc);
-    if (!config || mapped.has(config.id)) return;
+    if (!config) return;
 
-    mapped.set(config.id, {
+    const resolvedUrl =
+      rawDoc.url ||
+      rawDoc.signed_url ||
+      rawDoc.view_url ||
+      rawDoc.document_url ||
+      rawDoc.file_url ||
+      '';
+
+    const hasUploadedFile = Boolean(
+      resolvedUrl ||
+      rawDoc.file_path ||
+      rawDoc.current_version_id ||
+      rawDoc.is_submitted === true ||
+      rawDoc.submitted_at ||
+      rawDoc.uploaded_at
+    );
+
+    const rawStatus = normalizeKey(
+      rawDoc.status || rawDoc.document_status || rawDoc.review_status || 'pending'
+    );
+
+    let normalizedStatus = rawStatus.replace(/\s+/g, '_');
+    if (normalizedStatus === 'under_review') normalizedStatus = 'uploaded';
+    if (normalizedStatus === 'missing_docs') normalizedStatus = 'pending';
+    if (
+      hasUploadedFile &&
+      ['pending', 'missing', 'missing_docs', ''].includes(normalizedStatus)
+    ) {
+      normalizedStatus = 'uploaded';
+    }
+
+    const candidate = {
       id: config.id,
       document_key: rawDoc.document_key || config.id,
       requirement_id: rawDoc.requirement_id || null,
+      document_id: rawDoc.document_id || rawDoc.id || null,
       name: config.name,
-      url: rawDoc.url || rawDoc.file_url || rawDoc.document_url || rawDoc.signed_url || '',
-      status: rawDoc.status || rawDoc.document_status || 'pending',
-      admin_comment: rawDoc.admin_comment || rawDoc.comment || '',
+      url: resolvedUrl,
+      status: normalizedStatus || 'pending',
+      admin_comment: rawDoc.admin_comment || rawDoc.comment || rawDoc.notes || '',
       ocr: rawDoc.ocr || {},
       ocr_confidence: rawDoc.ocr_confidence ?? rawDoc.ocr?.confidence ?? null,
       file_name: rawDoc.file_name || '',
       file_path: rawDoc.file_path || '',
+      is_submitted: rawDoc.is_submitted === true || hasUploadedFile,
+      current_version_id: rawDoc.current_version_id || null,
       submitted_at: rawDoc.submitted_at || rawDoc.uploaded_at || null,
       reviewed_at: rawDoc.reviewed_at || null,
       iot_ocr_request: rawDoc.iot_ocr_request || rawDoc.ocr_job || null,
       ocr_job: rawDoc.ocr_job || rawDoc.iot_ocr_request || null,
       is_optional_ocr_document: false,
-    });
+      _candidateScore: getDocumentCandidateScore(rawDoc),
+    };
+
+    const existing = mapped.get(config.id);
+    if (!existing || candidate._candidateScore > existing._candidateScore) {
+      mapped.set(config.id, candidate);
+    }
   });
 
-  return OCR_DOCUMENTS.map((cfg) =>
-    mapped.get(cfg.id) || {
+  return OCR_DOCUMENTS.map((cfg) => {
+    const document = mapped.get(cfg.id);
+    if (document) {
+      const { _candidateScore, ...cleanDocument } = document;
+      return cleanDocument;
+    }
+
+    return {
       id: cfg.id,
       document_key: cfg.id,
       requirement_id: null,
+      document_id: null,
       name: cfg.name,
       url: '',
       status: 'pending',
@@ -249,22 +319,31 @@ function normalizeRequiredDocuments(rawDocs = []) {
       ocr_confidence: null,
       file_name: '',
       file_path: '',
+      is_submitted: false,
+      current_version_id: null,
       submitted_at: null,
       reviewed_at: null,
       iot_ocr_request: null,
       ocr_job: null,
       is_optional_ocr_document: false,
-    }
-  );
+    };
+  });
 }
-
 function getDocumentStatusMeta(status) {
   return DOC_STATUS_META[status] || DOC_STATUS_META.pending;
 }
 
 function isDocumentAvailable(document) {
   if (!document) return false;
-  return document.id === 'application_form' ? true : !!document.url;
+  if (document.id === 'application_form') return true;
+
+  return Boolean(
+    document.url ||
+    document.file_path ||
+    document.current_version_id ||
+    document.is_submitted === true ||
+    document.submitted_at
+  );
 }
 
 function getStructuredOcrFields(document) {
@@ -757,10 +836,10 @@ function InfoRow({ label, value, mono, className = '' }) {
 
   return (
     <div className={className}>
-      <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 mb-0.5">
+      <p className="text-xs font-medium uppercase tracking-wider text-stone-400 mb-0.5">
         {label}
       </p>
-      <p className={`text-sm ${mono ? 'font-mono text-stone-600' : 'font-medium text-stone-800'}`}>
+      <p className={`text-[15px] ${mono ? 'font-mono text-stone-600' : 'font-medium text-stone-800'}`}>
         {displayValue}
       </p>
     </div>
@@ -776,11 +855,11 @@ function ApplicationFormPreview({ application }) {
 
   return (
     <div className="w-full h-[520px] overflow-y-auto bg-white border border-stone-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-stone-800 mb-3">Application Form Summary</h3>
+      <h3 className="text-[15px] font-semibold text-stone-800 mb-3">Application Form Summary</h3>
 
-      <div className="space-y-5 text-sm text-stone-700">
+      <div className="space-y-5 text-[15px] text-stone-700">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Student Overview
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -796,7 +875,7 @@ function ApplicationFormPreview({ application }) {
         </div>
 
         <div className="border-t border-stone-100 pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Personal Profile
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -851,7 +930,7 @@ function ApplicationFormPreview({ application }) {
         </div>
 
         <div className="border-t border-stone-100 pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Family Background
           </p>
 
@@ -869,7 +948,7 @@ function ApplicationFormPreview({ application }) {
                       <p className="font-semibold text-stone-800">
                         {member.relation || `Family Member ${index + 1}`}
                       </p>
-                      <p className="text-xs text-stone-500">{fullName || 'No name provided'}</p>
+                      <p className="text-sm text-stone-500">{fullName || 'No name provided'}</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -896,12 +975,12 @@ function ApplicationFormPreview({ application }) {
               })}
             </div>
           ) : (
-            <p className="text-xs text-stone-400">No family records found.</p>
+            <p className="text-sm text-stone-400">No family records found.</p>
           )}
         </div>
 
         <div className="border-t border-stone-100 pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Educational Background
           </p>
 
@@ -916,7 +995,7 @@ function ApplicationFormPreview({ application }) {
                     <p className="font-semibold text-stone-800">
                       {record.education_level || `Education Record ${index + 1}`}
                     </p>
-                    <p className="text-xs text-stone-500">
+                    <p className="text-sm text-stone-500">
                       {record.school_name || 'No school name provided'}
                     </p>
                   </div>
@@ -933,7 +1012,7 @@ function ApplicationFormPreview({ application }) {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-stone-400">No education records found.</p>
+            <p className="text-sm text-stone-400">No education records found.</p>
           )}
         </div>
       </div>
@@ -941,9 +1020,37 @@ function ApplicationFormPreview({ application }) {
   );
 }
 
+function inferPreviewMimeType(document = {}, responseContentType = '') {
+  const responseType = String(responseContentType || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+
+  if (responseType.startsWith('image/') || responseType === 'application/pdf') {
+    return responseType;
+  }
+
+  const source = [
+    document.file_name,
+    document.file_path,
+    document.url,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (source.includes('.pdf')) return 'application/pdf';
+  if (source.includes('.png')) return 'image/png';
+  if (source.includes('.webp')) return 'image/webp';
+  if (source.includes('.jpeg') || source.includes('.jpg')) return 'image/jpeg';
+  if (source.includes('.gif')) return 'image/gif';
+
+  return 'application/octet-stream';
+}
+
 function DocumentPreviewPanel({ activeDoc, application }) {
-  const fileType = getFileType(activeDoc);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [previewMimeType, setPreviewMimeType] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
 
@@ -954,22 +1061,46 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     const loadPreview = async () => {
       setPreviewError('');
       setPreviewUrl('');
+      setPreviewMimeType('');
 
       if (!activeDoc?.url || activeDoc?.id === 'application_form') return;
 
       try {
         setPreviewLoading(true);
-        const response = await fetch(activeDoc.url, { cache: 'no-store' });
-        if (!response.ok) throw new Error('The document preview could not be loaded.');
-        const blob = await response.blob();
+
+        const response = await fetch(activeDoc.url, {
+          method: 'GET',
+          cache: 'no-store',
+          redirect: 'follow',
+        });
+
+        if (!response.ok) {
+          const payload = await response.text().catch(() => '');
+          throw new Error(payload || `Preview failed with status ${response.status}.`);
+        }
+
+        const bytes = await response.arrayBuffer();
+        if (!bytes.byteLength) throw new Error('The uploaded document is empty.');
+
+        const mimeType = inferPreviewMimeType(
+          activeDoc,
+          response.headers.get('content-type') || ''
+        );
+
+        if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
+          throw new Error('This file type cannot be previewed. Re-upload it as PDF, JPG, JPEG, PNG, or WEBP.');
+        }
+
+        const blob = new Blob([bytes], { type: mimeType });
         objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) setPreviewUrl(objectUrl);
+
+        if (!cancelled) {
+          setPreviewMimeType(mimeType);
+          setPreviewUrl(objectUrl);
+        }
       } catch (error) {
         if (!cancelled) {
-          setPreviewError(
-            error?.message ||
-              'Preview unavailable. Use Open file to review the document in a separate tab.'
-          );
+          setPreviewError(error?.message || 'The document preview could not be loaded.');
         }
       } finally {
         if (!cancelled) setPreviewLoading(false);
@@ -982,89 +1113,80 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [activeDoc?.id, activeDoc?.url]);
+  }, [activeDoc?.id, activeDoc?.url, activeDoc?.file_name, activeDoc?.file_path]);
+
+  const isImage = previewMimeType.startsWith('image/');
+  const isPdf = previewMimeType === 'application/pdf';
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
-        <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-stone-500" />
-          <div>
-            <h4 className="text-sm font-semibold text-stone-800">
+    <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+            <FileText className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="truncate text-base font-semibold text-stone-900">
               {activeDoc?.name || 'Document'}
             </h4>
-            <p className="text-[11px] text-stone-400">
+            <p className="truncate text-[15px] text-stone-500">
               {activeDoc?.id === 'application_form'
-                ? 'Submitted text-based form'
-                : 'Previewed without automatic download'}
+                ? 'Submitted application data'
+                : activeDoc?.file_name || 'Secure preview'}
             </p>
           </div>
         </div>
 
-        {activeDoc?.url && activeDoc?.id !== 'application_form' && (
-          <a
-            href={activeDoc.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
-          >
-            Open file
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        )}
-      </div>
+        <Badge className={activeDoc?.url || activeDoc?.id === 'application_form'
+          ? 'border-green-200 bg-green-50 text-green-700'
+          : 'border-stone-200 bg-stone-100 text-stone-500'}>
+          {activeDoc?.url || activeDoc?.id === 'application_form' ? 'Available' : 'Missing'}
+        </Badge>
+      </header>
 
-      <div className="p-4 min-h-[520px] flex items-center justify-center bg-stone-50/20">
+      <div className="flex min-h-[560px] items-center justify-center bg-[#f8fafc] p-3 sm:p-4">
         {activeDoc?.id === 'application_form' ? (
           <ApplicationFormPreview application={application} />
         ) : previewLoading ? (
           <div className="flex flex-col items-center gap-3 text-stone-500">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <p className="text-xs">Loading secure document preview…</p>
+            <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
+            <p className="text-[15px]">Loading secure preview…</p>
           </div>
         ) : previewError ? (
-          <div className="w-full max-w-md rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
-            <AlertTriangle className="mx-auto h-6 w-6 text-amber-600" />
-            <p className="mt-3 text-sm font-semibold text-amber-900">Preview unavailable</p>
-            <p className="mt-1 text-xs leading-relaxed text-amber-700">{previewError}</p>
+          <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <AlertTriangle className="mx-auto h-7 w-7 text-amber-600" />
+            <p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p>
+            <p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p>
           </div>
-        ) : previewUrl ? (
-          fileType === 'image' ? (
-            <div className="w-full h-[520px] flex items-center justify-center rounded-lg border border-stone-200 bg-white overflow-auto">
-              <img
-                src={previewUrl}
-                alt={activeDoc.name}
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
-          ) : fileType === 'pdf' ? (
-            <iframe
-              src={`${previewUrl}#toolbar=0&navpanes=0`}
-              title={activeDoc.name}
-              className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
-            />
-          ) : (
-            <iframe
+        ) : previewUrl && isImage ? (
+          <div className="flex h-[560px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-3">
+            <img
               src={previewUrl}
-              title={activeDoc.name}
-              className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
+              alt={activeDoc?.name || 'Uploaded document'}
+              className="max-h-full max-w-full select-none object-contain"
+              draggable={false}
+              onError={() => setPreviewError('The image could not be decoded. Re-upload a valid image file.')}
             />
-          )
+          </div>
+        ) : previewUrl && isPdf ? (
+          <iframe
+            src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+            title={activeDoc?.name || 'PDF preview'}
+            className="h-[560px] w-full rounded-xl border border-stone-200 bg-white"
+          />
         ) : (
-          <div className="w-full max-w-sm bg-white rounded-xl p-8 text-center border border-stone-100 shadow-sm">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-6 h-6 text-blue-500" />
+          <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-stone-100 text-stone-500">
+              <FileText className="h-6 w-6" />
             </div>
-            <h4 className="text-sm font-semibold text-stone-800">
-              {activeDoc?.name || 'Document'}
-            </h4>
-            <p className="text-xs text-stone-400 mt-1">
-              No file uploaded by student yet.
+            <h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4>
+            <p className="mt-1 text-[15px] leading-relaxed text-stone-500">
+              The applicant has not submitted this requirement yet.
             </p>
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1088,8 +1210,8 @@ function OCRPanel({
         <div className="flex items-center gap-2">
           <ScanText className="w-4 h-4 text-stone-500" />
           <div>
-            <h4 className="text-sm font-semibold text-stone-800">OCR Validation Hub</h4>
-            <p className="text-[11px] text-stone-400">Extracted text / validation markers</p>
+            <h4 className="text-[15px] font-semibold text-stone-800">OCR Validation Hub</h4>
+            <p className="text-xs text-stone-400">Extracted text / validation markers</p>
           </div>
         </div>
 
@@ -1099,7 +1221,7 @@ function OCRPanel({
             size="sm"
             onClick={onRunIotOcr}
             disabled={!canRunIotOcr || runningIotOcr}
-            className="h-8 rounded-lg border-stone-200 text-[11px]"
+            className="h-8 rounded-lg border-stone-200 text-xs"
           >
             {runningIotOcr ? (
               <>
@@ -1114,11 +1236,11 @@ function OCRPanel({
             )}
           </Button>
 
-          <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-[10px] font-medium">
+          <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-xs font-medium">
             Confidence: {confidence}
           </Badge>
 
-          <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-medium">
+          <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-xs font-medium">
             Extracted Preview
           </Badge>
         </div>
@@ -1126,7 +1248,7 @@ function OCRPanel({
 
       <div className="p-4 min-h-[520px] space-y-4">
         {iotOcrError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {iotOcrError}
           </div>
         )}
@@ -1134,7 +1256,7 @@ function OCRPanel({
         <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-4 h-4 text-green-600" />
-            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
+            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
               Application Metadata
             </p>
           </div>
@@ -1146,15 +1268,15 @@ function OCRPanel({
                 className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
               >
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                  <p className="text-xs uppercase tracking-wide text-stone-400">
                     {item.label}
                   </p>
-                  <p className="text-sm font-medium text-stone-800 mt-0.5">
+                  <p className="text-[15px] font-medium text-stone-800 mt-0.5">
                     {item.value}
                   </p>
                 </div>
 
-                <span className="text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
+                <span className="text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
                   {item.badge}
                 </span>
               </div>
@@ -1165,22 +1287,22 @@ function OCRPanel({
         <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ScanText className="w-4 h-4 text-stone-600" />
-            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
+            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
               Extracted Fields
             </p>
           </div>
 
           {extractedData.manualReviewRequired ? (
-            <div className="mb-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+            <div className="mb-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
               Manual review required. Structured OCR values are provisional.
             </div>
           ) : null}
 
           {extractedData.identityReview?.status === 'unconfirmed' ? (
-            <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
               <p className="font-semibold">Applicant identity could not be confirmed</p>
               <p className="mt-1">{extractedData.identityReview.warning}</p>
-              <p className="mt-1 font-mono text-[10px] text-red-600">
+              <p className="mt-1 font-mono text-xs text-red-600">
                 {extractedData.identityReview.review_code}
               </p>
             </div>
@@ -1194,15 +1316,15 @@ function OCRPanel({
                   className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
                 >
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                    <p className="text-xs uppercase tracking-wide text-stone-400">
                       {item.label}
                     </p>
-                    <p className="text-sm font-medium text-stone-800 mt-0.5">
+                    <p className="text-[15px] font-medium text-stone-800 mt-0.5">
                       {item.value}
                     </p>
                   </div>
                   <span
-                    className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+                    className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
                       item.badge === 'Provisional OCR'
                         ? 'bg-orange-50 text-orange-700'
                         : 'bg-green-50 text-green-700'
@@ -1214,12 +1336,12 @@ function OCRPanel({
               ))}
             </div>
           ) : extractedData.reviewOnly ? (
-            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 space-y-1">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 space-y-1">
               <p className="font-medium">{REVIEW_ONLY_MESSAGES[0]}</p>
               <p>{REVIEW_ONLY_MESSAGES[1]}</p>
             </div>
           ) : (
-            <p className="text-xs text-stone-500">No structured fields extracted.</p>
+            <p className="text-sm text-stone-500">No structured fields extracted.</p>
           )}
         </div>
 
@@ -1228,13 +1350,13 @@ function OCRPanel({
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-blue-700" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-stone-700">
+                <p className="text-sm font-semibold uppercase tracking-wide text-stone-700">
                   {extractedData.documentValidation.panelTitle || 'Birth Certificate / PSA Detection'}
                 </p>
               </div>
 
               <span
-                className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                className="rounded-full px-2.5 py-1 text-xs font-semibold"
                 style={{
                   background:
                     extractedData.documentValidation.tone === 'green'
@@ -1255,12 +1377,12 @@ function OCRPanel({
             </div>
 
             <div className="mb-3 rounded-lg border border-stone-200 bg-white px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-stone-400">
+              <p className="text-xs uppercase tracking-wide text-stone-400">
                 {extractedData.documentValidation.structuredResult
                   ? 'Processing Result'
                   : 'Detected Document Type'}
               </p>
-              <p className="mt-0.5 text-sm font-semibold text-stone-800">
+              <p className="mt-0.5 text-[15px] font-semibold text-stone-800">
                 {extractedData.documentValidation.detectedLabel}
               </p>
             </div>
@@ -1272,16 +1394,16 @@ function OCRPanel({
                   className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
                 >
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                    <p className="text-xs uppercase tracking-wide text-stone-400">
                       {row.label}
                     </p>
-                    <p className="mt-0.5 text-sm font-medium text-stone-800">
+                    <p className="mt-0.5 text-[15px] font-medium text-stone-800">
                       {row.value}
                     </p>
                   </div>
 
                   <span
-                    className="rounded-full px-2 py-1 text-[10px] font-semibold"
+                    className="rounded-full px-2 py-1 text-xs font-semibold"
                     style={{
                       background: row.found ? C.greenSoft : C.redSoft,
                       color: row.found ? C.green : C.red,
@@ -1299,7 +1421,7 @@ function OCRPanel({
 
             {extractedData.documentValidation.warning ? (
               <div
-                className="mt-3 rounded-lg border px-3 py-2 text-xs leading-relaxed"
+                className="mt-3 rounded-lg border px-3 py-2 text-sm leading-relaxed"
                 style={{
                   background:
                     extractedData.documentValidation.tone === 'amber'
@@ -1330,11 +1452,11 @@ function OCRPanel({
         <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-4 h-4 text-orange-600" />
-            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
+            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
               Admin OCR Notes
             </p>
           </div>
-          <p className="text-xs text-stone-500 leading-relaxed">
+          <p className="text-sm text-stone-500 leading-relaxed">
             Do not type the action taken. Invalid, wrong, mismatched, edited, or doctored
             documents should be rejected. The admin should only provide the rejection reason
             and any review remarks.
@@ -1343,13 +1465,13 @@ function OCRPanel({
 
         <div className="rounded-lg border border-stone-200 bg-white p-3">
           <div className="flex items-center justify-between gap-3 mb-2">
-            <p className="text-[11px] uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
+            <p className="text-xs uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
             <Button
               variant="outline"
               size="sm"
               onClick={onSaveRawOcr}
               disabled={savingRawOcr || activeDoc?.id === 'application_form'}
-              className="h-8 rounded-lg border-stone-200 text-[11px]"
+              className="h-8 rounded-lg border-stone-200 text-xs"
             >
               {savingRawOcr ? (
                 <>
@@ -1366,7 +1488,7 @@ function OCRPanel({
             value={rawOcrSnapshot}
             onChange={(e) => onRawOcrChange(e.target.value)}
             disabled={activeDoc?.id === 'application_form'}
-            className="min-h-[220px] text-xs text-stone-600 leading-relaxed whitespace-pre-wrap font-mono bg-stone-50 rounded-lg p-3 border border-stone-100 resize-y"
+            className="min-h-[220px] text-sm text-stone-600 leading-relaxed whitespace-pre-wrap font-mono bg-stone-50 rounded-lg p-3 border border-stone-100 resize-y"
           />
         </div>
       </div>
@@ -1408,7 +1530,7 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
         <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-stone-800">Reject Document</h3>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <p className="text-sm text-stone-500 mt-0.5">
               {activeDocName || 'Selected document'}
             </p>
           </div>
@@ -1423,7 +1545,7 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
 
         <CardContent className="p-5 space-y-4">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400 mb-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-400 mb-2">
               Rejection Reason
             </p>
 
@@ -1441,7 +1563,7 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
                     onChange={() => setSelectedReason(option)}
                     className="mt-1 h-4 w-4"
                   />
-                  <span className="text-sm text-stone-700">{option}</span>
+                  <span className="text-[15px] text-stone-700">{option}</span>
                 </label>
               ))}
             </div>
@@ -1449,31 +1571,31 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
 
           {selectedReason === 'Other' && (
             <div>
-              <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
+              <label className="text-xs font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
                 Other Reason
               </label>
               <Textarea
                 value={otherReason}
                 onChange={(e) => setOtherReason(e.target.value)}
                 placeholder="Type the specific rejection reason..."
-                className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
+                className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px]"
               />
             </div>
           )}
 
           <div>
-            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
               Admin Remarks
             </label>
             <Textarea
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               placeholder="Optional remarks for review..."
-              className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
+              className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px]"
             />
           </div>
 
-          <p className="text-[11px] text-stone-500 leading-relaxed">
+          <p className="text-xs text-stone-500 leading-relaxed">
             Note: Do not type the action taken. Select the reason for rejection and add remarks only when needed.
           </p>
         </CardContent>
@@ -1482,7 +1604,7 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
           <Button
             variant="outline"
             onClick={onClose}
-            className="h-9 rounded-lg border-stone-200 text-xs"
+            className="h-9 rounded-lg border-stone-200 text-sm"
           >
             Cancel
           </Button>
@@ -1490,7 +1612,7 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit || saving}
-            className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+            className="h-9 rounded-lg text-white text-sm border-none disabled:opacity-50"
             style={{ background: C.red }}
           >
             {saving ? (
@@ -1519,7 +1641,7 @@ function StudentCard({ application, onViewSlip }) {
               src={application?.student?.avatar_url || undefined}
               alt={application?.student?.name || 'Student'}
             />
-            <AvatarFallback className="bg-blue-900 text-white text-sm font-semibold">
+            <AvatarFallback className="bg-blue-900 text-white text-[15px] font-semibold">
               {application?.student?.initials || 'NA'}
             </AvatarFallback>
           </Avatar>
@@ -1528,10 +1650,10 @@ function StudentCard({ application, onViewSlip }) {
             <h2 className="text-base font-semibold text-stone-900">
               {application?.student?.name}
             </h2>
-            <p className="text-xs font-mono text-stone-400">
+            <p className="text-sm font-mono text-stone-400">
               {application?.student?.pdm_id}
             </p>
-            <Badge className="mt-1.5 bg-blue-50 text-blue-700 border-blue-100 font-medium text-[10px] uppercase tracking-wide">
+            <Badge className="mt-1.5 bg-blue-50 text-blue-700 border-blue-100 font-medium text-xs uppercase tracking-wide">
               {application?.student?.program}
             </Badge>
           </div>
@@ -1541,8 +1663,8 @@ function StudentCard({ application, onViewSlip }) {
           <div className="mb-4 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Endorsement Slip</p>
-                <p className="mt-1 text-sm font-semibold text-stone-800">
+                <p className="text-xs font-medium uppercase tracking-wide text-stone-400">Endorsement Slip</p>
+                <p className="mt-1 text-[15px] font-semibold text-stone-800">
                   {endorsementComplete ? 'Completed and available for review' : 'Available and still in endorsement flow'}
                 </p>
               </div>
@@ -1550,7 +1672,7 @@ function StudentCard({ application, onViewSlip }) {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-stone-200 text-xs"
+                className="border-stone-200 text-sm"
                 onClick={onViewSlip}
               >
                 View Slip
@@ -1598,10 +1720,10 @@ function ChecklistCard({
   return (
     <Card className="border-stone-200 shadow-none bg-white">
       <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
-        <h3 className="text-xs font-semibold text-stone-700 uppercase tracking-wider">
+        <h3 className="text-sm font-semibold text-stone-700 uppercase tracking-wider">
           Checklist
         </h3>
-        <span className="text-xs text-stone-400">
+        <span className="text-sm text-stone-400">
           {availableCount}/{docs.length} available
         </span>
       </div>
@@ -1625,12 +1747,12 @@ function ChecklistCard({
                 <span style={{ color: meta.color }}>{meta.icon}</span>
                 <div className="min-w-0">
                   <p
-                    className={`text-xs truncate ${isActive ? 'font-semibold text-blue-900' : 'font-medium text-stone-700'
+                    className={`text-sm truncate ${isActive ? 'font-semibold text-blue-900' : 'font-medium text-stone-700'
                       }`}
                   >
                     {d.name}
                   </p>
-                  <p className="text-[10px] text-stone-400 mt-0.5">
+                  <p className="text-xs text-stone-400 mt-0.5">
                     {d.id === 'application_form'
                       ? 'Text-based application data'
                       : available
@@ -1641,7 +1763,7 @@ function ChecklistCard({
               </div>
 
               <span
-                className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ml-2"
+                className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ml-2"
                 style={{ background: meta.bg, color: meta.color }}
               >
                 {meta.label}
@@ -1653,10 +1775,10 @@ function ChecklistCard({
         <div className="mt-3 pt-3 border-t border-stone-100 space-y-3">
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+              <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">
                 Verification Progress
               </span>
-              <span className="text-[10px] font-semibold text-stone-700">{progress}%</span>
+              <span className="text-xs font-semibold text-stone-700">{progress}%</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
               <div
@@ -1668,36 +1790,36 @@ function ChecklistCard({
 
           <div className="grid grid-cols-2 gap-2 text-center">
             <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-stone-400">Verified</p>
-              <p className="text-sm font-semibold text-green-700">{verifiedCount}</p>
+              <p className="text-xs uppercase tracking-wide text-stone-400">Verified</p>
+              <p className="text-[15px] font-semibold text-green-700">{verifiedCount}</p>
             </div>
             <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-stone-400">Rejected</p>
-              <p className="text-sm font-semibold text-orange-700">{rejectedCount}</p>
+              <p className="text-xs uppercase tracking-wide text-stone-400">Rejected</p>
+              <p className="text-[15px] font-semibold text-orange-700">{rejectedCount}</p>
             </div>
           </div>
 
           <div className="rounded-lg border border-stone-200 bg-white px-3 py-3">
-            <p className="text-[10px] uppercase tracking-wide text-stone-400">Readiness</p>
+            <p className="text-xs uppercase tracking-wide text-stone-400">Readiness</p>
 
             {!hasAnyUpload ? (
-              <p className="text-xs font-semibold mt-1 text-red-700">
+              <p className="text-sm font-semibold mt-1 text-red-700">
                 No submitted requirements yet.
               </p>
             ) : !hasCompleteRequirements ? (
-              <p className="text-xs font-semibold mt-1 text-orange-700">
+              <p className="text-sm font-semibold mt-1 text-orange-700">
                 Incomplete requirements: {availableCount}/{requiredDocCount} available.
               </p>
             ) : !allRequiredDocsReviewed ? (
-              <p className="text-xs font-semibold mt-1 text-orange-700">
+              <p className="text-sm font-semibold mt-1 text-orange-700">
                 All {requiredDocCount} requirements are available, but admin review actions are still pending.
               </p>
             ) : allRequiredDocsVerified ? (
-              <p className="text-xs font-semibold mt-1 text-green-700">
+              <p className="text-sm font-semibold mt-1 text-green-700">
                 All {requiredDocCount} required items are verified.
               </p>
             ) : (
-              <p className="text-xs font-semibold mt-1 text-orange-700">
+              <p className="text-sm font-semibold mt-1 text-orange-700">
                 Review is complete, but one or more required items were rejected.
               </p>
             )}
@@ -1728,13 +1850,13 @@ function VerificationActions({
     <Card className="border-stone-200 shadow-none bg-white">
       <div className="p-5 space-y-4">
         <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400">
+          <p className="text-xs font-medium uppercase tracking-wider text-stone-400">
             Selected Document
           </p>
-          <p className="text-sm font-semibold text-stone-800 mt-1">
+          <p className="text-[15px] font-semibold text-stone-800 mt-1">
             {activeDoc?.name || 'N/A'}
           </p>
-          <p className="text-xs text-stone-400 mt-1">
+          <p className="text-sm text-stone-400 mt-1">
             {activeDoc?.id === 'application_form'
               ? 'Text-based application form ready for admin review.'
               : activeDoc?.url
@@ -1744,7 +1866,7 @@ function VerificationActions({
         </div>
 
         <div>
-          <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
+          <label className="text-xs font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
             Rejection Reason / Admin Remarks
           </label>
           <Textarea
@@ -1758,9 +1880,9 @@ function VerificationActions({
             value={comment}
             onChange={(e) => onCommentChange(e.target.value)}
             disabled={!hasUploadedDocument}
-            className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
           />
-          <p className="text-[11px] text-stone-500 leading-relaxed">
+          <p className="text-xs text-stone-500 leading-relaxed">
             Note: Do not type the action performed. If the file is wrong, invalid, edited,
             mismatched, or suspected doctored, reject it and provide the reason and any remarks only.
           </p>
@@ -1772,7 +1894,7 @@ function VerificationActions({
             size="sm"
             onClick={onVerify}
             disabled={!hasUploadedDocument}
-            className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-9 rounded-lg text-sm border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle size={13} className="mr-1.5" /> Verify
           </Button>
@@ -1782,38 +1904,38 @@ function VerificationActions({
             size="sm"
             onClick={onReject}
             disabled={!hasUploadedDocument}
-            className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-9 rounded-lg text-sm border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle size={13} className="mr-1.5" /> Reject
           </Button>
         </div>
 
         {!hasUploadedDocument && activeDoc?.id !== 'application_form' && (
-          <p className="text-xs text-stone-400">
+          <p className="text-sm text-stone-400">
             Student must upload this document first before review actions can be applied.
           </p>
         )}
 
         {!hasAnyUpload && (
-          <p className="text-xs text-stone-400">
+          <p className="text-sm text-stone-400">
             Requirements review is disabled until the required items are available.
           </p>
         )}
 
         {hasAnyUpload && !hasCompleteRequirements && (
-          <p className="text-xs text-orange-600">
+          <p className="text-sm text-orange-600">
             Requirements review is disabled until all {requiredDocCount} required items are available.
           </p>
         )}
 
         {hasCompleteRequirements && !allRequiredDocsReviewed && (
-          <p className="text-xs text-orange-600">
+          <p className="text-sm text-orange-600">
             All {requiredDocCount} items are present. Apply admin review actions to each item before saving requirements completion.
           </p>
         )}
 
         {hasCompleteRequirements && allRequiredDocsReviewed && finalVerificationStatus !== 'verified' && (
-          <p className="text-xs text-orange-600">
+          <p className="text-sm text-orange-600">
             Requirements review can be completed, but the application will be marked as rejected and can be archived afterward.
           </p>
         )}
@@ -1821,7 +1943,7 @@ function VerificationActions({
         <Button
           onClick={onComplete}
           disabled={submitting || !canCompleteVerification}
-          className="w-full h-10 rounded-lg font-medium text-sm text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-10 rounded-lg font-medium text-[15px] text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: C.blue }}
         >
           {submitting ? (
@@ -2489,13 +2611,13 @@ export default function DocumentVerification() {
     return (
       <div className="p-8 bg-red-50 border border-red-100 rounded-xl text-center">
         <XCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
-        <p className="text-sm font-semibold text-red-800">Failed to load document verification</p>
-        <p className="text-xs text-red-600 mt-1">{error}</p>
+        <p className="text-[15px] font-semibold text-red-800">Failed to load document verification</p>
+        <p className="text-sm text-red-600 mt-1">{error}</p>
         <Button
           onClick={() => fetchApplicationDocuments()}
           variant="outline"
           size="sm"
-          className="mt-4 border-red-200 text-red-600 text-xs"
+          className="mt-4 border-red-200 text-red-600 text-sm"
         >
           Retry
         </Button>
@@ -2525,7 +2647,7 @@ export default function DocumentVerification() {
         </Button>
 
         <div>
-          <div className="flex items-center gap-1.5 text-xs text-stone-400">
+          <div className="flex items-center gap-1.5 text-sm text-stone-400">
             <span
               className="hover:text-stone-600 cursor-pointer transition-colors"
               onClick={() => navigate('/admin/applications')}
@@ -2548,7 +2670,7 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={() => navigate(`/admin/endorsements/${endorsementSlipId}`)}
-                  className="rounded-lg border-stone-200 text-xs"
+                  className="rounded-lg border-stone-200 text-sm"
                 >
                   <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                   Open Endorsement Slip
@@ -2557,7 +2679,7 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={handleDownloadSlipPdf}
-                  className="rounded-lg border-stone-200 text-xs"
+                  className="rounded-lg border-stone-200 text-sm"
                 >
                   <FileText className="mr-1.5 h-3.5 w-3.5" />
                   Download Slip PDF
@@ -2569,7 +2691,7 @@ export default function DocumentVerification() {
               size="sm"
               onClick={() => fetchApplicationDocuments({ soft: true })}
               disabled={refreshing}
-              className="rounded-lg border-stone-200 text-xs"
+              className="rounded-lg border-stone-200 text-sm"
             >
               {refreshing ? (
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -2608,7 +2730,7 @@ export default function DocumentVerification() {
                 <button
                   key={d.id}
                   onClick={() => setActiveDocId(d.id)}
-                  className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${activeDocId === d.id
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeDocId === d.id
                     ? 'border-blue-800 text-blue-900 bg-white'
                     : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
                     }`}
@@ -2622,7 +2744,7 @@ export default function DocumentVerification() {
               <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
                 <button
                   onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'preview'
                     ? 'bg-white text-blue-900 shadow-sm'
                     : 'text-stone-500 hover:text-stone-700'
                     }`}
@@ -2632,7 +2754,7 @@ export default function DocumentVerification() {
 
                 <button
                   onClick={() => setViewMode('ocr')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'ocr'
                     ? 'bg-white text-blue-900 shadow-sm'
                     : 'text-stone-500 hover:text-stone-700'
                     }`}
@@ -2642,7 +2764,7 @@ export default function DocumentVerification() {
 
                 <button
                   onClick={() => setViewMode('split')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'split'
                     ? 'bg-white text-blue-900 shadow-sm'
                     : 'text-stone-500 hover:text-stone-700'
                     }`}
@@ -2657,7 +2779,7 @@ export default function DocumentVerification() {
 
             <div className="p-5 bg-stone-50/30">
               {!activeDoc ? (
-                <p className="text-sm text-stone-400">No document selected.</p>
+                <p className="text-[15px] text-stone-400">No document selected.</p>
               ) : viewMode === 'preview' ? (
                 <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
               ) : viewMode === 'ocr' ? (

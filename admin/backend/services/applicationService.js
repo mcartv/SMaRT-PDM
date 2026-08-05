@@ -5,6 +5,7 @@ const pool = require('../config/db');
 const _ = require('lodash');
 const iotOcrRequestService = require('./iotOcrRequestService');
 const documentTypes = require('../utils/documentTypes');
+const readinessQueueService = require('./readinessQueueService');
 const {
     isRequestBoundSnapshotFresh,
 } = require('../utils/iotOcrSnapshotFreshness');
@@ -367,6 +368,12 @@ function buildReadinessFlags(row = {}) {
         endorsement_slip_id: row.endorsement_slip_id || row.slip_id || null,
         endorsement_slip_code: deriveSlipCode(row.endorsement_slip_id || row.slip_id || null),
         endorsement_current_stage: row.endorsement_current_stage || row.current_stage || null,
+        selection_status: row.selection_status || null,
+        queue_position: row.queue_position == null ? null : Number(row.queue_position),
+        waitlist_position: row.waitlist_position == null ? null : Number(row.waitlist_position),
+        fcfs_completed_at: row.fcfs_completed_at || null,
+        requirements_completed_at: row.requirements_completed_at || null,
+        requirements_verified_at: row.requirements_verified_at || null,
     };
 }
 
@@ -411,6 +418,12 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
             a.application_status,
             a.document_status,
             a.verification_status,
+            a.selection_status,
+            a.queue_position,
+            a.waitlist_position,
+            a.fcfs_completed_at,
+            a.requirements_completed_at,
+            a.requirements_verified_at,
             es.slip_id as endorsement_slip_id,
             es.overall_status as endorsement_overall_status,
             es.current_stage as endorsement_current_stage,
@@ -1351,8 +1364,8 @@ async function buildApplicationDetails(applicationId) {
                 document_type: document.document_type || null,
                 file_name: document.file_name || null,
                 file_path: filePath,
-                url: signedUrl || null,
-                file_url: signedUrl || null,
+                url: signedUrl || document.file_url || null,
+                file_url: signedUrl || document.file_url || null,
                 signed_url: signedUrl || null,
                 status: deriveReviewStatus(document, review),
                 admin_comment: review?.admin_comment || document.notes || '',
@@ -1457,6 +1470,10 @@ async function buildApplicationDetails(applicationId) {
 }
 
 exports.fetchApplications = async () => {
+    // Self-heal the FCFS readiness queue so previously completed
+    // requirements and endorsements appear immediately in Readiness.
+    await readinessQueueService.syncAllReadyApplications();
+
     const primaryQuery = `
     SELECT
       a.application_id,
@@ -2502,6 +2519,10 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
                 });
             }
         }
+    }
+
+    if (verification_status === 'verified') {
+        await readinessQueueService.syncApplicationReadiness(applicationId);
     }
 
     const readiness = await fetchApplicationReadiness(applicationId);

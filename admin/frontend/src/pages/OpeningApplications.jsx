@@ -186,6 +186,10 @@ function getEndorsementMeta(app = {}) {
 }
 
 function getSelectionMeta(app = {}) {
+    if (app.scholar_activation_ready === true && !app.selection_status) {
+        return { label: 'FCFS Ready', bg: C.blueSoft, color: C.blueMid };
+    }
+
     const selection = String(app.selection_status || '').trim();
     const normalized = normalizeAppStatus(selection);
 
@@ -270,7 +274,8 @@ function buildApplicantState(app) {
     const normalizedStatus = normalizeAppStatus(app.application_status || 'pending');
     const selectionStatus = normalizeAppStatus(app.selection_status);
     const isApproved = isApprovedCandidate(app);
-    const isQualified = selectionStatus === 'qualified';
+    const isQualified =
+        selectionStatus === 'qualified' || app.scholar_activation_ready === true;
     const isDisqualified =
         !!app.disqualified ||
         !!app.is_disqualified ||
@@ -292,8 +297,7 @@ function buildApplicantState(app) {
         !isDisqualified &&
         isInReviewStage &&
         isVerified &&
-        isEndorsementComplete &&
-        hasRemarks;
+        isEndorsementComplete;
 
     let decisionHint = '';
     if (!isApproved && !isQualified && !canApprove) {
@@ -303,9 +307,7 @@ function buildApplicantState(app) {
                 ? 'Verify requirements first.'
                 : !isEndorsementComplete
                     ? 'Complete endorsement first.'
-                    : !hasRemarks
-                        ? 'Add remarks first.'
-                        : 'Not ready.';
+                    : 'Ready for automatic FCFS queueing.';
     }
 
     const displayedStatus = isQualified ? 'qualified' : normalizedStatus;
@@ -711,7 +713,7 @@ function ApplicantTable({
                                                 ) : (
                                                     <ShieldCheck className="mr-1 h-3 w-3" />
                                                 )}
-                                                Qualify
+                                                Queue FCFS
                                             </Button>
                                         ) : null}
 
@@ -835,6 +837,14 @@ export default function OpeningApplications() {
     }, [openingId]);
 
     useSocketEvent('application:rejected', () => {
+        reloadApplications({ soft: true });
+    }, [openingId]);
+
+    useSocketEvent('application-document:reviewed', () => {
+        reloadApplications({ soft: true });
+    }, [openingId]);
+
+    useSocketEvent('endorsement:updated', () => {
         reloadApplications({ soft: true });
     }, [openingId]);
 

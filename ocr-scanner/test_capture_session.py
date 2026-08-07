@@ -1,6 +1,7 @@
 import inspect
 import io
 import struct
+import tempfile
 import unittest
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -208,24 +209,34 @@ class CaptureSessionTest(unittest.TestCase):
             CaptureSessionResult(FAILED)
 
     @patch("camera.subprocess.run")
-    @patch("camera.os.path.getsize", return_value=1024)
-    @patch("camera.os.path.exists", side_effect=[False, True])
-    def test_real_camera_capture_can_skip_preview_restart(
-        self, _exists, _getsize, run_command
-    ):
+    def test_real_camera_capture_can_skip_preview_restart(self, run_command):
         run_command.return_value.returncode = 0
         run_command.return_value.stderr = ""
+
         camera = CameraController()
         camera.is_previewing = True
+        camera.capture_attempts = 1
         camera.stop_preview = MagicMock()
         camera.start_preview = MagicMock()
+        camera._validate_capture = MagicMock(
+            return_value=(True, "verified focus; sharpness=120.00")
+        )
 
-        self.assertTrue(camera.capture_image(restart_preview=False))
+        with tempfile.TemporaryDirectory() as directory:
+            camera.capture_file = str(Path(directory) / "capture.jpg")
+            attempt_file = Path(f"{camera.capture_file}.attempt-1.jpg")
+
+            def create_mock_capture(*_args, **_kwargs):
+                attempt_file.write_bytes(b"mock-jpeg")
+                return run_command.return_value
+
+            camera._run = MagicMock(side_effect=create_mock_capture)
+
+            self.assertTrue(camera.capture_image(restart_preview=False))
 
         camera.stop_preview.assert_called_once()
         camera.start_preview.assert_not_called()
-
-
+        camera._validate_capture.assert_called_once()
 class ButtonReaderTest(unittest.TestCase):
     @staticmethod
     def event(code):

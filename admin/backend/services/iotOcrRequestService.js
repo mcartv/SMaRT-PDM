@@ -112,6 +112,19 @@ async function resolveRequestContext(client, { applicationId, documentKey }) {
 
 const CLAIM_STALE_TIMEOUT_SQL = `NOW() - INTERVAL '5 minutes'`;
 const PENDING_STALE_TIMEOUT_SQL = `NOW() - INTERVAL '10 minutes'`;
+const ACTIVE_REQUEST_STATUSES = Object.freeze([
+    'pending',
+    'claimed',
+    'previewing',
+    'focusing',
+    'capturing',
+    'processing',
+]);
+const ACTIVE_REQUEST_STATUS_SQL = ACTIVE_REQUEST_STATUSES
+    .map((status) => `'${status}'`)
+    .join(', ');
+const PROCESSING_STALE_TIMEOUT_SQL = `NOW() - INTERVAL '15 minutes'`;
+
 
 exports.createRequest = async (input = {}) => {
     await ensureIotOcrSchema();
@@ -142,9 +155,8 @@ exports.createRequest = async (input = {}) => {
                 updated_at = NOW()
             WHERE application_id = $1::uuid
               AND document_key = $2
-              AND status = 'claimed'
-              AND claimed_at IS NOT NULL
-              AND claimed_at < ${CLAIM_STALE_TIMEOUT_SQL}
+              AND status IN ('claimed', 'previewing', 'focusing', 'capturing', 'processing')
+              AND updated_at < ${PROCESSING_STALE_TIMEOUT_SQL}
             `,
             [context.application_id, context.document_key]
         );
@@ -155,7 +167,7 @@ exports.createRequest = async (input = {}) => {
             FROM iot_ocr_requests
             WHERE application_id = $1::uuid
               AND document_key = $2
-              AND status IN ('pending', 'claimed')
+              AND status IN (${ACTIVE_REQUEST_STATUS_SQL})
             ORDER BY created_at DESC
             LIMIT 1
             FOR UPDATE
@@ -164,7 +176,7 @@ exports.createRequest = async (input = {}) => {
         );
 
         const activeRow = activeResult.rows[0] || null;
-        if (activeRow?.status === 'claimed') {
+        if (activeRow) {
             await client.query('COMMIT');
             const request = mapRequestRow(activeRow);
             return {
@@ -174,20 +186,6 @@ exports.createRequest = async (input = {}) => {
             };
         }
 
-        await client.query(
-            `
-            UPDATE iot_ocr_requests
-            SET
-                status = 'cancelled',
-                error_message = 'Superseded by a newer IoT OCR request',
-                completed_at = NOW(),
-                updated_at = NOW()
-            WHERE application_id = $1::uuid
-              AND document_key = $2
-              AND status = 'pending'
-            `,
-            [context.application_id, context.document_key]
-        );
 
         let insertResult;
         try {
@@ -222,7 +220,7 @@ exports.createRequest = async (input = {}) => {
                     FROM iot_ocr_requests
                     WHERE application_id = $1::uuid
                       AND document_key = $2
-                      AND status IN ('pending', 'claimed')
+                      AND status IN (${ACTIVE_REQUEST_STATUS_SQL})
                     ORDER BY created_at DESC
                     LIMIT 1
                     `,
@@ -279,9 +277,8 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
                 error_message = 'IoT OCR request timed out before completion',
                 completed_at = NOW(),
                 updated_at = NOW()
-            WHERE status = 'claimed'
-              AND claimed_at IS NOT NULL
-              AND claimed_at < ${CLAIM_STALE_TIMEOUT_SQL}
+            WHERE status IN ('claimed', 'previewing', 'focusing', 'capturing', 'processing')
+              AND updated_at < ${PROCESSING_STALE_TIMEOUT_SQL}
             `
         );
 
@@ -329,6 +326,61 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
+    } finally {
+        client.release();
+    }
+};
+
+exports.updateRequestStatus = async ({
+    requestId,
+    status,
+    claimedBy = null,
+} = {}) => {
+    await ensureIotOcrSchema();
+
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    const allowedStatuses = ['claimed', 'previewing', 'focusing', 'capturing', 'processing'];
+
+    if (!isUuid(requestId)) {
+        throw buildHttpError(400, 'Valid request_id is required');
+    }
+
+    if (!allowedStatuses.includes(normalizedStatus)) {
+        throw buildHttpError(400, 'Invalid active IoT OCR status');
+    }
+
+    const claimedByDeviceId = normalizeDeviceId(claimedBy);
+    if (!claimedByDeviceId) {
+        throw buildHttpError(400, 'A valid Pi device UUID is required');
+    }
+
+    const client = await pool.connect();
+
+    try {
+        const result = await client.query(
+            `
+            UPDATE iot_ocr_requests
+            SET
+                status = $2,
+                claimed_by = COALESCE(claimed_by, $3),
+                claimed_at = COALESCE(claimed_at, NOW()),
+                updated_at = NOW()
+            WHERE request_id = $1::uuid
+              AND status IN (${ACTIVE_REQUEST_STATUS_SQL})
+              AND (claimed_by IS NULL OR claimed_by = $3)
+            RETURNING *
+            `,
+            [String(requestId).trim(), normalizedStatus, claimedByDeviceId]
+        );
+
+        if (!result.rows.length) {
+            throw buildHttpError(
+                409,
+                'IoT OCR request is no longer active or belongs to another Pi device'
+            );
+        }
+
+        return mapRequestRow(result.rows[0]);
     } finally {
         client.release();
     }
@@ -382,7 +434,7 @@ exports.completeRequest = async (input = {}) => {
 
         const requestRow = requestResult.rows[0];
 
-        if (!['pending', 'claimed'].includes(requestRow.status)) {
+        if (!ACTIVE_REQUEST_STATUSES.includes(requestRow.status)) {
             if (requestRow.status === status) {
                 await client.query('COMMIT');
                 return {
@@ -585,6 +637,7 @@ exports.getLatestRequestForDocument = async ({
 module.exports = {
     createRequest: exports.createRequest,
     claimNextRequest: exports.claimNextRequest,
+    updateRequestStatus: exports.updateRequestStatus,
     completeRequest: exports.completeRequest,
     getRequestById: exports.getRequestById,
     getLatestRequestForDocument: exports.getLatestRequestForDocument,

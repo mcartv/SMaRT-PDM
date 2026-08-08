@@ -38,6 +38,12 @@ class CameraController:
         self.minimum_focus_score = max(
             8.0, float(os.getenv("CAMERA_MIN_FOCUS_SCORE", "22.0"))
         )
+        # SMARTPDM_VISIBLE_FOCUS_SWEEP_V37
+        self.focus_preview_enabled = (
+            os.getenv("CAMERA_FOCUS_PREVIEW", "true").strip().lower()
+            not in {"0", "false", "no", "off"}
+        )
+        self._focus_window_open = False
 
         positions = os.getenv(
             "CAMERA_FOCUS_SWEEP_POSITIONS",
@@ -426,6 +432,74 @@ class CameraController:
 
         return None
 
+    def _ensure_gui_environment(self) -> bool:
+        if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+            return True
+        try:
+            uid = os.getuid()
+            for entry in Path("/proc").iterdir():
+                if not entry.name.isdigit():
+                    continue
+                try:
+                    if entry.stat().st_uid != uid:
+                        continue
+                    raw = (entry / "environ").read_bytes()
+                except OSError:
+                    continue
+                env = {}
+                for item in raw.split(b"\0"):
+                    if b"=" not in item:
+                        continue
+                    key, value = item.split(b"=", 1)
+                    env[key.decode(errors="ignore")] = value.decode(errors="ignore")
+                if not (env.get("DISPLAY") or env.get("WAYLAND_DISPLAY")):
+                    continue
+                for key in ("DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "XAUTHORITY"):
+                    if env.get(key):
+                        os.environ[key] = env[key]
+                return True
+        except Exception:
+            return False
+        return False
+
+    def _show_focus_frame(self, image: Path, lines: list[str], *, wait_ms: int = 550) -> None:
+        if not self.focus_preview_enabled or not self._ensure_gui_environment():
+            return
+        try:
+            import cv2
+            frame = cv2.imread(str(image))
+            if frame is None:
+                return
+            window = "SMaRT-PDM Auto Focus"
+            cv2.namedWindow(window, cv2.WINDOW_NORMAL)
+            cv2.setWindowProperty(window, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+            height, width = frame.shape[:2]
+            target_width = min(1600, width)
+            scale = target_width / float(width)
+            shown = cv2.resize(frame, (target_width, max(1, int(height * scale))), interpolation=cv2.INTER_AREA)
+            cv2.rectangle(shown, (20, 20), (shown.shape[1] - 20, 185), (0, 0, 0), -1)
+            y = 55
+            for line in lines:
+                cv2.putText(shown, line, (45, y), cv2.FONT_HERSHEY_SIMPLEX, 0.78, (255, 255, 255), 2, cv2.LINE_AA)
+                y += 38
+            cv2.imshow(window, shown)
+            cv2.waitKey(wait_ms)
+            self._focus_window_open = True
+        except Exception as exc:
+            print(f"[CAMERA] Focus preview unavailable: {exc}")
+            self.focus_preview_enabled = False
+
+    def _close_focus_preview(self) -> None:
+        if not self._focus_window_open:
+            return
+        try:
+            import cv2
+            cv2.destroyWindow("SMaRT-PDM Auto Focus")
+            cv2.waitKey(1)
+        except Exception:
+            pass
+        self._focus_window_open = False
+
     def _sample_position(
         self,
         position: float,
@@ -499,8 +573,18 @@ class CameraController:
                 continue
 
             score, image = sampled
-            image.unlink(missing_ok=True)
             observations.append((position, score))
+            current_best = max(value for _, value in observations)
+            self._show_focus_frame(
+                image,
+                [
+                    "FOCUSING - COARSE SWEEP",
+                    f"Lens position: {position:.2f}",
+                    f"Focus score: {score:.2f}",
+                    f"Best score: {current_best:.2f}",
+                ],
+            )
+            image.unlink(missing_ok=True)
 
             print(
                 f"[CAMERA] Lens {position:.3f}: "
@@ -564,6 +648,15 @@ class CameraController:
                 continue
 
             score, image = sampled
+            self._show_focus_frame(
+                image,
+                [
+                    "FOCUSING - FINE SWEEP",
+                    f"Lens position: {position:.2f}",
+                    f"Focus score: {score:.2f}",
+                    f"Best score: {max(best_score, score):.2f}",
+                ],
+            )
             image.unlink(missing_ok=True)
 
             print(
@@ -622,6 +715,17 @@ class CameraController:
                     image.unlink(missing_ok=True)
                     continue
 
+                self._show_focus_frame(
+                    image,
+                    [
+                        "CAPTURING FINAL FOCUS",
+                        f"Lens position: {position:.2f}",
+                        f"Focus score: {score:.2f}",
+                        f"Best score: {max(winner_score, score):.2f}",
+                    ],
+                    wait_ms=400,
+                )
+
                 print(
                     f"[CAMERA] Final lens {position:.3f} "
                     f"frame {frame}: normalized score={score:.2f}"
@@ -660,6 +764,7 @@ class CameraController:
         self,
         *,
         restart_preview: bool = True,
+        status_callback=None,
     ) -> bool:
         was_previewing = self.is_previewing
         self.stop_preview()
@@ -667,18 +772,7 @@ class CameraController:
         final = Path(self.capture_file)
         final.unlink(missing_ok=True)
 
-        native = self._try_native_autofocus()
-
-        if native is not None:
-            os.replace(native, final)
-            score = self._focus_score(str(final))
-            print(
-                "[CAMERA] Native autofocus verified. "
-                f"Normalized score={score:.2f}. "
-                "OCR/submission unlocked."
-            )
-            return True
-
+        # Preview #2: always show the real physical focus search.
         coarse = self._coarse_sweep()
 
         if coarse is not None:
@@ -694,6 +788,9 @@ class CameraController:
                 f"score={refined_score:.2f}"
             )
 
+            if status_callback:
+                status_callback('capturing')
+
             selected = self._final_candidates(
                 refined_position,
                 refined_score,
@@ -703,6 +800,18 @@ class CameraController:
                 winner, position, score = selected
                 os.replace(winner, final)
 
+                self._show_focus_frame(
+                    final,
+                    [
+                        "AUTOFOCUS COMPLETE",
+                        f"Selected lens: {position:.2f}",
+                        f"Final focus score: {score:.2f}",
+                        "Starting OCR...",
+                    ],
+                    wait_ms=1800,
+                )
+                self._close_focus_preview()
+
                 print(
                     "[CAMERA] Software autofocus verified. "
                     f"Lens={position:.3f}; "
@@ -711,7 +820,15 @@ class CameraController:
                 )
                 return True
 
+        # Fallback to native autofocus only if the visible sweep fails.
+        native = self._try_native_autofocus()
+        if native is not None:
+            os.replace(native, final)
+            self._close_focus_preview()
+            return True
+
         final.unlink(missing_ok=True)
+        self._close_focus_preview()
 
         print(
             "[CAMERA] No verified focused capture. "

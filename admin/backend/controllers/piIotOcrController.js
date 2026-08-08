@@ -53,6 +53,26 @@ exports.getNextIotOcrRequest = async (req, res) => {
     }
 };
 
+exports.updateIotOcrRequestStatus = async (req, res) => {
+    try {
+        const result = await iotOcrRequestService.updateRequestStatus({
+            requestId: req.params.requestId,
+            status: req.body?.status,
+            claimedBy: req.piAuth?.deviceId || null,
+        });
+
+        res.status(200).json({
+            message: 'IoT OCR request status updated successfully',
+            data: result,
+        });
+    } catch (err) {
+        console.error('UPDATE IOT OCR REQUEST STATUS ERROR:', err.message);
+        res.status(err.statusCode || 500).json({
+            error: err.message || 'Failed to update IoT OCR request status',
+        });
+    }
+};
+
 exports.submitIotOcrRequestResult = async (req, res) => {
     try {
         const result = await iotOcrRequestService.completeRequest({

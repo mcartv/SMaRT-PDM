@@ -109,4 +109,25 @@ CREATE INDEX IF NOT EXISTS idx_ocr_extracted_documents_latest_application_docume
         updated_at DESC
     );
 
+
+-- SMARTPDM_IOT_OCR_LIFECYCLE_V35
+ALTER TABLE public.iot_ocr_requests
+    DROP CONSTRAINT IF EXISTS iot_ocr_requests_status_check;
+
+ALTER TABLE public.iot_ocr_requests
+    ADD CONSTRAINT iot_ocr_requests_status_check
+    CHECK (
+        status IN (
+            'pending', 'claimed', 'previewing', 'focusing', 'capturing',
+            'processing', 'completed', 'cancelled', 'failed'
+        )
+    );
+
+DROP INDEX IF EXISTS public.uq_iot_ocr_active_request;
+CREATE UNIQUE INDEX uq_iot_ocr_active_request
+    ON public.iot_ocr_requests (application_id, document_key)
+    WHERE status IN (
+        'pending', 'claimed', 'previewing', 'focusing', 'capturing', 'processing'
+    );
+
 COMMIT;

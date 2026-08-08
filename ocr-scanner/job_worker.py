@@ -758,13 +758,14 @@ def _run_generic_document_scan(
     return status == "completed", payload
 
 
-def run_scan(request: Dict) -> Tuple[bool, Dict]:
+def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
     request_ref = _safe_request_ref(get_request_id(request))
     document_key = str(request.get("document_key") or "unknown")
     log.info("Starting capture request=%s document=%s", request_ref, document_key)
 
     capture_result = run_capture_session(
         should_stop=_shutdown_requested.is_set,
+        on_status=status_callback,
     )
     if capture_result.status != CAPTURED:
         log.info(
@@ -774,6 +775,9 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
             capture_result.error_code or "none",
         )
         return _capture_outcome_payload(request, capture_result)
+
+    if status_callback:
+        status_callback('processing')
 
     if _is_birth_certificate_job(request):
         return _run_birth_certificate_scan(request, capture_result.capture_path)
@@ -840,7 +844,15 @@ def main():
                 "Request received; opening camera preview request=%s",
                 _safe_request_ref(request_id),
             )
-            _success, payload = run_scan(request)
+            def report_status(status):
+                if not api.update_status(request_id, status):
+                    log.warning(
+                        "Lifecycle status update failed request=%s status=%s",
+                        _safe_request_ref(request_id),
+                        status,
+                    )
+
+            _success, payload = run_scan(request, status_callback=report_status)
             submit_and_verify(api, request_id, payload)
 
         except KeyboardInterrupt:

@@ -233,6 +233,31 @@ class ApiClient:
 
         return request
 
+    def update_status(self, request_id: str, status: str) -> bool:
+        """Persist one active request lifecycle transition with retries."""
+        url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/status"
+
+        for attempt in range(1, 4):
+            try:
+                response = requests.post(
+                    url,
+                    headers=self._headers(),
+                    json={"status": status},
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return True
+            except requests.RequestException as exc:
+                log.warning(
+                    "update_status attempt %s failed request=%s status=%s: %s",
+                    attempt,
+                    request_id,
+                    status,
+                    exc,
+                )
+
+        return False
+
     def submit_result(
         self,
         job_id: str,

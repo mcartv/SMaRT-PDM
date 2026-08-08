@@ -33,6 +33,34 @@ async function updateMyProfile(req, res) {
     }
 }
 
+async function getMyOnboardingPreference(req, res) {
+    try {
+        const result = await profileService.getMyOnboardingPreference(
+            getRequestUserId(req)
+        );
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('ONBOARDING PREFERENCE FETCH ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load onboarding preference.',
+        });
+    }
+}
+
+async function markMyOnboardingSeen(req, res) {
+    try {
+        const result = await profileService.markMyOnboardingSeen(
+            getRequestUserId(req)
+        );
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('ONBOARDING PREFERENCE UPDATE ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to save onboarding preference.',
+        });
+    }
+}
+
 async function uploadAvatar(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -49,6 +77,8 @@ async function uploadAvatar(req, res) {
 
 module.exports = {
     getMyProfile,
+    getMyOnboardingPreference,
+    markMyOnboardingSeen,
     updateMyProfile,
     uploadAvatar,
 };

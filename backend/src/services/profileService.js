@@ -573,8 +573,52 @@ async function uploadAvatar(userId, file) {
   };
 }
 
+async function getMyOnboardingPreference(userId) {
+  if (!userId) throw createHttpError(401, 'Authentication required.');
+
+  const { data, error } = await supabase
+    .from('mobile_user_preferences')
+    .select('onboarding_seen_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    has_seen_onboarding: Boolean(data?.onboarding_seen_at),
+    onboarding_seen_at: data?.onboarding_seen_at || null,
+  };
+}
+
+async function markMyOnboardingSeen(userId) {
+  if (!userId) throw createHttpError(401, 'Authentication required.');
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('mobile_user_preferences')
+    .upsert(
+      {
+        user_id: userId,
+        onboarding_seen_at: now,
+        updated_at: now,
+      },
+      { onConflict: 'user_id' }
+    )
+    .select('onboarding_seen_at')
+    .single();
+
+  if (error) throw error;
+
+  return {
+    has_seen_onboarding: true,
+    onboarding_seen_at: data.onboarding_seen_at,
+  };
+}
+
 module.exports = {
   getMyProfile,
+  getMyOnboardingPreference,
+  markMyOnboardingSeen,
   updateMyProfile,
   uploadAvatar,
 };

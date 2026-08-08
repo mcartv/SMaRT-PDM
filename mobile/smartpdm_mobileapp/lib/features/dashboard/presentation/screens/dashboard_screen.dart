@@ -13,6 +13,7 @@ import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/a
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/models/applicant_home_presentation.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
@@ -120,6 +121,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       ApplicantDocumentsService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
   final ApplicationService _applicationService = ApplicationService();
+  final ProfileService _profileService = ProfileService();
 
   NotificationProvider? _notificationProvider;
 
@@ -188,7 +190,13 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final guideKey = accountKey.isEmpty
         ? 'mobile_dashboard_guide_seen_v2'
         : 'mobile_dashboard_guide_seen_v2_$accountKey';
-    final hasSeenGuide = prefs.getBool(guideKey) ?? false;
+    var hasSeenGuide = prefs.getBool(guideKey) ?? false;
+    try {
+      hasSeenGuide = await _profileService.hasSeenOnboarding();
+      if (hasSeenGuide) await prefs.setBool(guideKey, true);
+    } catch (error) {
+      debugPrint('ONBOARDING PREFERENCE FETCH ERROR: $error');
+    }
     if (hasSeenGuide || !mounted) return;
 
     await showDialog<void>(
@@ -196,6 +204,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       barrierDismissible: false,
       builder: (dialogContext) => _FirstTimeGuideDialog(
         onFinish: () async {
+          await _profileService.markOnboardingSeen();
           await prefs.setBool(guideKey, true);
           if (dialogContext.mounted) Navigator.of(dialogContext).pop();
         },
@@ -1182,6 +1191,8 @@ class _FirstTimeGuideDialog extends StatefulWidget {
 
 class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
   int _index = 0;
+  bool _isFinishing = false;
+  String? _finishError;
 
   static const _steps = [
     (
@@ -1249,6 +1260,16 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
                 context,
               ).textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
+            if (_finishError != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _finishError!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1259,10 +1280,29 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
             child: const Text('Back'),
           ),
         FilledButton(
-          onPressed: isLast
-              ? widget.onFinish
+          onPressed: _isFinishing
+              ? null
+              : isLast
+              ? () async {
+                  setState(() {
+                    _isFinishing = true;
+                    _finishError = null;
+                  });
+                  try {
+                    await widget.onFinish();
+                  } catch (_) {
+                    if (!mounted) return;
+                    setState(() {
+                      _isFinishing = false;
+                      _finishError =
+                          'Could not save your progress. Check your connection and try again.';
+                    });
+                  }
+                }
               : () => setState(() => _index += 1),
-          child: Text(isLast ? 'Got it' : 'Next'),
+          child: Text(
+            _isFinishing ? 'Saving...' : (isLast ? 'Got it' : 'Next'),
+          ),
         ),
       ],
     );

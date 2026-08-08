@@ -30,6 +30,15 @@ class ProfileService {
     return profile;
   }
 
+  Future<bool> hasSeenOnboarding() async {
+    final response = await _apiClient.getObject('/api/profile/me/onboarding');
+    return response['has_seen_onboarding'] == true;
+  }
+
+  Future<void> markOnboardingSeen() async {
+    await _apiClient.patchJson('/api/profile/me/onboarding', body: const {});
+  }
+
   Future<Map<String, dynamic>> uploadAvatar({
     String? filePath,
     Uint8List? bytes,

@@ -117,6 +117,34 @@ const REQUIRED_DOCUMENTS = [
 ];
 
 const OCR_DOCUMENTS = REQUIRED_DOCUMENTS;
+const ACTIVE_IOT_OCR_STATUSES = new Set([
+  'pending',
+  'claimed',
+  'previewing',
+  'focusing',
+  'capturing',
+  'processing',
+]);
+
+const IOT_OCR_STATUS_MESSAGES = {
+  pending: 'Waiting for Raspberry Pi',
+  claimed: 'Raspberry Pi received the request',
+  previewing: 'Position the document on the Raspberry Pi',
+  focusing: 'Camera is visibly adjusting focus',
+  capturing: 'Capturing the sharpest focused frame',
+  processing: 'Running OCR on the focused capture',
+};
+
+function getActiveIotRequest(document = {}) {
+  return document?.iot_ocr_request || document?.ocr_job || null;
+}
+
+function isActiveIotRequest(request) {
+  return ACTIVE_IOT_OCR_STATUSES.has(
+    String(request?.status || '').trim().toLowerCase()
+  );
+}
+
 
 // Transitional until document contract status is persisted with OCR snapshots.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -1195,6 +1223,7 @@ function OCRPanel({
   extractedData,
   onRunIotOcr,
   runningIotOcr,
+  iotOcrStatus,
   iotOcrError,
   rawOcrSnapshot,
   onRawOcrChange,
@@ -1247,6 +1276,13 @@ function OCRPanel({
       </div>
 
       <div className="p-4 min-h-[520px] space-y-4">
+        {runningIotOcr && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <span className="font-semibold">Running IoT OCR...</span>{' '}
+            {IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
+          </div>
+        )}
+
         {iotOcrError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {iotOcrError}
@@ -2183,6 +2219,13 @@ export default function DocumentVerification() {
     () => docs.find((d) => d.id === activeDocId) || docs[0] || null,
     [docs, activeDocId]
   );
+  const persistedIotRequest = getActiveIotRequest(activeDoc);
+  const persistedIotOcrRunning = isActiveIotRequest(persistedIotRequest);
+  const effectiveRunningIotOcr = runningIotOcr || persistedIotOcrRunning;
+  const iotOcrStatus = String(
+    persistedIotRequest?.status || (runningIotOcr ? 'pending' : '')
+  ).toLowerCase();
+
   const endorsementSlipId = application?.readiness?.endorsement_slip_id || null;
 
   const requiredDocCount = REQUIRED_DOCUMENTS.length;
@@ -2244,10 +2287,46 @@ export default function DocumentVerification() {
   }, [activeDoc, application, docComments, runningIotOcr]);
 
   useEffect(() => {
-    stopPolling();
-    setRunningIotOcr(false);
     setIotOcrError('');
-  }, [activeDocId, stopPolling]);
+
+    if (!activeDoc) return;
+
+    const request = getActiveIotRequest(activeDoc);
+    if (!isActiveIotRequest(request)) {
+      if (!runningIotOcr) stopPolling();
+      return;
+    }
+
+    const requestId = getIotOcrRequestId(request);
+    if (!requestId) return;
+
+    setRunningIotOcr(true);
+    activeIotRequestRef.current = {
+      documentId: activeDoc.id,
+      requestId,
+      request,
+    };
+
+    if (!pollingRef.current) {
+      const pollPersistedRequest = async () => {
+        try {
+          await fetchApplicationDocuments({ soft: true });
+        } finally {
+          if (activeIotRequestRef.current?.requestId === requestId) {
+            pollingRef.current = window.setTimeout(pollPersistedRequest, 2000);
+          }
+        }
+      };
+
+      pollingRef.current = window.setTimeout(pollPersistedRequest, 2000);
+    }
+  }, [
+    activeDoc,
+    activeDocId,
+    fetchApplicationDocuments,
+    runningIotOcr,
+    stopPolling,
+  ]);
 
   const handleCommentChange = (value) => {
     setComment(value);
@@ -2286,6 +2365,7 @@ export default function DocumentVerification() {
 
   const handleRunIotOcr = async () => {
     if (!activeDoc || activeDoc.id === 'application_form') return;
+    if (persistedIotOcrRunning) return;
 
     const targetDocumentId = activeDoc.id;
     const setBlankIotOverride = (
@@ -2787,7 +2867,8 @@ export default function DocumentVerification() {
                   activeDoc={activeDoc}
                   extractedData={extractedData}
                   onRunIotOcr={handleRunIotOcr}
-                  runningIotOcr={runningIotOcr}
+                  runningIotOcr={effectiveRunningIotOcr}
+                  iotOcrStatus={iotOcrStatus}
                   iotOcrError={iotOcrError}
                   rawOcrSnapshot={rawOcrSnapshot}
                   onRawOcrChange={setRawOcrSnapshot}
@@ -2801,7 +2882,8 @@ export default function DocumentVerification() {
                     activeDoc={activeDoc}
                     extractedData={extractedData}
                     onRunIotOcr={handleRunIotOcr}
-                    runningIotOcr={runningIotOcr}
+                    runningIotOcr={effectiveRunningIotOcr}
+                    iotOcrStatus={iotOcrStatus}
                     iotOcrError={iotOcrError}
                     rawOcrSnapshot={rawOcrSnapshot}
                     onRawOcrChange={setRawOcrSnapshot}

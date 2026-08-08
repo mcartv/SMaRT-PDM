@@ -37,12 +37,13 @@ def run_capture_session(
     buttons=None,
     path_exists: Callable[[str], bool] = os.path.isfile,
     should_stop: Optional[Callable[[], bool]] = None,
+    on_status: Optional[Callable[[str], None]] = None,
 ) -> CaptureSessionResult:
     """
-    Open the preview immediately after a request is claimed.
+    Open preview #1 immediately after a request is claimed.
 
-    LEFT finalizes one capture. RIGHT cancels before capture.
-    No button press is required to open the preview.
+    LEFT starts the actual autofocus/capture path. RIGHT intentionally cancels.
+    The optional lifecycle callback persists previewing/focusing/capturing state.
     """
 
     resolved_camera = camera if camera is not None else CameraController()
@@ -80,7 +81,6 @@ def run_capture_session(
                 error_code="INPUT_DEVICE_UNAVAILABLE",
             )
 
-        # Preview is intentionally started before waiting for either button.
         try:
             preview_started_at = time.monotonic()
 
@@ -89,6 +89,9 @@ def run_capture_session(
                     FAILED,
                     error_code="PREVIEW_START_FAILED",
                 )
+
+            if on_status:
+                on_status("previewing")
 
             print(
                 "Camera preview ready in "
@@ -130,10 +133,21 @@ def run_capture_session(
                 error_code="CAPTURE_SESSION_INTERRUPTED",
             )
 
+        if on_status:
+            on_status("focusing")
+
         try:
-            captured = resolved_camera.capture_image(
-                restart_preview=False,
-            )
+            try:
+                captured = resolved_camera.capture_image(
+                    restart_preview=False,
+                    status_callback=on_status,
+                )
+            except TypeError as exc:
+                if "status_callback" not in str(exc):
+                    raise
+                captured = resolved_camera.capture_image(
+                    restart_preview=False,
+                )
         except (InterruptedError, KeyboardInterrupt):
             return CaptureSessionResult(
                 FAILED,

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.iot_ocr_requests (
     completed_at TIMESTAMPTZ NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT iot_ocr_requests_status_check
-        CHECK (status IN ('pending', 'claimed', 'completed', 'cancelled', 'failed')),
+        CHECK (status IN ('pending', 'claimed', 'previewing', 'focusing', 'capturing', 'processing', 'completed', 'cancelled', 'failed')),
     CONSTRAINT iot_ocr_requests_provenance_required
         CHECK (
             status <> 'completed'
@@ -24,4 +24,4 @@ CREATE TABLE IF NOT EXISTS public.iot_ocr_requests (
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_iot_ocr_active_request
     ON public.iot_ocr_requests (application_id, document_key)
-    WHERE status IN ('pending', 'claimed');
+    WHERE status IN ('pending', 'claimed', 'previewing', 'focusing', 'capturing', 'processing');

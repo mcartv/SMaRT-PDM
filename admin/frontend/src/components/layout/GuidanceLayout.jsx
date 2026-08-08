@@ -13,7 +13,8 @@ export default function GuidanceLayout() {
       queuePath="/guidance/queue"
       trackerPath="/guidance/tracker"
       reportsPath="/guidance/reports"
-      maintenancePath="/guidance/maintenance"
+      maintenancePath="/guidance/settings"
+      roQueuePath="/guidance/ro-requests"
       tokenStorageKey="guidanceToken"
       profileStorageKey="guidanceProfile"
       colors={{

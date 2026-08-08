@@ -97,7 +97,7 @@ export default function DepartmentPortalLogin({
           <h2 className="mb-10 text-4xl font-bold leading-tight text-white" style={{ fontFamily: 'serif' }}>
             {officeName}
             <br />
-            <span style={{ color: colors.accent }}>Portal</span>
+            <span style={{ color: colors.accent }}>Access</span>
           </h2>
 
           <div className="max-w-xs space-y-3">
@@ -135,7 +135,7 @@ export default function DepartmentPortalLogin({
             style={{ color: colors.base }}
           >
             <ArrowLeft size={15} />
-            Back to portal directory
+            Back to access selection
           </button>
 
           <div className="mb-8">
@@ -145,7 +145,7 @@ export default function DepartmentPortalLogin({
                 Authorized {portalLabel} Access
               </span>
             </div>
-            <h1 className="text-3xl font-bold text-stone-900">{portalLabel} Panel</h1>
+            <h1 className="text-3xl font-bold text-stone-900">{portalLabel} Access</h1>
             <p className="mt-1 text-sm text-stone-500">
               Use your {officeName} credentials to continue.
             </p>

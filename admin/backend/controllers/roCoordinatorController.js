@@ -95,21 +95,42 @@ async function notify(req, coordinator, request, decision, remarks) {
 exports.getSummary = async (req, res) => {
   try {
     const coordinator = await getCoordinator(req);
-    const result = await db.query(
-      `SELECT
-        COUNT(*) FILTER (WHERE rp.placement_status = 'Pending')::int AS pending_count,
-        COUNT(*) FILTER (WHERE rp.placement_status = 'Approved' AND rp.decided_at::date = CURRENT_DATE)::int AS approved_today,
-        COUNT(*) FILTER (WHERE rp.placement_status = 'Rejected' AND rp.decided_at::date = CURRENT_DATE)::int AS rejected_today,
-        COUNT(*) FILTER (WHERE rp.placement_status = 'Approved' AND COALESCE(ro.ro_status, '') <> 'Cleared')::int AS active_count
-       FROM ro_placements rp
-       JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
-       WHERE rp.coordinator_assignment_id = ANY($1::uuid[])`,
-      [coordinator.assignmentIds]
-    );
+    const [placementResult, attendanceResult, scholarRequestResult] = await Promise.all([
+      db.query(
+        `SELECT
+          COUNT(DISTINCT ro.student_id) FILTER (WHERE rp.placement_status = 'Approved')::int AS assigned_scholars,
+          COUNT(*) FILTER (WHERE rp.placement_status = 'Pending')::int AS pending_placement_requests
+         FROM ro_placements rp
+         JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
+         WHERE rp.coordinator_assignment_id = ANY($1::uuid[])`,
+        [coordinator.assignmentIds]
+      ),
+      db.query(
+        `SELECT COUNT(*)::int AS pending_validation
+         FROM ro_time_logs rtl
+         JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
+         WHERE rp.coordinator_assignment_id = ANY($1::uuid[])
+           AND rp.placement_status = 'Approved'
+           AND rtl.log_status = 'Timed Out'
+           AND COALESCE(rtl.department_validation_status, 'Pending') = 'Pending'`,
+        [coordinator.assignmentIds]
+      ),
+      db.query(
+        `SELECT COUNT(*)::int AS pending_ro_requests
+         FROM ro_scholar_requests rsr
+         WHERE rsr.coordinator_assignment_id = ANY($1::uuid[])
+           AND COALESCE(rsr.request_status, 'Pending') IN ('Pending', 'Acknowledged')`,
+        [coordinator.assignmentIds]
+      ),
+    ]);
+
     return res.json({
       department: coordinator.department,
       departments: coordinator.departments,
-      ...(result.rows[0] || {}),
+      assigned_scholars: Number(placementResult.rows[0]?.assigned_scholars || 0),
+      pending_validation: Number(attendanceResult.rows[0]?.pending_validation || 0),
+      pending_ro_requests: Number(scholarRequestResult.rows[0]?.pending_ro_requests || 0),
+      pending_count: Number(placementResult.rows[0]?.pending_placement_requests || 0),
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to load RO coordinator summary.' });

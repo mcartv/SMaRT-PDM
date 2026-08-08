@@ -44,7 +44,7 @@ alter table public.endorsement_slips
 alter table public.endorsement_slips
     drop constraint if exists endorsement_slips_guidance_status_check,
     add constraint endorsement_slips_guidance_status_check
-        check (guidance_status is null or guidance_status in ('cleared', 'held', 'rejected'));
+        check (guidance_status is null or guidance_status in ('good_moral_standing', 'cleared', 'held', 'rejected'));
 
 create or replace function public.ensure_endorsement_slip_for_application()
 returns trigger

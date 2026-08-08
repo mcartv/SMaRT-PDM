@@ -1,5 +1,12 @@
 const supabase = require('../config/supabase');
 const db = require('../config/db');
+const { resolveStaffRole } = require('../utils/staffRoles');
+
+const RO_COORDINATOR_CAPABLE_ROLES = new Set(['pd', 'sdo', 'guidance', 'ro_coordinator']);
+
+function isRoCoordinatorCapableStaff(profile = {}) {
+    return RO_COORDINATOR_CAPABLE_ROLES.has(resolveStaffRole(profile));
+}
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -440,10 +447,17 @@ async function getDepartments() {
     );
     const candidateResult = await db.query(
         `
-        SELECT user_id, first_name, last_name, department, position
-        FROM admin_profiles
-        WHERE COALESCE(is_archived, false) = false
-        ORDER BY first_name, last_name
+        SELECT
+          ap.user_id,
+          ap.first_name,
+          ap.last_name,
+          ap.department,
+          ap.position,
+          u.role AS user_role
+        FROM admin_profiles ap
+        JOIN users u ON u.user_id = ap.user_id
+        WHERE COALESCE(ap.is_archived, false) = false
+        ORDER BY ap.first_name, ap.last_name
         `
     );
 
@@ -455,12 +469,15 @@ async function getDepartments() {
                 coordinator: coordinators.get(String(department.department_id)) || null,
             };
         }),
-        coordinator_candidates: candidateResult.rows.map((row) => ({
-            user_id: row.user_id,
-            name: [row.first_name, row.last_name].filter(Boolean).join(' '),
-            department: row.department || '',
-            position: row.position || '',
-        })),
+        coordinator_candidates: candidateResult.rows
+            .filter((row) => isRoCoordinatorCapableStaff(row))
+            .map((row) => ({
+                user_id: row.user_id,
+                name: [row.first_name, row.last_name].filter(Boolean).join(' '),
+                department: row.department || '',
+                position: row.position || '',
+                role: resolveStaffRole(row),
+            })),
     };
 }
 
@@ -504,15 +521,28 @@ async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = n
         let assignment = null;
         if (userId) {
             const profileResult = await client.query(
-                `SELECT user_id, first_name, last_name, department, position
-                 FROM admin_profiles
-                 WHERE user_id = $1
-                   AND COALESCE(is_archived, false) = false
+                `SELECT
+                   ap.user_id,
+                   ap.first_name,
+                   ap.last_name,
+                   ap.department,
+                   ap.position,
+                   u.role AS user_role
+                 FROM admin_profiles ap
+                 JOIN users u ON u.user_id = ap.user_id
+                 WHERE ap.user_id = $1
+                   AND COALESCE(ap.is_archived, false) = false
                  LIMIT 1`,
                 [userId]
             );
             if (!profileResult.rows.length) {
                 throw createHttpError(400, 'Select an active staff account.');
+            }
+            if (!isRoCoordinatorCapableStaff(profileResult.rows[0])) {
+                throw createHttpError(
+                    400,
+                    'Only Program Director, SDO, Guidance, or RO Coordinator accounts can be assigned to an RO Area.'
+                );
             }
 
             await client.query(

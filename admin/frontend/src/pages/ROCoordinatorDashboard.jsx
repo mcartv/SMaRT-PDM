@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router';
 import {
   ArrowRight,
   CheckCircle2,
+  FileClock,
   ClipboardCheck,
   Clock3,
   Loader2,
   RefreshCw,
-  RotateCcw,
   UsersRound,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -129,11 +129,10 @@ export default function ROCoordinatorDashboard() {
         </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={Clock3} label="Approval Requests" value={summary.pending_count || 0} detail="Waiting for your decision" theme={theme} />
-        <SummaryCard icon={CheckCircle2} label="Approved Today" value={summary.approved_today || 0} detail="Assignments released today" theme={theme} />
-        <SummaryCard icon={RotateCcw} label="Returned Today" value={summary.rejected_today || 0} detail="Sent back to Admin" theme={theme} />
-        <SummaryCard icon={UsersRound} label="Active RO" value={summary.active_count || 0} detail="Approved and not yet cleared" theme={theme} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SummaryCard icon={FileClock} label="Pending Validation" value={summary.pending_validation || 0} detail="Attendance records waiting for validation" theme={theme} />
+        <SummaryCard icon={Clock3} label="Pending RO Requests" value={summary.pending_ro_requests || 0} detail="Scholar requests awaiting Admin action" theme={theme} />
+        <SummaryCard icon={UsersRound} label="Assigned Scholars" value={summary.assigned_scholars || 0} detail="Scholars assigned to your RO area" theme={theme} />
       </div>
 
       <Card className="overflow-hidden rounded-[24px] border-stone-200 shadow-none">

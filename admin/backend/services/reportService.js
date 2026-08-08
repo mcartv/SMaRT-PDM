@@ -34,6 +34,7 @@ function normalizeReportType(value) {
         'pd',
         'scholars_by_benefactor',
         'endorsements',
+        'ro',
     ];
 
     if (!type) return 'applications';
@@ -111,17 +112,22 @@ async function getReportMetadata() {
             {
                 id: 'sdo',
                 name: 'SDO Endorsement Report',
-                sub: 'SDO findings, offense details, remarks, and endorsement stage status',
+                sub: 'SDO disciplinary standing, remarks, and endorsement stage status',
             },
             {
                 id: 'guidance',
                 name: 'Guidance Endorsement Report',
-                sub: 'Guidance decisions, prior SDO context, and review status summary',
+                sub: 'Guidance Good Moral Standing results with prior SDO context',
             },
             {
                 id: 'pd',
                 name: 'PD Endorsement Report',
-                sub: 'Program Director decisions with full endorsement progression summary',
+                sub: 'Program Director scholastic standing with full endorsement progression summary',
+            },
+            {
+                id: 'ro',
+                name: 'RO Coordinator Report',
+                sub: 'Assigned scholars, placement status, validated hours, and RO progress for your assigned area',
             },
         ],
         programs: [
@@ -473,9 +479,14 @@ async function getSdoRows({
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
         if (normalizedReviewResult === 'pending') {
             where.push(`es.sdo_status IS NULL`);
+        } else if (normalizedReviewResult === 'no_offense') {
+            where.push(`es.sdo_status IN ('no_offense', 'cleared')`);
+        } else if (normalizedReviewResult === 'minor_offense') {
+            where.push(`es.sdo_status IN ('minor_offense', 'disqualified_minor')`);
+        } else if (normalizedReviewResult === 'major_offense') {
+            where.push(`es.sdo_status IN ('major_offense', 'disqualified_major')`);
         } else {
-            params.push(normalizedReviewResult);
-            where.push(`es.sdo_status = $${params.length}`);
+            throw createHttpError(400, 'Invalid SDO endorsement result filter.');
         }
     }
 
@@ -502,9 +513,6 @@ async function getSdoRows({
       es.current_stage,
       es.overall_status,
       es.sdo_status,
-      es.sdo_offense_type,
-      es.sdo_incident_date,
-      es.sdo_case_reference_number,
       es.sdo_remarks,
       CONCAT(COALESCE(sdo_profile.last_name, ''), CASE WHEN sdo_profile.last_name IS NOT NULL AND sdo_profile.first_name IS NOT NULL THEN ', ' ELSE '' END, COALESCE(sdo_profile.first_name, '')) AS reviewed_by,
       es.sdo_acted_at,
@@ -566,9 +574,10 @@ async function getGuidanceRows({
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
         if (normalizedReviewResult === 'pending') {
             where.push(`es.guidance_status IS NULL`);
+        } else if (normalizedReviewResult === 'good_moral_standing') {
+            where.push(`es.guidance_status IN ('good_moral_standing', 'cleared')`);
         } else {
-            params.push(normalizedReviewResult);
-            where.push(`es.guidance_status = $${params.length}`);
+            throw createHttpError(400, 'Invalid Guidance endorsement result filter.');
         }
     }
 
@@ -595,9 +604,6 @@ async function getGuidanceRows({
       es.current_stage,
       es.overall_status,
       es.sdo_status,
-      es.sdo_offense_type,
-      es.sdo_incident_date,
-      es.sdo_case_reference_number,
       es.guidance_status,
       es.guidance_remarks,
       CONCAT(COALESCE(guidance_profile.last_name, ''), CASE WHEN guidance_profile.last_name IS NOT NULL AND guidance_profile.first_name IS NOT NULL THEN ', ' ELSE '' END, COALESCE(guidance_profile.first_name, '')) AS reviewed_by,
@@ -671,17 +677,23 @@ async function getPdRows({
 
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
         if (consolidated && normalizedReviewResult === 'pending') {
-            where.push(`es.overall_status NOT IN ('completed', 'rejected')`);
+            where.push(`es.overall_status IN ('pending_sdo', 'pending_guidance', 'pending_pd')`);
+        } else if (consolidated && normalizedReviewResult === 'major_offense') {
+            where.push(`(es.overall_status = 'disqualified_major' OR es.sdo_status IN ('major_offense', 'disqualified_major'))`);
+        } else if (consolidated && normalizedReviewResult === 'completed') {
+            where.push(`es.overall_status = 'completed'`);
         } else if (consolidated) {
-            params.push(normalizedReviewResult);
-            where.push(`es.overall_status = $${params.length}`);
+            throw createHttpError(400, 'Invalid consolidated endorsement result filter.');
         } else if (normalizedReviewResult === 'pending') {
-            where.push(`es.pd_status IS NULL`);
+            where.push(`es.pd_status IS NULL AND es.current_stage = 'pending_pd'`);
         } else if (normalizedReviewResult === 'completed') {
             where.push(`es.overall_status = 'completed'`);
+        } else if (normalizedReviewResult === 'good_scholastic_standing') {
+            where.push(`es.pd_status = 'good_scholastic_standing'`);
+        } else if (normalizedReviewResult === 'average_scholastic_standing') {
+            where.push(`es.pd_status = 'average_scholastic_standing'`);
         } else {
-            params.push(normalizedReviewResult);
-            where.push(`es.pd_status = $${params.length}`);
+            throw createHttpError(400, 'Invalid Program Director endorsement result filter.');
         }
     }
 
@@ -734,6 +746,118 @@ async function getPdRows({
     return rows;
 }
 
+
+async function getRoRows({
+    academicYearId,
+    semester,
+    programId,
+    reviewResult,
+    dateFrom,
+    dateTo,
+    roUserId,
+}) {
+    if (!roUserId) {
+        throw createHttpError(403, 'RO Coordinator assignment is required for this report.');
+    }
+
+    const params = [roUserId];
+    const where = [
+        `rac.user_id = $1`,
+        `rac.is_active = TRUE`,
+        `rd.is_active = TRUE`,
+    ];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`po.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`ro.program_id = $${params.length}`);
+    }
+
+    const normalizedReviewResult = safeText(reviewResult || 'all').toLowerCase();
+    if (normalizedReviewResult && normalizedReviewResult !== 'all') {
+        if (normalizedReviewResult === 'pending_validation') {
+            where.push(`EXISTS (
+                SELECT 1
+                FROM ro_time_logs rtl_pending
+                WHERE rtl_pending.ro_id = ro.ro_id
+                  AND rtl_pending.log_status = 'Timed Out'
+                  AND COALESCE(rtl_pending.department_validation_status, 'Pending') = 'Pending'
+            )`);
+        } else if (normalizedReviewResult === 'assigned') {
+            where.push(`rp.placement_status = 'Approved'`);
+        } else if (normalizedReviewResult === 'completed') {
+            where.push(`COALESCE(ro.ro_status, '') = 'Cleared'`);
+        } else {
+            throw createHttpError(400, 'Invalid RO report status filter.');
+        }
+    }
+
+    appendDateRange(
+        where,
+        params,
+        `COALESCE(rp.decided_at, rp.requested_at, rp.created_at)`,
+        safeText(dateFrom || ''),
+        safeText(dateTo || '')
+    );
+
+    const query = `
+      SELECT
+        ro.ro_id,
+        st.pdm_id,
+        CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+        ac.course_code,
+        st.year_level,
+        sp.program_name,
+        po.opening_title,
+        ay.label AS academic_year,
+        ap.term AS semester,
+        rd.department_name AS ro_area,
+        rp.placement_status,
+        rp.requested_at,
+        rp.decided_at,
+        ro.required_hours,
+        ROUND(COALESCE(ro.submitted_minutes, 0)::numeric / 60, 2) AS submitted_hours,
+        ROUND(COALESCE(ro.validated_minutes, 0)::numeric / 60, 2) AS validated_hours,
+        ro.progress_status,
+        ro.assignment_status,
+        ro.ro_status,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM ro_time_logs rtl
+          WHERE rtl.ro_id = ro.ro_id
+            AND rtl.log_status = 'Timed Out'
+            AND COALESCE(rtl.department_validation_status, 'Pending') = 'Pending'
+        ), 0)::int AS pending_validation_count
+      FROM ro_placements rp
+      JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
+      JOIN ro_area_coordinators rac
+        ON rac.coordinator_assignment_id = rp.coordinator_assignment_id
+      JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
+      JOIN students st ON st.student_id = ro.student_id
+      LEFT JOIN academic_course ac ON ac.course_id = st.course_id
+      LEFT JOIN scholarship_program sp ON sp.program_id = ro.program_id
+      LEFT JOIN program_openings po ON po.opening_id = ro.opening_id
+      LEFT JOIN academic_years ay ON ay.academic_year_id = po.academic_year_id
+      LEFT JOIN academic_period ap ON ap.period_id = po.period_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY
+        CASE WHEN rp.placement_status = 'Approved' THEN 0 ELSE 1 END,
+        COALESCE(rp.decided_at, rp.requested_at, rp.created_at) ASC;
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
 function addRows(sheet, rows) {
     rows.forEach((row) => sheet.addRow(row));
 }
@@ -743,39 +867,34 @@ function buildOfficeSummary(reportType, rows = []) {
         total: rows.length,
         pending: 0,
         completed: 0,
-        rejected: 0,
     };
 
     if (reportType === 'sdo') {
-        summary.cleared = 0;
+        summary.noOffense = 0;
         summary.minor = 0;
         summary.major = 0;
 
         rows.forEach((row) => {
             const status = safeText(row.sdo_status).toLowerCase();
-
             if (!status) summary.pending += 1;
-            if (status === 'cleared') summary.cleared += 1;
-            if (status === 'disqualified_minor') summary.minor += 1;
-            if (status === 'disqualified_major') summary.major += 1;
+            if (['no_offense', 'cleared'].includes(status)) summary.noOffense += 1;
+            if (['minor_offense', 'disqualified_minor'].includes(status)) summary.minor += 1;
+            if (['major_offense', 'disqualified_major'].includes(status)) summary.major += 1;
             if (safeText(row.overall_status).toLowerCase() === 'completed') {
                 summary.completed += 1;
             }
-            if (status === 'disqualified_major') summary.rejected += 1;
         });
     }
 
     if (reportType === 'guidance') {
-        summary.cleared = 0;
-        summary.held = 0;
+        summary.goodMoral = 0;
 
         rows.forEach((row) => {
             const status = safeText(row.guidance_status).toLowerCase();
-
-            if (!status) summary.pending += 1;
-            if (status === 'cleared') summary.cleared += 1;
-            if (status === 'held') summary.held += 1;
-            if (status === 'rejected') summary.rejected += 1;
+            if (!status && safeText(row.current_stage).toLowerCase() === 'pending_guidance') {
+                summary.pending += 1;
+            }
+            if (['good_moral_standing', 'cleared'].includes(status)) summary.goodMoral += 1;
             if (safeText(row.overall_status).toLowerCase() === 'completed') {
                 summary.completed += 1;
             }
@@ -783,17 +902,33 @@ function buildOfficeSummary(reportType, rows = []) {
     }
 
     if (reportType === 'pd') {
-        summary.approved = 0;
+        summary.goodStanding = 0;
+        summary.averageStanding = 0;
+        summary.legacyApproved = 0;
 
         rows.forEach((row) => {
             const status = safeText(row.pd_status).toLowerCase();
-
-            if (!status) summary.pending += 1;
-            if (status === 'approved') summary.approved += 1;
-            if (status === 'rejected') summary.rejected += 1;
+            if (!status && safeText(row.current_stage).toLowerCase() === 'pending_pd') {
+                summary.pending += 1;
+            }
+            if (status === 'good_scholastic_standing') summary.goodStanding += 1;
+            if (status === 'average_scholastic_standing') summary.averageStanding += 1;
+            // Historical approved rows cannot be truthfully classified as Good or Average.
+            if (status === 'approved') summary.legacyApproved += 1;
             if (safeText(row.overall_status).toLowerCase() === 'completed') {
                 summary.completed += 1;
             }
+        });
+    }
+
+    if (reportType === 'ro') {
+        summary.pendingValidation = 0;
+        summary.assignedScholars = rows.length;
+        summary.cleared = 0;
+
+        rows.forEach((row) => {
+            summary.pendingValidation += Number(row.pending_validation_count || 0);
+            if (safeText(row.ro_status).toLowerCase() === 'cleared') summary.cleared += 1;
         });
     }
 
@@ -818,6 +953,7 @@ async function getRowsByReportType({
     dateFrom,
     dateTo,
     pdUserId,
+    roUserId,
 }) {
     if (reportType === 'applications') {
         return await getApplicationsRows({
@@ -892,6 +1028,18 @@ async function getRowsByReportType({
         });
     }
 
+    if (reportType === 'ro') {
+        return await getRoRows({
+            academicYearId,
+            semester,
+            programId,
+            reviewResult,
+            dateFrom,
+            dateTo,
+            roUserId,
+        });
+    }
+
     if (reportType === 'endorsements') {
         return await getPdRows({
             academicYearId,
@@ -919,6 +1067,7 @@ function normalizeReportQuery(query = {}) {
         dateFrom: normalizeDate(query.dateFrom || query.date_from || '', 'dateFrom'),
         dateTo: normalizeDate(query.dateTo || query.date_to || '', 'dateTo'),
         pdUserId: safeText(query.pdUserId || ''),
+        roUserId: safeText(query.roUserId || ''),
     };
 
     if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
@@ -936,7 +1085,7 @@ async function previewReport(query = {}) {
         reportType: normalized.reportType,
         total: rows.length,
         rows: rows.slice(0, 50),
-        summary: ['sdo', 'guidance', 'pd'].includes(normalized.reportType)
+        summary: ['sdo', 'guidance', 'pd', 'ro'].includes(normalized.reportType)
             ? buildOfficeSummary(normalized.reportType, rows)
             : null,
     };
@@ -948,18 +1097,27 @@ async function previewReport(query = {}) {
         );
     }
 
+
+
     if (normalized.reportType === 'endorsements') {
         const completed = rows.filter(
             (row) => safeText(row.overall_status).toLowerCase() === 'completed'
         ).length;
-        const rejected = rows.filter(
-            (row) => safeText(row.overall_status).toLowerCase() === 'rejected'
+        const stopped = rows.filter((row) => {
+            const overall = safeText(row.overall_status).toLowerCase();
+            const sdo = safeText(row.sdo_status).toLowerCase();
+            return overall === 'disqualified_major' || ['major_offense', 'disqualified_major'].includes(sdo);
+        }).length;
+        const pending = rows.filter((row) =>
+            ['pending_sdo', 'pending_guidance', 'pending_pd'].includes(
+                safeText(row.overall_status).toLowerCase()
+            )
         ).length;
         previewResult.summary = {
             total: rows.length,
-            pending: rows.length - completed - rejected,
+            pending,
             completed,
-            rejected,
+            stopped,
         };
     }
 
@@ -1071,9 +1229,6 @@ async function generateExcelReport(query = {}) {
             { header: 'Current Stage', key: 'current_stage' },
             { header: 'Overall Status', key: 'overall_status' },
             { header: 'SDO Result', key: 'sdo_status' },
-            { header: 'Offense Type', key: 'sdo_offense_type' },
-            { header: 'Incident Date', key: 'sdo_incident_date' },
-            { header: 'Case Ref No.', key: 'sdo_case_reference_number' },
             { header: 'SDO Remarks', key: 'sdo_remarks' },
             { header: 'Reviewed By', key: 'reviewed_by' },
             { header: 'Reviewed At', key: 'sdo_acted_at' },
@@ -1099,9 +1254,6 @@ async function generateExcelReport(query = {}) {
             { header: 'Current Stage', key: 'current_stage' },
             { header: 'Overall Status', key: 'overall_status' },
             { header: 'SDO Result', key: 'sdo_status' },
-            { header: 'Offense Type', key: 'sdo_offense_type' },
-            { header: 'Incident Date', key: 'sdo_incident_date' },
-            { header: 'Case Ref No.', key: 'sdo_case_reference_number' },
             { header: 'Guidance Result', key: 'guidance_status' },
             { header: 'Guidance Remarks', key: 'guidance_remarks' },
             { header: 'Reviewed By', key: 'reviewed_by' },
@@ -1139,6 +1291,34 @@ async function generateExcelReport(query = {}) {
         ];
         rows = await getPdRows(normalized);
         filename = 'pd_endorsement_report.xlsx';
+    }
+
+    if (normalized.reportType === 'ro') {
+        sheet = workbook.addWorksheet('RO Coordinator');
+        sheet.columns = [
+            { header: 'RO ID', key: 'ro_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Opening', key: 'opening_title' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'RO Area', key: 'ro_area' },
+            { header: 'Placement Status', key: 'placement_status' },
+            { header: 'Required Hours', key: 'required_hours' },
+            { header: 'Submitted Hours', key: 'submitted_hours' },
+            { header: 'Validated Hours', key: 'validated_hours' },
+            { header: 'Pending Validation', key: 'pending_validation_count' },
+            { header: 'Progress Status', key: 'progress_status' },
+            { header: 'Assignment Status', key: 'assignment_status' },
+            { header: 'RO Status', key: 'ro_status' },
+            { header: 'Requested At', key: 'requested_at' },
+            { header: 'Decided At', key: 'decided_at' },
+        ];
+        rows = await getRoRows(normalized);
+        filename = 'ro_coordinator_report.xlsx';
     }
 
     if (normalized.reportType === 'endorsements') {

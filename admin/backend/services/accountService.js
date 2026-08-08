@@ -285,17 +285,42 @@ function mapStaffAccount(row) {
     };
 }
 
+async function hasActiveRoCoordinatorAssignment(userId, client = db) {
+    if (!userId) return false;
+
+    const result = await client.query(
+        `SELECT 1
+         FROM ro_area_coordinators rac
+         JOIN ro_departments rd
+           ON rd.department_id = rac.ro_area_id
+          AND rd.is_active = true
+         WHERE rac.user_id = $1
+           AND rac.is_active = true
+         LIMIT 1`,
+        [userId]
+    );
+
+    return result.rows.length > 0;
+}
+
 async function decorateStaffAccount(row, client = db) {
     const account = mapStaffAccount(row);
-    const assignedCourses = account.role === 'pd'
-        ? await pdCourseAssignmentService.getAssignmentsForUser(account.user_id, client)
-        : [];
+    const canHoldRoCoordinatorAssignment = ['pd', 'sdo', 'guidance', 'ro_coordinator'].includes(account.role);
+    const [assignedCourses, hasRoCoordinatorAccess] = await Promise.all([
+        account.role === 'pd'
+            ? pdCourseAssignmentService.getAssignmentsForUser(account.user_id, client)
+            : [],
+        canHoldRoCoordinatorAssignment
+            ? hasActiveRoCoordinatorAssignment(account.user_id, client)
+            : Promise.resolve(false),
+    ]);
 
     return {
         ...account,
         avatar_url: await resolveAvatarUrl(account.profile_photo_url),
         assigned_courses: assignedCourses,
         course_ids: assignedCourses.map((course) => course.course_id),
+        has_ro_coordinator_access: hasRoCoordinatorAccess,
     };
 }
 
@@ -995,6 +1020,83 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     }
 }
 
+
+async function verifyCurrentStaffPassword(userId, payload = {}) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const currentPassword = String(payload.current_password || '');
+    if (!currentPassword) {
+        throw createHttpError(400, 'Current password is required.');
+    }
+
+    const result = await db.query(
+        `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1`,
+        [userId]
+    );
+
+    const passwordHash = result.rows[0]?.password_hash || '';
+    if (!passwordHash) {
+        throw createHttpError(404, 'Staff account not found.');
+    }
+
+    const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
+    if (!currentMatches) {
+        throw createHttpError(401, 'Current password is incorrect.');
+    }
+
+    return { verified: true };
+}
+
+
+async function changeCurrentStaffPassword(userId, payload = {}) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const currentPassword = String(payload.current_password || '');
+    const newPassword = String(payload.new_password || '');
+    const confirmPassword = String(payload.confirm_password || '');
+
+    if (!currentPassword) {
+        throw createHttpError(400, 'Current password is required.');
+    }
+
+    const validPassword = validatePassword(newPassword, confirmPassword);
+    if (!validPassword) {
+        throw createHttpError(400, 'New password is required.');
+    }
+
+    const result = await db.query(
+        `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1`,
+        [userId]
+    );
+
+    const passwordHash = result.rows[0]?.password_hash || '';
+    if (!passwordHash) {
+        throw createHttpError(404, 'Staff account not found.');
+    }
+
+    const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
+    if (!currentMatches) {
+        throw createHttpError(401, 'Current password is incorrect.');
+    }
+
+    const reusesCurrentPassword = await bcrypt.compare(validPassword, passwordHash);
+    if (reusesCurrentPassword) {
+        throw createHttpError(400, 'New password must be different from the current password.');
+    }
+
+    const nextHash = await bcrypt.hash(validPassword, 12);
+    await db.query(
+        `UPDATE users SET password_hash = $2 WHERE user_id = $1`,
+        [userId, nextHash]
+    );
+
+    return { changed: true };
+}
+
 async function uploadCurrentStaffProfilePhoto(userId, file) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -1083,6 +1185,8 @@ async function removeCurrentStaffProfilePhoto(userId) {
 
 module.exports = {
     archiveStaffAccount,
+    hasActiveRoCoordinatorAssignment,
+    changeCurrentStaffPassword,
     createStaffAccount,
     getCurrentStaffProfile,
     listStaffAccounts,
@@ -1091,4 +1195,5 @@ module.exports = {
     updateCurrentStaffProfile,
     updateStaffAccount,
     uploadCurrentStaffProfilePhoto,
+    verifyCurrentStaffPassword,
 };

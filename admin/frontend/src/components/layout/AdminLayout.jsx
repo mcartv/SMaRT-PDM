@@ -16,6 +16,7 @@ import {
   Briefcase,
   LifeBuoy,
   Image,
+  ClipboardCheck,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
@@ -43,6 +44,7 @@ function resolveProfileImage(profile) {
 const navItems = [
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
+  { path: '/admin/endorsements', icon: ClipboardCheck, label: 'Endorsements' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
@@ -79,6 +81,16 @@ export default function AdminLayout() {
   });
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      if (event.detail?.profileStorageKey !== 'adminProfile') return;
+      setAdminData(event.detail?.profile || null);
+    };
+
+    window.addEventListener('portal-profile:updated', handleProfileUpdated);
+    return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
+  }, []);
 
   useEffect(() => {
     const handleMessageUnread = (event) => {
@@ -149,7 +161,7 @@ export default function AdminLayout() {
       replace: true,
       state: {
         ...(location.state || {}),
-        refreshAt: Date.now(),
+        refreshAt: event.timeStamp,
       },
     });
   };
@@ -160,17 +172,6 @@ export default function AdminLayout() {
     /^\/admin\/applications\/[^/]+\/documents$/.test(location.pathname) ||
     /^\/admin\/openings\/[^/]+\/applications$/.test(location.pathname) ||
     /^\/admin\/renewals\/[^/]+$/.test(location.pathname);
-
-  // Pages that usually need their own internal scroll areas
-  const isPanelScrollPage =
-    /^\/admin\/applications$/.test(location.pathname) ||
-    /^\/admin\/applications\/[^/]+\/documents$/.test(location.pathname) ||
-    /^\/admin\/openings\/[^/]+\/applications$/.test(location.pathname) ||
-    /^\/admin\/renewals\/[^/]+$/.test(location.pathname) ||
-    /^\/admin\/maintenance$/.test(location.pathname) ||
-    /^\/admin\/scholars$/.test(location.pathname) ||
-    /^\/admin\/payout$/.test(location.pathname) ||
-    /^\/admin\/profile-photos(\/[^/]+)?$/.test(location.pathname);
 
   return (
     <div
@@ -228,7 +229,8 @@ export default function AdminLayout() {
               onClick={(event) => handleNavRefresh(event, item.path)}
               end={
                 item.path === '/admin/applications' ||
-                item.path === '/admin/openings'
+                item.path === '/admin/openings' ||
+                item.path === '/admin/endorsements'
               }
               className={({ isActive }) =>
                 `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive

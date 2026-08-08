@@ -45,28 +45,32 @@ const OFFICE_REPORT_FILTERS = {
     { value: 'all', label: 'All Endorsements' },
     { value: 'pending', label: 'Pending' },
     { value: 'completed', label: 'Completed' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'major_offense', label: 'Stopped — Major Offense' },
   ],
   sdo: [
     { value: 'all', label: 'All SDO Results' },
     { value: 'pending', label: 'Pending' },
-    { value: 'cleared', label: 'No Offense' },
-    { value: 'disqualified_minor', label: 'Minor Offense' },
-    { value: 'disqualified_major', label: 'Major Offense' },
+    { value: 'no_offense', label: 'No Disciplinary Offense' },
+    { value: 'minor_offense', label: 'With Minor Offense/s' },
+    { value: 'major_offense', label: 'With Major Offense/s' },
   ],
   guidance: [
     { value: 'all', label: 'All Guidance Results' },
     { value: 'pending', label: 'Pending' },
-    { value: 'cleared', label: 'Good Moral Standing' },
-    { value: 'held', label: 'For Counseling / Hold' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'good_moral_standing', label: 'Good Moral Standing' },
   ],
   pd: [
     { value: 'all', label: 'All PD Results' },
     { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'good_scholastic_standing', label: 'Good Scholastic Standing' },
+    { value: 'average_scholastic_standing', label: 'Average Scholastic Standing' },
     { value: 'completed', label: 'Completed Slip' },
+  ],
+  ro: [
+    { value: 'all', label: 'All RO Records' },
+    { value: 'pending_validation', label: 'Pending Validation' },
+    { value: 'assigned', label: 'Assigned Scholars' },
+    { value: 'completed', label: 'Cleared RO' },
   ],
 };
 
@@ -213,7 +217,7 @@ export default function ReportGeneration({
   );
 
   const isOfficeEndorsementReport = useMemo(
-    () => ['endorsements', 'sdo', 'guidance', 'pd'].includes(selected),
+    () => ['endorsements', 'sdo', 'guidance', 'pd', 'ro'].includes(selected),
     [selected]
   );
   const isScholarCountReport = useMemo(
@@ -547,7 +551,7 @@ export default function ReportGeneration({
         { label: 'Total', value: previewSummary.total || 0 },
         { label: 'Pending', value: previewSummary.pending || 0 },
         { label: 'Completed', value: previewSummary.completed || 0 },
-        { label: 'Rejected', value: previewSummary.rejected || 0 },
+        { label: 'Stopped', value: previewSummary.stopped || 0 },
       ];
     }
 
@@ -555,7 +559,7 @@ export default function ReportGeneration({
       return [
         { label: 'Total', value: previewSummary.total ?? 0 },
         { label: 'Pending', value: previewSummary.pending ?? 0 },
-        { label: 'No Offense', value: previewSummary.cleared ?? 0 },
+        { label: 'No Offense', value: previewSummary.noOffense ?? 0 },
         { label: 'Minor', value: previewSummary.minor ?? 0 },
         { label: 'Major', value: previewSummary.major ?? 0 },
       ];
@@ -565,17 +569,24 @@ export default function ReportGeneration({
       return [
         { label: 'Total', value: previewSummary.total ?? 0 },
         { label: 'Pending', value: previewSummary.pending ?? 0 },
-        { label: 'Good Moral', value: previewSummary.cleared ?? 0 },
-        { label: 'Hold', value: previewSummary.held ?? 0 },
-        { label: 'Rejected', value: previewSummary.rejected ?? 0 },
+        { label: 'Good Moral', value: previewSummary.goodMoral ?? 0 },
+        { label: 'Completed', value: previewSummary.completed ?? 0 },
+      ];
+    }
+
+    if (selected === 'ro') {
+      return [
+        { label: 'Assigned Scholars', value: previewSummary.assignedScholars ?? previewSummary.total ?? 0 },
+        { label: 'Pending Validation', value: previewSummary.pendingValidation ?? 0 },
+        { label: 'Cleared RO', value: previewSummary.cleared ?? 0 },
       ];
     }
 
     return [
       { label: 'Total', value: previewSummary.total ?? 0 },
       { label: 'Pending', value: previewSummary.pending ?? 0 },
-      { label: 'Approved', value: previewSummary.approved ?? 0 },
-      { label: 'Rejected', value: previewSummary.rejected ?? 0 },
+      { label: 'Good Standing', value: previewSummary.goodStanding ?? 0 },
+      { label: 'Average Standing', value: previewSummary.averageStanding ?? 0 },
       { label: 'Completed', value: previewSummary.completed ?? 0 },
     ];
   }, [isOfficeEndorsementReport, isScholarCountReport, previewSummary, previewTotal, selected]);
@@ -920,8 +931,8 @@ export default function ReportGeneration({
                     </p>
                   </div>
                 </div>
-                <div className="h-[340px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[340px] min-h-0 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                     <BarChart data={scholarCountChartData} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                       <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-30} textAnchor="end" height={60} />

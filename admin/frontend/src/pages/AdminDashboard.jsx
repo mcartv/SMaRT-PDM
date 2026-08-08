@@ -209,6 +209,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [silentLoading, setSilentLoading] = useState(false);
   const [error, setError] = useState('');
+  const [chartTab, setChartTab] = useState('applications');
 
   const loadDashboard = useCallback(async (options = {}) => {
     const silent = options.silent === true;
@@ -398,7 +399,7 @@ export default function AdminDashboard() {
       </div>
 
       <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-        <Tabs defaultValue="applications" className="w-full">
+        <Tabs value={chartTab} onValueChange={setChartTab} className="w-full">
           <CardHeader className="flex flex-col gap-3 border-b border-stone-100 pb-4 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-sm font-semibold">
               Scholarship Operations Overview
@@ -420,10 +421,10 @@ export default function AdminDashboard() {
             </TabsList>
           </CardHeader>
 
-          <CardContent className="h-72 pt-4">
-            <TabsContent value="applications" className="h-full">
-              {dashboard.applicationStatus.length ? (
-                <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="h-72 min-h-0 min-w-0 pt-4">
+            <TabsContent value="applications" className="h-full min-h-0 min-w-0">
+              {chartTab === 'applications' && (dashboard.applicationStatus.length ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={dashboard.applicationStatus}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
                     <XAxis dataKey="name" {...AXIS_PROPS} />
@@ -434,12 +435,12 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <EmptyChart label="No application status data available." />
-              )}
+              ))}
             </TabsContent>
 
-            <TabsContent value="openings" className="h-full">
-              {dashboard.openingStatus.length ? (
-                <ResponsiveContainer width="100%" height="100%">
+            <TabsContent value="openings" className="h-full min-h-0 min-w-0">
+              {chartTab === 'openings' && (dashboard.openingStatus.length ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={dashboard.openingStatus}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
                     <XAxis dataKey="name" {...AXIS_PROPS} />
@@ -450,12 +451,12 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <EmptyChart label="No scholarship opening data available." />
-              )}
+              ))}
             </TabsContent>
 
-            <TabsContent value="documents" className="h-full">
-              {dashboard.documentSummary.length ? (
-                <ResponsiveContainer width="100%" height="100%">
+            <TabsContent value="documents" className="h-full min-h-0 min-w-0">
+              {chartTab === 'documents' && (dashboard.documentSummary.length ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={dashboard.documentSummary}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
                     <XAxis dataKey="name" {...AXIS_PROPS} />
@@ -466,7 +467,7 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <EmptyChart label="No document verification data available." />
-              )}
+              ))}
             </TabsContent>
           </CardContent>
         </Tabs>
@@ -478,9 +479,9 @@ export default function AdminDashboard() {
             <CardTitle className="text-sm">Document / OCR Verification Summary</CardTitle>
           </CardHeader>
 
-          <CardContent className="h-56">
+          <CardContent className="h-56 min-h-0 min-w-0">
             {dashboard.documentSummary.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                 <BarChart data={dashboard.documentSummary}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
                   <XAxis dataKey="name" {...AXIS_PROPS} />
@@ -500,10 +501,10 @@ export default function AdminDashboard() {
             <CardTitle className="text-sm">Scholars by Benefactor</CardTitle>
           </CardHeader>
 
-          <CardContent className="grid h-56 grid-cols-1 gap-3 md:grid-cols-[1fr_180px]">
+          <CardContent className="grid h-56 min-h-0 min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
             {dashboard.scholarsByBenefactor.length ? (
               <>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={dashboard.scholarsByBenefactor}

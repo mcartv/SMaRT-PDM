@@ -1,5 +1,6 @@
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const _ = require('lodash');
@@ -2222,7 +2223,6 @@ exports.uploadStudentApplicationDocument = async ({
         throw new Error('Invalid file type. Allowed types: PDF, JPG, JPEG, PNG, WEBP');
     }
 
-    const now = new Date().toISOString();
     const storageFileName = `${Date.now()}_${normalizedDocumentType}${fileExt}`;
     const storagePath = `applications/${applicationId}/${normalizedDocumentType}/${storageFileName}`;
     const resolvedContentType = resolveStorageContentType(fileExt, file.mimetype);
@@ -2239,34 +2239,60 @@ exports.uploadStudentApplicationDocument = async ({
         throw new Error(uploadError.message);
     }
 
-    const signedUrl = await getSignedFileUrl(storagePath);
-
-    const documentRow = {
-        application_id: applicationId,
-        document_type: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
-        file_name: file.originalname,
-        file_path: storagePath,
-        file_url: signedUrl,
-        is_submitted: true,
-        submitted_at: now,
-        notes: null,
-        uploaded_by: studentRecord.student_id,
-        updated_at: now,
-    };
-
-    const { error: documentUpsertError } = await supabase
+    const documentName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentType];
+    const { data: documentSlot, error: documentSlotError } = await supabase
         .from('application_documents')
-        .upsert(documentRow, {
-            onConflict: 'application_id,document_type',
-        });
+        .select('document_id, file_path')
+        .eq('application_id', applicationId)
+        .eq('document_type', documentName)
+        .maybeSingle();
 
-    if (documentUpsertError) {
-        console.error(
-            'SUPABASE APPLICATION DOCUMENT UPSERT ERROR:',
-            documentUpsertError
-        );
-        throw new Error(documentUpsertError.message);
+    if (documentSlotError) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+        throw new Error(documentSlotError.message);
     }
+
+    if (!documentSlot?.document_id) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+        throw new Error('Document slot not found. Refresh the application and try again.');
+    }
+
+    const contentSha256 = crypto
+        .createHash('sha256')
+        .update(file.buffer)
+        .digest('hex');
+
+    const { error: finalizeError } = await supabase.rpc(
+        'finalize_application_document_upload',
+        {
+            p_document_id: documentSlot.document_id,
+            p_uploaded_by: studentRecord.student_id,
+            p_created_by: uploaderId,
+            p_file_path: storagePath,
+            p_file_url: null,
+            p_file_name: file.originalname,
+            p_content_sha256: contentSha256,
+            p_file_size_bytes: file.buffer.length,
+        }
+    );
+
+    if (finalizeError) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+        console.error('SUPABASE APPLICATION DOCUMENT FINALIZE ERROR:', finalizeError);
+        throw new Error(finalizeError.message);
+    }
+
+    if (documentSlot.file_path && documentSlot.file_path !== storagePath) {
+        const { error: oldFileDeleteError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .remove([documentSlot.file_path]);
+
+        if (oldFileDeleteError) {
+            console.warn('OLD APPLICATION DOCUMENT CLEANUP ERROR:', oldFileDeleteError);
+        }
+    }
+
+    const signedUrl = await getSignedFileUrl(storagePath);
 
     const { data: existingDocuments, error: docsError } = await supabase
         .from('application_documents')
@@ -2309,7 +2335,7 @@ exports.uploadStudentApplicationDocument = async ({
     return {
         application_id: applicationId,
         document_key: normalizedDocumentType,
-        document_name: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
+        document_name: documentName,
         file_name: file.originalname,
         file_path: storagePath,
         file_url: signedUrl,

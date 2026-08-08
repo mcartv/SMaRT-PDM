@@ -50,26 +50,7 @@ class _StepAcademicState extends State<StepAcademic> {
     'Loan',
     'Other',
   ];
-  static const List<String> _defaultCourseOptions = [
-    'BSTM',
-    'BSOAD',
-    'BECED',
-    'BSCS',
-    'BSIT',
-    'BSHM',
-    'BTLED',
-  ];
-
-  late final List<String> courseOptions;
-  static const List<String> _defaultSectionOptions = [
-    'A',
-    'B',
-    'C',
-    'D',
-    'E',
-    'F',
-    'G',
-  ];
+  static const List<String> _defaultSectionOptions = ['A', 'B', 'C', 'D'];
   static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
 
   final Set<String> selectedFinancialSupports = <String>{};
@@ -83,40 +64,6 @@ class _StepAcademicState extends State<StepAcademic> {
   bool scholarshipCollege = false;
   bool scholarshipOthers = false;
   bool disciplinaryAction = false;
-
-  String _normalizeCourseValue(String value) {
-    final raw = value.trim();
-    if (raw.isEmpty) return '';
-
-    final normalized = raw
-        .toUpperCase()
-        .replaceAll(RegExp(r'[^A-Z0-9]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    const aliases = <String, String>{
-      'BACHELOR OF SCIENCE IN TOURISM MANAGEMENT': 'BSTM',
-      'TOURISM MANAGEMENT': 'BSTM',
-      'BACHELOR OF SCIENCE IN OFFICE ADMINISTRATION': 'BSOAD',
-      'OFFICE ADMINISTRATION': 'BSOAD',
-      'BACHELOR OF EARLY CHILDHOOD EDUCATION': 'BECED',
-      'EARLY CHILDHOOD EDUCATION': 'BECED',
-      'BACHELOR OF SCIENCE IN COMPUTER SCIENCE': 'BSCS',
-      'COMPUTER SCIENCE': 'BSCS',
-      'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY': 'BSIT',
-      'INFORMATION TECHNOLOGY': 'BSIT',
-      'BACHELOR OF SCIENCE IN HOSPITALITY MANAGEMENT': 'BSHM',
-      'HOSPITALITY MANAGEMENT': 'BSHM',
-      'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION': 'BTLED',
-      'TECHNOLOGY AND LIVELIHOOD EDUCATION': 'BTLED',
-    };
-
-    if (_defaultCourseOptions.contains(normalized)) {
-      return normalized;
-    }
-
-    return aliases[normalized] ?? raw;
-  }
 
   @override
   void initState() {
@@ -197,13 +144,7 @@ class _StepAcademicState extends State<StepAcademic> {
       text: widget.data.disciplinaryExplanation,
     );
 
-    final normalizedCourse = _normalizeCourseValue(widget.data.currentCourse);
-    final uniqueCourses = <String>{
-      ..._defaultCourseOptions,
-      if (normalizedCourse.isNotEmpty) normalizedCourse,
-    };
-    courseOptions = uniqueCourses.toList();
-
+    final normalizedCourse = widget.data.currentCourse.trim();
     selectedCourse = normalizedCourse.isNotEmpty ? normalizedCourse : null;
 
     if (selectedCourse != null && widget.data.currentCourse != selectedCourse) {
@@ -215,15 +156,12 @@ class _StepAcademicState extends State<StepAcademic> {
     selectedYearLevel = _yearLevelOptions.contains(widget.data.currentYearLevel)
         ? widget.data.currentYearLevel
         : null;
-    final normalizedSection = widget.data.currentSection.trim();
-    final uniqueSections = <String>{
-      ..._defaultSectionOptions,
-      if (normalizedSection.isNotEmpty) normalizedSection,
-    };
-    sectionOptions = uniqueSections.toList()..sort();
+    final normalizedSection = widget.data.currentSection.trim().toUpperCase();
+    sectionOptions = List<String>.from(_defaultSectionOptions);
     selectedSection = sectionOptions.contains(normalizedSection)
         ? normalizedSection
         : null;
+    widget.data.currentSection = selectedSection ?? '';
     selectedFinancialSupports.addAll(
       widget.data.financialSupport
           .split(',')
@@ -697,20 +635,10 @@ class _StepAcademicState extends State<StepAcademic> {
               const SizedBox(height: 16),
               _field(
                 'Course *',
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCourse,
+                TextFormField(
+                  initialValue: selectedCourse ?? '',
+                  readOnly: true,
                   decoration: _dec('Course', errorText: _courseError()),
-                  items: courseOptions
-                      .map(
-                        (item) =>
-                            DropdownMenuItem(value: item, child: Text(item)),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() => selectedCourse = value);
-                    widget.data.currentCourse = value ?? '';
-                    widget.onChanged();
-                  },
                 ),
               ),
               const SizedBox(height: 16),

@@ -49,24 +49,7 @@ class _StepAcademicState extends State<StepAcademic> {
     'Loan',
     'Other',
   ];
-  final List<String> courseOptions = [
-    'BSTM',
-    'BSOAD',
-    'BECED',
-    'BSCS',
-    'BSIT',
-    'BSHM',
-    'BTLED',
-  ];
-  static const List<String> _defaultSectionOptions = [
-    'A',
-    'B',
-    'C',
-    'D',
-    'E',
-    'F',
-    'G',
-  ];
+  static const List<String> _defaultSectionOptions = ['A', 'B', 'C', 'D'];
   static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
 
   String selectedFinancialSupport = 'Parents';
@@ -268,22 +251,21 @@ class _StepAcademicState extends State<StepAcademic> {
           ? widget.data.studentNumber
           : widget.data.accountStudentId,
     );
-    selectedCourse = courseOptions.contains(widget.data.currentCourse)
-        ? widget.data.currentCourse
+    selectedCourse = widget.data.currentCourse.trim().isNotEmpty
+        ? widget.data.currentCourse.trim()
         : null;
     final normalizedYearLevel = widget.data.currentYearLevel.trim();
     selectedYearLevel = _yearLevelOptions.contains(normalizedYearLevel)
         ? normalizedYearLevel
         : null;
-    final normalizedCurrentSection = widget.data.currentSection.trim();
-    final uniqueSections = <String>{
-      ..._defaultSectionOptions,
-      if (normalizedCurrentSection.isNotEmpty) normalizedCurrentSection,
-    };
-    sectionOptions = uniqueSections.toList()..sort();
+    final normalizedCurrentSection = widget.data.currentSection
+        .trim()
+        .toUpperCase();
+    sectionOptions = List<String>.from(_defaultSectionOptions);
     selectedSection = sectionOptions.contains(normalizedCurrentSection)
         ? normalizedCurrentSection
         : null;
+    widget.data.currentSection = selectedSection ?? '';
     selectedFinancialSupport = widget.data.financialSupport.isNotEmpty
         ? widget.data.financialSupport
         : supportOptions[0];
@@ -452,22 +434,10 @@ class _StepAcademicState extends State<StepAcademic> {
           _row([
             _field(
               'Course *',
-              DropdownButtonFormField<String>(
-                initialValue: selectedCourse,
+              TextFormField(
+                initialValue: selectedCourse ?? '',
+                readOnly: true,
                 decoration: _dec('Course').copyWith(errorText: _courseError()),
-                items: courseOptions
-                    .map(
-                      (course) => DropdownMenuItem<String>(
-                        value: course,
-                        child: Text(course),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() => selectedCourse = value);
-                  widget.data.currentCourse = value ?? '';
-                  widget.onChanged();
-                },
               ),
             ),
             _field(

@@ -4,6 +4,8 @@ const multer = require('multer');
 
 const accountController = require('../controllers/accountController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');
+const allStaff = authorizeRoleGroup('ALL_STAFF');
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -12,15 +14,19 @@ const upload = multer({
     },
 });
 
-router.get('/me', protect, accountController.getCurrentStaffProfile);
-router.patch('/me', protect, accountController.updateCurrentStaffProfile);
+router.get('/me', protect, allStaff, accountController.getCurrentStaffProfile);
+router.patch('/me', protect, allStaff, accountController.updateCurrentStaffProfile);
+router.post('/me/password/verify', protect, allStaff, accountController.verifyCurrentStaffPassword);
+router.patch('/me/password/verify', protect, allStaff, accountController.verifyCurrentStaffPassword);
+router.patch('/me/password', protect, allStaff, accountController.changeCurrentStaffPassword);
 router.patch(
     '/me/profile-photo',
     protect,
+    allStaff,
     upload.single('file'),
     accountController.uploadCurrentStaffProfilePhoto
 );
-router.delete('/me/profile-photo', protect, accountController.removeCurrentStaffProfilePhoto);
+router.delete('/me/profile-photo', protect, allStaff, accountController.removeCurrentStaffProfilePhoto);
 
 router.get('/staff', protect, authorizeRoles('admin'), accountController.getStaffAccounts);
 router.post('/staff', protect, authorizeRoles('admin'), accountController.createStaffAccount);

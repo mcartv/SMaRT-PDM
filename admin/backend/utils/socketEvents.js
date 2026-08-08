@@ -182,7 +182,26 @@ const socketEvents = {
         emitToUser(io, userId, 'personal-tools:updated', data),
 
     /** Messages and rooms. */
-    messageCreated: (io, data, options = {}) => emitMessageEvent(io, 'message:created', data, options),
+    messageCreated: (io, data, options = {}) => {
+        const targetUserIds = normalizeUserIds(options.targetUserIds || []);
+
+        const emitExact = (eventName) => {
+            if (targetUserIds.length) {
+                targetUserIds.forEach((userId) => {
+                    io.to(`user:${userId}`).emit(eventName, data);
+                });
+                return;
+            }
+
+            io.emit(eventName, data);
+        };
+
+        // Current mobile clients consume message:new while the admin web side
+        // also supports message:created. Both events must carry the exact same
+        // normalized payload and must be emitted only once per target.
+        emitExact('message:new');
+        emitExact('message:created');
+    },
     messageRead: (io, data, options = {}) => emitMessageEvent(io, 'message:read', data, options),
     messageUnread: (io, data, options = {}) => emitMessageEvent(io, 'message:unread', data, options),
     conversationUpdated: (io, data, options = {}) => emitMessageEvent(io, 'conversation:updated', data, options),

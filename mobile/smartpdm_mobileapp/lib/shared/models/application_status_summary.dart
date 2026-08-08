@@ -201,7 +201,6 @@ class OfficeReviewSummary {
     this.actedAt,
     this.actedByName,
     this.remarks,
-    this.offenseDetail = const {},
   });
 
   final String? office;
@@ -209,7 +208,6 @@ class OfficeReviewSummary {
   final DateTime? actedAt;
   final String? actedByName;
   final String? remarks;
-  final Map<String, dynamic> offenseDetail;
 
   factory OfficeReviewSummary.fromJson(Map<String, dynamic> json) {
     return OfficeReviewSummary(
@@ -218,7 +216,6 @@ class OfficeReviewSummary {
       actedAt: DateTime.tryParse(json['acted_at']?.toString() ?? ''),
       actedByName: _nullableString(json['acted_by_name']),
       remarks: _nullableString(json['remarks']),
-      offenseDetail: _asMap(json['offense_detail']),
     );
   }
 }

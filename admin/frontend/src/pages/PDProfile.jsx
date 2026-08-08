@@ -11,7 +11,7 @@ export default function PDProfile() {
     <OfficeProfilePage
       storageKey="pdProfile"
       heading="Program Director Profile"
-      maintenancePath="/pd/maintenance"
+      maintenancePath="/pd/settings"
       portalName="Program Director"
       positionFallback="Program Director"
       departmentFallback="Program Director Office"

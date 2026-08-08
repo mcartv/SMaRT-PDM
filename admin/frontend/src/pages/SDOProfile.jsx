@@ -11,7 +11,7 @@ export default function SDOProfile() {
     <OfficeProfilePage
       storageKey="sdoProfile"
       heading="SDO Profile"
-      maintenancePath="/sdo/maintenance"
+      maintenancePath="/sdo/settings"
       portalName="SDO"
       positionFallback="Student Disciplinary Officer"
       departmentFallback="Student Disciplinary Office"

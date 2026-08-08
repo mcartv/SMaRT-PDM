@@ -64,7 +64,7 @@ function SummaryCard({ icon, label, value, tone, theme }) {
 const DASHBOARD_CONFIG = {
   sdo: {
     title: 'SDO Dashboard',
-    subtitle: 'A lighter overview for offense checks, queue review, and recent endorsement actions.',
+    subtitle: 'Review disciplinary standing and record the SDO determination required by the endorsement slip.',
     queueStage: 'pending_sdo',
     queueLabel: 'Approval Requests',
     trackerPath: '/sdo/tracker',
@@ -84,19 +84,19 @@ const DASHBOARD_CONFIG = {
       },
       {
         label: 'No Offense',
-        value: rows.filter((row) => row.sdo_decision === 'cleared').length,
+        value: rows.filter((row) => ['no_offense', 'cleared'].includes(row.sdo_decision)).length,
         icon: CheckCircle2,
         tone: 'bg-green-50 text-green-700',
       },
       {
         label: 'Minor Offense',
-        value: rows.filter((row) => row.sdo_decision === 'disqualified_minor').length,
+        value: rows.filter((row) => ['minor_offense', 'disqualified_minor'].includes(row.sdo_decision)).length,
         icon: ShieldAlert,
         tone: 'bg-amber-50 text-amber-700',
       },
       {
         label: 'Major Offense',
-        value: rows.filter((row) => row.sdo_decision === 'disqualified_major').length,
+        value: rows.filter((row) => ['major_offense', 'disqualified_major'].includes(row.sdo_decision)).length,
         icon: XCircle,
         tone: 'bg-red-50 text-red-700',
       },
@@ -104,7 +104,7 @@ const DASHBOARD_CONFIG = {
   },
   guidance: {
     title: 'Guidance Dashboard',
-    subtitle: 'A cleaner daily view for moral standing, counseling holds, and guidance decisions.',
+    subtitle: 'Confirm Good Moral Standing for applicants who completed the SDO endorsement stage.',
     queueStage: 'pending_guidance',
     queueLabel: 'Approval Requests',
     trackerPath: '/guidance/tracker',
@@ -123,27 +123,27 @@ const DASHBOARD_CONFIG = {
       },
       {
         label: 'Good Moral',
-        value: rows.filter((row) => row.guidance_decision === 'cleared').length,
+        value: rows.filter((row) => ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
         icon: CheckCircle2,
         tone: 'bg-green-50 text-green-700',
       },
       {
-        label: 'On Hold',
-        value: rows.filter((row) => row.guidance_decision === 'held').length,
-        icon: ShieldAlert,
-        tone: 'bg-amber-50 text-amber-700',
+        label: 'Forwarded to PD',
+        value: rows.filter((row) => row.current_stage === 'pending_pd' && ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
+        icon: ArrowRight,
+        tone: 'bg-violet-50 text-violet-700',
       },
       {
-        label: 'Rejected',
-        value: rows.filter((row) => row.guidance_decision === 'rejected').length,
-        icon: XCircle,
-        tone: 'bg-red-50 text-red-700',
+        label: 'Completed',
+        value: rows.filter((row) => row.overall_status === 'completed' && ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
+        icon: FileText,
+        tone: 'bg-stone-100 text-stone-700',
       },
     ],
   },
   pd: {
     title: 'PD Dashboard',
-    subtitle: 'A simpler endorsement view for pending approvals, rejections, and completed slips.',
+    subtitle: 'Review grade reports and record Good or Average Scholastic Standing for assigned programs.',
     queueStage: 'pending_pd',
     queueLabel: 'Approval Requests',
     trackerPath: '/pd/tracker',
@@ -161,16 +161,16 @@ const DASHBOARD_CONFIG = {
         tone: 'bg-violet-50 text-violet-700',
       },
       {
-        label: 'Approved',
-        value: rows.filter((row) => row.pd_decision === 'approved').length,
+        label: 'Good Standing',
+        value: rows.filter((row) => row.pd_decision === 'good_scholastic_standing').length,
         icon: CheckCircle2,
         tone: 'bg-green-50 text-green-700',
       },
       {
-        label: 'Rejected',
-        value: rows.filter((row) => row.pd_decision === 'rejected').length,
-        icon: XCircle,
-        tone: 'bg-red-50 text-red-700',
+        label: 'Average Standing',
+        value: rows.filter((row) => row.pd_decision === 'average_scholastic_standing').length,
+        icon: ShieldAlert,
+        tone: 'bg-amber-50 text-amber-700',
       },
       {
         label: 'Completed',
@@ -195,9 +195,9 @@ const STATUS_TONE = {
 };
 
 function getFocusLabel(officeKey) {
-  if (officeKey === 'sdo') return 'Minor and major offense handling';
-  if (officeKey === 'guidance') return 'Counseling holds and moral standing review';
-  return 'Program endorsement approvals and final review';
+  if (officeKey === 'sdo') return 'Disciplinary standing endorsement';
+  if (officeKey === 'guidance') return 'Good Moral Standing endorsement';
+  return 'Scholastic standing and final endorsement';
 }
 
 function getDecisionLabel(row, officeKey) {
@@ -313,17 +313,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   const blockedCount = useMemo(() => {
     if (officeKey === 'sdo') {
-      return rows.filter((row) =>
-        ['disqualified_minor', 'disqualified_major'].includes(row.sdo_decision)
-      ).length;
+      return rows.filter((row) => ['major_offense', 'disqualified_major'].includes(row.sdo_decision)).length;
     }
-
-    if (officeKey === 'guidance') {
-      return rows.filter((row) => ['held', 'rejected'].includes(row.guidance_decision)).length;
-    }
-
-    return rows.filter((row) => row.pd_decision === 'rejected').length;
-  }, [officeKey, rows]);
+    return rows.filter((row) => row.current_stage === config.queueStage).length;
+  }, [config.queueStage, officeKey, rows]);
 
   const priorityRows = useMemo(() => {
     return rows.filter((row) => row.current_stage === config.queueStage).slice(0, 4);

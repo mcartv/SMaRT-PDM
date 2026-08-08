@@ -107,6 +107,17 @@ export default function App() {
           {/* Applications */}
           <Route path="applications" element={<ApplicationReview />} />
           <Route
+            path="endorsements"
+            element={
+              <AllEndorsementsTracker
+                tokenStorageKey="adminToken"
+                detailBasePath="/admin/endorsements"
+                title="Endorsement Monitoring"
+                subtitle="Monitor every endorsement from SDO to Guidance to Program Director without signing on behalf of another office."
+              />
+            }
+          />
+          <Route
             path="openings/:openingId/applications"
             element={<OpeningApplications />}
           />
@@ -180,7 +191,7 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="pdToken"
-                allowedReportTypes={['pd']}
+                allowedReportTypes={['pd', 'ro']}
                 defaultReportType="pd"
               />
             }
@@ -195,7 +206,8 @@ export default function App() {
             }
           />
           <Route path="profile" element={<PDProfile />} />
-          <Route path="maintenance" element={<PDMaintenance />} />
+          <Route path="settings" element={<PDMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/pd/settings" replace />} />
         </Route>
 
         {/* --- PROTECTED GUIDANCE PANEL --- */}
@@ -240,13 +252,23 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="guidanceToken"
-                allowedReportTypes={['guidance']}
+                allowedReportTypes={['guidance', 'ro']}
                 defaultReportType="guidance"
               />
             }
           />
+          <Route
+            path="ro-requests"
+            element={
+              <ROCoordinatorQueue
+                tokenStorageKey="guidanceToken"
+                portalKey="guidance"
+              />
+            }
+          />
           <Route path="profile" element={<GuidanceProfile />} />
-          <Route path="maintenance" element={<GuidanceMaintenance />} />
+          <Route path="settings" element={<GuidanceMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/guidance/settings" replace />} />
         </Route>
 
         {/* --- PROTECTED SDO PANEL --- */}
@@ -291,15 +313,25 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="sdoToken"
-                allowedReportTypes={['sdo']}
+                allowedReportTypes={['sdo', 'ro']}
                 defaultReportType="sdo"
+              />
+            }
+          />
+          <Route
+            path="ro-requests"
+            element={
+              <ROCoordinatorQueue
+                tokenStorageKey="sdoToken"
+                portalKey="sdo"
               />
             }
           />
           <Route path="scholars" element={<SDOScholarList />} />
           <Route path="students-with-records" element={<SDOStudentsWithRecords />} />
           <Route path="profile" element={<SDOProfile />} />
-          <Route path="maintenance" element={<SDOMaintenance />} />
+          <Route path="settings" element={<SDOMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/sdo/settings" replace />} />
         </Route>
 
         {/* --- PROTECTED RO COORDINATOR PANEL --- */}
@@ -314,8 +346,19 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<ROCoordinatorDashboard />} />
           <Route path="queue" element={<ROCoordinatorQueue />} />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="roCoordinatorToken"
+                allowedReportTypes={['ro']}
+                defaultReportType="ro"
+              />
+            }
+          />
           <Route path="profile" element={<ROCoordinatorProfile />} />
-          <Route path="maintenance" element={<ROCoordinatorMaintenance />} />
+          <Route path="settings" element={<ROCoordinatorMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/ro-coordinator/settings" replace />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/admin/login" replace />} />

@@ -12,7 +12,8 @@ export default function ROCoordinatorLayout() {
       profilePath="/ro-coordinator/profile"
       queuePath="/ro-coordinator/queue"
       queueLabel="RO Requests"
-      maintenancePath="/ro-coordinator/maintenance"
+      reportsPath="/ro-coordinator/reports"
+      maintenancePath="/ro-coordinator/settings"
       tokenStorageKey="roCoordinatorToken"
       profileStorageKey="roCoordinatorProfile"
       colors={{

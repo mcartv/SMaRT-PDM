@@ -1325,13 +1325,13 @@ export default function AdminMessages({
   }, [token])
 
   const fetchConversationMessages = useCallback(
-    async (counterpartyId) => {
+    async (counterpartyId, { silent = false } = {}) => {
       if (!counterpartyId) {
         setMessages([])
         return
       }
 
-      setLoadingMessages(true)
+      if (!silent) setLoadingMessages(true)
 
       try {
         const response = await fetch(
@@ -1347,23 +1347,25 @@ export default function AdminMessages({
         setMessages(items)
         setError('')
       } catch (err) {
-        setError(err.message || 'Failed to load messages.')
-        setMessages([])
+        if (!silent) {
+          setError(err.message || 'Failed to load messages.')
+          setMessages([])
+        }
       } finally {
-        setLoadingMessages(false)
+        if (!silent) setLoadingMessages(false)
       }
     },
     [token]
   )
 
   const fetchRoomMessages = useCallback(
-    async (roomId) => {
+    async (roomId, { silent = false } = {}) => {
       if (!roomId) {
         setMessages([])
         return
       }
 
-      setLoadingMessages(true)
+      if (!silent) setLoadingMessages(true)
 
       try {
         const response = await fetch(
@@ -1379,10 +1381,12 @@ export default function AdminMessages({
         setMessages(items)
         setError('')
       } catch (err) {
-        setError(err.message || 'Failed to load room messages.')
-        setMessages([])
+        if (!silent) {
+          setError(err.message || 'Failed to load room messages.')
+          setMessages([])
+        }
       } finally {
-        setLoadingMessages(false)
+        if (!silent) setLoadingMessages(false)
       }
     },
     [token]
@@ -1898,6 +1902,40 @@ export default function AdminMessages({
     }
 
     fetchConversationMessages(activeConversationId)
+  }, [
+    isOpen,
+    activeType,
+    activeConversationId,
+    activeRoomId,
+    fetchConversationMessages,
+    fetchRoomMessages,
+  ])
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    const syncOpenThread = () => {
+      if (document.visibilityState !== 'visible') return
+
+      if (activeType === 'group' && activeRoomId) {
+        fetchRoomMessages(activeRoomId, { silent: true })
+        return
+      }
+
+      if (activeType === 'private' && activeConversationId) {
+        fetchConversationMessages(activeConversationId, { silent: true })
+      }
+    }
+
+    const intervalId = window.setInterval(syncOpenThread, 2000)
+    window.addEventListener('focus', syncOpenThread)
+    document.addEventListener('visibilitychange', syncOpenThread)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', syncOpenThread)
+      document.removeEventListener('visibilitychange', syncOpenThread)
+    }
   }, [
     isOpen,
     activeType,

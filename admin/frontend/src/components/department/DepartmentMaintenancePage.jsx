@@ -35,6 +35,15 @@ import {
 import ThemePanel from '@/pages/maintenance/ThemePanel';
 import SDOStudentRegistryImport from '@/components/department/SDOStudentRegistryImport';
 
+const PORTAL_PROFILE_UPDATED_EVENT = 'portal-profile:updated';
+
+function publishPortalProfile(profileStorageKey, profile) {
+  sessionStorage.setItem(profileStorageKey, JSON.stringify(profile));
+  window.dispatchEvent(new CustomEvent(PORTAL_PROFILE_UPDATED_EVENT, {
+    detail: { profileStorageKey, profile },
+  }));
+}
+
 function resolveProfileImage(profile) {
   const candidates = [
     profile?.avatar_url,
@@ -151,14 +160,13 @@ function useDepartmentAccountManager({
       setAccount(nextAccount);
       setInitialAccount(nextAccount);
       setProfileData(profile);
-      sessionStorage.setItem(
-        profileStorageKey,
-        JSON.stringify({
-          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
-          ...profile,
-          name: profile.name || `${nextAccount.first_name} ${nextAccount.last_name}`.trim(),
-        })
-      );
+      const mergedProfile = {
+        ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+        ...profile,
+        name: profile.name || `${nextAccount.first_name} ${nextAccount.last_name}`.trim(),
+      };
+      publishPortalProfile(profileStorageKey, mergedProfile);
+      onProfileUpdated?.(mergedProfile);
     } catch (err) {
       if (!active) return;
       setAccountFeedback(err.message || 'Failed to load account profile.');
@@ -169,7 +177,7 @@ function useDepartmentAccountManager({
     return () => {
       active = false;
     };
-  }, [config.account, profileStorageKey, tokenStorageKey]);
+  }, [config.account, onProfileUpdated, profileStorageKey, tokenStorageKey]);
 
   useEffect(() => {
     let cleanup = () => {};
@@ -273,7 +281,7 @@ function useDepartmentAccountManager({
         }`.trim(),
     };
 
-    sessionStorage.setItem(profileStorageKey, JSON.stringify(mergedProfile));
+    publishPortalProfile(profileStorageKey, mergedProfile);
     onProfileUpdated?.(mergedProfile);
     return mergedProfile;
   };

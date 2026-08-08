@@ -70,7 +70,10 @@ test('getConversationMessages returns service items', async () => {
 
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, {
+    counterpartyId: 'user-2',
+    counterparty_id: 'user-2',
     items: [{ message_id: 'msg-1', message_body: 'Hello' }],
+    messages: [{ message_id: 'msg-1', message_body: 'Hello' }],
   });
 });
 

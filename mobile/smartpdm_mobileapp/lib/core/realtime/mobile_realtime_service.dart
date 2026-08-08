@@ -173,15 +173,20 @@ class MobileRealtimeService extends ChangeNotifier {
         'extraHeaders': {'Authorization': 'Bearer $_token'},
     };
 
-    final socket = IO.io(
-      'https://smart-pdm-3tbv.onrender.com',
-      IO.OptionBuilder()
-          .setTransports(['websocket', 'polling'])
-          .disableAutoConnect()
-          .enableReconnection()
-          .setTimeout(10000)
-          .build(),
-    );
+    final socket = IO.io(nextBaseUrl, options);
+    _socket = socket;
+    _registerCoreHandlers(socket);
+    _registerAppEventHandlers(socket);
+
+    try {
+      socket.connect();
+    } catch (error) {
+      _socket = null;
+      _isConnected = false;
+      _isConnecting = false;
+      debugPrint('[Realtime] Failed to start connection: $error');
+      notifyListeners();
+    }
   }
 
   Future<void> disconnect({bool silent = false}) async {

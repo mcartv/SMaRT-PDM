@@ -201,13 +201,13 @@ class _EndorsementView extends StatelessWidget {
       return 'Waiting for Program Director';
     }
     if (normalized.contains('held')) {
-      return 'On Hold';
+      return 'Historical Guidance Hold';
     }
     if (normalized.contains('major')) {
       return 'Stopped by Major Offense';
     }
     if (normalized.contains('rejected')) {
-      return 'Rejected';
+      return 'Historical Rejected Endorsement';
     }
     if (normalized.contains('completed')) {
       return 'Completed';
@@ -219,18 +219,27 @@ class _EndorsementView extends StatelessWidget {
   String _friendlyDecisionLabel(String? decision) {
     final normalized = (decision ?? '').trim().toLowerCase();
     if (normalized.isEmpty) return 'Pending';
-    if (normalized == 'clear' || normalized == 'cleared') return 'Cleared';
-    if (normalized == 'approve' || normalized == 'approved') {
-      return 'Approved';
+    if (normalized == 'no_offense' || normalized == 'cleared') {
+      return 'No Disciplinary Offense';
     }
-    if (normalized == 'hold') return 'On Hold';
-    if (normalized == 'minor_offense') return 'Minor Offense';
-    if (normalized == 'major_offense') return 'Major Offense';
-    if (normalized == 'good_moral') return 'Good Moral Standing';
-    if (normalized == 'average') return 'Average Standing';
-    if (normalized == 'good_average' || normalized == 'good_scholastic') {
-      return 'Good Standing';
+    if (normalized == 'minor_offense' || normalized == 'disqualified_minor') {
+      return 'With Minor Offense/s';
     }
+    if (normalized == 'major_offense' || normalized == 'disqualified_major') {
+      return 'With Major Offense/s';
+    }
+    if (normalized == 'good_moral_standing') return 'Good Moral Standing';
+    if (normalized == 'good_scholastic_standing') {
+      return 'Good Scholastic Standing';
+    }
+    if (normalized == 'average_scholastic_standing') {
+      return 'Average Scholastic Standing';
+    }
+    if (normalized == 'approved') {
+      return 'Legacy Approved — Standing Not Recorded';
+    }
+    if (normalized == 'held') return 'Legacy Guidance Hold';
+    if (normalized == 'rejected') return 'Legacy Rejected';
 
     return decision!
         .split('_')
@@ -436,7 +445,7 @@ class _EndorsementView extends StatelessWidget {
             icon: Icons.warning_amber_rounded,
             title: 'Grade Report Required',
             message:
-                'Upload your current grades PDF in Documents before the Program Director can approve your endorsement slip.',
+                'Upload your current grades PDF in Documents before the Program Director can record your scholastic standing.',
             primaryLabel: 'Open Documents',
             onPrimaryAction: () =>
                 Navigator.pushNamed(context, AppRoutes.documents),
@@ -446,9 +455,9 @@ class _EndorsementView extends StatelessWidget {
           _EndorsementAlertCard(
             color: const Color(0xFFC76917),
             icon: Icons.pause_circle_filled_rounded,
-            title: 'Guidance Hold',
+            title: 'Historical Guidance Hold',
             message:
-                'Your endorsement is currently on hold with Guidance. Review the remarks trail and wait for the next office instruction.',
+                'This application contains a Guidance hold recorded under the previous endorsement workflow. Review the historical remarks for context.',
             primaryLabel: 'Open Application Status',
             onPrimaryAction: () =>
                 Navigator.pushNamed(context, AppRoutes.status),
@@ -461,7 +470,7 @@ class _EndorsementView extends StatelessWidget {
             icon: Icons.report_gmailerrorred_rounded,
             title: 'Endorsement Stopped',
             message:
-                'A rejection or major offense decision was recorded on your endorsement. Review the office results and remarks for the final outcome.',
+                'A major offense or a historical rejection was recorded on this endorsement. Review the office results and remarks for the final outcome.',
             primaryLabel: 'Open Application Status',
             onPrimaryAction: () =>
                 Navigator.pushNamed(context, AppRoutes.status),
@@ -802,12 +811,27 @@ class _ReviewTile extends StatelessWidget {
     final decision = review?.decision;
     if (decision == null || decision.trim().isEmpty) return 'Pending';
     final normalized = decision.trim().toLowerCase();
-    if (normalized == 'clear' || normalized == 'cleared') return 'Cleared';
-    if (normalized == 'approve' || normalized == 'approved') return 'Approved';
-    if (normalized == 'hold') return 'On Hold';
-    if (normalized == 'minor_offense') return 'Minor Offense';
-    if (normalized == 'major_offense') return 'Major Offense';
-    if (normalized == 'good_moral') return 'Good Moral Standing';
+    if (normalized == 'no_offense' || normalized == 'cleared') {
+      return 'No Disciplinary Offense';
+    }
+    if (normalized == 'minor_offense' || normalized == 'disqualified_minor') {
+      return 'With Minor Offense/s';
+    }
+    if (normalized == 'major_offense' || normalized == 'disqualified_major') {
+      return 'With Major Offense/s';
+    }
+    if (normalized == 'good_moral_standing') return 'Good Moral Standing';
+    if (normalized == 'good_scholastic_standing') {
+      return 'Good Scholastic Standing';
+    }
+    if (normalized == 'average_scholastic_standing') {
+      return 'Average Scholastic Standing';
+    }
+    if (normalized == 'approved') {
+      return 'Legacy Approved — Standing Not Recorded';
+    }
+    if (normalized == 'held') return 'Legacy Guidance Hold';
+    if (normalized == 'rejected') return 'Legacy Rejected';
     return decision
         .split('_')
         .where((part) => part.isNotEmpty)
@@ -823,7 +847,12 @@ class _ReviewTile extends StatelessWidget {
     if (normalized.contains('hold') || normalized.contains('minor')) {
       return Colors.orange;
     }
-    if (normalized.contains('clear') || normalized.contains('approve')) {
+    if (normalized == 'no_offense' ||
+        normalized == 'cleared' ||
+        normalized == 'good_moral_standing' ||
+        normalized == 'good_scholastic_standing' ||
+        normalized == 'average_scholastic_standing' ||
+        normalized == 'approved') {
       return Colors.green;
     }
     return Colors.blueGrey;
@@ -834,10 +863,6 @@ class _ReviewTile extends StatelessWidget {
     final actedAt = review?.actedAt;
     final actedByName = review?.actedByName;
     final remarks = review?.remarks;
-    final offenseType = review?.offenseDetail['offense_type']?.toString();
-    final incidentDate = review?.offenseDetail['incident_date']?.toString();
-    final caseReference = review?.offenseDetail['case_reference_number']
-        ?.toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -887,23 +912,6 @@ class _ReviewTile extends StatelessWidget {
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(height: 1.35),
-            ),
-          ],
-          if ((offenseType?.trim().isNotEmpty ?? false) ||
-              (incidentDate?.trim().isNotEmpty ?? false) ||
-              (caseReference?.trim().isNotEmpty ?? false)) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (offenseType?.trim().isNotEmpty == true)
-                  _EndorsementTag(label: 'Offense: $offenseType'),
-                if (incidentDate?.trim().isNotEmpty == true)
-                  _EndorsementTag(label: 'Incident Date: $incidentDate'),
-                if (caseReference?.trim().isNotEmpty == true)
-                  _EndorsementTag(label: 'Reference No.: $caseReference'),
-              ],
             ),
           ],
         ],

@@ -362,7 +362,7 @@ export default function ForgotPassword() {
                         PDM · OSFA
                     </p>
                     <p className="text-[10px]" style={{ color: SB_SUB }}>
-                        Admin Portal
+                        Admin Access
                     </p>
                 </div>
             </div>
@@ -377,13 +377,13 @@ export default function ForgotPassword() {
                 </h2>
 
                 <div className="space-y-3 max-w-xs">
-                    {FEATURES.map(({ icon: Icon, label }) => (
+                    {FEATURES.map(({ icon, label }) => (
                         <div
                             key={label}
                             className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
                         >
                             <div className="w-8 h-8 rounded-lg bg-yellow-400/20 flex items-center justify-center">
-                                <Icon className="w-4 h-4 text-yellow-400" />
+                                {React.createElement(icon, { className: 'w-4 h-4 text-yellow-400' })}
                             </div>
                             <p className="text-sm font-medium text-stone-200">
                                 {label}

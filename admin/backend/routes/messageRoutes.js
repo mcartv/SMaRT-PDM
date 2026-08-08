@@ -4,57 +4,60 @@ const router = express.Router();
 
 const messageController = require('../controllers/messageController');
 const { protect } = require('../middleware/authMiddleware');
+const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');
+
+router.use(protect, authorizeRoleGroup('ALL_STAFF'));
 
 /*
   MOBILE LEGACY / COMPATIBILITY ROUTES
 */
-router.get('/unread-count', protect, messageController.getUnreadCount);
-router.get('/thread', protect, messageController.getThread);
-router.post('/thread', protect, messageController.sendThreadMessage);
-router.patch('/thread/read', protect, messageController.markThreadRead);
+router.get('/unread-count', messageController.getUnreadCount);
+router.get('/thread', messageController.getThread);
+router.post('/thread', messageController.sendThreadMessage);
+router.patch('/thread/read', messageController.markThreadRead);
 
 /*
   SCHOLAR PICKER
   Keep this before dynamic routes.
 */
-router.get('/members/scholars', protect, messageController.getScholarMembers);
-router.get('/members/contacts', protect, messageController.getMessagingContacts);
+router.get('/members/scholars', messageController.getScholarMembers);
+router.get('/members/contacts', messageController.getMessagingContacts);
 
 /*
   ARCHIVED THREADS
 */
-router.get('/archived', protect, messageController.getArchivedThreads);
+router.get('/archived', messageController.getArchivedThreads);
 
 /*
   PRIVATE CONVERSATIONS
 */
-router.get('/conversations', protect, messageController.getConversations);
-router.get('/conversations/:counterpartyId', protect, messageController.getConversationMessages);
-router.get('/conversations/:counterpartyId/messages', protect, messageController.getConversationMessages);
-router.post('/conversations/:counterpartyId', protect, messageController.sendMessage);
-router.post('/conversations/:counterpartyId/messages', protect, messageController.sendMessage);
+router.get('/conversations', messageController.getConversations);
+router.get('/conversations/:counterpartyId', messageController.getConversationMessages);
+router.get('/conversations/:counterpartyId/messages', messageController.getConversationMessages);
+router.post('/conversations/:counterpartyId', messageController.sendMessage);
+router.post('/conversations/:counterpartyId/messages', messageController.sendMessage);
 
-router.patch('/conversations/:counterpartyId/read', protect, messageController.markConversationRead);
-router.patch('/conversations/:counterpartyId/unread', protect, messageController.markConversationUnread);
-router.patch('/conversations/:counterpartyId/read-state', protect, messageController.setConversationReadState);
-router.patch('/conversations/:counterpartyId/archive', protect, messageController.archiveConversation);
-router.patch('/conversations/:counterpartyId/restore', protect, messageController.restoreConversation);
+router.patch('/conversations/:counterpartyId/read', messageController.markConversationRead);
+router.patch('/conversations/:counterpartyId/unread', messageController.markConversationUnread);
+router.patch('/conversations/:counterpartyId/read-state', messageController.setConversationReadState);
+router.patch('/conversations/:counterpartyId/archive', messageController.archiveConversation);
+router.patch('/conversations/:counterpartyId/restore', messageController.restoreConversation);
 
 /*
   GROUP CHAT / ROOMS
 */
-router.get('/rooms', protect, messageController.getRooms);
-router.post('/rooms', protect, messageController.createRoom);
+router.get('/rooms', messageController.getRooms);
+router.post('/rooms', messageController.createRoom);
 
-router.get('/rooms/:roomId/messages', protect, messageController.getRoomMessages);
-router.post('/rooms/:roomId/messages', protect, messageController.sendRoomMessage);
+router.get('/rooms/:roomId/messages', messageController.getRoomMessages);
+router.post('/rooms/:roomId/messages', messageController.sendRoomMessage);
 
-router.post('/rooms/:roomId/members', protect, messageController.addRoomMembers);
+router.post('/rooms/:roomId/members', messageController.addRoomMembers);
 
-router.patch('/rooms/:roomId/read', protect, messageController.markRoomMessagesRead);
-router.patch('/rooms/:roomId/unread', protect, messageController.markRoomMessagesUnread);
-router.patch('/rooms/:roomId/read-state', protect, messageController.setRoomReadState);
-router.patch('/rooms/:roomId/archive', protect, messageController.archiveRoom);
-router.patch('/rooms/:roomId/restore', protect, messageController.restoreRoom);
+router.patch('/rooms/:roomId/read', messageController.markRoomMessagesRead);
+router.patch('/rooms/:roomId/unread', messageController.markRoomMessagesUnread);
+router.patch('/rooms/:roomId/read-state', messageController.setRoomReadState);
+router.patch('/rooms/:roomId/archive', messageController.archiveRoom);
+router.patch('/rooms/:roomId/restore', messageController.restoreRoom);
 
 module.exports = router;

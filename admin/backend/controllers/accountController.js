@@ -365,6 +365,46 @@ exports.updateCurrentStaffProfile = async (req, res) => {
     }
 };
 
+
+exports.verifyCurrentStaffPassword = async (req, res) => {
+    try {
+        await accountService.verifyCurrentStaffPassword(getActorUserId(req), req.body || {});
+        return res.status(200).json({ success: true, verified: true, message: 'Current password verified.' });
+    } catch (err) {
+        console.error('VERIFY CURRENT STAFF PASSWORD ERROR:', err);
+        return sendError(res, err, 'Failed to verify current password');
+    }
+};
+
+
+exports.changeCurrentStaffPassword = async (req, res) => {
+    try {
+        await accountService.changeCurrentStaffPassword(getActorUserId(req), req.body || {});
+
+        const actorUserId = getActorUserId(req);
+        if (actorUserId) {
+            try {
+                const notification = await notificationService.createUserNotification({
+                    userId: actorUserId,
+                    type: 'Security',
+                    title: 'Password changed',
+                    message: 'Your staff account password was changed successfully.',
+                    referenceId: actorUserId,
+                    referenceType: 'staff_profile',
+                });
+                emitCreatedNotifications(req, [{ ...notification, target_user_id: actorUserId }]);
+            } catch (notificationError) {
+                console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
+            }
+        }
+
+        return res.status(200).json({ success: true, message: 'Password changed successfully.' });
+    } catch (err) {
+        console.error('CHANGE CURRENT STAFF PASSWORD ERROR:', err);
+        return sendError(res, err, 'Failed to change password');
+    }
+};
+
 exports.uploadCurrentStaffProfilePhoto = async (req, res) => {
     try {
         const profile = await accountService.uploadCurrentStaffProfilePhoto(

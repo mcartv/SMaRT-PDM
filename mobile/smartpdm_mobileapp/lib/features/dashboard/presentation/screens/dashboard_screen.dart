@@ -181,8 +181,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     _guideChecked = true;
 
     final prefs = await SharedPreferences.getInstance();
-    final hasSeenGuide =
-        prefs.getBool('mobile_dashboard_guide_seen_v1') ?? false;
+    final session = await widget.sessionService.getCurrentUser();
+    final accountKey = session.userId.trim().isNotEmpty
+        ? session.userId.trim()
+        : session.studentId.trim();
+    final guideKey = accountKey.isEmpty
+        ? 'mobile_dashboard_guide_seen_v2'
+        : 'mobile_dashboard_guide_seen_v2_$accountKey';
+    final hasSeenGuide = prefs.getBool(guideKey) ?? false;
     if (hasSeenGuide || !mounted) return;
 
     await showDialog<void>(
@@ -190,7 +196,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       barrierDismissible: false,
       builder: (dialogContext) => _FirstTimeGuideDialog(
         onFinish: () async {
-          await prefs.setBool('mobile_dashboard_guide_seen_v1', true);
+          await prefs.setBool(guideKey, true);
           if (dialogContext.mounted) Navigator.of(dialogContext).pop();
         },
       ),

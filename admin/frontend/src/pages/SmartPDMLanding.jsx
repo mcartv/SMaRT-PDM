@@ -41,8 +41,8 @@ const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
 
 const portalLinks = [
   { label: 'Admin', href: '/admin/login' },
-  { label: 'SDO', href: '/sdo/login' },
-  { label: 'Guidance', href: '/guidance/login' },
+  { label: 'Student Discipline Office', href: '/sdo/login' },
+  { label: 'Guidance Office', href: '/guidance/login' },
   { label: 'Program Director', href: '/pd/login' },
   { label: 'RO Coordinator', href: '/ro-coordinator/login' },
 ];
@@ -481,7 +481,8 @@ export default function SmartPDMLanding() {
     ['Home', '#home'],
     ...(benefactors.length ? [['Benefactors', '#benefactors']] : []),
     ['How to Apply', '#guide'],
-    ['FAQ', '#faq'],
+    ['About Us', '#about'],
+    ['FAQs', '#faq'],
     ['Contact Us', '#contact'],
   ];
 
@@ -920,7 +921,7 @@ export default function SmartPDMLanding() {
 
       <section
         id="home"
-        className="landing-hero relative overflow-hidden"
+        className="landing-hero relative min-h-[calc(90svh-7rem)] overflow-hidden lg:min-h-[calc(90svh-8rem)]"
         style={{
           background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 58%, ${theme.heroEnd} 100%)`,
           borderBottom: `4px solid ${theme.accent}`,
@@ -958,7 +959,7 @@ export default function SmartPDMLanding() {
           />
         </div>
 
-        <div className="relative z-10 mx-auto grid w-full max-w-[84rem] items-center gap-10 px-5 pb-16 pt-12 md:px-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:pb-20 lg:pt-16">
+        <div className="relative z-10 mx-auto grid min-h-[calc(90svh-7rem)] w-full max-w-[84rem] items-center gap-10 px-5 py-12 md:px-8 md:py-16 lg:min-h-[calc(90svh-8rem)] lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:py-20">
           <div className="landing-hero-copy max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
               <span className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
@@ -998,33 +999,18 @@ export default function SmartPDMLanding() {
               Scholarship applications and status tracking are available through the SMaRT-PDM mobile app.
             </p>
 
-            <div className="mt-7 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                <p className="text-sm font-bold text-white">01</p>
-                <p className="mt-1 text-xs text-white/60">Review requirements</p>
-              </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                <p className="text-sm font-bold text-white">02</p>
-                <p className="mt-1 text-xs text-white/60">Apply in the app</p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                <p className="text-sm font-bold text-white">03</p>
-                <p className="mt-1 text-xs text-white/60">Track your status</p>
-              </div>
-            </div>
           </div>
 
-          <div id="portals" className="landing-hero-panel scroll-mt-16 rounded-[2rem] border border-white/15 bg-white/10 p-3 shadow-2xl backdrop-blur">
-            <div className="rounded-[1.5rem] bg-white p-5 shadow-xl">
+          <div id="access" className="landing-hero-panel scroll-mt-16 rounded-[1.75rem] border border-white/15 bg-white/8 p-2 shadow-xl backdrop-blur">
+            <div className="rounded-[1.35rem] bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between border-b border-stone-100 pb-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#92500f]">
-                    Staff Access
+                    Authorized User Access
                   </p>
                   <h2 className="mt-1 text-lg font-bold text-stone-900">
-                    Office Portal Directory
+                    Select your access
                   </h2>
                 </div>
 
@@ -1036,17 +1022,16 @@ export default function SmartPDMLanding() {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3">
+              <div className="mt-4 grid gap-2.5">
                 {portalLinks.map((item) => (
                   <Link
                     key={item.href}
                     to={item.href}
-                    className="group flex items-center justify-between rounded-2xl border border-stone-100 bg-stone-50 px-4 py-3 transition hover:brightness-[0.98]"
-                    style={{ borderColor: theme.border, background: theme.soft }}
+                    className="group flex items-center justify-between rounded-lg border border-stone-200 bg-white px-4 py-3 transition hover:border-stone-300 hover:bg-stone-50"
                   >
                     <div>
                       <p className="text-sm font-bold text-stone-900">
-                        {item.label} Portal
+                        {item.label}
                       </p>
                       <p className="mt-0.5 text-xs text-stone-500">
                         Sign in to continue
@@ -1062,30 +1047,7 @@ export default function SmartPDMLanding() {
                 ))}
               </div>
 
-              <div
-                className="mt-5 rounded-2xl border p-4"
-                style={{ background: theme.soft, borderColor: theme.border }}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: '#fff', color: theme.base }}
-                  >
-                    <Smartphone size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-bold text-stone-900">
-                      {generalSettings.landing_content.mobile_app_title}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-stone-600">
-                      {generalSettings.landing_content.mobile_app_description}
-                    </p>
-
-                  </div>
-                </div>
-              </div>
-            </div>
+     </div>
           </div>
         </div>
       </section>
@@ -1353,10 +1315,10 @@ export default function SmartPDMLanding() {
         >
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              About OSFA
+              About SMaRT-PDM
             </p>
             <h2 className="mt-2 text-2xl font-bold text-stone-900">
-              Supporting scholarship access with a clearer process
+              Supporting OSFA scholarship access with a clearer process
             </h2>
             <p className="mt-4 text-sm leading-7 text-stone-600">
               {generalSettings.about_osfa}

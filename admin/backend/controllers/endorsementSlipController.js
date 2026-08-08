@@ -2,6 +2,27 @@ const endorsementSlipService = require('../services/endorsementSlipService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
+
+function sanitizeEndorsementDocumentsForRole(payload, roleValue) {
+    const role = String(roleValue || '').trim().toLowerCase();
+    const documents = Array.isArray(payload?.documents) ? payload.documents : [];
+
+    if (role === 'admin') {
+        return { ...payload, documents };
+    }
+
+    if (role === 'pd') {
+        return {
+            ...payload,
+            documents: documents.filter(
+                (document) => String(document?.document_type || '').trim().toLowerCase() === 'grade report'
+            ),
+        };
+    }
+
+    return { ...payload, documents: [] };
+}
+
 exports.getAllSlips = async (req, res) => {
     try {
         const rows = await endorsementSlipService.fetchAllSlips(req.user);
@@ -49,7 +70,8 @@ exports.getSdoQueue = async (req, res) => {
 exports.getSlipDetail = async (req, res) => {
     try {
         const payload = await endorsementSlipService.fetchSlipDetail(req.params.slipId, req.user);
-        res.status(200).json(payload);
+        const sanitizedPayload = sanitizeEndorsementDocumentsForRole(payload, req.user?.role);
+        res.status(200).json(sanitizedPayload);
     } catch (error) {
         res.status(error.statusCode || 500).json({
             message: error.message || 'Failed to load endorsement slip.',

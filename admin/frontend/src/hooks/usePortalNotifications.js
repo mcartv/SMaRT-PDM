@@ -16,6 +16,41 @@ function normalizeNotification(raw = {}) {
   };
 }
 
+
+function isRelevantPortalNotification(portalRootPath, notification) {
+  if (portalRootPath === '/admin') return true;
+
+  const referenceType = String(notification.reference_type || '').toLowerCase();
+  const type = String(notification.type || '').toLowerCase();
+
+  const common = new Set([
+    'announcement',
+    'staff_account',
+    'staff_profile',
+    'personal_reminder',
+  ]);
+
+  if (common.has(referenceType) || type === 'security' || type === 'account activity') {
+    return true;
+  }
+
+  if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
+    return [
+      'endorsement_slip',
+      'endorsement',
+      'endorsement_stage',
+      'return_of_obligation',
+      'ro_time_log',
+    ].includes(referenceType);
+  }
+
+  if (portalRootPath === '/ro-coordinator') {
+    return ['return_of_obligation', 'ro_time_log'].includes(referenceType);
+  }
+
+  return false;
+}
+
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
     const aUnread = a.is_read !== true ? 1 : 0;
@@ -110,12 +145,13 @@ function buildNotificationTarget(portalRootPath, notification) {
     return `${portalRootPath}/dashboard`;
   }
 
-  if (referenceType === 'return_of_obligation') {
-    return portalRootPath === '/admin'
-      ? '/admin/obligations'
-      : portalRootPath === '/ro-coordinator'
-        ? '/ro-coordinator/queue'
-        : `${portalRootPath}/dashboard`;
+  if (referenceType === 'return_of_obligation' || referenceType === 'ro_time_log') {
+    if (portalRootPath === '/admin') return '/admin/obligations';
+    if (portalRootPath === '/ro-coordinator') return '/ro-coordinator/queue';
+    if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
+      return `${portalRootPath}/ro-requests`;
+    }
+    return `${portalRootPath}/dashboard`;
   }
 
   return null;
@@ -160,14 +196,15 @@ export default function usePortalNotifications({
       }
 
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      setItems(sortNotifications(rows.map(normalizeNotification)));
+      const normalized = rows.map(normalizeNotification).filter((item) => isRelevantPortalNotification(portalRootPath, item));
+      setItems(sortNotifications(normalized));
     } catch (error) {
       console.error('NOTIFICATION LOAD ERROR:', error);
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [limit, tokenStorageKey]);
+  }, [limit, portalRootPath, tokenStorageKey]);
 
   useEffect(() => {
     loadNotifications();
@@ -237,12 +274,14 @@ export default function usePortalNotifications({
   useSocketListener({
     'notification:created': (raw) => {
       const next = normalizeNotification(raw);
+      if (!isRelevantPortalNotification(portalRootPath, next)) return;
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );
     },
     'notification:new': (raw) => {
       const next = normalizeNotification(raw);
+      if (!isRelevantPortalNotification(portalRootPath, next)) return;
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );

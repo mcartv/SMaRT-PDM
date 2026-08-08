@@ -149,7 +149,7 @@ test('GET /api/messages/conversations/:counterpartyId returns authenticated conv
   ];
 
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
-  const token = jwt.sign({ userId: 'user-1', role: 'student' }, process.env.JWT_SECRET);
+  const token = jwt.sign({ userId: 'user-1', role: 'sdo' }, process.env.JWT_SECRET);
 
   const app = createTestApp();
   const res = await dispatch(app, {
@@ -159,18 +159,18 @@ test('GET /api/messages/conversations/:counterpartyId returns authenticated conv
   });
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), {
-    items: [
-      {
-        message_id: 'msg-1',
-        sender_id: 'user-1',
-        receiver_id: 'user-2',
-        message_body: 'Hello from fixtures',
-        sent_at: '2026-07-10T00:00:00.000Z',
-        is_read: false,
-      },
-    ],
-  });
+  const body = JSON.parse(res.body);
+  assert.equal(body.counterpartyId, 'user-2');
+  assert.deepEqual(body.items, [
+    {
+      message_id: 'msg-1',
+      sender_id: 'user-1',
+      receiver_id: 'user-2',
+      message_body: 'Hello from fixtures',
+      sent_at: '2026-07-10T00:00:00.000Z',
+      is_read: false,
+    },
+  ]);
 
   messageService.fetchConversationMessages = previous;
 });
@@ -189,7 +189,7 @@ test('GET /api/messages/rooms/:roomId/messages returns authenticated room data',
   ];
 
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
-  const token = jwt.sign({ userId: 'user-1', role: 'student' }, process.env.JWT_SECRET);
+  const token = jwt.sign({ userId: 'user-1', role: 'sdo' }, process.env.JWT_SECRET);
 
   const app = createTestApp();
   const res = await dispatch(app, {
@@ -199,18 +199,18 @@ test('GET /api/messages/rooms/:roomId/messages returns authenticated room data',
   });
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), {
-    items: [
-      {
-        message_id: 'room-msg-1',
-        sender_id: 'user-1',
-        room_id: 'room-1',
-        message_body: 'Room hello',
-        sent_at: '2026-07-10T01:00:00.000Z',
-        is_read: false,
-      },
-    ],
-  });
+  const body = JSON.parse(res.body);
+  assert.equal(body.roomId, 'room-1');
+  assert.deepEqual(body.items, [
+    {
+      message_id: 'room-msg-1',
+      sender_id: 'user-1',
+      room_id: 'room-1',
+      message_body: 'Room hello',
+      sent_at: '2026-07-10T01:00:00.000Z',
+      is_read: false,
+    },
+  ]);
 
   messageService.fetchRoomMessages = previous;
 });

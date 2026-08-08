@@ -196,7 +196,15 @@ export default function ThemePanel({
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-  const presetOptions = useMemo(() => getThemePresetOptions(), []);
+  const presetOptions = useMemo(() => {
+    const seen = new Set();
+    return getThemePresetOptions().filter((preset) => {
+      const key = String(preset?.key || '').trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, []);
   const normalizedPortals = useMemo(
     () => (Array.isArray(allowedPortals) && allowedPortals.length ? allowedPortals : ['admin']).map((portalKey) => String(portalKey || '').trim().toLowerCase()),
     [allowedPortals]
@@ -491,9 +499,9 @@ export default function ThemePanel({
                         </div>
 
                         <div className="mt-3 flex gap-2">
-                          {preset.swatches.map((color) => (
+                          {preset.swatches.map((color, swatchIndex) => (
                             <span
-                              key={`${portalKey}-${preset.key}-${color}`}
+                              key={`${portalKey}-${preset.key}-${swatchIndex}`}
                               className="h-6 w-6 rounded-full border border-black/5"
                               style={{ background: color }}
                             />

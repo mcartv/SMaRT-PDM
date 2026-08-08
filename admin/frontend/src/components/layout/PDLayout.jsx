@@ -13,7 +13,7 @@ export default function PDLayout() {
       queuePath="/pd/queue"
       trackerPath="/pd/tracker"
       reportsPath="/pd/reports"
-      maintenancePath="/pd/maintenance"
+      maintenancePath="/pd/settings"
       roQueuePath="/pd/ro-requests"
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"

@@ -284,7 +284,7 @@ class _StatusSummaryView extends StatelessWidget {
       return 'Re-upload the flagged requirements';
     }
     if (blockerCode == 'endorsement.held') {
-      return 'Guidance needs follow-up';
+      return 'Review historical Guidance hold';
     }
     if (blockerCode == 'endorsement.grade_document_missing') {
       return 'Upload your current grades PDF';
@@ -292,7 +292,7 @@ class _StatusSummaryView extends StatelessWidget {
     if (blockerCode == 'endorsement.major_offense' ||
         blockerCode == 'endorsement.rejected' ||
         blockerCode == 'requirements.rejected') {
-      return 'Review the rejection details';
+      return 'Review the recorded issue';
     }
     if (workflow?.stage == 'ready_for_activation') {
       return 'Wait for final scholar activation';
@@ -342,7 +342,7 @@ class _StatusSummaryView extends StatelessWidget {
         icon: Icons.upload_file_rounded,
         title: 'Program Director is waiting for your grades',
         message:
-            'Upload your current grades PDF now so Program Director can continue the endorsement approval.',
+            'Upload your current grades PDF now so Program Director can record your scholastic standing.',
         primaryLabel: 'Open Documents',
         onPrimaryAction: () =>
             Navigator.pushNamed(context, AppRoutes.documents),
@@ -353,9 +353,9 @@ class _StatusSummaryView extends StatelessWidget {
       return _PriorityActionCard(
         color: const Color(0xFFC76917),
         icon: Icons.pause_circle_filled_rounded,
-        title: 'Guidance placed your endorsement on hold',
+        title: 'Historical Guidance hold',
         message:
-            'Open your endorsement page, read the remarks, and follow the next instruction from Guidance.',
+            'This application contains a hold from the previous endorsement workflow. Open the endorsement page to review the historical remarks.',
         primaryLabel: 'Open Endorsement',
         onPrimaryAction: () =>
             Navigator.pushNamed(context, AppRoutes.endorsement),
@@ -370,7 +370,7 @@ class _StatusSummaryView extends StatelessWidget {
         icon: Icons.report_gmailerrorred_rounded,
         title: 'Your application has a recorded issue',
         message:
-            'A rejection or major offense was recorded. Open the endorsement page to review the office decision and remarks.',
+            'A major offense or a historical rejection was recorded. Open the endorsement page to review the office decision and remarks.',
         primaryLabel: 'Review Endorsement',
         onPrimaryAction: () =>
             Navigator.pushNamed(context, AppRoutes.endorsement),
@@ -924,7 +924,28 @@ class _OfficeReviewTile extends StatelessWidget {
   String _formatDecision() {
     final decision = review?.decision;
     if (decision == null || decision.trim().isEmpty) return 'Pending';
-
+    final normalized = decision.trim().toLowerCase();
+    if (normalized == 'no_offense' || normalized == 'cleared') {
+      return 'No Disciplinary Offense';
+    }
+    if (normalized == 'minor_offense' || normalized == 'disqualified_minor') {
+      return 'With Minor Offense/s';
+    }
+    if (normalized == 'major_offense' || normalized == 'disqualified_major') {
+      return 'With Major Offense/s';
+    }
+    if (normalized == 'good_moral_standing') return 'Good Moral Standing';
+    if (normalized == 'good_scholastic_standing') {
+      return 'Good Scholastic Standing';
+    }
+    if (normalized == 'average_scholastic_standing') {
+      return 'Average Scholastic Standing';
+    }
+    if (normalized == 'approved') {
+      return 'Legacy Approved — Standing Not Recorded';
+    }
+    if (normalized == 'held') return 'Legacy Guidance Hold';
+    if (normalized == 'rejected') return 'Legacy Rejected';
     return decision
         .split('_')
         .where((part) => part.isNotEmpty)
@@ -937,10 +958,6 @@ class _OfficeReviewTile extends StatelessWidget {
     final actedAt = review?.actedAt;
     final actedByName = review?.actedByName;
     final remarks = review?.remarks;
-    final offenseType = review?.offenseDetail['offense_type']?.toString();
-    final incidentDate = review?.offenseDetail['incident_date']?.toString();
-    final caseReference = review?.offenseDetail['case_reference_number']
-        ?.toString();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -998,23 +1015,6 @@ class _OfficeReviewTile extends StatelessWidget {
                     ).textTheme.bodySmall?.copyWith(height: 1.35),
                   ),
                 ],
-                if ((offenseType?.trim().isNotEmpty ?? false) ||
-                    (incidentDate?.trim().isNotEmpty ?? false) ||
-                    (caseReference?.trim().isNotEmpty ?? false)) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (offenseType?.trim().isNotEmpty == true)
-                        _MiniTag(label: 'Offense: $offenseType'),
-                      if (incidentDate?.trim().isNotEmpty == true)
-                        _MiniTag(label: 'Incident: $incidentDate'),
-                      if (caseReference?.trim().isNotEmpty == true)
-                        _MiniTag(label: 'Case Ref: $caseReference'),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
@@ -1031,7 +1031,12 @@ class _OfficeReviewTile extends StatelessWidget {
     if (normalized.contains('hold') || normalized.contains('minor')) {
       return Colors.orange;
     }
-    if (normalized.contains('clear') || normalized.contains('approve')) {
+    if (normalized == 'no_offense' ||
+        normalized == 'cleared' ||
+        normalized == 'good_moral_standing' ||
+        normalized == 'good_scholastic_standing' ||
+        normalized == 'average_scholastic_standing' ||
+        normalized == 'approved') {
       return Colors.green;
     }
     return Colors.blueGrey;

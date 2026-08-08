@@ -42,7 +42,7 @@ export const DEFAULT_LANDING_CONTENT = {
     { title: 'Application Tracking', description: 'Applicants can monitor submission progress and requirements.' },
     { title: 'Live Announcements', description: 'Scholars receive updates from OSFA and department offices.' },
     { title: 'Centralized Messaging', description: 'Communication stays organized inside one scholarship platform.' },
-    { title: 'Secure Access', description: 'Role-based portals protect sensitive scholarship workflows.' },
+    { title: 'Secure Access', description: 'Role-based access protects sensitive scholarship workflows.' },
   ],
   campus_title: 'Scholarship support built around PDM students.',
   campus_description:

@@ -24,7 +24,7 @@ export default function ROCoordinatorProfile() {
     <OfficeProfilePage
       storageKey="roCoordinatorProfile"
       heading="RO Coordinator Profile"
-      maintenancePath="/ro-coordinator/maintenance"
+      maintenancePath="/ro-coordinator/settings"
       portalName="RO Coordinator"
       positionFallback="RO Coordinator"
       departmentFallback="Assigned RO Area"

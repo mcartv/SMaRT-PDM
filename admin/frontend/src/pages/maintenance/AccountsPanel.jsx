@@ -197,7 +197,7 @@ function DepartmentField({ role, value, onChange, disabled = false, roAreas = []
     return (
         <div className="min-w-0">
             <FieldLabel>Department / Office</FieldLabel>
-            <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+            <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
                 <SelectTrigger
                     className="h-9 w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
                     title={selectedOption?.value || ''}

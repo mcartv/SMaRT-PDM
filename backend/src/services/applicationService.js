@@ -82,7 +82,7 @@ const BLOCKER_MESSAGES = Object.freeze({
     'requirements.missing':
         'Upload all required scholarship documents to continue review.',
     'endorsement.grade_document_missing':
-        'Upload your current grades PDF before the Program Director can approve your endorsement slip.',
+        'Upload your current grades PDF before the Program Director can record your scholastic standing.',
     'requirements.under_review':
         'Your submitted requirements are still under OSFA review.',
     pending_sdo: 'Your endorsement slip is waiting for SDO review.',
@@ -1501,9 +1501,6 @@ async function fetchApplicationStatusRows(applicationId) {
         sdo_acted_by_user_id,
         sdo_acted_at,
         sdo_remarks,
-        sdo_offense_type,
-        sdo_incident_date,
-        sdo_case_reference_number,
         final_pdf_path,
         final_pdf_url,
         completed_at,
@@ -1715,7 +1712,6 @@ function buildOfficeReview({
     actedAt,
     actedByName,
     remarks,
-    offenseDetail = null,
 }) {
     return {
         office,
@@ -1723,7 +1719,6 @@ function buildOfficeReview({
         acted_at: actedAt || null,
         acted_by_name: safeText(actedByName) || null,
         remarks: safeText(remarks) || null,
-        offense_detail: offenseDetail,
     };
 }
 
@@ -1757,12 +1752,11 @@ function buildEndorsementStatus(slip = null) {
 
     if (overall === 'completed') {
         status = 'completed';
-    } else if (overall === 'disqualified_major' || slip.sdo_status === 'disqualified_major') {
+    } else if (overall === 'disqualified_major' || ['major_offense', 'disqualified_major'].includes(normalizeWorkflowKey(slip.sdo_status).replace(/\s+/g, '_'))) {
         status = 'major_offense';
     } else if (
         overall === 'rejected' ||
-        overall === 'guidance_rejected' ||
-        overall === 'disqualified_minor'
+        overall === 'guidance_rejected'
     ) {
         status = 'rejected';
     } else if (overall === 'held') {
@@ -1810,11 +1804,6 @@ function buildEndorsementStatus(slip = null) {
                 actedAt: slip.sdo_acted_at,
                 actedByName: slip.sdo_acted_by_name,
                 remarks: slip.sdo_remarks,
-                offenseDetail: {
-                    offense_type: slip.sdo_offense_type || null,
-                    incident_date: slip.sdo_incident_date || null,
-                    case_reference_number: slip.sdo_case_reference_number || null,
-                },
             }),
             guidance: buildOfficeReview({
                 office: 'Guidance',
@@ -2758,22 +2747,22 @@ async function submitMyApplicationForm(userId, payload = {}) {
         academic: {
             ...sourceAcademic,
             current_course: firstNonEmpty(
+                resolvedCourse?.course_code,
+                resolvedCourse?.course_name,
                 sourceAcademic.current_course,
                 sourceAcademic.course,
                 sourceAcademic.current_course_code,
-                sourceAcademic.course_code,
-                resolvedCourse?.course_code,
-                resolvedCourse?.course_name
+                sourceAcademic.course_code
             ),
             current_course_code: firstNonEmpty(
+                resolvedCourse?.course_code,
                 sourceAcademic.current_course_code,
-                sourceAcademic.course_code,
-                resolvedCourse?.course_code
+                sourceAcademic.course_code
             ),
             current_course_name: firstNonEmpty(
+                resolvedCourse?.course_name,
                 sourceAcademic.current_course_name,
-                sourceAcademic.course_name,
-                resolvedCourse?.course_name
+                sourceAcademic.course_name
             ),
             current_year_level: firstNonEmpty(
                 sourceAcademic.current_year_level,

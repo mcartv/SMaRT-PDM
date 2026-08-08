@@ -8,7 +8,7 @@ class AppConfig {
       'https://smart-pdm-3tbv.onrender.com';
 
   // Debug = local backend for Flutter Web development
-  static const String _defaultDebugBaseUrl = 'http://192.168.100.9:5000';
+  static const String _defaultDebugBaseUrl = 'http://192.168.100.2:5000';
 
   static String get apiBaseUrl {
     const configuredValue = String.fromEnvironment('API_BASE_URL');

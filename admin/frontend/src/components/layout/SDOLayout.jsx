@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BarChart3,
+  ClipboardCheck,
   LayoutDashboard,
   FileText,
   ShieldAlert,
@@ -19,6 +20,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
+import { buildApiUrl } from '../../api';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -35,14 +37,14 @@ function resolveProfileImage(profile) {
   return match?.trim() || '';
 }
 
-const navItems = [
+const baseNavItems = [
   { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/sdo/queue', label: 'My Queue', icon: FileText },
+  { path: '/sdo/queue', label: 'For Endorsement', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
   { path: '/sdo/students-with-records', label: 'Students with Records', icon: Users },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
-  { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
+  { path: '/sdo/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function SDOLayout() {
@@ -52,8 +54,15 @@ export default function SDOLayout() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('sdoProfile') || 'null');
+    } catch {
+      return null;
+    }
+  });
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
   const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
@@ -73,6 +82,25 @@ export default function SDOLayout() {
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
 
   useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      if (event.detail?.profileStorageKey !== 'sdoProfile') return;
+      if (event.detail?.profile) {
+        setProfile(event.detail.profile);
+        return;
+      }
+
+      try {
+        setProfile(JSON.parse(sessionStorage.getItem('sdoProfile') || 'null'));
+      } catch {
+        setProfile(null);
+      }
+    };
+
+    window.addEventListener('portal-profile:updated', handleProfileUpdated);
+    return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
+  }, []);
+
+  useEffect(() => {
     const handleMessageUnread = (event) => {
       if (event.detail?.portalKey === 'sdo') {
         setMessageUnreadCount(Number(event.detail?.count || 0));
@@ -90,15 +118,32 @@ export default function SDOLayout() {
       return;
     }
 
-    const savedProfile = sessionStorage.getItem('sdoProfile');
-    if (savedProfile) {
-      try {
-        setProfile(JSON.parse(savedProfile));
-      } catch {
-        setProfile(null);
-      }
-    }
   }, [navigate]);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem('sdoToken');
+    if (!token) return undefined;
+
+    const controller = new AbortController();
+    fetch(buildApiUrl('/api/accounts/me'), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          setHasRoCoordinatorAccess(false);
+          return;
+        }
+
+        const data = await response.json();
+        setHasRoCoordinatorAccess(data?.has_ro_coordinator_access === true);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setHasRoCoordinatorAccess(false);
+      });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -180,10 +225,18 @@ export default function SDOLayout() {
       replace: true,
       state: {
         ...(location.state || {}),
-        refreshAt: Date.now(),
+        refreshAt: event.timeStamp,
       },
     });
   };
+
+  const navItems = [
+    ...baseNavItems.filter((item) => item.path !== '/sdo/settings'),
+    ...(hasRoCoordinatorAccess
+      ? [{ path: '/sdo/ro-requests', label: 'RO Requests', icon: ClipboardCheck }]
+      : []),
+    ...baseNavItems.filter((item) => item.path === '/sdo/settings'),
+  ];
 
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 

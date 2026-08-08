@@ -1,11 +1,12 @@
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
+const { authorizeRoleGroup } = require('../middleware/rbacMiddleware');
 const controller = require('../controllers/roCoordinatorController');
 
 const router = express.Router();
-// RO coordination is an additional capability. A Program Director can keep
-// the PD role and access these routes when assigned to an active RO Area.
-router.use(protect);
+// RO coordination is an additional assignment-based capability. PD, SDO, and Guidance
+// staff keep their primary role and access these routes only with an active RO Area assignment.
+router.use(protect, authorizeRoleGroup('RO_COORDINATOR_CAPABLE'));
 router.get('/summary', controller.getSummary);
 router.get('/requests', controller.getRequests);
 router.get('/scholar-requests', controller.getScholarRequests);

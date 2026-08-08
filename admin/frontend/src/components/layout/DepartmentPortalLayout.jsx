@@ -62,7 +62,7 @@ export default function DepartmentPortalLayout({
   profileStorageKey,
   colors,
   queuePath = '',
-  queueLabel = 'My Queue',
+  queueLabel = 'For Endorsement',
   trackerPath = '',
   reportsPath = '',
   maintenancePath = '',
@@ -97,6 +97,16 @@ export default function DepartmentPortalLayout({
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
 
   useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      if (event.detail?.profileStorageKey !== profileStorageKey) return;
+      setProfile(event.detail?.profile || readStoredProfile(profileStorageKey));
+    };
+
+    window.addEventListener('portal-profile:updated', handleProfileUpdated);
+    return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
+  }, [profileStorageKey]);
+
+  useEffect(() => {
     const handleMessageUnread = (event) => {
       if (event.detail?.portalKey === portalKey) {
         setMessageUnreadCount(Number(event.detail?.count || 0));
@@ -123,11 +133,19 @@ export default function DepartmentPortalLayout({
     if (!token) return undefined;
 
     const controller = new AbortController();
-    fetch(buildApiUrl('/api/ro-coordinator/summary'), {
+    fetch(buildApiUrl('/api/accounts/me'), {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     })
-      .then((response) => setHasRoCoordinatorAccess(response.ok))
+      .then(async (response) => {
+        if (!response.ok) {
+          setHasRoCoordinatorAccess(false);
+          return;
+        }
+
+        const data = await response.json();
+        setHasRoCoordinatorAccess(data?.has_ro_coordinator_access === true);
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') setHasRoCoordinatorAccess(false);
       });
@@ -195,7 +213,7 @@ export default function DepartmentPortalLayout({
     ...(roQueuePath && hasRoCoordinatorAccess
       ? [{ path: roQueuePath, label: 'RO Requests', icon: ClipboardCheck }]
       : []),
-    ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
+    ...(maintenancePath ? [{ path: maintenancePath, label: 'Settings', icon: Settings }] : []),
   ];
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 

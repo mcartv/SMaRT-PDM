@@ -135,9 +135,9 @@ export default function EndorsementVerification() {
 
           <div className="space-y-3">
             {[
-              ['PD Endorsement', payload.stages?.pd],
-              ['Guidance Clearance', payload.stages?.guidance],
-              ['SDO Clearance', payload.stages?.sdo],
+              ['SDO Disciplinary Standing', payload.stages?.sdo],
+              ['Guidance Moral Standing', payload.stages?.guidance],
+              ['Program Director Scholastic Standing', payload.stages?.pd],
             ].map(([label, stage]) => (
               <div key={label} className="rounded-2xl border border-stone-200 p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -149,13 +149,6 @@ export default function EndorsementVerification() {
                 <p className="mt-2 text-sm text-stone-500">{formatDate(stage?.acted_at)}</p>
                 {stage?.acted_by_name ? (
                   <p className="mt-2 text-sm text-stone-600">Reviewed by: {stage.acted_by_name}</p>
-                ) : null}
-                {label === 'SDO Clearance' && payload.sdo_offense_detail?.offense_type ? (
-                  <div className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
-                    <p>Offense Type: {payload.sdo_offense_detail.offense_type}</p>
-                    <p>Date of Incident: {payload.sdo_offense_detail.incident_date || 'N/A'}</p>
-                    <p>Case Note / Ref No.: {payload.sdo_offense_detail.case_reference_number || 'N/A'}</p>
-                  </div>
                 ) : null}
                 {stage?.remarks ? (
                   <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">

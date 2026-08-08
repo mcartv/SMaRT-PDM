@@ -109,7 +109,7 @@ export default function AdminLogin() {
               PDM · OSFA
             </p>
             <p className="text-[10px]" style={{ color: theme.sub }}>
-              Admin Portal
+              Admin Access
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function AdminLogin() {
             style={{ color: theme.base }}
           >
             <ArrowLeft size={15} />
-            Back to portal directory
+            Back to access selection
           </button>
 
           <div className="mb-8">

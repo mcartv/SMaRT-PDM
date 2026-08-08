@@ -11,7 +11,7 @@ export default function GuidanceProfile() {
     <OfficeProfilePage
       storageKey="guidanceProfile"
       heading="Guidance Profile"
-      maintenancePath="/guidance/maintenance"
+      maintenancePath="/guidance/settings"
       portalName="Guidance"
       positionFallback="Guidance Counselor"
       departmentFallback="Guidance Office"

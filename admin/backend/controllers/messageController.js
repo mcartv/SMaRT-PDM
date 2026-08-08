@@ -2,6 +2,7 @@ const db = require('../config/db');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
+const messageService = require('../services/messageService');
 
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
@@ -201,9 +202,6 @@ function emitMessageCreated(io, message, targetUserIds = []) {
     emitToUsers(io, 'message:new', payload, targets);
     emitToUsers(io, 'message:created', payload, targets);
   }
-
-  io.emit('message:new', payload);
-  io.emit('message:created', payload);
 
   relayToStudentBackend('message:new', payload, targets);
 }
@@ -917,7 +915,10 @@ exports.getConversationMessages = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const items = await fetchConversationMessages(currentUserId, counterpartyId);
+    const items = await messageService.fetchConversationMessages(
+      currentUserId,
+      counterpartyId
+    );
 
     return res.json({
       counterpartyId,
@@ -1219,7 +1220,7 @@ exports.sendMessage = async (req, res) => {
       return res.status(400).json({ message: 'Message body is required' });
     }
 
-    const message = await createPrivateMessage({
+    const message = await messageService.sendMessage({
       senderId,
       receiverId: counterpartyId,
       subject: getSubject(req),
@@ -1416,57 +1417,44 @@ exports.getRoomMessages = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const membership = await db.query(
-      `
-      SELECT room_id
-      FROM chat_room_members
-      WHERE room_id = $1
-        AND user_id = $2
-      LIMIT 1;
-      `,
-      [roomId, currentUserId]
-    );
+    let items;
 
-    if (!membership.rows.length && !isSystemAdmin(req)) {
-      return res.status(403).json({ message: 'You are not a member of this room.' });
+    if (isSystemAdmin(req)) {
+      const result = await db.query(
+        `
+        SELECT
+          m.message_id,
+          m.sender_id,
+          m.receiver_id,
+          m.room_id,
+          m.subject,
+          m.message_body,
+          m.attachment_url,
+          m.sent_at,
+          m.is_read,
+          u.role AS sender_role,
+          COALESCE(
+            NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+            NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
+            u.username,
+            u.email,
+            'Unknown'
+          ) AS sender_name,
+          COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
+          COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
+        FROM messages m
+        LEFT JOIN users u ON u.user_id = m.sender_id
+        LEFT JOIN students s ON s.user_id = m.sender_id
+        LEFT JOIN admin_profiles ap ON ap.user_id = m.sender_id
+        WHERE m.room_id = $1
+        ORDER BY m.sent_at ASC, m.message_id ASC;
+        `,
+        [roomId]
+      );
+      items = result.rows.map(toMessagePayload);
+    } else {
+      items = await messageService.fetchRoomMessages(currentUserId, roomId);
     }
-
-    const result = await db.query(
-      `
-      SELECT
-        m.message_id,
-        m.sender_id,
-        m.receiver_id,
-        m.room_id,
-        m.subject,
-        m.message_body,
-        m.attachment_url,
-        m.sent_at,
-        m.is_read,
-        u.role AS sender_role,
-        COALESCE(
-          NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
-          NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
-          u.username,
-          u.email,
-          'Unknown'
-        ) AS sender_name,
-        COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-        COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
-      FROM messages m
-      LEFT JOIN users u
-        ON u.user_id = m.sender_id
-      LEFT JOIN students s
-        ON s.user_id = m.sender_id
-      LEFT JOIN admin_profiles ap
-        ON ap.user_id = m.sender_id
-      WHERE m.room_id = $1
-      ORDER BY m.sent_at ASC, m.message_id ASC;
-      `,
-      [roomId]
-    );
-
-    const items = result.rows.map(toMessagePayload);
 
     return res.json({
       roomId,
@@ -1477,7 +1465,7 @@ exports.getRoomMessages = async (req, res) => {
   } catch (err) {
     console.error('GET ROOM MESSAGES ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to load room messages',
       error: err.message,
     });

@@ -204,8 +204,12 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       barrierDismissible: false,
       builder: (dialogContext) => _FirstTimeGuideDialog(
         onFinish: () async {
-          await _profileService.markOnboardingSeen();
           await prefs.setBool(guideKey, true);
+          try {
+            await _profileService.markOnboardingSeen();
+          } catch (error) {
+            debugPrint('ONBOARDING PREFERENCE UPDATE ERROR: $error');
+          }
           if (dialogContext.mounted) Navigator.of(dialogContext).pop();
         },
       ),
@@ -1192,7 +1196,6 @@ class _FirstTimeGuideDialog extends StatefulWidget {
 class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
   int _index = 0;
   bool _isFinishing = false;
-  String? _finishError;
 
   static const _steps = [
     (
@@ -1260,16 +1263,6 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
                 context,
               ).textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
-            if (_finishError != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _finishError!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -1286,18 +1279,8 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
               ? () async {
                   setState(() {
                     _isFinishing = true;
-                    _finishError = null;
                   });
-                  try {
-                    await widget.onFinish();
-                  } catch (_) {
-                    if (!mounted) return;
-                    setState(() {
-                      _isFinishing = false;
-                      _finishError =
-                          'Could not save your progress. Check your connection and try again.';
-                    });
-                  }
+                  await widget.onFinish();
                 }
               : () => setState(() => _index += 1),
           child: Text(

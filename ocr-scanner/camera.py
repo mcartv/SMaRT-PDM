@@ -1,42 +1,62 @@
-"""Autofocus-gated Raspberry Pi camera capture shared by every document type."""
+"""Robust Raspberry Pi Camera Module 3 document autofocus for SMaRT-PDM."""
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import signal
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from statistics import median
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
 
 class CameraController:
+    ANALYSIS_WIDTH = 1024
+
     def __init__(self) -> None:
         self.preview_process: Optional[subprocess.Popen] = None
         self.is_previewing = False
-
         self.capture_file = "/tmp/raw_capture.jpg"
-        self.capture_width = int(os.getenv("CAMERA_CAPTURE_WIDTH", "2592"))
-        self.capture_height = int(os.getenv("CAMERA_CAPTURE_HEIGHT", "1944"))
-        self.capture_quality = int(os.getenv("CAMERA_CAPTURE_QUALITY", "95"))
-
+        self.capture_width = int(os.getenv("CAMERA_CAPTURE_WIDTH", "2304"))
+        self.capture_height = int(os.getenv("CAMERA_CAPTURE_HEIGHT", "1296"))
+        self.capture_quality = max(
+            85, min(100, int(os.getenv("CAMERA_CAPTURE_QUALITY", "95")))
+        )
         self.focus_timeout_ms = max(
-            5000,
-            int(os.getenv("CAMERA_FOCUS_TIMEOUT_MS", "15000")),
+            8000, int(os.getenv("CAMERA_FOCUS_TIMEOUT_MS", "12000"))
         )
-        self.capture_attempts = max(
-            1,
-            int(os.getenv("CAMERA_CAPTURE_ATTEMPTS", "3")),
+        self.native_af_attempts = max(
+            1, int(os.getenv("CAMERA_NATIVE_AF_ATTEMPTS", "2"))
         )
+        self.capture_attempts = self.native_af_attempts
         self.minimum_jpeg_bytes = max(
-            4096,
-            int(os.getenv("CAMERA_MIN_JPEG_BYTES", "50000")),
+            20000, int(os.getenv("CAMERA_MIN_JPEG_BYTES", "50000"))
         )
-        self.minimum_sharpness = max(
-            1.0,
-            float(os.getenv("CAMERA_MIN_SHARPNESS", "70.0")),
+        self.minimum_focus_score = max(
+            8.0, float(os.getenv("CAMERA_MIN_FOCUS_SCORE", "22.0"))
         )
+
+        positions = os.getenv(
+            "CAMERA_FOCUS_SWEEP_POSITIONS",
+            "0.5,1.0,1.5,1.75,2.0,2.25,2.5,2.75,3.0,"
+            "3.5,4.0,5.0,6.0,7.5,9.0,11.0,13.0",
+        )
+        parsed = []
+        for raw in positions.split(","):
+            try:
+                value = float(raw.strip())
+            except ValueError:
+                continue
+            if 0.0 <= value <= 20.0:
+                parsed.append(value)
+
+        self.focus_sweep_positions = sorted(set(parsed)) or [
+            0.5, 1.0, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75,
+            3.0, 3.5, 4.0, 5.0, 6.0, 7.5, 9.0, 11.0, 13.0,
+        ]
 
     @staticmethod
     def _run(
@@ -59,28 +79,28 @@ class CameraController:
                 stderr=subprocess.DEVNULL,
                 check=False,
             )
-        time.sleep(0.25)
+        time.sleep(0.20)
 
     def check_available(self) -> bool:
         try:
-            result = self._run(["rpicam-still", "--list-cameras"], timeout=15)
+            result = self._run(
+                ["rpicam-still", "--list-cameras"],
+                timeout=15,
+            )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
-
-        output = f"{result.stdout}\n{result.stderr}"
-        return result.returncode == 0 and "No cameras" not in output
+        output = f"{result.stdout}\n{result.stderr}".casefold()
+        return result.returncode == 0 and "imx708" in output
 
     def start_preview(self) -> bool:
         self.clear_hardware()
-
         try:
             self.preview_process = subprocess.Popen(
                 [
                     "rpicam-hello",
-                    "--timeout",
-                    "0",
-                    "--autofocus-mode",
-                    "continuous",
+                    "--timeout", "0",
+                    "--autofocus-mode", "continuous",
+                    "--autofocus-range", "full",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -88,15 +108,12 @@ class CameraController:
             )
         except FileNotFoundError:
             return False
-
-        # Preview warm-up only. Capture still runs its own autofocus cycle.
         time.sleep(1.0)
         self.is_previewing = self.preview_process.poll() is None
         return self.is_previewing
 
     def stop_preview(self) -> None:
         process = self.preview_process
-
         if process is not None and process.poll() is None:
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGTERM)
@@ -106,7 +123,6 @@ class CameraController:
                     os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                 except Exception:
                     pass
-
         self.preview_process = None
         self.is_previewing = False
         self.clear_hardware()
@@ -115,264 +131,591 @@ class CameraController:
     def _read_metadata(path: str) -> Dict[str, Any]:
         try:
             text = Path(path).read_text(
-                encoding="utf-8",
-                errors="replace",
+                encoding="utf-8", errors="replace"
             ).strip()
         except OSError:
             return {}
-
+        if not text:
+            return {}
         for candidate in [text, *reversed(text.splitlines())]:
-            if not candidate:
-                continue
             try:
-                decoded = json.loads(candidate)
-            except (TypeError, ValueError, json.JSONDecodeError):
+                value = json.loads(candidate)
+            except Exception:
                 continue
-
-            if isinstance(decoded, dict):
-                return decoded
-
+            if isinstance(value, dict):
+                return value
         return {}
 
     @classmethod
-    def _find_focus_value(cls, value: Any) -> Any:
+    def _find_key(cls, value: Any, names: Iterable[str]) -> Any:
+        lowered = {str(name).casefold() for name in names}
         if isinstance(value, dict):
-            for key in ("AfState", "af_state", "FocusState", "focus_state"):
-                if key in value:
-                    return value[key]
-
-            for nested in value.values():
-                found = cls._find_focus_value(nested)
+            for key, item in value.items():
+                if str(key).casefold() in lowered:
+                    return item
+            for item in value.values():
+                found = cls._find_key(item, lowered)
                 if found is not None:
                     return found
-
         elif isinstance(value, list):
-            for nested in reversed(value):
-                found = cls._find_focus_value(nested)
+            for item in reversed(value):
+                found = cls._find_key(item, lowered)
                 if found is not None:
                     return found
-
         return None
 
     @classmethod
-    def _focus_state(cls, metadata: Dict[str, Any]) -> Optional[bool]:
-        raw_value = cls._find_focus_value(metadata)
-        if raw_value is None:
+    def _focus_state(
+        cls, metadata: Dict[str, Any]
+    ) -> Optional[bool]:
+        raw = cls._find_key(
+            metadata,
+            ("AfState", "FocusState", "af_state", "focus_state"),
+        )
+        if raw is None:
             return None
-
-        normalized = str(raw_value).strip().casefold()
-
-        # libcamera AfState: 2 = Focused, 3 = Failed.
+        normalized = str(raw).strip().casefold()
         if normalized in {"focused", "success", "2"}:
             return True
-
         if normalized in {"failed", "failure", "3"}:
             return False
-
-        # Idle / Scanning / unknown are not accepted.
         return None
 
+    @classmethod
+    def _metadata_lens_position(
+        cls, metadata: Dict[str, Any]
+    ) -> Optional[float]:
+        raw = cls._find_key(
+            metadata,
+            ("LensPosition", "lens_position"),
+        )
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if math.isfinite(value) else None
+
     @staticmethod
-    def _jpeg_dimensions(path: str) -> Optional[Tuple[int, int]]:
+    def _jpeg_dimensions(
+        path: str,
+    ) -> Optional[Tuple[int, int]]:
         try:
             from PIL import Image
-
             with Image.open(path) as image:
                 image.verify()
-
             with Image.open(path) as image:
                 return image.width, image.height
-
         except Exception:
             return None
 
-    @staticmethod
-    def _sharpness(path: str) -> Optional[float]:
+    @classmethod
+    def _focus_score(cls, path: str) -> Optional[float]:
         try:
             import cv2
+            import numpy as np
 
             image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-            if image is None:
+            if image is None or image.size == 0:
                 return None
 
             height, width = image.shape[:2]
             roi = image[
-                int(height * 0.08) : int(height * 0.92),
-                int(width * 0.08) : int(width * 0.92),
+                int(height * 0.08):int(height * 0.92),
+                int(width * 0.08):int(width * 0.92),
             ]
-            target = roi if roi.size else image
+            if roi.size == 0:
+                roi = image
 
-            return float(cv2.Laplacian(target, cv2.CV_64F).var())
+            rh, rw = roi.shape[:2]
+            if rw <= 0 or rh <= 0:
+                return None
 
+            scale = cls.ANALYSIS_WIDTH / float(rw)
+            target_height = max(1, int(round(rh * scale)))
+            interpolation = (
+                cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
+            )
+            normalized = cv2.resize(
+                roi,
+                (cls.ANALYSIS_WIDTH, target_height),
+                interpolation=interpolation,
+            )
+
+            clahe = cv2.createCLAHE(
+                clipLimit=2.0,
+                tileGridSize=(8, 8),
+            )
+            normalized = clahe.apply(normalized)
+
+            lap_score = float(
+                cv2.Laplacian(
+                    normalized,
+                    cv2.CV_64F,
+                    ksize=3,
+                ).var()
+            )
+
+            gx = cv2.Sobel(
+                normalized,
+                cv2.CV_64F,
+                1,
+                0,
+                ksize=3,
+            )
+            gy = cv2.Sobel(
+                normalized,
+                cv2.CV_64F,
+                0,
+                1,
+                ksize=3,
+            )
+            tenengrad = float(np.mean(gx * gx + gy * gy))
+            return lap_score + (tenengrad / 1000.0)
         except Exception:
             return None
 
-    def _validate_capture(
+    @classmethod
+    def _sharpness(cls, path: str) -> Optional[float]:
+        return cls._focus_score(path)
+
+    def _common_capture_args(
         self,
-        image_path: str,
-        metadata_path: str,
-    ) -> Tuple[bool, str]:
-        try:
-            size = os.path.getsize(image_path)
-        except OSError:
-            return False, "output JPEG is missing"
+        image: Path,
+        width: int,
+        height: int,
+        timeout_ms: int,
+    ) -> list[str]:
+        return [
+            "rpicam-still",
+            "--output", str(image),
+            "--width", str(width),
+            "--height", str(height),
+            "--quality", str(self.capture_quality),
+            "--timeout", str(timeout_ms),
+            "--awb", "auto",
+            "--nopreview",
+        ]
 
-        if size < self.minimum_jpeg_bytes:
-            return False, (
-                f"output JPEG is too small "
-                f"({size} < {self.minimum_jpeg_bytes} bytes)"
-            )
+    def _native_command(
+        self,
+        image: Path,
+        metadata: Path,
+    ) -> list[str]:
+        return self._common_capture_args(
+            image,
+            self.capture_width,
+            self.capture_height,
+            self.focus_timeout_ms,
+        ) + [
+            "--autofocus-mode", "auto",
+            "--autofocus-on-capture",
+            "--autofocus-range", "full",
+            "--autofocus-speed", "normal",
+            "--metadata", str(metadata),
+            "--metadata-format", "json",
+        ]
 
-        dimensions = self._jpeg_dimensions(image_path)
-        if dimensions is None:
-            return False, "output JPEG is invalid"
-
-        width, height = dimensions
-        if width < self.capture_width or height < self.capture_height:
-            return False, (
-                f"output JPEG dimensions are too small "
-                f"({width}x{height})"
-            )
-
-        focus = self._focus_state(self._read_metadata(metadata_path))
-
-        if focus is False:
-            return False, "autofocus failed"
-
-        if focus is None:
-            return False, (
-                "autofocus did not reach Focused state; "
-                "OCR/submission blocked"
-            )
-
-        sharpness = self._sharpness(image_path)
-        if sharpness is None:
-            return False, (
-                "sharpness cannot be verified; install python3-opencv"
-            )
-
-        if sharpness < self.minimum_sharpness:
-            return False, (
-                f"image is blurred "
-                f"({sharpness:.2f} < {self.minimum_sharpness:.2f})"
-            )
-
-        return True, f"verified focus; sharpness={sharpness:.2f}"
+    def _manual_command(
+        self,
+        image: Path,
+        lens_position: float,
+        *,
+        width: int,
+        height: int,
+        timeout_ms: int,
+    ) -> list[str]:
+        return self._common_capture_args(
+            image,
+            width,
+            height,
+            timeout_ms,
+        ) + [
+            "--autofocus-mode", "manual",
+            "--lens-position", f"{lens_position:.4f}",
+        ]
 
     def _capture_command(
         self,
         image: Path,
         metadata: Path,
     ) -> list[str]:
-        return [
-            "rpicam-still",
-            "--output",
-            str(image),
-            "--width",
-            str(self.capture_width),
-            "--height",
-            str(self.capture_height),
-            "--quality",
-            str(self.capture_quality),
-            "--timeout",
-            str(self.focus_timeout_ms),
-            "--autofocus-mode",
-            "auto",
-            "--autofocus-on-capture",
-            "--awb",
-            "auto",
-            "--denoise",
-            "cdn_off",
-            "--metadata",
-            str(metadata),
-            "--metadata-format",
-            "json",
-            "--nopreview",
-        ]
+        return self._native_command(image, metadata)
 
-    def capture_image(self, *, restart_preview: bool = True) -> bool:
-        """
-        Called after LEFT is pressed by capture_session.py.
+    def _valid_jpeg(
+        self,
+        path: Path,
+        *,
+        min_width: int,
+        min_height: int,
+    ) -> bool:
+        try:
+            if path.stat().st_size < self.minimum_jpeg_bytes:
+                return False
+        except OSError:
+            return False
 
-        The same capture session is used before document-specific OCR dispatch,
-        so this gate applies to Birth Certificate, Grade Form, and Certificate
-        of Indigency.
-        """
+        dimensions = self._jpeg_dimensions(str(path))
+        if dimensions is None:
+            return False
+
+        width, height = dimensions
+        return width >= min_width and height >= min_height
+
+    def _try_native_autofocus(self) -> Optional[Path]:
+        for attempt in range(1, self.native_af_attempts + 1):
+            image = Path(
+                f"{self.capture_file}.native-{attempt}.jpg"
+            )
+            metadata = Path(
+                f"{self.capture_file}.native-{attempt}.json"
+            )
+            image.unlink(missing_ok=True)
+            metadata.unlink(missing_ok=True)
+
+            print(
+                "[CAMERA] Native autofocus "
+                f"{attempt}/{self.native_af_attempts}"
+            )
+
+            try:
+                result = self._run(
+                    self._native_command(image, metadata),
+                    timeout=max(
+                        30.0,
+                        self.focus_timeout_ms / 1000.0 + 15.0,
+                    ),
+                )
+            except Exception as exc:
+                print(f"[CAMERA] Native AF command error: {exc}")
+                continue
+
+            if result.returncode != 0:
+                image.unlink(missing_ok=True)
+                metadata.unlink(missing_ok=True)
+                continue
+
+            if not self._valid_jpeg(
+                image,
+                min_width=self.capture_width,
+                min_height=self.capture_height,
+            ):
+                image.unlink(missing_ok=True)
+                metadata.unlink(missing_ok=True)
+                continue
+
+            metadata_value = self._read_metadata(str(metadata))
+            state = self._focus_state(metadata_value)
+            lens = self._metadata_lens_position(metadata_value)
+            score = self._focus_score(str(image))
+
+            print(
+                "[CAMERA] Native AF "
+                f"state={state}; lens={lens}; score={score}"
+            )
+
+            if (
+                state is True
+                and score is not None
+                and score >= self.minimum_focus_score
+            ):
+                metadata.unlink(missing_ok=True)
+                return image
+
+            image.unlink(missing_ok=True)
+            metadata.unlink(missing_ok=True)
+
+        return None
+
+    def _sample_position(
+        self,
+        position: float,
+        *,
+        width: int,
+        height: int,
+        timeout_ms: int,
+        suffix: str,
+    ) -> Optional[Tuple[float, Path]]:
+        image = Path(
+            f"{self.capture_file}.{suffix}-{position:.4f}.jpg"
+        )
+        image.unlink(missing_ok=True)
+
+        try:
+            result = self._run(
+                self._manual_command(
+                    image,
+                    position,
+                    width=width,
+                    height=height,
+                    timeout_ms=timeout_ms,
+                ),
+                timeout=max(
+                    15.0,
+                    timeout_ms / 1000.0 + 8.0,
+                ),
+            )
+        except Exception:
+            image.unlink(missing_ok=True)
+            return None
+
+        if result.returncode != 0:
+            image.unlink(missing_ok=True)
+            return None
+
+        if self._jpeg_dimensions(str(image)) is None:
+            image.unlink(missing_ok=True)
+            return None
+
+        score = self._focus_score(str(image))
+        if score is None:
+            image.unlink(missing_ok=True)
+            return None
+
+        return score, image
+
+    def _coarse_sweep(
+        self,
+    ) -> Optional[Tuple[float, float, list[Tuple[float, float]]]]:
+        observations: list[Tuple[float, float]] = []
+
+        print(
+            "[CAMERA] Native AF did not lock. "
+            "Starting normalized physical lens sweep."
+        )
+
+        for position in self.focus_sweep_positions:
+            sampled = self._sample_position(
+                position,
+                width=1536,
+                height=864,
+                timeout_ms=1100,
+                suffix="coarse",
+            )
+
+            if sampled is None:
+                print(
+                    f"[CAMERA] Lens {position:.3f}: unavailable"
+                )
+                continue
+
+            score, image = sampled
+            image.unlink(missing_ok=True)
+            observations.append((position, score))
+
+            print(
+                f"[CAMERA] Lens {position:.3f}: "
+                f"normalized score={score:.2f}"
+            )
+
+        if len(observations) < 3:
+            return None
+
+        observations.sort(key=lambda item: item[1], reverse=True)
+        best_position, best_score = observations[0]
+        values = [score for _, score in observations]
+        background = median(values)
+
+        print(
+            "[CAMERA] Coarse best="
+            f"{best_position:.3f}; score={best_score:.2f}; "
+            f"median={background:.2f}"
+        )
+
+        if best_score < self.minimum_focus_score:
+            return None
+
+        if background > 0 and best_score / background < 1.20:
+            return None
+
+        return best_position, best_score, observations
+
+    def _refine_position(
+        self,
+        coarse_position: float,
+        coarse_score: float,
+    ) -> Tuple[float, float]:
+        positions = []
+        for step in range(-6, 7):
+            value = max(
+                0.0,
+                min(20.0, coarse_position + (step * 0.10)),
+            )
+            if value not in positions:
+                positions.append(value)
+
+        best_position = coarse_position
+        best_score = coarse_score
+
+        print(
+            "[CAMERA] Refining focus around "
+            f"{coarse_position:.3f}"
+        )
+
+        for position in positions:
+            sampled = self._sample_position(
+                position,
+                width=1536,
+                height=864,
+                timeout_ms=1000,
+                suffix="refine",
+            )
+
+            if sampled is None:
+                continue
+
+            score, image = sampled
+            image.unlink(missing_ok=True)
+
+            print(
+                f"[CAMERA] Refine {position:.3f}: "
+                f"normalized score={score:.2f}"
+            )
+
+            if score > best_score:
+                best_position = position
+                best_score = score
+
+        return best_position, best_score
+
+    def _final_candidates(
+        self,
+        best_position: float,
+        reference_score: float,
+    ) -> Optional[Tuple[Path, float, float]]:
+        positions = []
+        for delta in (
+            -0.30, -0.20, -0.10,
+            0.0,
+            0.10, 0.20, 0.30,
+        ):
+            value = max(
+                0.0,
+                min(20.0, best_position + delta),
+            )
+            if value not in positions:
+                positions.append(value)
+
+        winner_path: Optional[Path] = None
+        winner_position = best_position
+        winner_score = -1.0
+
+        for position in positions:
+            for frame in range(1, 3):
+                sampled = self._sample_position(
+                    position,
+                    width=self.capture_width,
+                    height=self.capture_height,
+                    timeout_ms=1600,
+                    suffix=f"final-{frame}",
+                )
+
+                if sampled is None:
+                    continue
+
+                score, image = sampled
+
+                if not self._valid_jpeg(
+                    image,
+                    min_width=self.capture_width,
+                    min_height=self.capture_height,
+                ):
+                    image.unlink(missing_ok=True)
+                    continue
+
+                print(
+                    f"[CAMERA] Final lens {position:.3f} "
+                    f"frame {frame}: normalized score={score:.2f}"
+                )
+
+                if score > winner_score:
+                    if winner_path is not None:
+                        winner_path.unlink(missing_ok=True)
+                    winner_path = image
+                    winner_position = position
+                    winner_score = score
+                else:
+                    image.unlink(missing_ok=True)
+
+        if winner_path is None:
+            return None
+
+        required_score = max(
+            self.minimum_focus_score,
+            reference_score * 0.55,
+        )
+
+        print(
+            "[CAMERA] Best final lens="
+            f"{winner_position:.3f}; score={winner_score:.2f}; "
+            f"required={required_score:.2f}"
+        )
+
+        if winner_score < required_score:
+            winner_path.unlink(missing_ok=True)
+            return None
+
+        return winner_path, winner_position, winner_score
+
+    def capture_image(
+        self,
+        *,
+        restart_preview: bool = True,
+    ) -> bool:
         was_previewing = self.is_previewing
-
-        # Release preview ownership before still-camera autofocus.
         self.stop_preview()
 
         final = Path(self.capture_file)
         final.unlink(missing_ok=True)
 
-        for attempt in range(1, self.capture_attempts + 1):
-            image = Path(f"{self.capture_file}.attempt-{attempt}.jpg")
-            metadata = Path(f"{self.capture_file}.attempt-{attempt}.json")
+        native = self._try_native_autofocus()
 
-            image.unlink(missing_ok=True)
-            metadata.unlink(missing_ok=True)
-
+        if native is not None:
+            os.replace(native, final)
+            score = self._focus_score(str(final))
             print(
-                "[CAMERA] LEFT pressed. Waiting for verified autofocus "
-                f"before capture: attempt {attempt}/{self.capture_attempts}, "
-                f"up to {self.focus_timeout_ms / 1000:.1f}s."
+                "[CAMERA] Native autofocus verified. "
+                f"Normalized score={score:.2f}. "
+                "OCR/submission unlocked."
+            )
+            return True
+
+        coarse = self._coarse_sweep()
+
+        if coarse is not None:
+            coarse_position, coarse_score, _ = coarse
+            refined_position, refined_score = self._refine_position(
+                coarse_position,
+                coarse_score,
             )
 
-            try:
-                result = self._run(
-                    self._capture_command(image, metadata),
-                    timeout=max(
-                        25.0,
-                        self.focus_timeout_ms / 1000.0 + 15.0,
-                    ),
+            print(
+                "[CAMERA] Refined best lens="
+                f"{refined_position:.3f}; "
+                f"score={refined_score:.2f}"
+            )
+
+            selected = self._final_candidates(
+                refined_position,
+                refined_score,
+            )
+
+            if selected is not None:
+                winner, position, score = selected
+                os.replace(winner, final)
+
+                print(
+                    "[CAMERA] Software autofocus verified. "
+                    f"Lens={position:.3f}; "
+                    f"normalized score={score:.2f}. "
+                    "OCR/submission unlocked."
                 )
-            except FileNotFoundError:
-                print("[CAMERA] rpicam-still is not installed.")
-                result = None
-            except subprocess.TimeoutExpired:
-                print("[CAMERA] autofocus/capture timed out.")
-                result = None
-            except Exception as exc:
-                print(f"[CAMERA] capture error: {exc}")
-                result = None
-
-            if result is not None and result.returncode == 0:
-                accepted, reason = self._validate_capture(
-                    str(image),
-                    str(metadata),
-                )
-                print(f"[CAMERA] {reason}")
-
-                if accepted:
-                    os.replace(image, final)
-                    metadata.unlink(missing_ok=True)
-
-                    print(
-                        "[CAMERA] Focused capture accepted. "
-                        "OCR/submission unlocked."
-                    )
-                    return True
-
-            elif result is not None:
-                error = (
-                    result.stderr
-                    or result.stdout
-                    or "unknown rpicam-still error"
-                ).strip()
-                print(f"[CAMERA] rpicam-still failed: {error}")
-
-            image.unlink(missing_ok=True)
-            metadata.unlink(missing_ok=True)
-
-            if attempt < self.capture_attempts:
-                time.sleep(0.75)
+                return True
 
         final.unlink(missing_ok=True)
 
         print(
-            "[CAMERA] No verified focused image. "
-            "OCR/submission blocked for all document types."
+            "[CAMERA] No verified focused capture. "
+            "OCR/submission blocked."
         )
 
         if was_previewing and restart_preview:

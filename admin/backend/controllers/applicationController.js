@@ -149,10 +149,26 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
             data: payload,
         });
     } catch (error) {
-        console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', error);
+        const statusCode = error.statusCode || 500;
+        const errorCode = error.code || 'IOT_OCR_REQUEST_FAILED';
 
-        return res.status(error.statusCode || 500).json({
+        if (statusCode === 503 && errorCode === 'PI_OFFLINE') {
+            console.info('IOT_OCR_REQUEST_REJECTED', {
+                reason: errorCode,
+                application_id: String(req.params.id || '').slice(0, 8),
+                document_key: req.params.documentKey || null,
+            });
+        } else {
+            console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', {
+                code: errorCode,
+                message: error.message || 'Failed to run IoT OCR',
+            });
+        }
+
+        return res.status(statusCode).json({
             error: error.message || 'Failed to run IoT OCR',
+            code: errorCode,
+            retryable: statusCode === 503,
         });
     }
 };

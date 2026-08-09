@@ -2714,7 +2714,10 @@ export default function DocumentVerification() {
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(payload.error || 'Failed to run IoT OCR');
+        const requestError = new Error(payload.error || 'Failed to run IoT OCR');
+        requestError.code = payload.code || null;
+        requestError.status = res.status;
+        throw requestError;
       }
 
       const request = payload?.data || payload;
@@ -2859,10 +2862,19 @@ export default function DocumentVerification() {
 
       await pollFreshSnapshot();
     } catch (err) {
-      console.error('RUN IOT OCR ERROR:', err);
+      const piIsOffline = err?.code === 'PI_OFFLINE' || err?.status === 503;
+
+      if (piIsOffline) {
+        setPiOnline(false);
+        setPiAvailabilityChecked(true);
+      } else {
+        console.error('RUN IOT OCR ERROR:', err);
+      }
       setBlankIotOverride(
         activeIotRequestRef.current?.request || null,
-        '(No fresh OCR result was produced.)'
+        piIsOffline
+          ? '(Raspberry Pi OCR scanner is offline.)'
+          : '(No fresh OCR result was produced.)'
       );
       stopPolling();
       setIotOcrError(getOcrFailureMessage(err));

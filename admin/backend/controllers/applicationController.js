@@ -6,7 +6,17 @@ const ExcelJS = require('exceljs');
 const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 
 exports.getIotOcrAvailability = async (_req, res) => {
-    return res.status(200).json({ data: iotOcrPresenceService.getAvailability() });
+    return res.status(200).json({
+        data: {
+            ...iotOcrPresenceService.getAvailability(),
+            api_version: 'iot-ocr-v46',
+            capabilities: {
+                admin_cancel: true,
+                realtime_status: true,
+                review_candidate: true,
+            },
+        },
+    });
 };
 
 function isApprovalStateError(message) {

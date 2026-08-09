@@ -1271,6 +1271,7 @@ function OCRPanel({
   piAvailabilityChecked,
   onCancelIotOcr,
   cancellingIotOcr,
+  cancelSupported,
 }) {
   const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
@@ -1326,7 +1327,7 @@ function OCRPanel({
               <span className="font-semibold">Running IoT OCR...</span>{' '}
               {IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
             </div>
-            <Button
+            {cancelSupported && <Button
               type="button"
               variant="outline"
               size="sm"
@@ -1336,7 +1337,7 @@ function OCRPanel({
             >
               {cancellingIotOcr ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
               Cancel
-            </Button>
+            </Button>}
           </div>
         )}
 
@@ -2241,6 +2242,7 @@ export default function DocumentVerification() {
   const [piOnline, setPiOnline] = useState(false);
   const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
   const [cancellingIotOcr, setCancellingIotOcr] = useState(false);
+  const [iotOcrCapabilities, setIotOcrCapabilities] = useState({});
 
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
@@ -2421,7 +2423,10 @@ export default function DocumentVerification() {
           cache: 'no-store',
         });
         const payload = await response.json().catch(() => ({}));
-        if (!cancelled) setPiOnline(response.ok && payload?.data?.online === true);
+        if (!cancelled) {
+          setPiOnline(response.ok && payload?.data?.online === true);
+          setIotOcrCapabilities(payload?.data?.capabilities || {});
+        }
       } catch {
         if (!cancelled) setPiOnline(false);
       } finally {
@@ -2927,7 +2932,10 @@ export default function DocumentVerification() {
         }
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Failed to cancel OCR request');
+      if (!response.ok) {
+        if (response.status === 404) setIotOcrCapabilities((current) => ({ ...current, admin_cancel: false }));
+        throw new Error(payload.error || 'Failed to cancel OCR request');
+      }
       stopPolling();
       setRunningIotOcr(false);
       setIotOcrResults((current) => ({
@@ -3308,6 +3316,7 @@ export default function DocumentVerification() {
                   piAvailabilityChecked={piAvailabilityChecked}
                   onCancelIotOcr={handleCancelIotOcr}
                   cancellingIotOcr={cancellingIotOcr}
+                  cancelSupported={iotOcrCapabilities.admin_cancel === true}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -3333,6 +3342,7 @@ export default function DocumentVerification() {
                     piAvailabilityChecked={piAvailabilityChecked}
                     onCancelIotOcr={handleCancelIotOcr}
                     cancellingIotOcr={cancellingIotOcr}
+                    cancelSupported={iotOcrCapabilities.admin_cancel === true}
                   />
                 </div>
               )}

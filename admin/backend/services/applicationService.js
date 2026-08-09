@@ -309,6 +309,11 @@ function buildReadinessFlags(row = {}) {
     const applicationStatus = normalizeLookupValue(row.application_status);
     const documentStatus = normalizeLookupValue(row.document_status);
     const endorsementStatusRaw = String(row.endorsement_overall_status || row.overall_status || '').trim().toLowerCase();
+    // Downstream readiness trusts the coordinator's final requirements review.
+    // Individual document-review counts are still surfaced for diagnostics, but
+    // once verification_status is "verified" we do not re-litigate every
+    // document row here.
+    const requirementsVerifiedByCoordinator = verificationStatus === 'verified';
     const requirementsVerifiedByReviews =
         Number(row.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
         Number(row.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
@@ -329,10 +334,12 @@ function buildReadinessFlags(row = {}) {
         documentStatus === 'requires reupload'
     ) {
         requirementsStatus = 'reupload_required';
+    } else if (requirementsVerifiedByCoordinator) {
+        requirementsStatus = 'verified';
     } else if (Number(row.uploaded_required_count || 0) < REQUIRED_UPLOAD_DOCUMENT_NAMES.length) {
         requirementsStatus = 'missing';
     } else if (requirementsVerifiedByReviews) {
-        requirementsStatus = 'verified';
+        requirementsStatus = 'under_review';
     }
 
     const requirementsComplete = requirementsStatus === 'verified';

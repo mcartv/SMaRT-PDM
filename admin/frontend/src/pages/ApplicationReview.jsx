@@ -672,11 +672,11 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                     variant="outline"
                     className="h-8 rounded-lg border-amber-200 px-3 text-xs text-amber-800"
                     onClick={() =>
-                      navigate(`/admin/openings/${opening.opening_id}/applications?view=final-selection`)
+                      navigate(`/admin/openings/${opening.opening_id}/applications`)
                     }
                   >
                     <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
-                    FCFS & Finalize
+                    View FCFS Queue
                   </Button>
                   <Button
                     size="sm"
@@ -696,6 +696,232 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
         );
       })}
     </section>
+  );
+}
+
+
+function ReadinessOpeningCards({
+  openings,
+  rows,
+  navigate,
+  onApproveScholar,
+  approvalLoadingId = '',
+}) {
+  const grouped = useMemo(() => {
+    const map = new Map();
+
+    openings.forEach((opening) => {
+      map.set(opening.opening_id, {
+        opening,
+        reserved: [],
+        waiting: [],
+      });
+    });
+
+    rows.forEach((row) => {
+      if (!row.opening_id) return;
+
+      if (!map.has(row.opening_id)) {
+        map.set(row.opening_id, {
+          opening: {
+            opening_id: row.opening_id,
+            opening_title: row.opening_title || 'Scholarship Opening',
+            program_name: row.program_name || 'Scholarship Program',
+            academic_year: row.academic_year || '',
+            allocated_slots: 0,
+            filled_slots: 0,
+          },
+          reserved: [],
+          waiting: [],
+        });
+      }
+
+      const group = map.get(row.opening_id);
+      const status = normalizeStatus(row.selection_status);
+
+      if (status === 'waitlisted') {
+        group.waiting.push(row);
+      } else {
+        group.reserved.push(row);
+      }
+    });
+
+    return [...map.values()]
+      .map((group) => ({
+        ...group,
+        reserved: [...group.reserved].sort(compareFcfs),
+        waiting: [...group.waiting].sort((a, b) => {
+          const waitA = Number(a.waitlist_position || Number.MAX_SAFE_INTEGER);
+          const waitB = Number(b.waitlist_position || Number.MAX_SAFE_INTEGER);
+          if (waitA !== waitB) return waitA - waitB;
+          return compareFcfs(a, b);
+        }),
+      }))
+      .filter((group) => group.reserved.length > 0 || group.waiting.length > 0);
+  }, [openings, rows]);
+
+  if (!grouped.length) {
+    return (
+      <Card className="rounded-2xl border-stone-200 shadow-none">
+        <CardContent className="py-16 text-center">
+          <p className="text-base font-semibold text-stone-700">No applicants in readiness yet.</p>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-stone-500">
+            Applicants appear here automatically after the coordinator saves a verified requirements review and the endorsement slip becomes completed.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {grouped.map(({ opening, reserved, waiting }) => {
+        const allocated = Number(opening.allocated_slots || opening.slot_count || 0);
+        const active = Number(opening.filled_slots || 0);
+        const reservedCount = reserved.length;
+        const available = Math.max(0, allocated - active - reservedCount);
+
+        return (
+          <Card key={opening.opening_id} className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
+            <div className="border-b border-stone-100 px-5 py-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-stone-900">
+                    {opening.opening_title || 'Scholarship Opening'}
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-500">
+                    {opening.program_name || 'Scholarship Program'}
+                    {opening.academic_year ? ` · ${opening.academic_year}` : ''}
+                  </p>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg border-stone-200 text-sm"
+                  onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)}
+                >
+                  Open Queue
+                  <ArrowRight className="ml-1.5 h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <MetricItem label="Slots" value={allocated} />
+                <MetricItem label="Active Scholars" value={active} />
+                <MetricItem label="Reserved" value={reservedCount} />
+                <MetricItem label="Waiting" value={waiting.length} />
+                <MetricItem label="Available" value={available} />
+              </div>
+            </div>
+
+            <CardContent className="space-y-5 p-5">
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-stone-900">Ready for Activation</h3>
+                    <p className="mt-0.5 text-sm text-stone-500">
+                      FCFS applicants currently holding a scholarship slot.
+                    </p>
+                  </div>
+                  <StatusPill meta={{ label: `${reserved.length} reserved`, bg: C.greenSoft, color: C.green }} />
+                </div>
+
+                {reserved.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-400">
+                    No applicants are currently reserved for activation.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
+                    {reserved.map((row) => (
+                      <div key={row.application_id} className="flex flex-col gap-3 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
+                            {getFcfsLabel(row)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
+                            <p className="mt-1 text-sm text-stone-500">
+                              {row.pdm_id} · Ready {formatDate(row.fcfs_completed_at)}
+                            </p>
+                            <p className="mt-1 text-xs font-medium text-green-700">
+                              {normalizeStatus(row.selection_status) === 'promoted' ? 'Promoted from waiting list' : 'Reserved by FCFS'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 lg:justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-9 rounded-lg border-stone-200 text-sm"
+                            onClick={() => navigate(`/admin/applications/${row.application_id}/documents`)}
+                          >
+                            Review
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-9 rounded-lg border-none px-4 text-sm text-white"
+                            style={{ background: C.green }}
+                            disabled={approvalLoadingId === row.application_id}
+                            onClick={() => onApproveScholar(row)}
+                          >
+                            {approvalLoadingId === row.application_id ? (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                            )}
+                            Activate Scholar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-stone-900">Waiting List</h3>
+                    <p className="mt-0.5 text-sm text-stone-500">
+                      Still ordered by the permanent FCFS number. Waiting position changes only when a real slot is released.
+                    </p>
+                  </div>
+                  <StatusPill meta={{ label: `${waiting.length} waiting`, bg: '#FFF7ED', color: '#b45309' }} />
+                </div>
+
+                {waiting.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-400">
+                    No applicants are currently waiting for a slot.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
+                    {waiting.map((row) => (
+                      <div key={row.application_id} className="flex flex-col gap-3 bg-stone-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-stone-200 bg-white px-2 text-sm font-bold text-stone-700">
+                            {getFcfsLabel(row)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
+                            <p className="mt-1 text-sm text-stone-500">{row.pdm_id} · Ready {formatDate(row.fcfs_completed_at)}</p>
+                          </div>
+                        </div>
+
+                        <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
+                          Waiting #{Number(row.waitlist_position || 0) || '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1453,32 +1679,13 @@ export default function ApplicationReview() {
           </>
         )
       ) : viewType === 'action' ? (
-        readinessRows.length === 0 ? (
-          <Card className="rounded-2xl border-stone-200 shadow-none">
-            <CardContent className="py-16 text-center text-sm text-stone-400">
-              No applicants are ready for final scholar handling yet. Once both requirements and endorsement are complete, they will move here automatically.
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <ReadinessSummary rows={readinessRows} />
-            <RegistryTable
-              rows={readinessPageData}
-              navigate={navigate}
-              onDownloadSlip={downloadSlipPdf}
-              onApproveScholar={setActivationCandidate}
-              approvalLoadingId={approvalLoadingId}
-              title="Activation Readiness Queue"
-              subtitle="FCFS order is based on the exact time both verified requirements and endorsement became complete. Application submission is used only as a tie-breaker."
-              mode="readiness"
-              page={page}
-              totalPages={readinessTotalPages}
-              totalItems={readinessRows.length}
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(readinessTotalPages, p + 1))}
-            />
-          </>
-        )
+        <ReadinessOpeningCards
+          openings={openingCards}
+          rows={readinessRows}
+          navigate={navigate}
+          onApproveScholar={setActivationCandidate}
+          approvalLoadingId={approvalLoadingId}
+        />
       ) : pendingRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">

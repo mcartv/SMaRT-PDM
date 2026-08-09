@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
-import FinalSelectionPanel from '@/components/selection/FinalSelectionPanel';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const C = {
@@ -193,8 +192,8 @@ function getSelectionMeta(app = {}) {
     const selection = String(app.selection_status || '').trim();
     const normalized = normalizeAppStatus(selection);
 
-    if (['selected', 'promoted'].includes(normalized)) {
-        return { label: selection || 'Selected', bg: C.greenSoft, color: C.green };
+    if (['selected', 'reserved', 'promoted'].includes(normalized)) {
+        return { label: normalized === 'reserved' ? 'Reserved' : (selection || 'Selected'), bg: C.greenSoft, color: C.green };
     }
     if (normalized === 'waitlisted') {
         const position = Number(app.waitlist_position);
@@ -275,7 +274,8 @@ function buildApplicantState(app) {
     const selectionStatus = normalizeAppStatus(app.selection_status);
     const isApproved = isApprovedCandidate(app);
     const isQualified =
-        selectionStatus === 'qualified' || app.scholar_activation_ready === true;
+        ['qualified', 'reserved', 'waitlisted', 'promoted'].includes(selectionStatus) ||
+        app.scholar_activation_ready === true;
     const isDisqualified =
         !!app.disqualified ||
         !!app.is_disqualified ||
@@ -696,25 +696,11 @@ function ApplicantTable({
                                             </Button>
                                         ) : null}
 
-                                        {!state.isApproved && !state.isQualified ? (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                disabled={
-                                                    !state.canApprove ||
-                                                    decisionLoading === app.id ||
-                                                    openingFilled
-                                                }
-                                                onClick={() => onApprove(app.id)}
-                                                className="h-8 rounded-lg border-green-100 px-3 text-xs text-green-700 shadow-none hover:bg-green-50 disabled:opacity-40"
-                                            >
-                                                {decisionLoading === app.id ? (
-                                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                                ) : (
-                                                    <ShieldCheck className="mr-1 h-3 w-3" />
-                                                )}
-                                                Queue FCFS
-                                            </Button>
+                                        {!state.isApproved && state.isVerified && state.isEndorsementComplete ? (
+                                            <span className="inline-flex h-8 items-center rounded-lg border border-green-100 bg-green-50 px-3 text-xs font-medium text-green-700">
+                                                <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
+                                                Auto FCFS
+                                            </span>
                                         ) : null}
 
                                         {!state.isApproved && !state.isDisqualified ? (
@@ -760,9 +746,7 @@ export default function OpeningApplications() {
     const [error, setError] = useState(null);
 
     const [search, setSearch] = useState('');
-    const initialView = searchParams.get('view') === VIEW_MODES.finalSelection
-        ? VIEW_MODES.finalSelection
-        : VIEW_MODES.current;
+    const initialView = VIEW_MODES.current;
     const [viewMode, setViewMode] = useState(initialView);
 
     const [page, setPage] = useState(1);
@@ -1219,20 +1203,15 @@ export default function OpeningApplications() {
                                 {nextFcfsApplicant?.name || 'None'}
                             </p>
                         </div>
-                        <Button
-                            className="h-full min-h-[54px] rounded-xl border-none text-xs font-semibold text-white"
-                            style={{ background: C.green }}
-                            onClick={() => changeViewMode(VIEW_MODES.finalSelection)}
-                        >
-                            <Trophy className="mr-1.5 h-4 w-4" />
-                            Review & Finalize
-                        </Button>
+                        <div className="flex min-h-[54px] items-center justify-center rounded-xl border border-green-100 bg-green-50 px-3 text-center text-xs font-semibold text-green-700">
+                            <ListOrdered className="mr-1.5 h-4 w-4" />
+                            FCFS is automatic
+                        </div>
                     </div>
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-stone-100 p-3 lg:flex-row lg:items-center lg:justify-between">
-                    {viewMode !== VIEW_MODES.finalSelection ? (
-                        <div className="relative w-full lg:max-w-lg">
+                    <div className="relative w-full lg:max-w-lg">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
                                 placeholder="Search applicant or PDM ID..."
@@ -1240,13 +1219,7 @@ export default function OpeningApplications() {
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="h-9 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
                             />
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-xs text-stone-500">
-                            <ListOrdered className="h-4 w-4 text-amber-700" />
-                            Ranked by requirements completion time; submission time is used only as a tie-breaker.
-                        </div>
-                    )}
+                    </div>
 
                     <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 lg:w-auto">
                         <button
@@ -1267,25 +1240,10 @@ export default function OpeningApplications() {
                         >
                             Approved <span>{approvedCount}</span>
                         </button>
-                        <button
-                            onClick={() => changeViewMode(VIEW_MODES.finalSelection)}
-                            className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-xs font-medium transition lg:flex-none ${viewMode === VIEW_MODES.finalSelection
-                                ? 'bg-white text-stone-900 shadow-sm'
-                                : 'text-stone-600'
-                                }`}
-                        >
-                            Final Selection
-                        </button>
                     </div>
                 </div>
             </section>
 
-            {viewMode === VIEW_MODES.finalSelection ? (
-                <FinalSelectionPanel
-                    openingId={openingId}
-                    onFinalized={() => reloadApplications({ soft: true })}
-                />
-            ) : (
             <section
                 className="overflow-hidden rounded-2xl border bg-white"
                 style={{ borderColor: C.border }}
@@ -1303,46 +1261,9 @@ export default function OpeningApplications() {
                             </p>
                         </div>
 
-                        {viewMode === VIEW_MODES.current && (
-                            <label className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs text-stone-600">
-                                <input
-                                    type="checkbox"
-                                    checked={allVisibleSelected}
-                                    onChange={toggleAllVisible}
-                                    className="accent-stone-700"
-                                />
-                                Select all on page
-                            </label>
-                        )}
                     </div>
 
-                    {selected.size > 0 && viewMode === VIEW_MODES.current && (
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2">
-                            <span className="text-xs font-medium text-amber-700">
-                                {selected.size} selected
-                            </span>
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    className="h-8 rounded-lg border-none text-xs text-white"
-                                    style={{ background: C.green }}
-                                    onClick={handleBulkApprove}
-                                >
-                                    Mark Qualified
-                                </Button>
-
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setSelected(new Set())}
-                                    className="h-8 rounded-lg border-stone-200 text-xs"
-                                >
-                                    Clear
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+               </div>
 
                 <CardContent className="p-4">
                     {tableLoading ? (
@@ -1408,7 +1329,6 @@ export default function OpeningApplications() {
                     </div>
                 </div>
             </section>
-            )}
         </div>
     );
 }

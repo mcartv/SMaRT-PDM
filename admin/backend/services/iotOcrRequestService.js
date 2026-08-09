@@ -348,7 +348,12 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
             return mapRequestRow(heartbeat.rows[0]);
         }
         if (!transitionAllowed(row.status, nextStatus) || nextStatus === 'review_required' || nextStatus === 'completed') {
-            throw buildHttpError(409, `Invalid IoT OCR transition: ${row.status} -> ${nextStatus}`);
+            const error = buildHttpError(409, `Invalid IoT OCR transition: ${row.status} -> ${nextStatus}`);
+            if (TERMINAL_STATUSES.includes(row.status) || row.status === 'review_required') {
+                error.code = 'IOT_OCR_REQUEST_STOPPED';
+                error.currentStatus = row.status;
+            }
+            throw error;
         }
         const updated = await client.query(`
             UPDATE public.iot_ocr_requests SET status = $2, claimed_by = $3,

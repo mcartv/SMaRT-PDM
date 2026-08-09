@@ -78,14 +78,20 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
             data: result,
         });
     } catch (err) {
-        console.error('UPDATE IOT OCR REQUEST STATUS ERROR:', {
+        const requestStopped = err.code === 'IOT_OCR_REQUEST_STOPPED';
+        const log = requestStopped ? console.info : console.error;
+        log(requestStopped ? 'IOT_OCR_WORKER_STOP_ACKNOWLEDGED' : 'UPDATE IOT OCR REQUEST STATUS ERROR:', {
             request_id: String(req.params?.requestId || '').slice(0, 8),
             attempted_status: req.body?.status || null,
+            current_status: err.currentStatus || null,
             message: err.message,
             code: err.code || null,
         });
         res.status(err.statusCode || 500).json({
+            code: err.code || null,
             error: err.message || 'Failed to update IoT OCR request status',
+            current_status: err.currentStatus || null,
+            stop_processing: requestStopped,
         });
     }
 };

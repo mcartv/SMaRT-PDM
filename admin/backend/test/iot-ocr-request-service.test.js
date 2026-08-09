@@ -186,6 +186,24 @@ test('same-state Pi update is treated as a processing heartbeat', async () => {
     assert.ok(activeClient.calls.some((sql) => sql.includes('SET processing_heartbeat_at = NOW()')));
 });
 
+test('terminal request tells the Pi worker to stop without changing state', async () => {
+    activeClient = makeCandidateClient(requestRow({ status: 'cancelled' }));
+
+    await assert.rejects(
+        () => service.updateRequestStatus({
+            requestId: REQUEST_UUID,
+            status: 'capturing',
+            claimedBy: DEVICE_UUID,
+        }),
+        (error) => {
+            assert.equal(error.statusCode, 409);
+            assert.equal(error.code, 'IOT_OCR_REQUEST_STOPPED');
+            assert.equal(error.currentStatus, 'cancelled');
+            return true;
+        }
+    );
+});
+
 test('status updates persist expiration before opening the transition transaction', () => {
     const fs = require('node:fs');
     const source = fs.readFileSync(servicePath, 'utf8');

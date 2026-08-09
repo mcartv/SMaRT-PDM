@@ -50,6 +50,9 @@ def run_capture_session(
     resolved_buttons = buttons if buttons is not None else ButtonReader()
     session_started_at = time.monotonic()
 
+    def stop_requested() -> bool:
+        return bool(should_stop and should_stop())
+
     try:
         try:
             if not resolved_camera.check_available():
@@ -133,8 +136,20 @@ def run_capture_session(
                 error_code="CAPTURE_SESSION_INTERRUPTED",
             )
 
+        if stop_requested():
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
+
         if on_status:
             on_status("focusing")
+
+        if stop_requested():
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
+            )
 
         try:
             try:
@@ -160,6 +175,12 @@ def run_capture_session(
             return CaptureSessionResult(
                 FAILED,
                 error_code="CAPTURE_FAILED",
+            )
+
+        if stop_requested():
+            return CaptureSessionResult(
+                FAILED,
+                error_code="CAPTURE_SESSION_INTERRUPTED",
             )
 
         capture_path = str(

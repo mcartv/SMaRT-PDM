@@ -204,6 +204,25 @@ test('terminal request tells the Pi worker to stop without changing state', asyn
     );
 });
 
+test('late Pi result receives the same terminal stop contract', async () => {
+    activeClient = makeCandidateClient(requestRow({ status: 'expired' }));
+
+    await assert.rejects(
+        () => service.completeRequest({
+            requestId: REQUEST_UUID,
+            status: 'review_required',
+            claimedBy: DEVICE_UUID,
+        }),
+        (error) => {
+            assert.equal(error.statusCode, 409);
+            assert.equal(error.code, 'IOT_OCR_REQUEST_STOPPED');
+            assert.equal(error.currentStatus, 'expired');
+            assert.equal(error.request.status, 'expired');
+            return true;
+        }
+    );
+});
+
 test('status updates persist expiration before opening the transition transaction', () => {
     const fs = require('node:fs');
     const source = fs.readFileSync(servicePath, 'utf8');

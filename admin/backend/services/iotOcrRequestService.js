@@ -352,6 +352,7 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
             if (TERMINAL_STATUSES.includes(row.status) || row.status === 'review_required') {
                 error.code = 'IOT_OCR_REQUEST_STOPPED';
                 error.currentStatus = row.status;
+                error.request = mapRequestRow(row);
             }
             throw error;
         }
@@ -391,6 +392,14 @@ exports.completeRequest = async (input = {}) => {
         const row = selected.rows[0];
         if (!row) throw buildHttpError(404, 'IoT OCR request not found');
         if (row.claimed_by && normalizeDeviceId(row.claimed_by) !== deviceId) throw buildHttpError(409, 'Request belongs to another Pi device');
+
+        if (TERMINAL_STATUSES.includes(row.status)) {
+            const error = buildHttpError(409, `Cannot submit OCR result from ${row.status}`);
+            error.code = 'IOT_OCR_REQUEST_STOPPED';
+            error.currentStatus = row.status;
+            error.request = mapRequestRow(row);
+            throw error;
+        }
 
         if (submittedStatus === 'review_required') {
             const existing = await client.query(

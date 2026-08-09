@@ -2369,7 +2369,12 @@ export default function DocumentVerification() {
         const existing = current[documentId] || {};
         const existingRequest = existing.iot_ocr_request || existing.ocr_job || {};
         if (existingRequest.request_id && existingRequest.request_id !== data.request_id) {
-          return current;
+          const activeRequestId = activeIotRequestRef.current?.requestId;
+          const existingTime = new Date(existingRequest.updated_at || existingRequest.created_at || 0).getTime();
+          const incomingTime = new Date(data.updated_at || data.emitted_at || 0).getTime();
+          if (activeRequestId !== data.request_id && incomingTime <= existingTime) {
+            return current;
+          }
         }
         const request = { ...existingRequest, ...data };
         return {

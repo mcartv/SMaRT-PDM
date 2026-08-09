@@ -9,11 +9,11 @@ const PI_ACTIVE_STATUSES = Object.freeze([
 const TERMINAL_STATUSES = Object.freeze(['completed', 'cancelled', 'failed', 'expired']);
 const ALLOWED_TRANSITIONS = Object.freeze({
     pending: Object.freeze(['claimed', 'expired', 'cancelled']),
-    claimed: Object.freeze(['previewing', 'failed', 'expired']),
+    claimed: Object.freeze(['previewing', 'cancelled', 'failed', 'expired']),
     previewing: Object.freeze(['focusing', 'cancelled', 'failed', 'expired']),
-    focusing: Object.freeze(['capturing', 'failed', 'expired']),
-    capturing: Object.freeze(['processing', 'failed', 'expired']),
-    processing: Object.freeze(['review_required', 'failed', 'expired']),
+    focusing: Object.freeze(['capturing', 'cancelled', 'failed', 'expired']),
+    capturing: Object.freeze(['processing', 'cancelled', 'failed', 'expired']),
+    processing: Object.freeze(['review_required', 'cancelled', 'failed', 'expired']),
     review_required: Object.freeze(['completed', 'expired']),
 });
 const ACTIVE_STATUS_SQL = PI_ACTIVE_STATUSES.map((status) => `'${status}'`).join(', ');
@@ -224,10 +224,7 @@ async function expireStaleRequests(client, { force = false } = {}) {
             error_message = 'IoT OCR worker heartbeat expired',
             completed_at = NOW(), updated_at = NOW()
         WHERE status IN ('claimed', 'previewing', 'focusing', 'capturing', 'processing')
-          AND (
-              claimed_at < ${PROCESSING_TTL_SQL}
-              OR COALESCE(processing_heartbeat_at, updated_at) < ${PROCESSING_TTL_SQL}
-          )
+          AND COALESCE(processing_heartbeat_at, updated_at) < ${PROCESSING_TTL_SQL}
     `);
     await client.query(`
         UPDATE public.iot_ocr_requests
@@ -330,8 +327,10 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
     if (!isUuid(requestId) || !deviceId) throw buildHttpError(400, 'Valid request and Pi device UUID are required');
     const client = await pool.connect();
     try {
+        // Persist expiration independently. A rejected transition must not roll
+        // the expiration sweep back and resurrect a stale request.
+        await expireStaleRequests(client, { force: true });
         await client.query('BEGIN');
-        await expireStaleRequests(client);
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
             [requestId]
@@ -378,6 +377,7 @@ exports.completeRequest = async (input = {}) => {
     }
     const client = await pool.connect();
     try {
+        await expireStaleRequests(client, { force: true });
         await client.query('BEGIN');
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -488,6 +488,43 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
             created_at: row.candidate_created_at,
         }) : null;
         return { request: mapRequestRow(row), candidate };
+    } finally { client.release(); }
+};
+
+exports.cancelRequest = async ({ applicationId, documentKey, requestId }) => {
+    const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
+    if (!isUuid(requestId) || !isUuid(applicationId) || !normalizedDocumentKey) {
+        throw buildHttpError(400, 'Valid application, document, and request are required');
+    }
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const selected = await client.query(`
+            SELECT * FROM public.iot_ocr_requests
+            WHERE request_id = $1::uuid AND application_id = $2::uuid AND document_key = $3
+            FOR UPDATE
+        `, [requestId, applicationId, normalizedDocumentKey]);
+        const row = selected.rows[0];
+        if (!row) throw buildHttpError(404, 'IoT OCR request not found');
+        if (row.status === 'cancelled') {
+            await client.query('COMMIT');
+            return { request: mapRequestRow(row), idempotent: true };
+        }
+        if (!PI_ACTIVE_STATUSES.includes(row.status) || !transitionAllowed(row.status, 'cancelled')) {
+            throw buildHttpError(409, `OCR request cannot be cancelled from ${row.status}`);
+        }
+        const updated = await client.query(`
+            UPDATE public.iot_ocr_requests
+            SET status = 'cancelled', error_code = 'ADMIN_CANCELLED',
+                error_message = 'OCR capture cancelled by admin',
+                completed_at = NOW(), updated_at = NOW()
+            WHERE request_id = $1::uuid RETURNING *
+        `, [requestId]);
+        await client.query('COMMIT');
+        return { request: mapRequestRow(updated.rows[0]), idempotent: false };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
     } finally { client.release(); }
 };
 

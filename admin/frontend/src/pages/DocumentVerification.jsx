@@ -1269,6 +1269,8 @@ function OCRPanel({
   reviewingCandidate,
   piOnline,
   piAvailabilityChecked,
+  onCancelIotOcr,
+  cancellingIotOcr,
 }) {
   const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
@@ -1319,9 +1321,22 @@ function OCRPanel({
 
       <div className="p-4 min-h-[520px] space-y-4">
         {runningIotOcr && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-            <span className="font-semibold">Running IoT OCR...</span>{' '}
-            {IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <div>
+              <span className="font-semibold">Running IoT OCR...</span>{' '}
+              {IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancelIotOcr}
+              disabled={cancellingIotOcr}
+              className="h-8 shrink-0 border-red-200 bg-white text-red-700 hover:bg-red-50"
+            >
+              {cancellingIotOcr ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+              Cancel
+            </Button>
           </div>
         )}
 
@@ -2225,6 +2240,7 @@ export default function DocumentVerification() {
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
   const [piOnline, setPiOnline] = useState(false);
   const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
+  const [cancellingIotOcr, setCancellingIotOcr] = useState(false);
 
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
@@ -2895,6 +2911,41 @@ export default function DocumentVerification() {
     }
   };
 
+  const handleCancelIotOcr = async () => {
+    if (!activeDoc) return;
+    const request = activeIotRequestRef.current?.request || getActiveIotRequest(activeDoc);
+    const requestId = getIotOcrRequestId(request);
+    if (!requestId) return;
+    try {
+      setCancellingIotOcr(true);
+      setIotOcrError('');
+      const response = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${requestId}/cancel`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Failed to cancel OCR request');
+      stopPolling();
+      setRunningIotOcr(false);
+      setIotOcrResults((current) => ({
+        ...current,
+        [activeDoc.id]: {
+          ...(current[activeDoc.id] || {}),
+          iot_ocr_request: payload?.data?.request,
+          ocr_job: payload?.data?.request,
+        },
+      }));
+      await fetchApplicationDocuments({ soft: true });
+    } catch (error) {
+      setIotOcrError(error.message || 'Failed to cancel OCR request');
+    } finally {
+      setCancellingIotOcr(false);
+    }
+  };
+
   const handleRetryCandidate = async () => {
     if (!activeDoc || !reviewCandidate) return;
     try {
@@ -3255,6 +3306,8 @@ export default function DocumentVerification() {
                   reviewingCandidate={reviewingCandidate}
                   piOnline={piOnline}
                   piAvailabilityChecked={piAvailabilityChecked}
+                  onCancelIotOcr={handleCancelIotOcr}
+                  cancellingIotOcr={cancellingIotOcr}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -3278,6 +3331,8 @@ export default function DocumentVerification() {
                     reviewingCandidate={reviewingCandidate}
                     piOnline={piOnline}
                     piAvailabilityChecked={piAvailabilityChecked}
+                    onCancelIotOcr={handleCancelIotOcr}
+                    cancellingIotOcr={cancellingIotOcr}
                   />
                 </div>
               )}

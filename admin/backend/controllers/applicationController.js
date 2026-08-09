@@ -198,6 +198,30 @@ exports.retryApplicationDocumentIotOcr = async (req, res) => {
     }
 };
 
+exports.cancelApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.cancelApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.params.requestId,
+        });
+        const request = data.request;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            status: request.status,
+            expires_at: request.expires_at,
+            updated_at: request.updated_at,
+        });
+        return res.status(200).json({ message: 'IoT OCR request cancelled', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to cancel OCR request',
+        });
+    }
+};
+
 exports.getApplicationDocumentOcrSnapshot = async (req, res) => {
     const { id, documentKey } = req.params;
 

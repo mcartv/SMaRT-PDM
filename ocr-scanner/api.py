@@ -239,12 +239,20 @@ class ApiClient:
 
         for attempt in range(1, 4):
             try:
-                response = requests.post(
+                response = self.session.post(
                     url,
                     headers=self._headers(),
                     json={"status": status},
-                    timeout=self.timeout,
+                    timeout=min(self.timeout, 10),
                 )
+                if response.status_code in {400, 404, 409, 410}:
+                    log.warning(
+                        "Lifecycle request rejected request=%s status=%s http=%s",
+                        request_id[:8],
+                        status,
+                        response.status_code,
+                    )
+                    return False
                 response.raise_for_status()
                 return True
             except requests.RequestException as exc:

@@ -1026,6 +1026,7 @@ def main():
                         _safe_request_ref(request_id),
                         status,
                     )
+                    request_stop.set()
 
             def send_heartbeat():
                 while not heartbeat_stop.wait(HEARTBEAT_INTERVAL_SECONDS):

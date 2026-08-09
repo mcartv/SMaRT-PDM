@@ -1793,6 +1793,12 @@ exports.retryApplicationDocumentIotOcr = async ({
     requestedBy,
 });
 
+exports.cancelApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+}) => iotOcrRequestService.cancelRequest({ applicationId, documentKey, requestId });
+
 exports.fetchApplicationDocumentOcrSnapshot = async ({
     applicationId,
     documentKey,
@@ -2890,6 +2896,7 @@ module.exports = {
     getApplicationDocumentIotOcr: exports.getApplicationDocumentIotOcr,
     confirmApplicationDocumentIotOcr: exports.confirmApplicationDocumentIotOcr,
     retryApplicationDocumentIotOcr: exports.retryApplicationDocumentIotOcr,
+    cancelApplicationDocumentIotOcr: exports.cancelApplicationDocumentIotOcr,
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,

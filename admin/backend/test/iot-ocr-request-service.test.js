@@ -119,6 +119,15 @@ test('review_required is not Pi-active and can complete or expire', () => {
     assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'expired']);
 });
 
+test('admin cancellation is allowed for every Pi-active lifecycle state', () => {
+    for (const status of service.PI_ACTIVE_STATUSES) {
+        assert.ok(
+            service.ALLOWED_TRANSITIONS[status].includes('cancelled'),
+            `${status} must allow admin cancellation`
+        );
+    }
+});
+
 test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
     const candidate = {
         student_number: { raw_text: '2023-001234', normalized_value: '2023-001234' },
@@ -175,4 +184,14 @@ test('same-state Pi update is treated as a processing heartbeat', async () => {
     });
     assert.ok(result.processing_heartbeat_at);
     assert.ok(activeClient.calls.some((sql) => sql.includes('SET processing_heartbeat_at = NOW()')));
+});
+
+test('status updates persist expiration before opening the transition transaction', () => {
+    const fs = require('node:fs');
+    const source = fs.readFileSync(servicePath, 'utf8');
+    const updateSource = source.slice(source.indexOf('exports.updateRequestStatus'));
+    assert.ok(
+        updateSource.indexOf('await expireStaleRequests(client, { force: true })') <
+        updateSource.indexOf("await client.query('BEGIN')")
+    );
 });

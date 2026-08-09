@@ -78,7 +78,12 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
             data: result,
         });
     } catch (err) {
-        console.error('UPDATE IOT OCR REQUEST STATUS ERROR:', err.message);
+        console.error('UPDATE IOT OCR REQUEST STATUS ERROR:', {
+            request_id: String(req.params?.requestId || '').slice(0, 8),
+            attempted_status: req.body?.status || null,
+            message: err.message,
+            code: err.code || null,
+        });
         res.status(err.statusCode || 500).json({
             error: err.message || 'Failed to update IoT OCR request status',
         });

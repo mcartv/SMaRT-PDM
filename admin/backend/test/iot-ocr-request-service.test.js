@@ -5,149 +5,116 @@ const DEVICE_UUID = '2e4e1e90-3d8a-4c59-b1ef-b7ae8a8d2b11';
 const OTHER_DEVICE_UUID = '72b3dbe6-1da3-47de-8be2-911c9797a1a0';
 const REQUEST_UUID = 'e8126252-c44d-4185-8244-72ea15d79758';
 const APPLICATION_UUID = '7cf66c74-c23b-4c52-85da-82326a57de89';
-const STUDENT_UUID = 'a477ac1e-49b8-4427-b327-c484b87d5f10';
 
-let activeClient = null;
+let activeClient;
 const dbPath = require.resolve('../config/db');
 require.cache[dbPath] = {
     id: dbPath,
     filename: dbPath,
     loaded: true,
-    exports: {
-        connect: async () => activeClient,
-    },
+    exports: { connect: async () => activeClient },
 };
 
-let savedSnapshotInput = null;
-const applicationServicePath = require.resolve('../services/applicationService');
-require.cache[applicationServicePath] = {
-    id: applicationServicePath,
-    filename: applicationServicePath,
+const schemaPath = require.resolve('../services/iotOcrSchemaService');
+require.cache[schemaPath] = {
+    id: schemaPath,
+    filename: schemaPath,
     loaded: true,
-    exports: {
-        normalizeOcrPayload: (payload) => ({
-            raw_text: payload.raw_text || '',
-            ocr_confidence: payload.ocr_confidence ?? null,
-            extracted_fields: payload.extracted_fields || {},
-            source_payload: payload.source_payload || {},
-        }),
-        saveApplicationDocumentOcrSnapshot: async (input) => {
-            savedSnapshotInput = input;
-            return { document_id: 'snapshot-id' };
-        },
-    },
+    exports: { ensureIotOcrSchema: async () => undefined },
 };
 
 const servicePath = require.resolve('../services/iotOcrRequestService');
 delete require.cache[servicePath];
-const iotOcrRequestService = require('../services/iotOcrRequestService');
+const service = require('../services/iotOcrRequestService');
 
 function requestRow(overrides = {}) {
     return {
         request_id: REQUEST_UUID,
         application_id: APPLICATION_UUID,
-        student_id: STUDENT_UUID,
-        student_name: 'Test Student',
+        student_id: 'a477ac1e-49b8-4427-b327-c484b87d5f10',
         document_key: 'student_grade_forms',
         document_type: 'Grade Report',
-        status: 'claimed',
-        requested_by: null,
-        claimed_by: null,
-        created_at: new Date().toISOString(),
-        claimed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        status: 'processing',
+        claimed_by: DEVICE_UUID,
         ...overrides,
     };
 }
 
-function makeClient(row) {
+function makeCandidateClient(row = requestRow()) {
     const calls = [];
-    const client = {
+    return {
         calls,
-        released: false,
         async query(sql, params = []) {
-            const normalizedSql = String(sql).replace(/\s+/g, ' ').trim();
-            calls.push({ sql: normalizedSql, params });
-
-            if (normalizedSql === 'BEGIN' || normalizedSql === 'COMMIT' || normalizedSql === 'ROLLBACK') {
-                return { rows: [] };
+            const normalized = String(sql).replace(/\s+/g, ' ').trim();
+            calls.push({ sql: normalized, params });
+            if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(normalized)) return { rows: [] };
+            if (normalized.includes('SELECT * FROM public.iot_ocr_requests')) return { rows: [row] };
+            if (normalized.includes('SELECT * FROM public.iot_ocr_candidates')) return { rows: [] };
+            if (normalized.includes('INSERT INTO public.iot_ocr_candidates')) {
+                return { rows: [{
+                    candidate_id: '6b7de9c4-3c6c-4eb7-8826-b25ddd98406a',
+                    request_id: REQUEST_UUID,
+                    document_key: row.document_key,
+                    template_id: params[2],
+                    raw_text: params[3],
+                    fields: JSON.parse(params[4]),
+                    field_confidence: JSON.parse(params[5]),
+                    validation_issues: JSON.parse(params[6]),
+                    processing: JSON.parse(params[7]),
+                }] };
             }
-
-            if (normalizedSql.includes('SELECT * FROM iot_ocr_requests')) {
-                return { rows: [row] };
+            if (normalized.includes("status = 'review_required'")) {
+                return { rows: [requestRow({ ...row, status: 'review_required', template_id: params[1] })] };
             }
-
-            if (normalizedSql.includes("status = 'completed'")) {
-                return {
-                    rows: [
-                        requestRow({
-                            ...row,
-                            status: 'completed',
-                            claimed_by: params[1],
-                            completed_at: new Date().toISOString(),
-                        }),
-                    ],
-                };
-            }
-
             return { rows: [] };
         },
-        release() {
-            this.released = true;
-        },
+        release() {},
     };
-    return client;
 }
 
-test('completion backfills valid device provenance before saving snapshot', async () => {
-    savedSnapshotInput = null;
-    activeClient = makeClient(requestRow());
-
-    const result = await iotOcrRequestService.completeRequest({
+test('Pi success persists an immutable candidate and stops at review_required', async () => {
+    activeClient = makeCandidateClient();
+    const result = await service.completeRequest({
         requestId: REQUEST_UUID,
-        status: 'completed',
-        rawText: 'OCR result',
-        extractedFields: { gwa: 1.5 },
-        sourcePayload: { source: 'test' },
+        status: 'review_required',
+        templateId: 'grade_form_v1',
+        rawText: 'text',
+        fields: { student_number: '2023-1' },
+        fieldConfidence: { student_number: 92 },
+        validationIssues: [],
+        processing: { registration_status: 'matched', ocr_engine: 'tesseract' },
         claimedBy: DEVICE_UUID,
     });
-
-    assert.equal(result.request.status, 'completed');
-    assert.equal(result.request.claimed_by, DEVICE_UUID);
-    assert.equal(savedSnapshotInput.iotDeviceId, DEVICE_UUID);
-    assert.equal(savedSnapshotInput.iotRequestId, REQUEST_UUID);
-
-    const provenanceUpdate = activeClient.calls.find(
-        (call) => call.sql.includes("status = CASE WHEN status = 'pending' THEN 'claimed'")
-    );
-    assert.ok(provenanceUpdate);
-    assert.equal(provenanceUpdate.params[1], DEVICE_UUID);
-    assert.equal(activeClient.released, true);
+    assert.equal(result.request.status, 'review_required');
+    assert.equal(result.candidate.template_id, 'grade_form_v1');
+    assert.ok(activeClient.calls.some((call) => call.sql.includes('INSERT INTO public.iot_ocr_candidates')));
+    assert.ok(!activeClient.calls.some((call) => call.sql.includes('iot_ocr_reviews')));
 });
 
-test('completion rejects a result from a different device', async () => {
-    activeClient = makeClient(requestRow({ claimed_by: OTHER_DEVICE_UUID }));
-
+test('candidate submission rejects another Pi device', async () => {
+    activeClient = makeCandidateClient(requestRow({ claimed_by: OTHER_DEVICE_UUID }));
     await assert.rejects(
-        () => iotOcrRequestService.completeRequest({
-            requestId: REQUEST_UUID,
-            status: 'completed',
-            claimedBy: DEVICE_UUID,
-        }),
-        (error) => error.statusCode === 409 && /another Pi device/.test(error.message)
+        () => service.completeRequest({ requestId: REQUEST_UUID, status: 'review_required', claimedBy: DEVICE_UUID }),
+        /another Pi device/
     );
-
-    assert.ok(activeClient.calls.some((call) => call.sql === 'ROLLBACK'));
-    assert.equal(activeClient.released, true);
 });
 
-test('service rejects non-UUID device provenance', async () => {
+test('completed is not a valid Pi result status', async () => {
+    activeClient = makeCandidateClient();
     await assert.rejects(
-        () => iotOcrRequestService.completeRequest({
-            requestId: REQUEST_UUID,
-            status: 'completed',
-            claimedBy: 'pi-001',
-        }),
-        (error) => error.statusCode === 400 && /valid Pi device UUID/.test(error.message)
+        () => service.completeRequest({ requestId: REQUEST_UUID, status: 'completed', claimedBy: DEVICE_UUID }),
+        /review_required, failed, or cancelled/
     );
+});
+
+test('text-only contract recursively rejects image fields', () => {
+    assert.throws(
+        () => service.assertTextOnlyPayload({ fields: { nested: { capture_path: '/tmp/a.jpg' } } }),
+        /Forbidden OCR image field/
+    );
+});
+
+test('review_required is not Pi-active and only transitions to completed', () => {
+    assert.equal(service.PI_ACTIVE_STATUSES.includes('review_required'), false);
+    assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed']);
 });

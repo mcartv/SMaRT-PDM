@@ -142,6 +142,57 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
     }
 };
 
+exports.getApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.getApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.query?.request_id || null,
+        });
+        return res.status(200).json({ data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to load IoT OCR candidate',
+        });
+    }
+};
+
+exports.confirmApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.confirmApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.params.requestId,
+            correctedFields: req.body?.corrected_fields || req.body?.fields,
+            reviewedBy: resolveActorUserId(req),
+        });
+        return res.status(200).json({ message: 'OCR candidate confirmed', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to confirm OCR candidate',
+        });
+    }
+};
+
+exports.retryApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.retryApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.params.requestId,
+            requestedBy: resolveActorUserId(req),
+        });
+        return res.status(data.created ? 202 : 200).json({
+            message: data.created ? 'OCR retry queued' : 'Active OCR request returned',
+            data,
+        });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to retry OCR request',
+        });
+    }
+};
+
 exports.getApplicationDocumentOcrSnapshot = async (req, res) => {
     const { id, documentKey } = req.params;
 

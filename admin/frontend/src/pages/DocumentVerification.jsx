@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -133,6 +134,11 @@ const IOT_OCR_STATUS_MESSAGES = {
   focusing: 'Camera is visibly adjusting focus',
   capturing: 'Capturing the sharpest focused frame',
   processing: 'Running OCR on the focused capture',
+  review_required: 'OCR ready for admin review',
+  completed: 'OCR confirmed',
+  cancelled: 'Capture cancelled',
+  failed: 'OCR failed',
+  expired: 'OCR request expired',
 };
 
 function getActiveIotRequest(document = {}) {
@@ -1229,6 +1235,12 @@ function OCRPanel({
   onRawOcrChange,
   onSaveRawOcr,
   savingRawOcr,
+  reviewCandidate,
+  correctedFields,
+  onCorrectedFieldsChange,
+  onConfirmCandidate,
+  onRetryCandidate,
+  reviewingCandidate,
 }) {
   const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
@@ -1286,6 +1298,77 @@ function OCRPanel({
         {iotOcrError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {iotOcrError}
+          </div>
+        )}
+
+        {reviewCandidate && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-900">OCR ready for admin review</p>
+                <p className="text-xs text-amber-700">Template: {reviewCandidate.template_id}</p>
+              </div>
+              <Badge className="bg-amber-100 text-amber-800 border-amber-200">Review required</Badge>
+            </div>
+
+            <div className="space-y-3">
+              {Object.entries(correctedFields || {}).map(([key, value]) => (
+                <label key={key} className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-600">
+                    {key.replaceAll('_', ' ')}
+                    {reviewCandidate.field_confidence?.[key] != null
+                      ? ` · ${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
+                      : ''}
+                  </span>
+                  {value && typeof value === 'object' ? (
+                    <Textarea
+                      value={JSON.stringify(value, null, 2)}
+                      onChange={(event) => {
+                        try {
+                          onCorrectedFieldsChange({
+                            ...correctedFields,
+                            [key]: JSON.parse(event.target.value),
+                          });
+                        } catch {
+                          // Keep the last valid structured value while JSON is incomplete.
+                        }
+                      }}
+                      className="min-h-[110px] bg-white font-mono text-sm"
+                    />
+                  ) : (
+                    <Input
+                      value={value ?? ''}
+                      onChange={(event) => onCorrectedFieldsChange({
+                        ...correctedFields,
+                        [key]: event.target.value,
+                      })}
+                      className="bg-white"
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+
+            {(reviewCandidate.validation_issues || []).length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-white p-3 text-sm text-amber-900">
+                {(reviewCandidate.validation_issues || []).map((issue, index) => (
+                  <p key={`${issue.code || 'issue'}-${index}`}>{issue.message || issue.code}</p>
+                ))}
+              </div>
+            )}
+
+            <details className="rounded-md border border-stone-200 bg-white p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-stone-700">Raw OCR</summary>
+              <pre className="mt-2 whitespace-pre-wrap text-xs text-stone-600">{reviewCandidate.raw_text}</pre>
+            </details>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry</Button>
+              <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+                {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Confirm OCR
+              </Button>
+            </div>
           </div>
         )}
 
@@ -2028,6 +2111,9 @@ export default function DocumentVerification() {
   const [iotOcrResults, setIotOcrResults] = useState({});
   const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
   const [savingRawOcr, setSavingRawOcr] = useState(false);
+  const [reviewCandidate, setReviewCandidate] = useState(null);
+  const [correctedFields, setCorrectedFields] = useState({});
+  const [reviewingCandidate, setReviewingCandidate] = useState(false);
 
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
@@ -2280,6 +2366,8 @@ export default function DocumentVerification() {
     if (!activeDoc) return;
     setComment(docComments[activeDoc.id] || '');
     setIotOcrError('');
+    setReviewCandidate(null);
+    setCorrectedFields({});
 
     if (!runningIotOcr) {
       setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
@@ -2327,6 +2415,35 @@ export default function DocumentVerification() {
     runningIotOcr,
     stopPolling,
   ]);
+
+  useEffect(() => {
+    const request = getActiveIotRequest(activeDoc);
+    if (!activeDoc || String(request?.status || '').toLowerCase() !== 'review_required') {
+      return;
+    }
+    const requestId = getIotOcrRequestId(request);
+    if (!requestId || reviewCandidate?.request_id === requestId) return;
+    let cancelled = false;
+    fetch(
+      `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr?request_id=${encodeURIComponent(requestId)}`,
+      { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store' }
+    )
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Failed to load OCR candidate');
+        return payload?.data?.candidate || null;
+      })
+      .then((candidate) => {
+        if (cancelled || !candidate) return;
+        setReviewCandidate(candidate);
+        setCorrectedFields(candidate.fields || {});
+        setRawOcrSnapshot(candidate.raw_text || '');
+      })
+      .catch((error) => {
+        if (!cancelled) setIotOcrError(error.message || 'Failed to load OCR candidate');
+      });
+    return () => { cancelled = true; };
+  }, [activeDoc, id, reviewCandidate?.request_id]);
 
   const handleCommentChange = (value) => {
     setComment(value);
@@ -2477,6 +2594,23 @@ export default function DocumentVerification() {
           const snapshotFresh = snapshot?.snapshot_fresh === true;
 
           if (latestRequestId === requestId) {
+            if (requestStatus === 'review_required') {
+              const candidateResponse = await fetch(
+                `${API_BASE}/api/applications/${id}/documents/${targetDocumentId}/iot-ocr?request_id=${encodeURIComponent(requestId)}`,
+                { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store' }
+              );
+              const candidatePayload = await candidateResponse.json().catch(() => ({}));
+              if (!candidateResponse.ok) throw new Error(candidatePayload.error || 'Failed to load OCR candidate');
+              const candidate = candidatePayload?.data?.candidate;
+              setReviewCandidate(candidate || null);
+              setCorrectedFields(candidate?.fields || {});
+              setRawOcrSnapshot(candidate?.raw_text || '');
+              await fetchApplicationDocuments({ soft: true });
+              stopPolling();
+              setRunningIotOcr(false);
+              return;
+            }
+
             if (requestStatus === 'completed' && snapshotFresh) {
               const freshOverride = buildIotOcrSnapshotOverride(snapshot);
               const freshDocument = {
@@ -2544,6 +2678,59 @@ export default function DocumentVerification() {
       stopPolling();
       setIotOcrError(getOcrFailureMessage(err));
       setRunningIotOcr(false);
+    }
+  };
+
+  const handleConfirmCandidate = async () => {
+    if (!activeDoc || !reviewCandidate) return;
+    try {
+      setReviewingCandidate(true);
+      setIotOcrError('');
+      const response = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/confirm`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ corrected_fields: correctedFields }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Failed to confirm OCR candidate');
+      setReviewCandidate(null);
+      setCorrectedFields({});
+      await fetchApplicationDocuments({ soft: true });
+    } catch (error) {
+      setIotOcrError(error.message || 'Failed to confirm OCR candidate');
+    } finally {
+      setReviewingCandidate(false);
+    }
+  };
+
+  const handleRetryCandidate = async () => {
+    if (!activeDoc || !reviewCandidate) return;
+    try {
+      setReviewingCandidate(true);
+      setIotOcrError('');
+      const response = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/retry`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Failed to retry OCR');
+      setReviewCandidate(null);
+      setCorrectedFields({});
+      setRunningIotOcr(true);
+      await fetchApplicationDocuments({ soft: true });
+    } catch (error) {
+      setIotOcrError(error.message || 'Failed to retry OCR');
+    } finally {
+      setReviewingCandidate(false);
     }
   };
 
@@ -2874,6 +3061,12 @@ export default function DocumentVerification() {
                   onRawOcrChange={setRawOcrSnapshot}
                   onSaveRawOcr={handleSaveRawOcr}
                   savingRawOcr={savingRawOcr}
+                  reviewCandidate={reviewCandidate}
+                  correctedFields={correctedFields}
+                  onCorrectedFieldsChange={setCorrectedFields}
+                  onConfirmCandidate={handleConfirmCandidate}
+                  onRetryCandidate={handleRetryCandidate}
+                  reviewingCandidate={reviewingCandidate}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -2889,6 +3082,12 @@ export default function DocumentVerification() {
                     onRawOcrChange={setRawOcrSnapshot}
                     onSaveRawOcr={handleSaveRawOcr}
                     savingRawOcr={savingRawOcr}
+                    reviewCandidate={reviewCandidate}
+                    correctedFields={correctedFields}
+                    onCorrectedFieldsChange={setCorrectedFields}
+                    onConfirmCandidate={handleConfirmCandidate}
+                    onRetryCandidate={handleRetryCandidate}
+                    reviewingCandidate={reviewingCandidate}
                   />
                 </div>
               )}

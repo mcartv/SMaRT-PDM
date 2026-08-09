@@ -1,51 +1,38 @@
-const fs = require('fs');
-const path = require('path');
 const pool = require('../config/db');
-
-const MIGRATION_PATH = path.resolve(
-    __dirname,
-    '../sql/20260804_fix_iot_ocr_request_and_snapshot_provenance.sql'
-);
 
 let schemaPromise = null;
 
-async function runMigration() {
-    const sql = fs.readFileSync(MIGRATION_PATH, 'utf8');
-    const client = await pool.connect();
-
-    try {
-        await client.query(sql);
-        console.log('IOT_OCR_SCHEMA_COMPATIBILITY=PASSED');
-    } catch (error) {
-        try {
-            await client.query('ROLLBACK');
-            console.log('IOT_OCR_SCHEMA_ROLLBACK=PASSED');
-        } catch (rollbackError) {
-            console.error('IOT_OCR_SCHEMA_ROLLBACK=FAILED', {
-                message: rollbackError.message,
-                code: rollbackError.code || null,
-            });
-        }
-
+async function verifyRuntimeSchema() {
+    const result = await pool.query(`
+        SELECT
+            to_regclass('public.iot_ocr_candidates') IS NOT NULL AS has_candidates,
+            to_regclass('public.iot_ocr_reviews') IS NOT NULL AS has_reviews,
+            EXISTS (
+                SELECT 1 FROM pg_trigger t
+                JOIN pg_class c ON c.oid = t.tgrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname = 'iot_ocr_candidates'
+                  AND t.tgname = 'trg_iot_ocr_candidates_immutable'
+                  AND NOT t.tgisinternal
+            ) AS has_immutability_trigger
+    `);
+    const row = result.rows[0] || {};
+    if (!row.has_candidates || !row.has_reviews || !row.has_immutability_trigger) {
+        const error = new Error('Canonical IoT OCR schema is not ready');
+        error.statusCode = 503;
         throw error;
-    } finally {
-        client.release();
     }
 }
 
 async function ensureIotOcrSchema() {
     if (!schemaPromise) {
-        schemaPromise = runMigration().catch((error) => {
+        schemaPromise = verifyRuntimeSchema().catch((error) => {
             schemaPromise = null;
-            error.message = `IoT OCR schema compatibility failed: ${error.message}`;
             throw error;
         });
     }
-
     return schemaPromise;
 }
 
-module.exports = {
-    MIGRATION_PATH,
-    ensureIotOcrSchema,
-};
+module.exports = { ensureIotOcrSchema, verifyRuntimeSchema };

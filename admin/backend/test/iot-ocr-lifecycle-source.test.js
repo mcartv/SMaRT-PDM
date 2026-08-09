@@ -1,21 +1,26 @@
 const fs = require('fs');
 const path = require('path');
+const test = require('node:test');
+const assert = require('node:assert/strict');
 
 function read(relativePath) {
     return fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
 }
 
-describe('IoT OCR durable lifecycle contract', () => {
-    test('backend and Pi expose active lifecycle states', () => {
-        const service = read('services/iotOcrRequestService.js');
-        const routes = read('routes/piIotOcrRoutes.js');
-        const migration = read('sql/20260804_fix_iot_ocr_request_and_snapshot_provenance.sql');
-        for (const status of ['previewing', 'focusing', 'capturing', 'processing']) {
-            expect(service).toContain(`'${status}'`);
-            expect(migration).toContain(`'${status}'`);
-        }
-        expect(service).toContain('updateRequestStatus');
-        expect(routes).toContain('/:requestId/status');
-        expect(service).not.toContain('Superseded by a newer IoT OCR request');
-    });
+test('backend, Pi, and canonical migration expose the durable lifecycle', () => {
+    const service = read('services/iotOcrRequestService.js');
+    const routes = read('routes/piIotOcrRoutes.js');
+    const migration = fs.readFileSync(
+        path.resolve(__dirname, '../../../supabase/migrations/20260809000100_canonical_iot_ocr_candidates.sql'),
+        'utf8'
+    );
+    for (const status of [
+        'pending', 'claimed', 'previewing', 'focusing', 'capturing', 'processing',
+        'review_required', 'completed', 'cancelled', 'failed', 'expired',
+    ]) {
+        assert.match(service, new RegExp(`'${status}'`));
+        assert.match(migration, new RegExp(`'${status}'`));
+    }
+    assert.match(service, /ALLOWED_TRANSITIONS/);
+    assert.match(routes, /\/:requestId\/status/);
 });

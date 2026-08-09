@@ -8,7 +8,7 @@ exports.getIotOcrSchemaStatus = async (_req, res) => {
         await ensureIotOcrSchema();
         return res.status(200).json({
             status: 'ok',
-            iot_ocr_fix: 'immutable-snapshot-provenance-v2',
+            iot_ocr_fix: 'canonical-review-candidate-v44',
         });
     } catch (err) {
         console.error('IOT OCR SCHEMA STATUS ERROR:', {
@@ -82,7 +82,13 @@ exports.submitIotOcrRequestResult = async (req, res) => {
             ocrConfidence: req.body?.ocr_confidence,
             extractedFields: req.body?.extracted_fields,
             sourcePayload: req.body?.source_payload,
+            templateId: req.body?.template_id,
+            fields: req.body?.fields,
+            fieldConfidence: req.body?.field_confidence,
+            validationIssues: req.body?.validation_issues,
+            processing: req.body?.processing,
             errorMessage: req.body?.error_message,
+            errorCode: req.body?.error_code,
             claimedBy: req.piAuth?.deviceId || null,
         });
 

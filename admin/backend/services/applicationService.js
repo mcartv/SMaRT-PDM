@@ -1758,6 +1758,35 @@ exports.runApplicationDocumentIotOcr = async ({
     };
 };
 
+exports.getApplicationDocumentIotOcr = async ({ applicationId, documentKey, requestId = null }) =>
+    iotOcrRequestService.getCandidate({ applicationId, documentKey, requestId });
+
+exports.confirmApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+    correctedFields,
+    reviewedBy,
+}) => iotOcrRequestService.confirmCandidate({
+    applicationId,
+    documentKey,
+    requestId,
+    correctedFields,
+    reviewedBy,
+});
+
+exports.retryApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+    requestedBy,
+}) => iotOcrRequestService.retryRequest({
+    applicationId,
+    documentKey,
+    requestId,
+    requestedBy,
+});
+
 exports.fetchApplicationDocumentOcrSnapshot = async ({
     applicationId,
     documentKey,
@@ -2852,6 +2881,9 @@ module.exports = {
     runApplicationDocumentIotOcr: exports.runApplicationDocumentIotOcr,
     fetchApplicationDocumentOcrSnapshot: exports.fetchApplicationDocumentOcrSnapshot,
     saveApplicationDocumentOcrSnapshot: exports.saveApplicationDocumentOcrSnapshot,
+    getApplicationDocumentIotOcr: exports.getApplicationDocumentIotOcr,
+    confirmApplicationDocumentIotOcr: exports.confirmApplicationDocumentIotOcr,
+    retryApplicationDocumentIotOcr: exports.retryApplicationDocumentIotOcr,
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,

@@ -251,7 +251,7 @@ class ApiClient:
                 log.warning(
                     "update_status attempt %s failed request=%s status=%s: %s",
                     attempt,
-                    request_id,
+                    request_id[:8],
                     status,
                     exc,
                 )
@@ -283,24 +283,17 @@ class ApiClient:
             "error_message": error_message,
         }
 
-        if (
-            payload["status"] == "review_required"
-            and isinstance(payload["source_payload"], dict)
-            and payload["source_payload"].get("mode")
-            in {
-                "birth_certificate_pipeline",
-                "indigency_structured_pipeline",
-            }
-            and payload["source_payload"].get(
-                "manual_review_required"
-            )
-            is True
-        ):
-            payload["source_payload"] = dict(
-                payload["source_payload"],
-                worker_status="review_required",
-            )
-            payload["status"] = "completed"
+        if payload["status"] == "review_required":
+            structured = payload["extracted_fields"]
+            payload.update({
+                "document_key": structured.get("document_key"),
+                "template_id": structured.get("template_id", "unknown"),
+                "fields": structured.get("fields", {}),
+                "field_confidence": structured.get("field_confidence", {}),
+                "validation_issues": structured.get("validation_issues", []),
+                "review_required": True,
+                "processing": payload["source_payload"],
+            })
 
         try:
             response = self.session.post(

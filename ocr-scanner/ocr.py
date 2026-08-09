@@ -10,6 +10,7 @@ from typing import Optional
 
 import cv2
 import pytesseract
+from pytesseract import Output
 
 
 CAPTURE_FILE = "/tmp/raw_capture.jpg"
@@ -30,6 +31,11 @@ OCR_SAVE_PROCESSED_DEBUG = (
     ).strip().lower()
     in {"1", "true", "yes", "on"}
 )
+LAST_OCR_CONFIDENCE: Optional[float] = None
+
+
+def get_last_ocr_confidence() -> Optional[float]:
+    return LAST_OCR_CONFIDENCE
 
 
 def fast_preprocess(
@@ -97,6 +103,8 @@ def extract_text(
             else timeout_seconds
         ),
     )
+    global LAST_OCR_CONFIDENCE
+    LAST_OCR_CONFIDENCE = None
     print("\nProcessing OCR...")
 
     try:
@@ -110,16 +118,37 @@ def extract_text(
         }
 
         try:
-            text = pytesseract.image_to_string(
+            data = pytesseract.image_to_data(
                 processed,
                 timeout=resolved_timeout,
+                output_type=Output.DICT,
                 **kwargs,
             )
         except TypeError:
-            text = pytesseract.image_to_string(
+            data = pytesseract.image_to_data(
                 processed,
+                output_type=Output.DICT,
                 **kwargs,
             )
+
+        words = []
+        confidences = []
+        for word, raw_confidence in zip(data.get("text", []), data.get("conf", [])):
+            normalized = str(word or "").strip()
+            try:
+                confidence = float(raw_confidence)
+            except (TypeError, ValueError):
+                continue
+            if not normalized or confidence < 0:
+                continue
+            words.append(normalized)
+            confidences.append(confidence)
+        text = " ".join(words)
+        LAST_OCR_CONFIDENCE = (
+            sum(confidences) / len(confidences)
+            if confidences
+            else None
+        )
 
         elapsed = time.monotonic() - started_at
 

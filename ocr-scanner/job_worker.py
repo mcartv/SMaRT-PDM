@@ -14,6 +14,7 @@ Flow:
 import logging
 import os
 import signal
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -30,6 +31,7 @@ except ImportError:  # pragma: no cover - test/runtime fallback
 
 from api import ApiClient
 from capture_session import CANCELLED, CAPTURED, CaptureSessionResult, run_capture_session
+from camera import CameraController
 from document_contracts import (
     build_birth_extracted_fields_from_ocr_result,
     build_extracted_fields,
@@ -43,7 +45,8 @@ from extraction.indigency_core_field_extraction import (
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
-from ocr import extract_text
+from ocr import extract_text, get_last_ocr_confidence
+from pipeline.result_serializer import candidate_from_worker_payload
 
 WORKER_ENV_PATH = Path(__file__).resolve().with_name(".env")
 load_dotenv(dotenv_path=WORKER_ENV_PATH, override=True)
@@ -406,7 +409,7 @@ def _run_birth_certificate_scan(
         raw_text = extracted_fields["raw_text"]
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
-        status = ocr_result.status
+        status = "review_required" if ocr_result.success else "failed"
         error_message = None if ocr_result.success else "Birth OCR adapter failed."
 
         payload = {
@@ -442,7 +445,7 @@ def _run_birth_certificate_scan(
             },
             "error_message": error_message,
         }
-        return status != "failed", payload
+        return status == "review_required", payload
     except Exception:
         return False, {
             "status": "failed",
@@ -603,7 +606,7 @@ def _run_generic_document_scan(
     extracted_fields = build_extracted_fields(document_key, raw_text)
     contract = get_contract(document_key)
     if raw_text:
-        status = "completed"
+        status = "review_required"
         error_message = None
     else:
         status = "failed"
@@ -614,7 +617,7 @@ def _run_generic_document_scan(
         extraction_status = "not_started"
         extraction_issue_codes: list[str] = []
         extraction_seconds = 0.0
-        if status == "completed":
+        if status == "review_required":
             try:
                 source_image = _load_registered_image(capture_path)
                 if source_image is None:
@@ -728,7 +731,10 @@ def _run_generic_document_scan(
     payload = {
         "status": status,
         "raw_text": raw_text,
-        "ocr_confidence": 0.99 if raw_text else None,
+        "ocr_confidence": get_last_ocr_confidence(),
+        "field_confidence": {
+            "_document": get_last_ocr_confidence(),
+        },
         "extracted_fields": extracted_fields,
         "source_payload": {
             "source": "pi-worker-iot-ocr-request",
@@ -755,7 +761,7 @@ def _run_generic_document_scan(
         "error_message": error_message,
     }
 
-    return status == "completed", payload
+    return status == "review_required", payload
 
 
 def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
@@ -763,7 +769,13 @@ def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
     document_key = str(request.get("document_key") or "unknown")
     log.info("Starting capture request=%s document=%s", request_ref, document_key)
 
+    workspace = Path("/tmp/smart-pdm") / get_request_id(request)
+    workspace.mkdir(parents=True, exist_ok=True)
+    camera = CameraController()
+    camera.capture_file = str(workspace / "capture.jpg")
+
     capture_result = run_capture_session(
+        camera=camera,
         should_stop=_shutdown_requested.is_set,
         on_status=status_callback,
     )
@@ -774,21 +786,43 @@ def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
             capture_result.status,
             capture_result.error_code or "none",
         )
-        return _capture_outcome_payload(request, capture_result)
+        success, payload = _capture_outcome_payload(request, capture_result)
+        payload["_workspace"] = str(workspace)
+        return success, payload
 
     if status_callback:
         status_callback('processing')
 
     if _is_birth_certificate_job(request):
-        return _run_birth_certificate_scan(request, capture_result.capture_path)
-    return _run_generic_document_scan(request, capture_result.capture_path)
+        success, payload = _run_birth_certificate_scan(request, capture_result.capture_path)
+    else:
+        success, payload = _run_generic_document_scan(request, capture_result.capture_path)
+    payload["_workspace"] = str(workspace)
+    return success, payload
 
 
-def submit_and_verify(api: ApiClient, request_id: str, payload: Dict) -> bool:
+def submit_and_verify(api: ApiClient, request_id: str, payload: Dict, request=None) -> bool:
     request_ref = _safe_request_ref(request_id)
     log.info("Submitting result request=%s status=%s", request_ref, payload.get("status"))
 
-    response = api.submit_result(
+    workspace = payload.pop("_workspace", None)
+    if payload.get("status") == "review_required":
+        candidate = candidate_from_worker_payload(request or {"request_id": request_id}, payload).serialize()
+        response = api.submit_result(
+            job_id=request_id,
+            status="review_required",
+            raw_text=candidate["raw_text"],
+            extracted_fields={
+                "template_id": candidate["template_id"],
+                "document_key": candidate["document_key"],
+                "fields": candidate["fields"],
+                "field_confidence": candidate["field_confidence"],
+                "validation_issues": candidate["validation_issues"],
+            },
+            source_payload=candidate["processing"],
+        )
+    else:
+        response = api.submit_result(
         job_id=request_id,
         status=payload.get("status"),
         raw_text=payload.get("raw_text"),
@@ -796,13 +830,15 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict) -> bool:
         extracted_fields=payload.get("extracted_fields"),
         source_payload=payload.get("source_payload"),
         error_message=payload.get("error_message"),
-    )
+        )
 
     if not response:
         log.error("Result submission failed request=%s", request_ref)
         return False
 
     log.info("Result submitted request=%s", request_ref)
+    if workspace:
+        shutil.rmtree(workspace, ignore_errors=True)
     return True
 
 
@@ -853,7 +889,7 @@ def main():
                     )
 
             _success, payload = run_scan(request, status_callback=report_status)
-            submit_and_verify(api, request_id, payload)
+            submit_and_verify(api, request_id, payload, request=request)
 
         except KeyboardInterrupt:
             _shutdown_requested.set()

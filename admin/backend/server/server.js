@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
 
@@ -495,12 +496,7 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`WebSocket enabled at ws://localhost:${PORT}`);
-  console.log('Allowed origins:', allowedOrigins);
-  console.log('Allowed origin suffixes:', allowedOriginSuffixes);
-});
+global._applicationStartupReady = false;
 
 // =========================
 // SCHEDULER
@@ -529,6 +525,7 @@ if (!global._announcementSchedulerRunning) {
   let schedulerBusy = false;
 
   const runSchedulers = async () => {
+    if (!global._applicationStartupReady) return;
     if (schedulerBusy) return;
 
     schedulerBusy = true;
@@ -567,3 +564,22 @@ if (!global._announcementSchedulerRunning) {
 
   setInterval(runSchedulers, 10000);
 }
+
+async function startServer() {
+  try {
+    await ensureCanonicalIotOcrMigration();
+    global._applicationStartupReady = true;
+
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`WebSocket enabled at ws://localhost:${PORT}`);
+      console.log('Allowed origins:', allowedOrigins);
+      console.log('Allowed origin suffixes:', allowedOriginSuffixes);
+    });
+  } catch (error) {
+    console.error('SERVER_START_BLOCKED_BY_MIGRATION', { message: error.message });
+    process.exit(1);
+  }
+}
+
+startServer();

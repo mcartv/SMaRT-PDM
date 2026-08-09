@@ -11,11 +11,14 @@ const MIGRATION_PATH = path.resolve(
 function migrationConnectionString() {
   const dedicated = String(process.env.MIGRATION_DATABASE_URL || '').trim();
   if (dedicated) return dedicated;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('MIGRATION_DATABASE_URL is required in production.');
-  }
   const fallback = String(process.env.DATABASE_URL || '').trim();
   if (!fallback) throw new Error('MIGRATION_DATABASE_URL/DATABASE_URL is required.');
+  if (process.env.NODE_ENV === 'production') {
+    console.warn(
+      'IOT_OCR_MIGRATION_CONNECTION=DATABASE_URL_FALLBACK; ' +
+      'set MIGRATION_DATABASE_URL to separate DDL and runtime privileges.'
+    );
+  }
   return fallback;
 }
 
@@ -148,6 +151,7 @@ async function ensureCanonicalIotOcrMigration() {
 
 module.exports = {
   ensureCanonicalIotOcrMigration,
+  migrationConnectionString,
   migrationBody,
   MIGRATION_KEY,
   MIGRATION_PATH,

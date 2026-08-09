@@ -114,7 +114,65 @@ test('text-only contract recursively rejects image fields', () => {
     );
 });
 
-test('review_required is not Pi-active and only transitions to completed', () => {
+test('review_required is not Pi-active and can complete or expire', () => {
     assert.equal(service.PI_ACTIVE_STATUSES.includes('review_required'), false);
-    assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed']);
+    assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'expired']);
+});
+
+test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
+    const candidate = {
+        student_number: { raw_text: '2023-001234', normalized_value: '2023-001234' },
+        student_name: { raw_text: 'JUAN DELA CRUZ', normalized_value: 'JUAN DELA CRUZ' },
+        course: { raw_text: 'BSIT', normalized_value: 'BSIT' },
+        semester: { raw_text: '1st Semester', normalized_value: '1st Semester' },
+        academic_year: { raw_text: '2025-2026', normalized_value: '2025-2026' },
+        gwa: { raw_text: '1.63', normalized_value: '1.63' },
+        subjects: [],
+    };
+    const verified = service.validateConfirmedDocumentFields(
+        'student_grade_forms',
+        { ...candidate, student_name: 'JUAN S. DELA CRUZ', gwa: '1.63' },
+        candidate
+    );
+    assert.equal(verified.student_name, 'JUAN S. DELA CRUZ');
+    assert.equal(verified.gwa, '1.63');
+    assert.throws(
+        () => service.validateConfirmedDocumentFields(
+            'student_grade_forms',
+            { ...candidate, gwa: '1.75' },
+            candidate
+        ),
+        /GWA is read-only/
+    );
+});
+
+test('grade confirmation rejects an invalid Tesseract GWA', () => {
+    assert.throws(() => service.normalizeGwa('N/A'), /1.00 to 5.00/);
+    assert.throws(() => service.normalizeGwa('5.50'), /1.00 to 5.00/);
+});
+
+test('same-state Pi update is treated as a processing heartbeat', async () => {
+    const row = requestRow({ status: 'processing' });
+    activeClient = {
+        calls: [],
+        async query(sql) {
+            const normalized = String(sql).replace(/\s+/g, ' ').trim();
+            this.calls.push(normalized);
+            if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(normalized)) return { rows: [] };
+            if (normalized.startsWith('SELECT * FROM public.iot_ocr_requests')) return { rows: [row] };
+            if (normalized.includes('SET processing_heartbeat_at = NOW()')) {
+                return { rows: [{ ...row, processing_heartbeat_at: new Date().toISOString() }] };
+            }
+            return { rows: [] };
+        },
+        release() {},
+    };
+
+    const result = await service.updateRequestStatus({
+        requestId: REQUEST_UUID,
+        status: 'processing',
+        claimedBy: DEVICE_UUID,
+    });
+    assert.ok(result.processing_heartbeat_at);
+    assert.ok(activeClient.calls.some((sql) => sql.includes('SET processing_heartbeat_at = NOW()')));
 });

@@ -23,13 +23,21 @@ from types import ModuleType
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_UID = getattr(os, "getuid", lambda: 0)()
 STATE_PATH = Path(
     os.environ.get(
         "SMART_PDM_OCR_STATE_PATH",
-        f"/run/user/{os.getuid()}/smart_pdm/ocr_state.json",
+        f"/run/user/{RUNTIME_UID}/smart_pdm/ocr_state.json",
     )
 )
 LOG_PATH = STATE_PATH.parent / "gui_state_bridge.log"
+ACTIVITY_PATH = Path(
+    os.environ.get(
+        "SMART_PDM_OCR_ACTIVITY_PATH",
+        str(STATE_PATH.parent / "worker_activity.json"),
+    )
+)
+ACTIVITY_FRESH_SECONDS = 15
 
 _running = True
 
@@ -88,6 +96,18 @@ def build_contract_payload(
     sequence: int,
     active: bool,
 ) -> dict[str, Any]:
+    if active and ACTIVITY_PATH.exists():
+        try:
+            age = time.time() - ACTIVITY_PATH.stat().st_mtime
+            activity = json.loads(ACTIVITY_PATH.read_text(encoding="utf-8"))
+            if age <= ACTIVITY_FRESH_SECONDS and isinstance(activity, dict):
+                required = {"schema_version", "worker_state", "camera_status", "safe_message", "updated_at"}
+                if required.issubset(activity):
+                    activity["sequence"] = sequence
+                    return activity
+        except (OSError, ValueError, TypeError):
+            pass
+
     candidate_values: dict[str, Any] = {
         "sequence": sequence,
         "worker_state": "idle" if active else "failed",
@@ -188,7 +208,7 @@ def atomic_write(payload: dict[str, Any]) -> None:
 
     parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 
-    if parent.stat().st_uid != os.getuid():
+    if hasattr(parent.stat(), "st_uid") and parent.stat().st_uid != RUNTIME_UID:
         raise RuntimeError("State directory has the wrong owner")
 
     os.chmod(parent, 0o700)
@@ -199,7 +219,7 @@ def atomic_write(payload: dict[str, Any]) -> None:
         if STATE_PATH.is_symlink():
             raise RuntimeError("State file cannot be a symbolic link")
 
-        if file_stat.st_uid != os.getuid():
+        if hasattr(file_stat, "st_uid") and file_stat.st_uid != RUNTIME_UID:
             raise RuntimeError("State file has the wrong owner")
 
     descriptor, temporary_name = tempfile.mkstemp(

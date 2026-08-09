@@ -3,6 +3,11 @@ const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const { resolveActorUserId } = require('../utils/iotOcrIdentity');
 const ExcelJS = require('exceljs');
+const iotOcrPresenceService = require('../services/iotOcrPresenceService');
+
+exports.getIotOcrAvailability = async (_req, res) => {
+    return res.status(200).json({ data: iotOcrPresenceService.getAvailability() });
+};
 
 function isApprovalStateError(message) {
     return [

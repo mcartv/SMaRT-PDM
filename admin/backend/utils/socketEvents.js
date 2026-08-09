@@ -141,6 +141,7 @@ const socketEvents = {
     applicationDocumentUploaded: (io, data) => emitEvent(io, 'application-document:uploaded', data),
     applicationDocumentReviewed: (io, data) => emitEvent(io, 'application-document:reviewed', data),
     applicationOcrQueued: (io, data) => emitEvent(io, 'application-ocr:queued', data),
+    applicationOcrStatus: (io, data) => emitEvent(io, 'application-ocr:status', data),
     applicationOcrSnapshotSaved: (io, data) => emitEvent(io, 'application-ocr:snapshot-saved', data),
 
     /** Scholars and renewals. */

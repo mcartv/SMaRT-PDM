@@ -2,6 +2,7 @@ const iotOcrRequestService = require('../services/iotOcrRequestService');
 const { ensureIotOcrSchema } = require('../services/iotOcrSchemaService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 
 exports.getIotOcrSchemaStatus = async (_req, res) => {
     try {
@@ -28,6 +29,7 @@ exports.getIotOcrSchemaStatus = async (_req, res) => {
 
 exports.getNextIotOcrRequest = async (req, res) => {
     try {
+        iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
         const result = await iotOcrRequestService.claimNextRequest({
             claimedBy: req.piAuth?.deviceId || null,
         });
@@ -55,10 +57,20 @@ exports.getNextIotOcrRequest = async (req, res) => {
 
 exports.updateIotOcrRequestStatus = async (req, res) => {
     try {
+        iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
         const result = await iotOcrRequestService.updateRequestStatus({
             requestId: req.params.requestId,
             status: req.body?.status,
             claimedBy: req.piAuth?.deviceId || null,
+        });
+
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: result.request_id,
+            application_id: result.application_id,
+            document_key: result.document_key,
+            status: result.status,
+            expires_at: result.expires_at,
+            updated_at: result.updated_at,
         });
 
         res.status(200).json({
@@ -75,6 +87,7 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
 
 exports.submitIotOcrRequestResult = async (req, res) => {
     try {
+        iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
         const result = await iotOcrRequestService.completeRequest({
             requestId: req.params.requestId,
             status: req.body?.status,
@@ -90,6 +103,16 @@ exports.submitIotOcrRequestResult = async (req, res) => {
             errorMessage: req.body?.error_message,
             errorCode: req.body?.error_code,
             claimedBy: req.piAuth?.deviceId || null,
+        });
+
+        const request = result.request || result;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            status: request.status,
+            expires_at: request.expires_at,
+            updated_at: request.updated_at,
         });
 
         return res.status(200).json({

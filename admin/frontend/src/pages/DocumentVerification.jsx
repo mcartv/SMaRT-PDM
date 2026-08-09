@@ -1224,6 +1224,32 @@ function DocumentPreviewPanel({ activeDoc, application }) {
   );
 }
 
+const GRADE_REVIEW_FIELDS = [
+  ['student_number', 'Student Number'],
+  ['student_name', 'Student Name'],
+  ['course', 'Course'],
+  ['semester', 'Semester'],
+  ['academic_year', 'Academic Year'],
+];
+
+function ocrFieldValue(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value.normalized_value ?? value.raw_text ?? value.value ?? '';
+  }
+  return value ?? '';
+}
+
+function normalizeReviewFields(candidate) {
+  const fields = candidate?.fields || {};
+  if (candidate?.document_key !== 'student_grade_forms') return fields;
+  return {
+    ...fields,
+    ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [key, ocrFieldValue(fields[key])])),
+    gwa: ocrFieldValue(fields.gwa),
+    subjects: Array.isArray(fields.subjects) ? fields.subjects : [],
+  };
+}
+
 function OCRPanel({
   activeDoc,
   extractedData,
@@ -1241,9 +1267,13 @@ function OCRPanel({
   onConfirmCandidate,
   onRetryCandidate,
   reviewingCandidate,
+  piOnline,
+  piAvailabilityChecked,
 }) {
   const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
+  const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
+  const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -1261,7 +1291,7 @@ function OCRPanel({
             variant="outline"
             size="sm"
             onClick={onRunIotOcr}
-            disabled={!canRunIotOcr || runningIotOcr}
+            disabled={!canRunIotOcr || runningIotOcr || !piOnline}
             className="h-8 rounded-lg border-stone-200 text-xs"
           >
             {runningIotOcr ? (
@@ -1272,7 +1302,7 @@ function OCRPanel({
             ) : (
               <>
                 <ScanText className="w-3.5 h-3.5 mr-1.5" />
-                Use IoT OCR
+                {piAvailabilityChecked && !piOnline ? 'Pi OCR Offline' : 'Use IoT OCR'}
               </>
             )}
           </Button>
@@ -1301,7 +1331,86 @@ function OCRPanel({
           </div>
         )}
 
-        {reviewCandidate && (
+        {isGradeReview && (
+          <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-base font-bold tracking-wide text-stone-900">GRADE FORM OCR</p>
+                <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
+              </div>
+              <Badge className={gradeReviewCompleted
+                ? 'border-green-200 bg-green-100 text-green-800'
+                : 'border-blue-200 bg-blue-100 text-blue-800'}>
+                {gradeReviewCompleted ? 'OCR confirmed' : 'Review required'}
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              {GRADE_REVIEW_FIELDS.map(([key, label]) => (
+                <label key={key} className="grid gap-1 sm:grid-cols-[130px_1fr_70px] sm:items-center">
+                  <span className="text-sm font-semibold text-stone-700">{label}</span>
+                  <Input
+                    value={ocrFieldValue(correctedFields?.[key])}
+                    readOnly={gradeReviewCompleted}
+                    onChange={(event) => onCorrectedFieldsChange({
+                      ...correctedFields,
+                      [key]: event.target.value,
+                    })}
+                    className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
+                  />
+                  <span className="text-right text-xs font-semibold text-blue-700">
+                    {reviewCandidate.field_confidence?.[key] != null
+                      ? `${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
+                      : '—'}
+                  </span>
+                </label>
+              ))}
+
+              <div className="grid gap-1 border-t border-blue-200 pt-3 sm:grid-cols-[130px_1fr_70px] sm:items-center">
+                <span className="text-sm font-bold text-stone-800">GWA</span>
+                <Input
+                  value={ocrFieldValue(correctedFields?.gwa)}
+                  readOnly
+                  aria-label="Detected GWA (read only)"
+                  className="bg-stone-100 font-bold text-stone-900"
+                />
+                <span className="text-right text-xs font-semibold text-blue-700">
+                  {reviewCandidate.field_confidence?.gwa != null
+                    ? `${Number(reviewCandidate.field_confidence.gwa).toFixed(1)}%`
+                    : '—'}
+                </span>
+              </div>
+            </div>
+
+            {(reviewCandidate.validation_issues || []).length > 0 && (
+              <details className="rounded-md border border-amber-200 bg-white p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-amber-800">Validation Issues</summary>
+                <div className="mt-2 text-sm text-amber-900">
+                  {(reviewCandidate.validation_issues || []).map((issue, index) => (
+                    <p key={`${issue.code || 'issue'}-${index}`}>{issue.message || issue.code}</p>
+                  ))}
+                </div>
+              </details>
+            )}
+
+            <details className="rounded-md border border-stone-200 bg-white p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-stone-700">Raw OCR</summary>
+              <pre className="mt-2 whitespace-pre-wrap text-xs text-stone-600">{reviewCandidate.raw_text}</pre>
+            </details>
+
+            {!gradeReviewCompleted && (
+              <div className="flex justify-between gap-2">
+                <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
+                <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+                  {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirm OCR
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {reviewCandidate && !isGradeReview && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1372,7 +1481,7 @@ function OCRPanel({
           </div>
         )}
 
-        <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+        {activeDoc?.id !== 'student_grade_forms' && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-4 h-4 text-green-600" />
             <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
@@ -1401,7 +1510,7 @@ function OCRPanel({
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
@@ -2114,6 +2223,8 @@ export default function DocumentVerification() {
   const [reviewCandidate, setReviewCandidate] = useState(null);
   const [correctedFields, setCorrectedFields] = useState({});
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
+  const [piOnline, setPiOnline] = useState(false);
+  const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
 
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
@@ -2231,6 +2342,33 @@ export default function DocumentVerification() {
   );
 
   useSocketEvent(
+    'application-ocr:status',
+    (data = {}) => {
+      if (String(data.application_id || '') !== String(id || '')) return;
+      const documentId = data.document_key;
+      if (!documentId || !data.request_id) return;
+      setIotOcrResults((current) => {
+        const existing = current[documentId] || {};
+        const existingRequest = existing.iot_ocr_request || existing.ocr_job || {};
+        if (existingRequest.request_id && existingRequest.request_id !== data.request_id) {
+          return current;
+        }
+        const request = { ...existingRequest, ...data };
+        return {
+          ...current,
+          [documentId]: {
+            ...existing,
+            iot_ocr_request: request,
+            ocr_job: request,
+          },
+        };
+      });
+      fetchApplicationDocuments({ soft: true });
+    },
+    [id, fetchApplicationDocuments]
+  );
+
+  useSocketEvent(
     'application-ocr:snapshot-saved',
     refreshCurrentDocumentVerification,
     [refreshCurrentDocumentVerification]
@@ -2257,6 +2395,30 @@ export default function DocumentVerification() {
   useEffect(() => {
     fetchApplicationDocuments();
   }, [fetchApplicationDocuments]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkPiAvailability = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/applications/iot-ocr/availability`, {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!cancelled) setPiOnline(response.ok && payload?.data?.online === true);
+      } catch {
+        if (!cancelled) setPiOnline(false);
+      } finally {
+        if (!cancelled) setPiAvailabilityChecked(true);
+      }
+    };
+    checkPiAvailability();
+    const timer = window.setInterval(checkPiAvailability, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2366,13 +2528,15 @@ export default function DocumentVerification() {
     if (!activeDoc) return;
     setComment(docComments[activeDoc.id] || '');
     setIotOcrError('');
-    setReviewCandidate(null);
-    setCorrectedFields({});
+    if (reviewCandidate && reviewCandidate.document_key !== activeDoc.id) {
+      setReviewCandidate(null);
+      setCorrectedFields({});
+    }
 
-    if (!runningIotOcr) {
+    if (!runningIotOcr && reviewCandidate?.document_key !== activeDoc.id) {
       setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
     }
-  }, [activeDoc, application, docComments, runningIotOcr]);
+  }, [activeDoc, application, docComments, runningIotOcr, reviewCandidate?.document_key]);
 
   useEffect(() => {
     setIotOcrError('');
@@ -2418,7 +2582,11 @@ export default function DocumentVerification() {
 
   useEffect(() => {
     const request = getActiveIotRequest(activeDoc);
-    if (!activeDoc || String(request?.status || '').toLowerCase() !== 'review_required') {
+    const requestStatus = String(request?.status || '').toLowerCase();
+    const shouldLoadCandidate = requestStatus === 'review_required' || (
+      activeDoc?.id === 'student_grade_forms' && requestStatus === 'completed'
+    );
+    if (!activeDoc || !shouldLoadCandidate) {
       return;
     }
     const requestId = getIotOcrRequestId(request);
@@ -2436,7 +2604,7 @@ export default function DocumentVerification() {
       .then((candidate) => {
         if (cancelled || !candidate) return;
         setReviewCandidate(candidate);
-        setCorrectedFields(candidate.fields || {});
+        setCorrectedFields(normalizeReviewFields(candidate));
         setRawOcrSnapshot(candidate.raw_text || '');
       })
       .catch((error) => {
@@ -2603,7 +2771,7 @@ export default function DocumentVerification() {
               if (!candidateResponse.ok) throw new Error(candidatePayload.error || 'Failed to load OCR candidate');
               const candidate = candidatePayload?.data?.candidate;
               setReviewCandidate(candidate || null);
-              setCorrectedFields(candidate?.fields || {});
+              setCorrectedFields(normalizeReviewFields(candidate));
               setRawOcrSnapshot(candidate?.raw_text || '');
               await fetchApplicationDocuments({ soft: true });
               stopPolling();
@@ -2699,8 +2867,26 @@ export default function DocumentVerification() {
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Failed to confirm OCR candidate');
-      setReviewCandidate(null);
-      setCorrectedFields({});
+      const result = payload?.data || {};
+      const verifiedFields = result.verified_fields || correctedFields;
+      const applicationPatch = result.application_patch || {};
+      setReviewCandidate({
+        ...reviewCandidate,
+        status: 'completed',
+        review_required: false,
+        fields: verifiedFields,
+      });
+      setCorrectedFields(normalizeReviewFields({
+        ...reviewCandidate,
+        document_key: activeDoc.id,
+        fields: verifiedFields,
+      }));
+      if (applicationPatch?.student) {
+        setApplication((current) => ({
+          ...current,
+          student: { ...(current?.student || {}), ...applicationPatch.student },
+        }));
+      }
       await fetchApplicationDocuments({ soft: true });
     } catch (error) {
       setIotOcrError(error.message || 'Failed to confirm OCR candidate');
@@ -3067,6 +3253,8 @@ export default function DocumentVerification() {
                   onConfirmCandidate={handleConfirmCandidate}
                   onRetryCandidate={handleRetryCandidate}
                   reviewingCandidate={reviewingCandidate}
+                  piOnline={piOnline}
+                  piAvailabilityChecked={piAvailabilityChecked}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -3088,6 +3276,8 @@ export default function DocumentVerification() {
                     onConfirmCandidate={handleConfirmCandidate}
                     onRetryCandidate={handleRetryCandidate}
                     reviewingCandidate={reviewingCandidate}
+                    piOnline={piOnline}
+                    piAvailabilityChecked={piAvailabilityChecked}
                   />
                 </div>
               )}

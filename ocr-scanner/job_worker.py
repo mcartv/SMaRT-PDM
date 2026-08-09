@@ -12,6 +12,7 @@ Flow:
 """
 
 import logging
+import json
 import os
 import signal
 import shutil
@@ -47,11 +48,24 @@ from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
 from ocr import extract_text, get_last_ocr_confidence
 from pipeline.result_serializer import candidate_from_worker_payload
+from pipeline.grade_form_v1 import scan_grade_form
+from runtime.worker_state import build_worker_state
 
 WORKER_ENV_PATH = Path(__file__).resolve().with_name(".env")
 load_dotenv(dotenv_path=WORKER_ENV_PATH, override=True)
 
-POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "1"))
+POLL_INTERVAL_SECONDS = max(
+    0.10,
+    float(os.getenv("POLL_INTERVAL_SECONDS", "0.20")),
+)
+HEARTBEAT_INTERVAL_SECONDS = max(
+    3,
+    int(os.getenv("IOT_OCR_HEARTBEAT_INTERVAL_SECONDS", "5")),
+)
+WORKSPACE_RETENTION_SECONDS = max(
+    3600,
+    int(os.getenv("IOT_OCR_WORKSPACE_RETENTION_SECONDS", "86400")),
+)
 FAST_REVIEW_OCR_ENABLED = (
     os.getenv("FAST_REVIEW_OCR_ENABLED", "true").strip().lower()
     not in {"0", "false", "no", "off"}
@@ -77,6 +91,46 @@ logging.basicConfig(
 )
 log = logging.getLogger("iot-worker")
 _shutdown_requested = threading.Event()
+RUNTIME_UID = getattr(os, "getuid", lambda: 0)()
+WORKER_ACTIVITY_PATH = Path(
+    os.getenv(
+        "SMART_PDM_OCR_ACTIVITY_PATH",
+        f"/run/user/{RUNTIME_UID}/smart_pdm/worker_activity.json",
+    )
+)
+_state_sequence = 0
+
+
+def publish_worker_activity(state: str, *, request=None, camera_status="unknown") -> None:
+    global _state_sequence
+    _state_sequence += 1
+    request = request or {}
+    snapshot = build_worker_state(
+        sequence=_state_sequence,
+        worker_state=state,
+        request_reference=get_request_id(request),
+        application_reference=request.get("application_id"),
+        document_key=request.get("document_key"),
+        camera_status=camera_status,
+    ).to_dict()
+    try:
+        WORKER_ACTIVITY_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temporary = WORKER_ACTIVITY_PATH.with_suffix(".tmp")
+        temporary.write_text(json.dumps(snapshot), encoding="utf-8")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, WORKER_ACTIVITY_PATH)
+    except OSError:
+        log.warning("Unable to publish local OCR worker state")
+
+
+def lifecycle_worker_state(status: str) -> tuple[str, str]:
+    return {
+        "claimed": ("request_claimed", "checking"),
+        "previewing": ("waiting_for_capture", "preview_active"),
+        "focusing": ("capturing", "capture_in_progress"),
+        "capturing": ("capturing", "capture_in_progress"),
+        "processing": ("running_ocr", "captured"),
+    }.get(status, ("idle", "ready"))
 
 
 def clear_tmp_files() -> None:
@@ -86,6 +140,22 @@ def clear_tmp_files() -> None:
                 file.write("")
         except Exception as exc:
             log.warning("Failed clearing %s: %s", path, exc)
+
+
+def cleanup_expired_workspaces(now: float | None = None) -> int:
+    root = Path("/tmp/smart-pdm")
+    if not root.exists():
+        return 0
+    cutoff = (time.time() if now is None else now) - WORKSPACE_RETENTION_SECONDS
+    removed = 0
+    for directory in root.iterdir():
+        try:
+            if directory.is_dir() and directory.stat().st_mtime < cutoff:
+                shutil.rmtree(directory, ignore_errors=True)
+                removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 def write_text_file(path: str, text: str) -> None:
@@ -764,7 +834,57 @@ def _run_generic_document_scan(
     return status == "review_required", payload
 
 
-def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
+def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
+    """Run one preprocessed Tesseract pass and reuse it for registration/fields."""
+    request_id = get_request_id(request)
+    started_at = time.monotonic()
+    try:
+        result = scan_grade_form(capture_path)
+    except Exception:
+        log.exception(
+            "Grade form OCR failed request=%s",
+            _safe_request_ref(request_id),
+        )
+        result = None
+
+    matched = bool(result and result.matched)
+    status = "review_required" if matched else "failed"
+    elapsed = time.monotonic() - started_at
+    log.info(
+        "Grade form OCR finished request=%s status=%s seconds=%.1f",
+        _safe_request_ref(request_id),
+        status,
+        elapsed,
+    )
+    return matched, {
+        "status": status,
+        "raw_text": result.raw_text if result else "",
+        "field_confidence": result.field_confidence if result else {},
+        "validation_issues": result.validation_issues if result else [{
+            "code": "GRADE_FORM_OCR_FAILED",
+            "message": "Grade form OCR did not complete.",
+        }],
+        "extracted_fields": {
+            "document_type": "student_grade_forms",
+            "review_required": True,
+            "contract_status": "approved" if matched else "mismatch",
+            "fields": result.fields if result else {},
+        },
+        "source_payload": {
+            "source": "pi-worker-iot-ocr-request",
+            "mode": "grade_form_registered_single_pass",
+            "request_id": request_id,
+            "document_key": "student_grade_forms",
+            "registration_status": "matched" if matched else "mismatch",
+            "preprocessing_variant": "grade_form_v1",
+            "ocr_engine": "tesseract",
+            "processing_seconds": round(elapsed, 3),
+        },
+        "error_message": None if matched else "Approved grade form registration failed.",
+    }
+
+
+def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bool, Dict]:
     request_ref = _safe_request_ref(get_request_id(request))
     document_key = str(request.get("document_key") or "unknown")
     log.info("Starting capture request=%s document=%s", request_ref, document_key)
@@ -776,7 +896,7 @@ def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
 
     capture_result = run_capture_session(
         camera=camera,
-        should_stop=_shutdown_requested.is_set,
+        should_stop=lambda: _shutdown_requested.is_set() or bool(request_stop and request_stop.is_set()),
         on_status=status_callback,
     )
     if capture_result.status != CAPTURED:
@@ -795,6 +915,8 @@ def run_scan(request: Dict, status_callback=None) -> Tuple[bool, Dict]:
 
     if _is_birth_certificate_job(request):
         success, payload = _run_birth_certificate_scan(request, capture_result.capture_path)
+    elif document_key == "student_grade_forms":
+        success, payload = _run_grade_form_scan(request, capture_result.capture_path)
     else:
         success, payload = _run_generic_document_scan(request, capture_result.capture_path)
     payload["_workspace"] = str(workspace)
@@ -844,12 +966,17 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict, request=No
 
 def main():
     api = ApiClient()
+    publish_worker_activity("idle", camera_status="ready")
+    removed_workspaces = cleanup_expired_workspaces()
+    if removed_workspaces:
+        log.info("Expired OCR workspaces removed count=%s", removed_workspaces)
     log.info(
         "Starting Pi IoT OCR worker | poll=%ss | mode=interactive | device=%s",
         POLL_INTERVAL_SECONDS,
         api.device_id,
     )
     last_idle_log = 0.0
+    last_workspace_cleanup = time.time()
 
     def request_shutdown(_signal_number, _frame) -> None:
         _shutdown_requested.set()
@@ -859,6 +986,10 @@ def main():
 
     while not _shutdown_requested.is_set():
         try:
+            now = time.time()
+            if now - last_workspace_cleanup >= 3600:
+                cleanup_expired_workspaces(now)
+                last_workspace_cleanup = now
             request = api.get_next_job()
 
             if not request:
@@ -866,21 +997,29 @@ def main():
                 if now - last_idle_log >= 60:
                     log.info("Idle: waiting for OCR request...")
                     last_idle_log = now
-                time.sleep(POLL_INTERVAL_SECONDS)
+                _shutdown_requested.wait(POLL_INTERVAL_SECONDS)
                 continue
 
             request_id = get_request_id(request)
             if not request_id:
                 log.warning("Request missing request_id; skipping")
-                time.sleep(POLL_INTERVAL_SECONDS)
+                _shutdown_requested.wait(POLL_INTERVAL_SECONDS)
                 continue
 
             log.info("Claimed request=%s", _safe_request_ref(request_id))
+            publish_worker_activity("request_claimed", request=request, camera_status="checking")
             log.info(
                 "Request received; opening camera preview request=%s",
                 _safe_request_ref(request_id),
             )
+            heartbeat_stop = threading.Event()
+            request_stop = threading.Event()
+            current_status = {"value": "claimed"}
+
             def report_status(status):
+                current_status["value"] = status
+                worker_state, camera_status = lifecycle_worker_state(status)
+                publish_worker_activity(worker_state, request=request, camera_status=camera_status)
                 if not api.update_status(request_id, status):
                     log.warning(
                         "Lifecycle status update failed request=%s status=%s",
@@ -888,8 +1027,38 @@ def main():
                         status,
                     )
 
-            _success, payload = run_scan(request, status_callback=report_status)
-            submit_and_verify(api, request_id, payload, request=request)
+            def send_heartbeat():
+                while not heartbeat_stop.wait(HEARTBEAT_INTERVAL_SECONDS):
+                    worker_state, camera_status = lifecycle_worker_state(current_status["value"])
+                    publish_worker_activity(worker_state, request=request, camera_status=camera_status)
+                    if not api.update_status(request_id, current_status["value"]):
+                        log.warning(
+                            "Lifecycle heartbeat failed request=%s status=%s",
+                            _safe_request_ref(request_id),
+                            current_status["value"],
+                        )
+                        request_stop.set()
+                        break
+
+            heartbeat_thread = threading.Thread(
+                target=send_heartbeat,
+                name=f"iot-ocr-heartbeat-{request_id[:8]}",
+                daemon=True,
+            )
+            heartbeat_thread.start()
+            try:
+                # Capture still starts directly after claim: run_scan(request).
+                _success, payload = run_scan(
+                    request,
+                    status_callback=report_status,
+                    request_stop=request_stop,
+                )
+                if not request_stop.is_set():
+                    submit_and_verify(api, request_id, payload, request=request)
+            finally:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=1.0)
+                publish_worker_activity("idle", camera_status="ready")
 
         except KeyboardInterrupt:
             _shutdown_requested.set()
@@ -898,8 +1067,9 @@ def main():
             log.exception("Unexpected worker error")
 
         if not _shutdown_requested.is_set():
-            time.sleep(POLL_INTERVAL_SECONDS)
+            _shutdown_requested.wait(POLL_INTERVAL_SECONDS)
 
+    publish_worker_activity("stopping", camera_status="stopped")
     log.info("Worker stopped")
 
 

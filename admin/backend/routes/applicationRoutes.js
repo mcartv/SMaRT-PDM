@@ -12,6 +12,7 @@ const upload = multer({
 });
 
 router.get('/', ...adminOnly, applicationController.getApplications);
+router.get('/iot-ocr/availability', ...adminOnly, applicationController.getIotOcrAvailability);
 router.get('/:id', ...adminOnly, applicationController.getApplicationDetails);
 router.get('/:id/documents', ...adminOnly, applicationController.getApplicationDocuments);
 router.post('/:id/documents/upload', ...adminOnly, upload.single('file'), applicationController.uploadStudentDocument);

@@ -529,7 +529,6 @@ exports.getAdminDashboard = async () => {
         openings,
         programs,
         benefactors,
-        ocrJobs,
     ] = await Promise.all([
         fetchRows(
             'applications',
@@ -552,10 +551,6 @@ exports.getAdminDashboard = async () => {
             'benefactors',
             'benefactor_id, benefactor_name, benefactor_type, is_archived'
         ),
-        fetchRows(
-            'ocr_jobs',
-            'id, status, created_at, updated_at'
-        ),
     ]);
 
     const activeApplications = applications.filter((row) => !isRecordArchived(row));
@@ -569,7 +564,7 @@ exports.getAdminDashboard = async () => {
         }),
         applicationStatus: groupApplicationStatus(activeApplications),
         openingStatus: groupOpeningStatus(openings),
-        documentSummary: groupDocumentSummary(activeApplications, ocrJobs),
+        documentSummary: groupDocumentSummary(activeApplications, []),
         scholarsByBenefactor: buildScholarsByBenefactor(
             students,
             programs,

@@ -14,15 +14,21 @@ const ALLOWED_TRANSITIONS = Object.freeze({
     focusing: Object.freeze(['capturing', 'failed', 'expired']),
     capturing: Object.freeze(['processing', 'failed', 'expired']),
     processing: Object.freeze(['review_required', 'failed', 'expired']),
-    review_required: Object.freeze(['completed']),
+    review_required: Object.freeze(['completed', 'expired']),
 });
 const ACTIVE_STATUS_SQL = PI_ACTIVE_STATUSES.map((status) => `'${status}'`).join(', ');
 const FORBIDDEN_PAYLOAD_KEYS = new Set([
     'image', 'image_url', 'capture_url', 'capture_path', 'processed_image',
     'processed_image_url', 'base64_image',
 ]);
-const PENDING_TTL_SQL = `NOW() - INTERVAL '10 minutes'`;
-const PROCESSING_TTL_SQL = `NOW() - INTERVAL '6 minutes'`;
+const REQUEST_TTL_MS = 60 * 1000;
+const PENDING_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
+// The Pi sends a heartbeat every five seconds, renewing this timeout while
+// capture or OCR is genuinely active.
+const PROCESSING_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
+const REVIEW_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
+const EXPIRATION_SWEEP_INTERVAL_MS = 1000;
+let lastExpirationSweepAt = 0;
 
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
@@ -43,6 +49,22 @@ function assertTextOnlyPayload(value) {
         }
         assertTextOnlyPayload(nested);
     }
+}
+
+function addMilliseconds(value, milliseconds) {
+    const timestamp = new Date(value || 0).getTime();
+    return Number.isFinite(timestamp) && timestamp > 0
+        ? new Date(timestamp + milliseconds).toISOString()
+        : null;
+}
+
+function requestExpiresAt(row) {
+    if (row.status === 'pending') return addMilliseconds(row.created_at, REQUEST_TTL_MS);
+    if (['claimed', 'previewing', 'focusing', 'capturing', 'processing'].includes(row.status)) {
+        return addMilliseconds(row.processing_heartbeat_at || row.updated_at, REQUEST_TTL_MS);
+    }
+    if (row.status === 'review_required') return addMilliseconds(row.updated_at, REQUEST_TTL_MS);
+    return null;
 }
 
 function mapRequestRow(row) {
@@ -69,6 +91,7 @@ function mapRequestRow(row) {
         created_at: row.created_at || null,
         completed_at: row.completed_at || null,
         updated_at: row.updated_at || null,
+        expires_at: requestExpiresAt(row),
     };
 }
 
@@ -77,11 +100,11 @@ function mapCandidateRow(row) {
     return {
         candidate_id: row.candidate_id,
         request_id: row.request_id,
-        status: 'review_required',
+        status: row.status === 'completed' ? 'completed' : 'review_required',
         document_key: row.document_key,
         template_id: row.template_id,
         raw_text: row.raw_text || '',
-        fields: row.fields || {},
+        fields: row.verified_fields || row.fields || {},
         field_confidence: row.field_confidence || {},
         validation_issues: row.validation_issues || [],
         review_required: true,
@@ -92,6 +115,22 @@ function mapCandidateRow(row) {
 
 function transitionAllowed(from, to) {
     return (ALLOWED_TRANSITIONS[from] || []).includes(to);
+}
+
+function fieldValue(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return value.normalized_value ?? value.raw_text ?? value.value ?? '';
+    }
+    return value;
+}
+
+function normalizeGwa(value) {
+    const raw = String(fieldValue(value) ?? '').trim();
+    const numeric = Number(raw);
+    if (!raw || !Number.isFinite(numeric) || numeric < 1 || numeric > 5) {
+        throw buildHttpError(400, 'GWA must be a valid number from 1.00 to 5.00');
+    }
+    return Number(numeric.toFixed(2));
 }
 
 function normalizeCandidate(input, requestRow) {
@@ -132,7 +171,7 @@ function normalizeCandidate(input, requestRow) {
     return candidate;
 }
 
-function validateConfirmedDocumentFields(documentKey, fields) {
+function validateConfirmedDocumentFields(documentKey, fields, candidateFields = null) {
     if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
         throw buildHttpError(400, 'corrected_fields must be an object');
     }
@@ -150,10 +189,28 @@ function validateConfirmedDocumentFields(documentKey, fields) {
     if (documentKey === 'student_grade_forms' && !Array.isArray(fields.subjects)) {
         throw buildHttpError(400, 'subjects must be an array');
     }
-    return fields;
+    if (documentKey !== 'student_grade_forms') return fields;
+
+    const candidateGwa = normalizeGwa(candidateFields?.gwa);
+    const submittedGwa = normalizeGwa(fields.gwa);
+    if (candidateGwa !== submittedGwa) {
+        throw buildHttpError(409, 'GWA is read-only. Retry OCR if the detected value is incorrect.');
+    }
+    return {
+        ...fields,
+        student_number: String(fieldValue(fields.student_number) ?? '').trim(),
+        student_name: String(fieldValue(fields.student_name) ?? '').trim(),
+        course: String(fieldValue(fields.course) ?? '').trim(),
+        semester: String(fieldValue(fields.semester) ?? '').trim(),
+        academic_year: String(fieldValue(fields.academic_year) ?? '').trim(),
+        gwa: candidateGwa.toFixed(2),
+    };
 }
 
-async function expireStaleRequests(client) {
+async function expireStaleRequests(client, { force = false } = {}) {
+    const now = Date.now();
+    if (!force && now - lastExpirationSweepAt < EXPIRATION_SWEEP_INTERVAL_MS) return;
+    lastExpirationSweepAt = now;
     await client.query(`
         UPDATE public.iot_ocr_requests
         SET status = 'expired', error_code = 'PENDING_TIMEOUT',
@@ -167,7 +224,18 @@ async function expireStaleRequests(client) {
             error_message = 'IoT OCR worker heartbeat expired',
             completed_at = NOW(), updated_at = NOW()
         WHERE status IN ('claimed', 'previewing', 'focusing', 'capturing', 'processing')
-          AND COALESCE(processing_heartbeat_at, updated_at) < ${PROCESSING_TTL_SQL}
+          AND (
+              claimed_at < ${PROCESSING_TTL_SQL}
+              OR COALESCE(processing_heartbeat_at, updated_at) < ${PROCESSING_TTL_SQL}
+          )
+    `);
+    await client.query(`
+        UPDATE public.iot_ocr_requests
+        SET status = 'expired', error_code = 'REVIEW_TIMEOUT',
+            error_message = 'IoT OCR review expired before admin confirmation',
+            completed_at = NOW(), updated_at = NOW()
+        WHERE status = 'review_required'
+          AND updated_at < ${REVIEW_TTL_SQL}
     `);
 }
 
@@ -195,7 +263,7 @@ exports.createRequest = async (input = {}) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await expireStaleRequests(client);
+        await expireStaleRequests(client, { force: true });
         const context = await resolveRequestContext(
             client,
             input.applicationId || input.application_id,
@@ -263,6 +331,7 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        await expireStaleRequests(client);
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
             [requestId]
@@ -271,8 +340,13 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
         if (!row) throw buildHttpError(404, 'IoT OCR request not found');
         if (row.claimed_by && normalizeDeviceId(row.claimed_by) !== deviceId) throw buildHttpError(409, 'Request belongs to another Pi device');
         if (row.status === nextStatus) {
+            const heartbeat = await client.query(`
+                UPDATE public.iot_ocr_requests
+                SET processing_heartbeat_at = NOW(), updated_at = NOW()
+                WHERE request_id = $1::uuid RETURNING *
+            `, [requestId]);
             await client.query('COMMIT');
-            return mapRequestRow(row);
+            return mapRequestRow(heartbeat.rows[0]);
         }
         if (!transitionAllowed(row.status, nextStatus) || nextStatus === 'review_required' || nextStatus === 'completed') {
             throw buildHttpError(409, `Invalid IoT OCR transition: ${row.status} -> ${nextStatus}`);
@@ -379,6 +453,7 @@ exports.getRequestById = async ({ requestId, applicationId = null, documentKey =
 exports.getLatestRequestForDocument = async ({ applicationId, documentKey }) => {
     const client = await pool.connect();
     try {
+        await expireStaleRequests(client);
         const result = await client.query(`
             SELECT * FROM public.iot_ocr_requests
             WHERE application_id = $1::uuid AND document_key = $2
@@ -392,14 +467,17 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
     await ensureIotOcrSchema();
     const client = await pool.connect();
     try {
+        await expireStaleRequests(client);
         const params = [applicationId, documentTypes.normalizeDocumentType(documentKey)];
         const requestFilter = requestId ? 'AND r.request_id = $3::uuid' : '';
         if (requestId) params.push(requestId);
         const result = await client.query(`
             SELECT r.*, c.candidate_id, c.raw_text, c.fields, c.field_confidence,
-                   c.validation_issues, c.processing, c.created_at AS candidate_created_at
+                   c.validation_issues, c.processing, c.created_at AS candidate_created_at,
+                   v.verified_fields
             FROM public.iot_ocr_requests r
             LEFT JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
+            LEFT JOIN public.iot_ocr_reviews v ON v.request_id = r.request_id
             WHERE r.application_id = $1::uuid AND r.document_key = $2 ${requestFilter}
             ORDER BY r.created_at DESC LIMIT 1
         `, params);
@@ -422,7 +500,7 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
     try {
         await client.query('BEGIN');
         const selected = await client.query(`
-            SELECT r.*, c.candidate_id FROM public.iot_ocr_requests r
+            SELECT r.*, c.candidate_id, c.fields AS candidate_fields
             JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
             WHERE r.request_id = $1::uuid AND r.application_id = $2::uuid AND r.document_key = $3
             FOR UPDATE OF r
@@ -430,24 +508,54 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
         const row = selected.rows[0];
         if (!row) throw buildHttpError(404, 'IoT OCR candidate not found');
         if (row.status === 'completed') {
+            const reviewResult = await client.query(`
+                SELECT verified_fields FROM public.iot_ocr_reviews
+                WHERE request_id = $1::uuid LIMIT 1
+            `, [requestId]);
+            const verifiedFields = reviewResult.rows[0]?.verified_fields || {};
             await client.query('COMMIT');
-            return { request: mapRequestRow(row), idempotent: true };
+            return {
+                request: mapRequestRow(row),
+                verified_fields: verifiedFields,
+                application_patch: normalizedDocumentKey === 'student_grade_forms'
+                    ? { student: { gwa: normalizeGwa(verifiedFields.gwa) } }
+                    : null,
+                idempotent: true,
+            };
         }
         if (!transitionAllowed(row.status, 'completed')) throw buildHttpError(409, `OCR request cannot be confirmed from ${row.status}`);
-        const verifiedFields = validateConfirmedDocumentFields(normalizedDocumentKey, correctedFields);
+        const verifiedFields = validateConfirmedDocumentFields(
+            normalizedDocumentKey,
+            correctedFields,
+            row.candidate_fields
+        );
         await client.query(`
             INSERT INTO public.iot_ocr_reviews
                 (request_id, application_id, document_key, verified_fields, reviewed_by)
             VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5::uuid)
             ON CONFLICT (request_id) DO NOTHING
         `, [requestId, applicationId, normalizedDocumentKey, JSON.stringify(verifiedFields), reviewerId]);
+        let applicationPatch = null;
+        if (normalizedDocumentKey === 'student_grade_forms') {
+            const gwa = normalizeGwa(verifiedFields.gwa);
+            await client.query(`
+                UPDATE public.students SET gwa = $2
+                WHERE student_id = $1::uuid
+            `, [row.student_id, gwa]);
+            applicationPatch = { student: { gwa } };
+        }
         const updated = await client.query(`
             UPDATE public.iot_ocr_requests SET status = 'completed', reviewed_by = $2::uuid,
                 reviewed_at = NOW(), completed_at = NOW(), updated_at = NOW()
             WHERE request_id = $1::uuid RETURNING *
         `, [requestId, reviewerId]);
         await client.query('COMMIT');
-        return { request: mapRequestRow(updated.rows[0]), verified_fields: verifiedFields, idempotent: false };
+        return {
+            request: mapRequestRow(updated.rows[0]),
+            verified_fields: verifiedFields,
+            application_patch: applicationPatch,
+            idempotent: false,
+        };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -502,4 +610,5 @@ module.exports = {
     TERMINAL_STATUSES,
     assertTextOnlyPayload,
     validateConfirmedDocumentFields,
+    normalizeGwa,
 };

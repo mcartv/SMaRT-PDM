@@ -1679,6 +1679,12 @@ exports.runApplicationDocumentIotOcr = async ({
     documentKey,
     requestedBy = null,
 }) => {
+    const availability = require('./iotOcrPresenceService').getAvailability();
+    if (!availability.online) {
+        const error = new Error('Raspberry Pi OCR scanner is offline. Start the Pi worker and try again.');
+        error.statusCode = 503;
+        throw error;
+    }
     if (!applicationId) {
         throw new Error('applicationId is required');
     }

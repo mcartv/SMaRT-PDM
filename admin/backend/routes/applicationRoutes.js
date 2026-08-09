@@ -20,6 +20,7 @@ router.post('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationCont
 router.get('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationController.getApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/confirm', ...adminOnly, applicationController.confirmApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/retry', ...adminOnly, applicationController.retryApplicationDocumentIotOcr);
+router.post('/:id/documents/:documentKey/iot-ocr/:requestId/cancel', ...adminOnly, applicationController.cancelApplicationDocumentIotOcr);
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
 router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.saveApplicationDocumentOcrSnapshot);
 router.post('/:id/verify', ...adminOnly, applicationController.saveApplicationVerification);

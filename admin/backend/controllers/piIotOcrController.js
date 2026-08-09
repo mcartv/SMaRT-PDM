@@ -78,9 +78,31 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
             data: result,
         });
     } catch (err) {
-        console.error('UPDATE IOT OCR REQUEST STATUS ERROR:', err.message);
+        const requestStopped = err.code === 'IOT_OCR_REQUEST_STOPPED';
+        const stoppedRequest = err.request || null;
+        if (requestStopped && stoppedRequest) {
+            socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+                request_id: stoppedRequest.request_id,
+                application_id: stoppedRequest.application_id,
+                document_key: stoppedRequest.document_key,
+                status: stoppedRequest.status,
+                expires_at: stoppedRequest.expires_at,
+                updated_at: stoppedRequest.updated_at,
+            });
+        }
+        const log = requestStopped ? console.info : console.error;
+        log(requestStopped ? 'IOT_OCR_WORKER_STOP_ACKNOWLEDGED' : 'UPDATE IOT OCR REQUEST STATUS ERROR:', {
+            request_id: String(req.params?.requestId || '').slice(0, 8),
+            attempted_status: req.body?.status || null,
+            current_status: err.currentStatus || null,
+            message: err.message,
+            code: err.code || null,
+        });
         res.status(err.statusCode || 500).json({
+            code: err.code || null,
             error: err.message || 'Failed to update IoT OCR request status',
+            current_status: err.currentStatus || null,
+            stop_processing: requestStopped,
         });
     }
 };
@@ -120,7 +142,20 @@ exports.submitIotOcrRequestResult = async (req, res) => {
             data: result,
         });
     } catch (err) {
-        console.error('SAVE IOT OCR REQUEST RESULT CONTROLLER ERROR:', {
+        const requestStopped = err.code === 'IOT_OCR_REQUEST_STOPPED';
+        const stoppedRequest = err.request || null;
+        if (requestStopped && stoppedRequest) {
+            socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+                request_id: stoppedRequest.request_id,
+                application_id: stoppedRequest.application_id,
+                document_key: stoppedRequest.document_key,
+                status: stoppedRequest.status,
+                expires_at: stoppedRequest.expires_at,
+                updated_at: stoppedRequest.updated_at,
+            });
+        }
+        const log = requestStopped ? console.info : console.error;
+        log(requestStopped ? 'IOT_OCR_LATE_RESULT_REJECTED' : 'SAVE IOT OCR REQUEST RESULT CONTROLLER ERROR:', {
             message: err.message,
             code: err.code || null,
             constraint: err.constraint || null,
@@ -130,6 +165,8 @@ exports.submitIotOcrRequestResult = async (req, res) => {
         return res.status(err.statusCode || 500).json({
             code: err.code || null,
             error: err.message || 'Failed to save IoT OCR request result',
+            current_status: err.currentStatus || null,
+            stop_processing: requestStopped,
         });
     }
 };

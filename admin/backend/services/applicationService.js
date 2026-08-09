@@ -1690,6 +1690,7 @@ exports.runApplicationDocumentIotOcr = async ({
     if (!availability.online) {
         const error = new Error('Raspberry Pi OCR scanner is offline. Start the Pi worker and try again.');
         error.statusCode = 503;
+        error.code = 'PI_OFFLINE';
         throw error;
     }
     if (!applicationId) {
@@ -1799,6 +1800,12 @@ exports.retryApplicationDocumentIotOcr = async ({
     requestId,
     requestedBy,
 });
+
+exports.cancelApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+}) => iotOcrRequestService.cancelRequest({ applicationId, documentKey, requestId });
 
 exports.fetchApplicationDocumentOcrSnapshot = async ({
     applicationId,
@@ -2897,6 +2904,7 @@ module.exports = {
     getApplicationDocumentIotOcr: exports.getApplicationDocumentIotOcr,
     confirmApplicationDocumentIotOcr: exports.confirmApplicationDocumentIotOcr,
     retryApplicationDocumentIotOcr: exports.retryApplicationDocumentIotOcr,
+    cancelApplicationDocumentIotOcr: exports.cancelApplicationDocumentIotOcr,
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,

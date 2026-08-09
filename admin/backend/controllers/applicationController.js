@@ -6,7 +6,17 @@ const ExcelJS = require('exceljs');
 const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 
 exports.getIotOcrAvailability = async (_req, res) => {
-    return res.status(200).json({ data: iotOcrPresenceService.getAvailability() });
+    return res.status(200).json({
+        data: {
+            ...iotOcrPresenceService.getAvailability(),
+            api_version: 'iot-ocr-v46',
+            capabilities: {
+                admin_cancel: true,
+                realtime_status: true,
+                review_candidate: true,
+            },
+        },
+    });
 };
 
 function isApprovalStateError(message) {
@@ -139,10 +149,26 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
             data: payload,
         });
     } catch (error) {
-        console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', error);
+        const statusCode = error.statusCode || 500;
+        const errorCode = error.code || 'IOT_OCR_REQUEST_FAILED';
 
-        return res.status(error.statusCode || 500).json({
+        if (statusCode === 503 && errorCode === 'PI_OFFLINE') {
+            console.info('IOT_OCR_REQUEST_REJECTED', {
+                reason: errorCode,
+                application_id: String(req.params.id || '').slice(0, 8),
+                document_key: req.params.documentKey || null,
+            });
+        } else {
+            console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', {
+                code: errorCode,
+                message: error.message || 'Failed to run IoT OCR',
+            });
+        }
+
+        return res.status(statusCode).json({
             error: error.message || 'Failed to run IoT OCR',
+            code: errorCode,
+            retryable: statusCode === 503,
         });
     }
 };
@@ -194,6 +220,30 @@ exports.retryApplicationDocumentIotOcr = async (req, res) => {
     } catch (error) {
         return res.status(error.statusCode || 500).json({
             error: error.message || 'Failed to retry OCR request',
+        });
+    }
+};
+
+exports.cancelApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.cancelApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.params.requestId,
+        });
+        const request = data.request;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            status: request.status,
+            expires_at: request.expires_at,
+            updated_at: request.updated_at,
+        });
+        return res.status(200).json({ message: 'IoT OCR request cancelled', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to cancel OCR request',
         });
     }
 };

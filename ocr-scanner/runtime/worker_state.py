@@ -15,6 +15,8 @@ WORKER_STATES = frozenset(
         "idle",
         "claiming_request",
         "no_pending_request",
+        "backend_offline",
+        "request_stopped",
         "request_claimed",
         "starting_preview",
         "waiting_for_capture",
@@ -49,6 +51,8 @@ DEFAULT_MESSAGES = {
     "idle": "Waiting for an OCR request.",
     "claiming_request": "Checking for a pending OCR request.",
     "no_pending_request": "No pending OCR request is available.",
+    "backend_offline": "OCR backend is offline. Waiting to reconnect.",
+    "request_stopped": "OCR request was stopped by the admin or backend.",
     "request_claimed": "An OCR request was received.",
     "starting_preview": "Starting the camera preview.",
     "waiting_for_capture": (

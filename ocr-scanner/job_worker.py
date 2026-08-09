@@ -899,6 +899,9 @@ def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bo
         should_stop=lambda: _shutdown_requested.is_set() or bool(request_stop and request_stop.is_set()),
         on_status=status_callback,
     )
+    if request_stop and request_stop.is_set():
+        log.info("Request stopped by backend request=%s", request_ref)
+        return False, {"status": "cancelled", "_workspace": str(workspace)}
     if capture_result.status != CAPTURED:
         log.info(
             "Capture finished request=%s status=%s code=%s",
@@ -910,8 +913,13 @@ def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bo
         payload["_workspace"] = str(workspace)
         return success, payload
 
+    if request_stop and request_stop.is_set():
+        return False, {"status": "cancelled", "_workspace": str(workspace)}
     if status_callback:
         status_callback('processing')
+
+    if request_stop and request_stop.is_set():
+        return False, {"status": "cancelled", "_workspace": str(workspace)}
 
     if _is_birth_certificate_job(request):
         success, payload = _run_birth_certificate_scan(request, capture_result.capture_path)
@@ -976,6 +984,7 @@ def main():
         api.device_id,
     )
     last_idle_log = 0.0
+    last_connectivity_publish = 0.0
     last_workspace_cleanup = time.time()
 
     def request_shutdown(_signal_number, _frame) -> None:
@@ -994,6 +1003,12 @@ def main():
 
             if not request:
                 now = time.time()
+                if now - last_connectivity_publish >= 5:
+                    if api.backend_online:
+                        publish_worker_activity("idle", camera_status="ready")
+                    else:
+                        publish_worker_activity("backend_offline", camera_status="unavailable")
+                    last_connectivity_publish = now
                 if now - last_idle_log >= 60:
                     log.info("Idle: waiting for OCR request...")
                     last_idle_log = now
@@ -1017,6 +1032,8 @@ def main():
             current_status = {"value": "claimed"}
 
             def report_status(status):
+                if request_stop.is_set():
+                    return False
                 current_status["value"] = status
                 worker_state, camera_status = lifecycle_worker_state(status)
                 publish_worker_activity(worker_state, request=request, camera_status=camera_status)
@@ -1026,6 +1043,10 @@ def main():
                         _safe_request_ref(request_id),
                         status,
                     )
+                    request_stop.set()
+                    publish_worker_activity("request_stopped", request=request, camera_status="stopped")
+                    return False
+                return True
 
             def send_heartbeat():
                 while not heartbeat_stop.wait(HEARTBEAT_INTERVAL_SECONDS):
@@ -1038,6 +1059,13 @@ def main():
                             current_status["value"],
                         )
                         request_stop.set()
+                        publish_worker_activity("request_stopped", request=request, camera_status="stopped")
+                        while not heartbeat_stop.wait(5):
+                            publish_worker_activity(
+                                "request_stopped",
+                                request=request,
+                                camera_status="stopped",
+                            )
                         break
 
             heartbeat_thread = threading.Thread(

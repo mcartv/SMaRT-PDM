@@ -586,7 +586,7 @@ export function DepartmentAccountPanel({
       <div>
         <h2 className="text-lg font-semibold text-stone-900">Profile & Account</h2>
         <p className="text-sm text-stone-500">
-          Update your name, contact details, office information, and profile photo.
+          Update your name, contact details, position, and profile photo. Role and department assignments are managed by Admin.
         </p>
       </div>
 
@@ -774,9 +774,10 @@ export function DepartmentAccountPanel({
               <FieldLabel>Department</FieldLabel>
               <Input
                 value={account.department}
-                onChange={(e) => handleFieldChange('department', e.target.value)}
-                className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                disabled={loadingProfile || savingAccount || config.lockIdentityFields === true}
+                className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm text-stone-500"
+                disabled
+                aria-readonly="true"
+                title="Department assignments are managed by Admin."
               />
             </div>
           </div>

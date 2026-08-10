@@ -30,6 +30,7 @@ router.delete('/me/profile-photo', protect, allStaff, accountController.removeCu
 
 router.get('/staff', protect, authorizeRoles('admin'), accountController.getStaffAccounts);
 router.post('/staff', protect, authorizeRoles('admin'), accountController.createStaffAccount);
+router.post('/admin', protect, authorizeRoles('admin'), accountController.createAdminAccount);
 router.patch('/staff/:id', protect, authorizeRoles('admin'), accountController.updateStaffAccount);
 router.patch('/staff/:id/archive', protect, authorizeRoles('admin'), accountController.archiveStaffAccount);
 router.patch('/staff/:id/restore', protect, authorizeRoles('admin'), accountController.restoreStaffAccount);

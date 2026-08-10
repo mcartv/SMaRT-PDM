@@ -896,8 +896,14 @@ exports.archiveConversation = async (currentUserId, counterpartyId) => {
   return result.rows[0];
 };
 
-exports.archiveRoom = async (currentUserId, roomId) => {
-  await ensureRoomMembership(currentUserId, roomId);
+exports.archiveRoom = async (
+  currentUserId,
+  roomId,
+  { skipMembershipCheck = false } = {}
+) => {
+  if (!skipMembershipCheck) {
+    await ensureRoomMembership(currentUserId, roomId);
+  }
 
   await db.query(
     `
@@ -1098,8 +1104,14 @@ exports.restoreConversation = async (currentUserId, counterpartyId) => {
   };
 };
 
-exports.restoreRoom = async (currentUserId, roomId) => {
-  await ensureRoomMembership(currentUserId, roomId);
+exports.restoreRoom = async (
+  currentUserId,
+  roomId,
+  { skipMembershipCheck = false } = {}
+) => {
+  if (!skipMembershipCheck) {
+    await ensureRoomMembership(currentUserId, roomId);
+  }
 
   const result = await db.query(
     `

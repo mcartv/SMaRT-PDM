@@ -17,14 +17,40 @@ function normalizeNotification(raw = {}) {
 }
 
 
-function isRelevantPortalNotification(portalRootPath, notification) {
+function isEndorsementNotificationForPortal(portalRootPath, notification) {
+  const referenceType = String(notification.reference_type || '').toLowerCase();
+  if (!['endorsement_slip', 'endorsement', 'endorsement_stage'].includes(referenceType)) {
+    return false;
+  }
+
+  const descriptor = `${notification.title || ''} ${notification.message || ''}`.toLowerCase();
+
+  if (portalRootPath === '/sdo') {
+    return descriptor.includes('sdo');
+  }
+
+  if (portalRootPath === '/guidance') {
+    return descriptor.includes('guidance');
+  }
+
+  if (portalRootPath === '/pd') {
+    return descriptor.includes('pd') || descriptor.includes('program director');
+  }
+
+  return false;
+}
+
+function isRelevantPortalNotification(
+  portalRootPath,
+  notification,
+  { hasRoCoordinatorAccess = false } = {}
+) {
   if (portalRootPath === '/admin') return true;
 
   const referenceType = String(notification.reference_type || '').toLowerCase();
   const type = String(notification.type || '').toLowerCase();
 
   const common = new Set([
-    'announcement',
     'staff_account',
     'staff_profile',
     'personal_reminder',
@@ -35,17 +61,22 @@ function isRelevantPortalNotification(portalRootPath, notification) {
   }
 
   if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
-    return [
-      'endorsement_slip',
-      'endorsement',
-      'endorsement_stage',
-      'return_of_obligation',
-      'ro_time_log',
-    ].includes(referenceType);
+    if (isEndorsementNotificationForPortal(portalRootPath, notification)) {
+      return true;
+    }
   }
 
-  if (portalRootPath === '/ro-coordinator') {
-    return ['return_of_obligation', 'ro_time_log'].includes(referenceType);
+  const roReferenceTypes = new Set([
+    'return_of_obligation',
+    'ro_time_log',
+    'ro_scholar_request',
+  ]);
+
+  if (roReferenceTypes.has(referenceType)) {
+    return (
+      hasRoCoordinatorAccess === true &&
+      ['/sdo', '/guidance', '/pd', '/ro-coordinator'].includes(portalRootPath)
+    );
   }
 
   return false;
@@ -145,7 +176,7 @@ function buildNotificationTarget(portalRootPath, notification) {
     return `${portalRootPath}/dashboard`;
   }
 
-  if (referenceType === 'return_of_obligation' || referenceType === 'ro_time_log') {
+  if (['return_of_obligation', 'ro_time_log', 'ro_scholar_request'].includes(referenceType)) {
     if (portalRootPath === '/admin') return '/admin/obligations';
     if (portalRootPath === '/ro-coordinator') return '/ro-coordinator/queue';
     if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
@@ -165,6 +196,7 @@ export default function usePortalNotifications({
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
+  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
 
   const syncItems = useCallback((updater) => {
     setItems((current) => {
@@ -172,6 +204,42 @@ export default function usePortalNotifications({
       return sortNotifications(next);
     });
   }, []);
+
+  const loadRoCoordinatorAccess = useCallback(async () => {
+    if (portalRootPath === '/admin') {
+      setHasRoCoordinatorAccess(false);
+      return;
+    }
+
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token) {
+      setHasRoCoordinatorAccess(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(buildApiUrl('/api/accounts/me'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to resolve RO access.');
+      }
+
+      setHasRoCoordinatorAccess(payload?.has_ro_coordinator_access === true);
+    } catch (error) {
+      console.error('NOTIFICATION RO CAPABILITY CHECK ERROR:', error);
+      setHasRoCoordinatorAccess(false);
+    }
+  }, [portalRootPath, tokenStorageKey]);
+
+  useEffect(() => {
+    loadRoCoordinatorAccess();
+  }, [loadRoCoordinatorAccess]);
 
   const loadNotifications = useCallback(async () => {
     const token = sessionStorage.getItem(tokenStorageKey);
@@ -196,7 +264,13 @@ export default function usePortalNotifications({
       }
 
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      const normalized = rows.map(normalizeNotification).filter((item) => isRelevantPortalNotification(portalRootPath, item));
+      const normalized = rows
+        .map(normalizeNotification)
+        .filter((item) =>
+          isRelevantPortalNotification(portalRootPath, item, {
+            hasRoCoordinatorAccess,
+          })
+        );
       setItems(sortNotifications(normalized));
     } catch (error) {
       console.error('NOTIFICATION LOAD ERROR:', error);
@@ -204,7 +278,7 @@ export default function usePortalNotifications({
     } finally {
       setLoading(false);
     }
-  }, [limit, portalRootPath, tokenStorageKey]);
+  }, [hasRoCoordinatorAccess, limit, portalRootPath, tokenStorageKey]);
 
   useEffect(() => {
     loadNotifications();
@@ -274,14 +348,14 @@ export default function usePortalNotifications({
   useSocketListener({
     'notification:created': (raw) => {
       const next = normalizeNotification(raw);
-      if (!isRelevantPortalNotification(portalRootPath, next)) return;
+      if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );
     },
     'notification:new': (raw) => {
       const next = normalizeNotification(raw);
-      if (!isRelevantPortalNotification(portalRootPath, next)) return;
+      if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );

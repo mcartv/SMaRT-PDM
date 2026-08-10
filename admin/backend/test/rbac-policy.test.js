@@ -66,7 +66,10 @@ test('OSFA application routes use the admin-only gate', () => {
   const source = fs.readFileSync(path.join(__dirname, '../routes/applicationRoutes.js'), 'utf8');
   assert.match(source, /const adminOnly = \[protect, authorizeRoles\('admin'\)\]/);
   assert.match(source, /router\.patch\('\/:id\/approve', \.\.\.adminOnly/);
-  assert.match(source, /router\.post\('\/:id\/verify', \.\.\.adminOnly/);
+  assert.match(
+    source,
+    /router\.post\(\s*'\/:id\/verify',\s*\.\.\.adminOnly,\s*notifySdoAfterSuccessfulVerification,\s*applicationController\.saveApplicationVerification\s*\)/s
+  );
   assert.match(source, /router\.patch\('\/:id\/disqualify', \.\.\.adminOnly/);
 });
 

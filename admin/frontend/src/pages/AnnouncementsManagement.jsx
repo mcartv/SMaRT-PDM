@@ -55,13 +55,89 @@ const STATUS = {
   Archived: { bg: '#f5f5f4', color: '#78716c' },
 };
 
-const AUDIENCE_LABEL = {
+const GENERAL_AUDIENCE_LABEL = {
   all: 'All Students',
   applicants: 'New Applicants',
   scholars: 'Current Scholars',
-  tes: 'TES Recipients',
-  tdp: 'TDP Recipients',
 };
+
+const LEGACY_AUDIENCE_LABEL = {
+  tes: 'TES Recipients (Legacy)',
+  tdp: 'TDP Recipients (Legacy)',
+};
+
+function programAudienceValue(programId) {
+  return programId ? `program:${programId}` : '';
+}
+
+function parseAudienceSelection(value) {
+  const raw = String(value || '').trim();
+  if (raw.startsWith('program:')) {
+    return {
+      audience: 'program',
+      programId: raw.slice('program:'.length) || null,
+    };
+  }
+
+  return {
+    audience: raw || 'all',
+    programId: null,
+  };
+}
+
+function buildAudienceOptions(programs = [], currentValue = '') {
+  const options = Object.entries(GENERAL_AUDIENCE_LABEL).map(([value, label]) => ({
+    value,
+    label,
+    disabled: false,
+  }));
+
+  const activePrograms = programs
+    .filter(
+      (program) =>
+        program?.is_archived !== true &&
+        String(program?.visibility_status || 'Published') === 'Published'
+    )
+    .sort((a, b) =>
+      String(a?.program_name || '').localeCompare(String(b?.program_name || ''))
+    );
+
+  activePrograms.forEach((program) => {
+    options.push({
+      value: programAudienceValue(program.program_id),
+      label: `${program.program_name} Recipients`,
+      disabled: false,
+    });
+  });
+
+  if (currentValue.startsWith('program:')) {
+    const currentProgramId = currentValue.slice('program:'.length);
+    const alreadyIncluded = activePrograms.some(
+      (program) => String(program.program_id) === String(currentProgramId)
+    );
+    const historicalProgram = programs.find(
+      (program) => String(program.program_id) === String(currentProgramId)
+    );
+
+    if (!alreadyIncluded && historicalProgram) {
+      options.push({
+        value: currentValue,
+        label: `${historicalProgram.program_name} Recipients (Inactive)`,
+        disabled: true,
+      });
+    }
+  }
+
+  if (LEGACY_AUDIENCE_LABEL[currentValue]) {
+    options.push({
+      value: currentValue,
+      label: LEGACY_AUDIENCE_LABEL[currentValue],
+      disabled: false,
+    });
+  }
+
+  return options;
+}
 
 const ANNOUNCEMENT_TEMPLATES = {
   blank: {
@@ -128,6 +204,10 @@ function toLocalDateTimeInputValue(value) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+function currentLocalDateTimeInputValue() {
+  return toLocalDateTimeInputValue(new Date());
+}
+
 function StatusPill({ status }) {
   const s = STATUS[status] || { bg: '#f4f4f5', color: '#71717a' };
 
@@ -159,8 +239,10 @@ function ComposeAnnouncementModal({
   setContent,
   audience,
   setAudience,
+  audienceOptions,
   schedDate,
   setSchedDate,
+  minScheduleDateTime,
   isRoVoluntary,
   setIsRoVoluntary,
   validationErrors,
@@ -172,12 +254,6 @@ function ComposeAnnouncementModal({
   if (!open) return null;
 
   const scheduled = !!schedDate;
-  const minScheduleDateTime = new Date(
-    Date.now() - new Date().getTimezoneOffset() * 60000
-  )
-    .toISOString()
-    .slice(0, 16);
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onRequestClose} />
@@ -280,9 +356,14 @@ function ComposeAnnouncementModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(AUDIENCE_LABEL).map(([value, label]) => (
-                        <SelectItem key={value} value={value} className="text-sm">
-                          {label}
+                      {audienceOptions.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          disabled={option.disabled}
+                          className="text-sm"
+                        >
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -349,7 +430,7 @@ function ComposeAnnouncementModal({
                       </Badge>
 
                       <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                        {AUDIENCE_LABEL[audience]}
+                        {audienceOptions.find((option) => option.value === audience)?.label || 'Audience'}
                       </span>
                     </div>
 
@@ -494,8 +575,11 @@ function ConfirmTemplateApplyModal({
   open,
   onCancel,
   onConfirm,
+  selectedTemplate,
 }) {
   if (!open) return null;
+
+  const isBlankTemplate = selectedTemplate === 'blank';
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -503,9 +587,13 @@ function ConfirmTemplateApplyModal({
 
       <Card className="relative w-full max-w-md overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-800">Apply template</h3>
+          <h3 className="text-sm font-semibold text-stone-800">
+            {isBlankTemplate ? 'Clear announcement?' : 'Apply template'}
+          </h3>
           <p className="mt-1 text-xs text-stone-500">
-            Applying a template will replace your current subject and content.
+            {isBlankTemplate
+              ? 'This will clear the current subject, content, audience, schedule, and RO category.'
+              : 'Applying a template will replace your current subject and content.'}
           </p>
         </div>
 
@@ -515,7 +603,7 @@ function ConfirmTemplateApplyModal({
             onClick={onCancel}
             className="h-11 w-full rounded-lg border-stone-200"
           >
-            Keep Current Content
+            {isBlankTemplate ? 'Keep Current Announcement' : 'Keep Current Content'}
           </Button>
 
           <Button
@@ -523,7 +611,7 @@ function ConfirmTemplateApplyModal({
             className="h-11 w-full rounded-lg border-none text-white"
             style={{ background: C.brownMid }}
           >
-            Apply Template
+            {isBlankTemplate ? 'Clear Form' : 'Apply Template'}
           </Button>
         </CardContent>
       </Card>
@@ -665,9 +753,7 @@ function AnnouncementRow({
 
           <span className="flex items-center gap-1">
             <Users size={12} />
-            {AUDIENCE_LABEL[announcement.audienceKey || announcement.audience] ||
-              announcement.audience ||
-              'Audience'}
+            {announcement.audience || 'Audience'}
           </span>
 
           {effectiveStatus === 'Published' && (
@@ -846,10 +932,13 @@ export default function AnnouncementsManagement() {
   const [content, setContent] = useState('');
   const [audience, setAudience] = useState('all');
   const [schedDate, setSchedDate] = useState('');
+  const [minScheduleDateTime, setMinScheduleDateTime] = useState('');
   const [isRoVoluntary, setIsRoVoluntary] = useState('false');
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
 
   const [items, setItems] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [programsLoading, setProgramsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -876,6 +965,31 @@ export default function AnnouncementsManagement() {
       title,
       message,
     });
+  }, []);
+
+  const loadPrograms = useCallback(async () => {
+    try {
+      setProgramsLoading(true);
+      const token = sessionStorage.getItem('adminToken');
+      const response = await fetch(buildApiUrl('/api/scholarship-program'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await response.json().catch(() => []);
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to load scholarship programs');
+      }
+
+      setPrograms(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('LOAD ANNOUNCEMENT PROGRAMS ERROR:', error);
+      setPrograms([]);
+    } finally {
+      setProgramsLoading(false);
+    }
   }, []);
 
   const loadAnnouncements = useCallback(async (options = {}) => {
@@ -944,7 +1058,8 @@ export default function AnnouncementsManagement() {
 
   useEffect(() => {
     loadAnnouncements();
-  }, [loadAnnouncements]);
+    loadPrograms();
+  }, [loadAnnouncements, loadPrograms]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -955,6 +1070,10 @@ export default function AnnouncementsManagement() {
       window.clearInterval(intervalId);
     };
   }, [loadAnnouncements]);
+
+  useSocketEvent('maintenance:updated', () => {
+    loadPrograms();
+  }, [loadPrograms]);
 
   useSocketEvent('announcement:created', () => {
     console.log('[Socket] announcement:created received');
@@ -1009,6 +1128,7 @@ export default function AnnouncementsManagement() {
       setContent(buildOpeningPrefillContent(params));
       setAudience(normalizePrefillAudience(targetAudience));
       setSchedDate('');
+      setMinScheduleDateTime(currentLocalDateTimeInputValue());
       setIsRoVoluntary('false');
       setSelectedTemplate('blank');
       setValidationErrors({});
@@ -1032,11 +1152,26 @@ export default function AnnouncementsManagement() {
         params.get('audience') ||
         'scholars';
 
+      const payoutProgramId = params.get('program_id') || '';
+      const payoutProgram = programs.find(
+        (program) =>
+          String(program.program_id) === String(payoutProgramId) &&
+          program.is_archived !== true &&
+          String(program.visibility_status || 'Published') === 'Published'
+      );
+
+      if (payoutProgramId && programsLoading) return;
+
       setEditingAnnouncementId(null);
       setTitle(payoutTitle);
       setContent(buildPayoutPrefillContent(params));
-      setAudience(normalizePrefillAudience(targetAudience));
+      setAudience(
+        payoutProgram
+          ? programAudienceValue(payoutProgram.program_id)
+          : normalizePrefillAudience(targetAudience)
+      );
       setSchedDate('');
+      setMinScheduleDateTime(currentLocalDateTimeInputValue());
       setIsRoVoluntary('false');
       setSelectedTemplate('payout_notice');
       setValidationErrors({});
@@ -1047,7 +1182,7 @@ export default function AnnouncementsManagement() {
 
       navigate(location.pathname, { replace: true });
     }
-  }, [location.search, location.pathname, navigate]);
+  }, [location.search, location.pathname, navigate, programs, programsLoading]);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -1058,6 +1193,11 @@ export default function AnnouncementsManagement() {
       isRoVoluntary !== 'false'
     );
   }, [title, content, audience, schedDate, isRoVoluntary]);
+
+  const audienceOptions = useMemo(
+    () => buildAudienceOptions(programs, audience),
+    [programs, audience]
+  );
 
   const activeItems = useMemo(
     () => items.filter((item) => !item.is_archived && item.status !== 'Archived'),
@@ -1103,6 +1243,7 @@ export default function AnnouncementsManagement() {
 
   const handleOpenModal = () => {
     resetForm();
+    setMinScheduleDateTime(currentLocalDateTimeInputValue());
     setShowForm(true);
   };
 
@@ -1126,12 +1267,17 @@ export default function AnnouncementsManagement() {
     setEditingAnnouncementId(announcement.id);
     setTitle(announcement.title || '');
     setContent(announcement.content || '');
-    setAudience(announcement.audienceKey || announcement.audience || 'all');
+    setAudience(
+      announcement.audienceKey === 'program' && announcement.targetProgramId
+        ? programAudienceValue(announcement.targetProgramId)
+        : announcement.audienceKey || 'all'
+    );
     setSchedDate(
       announcement.status === 'Scheduled' && announcement.date
         ? toLocalDateTimeInputValue(announcement.date)
         : ''
     );
+    setMinScheduleDateTime(currentLocalDateTimeInputValue());
     setIsRoVoluntary(announcement.isRoVoluntary ? 'true' : 'false');
     setSelectedTemplate('blank');
     setValidationErrors({});
@@ -1156,14 +1302,24 @@ export default function AnnouncementsManagement() {
     setContent(template.content);
     setAudience(template.audience);
     setIsRoVoluntary(template.isRoVoluntary);
+
+    if (selectedTemplate === 'blank') {
+      setSchedDate('');
+    }
+
     setValidationErrors({});
     setShowTemplateConfirmModal(false);
   };
 
   const handleApplyTemplate = () => {
-    const hasContent = title.trim() || content.trim();
+    const hasCurrentFormValues =
+      title.trim() ||
+      content.trim() ||
+      audience !== 'all' ||
+      schedDate !== '' ||
+      isRoVoluntary !== 'false';
 
-    if (hasContent) {
+    if (hasCurrentFormValues) {
       setShowTemplateConfirmModal(true);
       return;
     }
@@ -1180,6 +1336,7 @@ export default function AnnouncementsManagement() {
       : buildApiUrl('/api/announcements');
 
     const method = isEditing ? 'PATCH' : 'POST';
+    const audienceTarget = parseAudienceSelection(audience);
 
     const res = await fetch(url, {
       method,
@@ -1190,7 +1347,8 @@ export default function AnnouncementsManagement() {
       body: JSON.stringify({
         title: title.trim(),
         content: content.trim(),
-        audience,
+        audience: audienceTarget.audience,
+        programId: audienceTarget.programId,
         schedDate: schedDate ? toUtcIsoFromLocalInput(schedDate) : null,
         isRoVoluntary: isRoVoluntary === 'true',
         forceDraft,
@@ -1434,8 +1592,10 @@ export default function AnnouncementsManagement() {
         setContent={setContent}
         audience={audience}
         setAudience={setAudience}
+        audienceOptions={audienceOptions}
         schedDate={schedDate}
         setSchedDate={setSchedDate}
+        minScheduleDateTime={minScheduleDateTime}
         isRoVoluntary={isRoVoluntary}
         setIsRoVoluntary={setIsRoVoluntary}
         validationErrors={validationErrors}
@@ -1451,6 +1611,13 @@ export default function AnnouncementsManagement() {
         onCancelAnnouncement={handleCancelAnnouncement}
         onSaveDraft={handleSaveDraft}
         draftSaving={draftSaving}
+      />
+
+      <ConfirmTemplateApplyModal
+        open={showTemplateConfirmModal}
+        onCancel={() => setShowTemplateConfirmModal(false)}
+        onConfirm={applyTemplateNow}
+        selectedTemplate={selectedTemplate}
       />
 
       <FeedbackModal

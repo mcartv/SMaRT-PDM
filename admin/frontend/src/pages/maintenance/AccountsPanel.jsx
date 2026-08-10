@@ -131,17 +131,28 @@ const DEPARTMENT_OPTIONS = {
     ro_coordinator: [],
 };
 
+const OPERATIONAL_ROLE_OPTIONS = ROLE_OPTIONS.filter((option) => option.value !== 'admin');
+const DEFAULT_OPERATIONAL_ROLE = OPERATIONAL_ROLE_OPTIONS[0];
+
 const DEFAULT_FORM = {
     first_name: '',
     last_name: '',
     email: '',
     phone_number: '',
-    role: 'admin',
-    department: ROLE_OPTIONS[0].department,
-    position: ROLE_OPTIONS[0].position,
+    role: DEFAULT_OPERATIONAL_ROLE.value,
+    department: DEFAULT_OPERATIONAL_ROLE.department,
+    position: DEFAULT_OPERATIONAL_ROLE.position,
     password: '',
     confirm_password: '',
     course_ids: [],
+};
+
+const DEFAULT_ADMIN_FORM = {
+    first_name: '',
+    last_name: '',
+    email: '',
+    password: '',
+    confirm_password: '',
 };
 
 function inferPdDepartment(assignedCourses = []) {
@@ -413,6 +424,10 @@ function validateCreateForm(form, roAreas = []) {
     if (!form.role) {
         return 'Select an account role.';
     }
+
+    if (!OPERATIONAL_ROLE_OPTIONS.some((option) => option.value === form.role)) {
+        return 'Create Account is only for Program Director, SDO, Guidance, or RO Coordinator.';
+    }
     const departmentOptions = form.role === 'ro_coordinator'
         ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
         : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
@@ -420,6 +435,18 @@ function validateCreateForm(form, roAreas = []) {
         return 'Select a valid department or office.';
     }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
+
+    return validatePasswordFields(form.password, form.confirm_password, true);
+}
+
+function validateAdminCreateForm(form) {
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
+        return 'First name, last name, and email are required.';
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        return 'Enter a valid email address.';
+    }
 
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
@@ -514,9 +541,14 @@ function StaffCreateModal({
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
-                    <h3 className="text-sm font-semibold text-stone-800">
-                        Create Staff Account
-                    </h3>
+                    <div>
+                        <h3 className="text-sm font-semibold text-stone-800">
+                            Create Account
+                        </h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Create a Program Director, SDO, Guidance, or RO Coordinator account.
+                        </p>
+                    </div>
 
                     <button
                         type="button"
@@ -578,7 +610,7 @@ function StaffCreateModal({
                                 </SelectTrigger>
 
                                 <SelectContent>
-                                    {ROLE_OPTIONS.map((option) => (
+                                    {OPERATIONAL_ROLE_OPTIONS.map((option) => (
                                         <SelectItem key={option.value} value={option.value}>
                                             {option.label}
                                         </SelectItem>
@@ -587,23 +619,6 @@ function StaffCreateModal({
                             </Select>
                         </div>
 
-                        <div>
-                            <FieldLabel>Phone Number</FieldLabel>
-                            <div className="relative">
-                                <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                                <Input
-                                    value={form.phone_number}
-                                    onChange={(event) => setField('phone_number', event.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                    disabled={saving}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <CourseAssignmentField form={form} setField={setField} courses={courses} disabled={saving} />
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                         <DepartmentField
                             role={form.role}
                             value={form.department}
@@ -611,14 +626,154 @@ function StaffCreateModal({
                             disabled={saving}
                             roAreas={roAreas}
                         />
+                    </div>
+
+                    <CourseAssignmentField
+                        form={form}
+                        setField={setField}
+                        courses={courses}
+                        disabled={saving}
+                    />
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <PasswordInput
+                            label="Password"
+                            value={form.password}
+                            onChange={(event) => setField('password', event.target.value)}
+                            disabled={saving}
+                        />
 
                         <div>
-                            <FieldLabel>Position</FieldLabel>
+                            <FieldLabel>Confirm Password</FieldLabel>
                             <Input
-                                value={form.position}
-                                onChange={(event) => setField('position', event.target.value)}
+                                type="password"
+                                value={form.confirm_password}
+                                onChange={(event) => setField('confirm_password', event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving || form.role === 'ro_coordinator'}
+                                disabled={saving}
+                            />
+                        </div>
+                    </div>
+
+                    <p className="text-[11px] leading-5 text-stone-500">
+                        Phone number and profile presentation can be completed by the account owner after sign-in.
+                    </p>
+
+                    {error ? (
+                        <p className="flex items-start gap-1.5 text-xs font-medium text-red-600">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>{error}</span>
+                        </p>
+                    ) : null}
+
+                    <div className="flex items-center justify-end gap-2 border-t border-stone-100 pt-3">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={saving}
+                            className="h-8 rounded-lg border-stone-200 text-xs"
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            type="submit"
+                            disabled={saving}
+                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            {saving ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Create Account
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function AdminCreateModal({
+    open,
+    form,
+    saving,
+    error,
+    setField,
+    onClose,
+    onSubmit,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+                    <div>
+                        <h3 className="text-sm font-semibold text-stone-800">
+                            Create Admin Account
+                        </h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Creates a high-privilege OSFA Administrator account.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={saving}
+                        className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                <form className="space-y-3 p-4" onSubmit={onSubmit}>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                        Admin role and OSFA office assignment are fixed at creation and cannot be converted into a department account later.
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel>First Name</FieldLabel>
+                            <Input
+                                value={form.first_name}
+                                onChange={(event) => setField('first_name', event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
+                            />
+                        </div>
+
+                        <div>
+                            <FieldLabel>Last Name</FieldLabel>
+                            <Input
+                                value={form.last_name}
+                                onChange={(event) => setField('last_name', event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <FieldLabel>Email Address</FieldLabel>
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                type="email"
+                                value={form.email}
+                                onChange={(event) => setField('email', event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                disabled={saving}
                             />
                         </div>
                     </div>
@@ -672,7 +827,7 @@ function StaffCreateModal({
                             ) : (
                                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Create Account
+                            Create Admin Account
                         </Button>
                     </div>
                 </form>
@@ -695,6 +850,10 @@ function StaffEditModal({
     currentUserId,
 }) {
     if (!open) return null;
+
+    const editRoleOptions = form.role === 'admin'
+        ? ROLE_OPTIONS.filter((option) => option.value === 'admin')
+        : OPERATIONAL_ROLE_OPTIONS;
 
     const setField = (field, value) => {
         setForm((current) => ({
@@ -785,20 +944,25 @@ function StaffEditModal({
                             <Select
                                 value={form.role}
                                 onValueChange={handleRoleChange}
-                                disabled={saving}
+                                disabled={saving || form.role === 'admin'}
                             >
                                 <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm">
                                     <SelectValue />
                                 </SelectTrigger>
 
                                 <SelectContent>
-                                    {ROLE_OPTIONS.map((option) => (
+                                    {editRoleOptions.map((option) => (
                                         <SelectItem key={option.value} value={option.value}>
                                             {option.label}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <p className="mt-1 text-[11px] text-stone-500">
+                                {form.role === 'admin'
+                                    ? 'Admin accounts stay Admin. Archive and create a department account instead of converting it.'
+                                    : 'Department roles can change among PD, SDO, Guidance, and RO Coordinator, but cannot become Admin.'}
+                            </p>
                         </div>
 
                         <div>
@@ -1031,19 +1195,23 @@ export default function AccountsPanel() {
     const [courses, setCourses] = useState([]);
     const [roAreas, setRoAreas] = useState([]);
     const [form, setForm] = useState(DEFAULT_FORM);
+    const [adminForm, setAdminForm] = useState(DEFAULT_ADMIN_FORM);
     const [editForm, setEditForm] = useState(DEFAULT_FORM);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingAdmin, setSavingAdmin] = useState(false);
     const [updating, setUpdating] = useState(false);
     const [actionLoadingId, setActionLoadingId] = useState(null);
 
     const [createOpen, setCreateOpen] = useState(false);
+    const [adminCreateOpen, setAdminCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [editingAccountId, setEditingAccountId] = useState(null);
     const [profileAccount, setProfileAccount] = useState(null);
 
     const [error, setError] = useState('');
+    const [adminError, setAdminError] = useState('');
     const [editError, setEditError] = useState('');
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
@@ -1150,6 +1318,14 @@ export default function AccountsPanel() {
         setError('');
     };
 
+    const setAdminField = (field, value) => {
+        setAdminForm((current) => ({
+            ...current,
+            [field]: value,
+        }));
+        setAdminError('');
+    };
+
     const handleRoleChange = (role) => {
         const defaults = ROLE_OPTIONS.find((option) => option.value === role);
 
@@ -1167,7 +1343,7 @@ export default function AccountsPanel() {
     };
 
     const openCreateModal = () => {
-        const defaults = ROLE_OPTIONS[0];
+        const defaults = DEFAULT_OPERATIONAL_ROLE;
 
         setForm({
             ...DEFAULT_FORM,
@@ -1185,6 +1361,19 @@ export default function AccountsPanel() {
 
         setCreateOpen(false);
         setError('');
+    };
+
+    const openAdminCreateModal = () => {
+        setAdminForm(DEFAULT_ADMIN_FORM);
+        setAdminError('');
+        setAdminCreateOpen(true);
+    };
+
+    const closeAdminCreateModal = () => {
+        if (savingAdmin) return;
+
+        setAdminCreateOpen(false);
+        setAdminError('');
     };
 
     const openEditModal = (account) => {
@@ -1249,14 +1438,14 @@ export default function AccountsPanel() {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to create staff account.'
+                    'Failed to create account.'
                 );
             }
 
             const createdAccount = data.data;
             const defaults =
-                ROLE_OPTIONS.find((option) => option.value === form.role) ||
-                ROLE_OPTIONS[0];
+                OPERATIONAL_ROLE_OPTIONS.find((option) => option.value === form.role) ||
+                DEFAULT_OPERATIONAL_ROLE;
 
             setAccounts((current) => [createdAccount, ...current]);
             setForm({
@@ -1267,13 +1456,60 @@ export default function AccountsPanel() {
             });
             setPageTab('current');
             setCreateOpen(false);
-            toast.success('Staff account created', {
+            toast.success('Account created', {
                 description: form.role === 'pd' ? 'The Program Director and course assignments are active.' : 'The account is ready to use.',
             });
         } catch (err) {
-            setError(err.message || 'Failed to create staff account.');
+            setError(err.message || 'Failed to create account.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAdminSubmit = async (event) => {
+        event.preventDefault();
+
+        const validationError = validateAdminCreateForm(adminForm);
+
+        if (validationError) {
+            setAdminError(validationError);
+            return;
+        }
+
+        try {
+            setSavingAdmin(true);
+            setAdminError('');
+
+            const response = await fetch(buildApiUrl('/api/accounts/admin'), {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    ...adminForm,
+                    email: adminForm.email.trim().toLowerCase(),
+                }),
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.success === false) {
+                throw new Error(
+                    data.error?.message ||
+                    data.message ||
+                    'Failed to create Admin account.'
+                );
+            }
+
+            setAccounts((current) => [data.data, ...current]);
+            setAdminForm(DEFAULT_ADMIN_FORM);
+            setPageTab('current');
+            setAdminCreateOpen(false);
+            toast.success('Admin account created', {
+                description: 'The new OSFA Administrator account is ready to sign in.',
+            });
+        } catch (err) {
+            setAdminError(err.message || 'Failed to create Admin account.');
+        } finally {
+            setSavingAdmin(false);
         }
     };
 
@@ -1386,6 +1622,16 @@ export default function AccountsPanel() {
                 onSubmit={handleSubmit}
                 courses={courses}
                 roAreas={roAreas}
+            />
+
+            <AdminCreateModal
+                open={adminCreateOpen}
+                form={adminForm}
+                saving={savingAdmin}
+                error={adminError}
+                setField={setAdminField}
+                onClose={closeAdminCreateModal}
+                onSubmit={handleAdminSubmit}
             />
 
             <StaffEditModal
@@ -1575,13 +1821,23 @@ export default function AccountsPanel() {
                                 </Button>
 
                                 <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={openAdminCreateModal}
+                                    className="h-8 rounded-lg border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-100 hover:text-amber-900"
+                                >
+                                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                    Create Admin Account
+                                </Button>
+
+                                <Button
                                     size="sm"
                                     onClick={openCreateModal}
                                     className="h-8 rounded-lg border-none text-xs text-white"
                                     style={{ background: C.brownMid }}
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                    Add
+                                    Create Account
                                 </Button>
                             </div>
                         </div>
@@ -1611,7 +1867,7 @@ export default function AccountsPanel() {
                                 subtitle={
                                     pageTab === 'archived'
                                         ? 'Archived staff accounts will appear here.'
-                                        : 'Create the first role-based account using the Add button.'
+                                        : 'Create the first department account using Create Account.'
                                 }
                             />
                         </div>

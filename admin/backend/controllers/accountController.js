@@ -109,34 +109,102 @@ function emitCreatedNotifications(req, notifications = []) {
     });
 }
 
+function normalizeProfileValue(value) {
+    return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function getProfileDisplayName(profile = {}) {
+    const name = [
+        normalizeProfileValue(profile.first_name),
+        normalizeProfileValue(profile.last_name),
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+    return name || normalizeProfileValue(profile.email) || 'A user';
+}
+
+function formatProfileFieldList(labels = []) {
+    if (labels.length <= 1) return labels[0] || 'profile information';
+    if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+    return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+}
+
+function buildProfileChangeMessages(beforeProfile = {}, afterProfile = {}) {
+    const actorName = getProfileDisplayName(beforeProfile);
+
+    const fieldDefinitions = [
+        ['first_name', 'first name'],
+        ['last_name', 'last name'],
+        ['email', 'email address'],
+        ['phone_number', 'phone number'],
+        ['position', 'position'],
+    ];
+
+    const changed = fieldDefinitions.filter(([field]) =>
+        normalizeProfileValue(beforeProfile[field]) !==
+        normalizeProfileValue(afterProfile[field])
+    );
+
+    if (changed.length === 0) {
+        return {
+            adminMessage: `${actorName} updated their profile information.`,
+        };
+    }
+
+    const changedKeys = changed.map(([field]) => field);
+    const changedLabels = changed.map(([, label]) => label);
+    const onlyNameChanged =
+        changed.length === 2 &&
+        changedKeys.includes('first_name') &&
+        changedKeys.includes('last_name');
+
+    let adminMessage;
+
+    if (onlyNameChanged) {
+        adminMessage =
+            `${actorName} updated their name to "${getProfileDisplayName(afterProfile)}".`;
+    } else if (changed.length === 1) {
+        const [field, label] = changed[0];
+
+        if (field === 'email') {
+            adminMessage = `${actorName} updated their email address.`;
+        } else if (field === 'phone_number') {
+            adminMessage = `${actorName} updated their phone number.`;
+        } else {
+            const nextValue = normalizeProfileValue(afterProfile[field]) || 'Not specified';
+            adminMessage = `${actorName} updated their ${label} to "${nextValue}".`;
+        }
+    } else {
+        adminMessage =
+            `${actorName} updated their ${formatProfileFieldList(changedLabels)}.`;
+    }
+
+    return {
+        adminMessage,
+    };
+}
+
 async function notifyOwnAccountActivity(
     req,
     profile,
     {
-        title,
-        message,
         adminTitle,
         adminMessage,
-        referenceType = 'staff_profile',
     }
 ) {
     const actorUserId = getActorUserId(req);
     if (!actorUserId) return;
 
     try {
-        const ownNotification = await notificationService.createUserNotification({
-            userId: actorUserId,
-            type: 'Account Activity',
-            title,
-            message,
-            referenceId: profile?.user_id || actorUserId,
-            referenceType,
-        });
-
+        // Self-service profile changes use immediate UI success feedback instead
+        // of adding a redundant notification to the user's notification bell.
+        // Admin is still notified so account identity/profile changes remain visible.
         const adminNotifications =
             await notificationService.createStaffNotifications({
                 roles: ['admin'],
-                type: 'Staff Account',
+                type: 'Account Activity',
                 title: adminTitle,
                 message: adminMessage,
                 referenceId: profile?.user_id || actorUserId,
@@ -144,13 +212,7 @@ async function notifyOwnAccountActivity(
                 excludeUserIds: [actorUserId],
             });
 
-        emitCreatedNotifications(req, [
-            {
-                ...ownNotification,
-                target_user_id: actorUserId,
-            },
-            ...adminNotifications,
-        ]);
+        emitCreatedNotifications(req, adminNotifications);
     } catch (error) {
         console.error('STAFF PROFILE NOTIFICATION ERROR:', error.message || error);
     }
@@ -160,24 +222,48 @@ async function notifyAdminManagedAccountChange(req, account, actionLabel) {
     const actorUserId = getActorUserId(req);
     const targetUserId = account?.user_id;
 
-    if (!targetUserId || String(targetUserId) === String(actorUserId)) return;
+    if (!targetUserId) return;
 
     try {
-        const notification = await notificationService.createUserNotification({
-            userId: targetUserId,
-            type: 'Account Activity',
-            title: `Account ${actionLabel}`,
-            message: `A system administrator ${actionLabel.toLowerCase()} your staff account.`,
-            referenceId: targetUserId,
-            referenceType: 'staff_account',
-        });
+        const notifications = [];
 
-        emitCreatedNotifications(req, [
-            {
-                ...notification,
+        if (String(targetUserId) !== String(actorUserId)) {
+            const targetNotification = await notificationService.createUserNotification({
+                userId: targetUserId,
+                type: 'Account Activity',
+                title: `Account ${actionLabel}`,
+                message: `An administrator ${actionLabel.toLowerCase()} your account.`,
+                referenceId: targetUserId,
+                referenceType: 'staff_account',
+            });
+
+            notifications.push({
+                ...targetNotification,
                 target_user_id: targetUserId,
-            },
-        ]);
+            });
+        }
+
+        if (
+            actorUserId &&
+            ['Updated', 'Archived', 'Restored'].includes(actionLabel)
+        ) {
+            const accountName = getProfileDisplayName(account);
+            const actorNotification = await notificationService.createUserNotification({
+                userId: actorUserId,
+                type: 'Account Activity',
+                title: `Account ${actionLabel}`,
+                message: `${accountName}'s account was ${actionLabel.toLowerCase()}.`,
+                referenceId: targetUserId,
+                referenceType: 'staff_account',
+            });
+
+            notifications.push({
+                ...actorNotification,
+                target_user_id: actorUserId,
+            });
+        }
+
+        emitCreatedNotifications(req, notifications);
     } catch (error) {
         console.error('MANAGED ACCOUNT NOTIFICATION ERROR:', error.message || error);
     }
@@ -230,6 +316,42 @@ exports.createStaffAccount = async (req, res) => {
     } catch (err) {
         console.error('CREATE STAFF ACCOUNT ERROR:', err);
         return sendError(res, err, 'Failed to create staff account');
+    }
+};
+
+exports.createAdminAccount = async (req, res) => {
+    try {
+        const account = await accountService.createAdminAccount(req.body, getActorUserId(req));
+
+        await auditLogService.logAudit({
+            req,
+            actionTaken: 'CREATE_ADMIN_ACCOUNT',
+            module: 'Accounts',
+            entityType: 'staff_account',
+            entityId: account?.user_id || null,
+            description: `Created Admin account for ${account?.email || 'unknown email'}.`,
+            metadata: {
+                user_id: account?.user_id || null,
+                email: account?.email || null,
+                role: 'admin',
+                department: account?.department || null,
+                position: account?.position || null,
+            },
+        }).catch((auditError) => {
+            console.error('CREATE ADMIN ACCOUNT AUDIT ERROR:', auditError.message);
+        });
+
+        emitAccountUpdate(req, 'create_admin', account);
+        await notifyAdminManagedAccountChange(req, account, 'Created');
+
+        return res.status(201).json({
+            success: true,
+            data: account,
+            message: 'Admin account created successfully.',
+        });
+    } catch (err) {
+        console.error('CREATE ADMIN ACCOUNT ERROR:', err);
+        return sendError(res, err, 'Failed to create Admin account');
     }
 };
 
@@ -409,17 +531,18 @@ exports.getCurrentStaffProfile = async (req, res) => {
 
 exports.updateCurrentStaffProfile = async (req, res) => {
     try {
+        const actorUserId = getActorUserId(req);
+        const previousProfile = await accountService.getCurrentStaffProfile(actorUserId);
         const profile = await accountService.updateCurrentStaffProfile(
-            getActorUserId(req),
+            actorUserId,
             req.body
         );
+        const changeMessages = buildProfileChangeMessages(previousProfile, profile);
 
         emitAccountUpdate(req, 'profile_update', profile);
         await notifyOwnAccountActivity(req, profile, {
-            title: 'Profile updated',
-            message: 'Your staff profile information was updated successfully.',
-            adminTitle: 'Staff profile updated',
-            adminMessage: `${profile?.name || profile?.email || 'A staff member'} updated their profile information.`,
+            adminTitle: 'Profile Updated',
+            adminMessage: changeMessages.adminMessage,
         });
 
         return res.status(200).json({
@@ -455,8 +578,8 @@ exports.changeCurrentStaffPassword = async (req, res) => {
                 const notification = await notificationService.createUserNotification({
                     userId: actorUserId,
                     type: 'Security',
-                    title: 'Password changed',
-                    message: 'Your staff account password was changed successfully.',
+                    title: 'Password Changed',
+                    message: 'Your account password was changed successfully.',
                     referenceId: actorUserId,
                     referenceType: 'staff_profile',
                 });
@@ -482,11 +605,8 @@ exports.uploadCurrentStaffProfilePhoto = async (req, res) => {
 
         emitAccountUpdate(req, 'profile_photo_update', profile);
         await notifyOwnAccountActivity(req, profile, {
-            title: 'Profile photo updated',
-            message: 'Your staff profile photo was changed successfully.',
-            adminTitle: 'Staff profile photo updated',
-            adminMessage: `${profile?.name || profile?.email || 'A staff member'} changed their profile photo.`,
-            referenceType: 'staff_profile',
+            adminTitle: 'Profile Photo Updated',
+            adminMessage: `${getProfileDisplayName(profile)} updated their profile photo.`,
         });
 
         return res.status(200).json({
@@ -508,11 +628,8 @@ exports.removeCurrentStaffProfilePhoto = async (req, res) => {
 
         emitAccountUpdate(req, 'profile_photo_remove', profile);
         await notifyOwnAccountActivity(req, profile, {
-            title: 'Profile photo removed',
-            message: 'Your staff profile photo was removed successfully.',
-            adminTitle: 'Staff profile photo removed',
-            adminMessage: `${profile?.name || profile?.email || 'A staff member'} removed their profile photo.`,
-            referenceType: 'staff_profile',
+            adminTitle: 'Profile Photo Removed',
+            adminMessage: `${getProfileDisplayName(profile)} removed their profile photo.`,
         });
 
         return res.status(200).json({

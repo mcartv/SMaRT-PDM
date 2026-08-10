@@ -9,15 +9,120 @@ const AUDIENCE_LABEL = {
     tdp: 'TDP Recipients',
 };
 
-function mapAnnouncementRow(row) {
+const ALLOWED_AUDIENCES = new Set([
+    'all',
+    'applicants',
+    'scholars',
+    'program',
+    // Kept for historical announcements created before dynamic program targeting.
+    'tes',
+    'tdp',
+]);
+
+function normalizeAudience(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function normalizeProgramId(value) {
+    const programId = String(value || '').trim();
+    if (!programId) return null;
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(programId)) {
+        throw new Error('Program ID is invalid.');
+    }
+
+    return programId;
+}
+
+async function validateAudienceTarget(audience, programId) {
+    const normalizedAudience = normalizeAudience(audience);
+
+    if (!ALLOWED_AUDIENCES.has(normalizedAudience)) {
+        throw new Error('Unsupported announcement audience.');
+    }
+
+    if (normalizedAudience !== 'program') {
+        return {
+            audience: normalizedAudience,
+            programId: null,
+            programName: null,
+        };
+    }
+
+    const normalizedProgramId = normalizeProgramId(programId);
+    if (!normalizedProgramId) {
+        throw new Error('Select a scholarship program for the recipient audience.');
+    }
+
+    const { data, error } = await supabase
+        .from('scholarship_program')
+        .select('program_id, program_name, visibility_status, is_archived')
+        .eq('program_id', normalizedProgramId)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    if (!data) {
+        throw new Error('Selected scholarship program does not exist.');
+    }
+
+    if (data.is_archived === true || data.visibility_status !== 'Published') {
+        throw new Error('Selected scholarship program is not active for announcements.');
+    }
+
+    return {
+        audience: normalizedAudience,
+        programId: data.program_id,
+        programName: data.program_name,
+    };
+}
+
+async function getProgramNameMap(rows = []) {
+    const programIds = [
+        ...new Set(
+            rows
+                .map((row) => row?.target_program_id)
+                .filter(Boolean)
+                .map(String)
+        ),
+    ];
+
+    if (!programIds.length) return new Map();
+
+    const { data, error } = await supabase
+        .from('scholarship_program')
+        .select('program_id, program_name')
+        .in('program_id', programIds);
+
+    if (error) {
+        console.error('SUPABASE ANNOUNCEMENT PROGRAM LABEL FETCH ERROR:', error);
+        return new Map();
+    }
+
+    return new Map(
+        (data || []).map((program) => [String(program.program_id), program.program_name])
+    );
+}
+
+function mapAnnouncementRow(row, programName = null) {
+    const audienceKey = normalizeAudience(row.target_audience) || 'all';
+    const resolvedProgramName = programName || null;
+    const audienceLabel = audienceKey === 'program'
+        ? `${resolvedProgramName || 'Scholarship Program'} Recipients`
+        : AUDIENCE_LABEL[audienceKey] || row.target_audience;
+
     return {
         id: row.announcement_id,
         title: row.subject,
         content: row.content,
         status: row.is_archived ? 'Archived' : row.status,
         date: row.published_at || row.scheduled_at || row.publish_date || row.created_at,
-        audience: AUDIENCE_LABEL[row.target_audience] || row.target_audience,
-        audienceKey: row.target_audience,
+        audience: audienceLabel,
+        audienceKey,
+        targetProgramId: row.target_program_id || null,
+        targetProgramName: resolvedProgramName,
         isRoVoluntary: !!row.is_ro_voluntary,
         is_archived: !!row.is_archived,
         scheduledAt: row.scheduled_at || null,
@@ -28,10 +133,28 @@ function mapAnnouncementRow(row) {
     };
 }
 
+async function mapAnnouncementRows(rows = []) {
+    const programNames = await getProgramNameMap(rows);
+    return rows.map((row) =>
+        mapAnnouncementRow(
+            row,
+            row.target_program_id
+                ? programNames.get(String(row.target_program_id)) || null
+                : null
+        )
+    );
+}
+
+async function mapSingleAnnouncementRow(row) {
+    const [mapped] = await mapAnnouncementRows(row ? [row] : []);
+    return mapped || null;
+}
+
 async function createAnnouncementNotifications(announcementRow) {
     try {
         const rows = await notificationService.createNotificationsForAudience({
             audience: announcementRow.target_audience,
+            programId: announcementRow.target_program_id || null,
             title: announcementRow.subject,
             message: announcementRow.content,
             referenceId: announcementRow.announcement_id,
@@ -73,7 +196,7 @@ async function publishAnnouncementInternal(announcementId) {
     const notificationsInserted = await createAnnouncementNotifications(data);
 
     return {
-        ...mapAnnouncementRow(data),
+        ...(await mapSingleAnnouncementRow(data)),
         notificationsInserted,
     };
 }
@@ -90,7 +213,7 @@ exports.fetchAnnouncements = async () => {
         throw new Error(error.message);
     }
 
-    return (data || []).map(mapAnnouncementRow);
+    return mapAnnouncementRows(data || []);
 };
 
 exports.fetchArchivedAnnouncements = async () => {
@@ -105,7 +228,7 @@ exports.fetchArchivedAnnouncements = async () => {
         throw new Error(error.message);
     }
 
-    return (data || []).map(mapAnnouncementRow);
+    return mapAnnouncementRows(data || []);
 };
 
 exports.createAnnouncement = async (payload, user) => {
@@ -113,6 +236,8 @@ exports.createAnnouncement = async (payload, user) => {
         title,
         content,
         audience,
+        programId,
+        targetProgramId,
         schedDate,
         isRoVoluntary = false,
         forceDraft = false,
@@ -135,6 +260,10 @@ exports.createAnnouncement = async (payload, user) => {
         }
     }
 
+    const target = await validateAudienceTarget(
+        audience,
+        programId || targetProgramId || null
+    );
     const isScheduled = !!schedDate && !forceDraft;
     const nowIso = new Date().toISOString();
 
@@ -142,7 +271,8 @@ exports.createAnnouncement = async (payload, user) => {
         author_id: user?.userId || user?.user_id || null,
         subject: (title || '').trim(),
         content: (content || '').trim(),
-        target_audience: audience,
+        target_audience: target.audience,
+        target_program_id: target.programId,
         is_ro_voluntary: !!isRoVoluntary,
         publish_date: forceDraft ? null : isScheduled ? null : nowIso,
         status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
@@ -170,7 +300,7 @@ exports.createAnnouncement = async (payload, user) => {
     }
 
     return {
-        ...mapAnnouncementRow(data),
+        ...(await mapSingleAnnouncementRow(data)),
         notificationsInserted,
     };
 };
@@ -180,6 +310,8 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         title,
         content,
         audience,
+        programId,
+        targetProgramId,
         schedDate,
         isRoVoluntary = false,
         forceDraft = false,
@@ -202,13 +334,18 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         }
     }
 
+    const target = await validateAudienceTarget(
+        audience,
+        programId || targetProgramId || null
+    );
     const isScheduled = !!schedDate && !forceDraft;
     const nowIso = new Date().toISOString();
 
     const updateRow = {
         subject: (title || '').trim(),
         content: (content || '').trim(),
-        target_audience: audience,
+        target_audience: target.audience,
+        target_program_id: target.programId,
         is_ro_voluntary: !!isRoVoluntary,
         status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
         scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
@@ -237,13 +374,13 @@ exports.updateAnnouncement = async (announcementId, payload) => {
     }
 
     return {
-        ...mapAnnouncementRow(data),
+        ...(await mapSingleAnnouncementRow(data)),
         notificationsInserted,
     };
 };
 
 exports.publishAnnouncement = async (announcementId) => {
-    return await publishAnnouncementInternal(announcementId);
+    return publishAnnouncementInternal(announcementId);
 };
 
 exports.publishDueAnnouncements = async () => {
@@ -301,7 +438,7 @@ exports.archiveAnnouncement = async (announcementId) => {
         throw new Error(error.message);
     }
 
-    return mapAnnouncementRow(data);
+    return mapSingleAnnouncementRow(data);
 };
 
 exports.restoreAnnouncement = async (announcementId) => {
@@ -323,5 +460,5 @@ exports.restoreAnnouncement = async (announcementId) => {
         throw new Error(error.message);
     }
 
-    return mapAnnouncementRow(data);
+    return mapSingleAnnouncementRow(data);
 };

@@ -2,43 +2,119 @@ const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
-const AUDIENCE_TO_ROLE_FILTER = {
-    all: null,
-    applicants: 'Applicant',
-    scholars: 'Student',
-    tes: 'Student',
-    tdp: 'Student',
-};
+function normalizeAudience(value) {
+    return String(value || '').trim().toLowerCase();
+}
 
-async function getAudienceUsers(audience) {
-    let usersQuery = supabase
-        .from('users')
-        .select('user_id, role');
+function dedupeAudienceUsers(users = []) {
+    const seen = new Set();
+    return users.filter((user) => {
+        const userId = String(user?.user_id || '').trim();
+        if (!userId || seen.has(userId)) return false;
+        seen.add(userId);
+        return true;
+    });
+}
 
-    const roleFilter = AUDIENCE_TO_ROLE_FILTER[audience];
+async function getApplicantAudienceUsers() {
+    const { rows } = await db.query(
+        `
+        SELECT u.user_id, u.role
+        FROM users u
+        WHERE lower(coalesce(u.role, '')) = 'applicant'
+        `
+    );
 
-    if (roleFilter) {
-        usersQuery = usersQuery.eq('role', roleFilter);
+    return rows || [];
+}
+
+async function getActiveScholarAudienceUsers(programId = null) {
+    const params = [];
+    let programCondition = '';
+
+    if (programId) {
+        params.push(programId);
+        programCondition = `AND s.current_program_id = $${params.length}`;
     }
 
-    const { data: users, error } = await usersQuery;
+    const { rows } = await db.query(
+        `
+        SELECT DISTINCT u.user_id, u.role
+        FROM users u
+        INNER JOIN students s ON s.user_id = u.user_id
+        WHERE lower(coalesce(u.role, '')) = 'student'
+          AND coalesce(s.is_active_scholar, false) = true
+          AND lower(coalesce(s.scholarship_status, '')) = 'active'
+          AND coalesce(s.scholar_is_archived, false) = false
+          AND coalesce(s.is_archived, false) = false
+          AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
+          ${programCondition}
+        `,
+        params
+    );
 
-    if (error) {
-        console.error('SUPABASE USERS FETCH ERROR:', error);
-        throw new Error(error.message);
+    return rows || [];
+}
+
+async function resolveLegacyProgramId(audience) {
+    const normalizedAudience = normalizeAudience(audience);
+    if (!['tes', 'tdp'].includes(normalizedAudience)) return null;
+
+    const patterns = normalizedAudience === 'tes'
+        ? ['%tertiary education subsidy%', 'tes%', '% tes %']
+        : ['%tulong dunong%', 'tdp%', '% tdp %'];
+
+    const { rows } = await db.query(
+        `
+        SELECT program_id
+        FROM scholarship_program
+        WHERE coalesce(is_archived, false) = false
+          AND (
+            lower(program_name) LIKE $1
+            OR lower(program_name) LIKE $2
+            OR (' ' || lower(program_name) || ' ') LIKE $3
+          )
+        ORDER BY program_name
+        LIMIT 1
+        `,
+        patterns
+    );
+
+    return rows[0]?.program_id || null;
+}
+
+async function getAudienceUsers(audience, { programId = null } = {}) {
+    const normalizedAudience = normalizeAudience(audience);
+
+    if (normalizedAudience === 'applicants') {
+        return getApplicantAudienceUsers();
     }
 
-    let filteredUsers = users || [];
-
-    if (audience === 'applicants') {
-        filteredUsers = filteredUsers.filter((user) => user.role === 'Applicant');
+    if (normalizedAudience === 'scholars') {
+        return getActiveScholarAudienceUsers();
     }
 
-    if (['scholars', 'tes', 'tdp'].includes(audience)) {
-        filteredUsers = filteredUsers.filter((user) => user.role === 'Student');
+    if (normalizedAudience === 'program') {
+        if (!programId) {
+            throw new Error('Program ID is required for a program recipient announcement.');
+        }
+        return getActiveScholarAudienceUsers(programId);
     }
 
-    return filteredUsers;
+    if (['tes', 'tdp'].includes(normalizedAudience)) {
+        const legacyProgramId = await resolveLegacyProgramId(normalizedAudience);
+        return legacyProgramId ? getActiveScholarAudienceUsers(legacyProgramId) : [];
+    }
+
+    if (normalizedAudience === 'all') {
+        const [applicants, scholars] = await Promise.all([
+            getApplicantAudienceUsers(),
+            getActiveScholarAudienceUsers(),
+        ]);
+        return dedupeAudienceUsers([...applicants, ...scholars]);
+    }
+
+    throw new Error('Unsupported announcement audience.');
 }
 
 async function createNotificationsForAudience({
@@ -49,12 +125,13 @@ async function createNotificationsForAudience({
     referenceType = 'announcement',
     type = 'Announcement',
     createdAt = null,
+    programId = null,
 }) {
     if (!title || !message || !audience) {
         throw new Error('Title, message, and audience are required');
     }
 
-    const users = await getAudienceUsers(audience);
+    const users = await getAudienceUsers(audience, { programId });
 
     if (!users.length) {
         return [];
@@ -91,6 +168,8 @@ exports.createAnnouncementNotifications = async (payload) => {
         content,
         audience,
         schedDate,
+        programId = null,
+        targetProgramId = null,
     } = payload || {};
 
     const createdRows = await createNotificationsForAudience({
@@ -100,6 +179,7 @@ exports.createAnnouncementNotifications = async (payload) => {
         referenceType: 'announcement',
         type: 'Announcement',
         createdAt: schedDate ? new Date(schedDate).toISOString() : new Date().toISOString(),
+        programId: programId || targetProgramId || null,
     });
 
     return {
@@ -109,6 +189,7 @@ exports.createAnnouncementNotifications = async (payload) => {
     };
 };
 
+exports.getAudienceUsers = getAudienceUsers;
 exports.createNotificationsForAudience = createNotificationsForAudience;
 
 async function createUserNotification({
@@ -149,6 +230,71 @@ async function createUserNotification({
 }
 
 exports.createUserNotification = createUserNotification;
+
+async function createUserNotificationOnce({
+    userId,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    createdAt = null,
+}) {
+    if (!userId || !type || !title || !message) {
+        throw new Error('userId, type, title, and message are required');
+    }
+
+    const timestamp = createdAt || new Date().toISOString();
+    const { rows } = await db.query(
+        `
+        INSERT INTO notifications (
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            push_sent,
+            created_at
+        )
+        SELECT $1, $2, $3, $4, $5, $6, false, false, $7
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM notifications existing
+            WHERE existing.user_id = $1
+              AND existing.type = $2
+              AND existing.title = $3
+              AND existing.reference_id IS NOT DISTINCT FROM $5
+              AND existing.reference_type IS NOT DISTINCT FROM $6
+        )
+        RETURNING
+            notification_id,
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            push_sent,
+            created_at
+        `,
+        [
+            userId,
+            type,
+            title,
+            message,
+            referenceId,
+            referenceType,
+            timestamp,
+        ]
+    );
+
+    return rows[0] || null;
+}
+
+exports.createUserNotificationOnce = createUserNotificationOnce;
 
 async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [] } = {}) {
     const normalizedRoles = new Set(

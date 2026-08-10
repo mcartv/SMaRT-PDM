@@ -6,45 +6,133 @@ function createHttpError(statusCode, message) {
   return error;
 }
 
-async function getUserRole(userId) {
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+async function getAudienceContext(userId) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
   }
 
-  const { data, error } = await supabase
+  const { data: user, error: userError } = await supabase
     .from('users')
     .select('role')
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error) {
-    throw error;
+  if (userError) {
+    throw userError;
   }
 
-  return data?.role?.toString() || '';
+  const role = normalizeText(user?.role);
+  const context = {
+    role,
+    isApplicant: role === 'applicant',
+    isActiveScholar: false,
+    currentProgramId: null,
+    currentProgramName: '',
+  };
+
+  if (role !== 'student') {
+    return context;
+  }
+
+  const { data: student, error: studentError } = await supabase
+    .from('students')
+    .select(`
+      current_program_id,
+      is_active_scholar,
+      scholarship_status,
+      scholar_is_archived,
+      is_archived,
+      account_status
+    `)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (studentError) {
+    throw studentError;
+  }
+
+  context.currentProgramId = student?.current_program_id || null;
+  context.isActiveScholar =
+    student?.is_active_scholar === true &&
+    normalizeText(student?.scholarship_status) === 'active' &&
+    student?.scholar_is_archived !== true &&
+    student?.is_archived !== true &&
+    normalizeText(student?.account_status) !== 'disabled';
+
+  if (context.currentProgramId) {
+    const { data: program, error: programError } = await supabase
+      .from('scholarship_program')
+      .select('program_name')
+      .eq('program_id', context.currentProgramId)
+      .maybeSingle();
+
+    if (programError) {
+      throw programError;
+    }
+
+    context.currentProgramName = normalizeText(program?.program_name);
+  }
+
+  return context;
 }
 
-function canViewAudience(role, audience) {
-  const normalizedRole = String(role || '').trim().toLowerCase();
-  const normalizedAudience = String(audience || 'all').trim().toLowerCase();
+function matchesLegacyProgramAudience(context, audience) {
+  if (!context.isActiveScholar) return false;
 
-  if (!normalizedAudience || normalizedAudience === 'all') {
-    return true;
+  const programName = context.currentProgramName;
+  if (!programName) return false;
+
+  if (audience === 'tes') {
+    return (
+      programName.includes('tertiary education subsidy') ||
+      /^tes(?:\b|\s|-)/.test(programName) ||
+      /\btes\b/.test(programName)
+    );
   }
 
-  if (normalizedAudience === 'applicants') {
-    return normalizedRole === 'applicant';
+  if (audience === 'tdp') {
+    return (
+      programName.includes('tulong dunong') ||
+      /^tdp(?:\b|\s|-)/.test(programName) ||
+      /\btdp\b/.test(programName)
+    );
   }
 
-  if (
-    normalizedAudience === 'scholars' ||
-    normalizedAudience === 'tes' ||
-    normalizedAudience === 'tdp'
-  ) {
-    return normalizedRole === 'student';
+  return false;
+}
+
+function canViewAudience(context, row = {}) {
+  const audience = normalizeText(row.target_audience || 'all');
+
+  if (audience === 'all') {
+    return context.isApplicant || context.isActiveScholar;
   }
 
-  return true;
+  if (audience === 'applicants') {
+    return context.isApplicant;
+  }
+
+  if (audience === 'scholars') {
+    return context.isActiveScholar;
+  }
+
+  if (audience === 'program') {
+    return (
+      context.isActiveScholar &&
+      Boolean(context.currentProgramId) &&
+      String(context.currentProgramId) === String(row.target_program_id || '')
+    );
+  }
+
+  if (audience === 'tes' || audience === 'tdp') {
+    return matchesLegacyProgramAudience(context, audience);
+  }
+
+  return false;
 }
 
 function mapAnnouncementRow(row = {}) {
@@ -53,6 +141,7 @@ function mapAnnouncementRow(row = {}) {
     title: row.subject?.toString() || 'Announcement',
     content: row.content?.toString() || '',
     audienceKey: row.target_audience?.toString() || 'all',
+    targetProgramId: row.target_program_id?.toString() || null,
     date:
       row.published_at?.toString() ||
       row.publish_date?.toString() ||
@@ -62,7 +151,7 @@ function mapAnnouncementRow(row = {}) {
 }
 
 async function listPublishedAnnouncements(userId) {
-  const role = await getUserRole(userId);
+  const context = await getAudienceContext(userId);
 
   const { data, error } = await supabase
     .from('announcements')
@@ -71,6 +160,7 @@ async function listPublishedAnnouncements(userId) {
       subject,
       content,
       target_audience,
+      target_program_id,
       published_at,
       publish_date,
       created_at,
@@ -86,10 +176,11 @@ async function listPublishedAnnouncements(userId) {
   }
 
   return (data || [])
-    .filter((row) => canViewAudience(role, row.target_audience))
+    .filter((row) => canViewAudience(context, row))
     .map(mapAnnouncementRow);
 }
 
 module.exports = {
   listPublishedAnnouncements,
+  canViewAudience,
 };

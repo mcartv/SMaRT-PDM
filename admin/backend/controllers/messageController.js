@@ -823,6 +823,16 @@ exports.getConversations = async (req, res) => {
         FROM messages m
         WHERE m.room_id IS NULL
           AND (m.sender_id = $1 OR m.receiver_id = $1)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM message_thread_archives mta
+            WHERE mta.user_id = $1
+              AND mta.thread_type = 'private'
+              AND mta.counterparty_id = CASE
+                WHEN m.sender_id = $1 THEN m.receiver_id
+                ELSE m.sender_id
+              END
+          )
       ),
       ranked AS (
         SELECT
@@ -952,10 +962,27 @@ exports.getConversationMessages = async (req, res) => {
 };
 
 exports.getArchivedThreads = async (req, res) => {
-  return res.json({
-    items: [],
-    archived: [],
-  });
+  try {
+    const currentUserId = getCurrentUserId(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const items = await messageService.fetchArchivedThreads(currentUserId);
+
+    return res.json({
+      items,
+      archived: items,
+    });
+  } catch (err) {
+    console.error('GET ARCHIVED THREADS ERROR:', err.message);
+
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to load archived threads',
+      error: err.message,
+    });
+  }
 };
 
 exports.restoreConversation = async (req, res) => {
@@ -967,28 +994,35 @@ exports.restoreConversation = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const io = req.app.get('io');
-
-    emitThreadRestored(
-      io,
-      {
-        thread_type: 'private',
-        counterparty_id: counterpartyId,
-        counterpartyId,
-        restored_by: currentUserId,
-        restored_at: new Date().toISOString(),
-      },
-      [currentUserId]
+    const result = await messageService.restoreConversation(
+      currentUserId,
+      counterpartyId
     );
+
+    if (result.restored) {
+      const io = req.app.get('io');
+
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'private',
+          counterparty_id: counterpartyId,
+          counterpartyId,
+          restored_by: currentUserId,
+          restored_at: new Date().toISOString(),
+        },
+        [currentUserId]
+      );
+    }
 
     return res.json({
       success: true,
-      restored: true,
+      ...result,
     });
   } catch (err) {
     console.error('RESTORE CONVERSATION ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to restore conversation',
       error: err.message,
     });
@@ -1004,28 +1038,34 @@ exports.restoreRoom = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const io = req.app.get('io');
+    const result = await messageService.restoreRoom(currentUserId, roomId, {
+      skipMembershipCheck: isSystemAdmin(req),
+    });
 
-    emitThreadRestored(
-      io,
-      {
-        thread_type: 'group',
-        room_id: roomId,
-        roomId,
-        restored_by: currentUserId,
-        restored_at: new Date().toISOString(),
-      },
-      [currentUserId]
-    );
+    if (result.restored) {
+      const io = req.app.get('io');
+
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'group',
+          room_id: roomId,
+          roomId,
+          restored_by: currentUserId,
+          restored_at: new Date().toISOString(),
+        },
+        [currentUserId]
+      );
+    }
 
     return res.json({
       success: true,
-      restored: true,
+      ...result,
     });
   } catch (err) {
     console.error('RESTORE ROOM ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to restore room thread',
       error: err.message,
     });
@@ -1182,6 +1222,12 @@ exports.archiveConversation = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    const archive = await messageService.archiveConversation(
+      currentUserId,
+      counterpartyId
+    );
+    const archivedAt = archive?.archived_at || new Date().toISOString();
+
     const io = req.app.get('io');
 
     emitThreadArchived(
@@ -1191,7 +1237,7 @@ exports.archiveConversation = async (req, res) => {
         counterparty_id: counterpartyId,
         counterpartyId,
         archived_by: currentUserId,
-        archived_at: new Date().toISOString(),
+        archived_at: archivedAt,
       },
       [currentUserId]
     );
@@ -1199,18 +1245,19 @@ exports.archiveConversation = async (req, res) => {
     return res.json({
       success: true,
       archive: {
+        ...archive,
         counterpartyId,
         counterparty_id: counterpartyId,
         archivedBy: currentUserId,
         archived_by: currentUserId,
-        archivedAt: new Date().toISOString(),
-        archived_at: new Date().toISOString(),
+        archivedAt,
+        archived_at: archivedAt,
       },
     });
   } catch (err) {
     console.error('ARCHIVE CONVERSATION ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to archive conversation',
       error: err.message,
     });
@@ -1293,8 +1340,17 @@ exports.getRooms = async (req, res) => {
           cr.created_by,
           0::int AS unread_count
         FROM chat_rooms cr
+        WHERE COALESCE(cr.is_archived, false) = false
+          AND NOT EXISTS (
+            SELECT 1
+            FROM message_thread_archives mta
+            WHERE mta.user_id = $1
+              AND mta.thread_type = 'group'
+              AND mta.room_id = cr.room_id
+          )
         ORDER BY cr.created_at DESC;
-        `
+        `,
+        [currentUserId]
       );
     } else {
       result = await db.query(
@@ -1309,6 +1365,14 @@ exports.getRooms = async (req, res) => {
         JOIN chat_rooms cr
           ON cr.room_id = crm.room_id
         WHERE crm.user_id = $1
+          AND COALESCE(cr.is_archived, false) = false
+          AND NOT EXISTS (
+            SELECT 1
+            FROM message_thread_archives mta
+            WHERE mta.user_id = $1
+              AND mta.thread_type = 'group'
+              AND mta.room_id = cr.room_id
+          )
         ORDER BY cr.created_at DESC;
         `,
         [currentUserId]
@@ -1794,6 +1858,11 @@ exports.archiveRoom = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    const archive = await messageService.archiveRoom(currentUserId, roomId, {
+      skipMembershipCheck: isSystemAdmin(req),
+    });
+    const archivedAt = archive?.archived_at || new Date().toISOString();
+
     const io = req.app.get('io');
 
     emitThreadArchived(
@@ -1803,7 +1872,7 @@ exports.archiveRoom = async (req, res) => {
         room_id: roomId,
         roomId,
         archived_by: currentUserId,
-        archived_at: new Date().toISOString(),
+        archived_at: archivedAt,
       },
       [currentUserId]
     );
@@ -1811,18 +1880,19 @@ exports.archiveRoom = async (req, res) => {
     return res.json({
       success: true,
       archive: {
+        ...archive,
         roomId,
         room_id: roomId,
         archivedBy: currentUserId,
         archived_by: currentUserId,
-        archivedAt: new Date().toISOString(),
-        archived_at: new Date().toISOString(),
+        archivedAt,
+        archived_at: archivedAt,
       },
     });
   } catch (err) {
     console.error('ARCHIVE ROOM ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to archive room thread',
       error: err.message,
     });

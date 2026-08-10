@@ -49,6 +49,14 @@ const DEPARTMENTS_BY_ROLE = {
 };
 
 const ROLE_VALUES = Object.keys(ROLE_CONFIG);
+const OPERATIONAL_ROLE_VALUES = ['pd', 'guidance', 'sdo', 'ro_coordinator'];
+
+const passwordSchema = z
+    .string()
+    .min(8, 'Password must be at least 8 characters.')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+    .regex(/[0-9]/, 'Password must contain at least one number.');
 
 const staffAccountSchema = z
     .object({
@@ -56,17 +64,25 @@ const staffAccountSchema = z
         last_name: z.string().trim().min(1, 'Last name is required.'),
         email: z.string().trim().toLowerCase().email('A valid email address is required.'),
         phone_number: z.string().trim().optional().default(''),
-        role: z.enum(['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'], {
-            error: 'Invalid role selected.',
+        role: z.enum(OPERATIONAL_ROLE_VALUES, {
+            error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
         }),
         department: z.string().trim().optional().default(''),
         position: z.string().trim().optional().default(''),
-        password: z
-            .string()
-            .min(8, 'Password must be at least 8 characters.')
-            .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
-            .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
-            .regex(/[0-9]/, 'Password must contain at least one number.'),
+        password: passwordSchema,
+        confirm_password: z.string(),
+    })
+    .refine((data) => data.password === data.confirm_password, {
+        path: ['confirm_password'],
+        message: 'Passwords do not match.',
+    });
+
+const adminAccountSchema = z
+    .object({
+        first_name: z.string().trim().min(1, 'First name is required.'),
+        last_name: z.string().trim().min(1, 'Last name is required.'),
+        email: z.string().trim().toLowerCase().email('A valid email address is required.'),
+        password: passwordSchema,
         confirm_password: z.string(),
     })
     .refine((data) => data.password === data.confirm_password, {
@@ -438,29 +454,26 @@ async function getCurrentStaffProfile(userId) {
     return decorateStaffAccount(row);
 }
 
-async function createStaffAccount(payload, actorUserId = null) {
-    const parsed = staffAccountSchema.safeParse(payload);
-
-    if (!parsed.success) {
-        const firstIssue = parsed.error.issues[0];
-        throw createHttpError(400, firstIssue?.message || 'Invalid staff account details.');
-    }
-
+async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUserId = null) {
     const {
         first_name: firstName,
         last_name: lastName,
         email,
-        phone_number: phoneNumberInput,
+        phone_number: phoneNumberInput = '',
         role,
         password,
-    } = parsed.data;
+    } = parsedData;
 
     const config = ROLE_CONFIG[role];
+    if (!config) {
+        throw createHttpError(400, 'Invalid role selected.');
+    }
+
     const phoneNumber = safeText(phoneNumberInput) || null;
-    let department = validateDepartment(role, payload.department || config.department);
+    let department = validateDepartment(role, rawPayload.department || parsedData.department || config.department);
     const position = role === 'ro_coordinator'
         ? config.position
-        : safeText(payload.position) || config.position;
+        : safeText(rawPayload.position || parsedData.position) || config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
     const client = await db.connect();
@@ -535,11 +548,12 @@ async function createStaffAccount(payload, actorUserId = null) {
         if (role === 'pd') {
             await pdCourseAssignmentService.syncAssignments({
                 userId: user.user_id,
-                courseIds: payload.course_ids,
+                courseIds: rawPayload.course_ids,
                 assignedByUserId: actorUserId,
                 client,
             });
         }
+
         if (role === 'ro_coordinator') {
             await syncStandaloneRoCoordinatorAssignment({
                 userId: user.user_id,
@@ -575,6 +589,52 @@ async function createStaffAccount(payload, actorUserId = null) {
     } finally {
         client.release();
     }
+}
+
+async function createStaffAccount(payload, actorUserId = null) {
+    if (safeText(payload?.role).toLowerCase() === 'admin') {
+        throw createHttpError(
+            400,
+            'Admin accounts must be created through Create Admin Account.'
+        );
+    }
+
+    const parsed = staffAccountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        throw createHttpError(400, firstIssue?.message || 'Invalid account details.');
+    }
+
+    return createAccountFromParsedData(parsed.data, payload, actorUserId);
+}
+
+async function createAdminAccount(payload, actorUserId = null) {
+    const parsed = adminAccountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        throw createHttpError(400, firstIssue?.message || 'Invalid Admin account details.');
+    }
+
+    const config = ROLE_CONFIG.admin;
+
+    return createAccountFromParsedData(
+        {
+            ...parsed.data,
+            phone_number: '',
+            role: 'admin',
+            department: config.department,
+            position: config.position,
+        },
+        {
+            ...payload,
+            department: config.department,
+            position: config.position,
+            course_ids: [],
+        },
+        actorUserId
+    );
 }
 
 async function revokeStaffSessionVersion(client, userId) {
@@ -616,6 +676,17 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
 
         if (!ROLE_CONFIG[nextRole]) {
             throw createHttpError(400, 'Invalid role selected.');
+        }
+
+        const crossesAdminBoundary =
+            (currentRole === 'admin' && nextRole !== 'admin') ||
+            (currentRole !== 'admin' && nextRole === 'admin');
+
+        if (crossesAdminBoundary) {
+            throw createHttpError(
+                400,
+                'Admin accounts and department accounts cannot be converted into each other. Archive the account and create the appropriate account type instead.'
+            );
         }
 
         const roleChanged = nextRole !== currentRole;
@@ -958,7 +1029,6 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     const lastName = safeText(payload.last_name);
     const email = safeText(payload.email).toLowerCase();
     const phoneNumber = safeText(payload.phone_number) || null;
-    const department = safeText(payload.department);
     const position = safeText(payload.position);
 
     if (!firstName) {
@@ -1005,14 +1075,12 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
             throw createHttpError(400, 'Another account is already using this email address.');
         }
 
-        const currentRole = resolveStaffRole(currentProfile);
-        const identityLocked = currentRole === 'ro_coordinator';
-        const nextDepartment = identityLocked
-            ? currentProfile.department || ''
-            : department || currentProfile.department || '';
-        const nextPosition = identityLocked
-            ? currentProfile.position || 'RO Coordinator'
-            : position || currentProfile.position || '';
+        // Department/office ownership remains an administrative assignment.
+        // Self-service profile updates may change personal identity/contact
+        // details and position text, but must never move an account between
+        // departments or RO areas.
+        const nextDepartment = currentProfile.department || '';
+        const nextPosition = position || currentProfile.position || '';
 
         await client.query(
             `
@@ -1221,6 +1289,7 @@ module.exports = {
     archiveStaffAccount,
     hasActiveRoCoordinatorAssignment,
     changeCurrentStaffPassword,
+    createAdminAccount,
     createStaffAccount,
     getCurrentStaffProfile,
     listStaffAccounts,

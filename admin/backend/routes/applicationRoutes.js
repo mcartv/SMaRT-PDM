@@ -4,6 +4,9 @@ const multer = require('multer');
 
 const applicationController = require('../controllers/applicationController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const {
+    notifySdoAfterSuccessfulVerification,
+} = require('../middleware/endorsementNotificationMiddleware');
 
 const adminOnly = [protect, authorizeRoles('admin')];
 const upload = multer({
@@ -23,7 +26,12 @@ router.post('/:id/documents/:documentKey/iot-ocr/:requestId/retry', ...adminOnly
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/cancel', ...adminOnly, applicationController.cancelApplicationDocumentIotOcr);
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
 router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.saveApplicationDocumentOcrSnapshot);
-router.post('/:id/verify', ...adminOnly, applicationController.saveApplicationVerification);
+router.post(
+    '/:id/verify',
+    ...adminOnly,
+    notifySdoAfterSuccessfulVerification,
+    applicationController.saveApplicationVerification
+);
 router.patch('/:id/approve', ...adminOnly, applicationController.approveApplication);
 router.patch('/:id/remarks', ...adminOnly, applicationController.saveApplicationRemarks);
 router.patch('/:id/disqualify', ...adminOnly, applicationController.disqualifyApplication);

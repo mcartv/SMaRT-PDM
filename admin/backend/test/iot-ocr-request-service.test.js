@@ -126,17 +126,17 @@ test('fixed-lens worker can transition directly from previewing to capturing', (
 test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR', () => {
     const fields = service.withDerivedGradeFields(
         'student_grade_forms',
-        'STUDENT NUMBER STUDENT NAME COURSE PDM-2023-003137 Pelima , Venice Eve BsIT '
-            + 'COPY OF GRADEFOR THE PERIOD: 1st 2023-2024 GWA: 1.69',
+        'STUDENT NUMBER STUDENT NAME COURSE : PDM-2023-003137 Petima , Venice Eve BsiT '
+            + 'COPY OF GRADEFOR THE PERIOD: 1st 2023-2024 GWA 1.89',
         {}
     );
 
     assert.equal(fields.student_number.normalized_value, 'PDM-2023-003137');
-    assert.equal(fields.student_name.normalized_value, 'Pelima, Venice Eve');
-    assert.equal(fields.course.normalized_value, 'BSIT');
+    assert.equal(fields.student_name.normalized_value, 'Petima, Venice Eve');
+    assert.equal(fields.course.normalized_value, 'BsiT');
     assert.equal(fields.semester.normalized_value, '1st Semester');
     assert.equal(fields.academic_year.normalized_value, '2023-2024');
-    assert.equal(fields.gwa.normalized_value, '1.69');
+    assert.equal(fields.gwa.normalized_value, '1.89');
     assert.deepEqual(fields.subjects, []);
 });
 

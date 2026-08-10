@@ -1239,7 +1239,7 @@ function deriveGradeReviewValues(rawText) {
   if (number) derived.student_number = number[1].replace(/\s+/g, '-').toUpperCase();
 
   const identity = text.match(
-    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s+(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|\-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
   );
   if (identity) {
     const parts = identity[1]
@@ -1248,7 +1248,7 @@ function deriveGradeReviewValues(rawText) {
       .match(/^(.+?)\s+((?:BS|AB|B)[A-Z][A-Z0-9.-]{1,12})$/i);
     if (parts) {
       derived.student_name = parts[1];
-      derived.course = parts[2].toUpperCase();
+      derived.course = parts[2];
     }
   }
 
@@ -1284,6 +1284,12 @@ function normalizeReviewFields(candidate) {
     gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
     subjects: Array.isArray(fields.subjects) ? fields.subjects : [],
   };
+}
+
+function gradeOcrScore(candidate, key, displayedValue) {
+  const numeric = Number(candidate?.field_confidence?.[key]);
+  if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
+  return String(displayedValue || '').trim() ? 'Detected' : '—';
 }
 
 function OCRPanel({
@@ -1411,9 +1417,7 @@ function OCRPanel({
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
                   <span className="text-right text-xs font-semibold text-blue-700">
-                    {reviewCandidate.field_confidence?.[key] != null
-                      ? `${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
-                      : '—'}
+                    {gradeOcrScore(reviewCandidate, key, correctedFields?.[key])}
                   </span>
                 </label>
               ))}
@@ -1427,28 +1431,10 @@ function OCRPanel({
                   className="bg-stone-100 font-bold text-stone-900"
                 />
                 <span className="text-right text-xs font-semibold text-blue-700">
-                  {reviewCandidate.field_confidence?.gwa != null
-                    ? `${Number(reviewCandidate.field_confidence.gwa).toFixed(1)}%`
-                    : '—'}
+                  {gradeOcrScore(reviewCandidate, 'gwa', correctedFields?.gwa)}
                 </span>
               </div>
             </div>
-
-            {(reviewCandidate.validation_issues || []).length > 0 && (
-              <details className="rounded-md border border-amber-200 bg-white p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-amber-800">Validation Issues</summary>
-                <div className="mt-2 text-sm text-amber-900">
-                  {(reviewCandidate.validation_issues || []).map((issue, index) => (
-                    <p key={`${issue.code || 'issue'}-${index}`}>{issue.message || issue.code}</p>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            <details className="rounded-md border border-stone-200 bg-white p-3">
-              <summary className="cursor-pointer text-sm font-semibold text-stone-700">Raw OCR</summary>
-              <pre className="mt-2 whitespace-pre-wrap text-xs text-stone-600">{reviewCandidate.raw_text}</pre>
-            </details>
 
             {!gradeReviewCompleted && (
               <div className="flex justify-between gap-2">

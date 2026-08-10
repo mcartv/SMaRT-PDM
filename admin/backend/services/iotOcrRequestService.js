@@ -124,14 +124,14 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
     }
 
     const identityMatch = text.match(
-        /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s+(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+        /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|\-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
     );
     if (identityMatch) {
         const identity = identityMatch[1].replace(/\s+,/g, ',').trim();
         const parts = identity.match(/^(.+?)\s+((?:BS|AB|B)[A-Z][A-Z0-9.-]{1,12})$/i);
         if (parts) {
             if (missing('student_name')) fields.student_name = gradeField(parts[1]);
-            if (missing('course')) fields.course = gradeField(parts[2].toUpperCase());
+            if (missing('course')) fields.course = gradeField(parts[2]);
         }
     }
 

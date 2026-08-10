@@ -497,7 +497,6 @@ export function formatOcrConfidence(confidence, scannedViaIot = false) {
 export function buildExtractedData(activeDoc, application) {
   if (!activeDoc) {
     return {
-      applicationMetadata: [],
       extractedFields: [],
       confidence: 'Unavailable',
       reviewOnly: false,
@@ -531,13 +530,6 @@ export function buildExtractedData(activeDoc, application) {
       ocrReviewRequired: manualReviewRequired,
     })
     : null;
-
-  const applicationMetadata = [
-    { label: 'Student Name', value: student.name || 'Unavailable', badge: 'Application' },
-    { label: 'PDM ID', value: student.pdm_id || 'Unavailable', badge: 'Application' },
-    { label: 'Program', value: student.program || 'Unavailable', badge: 'Application' },
-    { label: 'Course', value: student.course || 'Unavailable', badge: 'Application' },
-  ];
 
   const extractedFields = [];
 
@@ -611,7 +603,6 @@ export function buildExtractedData(activeDoc, application) {
   }
 
   return {
-    applicationMetadata,
     extractedFields,
     confidence: formatOcrConfidence(confidence, scannedViaIot),
     reviewOnly,
@@ -1496,37 +1487,6 @@ function OCRPanel({
             </div>
           </div>
         )}
-
-        {activeDoc?.id !== 'student_grade_forms' && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className="w-4 h-4 text-green-600" />
-            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
-              Application Metadata
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            {extractedData.applicationMetadata.map((item, index) => (
-              <div
-                key={`${item.label}-${index}`}
-                className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
-              >
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-stone-400">
-                    {item.label}
-                  </p>
-                  <p className="text-[15px] font-medium text-stone-800 mt-0.5">
-                    {item.value}
-                  </p>
-                </div>
-
-                <span className="text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
-                  {item.badge}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>}
 
         <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">

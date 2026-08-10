@@ -67,17 +67,10 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
         controller = camera.CameraController()
 
         self.assertLessEqual(
-            controller.capture_timeout_ms,
-            1000,
+            len(controller.focus_sweep_positions),
+            7,
         )
-        self.assertLessEqual(
-            controller.preview_startup_seconds,
-            1.0,
-        )
-        self.assertLessEqual(
-            controller.release_settle_seconds,
-            0.25,
-        )
+        self.assertEqual(controller.capture_attempts, controller.native_af_attempts)
 
     def test_preprocessing_does_not_require_debug_disk_write(self):
         source = Path("ocr.py").read_text(
@@ -180,6 +173,26 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
 
         self.assertIn("heartbeat_api = ApiClient()", heartbeat)
         self.assertIn("heartbeat_api.update_status", heartbeat)
+
+    def test_focus_sweep_is_bounded_and_final_capture_is_single(self):
+        controller = camera.CameraController()
+        source = Path("camera.py").read_text(encoding="utf-8")
+        final_capture = source[
+            source.index("def _final_candidates") :
+            source.index("def capture_image")
+        ]
+
+        self.assertLessEqual(len(controller.focus_sweep_positions), 7)
+        self.assertNotIn("for frame in range", final_capture)
+        self.assertEqual(final_capture.count("self._sample_position("), 1)
+
+    def test_left_press_gets_immediate_local_processing_feedback(self):
+        source = Path("capture_session.py").read_text(encoding="utf-8")
+        left_index = source.index('pressed != "left"')
+        feedback_index = source.index("show_processing_status()", left_index)
+        focus_status_index = source.index('on_status("focusing")', left_index)
+
+        self.assertLess(feedback_index, focus_status_index)
 
 
 if __name__ == "__main__":

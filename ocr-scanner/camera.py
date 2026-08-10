@@ -61,10 +61,26 @@ class CameraController:
             if 0.0 <= value <= 20.0:
                 parsed.append(value)
 
-        self.focus_sweep_positions = sorted(set(parsed)) or [
+        all_focus_positions = sorted(set(parsed)) or [
             0.5, 1.0, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75,
             3.0, 3.5, 4.0, 5.0, 6.0, 7.5, 9.0, 11.0, 13.0,
         ]
+        maximum_steps = max(
+            3,
+            min(7, int(os.getenv("CAMERA_FOCUS_SWEEP_MAX_STEPS", "7"))),
+        )
+        if len(all_focus_positions) <= maximum_steps:
+            self.focus_sweep_positions = all_focus_positions
+        else:
+            last_index = len(all_focus_positions) - 1
+            indices = {
+                round(step * last_index / float(maximum_steps - 1))
+                for step in range(maximum_steps)
+            }
+            self.focus_sweep_positions = [
+                all_focus_positions[index]
+                for index in sorted(indices)
+            ]
 
     @staticmethod
     def _run(
@@ -122,7 +138,10 @@ class CameraController:
             self._start_preview_instruction_overlay()
         return self.is_previewing
 
-    def _start_preview_instruction_overlay(self) -> None:
+    def _start_preview_instruction_overlay(
+        self,
+        message: str = "READY TO CAPTURE?  PRESS THE LEFT BUTTON",
+    ) -> None:
         self._stop_preview_instruction_overlay()
         if not self._ensure_gui_environment():
             return
@@ -131,13 +150,20 @@ class CameraController:
             return
         try:
             self.preview_overlay_process = subprocess.Popen(
-                [sys.executable, str(helper)],
+                [sys.executable, str(helper), message],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
         except (OSError, subprocess.SubprocessError):
             self.preview_overlay_process = None
+
+    def show_processing_status(self) -> None:
+        """Close live preview and immediately acknowledge the LEFT press."""
+        self.stop_preview()
+        self._start_preview_instruction_overlay(
+            "IMAGE PROCESSING - FINDING THE BEST FOCUS"
+        )
 
     def _stop_preview_instruction_overlay(self) -> None:
         process = self.preview_overlay_process
@@ -505,6 +531,18 @@ class CameraController:
             frame = cv2.imread(str(image))
             if frame is None:
                 return
+            if lines and "FOCUS" in str(lines[0]).upper():
+                # Display-only centre zoom makes the physical focus changes
+                # visible without altering the full captured document image.
+                frame_height, frame_width = frame.shape[:2]
+                crop_width = max(1, int(frame_width * 0.72))
+                crop_height = max(1, int(frame_height * 0.72))
+                left = max(0, (frame_width - crop_width) // 2)
+                top = max(0, (frame_height - crop_height) // 2)
+                frame = frame[
+                    top : top + crop_height,
+                    left : left + crop_width,
+                ]
             window = "SMaRT-PDM Auto Focus"
             cv2.namedWindow(window, cv2.WINDOW_NORMAL)
             cv2.setWindowProperty(window, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -592,6 +630,10 @@ class CameraController:
             "Starting normalized physical lens sweep."
         )
 
+        # The immediate processing notice remains visible while the first
+        # focus sample starts, then the live zoomed sweep takes over.
+        first_sample = True
+
         for position in self.focus_sweep_positions:
             sampled = self._sample_position(
                 position,
@@ -608,6 +650,9 @@ class CameraController:
                 continue
 
             score, image = sampled
+            if first_sample:
+                self._stop_preview_instruction_overlay()
+                first_sample = False
             observations.append((position, score))
             current_best = max(value for _, value in observations)
             self._show_focus_frame(
@@ -710,70 +755,41 @@ class CameraController:
         best_position: float,
         reference_score: float,
     ) -> Optional[Tuple[Path, float, float]]:
-        positions = []
-        for delta in (
-            -0.30, -0.20, -0.10,
-            0.0,
-            0.10, 0.20, 0.30,
-        ):
-            value = max(
-                0.0,
-                min(20.0, best_position + delta),
-            )
-            if value not in positions:
-                positions.append(value)
+        sampled = self._sample_position(
+            best_position,
+            width=self.capture_width,
+            height=self.capture_height,
+            timeout_ms=1600,
+            suffix="final",
+        )
+        if sampled is None:
+            return None
 
-        winner_path: Optional[Path] = None
+        winner_score, winner_path = sampled
         winner_position = best_position
-        winner_score = -1.0
+        if not self._valid_jpeg(
+            winner_path,
+            min_width=self.capture_width,
+            min_height=self.capture_height,
+        ):
+            winner_path.unlink(missing_ok=True)
+            return None
 
-        for position in positions:
-            for frame in range(1, 3):
-                sampled = self._sample_position(
-                    position,
-                    width=self.capture_width,
-                    height=self.capture_height,
-                    timeout_ms=1600,
-                    suffix=f"final-{frame}",
-                )
+        self._show_focus_frame(
+            winner_path,
+            [
+                "FOCUSED IMAGE CAPTURED",
+                f"Lens position: {winner_position:.2f}",
+                f"Focus score: {winner_score:.2f}",
+                "Preparing image for OCR...",
+            ],
+            wait_ms=500,
+        )
 
-                if sampled is None:
-                    continue
-
-                score, image = sampled
-
-                if not self._valid_jpeg(
-                    image,
-                    min_width=self.capture_width,
-                    min_height=self.capture_height,
-                ):
-                    image.unlink(missing_ok=True)
-                    continue
-
-                self._show_focus_frame(
-                    image,
-                    [
-                        "CAPTURING FINAL FOCUS",
-                        f"Lens position: {position:.2f}",
-                        f"Focus score: {score:.2f}",
-                        f"Best score: {max(winner_score, score):.2f}",
-                    ],
-                    wait_ms=400,
-                )
-
-                print(
-                    f"[CAMERA] Final lens {position:.3f} "
-                    f"frame {frame}: normalized score={score:.2f}"
-                )
-
-                if score > winner_score:
-                    if winner_path is not None:
-                        winner_path.unlink(missing_ok=True)
-                    winner_path = image
-                    winner_position = position
-                    winner_score = score
-                else:
-                    image.unlink(missing_ok=True)
+        print(
+            f"[CAMERA] Final lens {winner_position:.3f}: "
+            f"normalized score={winner_score:.2f}"
+        )
 
         if winner_path is None:
             return None
@@ -802,7 +818,8 @@ class CameraController:
         status_callback=None,
     ) -> bool:
         was_previewing = self.is_previewing
-        self.stop_preview()
+        if self.is_previewing:
+            self.stop_preview()
 
         final = Path(self.capture_file)
         final.unlink(missing_ok=True)
@@ -812,23 +829,18 @@ class CameraController:
 
         if coarse is not None:
             coarse_position, coarse_score, _ = coarse
-            refined_position, refined_score = self._refine_position(
-                coarse_position,
-                coarse_score,
-            )
-
             print(
-                "[CAMERA] Refined best lens="
-                f"{refined_position:.3f}; "
-                f"score={refined_score:.2f}"
+                "[CAMERA] Sweep selected lens="
+                f"{coarse_position:.3f}; "
+                f"score={coarse_score:.2f}"
             )
 
             if status_callback:
                 status_callback('capturing')
 
             selected = self._final_candidates(
-                refined_position,
-                refined_score,
+                coarse_position,
+                coarse_score,
             )
 
             if selected is not None:
@@ -841,7 +853,7 @@ class CameraController:
                         "AUTOFOCUS COMPLETE",
                         f"Selected lens: {position:.2f}",
                         f"Final focus score: {score:.2f}",
-                        "Starting OCR...",
+                        "IMAGE PROCESSING - STARTING TESSERACT OCR",
                     ],
                     wait_ms=1800,
                 )
@@ -858,6 +870,16 @@ class CameraController:
         # Fallback to native autofocus only if the visible sweep fails.
         native = self._try_native_autofocus()
         if native is not None:
+            self._stop_preview_instruction_overlay()
+            self._show_focus_frame(
+                native,
+                [
+                    "AUTOFOCUS COMPLETE",
+                    "Focused image captured",
+                    "IMAGE PROCESSING - STARTING TESSERACT OCR",
+                ],
+                wait_ms=1200,
+            )
             os.replace(native, final)
             self._close_focus_preview()
             return True

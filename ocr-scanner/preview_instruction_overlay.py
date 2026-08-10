@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 import signal
+import sys
 import tkinter as tk
 
 
-MESSAGE = "READY TO CAPTURE?  PRESS THE LEFT BUTTON"
+DEFAULT_MESSAGE = "READY TO CAPTURE?  PRESS THE LEFT BUTTON"
 
 
 def main() -> int:
+    message = " ".join(sys.argv[1:]).strip() or DEFAULT_MESSAGE
+    message = message[:120]
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
@@ -19,7 +22,7 @@ def main() -> int:
 
     label = tk.Label(
         root,
-        text=MESSAGE,
+        text=message,
         background="#111111",
         foreground="#FFD400",
         font=("DejaVu Sans", 18, "bold"),

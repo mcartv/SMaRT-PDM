@@ -136,6 +136,14 @@ def run_capture_session(
                 error_code="CAPTURE_SESSION_INTERRUPTED",
             )
 
+        show_processing_status = getattr(
+            resolved_camera,
+            "show_processing_status",
+            None,
+        )
+        if callable(show_processing_status):
+            show_processing_status()
+
         if stop_requested():
             return CaptureSessionResult(
                 FAILED,

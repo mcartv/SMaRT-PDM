@@ -123,6 +123,23 @@ test('fixed-lens worker can transition directly from previewing to capturing', (
     assert.ok(service.ALLOWED_TRANSITIONS.previewing.includes('capturing'));
 });
 
+test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR', () => {
+    const fields = service.withDerivedGradeFields(
+        'student_grade_forms',
+        'STUDENT NUMBER STUDENT NAME COURSE PDM-2023-003137 Pelima , Venice Eve BsIT '
+            + 'COPY OF GRADEFOR THE PERIOD: 1st 2023-2024 GWA: 1.69',
+        {}
+    );
+
+    assert.equal(fields.student_number.normalized_value, 'PDM-2023-003137');
+    assert.equal(fields.student_name.normalized_value, 'Pelima, Venice Eve');
+    assert.equal(fields.course.normalized_value, 'BSIT');
+    assert.equal(fields.semester.normalized_value, '1st Semester');
+    assert.equal(fields.academic_year.normalized_value, '2023-2024');
+    assert.equal(fields.gwa.normalized_value, '1.69');
+    assert.deepEqual(fields.subjects, []);
+});
+
 test('admin cancellation is allowed for every Pi-active lifecycle state', () => {
     for (const status of service.PI_ACTIVE_STATUSES) {
         assert.ok(

@@ -73,6 +73,7 @@ function mapRequestRow(row) {
 
 function mapCandidateRow(row) {
     if (!row) return null;
+    const storedFields = row.verified_fields || row.fields || {};
     return {
         candidate_id: row.candidate_id,
         request_id: row.request_id,
@@ -80,7 +81,7 @@ function mapCandidateRow(row) {
         document_key: row.document_key,
         template_id: row.template_id,
         raw_text: row.raw_text || '',
-        fields: row.verified_fields || row.fields || {},
+        fields: withDerivedGradeFields(row.document_key, row.raw_text, storedFields),
         field_confidence: row.field_confidence || {},
         validation_issues: row.validation_issues || [],
         review_required: true,
@@ -98,6 +99,64 @@ function fieldValue(value) {
         return value.normalized_value ?? value.raw_text ?? value.value ?? '';
     }
     return value;
+}
+
+function gradeField(value) {
+    const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+    return { raw_text: normalized, normalized_value: normalized };
+}
+
+function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
+    const normalizedKey = documentTypes.normalizeDocumentType(documentKey);
+    const source = storedFields && typeof storedFields === 'object' && !Array.isArray(storedFields)
+        ? storedFields
+        : {};
+    if (normalizedKey !== 'student_grade_forms') return source;
+
+    const fields = { ...source, subjects: Array.isArray(source.subjects) ? source.subjects : [] };
+    const missing = (key) => !String(fieldValue(fields[key]) ?? '').trim();
+    const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+    if (!text) return fields;
+
+    const numberMatch = text.match(/\b((?:PDM[-\s]?)?\d{4}[-\s]\d{4,7})\b/i);
+    if (numberMatch && missing('student_number')) {
+        fields.student_number = gradeField(numberMatch[1].replace(/\s+/g, '-').toUpperCase());
+    }
+
+    const identityMatch = text.match(
+        /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s+(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+    );
+    if (identityMatch) {
+        const identity = identityMatch[1].replace(/\s+,/g, ',').trim();
+        const parts = identity.match(/^(.+?)\s+((?:BS|AB|B)[A-Z][A-Z0-9.-]{1,12})$/i);
+        if (parts) {
+            if (missing('student_name')) fields.student_name = gradeField(parts[1]);
+            if (missing('course')) fields.course = gradeField(parts[2].toUpperCase());
+        }
+    }
+
+    const periodMatch = text.match(
+        /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
+    );
+    if (periodMatch) {
+        const semester = {
+            '1ST': '1st Semester',
+            '2ND': '2nd Semester',
+            'FIRST': 'First Semester',
+            'SECOND': 'Second Semester',
+            'SUMMER': 'Summer',
+        }[String(periodMatch[1] || '').toUpperCase()];
+        if (semester && missing('semester')) fields.semester = gradeField(semester);
+        if (missing('academic_year')) {
+            fields.academic_year = gradeField(periodMatch[2].replace(/\s*[-–]\s*/g, '-'));
+        }
+    }
+
+    const gwaMatch = text.match(/\bGWA\s*[:;=\-]?\s*([1-5](?:[.,]\d{1,2})?)\b/i);
+    if (gwaMatch && missing('gwa')) {
+        fields.gwa = gradeField(gwaMatch[1].replace(',', '.'));
+    }
+    return fields;
 }
 
 function normalizeGwa(value) {
@@ -143,6 +202,11 @@ function normalizeCandidate(input, requestRow) {
         review_required: true,
         processing,
     };
+    candidate.fields = withDerivedGradeFields(
+        candidate.document_key,
+        candidate.raw_text,
+        candidate.fields
+    );
     assertTextOnlyPayload(candidate);
     return candidate;
 }
@@ -490,7 +554,9 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
     try {
         await client.query('BEGIN');
         const selected = await client.query(`
-            SELECT r.*, c.candidate_id, c.fields AS candidate_fields
+            SELECT r.*, c.candidate_id, c.fields AS candidate_fields,
+                   c.raw_text AS candidate_raw_text
+            FROM public.iot_ocr_requests r
             JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
             WHERE r.request_id = $1::uuid AND r.application_id = $2::uuid AND r.document_key = $3
             FOR UPDATE OF r
@@ -517,7 +583,11 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
         const verifiedFields = validateConfirmedDocumentFields(
             normalizedDocumentKey,
             correctedFields,
-            row.candidate_fields
+            withDerivedGradeFields(
+                normalizedDocumentKey,
+                row.candidate_raw_text,
+                row.candidate_fields
+            )
         );
         await client.query(`
             INSERT INTO public.iot_ocr_reviews
@@ -601,4 +671,5 @@ module.exports = {
     assertTextOnlyPayload,
     validateConfirmedDocumentFields,
     normalizeGwa,
+    withDerivedGradeFields,
 };

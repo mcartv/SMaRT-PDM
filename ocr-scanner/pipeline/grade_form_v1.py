@@ -93,7 +93,7 @@ def _extract_layout_fields(
     header_match = re.search(
         r"STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s+"
         r"(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+"
-        r"(?P<identity>.+?)\s+COPY\s+OF\s+GRADE\b",
+        r"(?P<identity>.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b",
         normalized,
         re.I,
     )
@@ -111,7 +111,7 @@ def _extract_layout_fields(
             extracted["course"] = identity_match.group("course").upper()
 
     period_match = re.search(
-        r"GRADE\s+FOR\s+THE\s+PERIOD\s*[:\-]?\s*"
+        r"GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*"
         r"(?P<semester>1ST|2ND|FIRST|SECOND|SUMMER)?"
         r"(?:\s+SEMESTER)?\s+"
         r"(?P<year>\d{4}\s*[-–]\s*\d{4})",

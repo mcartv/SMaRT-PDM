@@ -73,8 +73,8 @@ class GradeFormPipelineTests(unittest.TestCase):
         preprocess.return_value = object()
         image_to_data.return_value = tesseract_data([
             [("STUDENT", 91), ("NUMBER", 92), ("STUDENT", 90), ("NAME", 93), ("COURSE", 94)],
-            [("PDM-2023-003137", 96), ("Pelima,", 92), ("Venice", 93), ("Eve", 91), ("BSIT", 95)],
-            [("COPY", 90), ("OF", 91), ("GRADE", 94), ("FOR", 92), ("THE", 93), ("PERIOD:", 91), ("1st", 94), ("2023-2024", 96)],
+            [("PDM-2023-003137", 96), ("Pelima,", 92), ("Venice", 93), ("Eve", 91), ("BsIT", 95)],
+            [("COPY", 90), ("OF", 91), ("GRADEFOR", 94), ("THE", 93), ("PERIOD:", 91), ("1st", 94), ("2023-2024", 96)],
             [("IT", 90), ("411", 91), ("3", 92), ("1.75", 95), ("PASSED", 94)],
             [("GWA:", 97), ("1.59", 98)],
         ])

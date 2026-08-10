@@ -1230,13 +1230,58 @@ function ocrFieldValue(value) {
   return value ?? '';
 }
 
+function deriveGradeReviewValues(rawText) {
+  const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+  const derived = {};
+  if (!text) return derived;
+
+  const number = text.match(/\b((?:PDM[-\s]?)?\d{4}[-\s]\d{4,7})\b/i);
+  if (number) derived.student_number = number[1].replace(/\s+/g, '-').toUpperCase();
+
+  const identity = text.match(
+    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s+(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+  );
+  if (identity) {
+    const parts = identity[1]
+      .replace(/\s+,/g, ',')
+      .trim()
+      .match(/^(.+?)\s+((?:BS|AB|B)[A-Z][A-Z0-9.-]{1,12})$/i);
+    if (parts) {
+      derived.student_name = parts[1];
+      derived.course = parts[2].toUpperCase();
+    }
+  }
+
+  const period = text.match(
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
+  );
+  if (period) {
+    derived.semester = {
+      '1ST': '1st Semester',
+      '2ND': '2nd Semester',
+      'FIRST': 'First Semester',
+      'SECOND': 'Second Semester',
+      'SUMMER': 'Summer',
+    }[String(period[1] || '').toUpperCase()] || '';
+    derived.academic_year = period[2].replace(/\s*[-–]\s*/g, '-');
+  }
+
+  const gwa = text.match(/\bGWA\s*[:;=\-]?\s*([1-5](?:[.,]\d{1,2})?)\b/i);
+  if (gwa) derived.gwa = gwa[1].replace(',', '.');
+  return derived;
+}
+
 function normalizeReviewFields(candidate) {
   const fields = candidate?.fields || {};
   if (candidate?.document_key !== 'student_grade_forms') return fields;
+  const derived = deriveGradeReviewValues(candidate?.raw_text);
   return {
     ...fields,
-    ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [key, ocrFieldValue(fields[key])])),
-    gwa: ocrFieldValue(fields.gwa),
+    ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
+      key,
+      ocrFieldValue(fields[key]) || derived[key] || '',
+    ])),
+    gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
     subjects: Array.isArray(fields.subjects) ? fields.subjects : [],
   };
 }

@@ -62,6 +62,8 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.match(source, /value=\{rawOcrSnapshot\}[\s\S]*?readOnly/);
     assert.doesNotMatch(source, /onSaveRawOcr|onRawOcrChange|Save OCR Snapshot/);
     assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency'\]\.includes/);
+    assert.match(source, /\['residency_address', 'Full Address'\]/);
+    assert.match(source, /aria-label="Verified full residence address"/);
 });
 
 test('student summary displays confirmed Marilao residency as true or false', () => {

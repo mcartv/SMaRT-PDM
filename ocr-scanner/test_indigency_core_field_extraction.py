@@ -105,6 +105,7 @@ def _valid_word_data(
 def _field_reader(_crop, field_name):
     return {
         "certificate_subject_name": "SAMPLE SUBJECT,",
+        "residency_address": "12 SAMPLE STREET MARILAO BULACAN.",
         "issue_date": "16th day of July 2026",
         "issuing_barangay": "SAMPLE II",
     }[field_name]
@@ -135,7 +136,7 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
     def setUp(self):
         self.image = np.full((2000, 1600, 3), 240, dtype=np.uint8)
 
-    def test_extracts_exact_three_provisional_fields(self):
+    def test_extracts_four_provisional_fields_including_full_address(self):
         result = extract_indigency_core_fields(
             self.image,
             word_reader=lambda *_args: _valid_word_data(),
@@ -145,10 +146,15 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.status, "review_required")
         self.assertEqual(tuple(field.name for field in result.data.fields), REQUIRED_FIELDS)
-        self.assertEqual(result.data.field_count, 3)
+        self.assertEqual(result.data.field_count, 4)
         self.assertTrue(all(field.review_required for field in result.data.fields))
         self.assertTrue(all(field.success for field in result.data.fields))
-        self.assertEqual(result.metrics["successful_field_count"], 3)
+        self.assertEqual(result.metrics["successful_field_count"], 4)
+        fields = {field.name: field for field in result.data.fields}
+        self.assertEqual(
+            fields["residency_address"].raw_text,
+            "12 SAMPLE STREET MARILAO BULACAN.",
+        )
         self.assertIn(
             "INDIGENCY_MANUAL_REVIEW_REQUIRED",
             {issue["code"] for issue in result.issues},

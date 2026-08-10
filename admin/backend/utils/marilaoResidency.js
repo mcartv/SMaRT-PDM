@@ -26,13 +26,9 @@ const MARILAO_BARANGAYS = Object.freeze([
 ]);
 
 const LOCATION_FIELD_KEYS = Object.freeze([
-    'issuing_barangay',
-    'barangay',
-    'municipality',
-    'city_municipality',
     'residency_address',
+    'full_address',
     'address',
-    'certificate_location',
 ]);
 
 function normalizeLocation(value) {

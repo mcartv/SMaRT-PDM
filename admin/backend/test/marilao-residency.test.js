@@ -13,25 +13,37 @@ test('recognizes Marilao and its barangays as residency evidence', () => {
     assert.equal(isMarilaoLocation('Meycauayan, Bulacan'), false);
 });
 
-test('only confirmed indigency or barangay certificate fields establish residency', () => {
+test('only confirmed full residence address establishes Marilao residency', () => {
     assert.equal(resolveMarilaoResidency([
         {
             document_key: 'certificate_of_indigency',
-            verified_fields: { issuing_barangay: 'Lias' },
+            verified_fields: {
+                residency_address: '12 Sample Street, Lias, Marilao, Bulacan',
+            },
         },
     ]), true);
 
     assert.equal(resolveMarilaoResidency([
         {
             document_key: 'barangay_certificate',
-            verified_fields: { municipality: 'Marilao' },
+            verified_fields: { full_address: 'Abangan Norte, Marilao, Bulacan' },
         },
     ]), true);
 
     assert.equal(resolveMarilaoResidency([
         {
             document_key: 'certificate_of_indigency',
-            verified_fields: { issuing_barangay: 'Malolos' },
+            verified_fields: {
+                residency_address: '12 Sample Street, Malolos, Bulacan',
+                issuing_barangay: 'Lias',
+            },
+        },
+    ]), false);
+
+    assert.equal(resolveMarilaoResidency([
+        {
+            document_key: 'certificate_of_indigency',
+            verified_fields: { issuing_barangay: 'Lias' },
         },
     ]), false);
 

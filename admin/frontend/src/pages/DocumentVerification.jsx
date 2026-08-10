@@ -559,6 +559,7 @@ export function buildExtractedData(activeDoc, application) {
   } else if (hasStructuredIndigencyFields) {
     const indigencyFieldDefinitions = [
       ['certificate_subject_name', 'Certificate Subject Name'],
+      ['residency_address', 'Full Address'],
       ['issuing_barangay', 'Issuing Barangay'],
     ];
 
@@ -1223,6 +1224,7 @@ const GRADE_REVIEW_FIELDS = [
 
 const INDIGENCY_REVIEW_FIELDS = [
   ['certificate_subject_name', 'Certificate Subject Name'],
+  ['residency_address', 'Full Address'],
   ['issue_date', 'Issue Date'],
   ['issuing_barangay', 'Issuing Barangay'],
 ];
@@ -1281,9 +1283,14 @@ function deriveIndigencyReviewValues(rawText) {
   if (!text) return derived;
 
   const subject = text.match(
-    /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Full\s+Address\s*[:\-]?|\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
   );
   if (subject) derived.certificate_subject_name = subject[1].replace(/\s+,/g, ',').trim();
+
+  const address = text.match(
+    /Full\s+Address\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+  );
+  if (address) derived.residency_address = address[1].trim();
 
   const issueDate = text.match(
     /Issue\s+Date\s*[:\-]?\s*(.+?)(?=\s+Issuing\s+Barangay\s*[:\-]?|$)/i
@@ -1492,15 +1499,28 @@ function OCRPanel({
               {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
                 <label key={key} className="grid gap-1 sm:grid-cols-[180px_1fr_70px] sm:items-center">
                   <span className="text-sm font-semibold text-stone-700">{label}</span>
-                  <Input
-                    value={ocrFieldValue(correctedFields?.[key])}
-                    readOnly={indigencyReviewCompleted}
-                    onChange={(event) => onCorrectedFieldsChange({
-                      ...correctedFields,
-                      [key]: event.target.value,
-                    })}
-                    className={indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}
-                  />
+                  {key === 'residency_address' ? (
+                    <Textarea
+                      value={ocrFieldValue(correctedFields?.[key])}
+                      readOnly={indigencyReviewCompleted}
+                      aria-label="Verified full residence address"
+                      onChange={(event) => onCorrectedFieldsChange({
+                        ...correctedFields,
+                        [key]: event.target.value,
+                      })}
+                      className={`min-h-20 resize-y ${indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
+                    />
+                  ) : (
+                    <Input
+                      value={ocrFieldValue(correctedFields?.[key])}
+                      readOnly={indigencyReviewCompleted}
+                      onChange={(event) => onCorrectedFieldsChange({
+                        ...correctedFields,
+                        [key]: event.target.value,
+                      })}
+                      className={indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}
+                    />
+                  )}
                   <span className="text-right text-xs font-semibold text-amber-700">
                     {ocrScoreLabel(reviewCandidate, key, correctedFields?.[key])}
                   </span>

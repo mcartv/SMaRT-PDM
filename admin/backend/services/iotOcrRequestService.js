@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const documentTypes = require('../utils/documentTypes');
 const { normalizeDeviceId, normalizeUserId } = require('../utils/iotOcrIdentity');
+const { isMarilaoLocation } = require('../utils/marilaoResidency');
 const { ensureIotOcrSchema } = require('./iotOcrSchemaService');
 
 const PI_ACTIVE_STATUSES = Object.freeze([
@@ -176,10 +177,17 @@ function withDerivedIndigencyFields(documentKey, rawText, storedFields = {}) {
     if (!text) return fields;
 
     const subject = text.match(
-        /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+        /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Full\s+Address\s*[:\-]?|\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
     );
     if (subject && missing('certificate_subject_name')) {
         fields.certificate_subject_name = gradeField(subject[1].replace(/\s+,/g, ',').trim());
+    }
+
+    const address = text.match(
+        /Full\s+Address\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    );
+    if (address && missing('residency_address')) {
+        fields.residency_address = gradeField(address[1].trim());
     }
 
     const issueDate = text.match(
@@ -203,6 +211,24 @@ function normalizeGwa(value) {
         throw buildHttpError(400, 'GWA must be a valid number from 1.00 to 5.00');
     }
     return Number(numeric.toFixed(2));
+}
+
+function buildVerifiedApplicationPatch(documentKey, verifiedFields = {}) {
+    if (documentKey === 'student_grade_forms') {
+        return { student: { gwa: normalizeGwa(verifiedFields.gwa) } };
+    }
+    if (documentKey === 'certificate_of_indigency') {
+        return {
+            student: {
+                marilao_resident: isMarilaoLocation(
+                    verifiedFields.residency_address
+                    ?? verifiedFields.full_address
+                    ?? verifiedFields.address
+                ),
+            },
+        };
+    }
+    return null;
 }
 
 function normalizeCandidate(input, requestRow) {
@@ -261,12 +287,24 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
 
     const requiredByDocument = {
         certificate_of_live_birth: ['child_name', 'mother_maiden_name', 'father_name'],
-        certificate_of_indigency: ['certificate_subject_name', 'issue_date', 'issuing_barangay'],
+        certificate_of_indigency: [
+            'certificate_subject_name',
+            'residency_address',
+            'issue_date',
+            'issuing_barangay',
+        ],
         student_grade_forms: ['student_number', 'semester', 'academic_year', 'subjects', 'gwa'],
     };
     const required = requiredByDocument[documentKey];
     if (!required) throw buildHttpError(400, 'Unsupported OCR document contract');
-    const missing = required.filter((key) => fields[key] === undefined || fields[key] === null);
+    const missing = required.filter((key) => (
+        fields[key] === undefined
+        || fields[key] === null
+        || (
+            documentKey === 'certificate_of_indigency'
+            && !String(fieldValue(fields[key]) ?? '').trim()
+        )
+    ));
     if (missing.length) throw buildHttpError(400, `Missing confirmed OCR fields: ${missing.join(', ')}`);
     if (documentKey === 'student_grade_forms' && !Array.isArray(fields.subjects)) {
         throw buildHttpError(400, 'subjects must be an array');
@@ -613,9 +651,10 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
             return {
                 request: mapRequestRow(row),
                 verified_fields: verifiedFields,
-                application_patch: normalizedDocumentKey === 'student_grade_forms'
-                    ? { student: { gwa: normalizeGwa(verifiedFields.gwa) } }
-                    : null,
+                application_patch: buildVerifiedApplicationPatch(
+                    normalizedDocumentKey,
+                    verifiedFields
+                ),
                 idempotent: true,
             };
         }
@@ -639,14 +678,16 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
             VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5::uuid)
             ON CONFLICT (request_id) DO NOTHING
         `, [requestId, applicationId, normalizedDocumentKey, JSON.stringify(verifiedFields), reviewerId]);
-        let applicationPatch = null;
+        const applicationPatch = buildVerifiedApplicationPatch(
+            normalizedDocumentKey,
+            verifiedFields
+        );
         if (normalizedDocumentKey === 'student_grade_forms') {
             const gwa = normalizeGwa(verifiedFields.gwa);
             await client.query(`
                 UPDATE public.students SET gwa = $2
                 WHERE student_id = $1::uuid
             `, [row.student_id, gwa]);
-            applicationPatch = { student: { gwa } };
         }
         const updated = await client.query(`
             UPDATE public.iot_ocr_requests SET status = 'completed', reviewed_by = $2::uuid,
@@ -715,6 +756,7 @@ module.exports = {
     assertTextOnlyPayload,
     validateConfirmedDocumentFields,
     normalizeGwa,
+    buildVerifiedApplicationPatch,
     withDerivedGradeFields,
     withDerivedIndigencyFields,
 };

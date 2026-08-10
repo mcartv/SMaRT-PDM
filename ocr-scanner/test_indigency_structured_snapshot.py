@@ -57,6 +57,7 @@ class IndigencyStructuredSnapshotTest(unittest.TestCase):
                     "OCR SUBJECT NAME",
                     True,
                 ),
+                ("residency_address", "12 SAMPLE STREET MARILAO BULACAN", True),
                 ("issue_date", "24th day of March", True),
                 ("issuing_barangay", "OCR BARANGAY", True),
             )
@@ -77,11 +78,12 @@ class IndigencyStructuredSnapshotTest(unittest.TestCase):
             snapshot.splitlines(),
             [
                 "Certificate Subject Name: OCR SUBJECT NAME",
+                "Full Address: 12 SAMPLE STREET MARILAO BULACAN",
                 "Issue Date: 24th day of March",
                 "Issuing Barangay: OCR BARANGAY",
             ],
         )
-        self.assertEqual(len(snapshot.splitlines()), 3)
+        self.assertEqual(len(snapshot.splitlines()), 4)
 
         for field in payload["fields"].values():
             value = str(field.get("raw_text") or "").strip()
@@ -95,6 +97,10 @@ class IndigencyStructuredSnapshotTest(unittest.TestCase):
             "fields": {
                 "certificate_subject_name": {
                     "raw_text": "OCR SUBJECT",
+                    "success": True,
+                },
+                "residency_address": {
+                    "raw_text": "12 SAMPLE STREET MARILAO BULACAN",
                     "success": True,
                 },
                 "issue_date": {

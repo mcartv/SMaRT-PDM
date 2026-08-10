@@ -60,15 +60,12 @@ test('mismatched indigency scan keeps profile data separate from OCR text', () =
   assert.equal(mapped.reviewOnly, true);
   assert.equal(mapped.confidence, 'Unavailable');
   assert.equal(mapped.extractedFields.length, 0);
-  assert.equal(mapped.applicationMetadata[0].value, 'Pedro Jose Fernandez Torres');
-  assert.ok(mapped.applicationMetadata.every((item) => item.badge === 'Application'));
   assert.equal(buildRawOcrSnapshot(activeDoc), 'MS. VENICE EVE PELIMA');
   assert.equal(activeDoc.status, 'pending');
   assert.deepEqual(
     [...REVIEW_ONLY_MESSAGES],
     ['Structured extraction not implemented', 'Manual review required']
   );
-  assert.ok(mapped.applicationMetadata.every((item) => item.badge === 'Application'));
   assert.ok(mapped.extractedFields.every((item) => item.label !== 'Extracted Name'));
 });
 
@@ -85,7 +82,6 @@ test('real extracted name appears only for an implemented contract', () => {
   assert.deepEqual(mapped.extractedFields, [
     { label: 'Extracted Name', value: 'OCR Name', badge: 'Extracted' },
   ]);
-  assert.equal(mapped.applicationMetadata[0].value, 'Application Name');
 });
 
 test('confidence formatting distinguishes ratios, percentages, and IoT placeholder', () => {
@@ -145,6 +141,10 @@ test('structured indigency fields render provisionally without identity matching
             raw_text: 'SUBJECT OCR',
             success: true,
           },
+          residency_address: {
+            raw_text: '12 SAMPLE STREET, LIAS, MARILAO, BULACAN',
+            success: true,
+          },
           issue_date: {
             raw_text: '',
             success: false,
@@ -172,12 +172,16 @@ test('structured indigency fields render provisionally without identity matching
       badge: 'Provisional OCR',
     },
     {
+      label: 'Full Address',
+      value: '12 SAMPLE STREET, LIAS, MARILAO, BULACAN',
+      badge: 'Provisional OCR',
+    },
+    {
       label: 'Issuing Barangay',
       value: 'SAMPLE BARANGAY',
       badge: 'Provisional OCR',
     },
   ]);
-  assert.equal(mapped.applicationMetadata[0].value, 'APPLICATION PROFILE NAME');
   assert.ok(
     mapped.extractedFields.every(
       (field) => field.value !== 'APPLICATION PROFILE NAME'

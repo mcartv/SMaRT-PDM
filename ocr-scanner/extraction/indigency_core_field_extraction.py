@@ -24,6 +24,7 @@ from .stage_result import StageResult
 STAGE_NAME = "indigency_core_field_extraction"
 REQUIRED_FIELDS = (
     "certificate_subject_name",
+    "residency_address",
     "issue_date",
     "issuing_barangay",
 )
@@ -46,6 +47,7 @@ class IndigencyExtractionConfig:
     maximum_deskew_degrees: float = 7.0
     crop_padding_pixels: int = 4
     maximum_barangay_length: int = 80
+    maximum_residency_address_length: int = 240
     minimum_leading_word_confidence: float = 85.0
     maximum_trailing_noise_confidence: float = 40.0
     minimum_confidence_drop: float = 40.0
@@ -476,6 +478,70 @@ def _subject_words(paragraph: Sequence[PositionalWord]) -> tuple[PositionalWord,
     return selected if selected else None
 
 
+def _residency_address_words(
+    paragraph: Sequence[PositionalWord],
+    maximum_length: int,
+) -> tuple[PositionalWord, ...] | None:
+    resident_indexes = [
+        index
+        for index, word in enumerate(paragraph)
+        if word.normalized in {"resident", "residing"}
+    ]
+    if len(resident_indexes) != 1:
+        return None
+
+    start = resident_indexes[0] + 1
+    while start < len(paragraph) and paragraph[start].normalized in {
+        "of", "at", "in", "the", "address", "located",
+    }:
+        start += 1
+
+    selected: list[PositionalWord] = []
+    stop_phrases = {
+        ("and", "is"),
+        ("who", "is"),
+        ("is", "presently"),
+        ("is", "currently"),
+        ("has", "been"),
+    }
+    for index in range(start, len(paragraph)):
+        word = paragraph[index]
+        next_token = (
+            paragraph[index + 1].normalized
+            if index + 1 < len(paragraph)
+            else ""
+        )
+        if (word.normalized, next_token) in stop_phrases:
+            break
+        selected.append(word)
+        if word.text.rstrip().endswith((".", ";")):
+            break
+
+    text = _normalize_field_text(" ".join(word.text for word in selected))
+    if (
+        not selected
+        or not any(character.isalpha() for character in text)
+        or len(text) > maximum_length
+    ):
+        return None
+    return tuple(selected)
+
+
+def _residency_address_candidates(
+    paragraphs: Sequence[Sequence[PositionalWord]],
+    maximum_length: int,
+) -> list[tuple[PositionalWord, ...]]:
+    candidates: dict[tuple[str, ...], tuple[PositionalWord, ...]] = {}
+    for paragraph in paragraphs:
+        selected = _residency_address_words(paragraph, maximum_length)
+        if not selected:
+            continue
+        normalized = tuple(word.normalized for word in selected if word.normalized)
+        if normalized:
+            candidates.setdefault(normalized, selected)
+    return list(candidates.values())
+
+
 def _issuing_barangay_candidates(
     words: Sequence[PositionalWord],
     title: Sequence[PositionalWord],
@@ -605,13 +671,16 @@ def _read_field(
 ) -> IndigencyFieldResult:
     issue_code = {
         "certificate_subject_name": "CERTIFICATE_SUBJECT_NOT_EXTRACTED",
+        "residency_address": "RESIDENCY_ADDRESS_NOT_EXTRACTED",
         "issue_date": "ISSUE_DATE_NOT_EXTRACTED",
         "issuing_barangay": "ISSUING_BARANGAY_NOT_EXTRACTED",
     }[name]
     if not words:
         return _empty_field(name, variant, issue_code)
     bounds = _bounds(words, source_image.shape)
-    if config.fast_mode and name == "certificate_subject_name":
+    if name == "residency_address" or (
+        config.fast_mode and name == "certificate_subject_name"
+    ):
         positional_text = _normalize_field_text(
             " ".join(word.text for word in words)
         )
@@ -1217,11 +1286,32 @@ def extract_indigency_core_fields(
     if len(dates) > 1:
         issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issue_date"))
 
+    address_candidates = _residency_address_candidates(
+        paragraphs,
+        resolved.maximum_residency_address_length,
+    )
+    address_selection = (
+        address_candidates[0]
+        if len(address_candidates) == 1
+        else None
+    )
+    if len(address_candidates) > 1:
+        issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "residency_address"))
+
     fields = (
         _read_field(
             "certificate_subject_name",
             subject_selection,
             "this is to certify that",
+            transformed_source,
+            variant,
+            ocr_reader,
+            resolved,
+        ),
+        _read_field(
+            "residency_address",
+            address_selection,
+            "resident/residing of/at",
             transformed_source,
             variant,
             ocr_reader,

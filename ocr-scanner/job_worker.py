@@ -282,6 +282,7 @@ def _build_indigency_structured_raw_text(
     # Persist only successful values returned by structured OCR.
     definitions = (
         ("certificate_subject_name", "Certificate Subject Name"),
+        ("residency_address", "Full Address"),
         ("issue_date", "Issue Date"),
         ("issuing_barangay", "Issuing Barangay"),
     )

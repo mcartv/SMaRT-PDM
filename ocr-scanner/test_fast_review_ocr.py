@@ -130,6 +130,10 @@ class FastReviewOcrTest(unittest.TestCase):
             "SAMPLE SUBJECT",
             values["certificate_subject_name"],
         )
+        self.assertEqual(
+            values["residency_address"],
+            "12 SAMPLE STREET MARILAO BULACAN.",
+        )
         self.assertIn("July 2026", values["issue_date"])
         self.assertEqual(
             values["issuing_barangay"],

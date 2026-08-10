@@ -83,7 +83,12 @@ class DocumentContractsTest(unittest.TestCase):
         self.assertEqual(contracts[0].status, "approved")
         self.assertEqual(
             [field.name for field in contracts[0].fields],
-            ["certificate_subject_name", "issue_date", "issuing_barangay"],
+            [
+                "certificate_subject_name",
+                "residency_address",
+                "issue_date",
+                "issuing_barangay",
+            ],
         )
 
     def test_indigency_result_uses_only_approved_ocr_fields(self):
@@ -99,6 +104,7 @@ class DocumentContractsTest(unittest.TestCase):
             )
             for name, value in (
                 ("certificate_subject_name", "SUBJECT OCR"),
+                ("residency_address", "12 SAMPLE STREET MARILAO BULACAN"),
                 ("issue_date", ""),
                 ("issuing_barangay", "SAMPLE BARANGAY"),
             )
@@ -116,7 +122,12 @@ class DocumentContractsTest(unittest.TestCase):
         self.assertTrue(payload["review_required"])
         self.assertEqual(
             tuple(payload["fields"]),
-            ("certificate_subject_name", "issue_date", "issuing_barangay"),
+            (
+                "certificate_subject_name",
+                "residency_address",
+                "issue_date",
+                "issuing_barangay",
+            ),
         )
         self.assertEqual(payload["fields"]["issue_date"]["raw_text"], "")
         self.assertFalse(payload["fields"]["issue_date"]["success"])

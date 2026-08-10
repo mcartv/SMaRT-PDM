@@ -113,6 +113,7 @@ def _birth_ocr_result(status="review_required", success=True, issues=None):
 def _indigency_result(status="review_required", success=True, issue_code=None):
     values = {
         "certificate_subject_name": "SUBJECT OCR",
+        "residency_address": "12 SAMPLE STREET MARILAO BULACAN",
         "issue_date": "16th day of July 2026",
         "issuing_barangay": "SAMPLE BARANGAY",
     }
@@ -135,14 +136,14 @@ def _indigency_result(status="review_required", success=True, issue_code=None):
         data=(
             SimpleNamespace(
                 fields=fields,
-                field_count=3,
+                field_count=4,
                 detection_variant="otsu_threshold",
             )
             if success
             else None
         ),
         issues=[{"code": issue_code}] if issue_code else [],
-        metrics={"field_count": 3, "manual_review_required": True},
+        metrics={"field_count": 4, "manual_review_required": True},
     )
 
 
@@ -252,7 +253,12 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["status"], "review_required")
         self.assertEqual(
             set(payload["extracted_fields"]["fields"]),
-            {"certificate_subject_name", "issue_date", "issuing_barangay"},
+            {
+                "certificate_subject_name",
+                "residency_address",
+                "issue_date",
+                "issuing_barangay",
+            },
         )
 
     @patch("job_worker.extract_indigency_core_fields")

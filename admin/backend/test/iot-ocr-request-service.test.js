@@ -140,8 +140,10 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
     assert.deepEqual(fields.subjects, []);
 });
 
-test('indigency review fields recover without changing immutable raw OCR', () => {
-    const rawText = 'Certificate Subject Name: MS. VENICE EVE PELIMA,\nIssue Date: 24 day of March 2025';
+test('indigency review fields recover full address without changing immutable raw OCR', () => {
+    const rawText = 'Certificate Subject Name: MS. VENICE EVE PELIMA,\n'
+        + 'Full Address: 12 SAMPLE STREET, LIAS, MARILAO, BULACAN\n'
+        + 'Issue Date: 24 day of March 2025';
     const fields = service.withDerivedIndigencyFields(
         'certificate_of_indigency',
         rawText,
@@ -149,9 +151,45 @@ test('indigency review fields recover without changing immutable raw OCR', () =>
     );
 
     assert.equal(fields.certificate_subject_name.normalized_value, 'MS. VENICE EVE PELIMA,');
+    assert.equal(
+        fields.residency_address.normalized_value,
+        '12 SAMPLE STREET, LIAS, MARILAO, BULACAN'
+    );
     assert.equal(fields.issue_date.normalized_value, '24 day of March 2025');
     assert.equal(fields.issuing_barangay, undefined);
-    assert.equal(rawText, 'Certificate Subject Name: MS. VENICE EVE PELIMA,\nIssue Date: 24 day of March 2025');
+    assert.match(rawText, /Full Address: 12 SAMPLE STREET/);
+});
+
+test('indigency confirmation requires and preserves the verified full address', () => {
+    const fields = {
+        certificate_subject_name: 'JUAN DELA CRUZ',
+        residency_address: '12 SAMPLE STREET, LIAS, MARILAO, BULACAN',
+        issue_date: '24 day of March 2025',
+        issuing_barangay: 'LIAS',
+    };
+
+    assert.deepEqual(
+        service.validateConfirmedDocumentFields('certificate_of_indigency', fields),
+        fields
+    );
+    assert.throws(
+        () => service.validateConfirmedDocumentFields(
+            'certificate_of_indigency',
+            { ...fields, residency_address: '   ' }
+        ),
+        /residency_address/
+    );
+    assert.deepEqual(
+        service.buildVerifiedApplicationPatch('certificate_of_indigency', fields),
+        { student: { marilao_resident: true } }
+    );
+    assert.deepEqual(
+        service.buildVerifiedApplicationPatch('certificate_of_indigency', {
+            ...fields,
+            residency_address: '12 SAMPLE STREET, MALOLOS, BULACAN',
+        }),
+        { student: { marilao_resident: false } }
+    );
 });
 
 test('admin cancellation is allowed for every Pi-active lifecycle state', () => {

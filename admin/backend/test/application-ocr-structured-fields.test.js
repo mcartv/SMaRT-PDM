@@ -300,6 +300,11 @@ test('approved indigency fields persist provisionally without applicant fallback
         success: true,
         review_required: true,
       },
+      residency_address: {
+        raw_text: '12 SAMPLE STREET, LIAS, MARILAO, BULACAN',
+        success: true,
+        review_required: true,
+      },
       issue_date: {
         raw_text: '',
         success: false,
@@ -321,6 +326,7 @@ test('approved indigency fields persist provisionally without applicant fallback
       ocr_issue_codes: ['ISSUE_DATE_NOT_EXTRACTED'],
       structured_field_keys: [
         'certificate_subject_name',
+        'residency_address',
         'issue_date',
         'issuing_barangay',
       ],
@@ -331,7 +337,12 @@ test('approved indigency fields persist provisionally without applicant fallback
   assert.equal(persistence.ocr_review_required, true);
   assert.deepEqual(
     persistence.ocr_processing_metadata.structured_field_keys,
-    ['certificate_subject_name', 'issue_date', 'issuing_barangay']
+    [
+      'certificate_subject_name',
+      'issue_date',
+      'issuing_barangay',
+      'residency_address',
+    ]
   );
   assert.equal(
     persistence.ocr_structured_fields.fields.issue_date.raw_text,

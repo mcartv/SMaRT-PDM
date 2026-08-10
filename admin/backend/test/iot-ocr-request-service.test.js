@@ -119,6 +119,10 @@ test('review_required is not Pi-active and can complete or expire', () => {
     assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'expired']);
 });
 
+test('fixed-lens worker can transition directly from previewing to capturing', () => {
+    assert.ok(service.ALLOWED_TRANSITIONS.previewing.includes('capturing'));
+});
+
 test('admin cancellation is allowed for every Pi-active lifecycle state', () => {
     for (const status of service.PI_ACTIVE_STATUSES) {
         assert.ok(

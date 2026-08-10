@@ -208,35 +208,34 @@ class CaptureSessionTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             CaptureSessionResult(FAILED)
 
-    @patch("camera.subprocess.run")
-    def test_real_camera_capture_can_skip_preview_restart(self, run_command):
-        run_command.return_value.returncode = 0
-        run_command.return_value.stderr = ""
-
+    def test_real_camera_capture_can_skip_preview_restart(self):
         camera = CameraController()
         camera.is_previewing = True
-        camera.capture_attempts = 1
         camera.stop_preview = MagicMock()
         camera.start_preview = MagicMock()
-        camera._validate_capture = MagicMock(
-            return_value=(True, "verified focus; sharpness=120.00")
-        )
+        camera._valid_jpeg = MagicMock(return_value=True)
+        camera._show_capture_frame = MagicMock()
 
         with tempfile.TemporaryDirectory() as directory:
             camera.capture_file = str(Path(directory) / "capture.jpg")
-            attempt_file = Path(f"{camera.capture_file}.attempt-1.jpg")
-
-            def create_mock_capture(*_args, **_kwargs):
-                attempt_file.write_bytes(b"mock-jpeg")
-                return run_command.return_value
-
-            camera._run = MagicMock(side_effect=create_mock_capture)
+            attempt_file = Path(f"{camera.capture_file}.fixed-2.2500.jpg")
+            attempt_file.write_bytes(b"mock-jpeg")
+            camera._sample_position = MagicMock(
+                return_value=(120.0, attempt_file)
+            )
 
             self.assertTrue(camera.capture_image(restart_preview=False))
+            self.assertTrue(Path(camera.capture_file).is_file())
 
         camera.stop_preview.assert_called_once()
         camera.start_preview.assert_not_called()
-        camera._validate_capture.assert_called_once()
+        camera._sample_position.assert_called_once_with(
+            2.25,
+            width=camera.capture_width,
+            height=camera.capture_height,
+            timeout_ms=camera.capture_timeout_ms,
+            suffix="fixed",
+        )
 class ButtonReaderTest(unittest.TestCase):
     @staticmethod
     def event(code):

@@ -10,7 +10,7 @@ const TERMINAL_STATUSES = Object.freeze(['completed', 'cancelled', 'failed', 'ex
 const ALLOWED_TRANSITIONS = Object.freeze({
     pending: Object.freeze(['claimed', 'expired', 'cancelled']),
     claimed: Object.freeze(['previewing', 'cancelled', 'failed', 'expired']),
-    previewing: Object.freeze(['focusing', 'cancelled', 'failed', 'expired']),
+    previewing: Object.freeze(['focusing', 'capturing', 'cancelled', 'failed', 'expired']),
     focusing: Object.freeze(['capturing', 'cancelled', 'failed', 'expired']),
     capturing: Object.freeze(['processing', 'cancelled', 'failed', 'expired']),
     processing: Object.freeze(['review_required', 'cancelled', 'failed', 'expired']),

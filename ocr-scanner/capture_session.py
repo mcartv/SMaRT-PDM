@@ -42,8 +42,9 @@ def run_capture_session(
     """
     Open preview #1 immediately after a request is claimed.
 
-    LEFT starts the actual autofocus/capture path. RIGHT intentionally cancels.
-    The optional lifecycle callback persists previewing/focusing/capturing state.
+    LEFT immediately locks the calibrated lens and captures once. RIGHT
+    intentionally cancels. The lifecycle callback transitions directly from
+    previewing to capturing; no focus sweep occurs.
     """
 
     resolved_camera = camera if camera is not None else CameraController()
@@ -151,7 +152,7 @@ def run_capture_session(
             )
 
         if on_status:
-            on_status("focusing")
+            on_status("capturing")
 
         if stop_requested():
             return CaptureSessionResult(

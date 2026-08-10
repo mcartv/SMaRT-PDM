@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import json
-import math
 import os
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
-from statistics import median
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 
 class CameraController:
@@ -27,39 +24,52 @@ class CameraController:
         self.capture_quality = max(
             85, min(100, int(os.getenv("CAMERA_CAPTURE_QUALITY", "95")))
         )
-        self.focus_timeout_ms = max(
-            8000, int(os.getenv("CAMERA_FOCUS_TIMEOUT_MS", "12000"))
+        self.capture_timeout_ms = max(
+            350, int(os.getenv("CAMERA_FIXED_CAPTURE_TIMEOUT_MS", "650"))
         )
-        self.native_af_attempts = max(
-            1, int(os.getenv("CAMERA_NATIVE_AF_ATTEMPTS", "2"))
-        )
-        self.capture_attempts = self.native_af_attempts
         self.minimum_jpeg_bytes = max(
             20000, int(os.getenv("CAMERA_MIN_JPEG_BYTES", "50000"))
         )
         self.minimum_focus_score = max(
             8.0, float(os.getenv("CAMERA_MIN_FOCUS_SCORE", "22.0"))
         )
-        # SMARTPDM_VISIBLE_FOCUS_SWEEP_V37
-        self.focus_preview_enabled = (
+        self.capture_status_enabled = (
             os.getenv("CAMERA_FOCUS_PREVIEW", "true").strip().lower()
             not in {"0", "false", "no", "off"}
         )
-        self._focus_window_open = False
+        self._capture_window_open = False
 
-        try:
-            configured_lens_position = float(
-                os.getenv("CAMERA_FIXED_LENS_POSITION", "2.25")
-            )
-        except ValueError:
-            configured_lens_position = 2.25
-        self.fixed_lens_position = max(
-            2.0,
-            min(20.0, configured_lens_position),
+        # This installation is calibrated at one manual Camera Module 3 lens
+        # position. Do not replace this with autofocus or a sweep.
+        self.fixed_lens_position = 2.25
+        self.capture_roi = self._parse_roi(
+            os.getenv("CAMERA_CAPTURE_ROI", "0.08,0.08,0.84,0.84")
         )
-        # Compatibility for diagnostics; the production capture path does not
-        # sweep this collection.
-        self.focus_sweep_positions = [self.fixed_lens_position]
+
+    @staticmethod
+    def _parse_roi(value: str) -> tuple[float, float, float, float]:
+        try:
+            x, y, width, height = (
+                float(part.strip()) for part in value.split(",")
+            )
+        except (TypeError, ValueError):
+            return (0.08, 0.08, 0.84, 0.84)
+        if (
+            x < 0
+            or y < 0
+            or width <= 0
+            or height <= 0
+            or x + width > 1
+            or y + height > 1
+        ):
+            return (0.08, 0.08, 0.84, 0.84)
+        return (x, y, width, height)
+
+    def _roi_args(self) -> list[str]:
+        return [
+            "--roi",
+            ",".join(f"{value:.4f}" for value in self.capture_roi),
+        ]
 
     @staticmethod
     def _run(
@@ -104,6 +114,7 @@ class CameraController:
                     "--timeout", "0",
                     "--autofocus-mode", "continuous",
                     "--autofocus-range", "full",
+                    *self._roi_args(),
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -172,74 +183,6 @@ class CameraController:
         self.preview_process = None
         self.is_previewing = False
         self.clear_hardware()
-
-    @staticmethod
-    def _read_metadata(path: str) -> Dict[str, Any]:
-        try:
-            text = Path(path).read_text(
-                encoding="utf-8", errors="replace"
-            ).strip()
-        except OSError:
-            return {}
-        if not text:
-            return {}
-        for candidate in [text, *reversed(text.splitlines())]:
-            try:
-                value = json.loads(candidate)
-            except Exception:
-                continue
-            if isinstance(value, dict):
-                return value
-        return {}
-
-    @classmethod
-    def _find_key(cls, value: Any, names: Iterable[str]) -> Any:
-        lowered = {str(name).casefold() for name in names}
-        if isinstance(value, dict):
-            for key, item in value.items():
-                if str(key).casefold() in lowered:
-                    return item
-            for item in value.values():
-                found = cls._find_key(item, lowered)
-                if found is not None:
-                    return found
-        elif isinstance(value, list):
-            for item in reversed(value):
-                found = cls._find_key(item, lowered)
-                if found is not None:
-                    return found
-        return None
-
-    @classmethod
-    def _focus_state(
-        cls, metadata: Dict[str, Any]
-    ) -> Optional[bool]:
-        raw = cls._find_key(
-            metadata,
-            ("AfState", "FocusState", "af_state", "focus_state"),
-        )
-        if raw is None:
-            return None
-        normalized = str(raw).strip().casefold()
-        if normalized in {"focused", "success", "2"}:
-            return True
-        if normalized in {"failed", "failure", "3"}:
-            return False
-        return None
-
-    @classmethod
-    def _metadata_lens_position(
-        cls, metadata: Dict[str, Any]
-    ) -> Optional[float]:
-        raw = cls._find_key(
-            metadata,
-            ("LensPosition", "lens_position"),
-        )
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            return None
-        return value if math.isfinite(value) else None
 
     @staticmethod
     def _jpeg_dimensions(
@@ -340,25 +283,7 @@ class CameraController:
             "--timeout", str(timeout_ms),
             "--awb", "auto",
             "--nopreview",
-        ]
-
-    def _native_command(
-        self,
-        image: Path,
-        metadata: Path,
-    ) -> list[str]:
-        return self._common_capture_args(
-            image,
-            self.capture_width,
-            self.capture_height,
-            self.focus_timeout_ms,
-        ) + [
-            "--autofocus-mode", "auto",
-            "--autofocus-on-capture",
-            "--autofocus-range", "full",
-            "--autofocus-speed", "normal",
-            "--metadata", str(metadata),
-            "--metadata-format", "json",
+            *self._roi_args(),
         ]
 
     def _manual_command(
@@ -380,13 +305,6 @@ class CameraController:
             "--lens-position", f"{lens_position:.4f}",
         ]
 
-    def _capture_command(
-        self,
-        image: Path,
-        metadata: Path,
-    ) -> list[str]:
-        return self._native_command(image, metadata)
-
     def _valid_jpeg(
         self,
         path: Path,
@@ -406,71 +324,6 @@ class CameraController:
 
         width, height = dimensions
         return width >= min_width and height >= min_height
-
-    def _try_native_autofocus(self) -> Optional[Path]:
-        for attempt in range(1, self.native_af_attempts + 1):
-            image = Path(
-                f"{self.capture_file}.native-{attempt}.jpg"
-            )
-            metadata = Path(
-                f"{self.capture_file}.native-{attempt}.json"
-            )
-            image.unlink(missing_ok=True)
-            metadata.unlink(missing_ok=True)
-
-            print(
-                "[CAMERA] Native autofocus "
-                f"{attempt}/{self.native_af_attempts}"
-            )
-
-            try:
-                result = self._run(
-                    self._native_command(image, metadata),
-                    timeout=max(
-                        30.0,
-                        self.focus_timeout_ms / 1000.0 + 15.0,
-                    ),
-                )
-            except Exception as exc:
-                print(f"[CAMERA] Native AF command error: {exc}")
-                continue
-
-            if result.returncode != 0:
-                image.unlink(missing_ok=True)
-                metadata.unlink(missing_ok=True)
-                continue
-
-            if not self._valid_jpeg(
-                image,
-                min_width=self.capture_width,
-                min_height=self.capture_height,
-            ):
-                image.unlink(missing_ok=True)
-                metadata.unlink(missing_ok=True)
-                continue
-
-            metadata_value = self._read_metadata(str(metadata))
-            state = self._focus_state(metadata_value)
-            lens = self._metadata_lens_position(metadata_value)
-            score = self._focus_score(str(image))
-
-            print(
-                "[CAMERA] Native AF "
-                f"state={state}; lens={lens}; score={score}"
-            )
-
-            if (
-                state is True
-                and score is not None
-                and score >= self.minimum_focus_score
-            ):
-                metadata.unlink(missing_ok=True)
-                return image
-
-            image.unlink(missing_ok=True)
-            metadata.unlink(missing_ok=True)
-
-        return None
 
     def _ensure_gui_environment(self) -> bool:
         if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
@@ -502,27 +355,15 @@ class CameraController:
             return False
         return False
 
-    def _show_focus_frame(self, image: Path, lines: list[str], *, wait_ms: int = 550) -> None:
-        if not self.focus_preview_enabled or not self._ensure_gui_environment():
+    def _show_capture_frame(self, image: Path, lines: list[str], *, wait_ms: int = 550) -> None:
+        if not self.capture_status_enabled or not self._ensure_gui_environment():
             return
         try:
             import cv2
             frame = cv2.imread(str(image))
             if frame is None:
                 return
-            if lines and "FOCUS" in str(lines[0]).upper():
-                # Display-only centre zoom makes the physical focus changes
-                # visible without altering the full captured document image.
-                frame_height, frame_width = frame.shape[:2]
-                crop_width = max(1, int(frame_width * 0.72))
-                crop_height = max(1, int(frame_height * 0.72))
-                left = max(0, (frame_width - crop_width) // 2)
-                top = max(0, (frame_height - crop_height) // 2)
-                frame = frame[
-                    top : top + crop_height,
-                    left : left + crop_width,
-                ]
-            window = "SMaRT-PDM Auto Focus"
+            window = "SMaRT-PDM Capture"
             cv2.namedWindow(window, cv2.WINDOW_NORMAL)
             cv2.setWindowProperty(window, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
             height, width = frame.shape[:2]
@@ -536,21 +377,21 @@ class CameraController:
                 y += 38
             cv2.imshow(window, shown)
             cv2.waitKey(wait_ms)
-            self._focus_window_open = True
+            self._capture_window_open = True
         except Exception as exc:
-            print(f"[CAMERA] Focus preview unavailable: {exc}")
-            self.focus_preview_enabled = False
+            print(f"[CAMERA] Capture status unavailable: {exc}")
+            self.capture_status_enabled = False
 
-    def _close_focus_preview(self) -> None:
-        if not self._focus_window_open:
+    def _close_capture_status(self) -> None:
+        if not self._capture_window_open:
             return
         try:
             import cv2
-            cv2.destroyWindow("SMaRT-PDM Auto Focus")
+            cv2.destroyWindow("SMaRT-PDM Capture")
             cv2.waitKey(1)
         except Exception:
             pass
-        self._focus_window_open = False
+        self._capture_window_open = False
 
     def _sample_position(
         self,
@@ -599,197 +440,6 @@ class CameraController:
 
         return score, image
 
-    def _coarse_sweep(
-        self,
-    ) -> Optional[Tuple[float, float, list[Tuple[float, float]]]]:
-        observations: list[Tuple[float, float]] = []
-
-        print(
-            "[CAMERA] Native AF did not lock. "
-            "Starting normalized physical lens sweep."
-        )
-
-        # The immediate processing notice remains visible while the first
-        # focus sample starts, then the live zoomed sweep takes over.
-        first_sample = True
-
-        for position in self.focus_sweep_positions:
-            sampled = self._sample_position(
-                position,
-                width=1536,
-                height=864,
-                timeout_ms=1100,
-                suffix="coarse",
-            )
-
-            if sampled is None:
-                print(
-                    f"[CAMERA] Lens {position:.3f}: unavailable"
-                )
-                continue
-
-            score, image = sampled
-            if first_sample:
-                self._stop_preview_instruction_overlay()
-                first_sample = False
-            observations.append((position, score))
-            current_best = max(value for _, value in observations)
-            self._show_focus_frame(
-                image,
-                [
-                    "FOCUSING - COARSE SWEEP",
-                    f"Lens position: {position:.2f}",
-                    f"Focus score: {score:.2f}",
-                    f"Best score: {current_best:.2f}",
-                ],
-            )
-            image.unlink(missing_ok=True)
-
-            print(
-                f"[CAMERA] Lens {position:.3f}: "
-                f"normalized score={score:.2f}"
-            )
-
-        if len(observations) < 3:
-            return None
-
-        observations.sort(key=lambda item: item[1], reverse=True)
-        best_position, best_score = observations[0]
-        values = [score for _, score in observations]
-        background = median(values)
-
-        print(
-            "[CAMERA] Coarse best="
-            f"{best_position:.3f}; score={best_score:.2f}; "
-            f"median={background:.2f}"
-        )
-
-        if best_score < self.minimum_focus_score:
-            return None
-
-        if background > 0 and best_score / background < 1.20:
-            return None
-
-        return best_position, best_score, observations
-
-    def _refine_position(
-        self,
-        coarse_position: float,
-        coarse_score: float,
-    ) -> Tuple[float, float]:
-        positions = []
-        for step in range(-6, 7):
-            value = max(
-                0.0,
-                min(20.0, coarse_position + (step * 0.10)),
-            )
-            if value not in positions:
-                positions.append(value)
-
-        best_position = coarse_position
-        best_score = coarse_score
-
-        print(
-            "[CAMERA] Refining focus around "
-            f"{coarse_position:.3f}"
-        )
-
-        for position in positions:
-            sampled = self._sample_position(
-                position,
-                width=1536,
-                height=864,
-                timeout_ms=1000,
-                suffix="refine",
-            )
-
-            if sampled is None:
-                continue
-
-            score, image = sampled
-            self._show_focus_frame(
-                image,
-                [
-                    "FOCUSING - FINE SWEEP",
-                    f"Lens position: {position:.2f}",
-                    f"Focus score: {score:.2f}",
-                    f"Best score: {max(best_score, score):.2f}",
-                ],
-            )
-            image.unlink(missing_ok=True)
-
-            print(
-                f"[CAMERA] Refine {position:.3f}: "
-                f"normalized score={score:.2f}"
-            )
-
-            if score > best_score:
-                best_position = position
-                best_score = score
-
-        return best_position, best_score
-
-    def _final_candidates(
-        self,
-        best_position: float,
-        reference_score: float,
-    ) -> Optional[Tuple[Path, float, float]]:
-        sampled = self._sample_position(
-            best_position,
-            width=self.capture_width,
-            height=self.capture_height,
-            timeout_ms=1600,
-            suffix="final",
-        )
-        if sampled is None:
-            return None
-
-        winner_score, winner_path = sampled
-        winner_position = best_position
-        if not self._valid_jpeg(
-            winner_path,
-            min_width=self.capture_width,
-            min_height=self.capture_height,
-        ):
-            winner_path.unlink(missing_ok=True)
-            return None
-
-        self._show_focus_frame(
-            winner_path,
-            [
-                "FOCUSED IMAGE CAPTURED",
-                f"Lens position: {winner_position:.2f}",
-                f"Focus score: {winner_score:.2f}",
-                "Preparing image for OCR...",
-            ],
-            wait_ms=500,
-        )
-
-        print(
-            f"[CAMERA] Final lens {winner_position:.3f}: "
-            f"normalized score={winner_score:.2f}"
-        )
-
-        if winner_path is None:
-            return None
-
-        required_score = max(
-            self.minimum_focus_score,
-            reference_score * 0.55,
-        )
-
-        print(
-            "[CAMERA] Best final lens="
-            f"{winner_position:.3f}; score={winner_score:.2f}; "
-            f"required={required_score:.2f}"
-        )
-
-        if winner_score < required_score:
-            winner_path.unlink(missing_ok=True)
-            return None
-
-        return winner_path, winner_position, winner_score
-
     def capture_image(
         self,
         *,
@@ -811,7 +461,7 @@ class CameraController:
             position,
             width=self.capture_width,
             height=self.capture_height,
-            timeout_ms=1600,
+            timeout_ms=self.capture_timeout_ms,
             suffix="fixed",
         )
         if sampled is not None:
@@ -823,19 +473,19 @@ class CameraController:
             ):
                 self._stop_preview_instruction_overlay()
                 os.replace(image, final)
-                self._show_focus_frame(
+                self._show_capture_frame(
                     final,
                     [
-                        "FOCUSED IMAGE CAPTURED",
+                        "IMAGE CAPTURED",
                         f"Fixed lens position: {position:.2f}",
-                        f"Focus score: {score:.2f}",
+                        f"Sharpness score: {score:.2f}",
                         "IMAGE PROCESSING - STARTING TESSERACT OCR",
                     ],
-                    wait_ms=1200,
+                    wait_ms=450,
                 )
-                self._close_focus_preview()
+                self._close_capture_status()
                 print(
-                    "[CAMERA] Fixed focus capture accepted. "
+                    "[CAMERA] Fixed-lens capture accepted. "
                     f"Lens={position:.3f}; "
                     f"normalized score={score:.2f}. "
                     "OCR/submission unlocked."
@@ -844,10 +494,10 @@ class CameraController:
             image.unlink(missing_ok=True)
 
         final.unlink(missing_ok=True)
-        self._close_focus_preview()
+        self._close_capture_status()
 
         print(
-            "[CAMERA] No verified focused capture. "
+            "[CAMERA] No verified fixed-lens capture. "
             "OCR/submission blocked."
         )
 

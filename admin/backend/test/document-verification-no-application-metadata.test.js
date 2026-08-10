@@ -11,6 +11,10 @@ test('document verification does not render application metadata cards', () => {
 
     assert.doesNotMatch(source, /Application Metadata/i);
     assert.doesNotMatch(source, /applicationMetadata/);
+    assert.doesNotMatch(source, /Confidence:\s*\{confidence\}/);
+    assert.doesNotMatch(source, /Admin OCR Notes/i);
+    assert.doesNotMatch(source, />\s*Selected Document\s*</i);
+    assert.doesNotMatch(source, /Rejection Reason \/ Admin Remarks/i);
 });
 
 test('grade review uses the bottom raw snapshot and visible OCR score labels', () => {

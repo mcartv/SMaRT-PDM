@@ -1312,7 +1312,6 @@ function OCRPanel({
   cancellingIotOcr,
   cancelSupported,
 }) {
-  const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
@@ -1348,10 +1347,6 @@ function OCRPanel({
               </>
             )}
           </Button>
-
-          <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-xs font-medium">
-            Confidence: {confidence}
-          </Badge>
 
           <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-xs font-medium">
             Extracted Preview
@@ -1680,20 +1675,6 @@ function OCRPanel({
             ) : null}
           </div>
         ) : null}
-
-        <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-orange-600" />
-            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
-              Admin OCR Notes
-            </p>
-          </div>
-          <p className="text-sm text-stone-500 leading-relaxed">
-            Do not type the action taken. Invalid, wrong, mismatched, edited, or doctored
-            documents should be rejected. The admin should only provide the rejection reason
-            and any review remarks.
-          </p>
-        </div>
 
         <div className="rounded-lg border border-stone-200 bg-white p-3">
           <div className="flex items-center justify-between gap-3 mb-2">
@@ -2064,8 +2045,6 @@ function ChecklistCard({
 
 function VerificationActions({
   activeDoc,
-  comment,
-  onCommentChange,
   onVerify,
   onReject,
   onComplete,
@@ -2081,45 +2060,6 @@ function VerificationActions({
   return (
     <Card className="border-stone-200 shadow-none bg-white">
       <div className="p-5 space-y-4">
-        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-stone-400">
-            Selected Document
-          </p>
-          <p className="text-[15px] font-semibold text-stone-800 mt-1">
-            {activeDoc?.name || 'N/A'}
-          </p>
-          <p className="text-sm text-stone-400 mt-1">
-            {activeDoc?.id === 'application_form'
-              ? 'Text-based application form ready for admin review.'
-              : activeDoc?.url
-                ? 'Uploaded by student and ready for admin review.'
-                : 'No uploaded file from student yet.'}
-          </p>
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
-            Rejection Reason / Admin Remarks
-          </label>
-          <Textarea
-            placeholder={
-              activeDoc?.id === 'application_form'
-                ? 'Admin remarks for application form review.'
-                : hasUploadedDocument
-                  ? 'The rejection note is filled automatically from the reject modal. You may edit remarks here if needed.'
-                  : 'No uploaded document selected yet.'
-            }
-            value={comment}
-            onChange={(e) => onCommentChange(e.target.value)}
-            disabled={!hasUploadedDocument}
-            className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Note: Do not type the action performed. If the file is wrong, invalid, edited,
-            mismatched, or suspected doctored, reject it and provide the reason and any remarks only.
-          </p>
-        </div>
-
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
@@ -2651,16 +2591,6 @@ export default function DocumentVerification() {
       activeIotRequestRef.current = null;
     }
   }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
-
-  const handleCommentChange = (value) => {
-    setComment(value);
-    if (!activeDoc) return;
-
-    setDocComments((prev) => ({
-      ...prev,
-      [activeDoc.id]: value,
-    }));
-  };
 
   const updateActiveDocStatus = (nextStatus, nextComment = null) => {
     if (!activeDoc || !hasUploadedDocument) return;
@@ -3366,8 +3296,6 @@ export default function DocumentVerification() {
 
           <VerificationActions
             activeDoc={activeDoc}
-            comment={comment}
-            onCommentChange={handleCommentChange}
             onVerify={handleVerify}
             onReject={() => setRejectModalOpen(true)}
             onComplete={handleCompleteVerification}

@@ -36,9 +36,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   Timer? _pollingTimer;
 
   ApplicantDocumentsPackage? _package;
+
   bool _isLoading = true;
+  bool _isRefreshing = false;
   bool _needsBaseApplication = false;
   String? _errorMessage;
+
   final Map<String, bool> _uploadingDocuments = <String, bool>{};
 
   static const Set<String> _allowedDocumentTypes = {
@@ -59,10 +62,15 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPackage();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (mounted) {
-        _loadPackage();
+
+    _loadPackage(showFullLoader: true);
+
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted &&
+          !_isLoading &&
+          !_isRefreshing &&
+          _uploadingDocuments.isEmpty) {
+        _loadPackage(silent: true);
       }
     });
   }
@@ -81,38 +89,87 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     _notificationProvider?.addListener(_handleRealtimeUpdates);
   }
 
-  Future<void> _loadPackage() async {
+  Future<void> _loadPackage({
+    bool showFullLoader = false,
+    bool silent = false,
+  }) async {
+    if (!mounted) return;
+
+    final hasExistingData = _package != null;
+
+    // Full-screen spinner only when:
+    // 1. the screen has no data yet, OR
+    // 2. explicitly requested.
+    final shouldShowFullLoader =
+        showFullLoader || (!hasExistingData && !silent);
+
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _needsBaseApplication = false;
+      if (shouldShowFullLoader) {
+        _isLoading = true;
+      } else {
+        _isRefreshing = true;
+      }
+
+      // Do not wipe the visible package during background refresh.
+      if (!silent) {
+        _errorMessage = null;
+        _needsBaseApplication = false;
+      }
     });
 
     try {
       final payload = await _service.fetchMyDocuments();
+
       if (!mounted) return;
-      setState(() => _package = payload);
+
+      setState(() {
+        _package = payload;
+        _errorMessage = null;
+        _needsBaseApplication = false;
+      });
     } on ApiException catch (error) {
       if (!mounted) return;
+
+      // If we already have valid data, do not destroy the screen
+      // because one background refresh failed.
+      if (silent && _package != null) {
+        return;
+      }
+
       setState(() {
         _needsBaseApplication =
             error.statusCode == 404 || error.statusCode == 409;
+
         _errorMessage = error.message.trim();
-        _package = null;
+
+        if (!hasExistingData) {
+          _package = null;
+        }
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
+
+      if (silent && _package != null) {
+        return;
+      }
+
       setState(() {
         _errorMessage =
             'Unable to load your documents. Check your connection and try again.';
       });
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _isRefreshing = false;
+      });
     }
   }
 
   void _handleRealtimeUpdates() {
     final provider = _notificationProvider;
+
     if (provider == null) {
       return;
     }
@@ -123,8 +180,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     _lastApplicationRevision = provider.applicationRevision;
 
-    if (mounted) {
-      _loadPackage();
+    if (mounted &&
+        !_isLoading &&
+        !_isRefreshing &&
+        _uploadingDocuments.isEmpty) {
+      _loadPackage(silent: true);
     }
   }
 
@@ -228,7 +288,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return;
     }
 
-    setState(() => _uploadingDocuments[document.id] = true);
+    setState(() {
+      _uploadingDocuments[document.id] = true;
+    });
 
     try {
       final payload = await _service.uploadDocument(
@@ -239,18 +301,31 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       );
 
       if (!mounted) return;
-      setState(() => _package = payload);
+
+      // Immediately replace the visible package using the upload response.
+      // No full-page reload is needed.
+      setState(() {
+        _package = payload;
+        _errorMessage = null;
+      });
+
       _showSnackBar('${document.documentType} uploaded successfully.');
     } catch (error) {
       if (!mounted) return;
+
       _showUploadMessage(
         error.toString().replaceFirst('Exception: ', '').trim(),
         isError: true,
       );
     } finally {
-      if (mounted) {
-        setState(() => _uploadingDocuments.remove(document.id));
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _uploadingDocuments.remove(document.id);
+      });
+
+      // Quietly synchronize once after the upload completes.
+      unawaited(_loadPackage(silent: true));
     }
   }
 
@@ -271,7 +346,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
 
     final path = uri.path.toLowerCase();
-    final isImage = path.endsWith('.jpg') ||
+    final isImage =
+        path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png') ||
         path.endsWith('.webp');
@@ -305,9 +381,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                       Expanded(
                         child: Text(
                           document.documentType,
-                          style: Theme.of(dialogContext)
-                              .textTheme
-                              .titleLarge
+                          style: Theme.of(dialogContext).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                       ),
@@ -324,13 +398,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     height: previewHeight,
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      color: Theme.of(dialogContext)
-                          .colorScheme
-                          .surfaceContainerHighest,
+                      color: Theme.of(
+                        dialogContext,
+                      ).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: primaryColor.withOpacity(0.18),
-                      ),
+                      border: Border.all(color: primaryColor.withOpacity(0.18)),
                     ),
                     child: isImage
                         ? InteractiveViewer(
@@ -447,7 +519,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return 'All required documents have been uploaded and are ready for review.';
     }
 
-    return 'Upload the four required documents below, including your current grades PDF. Make sure every file is clear and readable.';
+    return 'Upload the five required documents below. Make sure every file is clear, readable, and uses an accepted file format.';
   }
 
   String _formatTimestamp(DateTime? value) {
@@ -476,10 +548,16 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       selectedIndex: 0,
       showDrawer: false,
       child: RefreshIndicator(
-        onRefresh: _loadPackage,
+        onRefresh: () => _loadPackage(silent: true),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_isRefreshing && !_isLoading)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+
             _HeaderCard(
               title:
                   package?.contextTitle ??
@@ -511,7 +589,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               },
             ),
             const SizedBox(height: 18),
-            if (_isLoading)
+            if (_isLoading && package == null)
               const Padding(
                 padding: EdgeInsets.only(top: 48),
                 child: Center(child: CircularProgressIndicator()),
@@ -535,7 +613,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Required: COR, Certificate of Indigency, Grade Report, and Letter of Request.',
+                'Required: Birth Certificate / PSA, COR, Certificate of Indigency, Grade Report, and Letter of Request.',
                 style: TextStyle(color: subtitleColor, height: 1.4),
               ),
               const SizedBox(height: 12),
@@ -845,6 +923,29 @@ class _DocumentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isUploading) ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Uploading ${document.documentType}...',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: primaryColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+
           if (isGradeReport) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -938,7 +1039,7 @@ class _DocumentCard extends StatelessWidget {
                 ),
               if (onOpen != null)
                 OutlinedButton.icon(
-                  onPressed: onOpen,
+                  onPressed: isUploading ? null : onOpen,
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View File'),
                 ),
@@ -986,9 +1087,9 @@ class _PreviewUnavailable extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

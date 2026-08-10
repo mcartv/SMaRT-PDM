@@ -164,6 +164,23 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
             source.lower(),
         )
 
+    def test_preview_starts_local_left_button_instruction_overlay(self):
+        source = Path("camera.py").read_text(encoding="utf-8")
+        overlay = Path("preview_instruction_overlay.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("_start_preview_instruction_overlay()", source)
+        self.assertIn("PRESS THE LEFT BUTTON", overlay)
+        self.assertIn('root.geometry("+24+24")', overlay)
+
+    def test_lifecycle_heartbeat_uses_an_independent_http_client(self):
+        source = Path("job_worker.py").read_text(encoding="utf-8")
+        heartbeat = source[source.index("def send_heartbeat") :]
+
+        self.assertIn("heartbeat_api = ApiClient()", heartbeat)
+        self.assertIn("heartbeat_api.update_status", heartbeat)
+
 
 if __name__ == "__main__":
     unittest.main()

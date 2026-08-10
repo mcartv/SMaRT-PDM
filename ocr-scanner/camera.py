@@ -7,6 +7,7 @@ import math
 import os
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 from statistics import median
@@ -18,6 +19,7 @@ class CameraController:
 
     def __init__(self) -> None:
         self.preview_process: Optional[subprocess.Popen] = None
+        self.preview_overlay_process: Optional[subprocess.Popen] = None
         self.is_previewing = False
         self.capture_file = "/tmp/raw_capture.jpg"
         self.capture_width = int(os.getenv("CAMERA_CAPTURE_WIDTH", "2304"))
@@ -116,9 +118,42 @@ class CameraController:
             return False
         time.sleep(1.0)
         self.is_previewing = self.preview_process.poll() is None
+        if self.is_previewing:
+            self._start_preview_instruction_overlay()
         return self.is_previewing
 
+    def _start_preview_instruction_overlay(self) -> None:
+        self._stop_preview_instruction_overlay()
+        if not self._ensure_gui_environment():
+            return
+        helper = Path(__file__).resolve().with_name("preview_instruction_overlay.py")
+        if not helper.is_file():
+            return
+        try:
+            self.preview_overlay_process = subprocess.Popen(
+                [sys.executable, str(helper)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            self.preview_overlay_process = None
+
+    def _stop_preview_instruction_overlay(self) -> None:
+        process = self.preview_overlay_process
+        if process is not None and process.poll() is None:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                process.wait(timeout=1)
+            except Exception:
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except Exception:
+                    pass
+        self.preview_overlay_process = None
+
     def stop_preview(self) -> None:
+        self._stop_preview_instruction_overlay()
         process = self.preview_process
         if process is not None and process.poll() is None:
             try:

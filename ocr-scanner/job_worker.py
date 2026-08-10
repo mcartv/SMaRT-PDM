@@ -1049,10 +1049,14 @@ def main():
                 return True
 
             def send_heartbeat():
+                # Use an independent HTTP session. requests.Session is not
+                # guaranteed to be thread-safe, and camera status callbacks
+                # can otherwise contend with this lease-renewal path.
+                heartbeat_api = ApiClient()
                 while not heartbeat_stop.wait(HEARTBEAT_INTERVAL_SECONDS):
                     worker_state, camera_status = lifecycle_worker_state(current_status["value"])
                     publish_worker_activity(worker_state, request=request, camera_status=camera_status)
-                    if not api.update_status(request_id, current_status["value"]):
+                    if not heartbeat_api.update_status(request_id, current_status["value"]):
                         log.warning(
                             "Lifecycle heartbeat failed request=%s status=%s",
                             _safe_request_ref(request_id),

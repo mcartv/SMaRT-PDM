@@ -519,7 +519,10 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">Scholastic Standing</p>
         <p className="mt-1 text-sm text-stone-600">Record the standing shown on the official endorsement slip.</p>
       </div>
-      <Select value={standing} onValueChange={(value) => onChange({ pdResult: value })}>
+      <Select value={standing}
+        onValueChange={(value) => onChange({ pdResult: value })}
+        disabled={!gradeReady || saving}
+      >
         <SelectTrigger className="bg-white"><SelectValue placeholder="Select scholastic standing" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="good_scholastic_standing">Good Scholastic Standing</SelectItem>
@@ -736,6 +739,11 @@ export default function EndorsementQueue({
   const executeAction = async () => {
     if (!confirmAction) return;
     const { row, action } = confirmAction;
+    if (queueKey === 'pd' && !hasUploadedGrade(row)) {
+      setConfirmAction(null);
+      setError('A Grade Report must be uploaded before PD endorsement.');
+      return;
+    }
     const state = actionState[row.slip_id] || {};
     try {
       setSavingSlipId(row.slip_id);
@@ -778,6 +786,8 @@ export default function EndorsementQueue({
   if (loading) return <PageLoadingSkeleton label="Loading endorsement queue" showStats />;
 
   const confirm = confirmAction ? confirmationMeta(queueKey, confirmAction.action, confirmAction.row.student_name) : null;
+  const confirmBlockedByMissingGrade =
+    queueKey === 'pd' && Boolean(confirmAction) && !hasUploadedGrade(confirmAction.row);
   const selectedState = selectedRow ? actionState[selectedRow.slip_id] || {} : {};
 
   return (
@@ -812,7 +822,7 @@ export default function EndorsementQueue({
               <AlertDialogAction
                 className={`${confirmationButtonClass()} min-w-24 border-emerald-600 font-semibold shadow-sm`}
                 style={{ backgroundColor: '#059669', color: '#ffffff', borderColor: '#059669' }}
-                disabled={Boolean(savingSlipId)}
+                disabled={Boolean(savingSlipId) || confirmBlockedByMissingGrade}
                 onClick={(event) => {
                   event.preventDefault();
                   executeAction();
@@ -831,7 +841,14 @@ export default function EndorsementQueue({
         row={selectedRow}
         state={selectedState}
         onChange={(patch) => selectedRow && updateActionState(selectedRow.slip_id, patch)}
-        onSubmit={(action) => selectedRow && setConfirmAction({ row: selectedRow, action })}
+        onSubmit={(action) => {
+          if (!selectedRow) return;
+          if (queueKey === 'pd' && !hasUploadedGrade(selectedRow)) {
+            setError('A Grade Report must be uploaded before PD endorsement.');
+            return;
+          }
+          setConfirmAction({ row: selectedRow, action });
+        }}
         saving={selectedRow ? savingSlipId === selectedRow.slip_id : false}
         onClose={() => setSelectedRow(null)}
         onViewFull={navigate}

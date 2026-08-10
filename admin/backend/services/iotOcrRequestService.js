@@ -10,7 +10,7 @@ const TERMINAL_STATUSES = Object.freeze(['completed', 'cancelled', 'failed', 'ex
 const ALLOWED_TRANSITIONS = Object.freeze({
     pending: Object.freeze(['claimed', 'expired', 'cancelled']),
     claimed: Object.freeze(['previewing', 'cancelled', 'failed', 'expired']),
-    previewing: Object.freeze(['focusing', 'cancelled', 'failed', 'expired']),
+    previewing: Object.freeze(['focusing', 'capturing', 'cancelled', 'failed', 'expired']),
     focusing: Object.freeze(['capturing', 'cancelled', 'failed', 'expired']),
     capturing: Object.freeze(['processing', 'cancelled', 'failed', 'expired']),
     processing: Object.freeze(['review_required', 'cancelled', 'failed', 'expired']),
@@ -21,14 +21,6 @@ const FORBIDDEN_PAYLOAD_KEYS = new Set([
     'image', 'image_url', 'capture_url', 'capture_path', 'processed_image',
     'processed_image_url', 'base64_image',
 ]);
-const REQUEST_TTL_MS = 60 * 1000;
-const PENDING_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
-// The Pi sends a heartbeat every five seconds, renewing this timeout while
-// capture or OCR is genuinely active.
-const PROCESSING_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
-const REVIEW_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
-const EXPIRATION_SWEEP_INTERVAL_MS = 1000;
-let lastExpirationSweepAt = 0;
 
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
@@ -49,22 +41,6 @@ function assertTextOnlyPayload(value) {
         }
         assertTextOnlyPayload(nested);
     }
-}
-
-function addMilliseconds(value, milliseconds) {
-    const timestamp = new Date(value || 0).getTime();
-    return Number.isFinite(timestamp) && timestamp > 0
-        ? new Date(timestamp + milliseconds).toISOString()
-        : null;
-}
-
-function requestExpiresAt(row) {
-    if (row.status === 'pending') return addMilliseconds(row.created_at, REQUEST_TTL_MS);
-    if (['claimed', 'previewing', 'focusing', 'capturing', 'processing'].includes(row.status)) {
-        return addMilliseconds(row.processing_heartbeat_at || row.updated_at, REQUEST_TTL_MS);
-    }
-    if (row.status === 'review_required') return addMilliseconds(row.updated_at, REQUEST_TTL_MS);
-    return null;
 }
 
 function mapRequestRow(row) {
@@ -91,12 +67,13 @@ function mapRequestRow(row) {
         created_at: row.created_at || null,
         completed_at: row.completed_at || null,
         updated_at: row.updated_at || null,
-        expires_at: requestExpiresAt(row),
+        expires_at: null,
     };
 }
 
 function mapCandidateRow(row) {
     if (!row) return null;
+    const storedFields = row.verified_fields || row.fields || {};
     return {
         candidate_id: row.candidate_id,
         request_id: row.request_id,
@@ -104,7 +81,7 @@ function mapCandidateRow(row) {
         document_key: row.document_key,
         template_id: row.template_id,
         raw_text: row.raw_text || '',
-        fields: row.verified_fields || row.fields || {},
+        fields: withDerivedGradeFields(row.document_key, row.raw_text, storedFields),
         field_confidence: row.field_confidence || {},
         validation_issues: row.validation_issues || [],
         review_required: true,
@@ -122,6 +99,64 @@ function fieldValue(value) {
         return value.normalized_value ?? value.raw_text ?? value.value ?? '';
     }
     return value;
+}
+
+function gradeField(value) {
+    const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+    return { raw_text: normalized, normalized_value: normalized };
+}
+
+function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
+    const normalizedKey = documentTypes.normalizeDocumentType(documentKey);
+    const source = storedFields && typeof storedFields === 'object' && !Array.isArray(storedFields)
+        ? storedFields
+        : {};
+    if (normalizedKey !== 'student_grade_forms') return source;
+
+    const fields = { ...source, subjects: Array.isArray(source.subjects) ? source.subjects : [] };
+    const missing = (key) => !String(fieldValue(fields[key]) ?? '').trim();
+    const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+    if (!text) return fields;
+
+    const numberMatch = text.match(/\b((?:PDM[-\s]?)?\d{4}[-\s]\d{4,7})\b/i);
+    if (numberMatch && missing('student_number')) {
+        fields.student_number = gradeField(numberMatch[1].replace(/\s+/g, '-').toUpperCase());
+    }
+
+    const identityMatch = text.match(
+        /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|\-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+    );
+    if (identityMatch) {
+        const identity = identityMatch[1].replace(/\s+,/g, ',').trim();
+        const parts = identity.match(/^(.+?)\s+((?:BS|AB|B)[A-Z][A-Z0-9.-]{1,12})$/i);
+        if (parts) {
+            if (missing('student_name')) fields.student_name = gradeField(parts[1]);
+            if (missing('course')) fields.course = gradeField(parts[2]);
+        }
+    }
+
+    const periodMatch = text.match(
+        /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
+    );
+    if (periodMatch) {
+        const semester = {
+            '1ST': '1st Semester',
+            '2ND': '2nd Semester',
+            'FIRST': 'First Semester',
+            'SECOND': 'Second Semester',
+            'SUMMER': 'Summer',
+        }[String(periodMatch[1] || '').toUpperCase()];
+        if (semester && missing('semester')) fields.semester = gradeField(semester);
+        if (missing('academic_year')) {
+            fields.academic_year = gradeField(periodMatch[2].replace(/\s*[-–]\s*/g, '-'));
+        }
+    }
+
+    const gwaMatch = text.match(/\bGWA\s*[:;=\-]?\s*([1-5](?:[.,]\d{1,2})?)\b/i);
+    if (gwaMatch && missing('gwa')) {
+        fields.gwa = gradeField(gwaMatch[1].replace(',', '.'));
+    }
+    return fields;
 }
 
 function normalizeGwa(value) {
@@ -167,6 +202,11 @@ function normalizeCandidate(input, requestRow) {
         review_required: true,
         processing,
     };
+    candidate.fields = withDerivedGradeFields(
+        candidate.document_key,
+        candidate.raw_text,
+        candidate.fields
+    );
     assertTextOnlyPayload(candidate);
     return candidate;
 }
@@ -180,7 +220,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     const requiredByDocument = {
         certificate_of_live_birth: ['child_name', 'mother_maiden_name', 'father_name'],
         certificate_of_indigency: ['certificate_subject_name', 'issue_date', 'issuing_barangay'],
-        student_grade_forms: ['student_number', 'student_name', 'course', 'semester', 'academic_year', 'subjects', 'gwa'],
+        student_grade_forms: ['student_number', 'semester', 'academic_year', 'subjects', 'gwa'],
     };
     const required = requiredByDocument[documentKey];
     if (!required) throw buildHttpError(400, 'Unsupported OCR document contract');
@@ -197,43 +237,12 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         throw buildHttpError(409, 'GWA is read-only. Retry OCR if the detected value is incorrect.');
     }
     return {
-        ...fields,
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
-        student_name: String(fieldValue(fields.student_name) ?? '').trim(),
-        course: String(fieldValue(fields.course) ?? '').trim(),
         semester: String(fieldValue(fields.semester) ?? '').trim(),
         academic_year: String(fieldValue(fields.academic_year) ?? '').trim(),
+        subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };
-}
-
-async function expireStaleRequests(client, { force = false } = {}) {
-    const now = Date.now();
-    if (!force && now - lastExpirationSweepAt < EXPIRATION_SWEEP_INTERVAL_MS) return;
-    lastExpirationSweepAt = now;
-    await client.query(`
-        UPDATE public.iot_ocr_requests
-        SET status = 'expired', error_code = 'PENDING_TIMEOUT',
-            error_message = 'IoT OCR request expired while waiting for the Pi',
-            completed_at = NOW(), updated_at = NOW()
-        WHERE status = 'pending' AND created_at < ${PENDING_TTL_SQL}
-    `);
-    await client.query(`
-        UPDATE public.iot_ocr_requests
-        SET status = 'expired', error_code = 'PROCESSING_HEARTBEAT_TIMEOUT',
-            error_message = 'IoT OCR worker heartbeat expired',
-            completed_at = NOW(), updated_at = NOW()
-        WHERE status IN ('claimed', 'previewing', 'focusing', 'capturing', 'processing')
-          AND COALESCE(processing_heartbeat_at, updated_at) < ${PROCESSING_TTL_SQL}
-    `);
-    await client.query(`
-        UPDATE public.iot_ocr_requests
-        SET status = 'expired', error_code = 'REVIEW_TIMEOUT',
-            error_message = 'IoT OCR review expired before admin confirmation',
-            completed_at = NOW(), updated_at = NOW()
-        WHERE status = 'review_required'
-          AND updated_at < ${REVIEW_TTL_SQL}
-    `);
 }
 
 async function resolveRequestContext(client, applicationId, documentKey) {
@@ -260,7 +269,6 @@ exports.createRequest = async (input = {}) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await expireStaleRequests(client, { force: true });
         const context = await resolveRequestContext(
             client,
             input.applicationId || input.application_id,
@@ -298,7 +306,6 @@ exports.claimNextRequest = async ({ claimedBy } = {}) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await expireStaleRequests(client);
         const result = await client.query(`
             WITH next_request AS (
                 SELECT request_id FROM public.iot_ocr_requests
@@ -327,9 +334,6 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
     if (!isUuid(requestId) || !deviceId) throw buildHttpError(400, 'Valid request and Pi device UUID are required');
     const client = await pool.connect();
     try {
-        // Persist expiration independently. A rejected transition must not roll
-        // the expiration sweep back and resurrect a stale request.
-        await expireStaleRequests(client, { force: true });
         await client.query('BEGIN');
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -383,7 +387,6 @@ exports.completeRequest = async (input = {}) => {
     }
     const client = await pool.connect();
     try {
-        await expireStaleRequests(client, { force: true });
         await client.query('BEGIN');
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -467,7 +470,6 @@ exports.getRequestById = async ({ requestId, applicationId = null, documentKey =
 exports.getLatestRequestForDocument = async ({ applicationId, documentKey }) => {
     const client = await pool.connect();
     try {
-        await expireStaleRequests(client);
         const result = await client.query(`
             SELECT * FROM public.iot_ocr_requests
             WHERE application_id = $1::uuid AND document_key = $2
@@ -481,7 +483,6 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
     await ensureIotOcrSchema();
     const client = await pool.connect();
     try {
-        await expireStaleRequests(client);
         const params = [applicationId, documentTypes.normalizeDocumentType(documentKey)];
         const requestFilter = requestId ? 'AND r.request_id = $3::uuid' : '';
         if (requestId) params.push(requestId);
@@ -551,7 +552,9 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
     try {
         await client.query('BEGIN');
         const selected = await client.query(`
-            SELECT r.*, c.candidate_id, c.fields AS candidate_fields
+            SELECT r.*, c.candidate_id, c.fields AS candidate_fields,
+                   c.raw_text AS candidate_raw_text
+            FROM public.iot_ocr_requests r
             JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
             WHERE r.request_id = $1::uuid AND r.application_id = $2::uuid AND r.document_key = $3
             FOR UPDATE OF r
@@ -578,7 +581,11 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
         const verifiedFields = validateConfirmedDocumentFields(
             normalizedDocumentKey,
             correctedFields,
-            row.candidate_fields
+            withDerivedGradeFields(
+                normalizedDocumentKey,
+                row.candidate_raw_text,
+                row.candidate_fields
+            )
         );
         await client.query(`
             INSERT INTO public.iot_ocr_reviews
@@ -662,4 +669,5 @@ module.exports = {
     assertTextOnlyPayload,
     validateConfirmedDocumentFields,
     normalizeGwa,
+    withDerivedGradeFields,
 };

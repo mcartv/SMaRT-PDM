@@ -915,11 +915,22 @@ def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bo
 
     if request_stop and request_stop.is_set():
         return False, {"status": "cancelled", "_workspace": str(workspace)}
+    publish_worker_activity(
+        "preprocessing",
+        request=request,
+        camera_status="captured",
+    )
     if status_callback:
         status_callback('processing')
 
     if request_stop and request_stop.is_set():
         return False, {"status": "cancelled", "_workspace": str(workspace)}
+
+    publish_worker_activity(
+        "running_ocr",
+        request=request,
+        camera_status="captured",
+    )
 
     if _is_birth_certificate_job(request):
         success, payload = _run_birth_certificate_scan(request, capture_result.capture_path)
@@ -1049,10 +1060,14 @@ def main():
                 return True
 
             def send_heartbeat():
+                # Use an independent HTTP session. requests.Session is not
+                # guaranteed to be thread-safe, and camera status callbacks
+                # can otherwise contend with this lease-renewal path.
+                heartbeat_api = ApiClient()
                 while not heartbeat_stop.wait(HEARTBEAT_INTERVAL_SECONDS):
                     worker_state, camera_status = lifecycle_worker_state(current_status["value"])
                     publish_worker_activity(worker_state, request=request, camera_status=camera_status)
-                    if not api.update_status(request_id, current_status["value"]):
+                    if not heartbeat_api.update_status(request_id, current_status["value"]):
                         log.warning(
                             "Lifecycle heartbeat failed request=%s status=%s",
                             _safe_request_ref(request_id),
@@ -1082,7 +1097,23 @@ def main():
                     request_stop=request_stop,
                 )
                 if not request_stop.is_set():
-                    submit_and_verify(api, request_id, payload, request=request)
+                    publish_worker_activity(
+                        "submitting_result",
+                        request=request,
+                        camera_status="captured",
+                    )
+                    submitted = submit_and_verify(
+                        api,
+                        request_id,
+                        payload,
+                        request=request,
+                    )
+                    if submitted:
+                        publish_worker_activity(
+                            "completed",
+                            request=request,
+                            camera_status="captured",
+                        )
             finally:
                 heartbeat_stop.set()
                 heartbeat_thread.join(timeout=1.0)

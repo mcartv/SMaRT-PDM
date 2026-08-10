@@ -3,7 +3,6 @@ const fs = require('fs');
 const http = require('http');
 const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
 const socketIO = require('socket.io');
-const jwt = require('jsonwebtoken');
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({
@@ -58,6 +57,7 @@ const announcementService = require('../services/announcementService');
 const personalToolService = require('../services/personalToolService');
 const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
 const socketEvents = require('../utils/socketEvents');
+const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
 const supabase = require('../config/supabase');
 
 const app = express();
@@ -335,68 +335,17 @@ app.use((err, req, res, next) => {
 // SOCKET HELPERS
 // =========================
 
-function verifySocketToken(token) {
-  const rawToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
+function joinSocketToUserRoom(socket) {
+  const userId = String(socket.data?.userId || '').trim();
 
-  if (!rawToken || !process.env.JWT_SECRET) return {};
-
-  try {
-    return jwt.verify(rawToken, process.env.JWT_SECRET) || {};
-  } catch (error) {
-    console.warn('[Socket] JWT verify failed:', error.message);
-    return {};
-  }
-}
-
-function extractUserIdFromPayload(payload = {}) {
-  if (typeof payload === 'string') {
-    return payload.trim();
-  }
-
-  return (
-    payload.userId ||
-    payload.user_id ||
-    payload.id ||
-    payload.sub ||
-    ''
-  )
-    .toString()
-    .trim();
-}
-
-function extractTokenFromSocket(socket) {
-  const auth = socket.handshake?.auth || {};
-  const query = socket.handshake?.query || {};
-  const headers = socket.handshake?.headers || {};
-
-  return (
-    auth.token ||
-    query.token ||
-    headers.authorization ||
-    headers.Authorization ||
-    ''
-  );
-}
-
-function extractUserIdFromSocket(socket) {
-  const token = extractTokenFromSocket(socket);
-  const decoded = verifySocketToken(token);
-
-  return extractUserIdFromPayload(decoded);
-}
-
-function joinSocketToUserRoom(socket, rawUserId) {
-  const userId = String(rawUserId || '').trim();
-
-  if (!userId) {
-    console.warn(`[Socket] Cannot join user room for socket ${socket.id}: missing userId`);
+  if (!socket.data?.authenticated || !userId) {
+    console.warn(`[Socket] Cannot join user room for socket ${socket.id}: unauthenticated socket`);
     return false;
   }
 
   const roomName = `user:${userId}`;
 
   socket.join(roomName);
-  socket.data.userId = userId;
 
   console.log(`[Socket] Socket ${socket.id} joined ${roomName}`);
 
@@ -410,13 +359,11 @@ function joinSocketToUserRoom(socket, rawUserId) {
   return true;
 }
 
-function handleJoinPayload(socket, payload = {}) {
-  const suppliedToken =
-    payload && typeof payload === 'object' ? payload.token : '';
-  const decoded = verifySocketToken(suppliedToken || extractTokenFromSocket(socket));
-  const userId = extractUserIdFromPayload(decoded);
-
-  return joinSocketToUserRoom(socket, userId);
+function handleJoinPayload(socket) {
+  // Legacy clients still emit several join aliases after connecting. Never
+  // trust a userId/token supplied in those events; the authenticated handshake
+  // identity is the only identity allowed to join a private user room.
+  return joinSocketToUserRoom(socket);
 }
 
 // =========================
@@ -445,6 +392,11 @@ const io = socketIO(server, {
   pingInterval: 25000,
 });
 
+// Every Admin-backend realtime connection must prove a valid, current staff
+// session before Socket.IO accepts it. Public landing pages use HTTP and do not
+// open this authenticated staff socket.
+io.use(createStaffSocketAuthMiddleware());
+
 app.set('io', io);
 
 configureRealtimeBridge({
@@ -453,15 +405,11 @@ configureRealtimeBridge({
 });
 
 io.on('connection', (socket) => {
-  console.log(`[Socket] User connected: ${socket.id}`);
+  console.log(
+    `[Socket] Authenticated user connected: ${socket.id} (${socket.data?.role || 'unknown'})`
+  );
 
-  const handshakeUserId = extractUserIdFromSocket(socket);
-
-  if (handshakeUserId) {
-    joinSocketToUserRoom(socket, handshakeUserId);
-  } else {
-    console.warn(`[Socket] ${socket.id} connected without userId in handshake`);
-  }
+  joinSocketToUserRoom(socket);
 
   socket.on('user-join', (payload) => {
     handleJoinPayload(socket, payload);

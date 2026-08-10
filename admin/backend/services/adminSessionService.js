@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const staffSessionService = require('./staffSessionService');
 
 const DEFAULT_SESSION_HOURS = Number(
     process.env.ADMIN_SESSION_HOURS || 12
@@ -209,6 +210,7 @@ async function createAdminSession({
             sid: sessionId,
             session_id: sessionId,
             session_scope: SESSION_SCOPE,
+            token_version: Number(user.token_version || 1),
         },
         requireJwtSecret(),
         { expiresIn: ttlSeconds }
@@ -441,6 +443,19 @@ async function loadSessionForUpdate(client, decoded, rawToken) {
 
 async function resumeAdminSession({ rawToken, deviceId, pageId }) {
     const decoded = verifyAdminToken(rawToken);
+
+    try {
+        await staffSessionService.assertCurrentStaffSession({ decoded });
+    } catch (error) {
+        if (error instanceof staffSessionService.StaffSessionError) {
+            throw new AdminSessionError(error.message, {
+                statusCode: error.statusCode,
+                code: error.code,
+            });
+        }
+        throw error;
+    }
+
     const cleanDeviceId = sanitizeClientId(deviceId, 'deviceId');
     const cleanPageId = sanitizeClientId(pageId, 'pageId');
     const userId = decoded.user_id || decoded.userId || decoded.sub;

@@ -497,7 +497,6 @@ export function formatOcrConfidence(confidence, scannedViaIot = false) {
 export function buildExtractedData(activeDoc, application) {
   if (!activeDoc) {
     return {
-      applicationMetadata: [],
       extractedFields: [],
       confidence: 'Unavailable',
       reviewOnly: false,
@@ -531,13 +530,6 @@ export function buildExtractedData(activeDoc, application) {
       ocrReviewRequired: manualReviewRequired,
     })
     : null;
-
-  const applicationMetadata = [
-    { label: 'Student Name', value: student.name || 'Unavailable', badge: 'Application' },
-    { label: 'PDM ID', value: student.pdm_id || 'Unavailable', badge: 'Application' },
-    { label: 'Program', value: student.program || 'Unavailable', badge: 'Application' },
-    { label: 'Course', value: student.course || 'Unavailable', badge: 'Application' },
-  ];
 
   const extractedFields = [];
 
@@ -611,7 +603,6 @@ export function buildExtractedData(activeDoc, application) {
   }
 
   return {
-    applicationMetadata,
     extractedFields,
     confidence: formatOcrConfidence(confidence, scannedViaIot),
     reviewOnly,
@@ -1226,8 +1217,6 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
-  ['student_name', 'Student Name'],
-  ['course', 'Course'],
   ['semester', 'Semester'],
   ['academic_year', 'Academic Year'],
 ];
@@ -1239,15 +1228,65 @@ function ocrFieldValue(value) {
   return value ?? '';
 }
 
+function deriveGradeReviewValues(rawText) {
+  const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+  const derived = {};
+  if (!text) return derived;
+
+  const number = text.match(/\b((?:PDM[-\s]?)?\d{4}[-\s]\d{4,7})\b/i);
+  if (number) derived.student_number = number[1].replace(/\s+/g, '-').toUpperCase();
+
+  const identity = text.match(
+    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|\-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+  );
+  if (identity) {
+    const parts = identity[1]
+      .replace(/\s+,/g, ',')
+      .trim()
+      .match(/^(.+?)\s+((?:BS|AB|B)[A-Z][A-Z0-9.-]{1,12})$/i);
+    if (parts) {
+      derived.student_name = parts[1];
+      derived.course = parts[2];
+    }
+  }
+
+  const period = text.match(
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
+  );
+  if (period) {
+    derived.semester = {
+      '1ST': '1st Semester',
+      '2ND': '2nd Semester',
+      'FIRST': 'First Semester',
+      'SECOND': 'Second Semester',
+      'SUMMER': 'Summer',
+    }[String(period[1] || '').toUpperCase()] || '';
+    derived.academic_year = period[2].replace(/\s*[-–]\s*/g, '-');
+  }
+
+  const gwa = text.match(/\bGWA\s*[:;=\-]?\s*([1-5](?:[.,]\d{1,2})?)\b/i);
+  if (gwa) derived.gwa = gwa[1].replace(',', '.');
+  return derived;
+}
+
 function normalizeReviewFields(candidate) {
   const fields = candidate?.fields || {};
   if (candidate?.document_key !== 'student_grade_forms') return fields;
+  const derived = deriveGradeReviewValues(candidate?.raw_text);
   return {
-    ...fields,
-    ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [key, ocrFieldValue(fields[key])])),
-    gwa: ocrFieldValue(fields.gwa),
+    ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
+      key,
+      ocrFieldValue(fields[key]) || derived[key] || '',
+    ])),
+    gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
     subjects: Array.isArray(fields.subjects) ? fields.subjects : [],
   };
+}
+
+function gradeOcrScore(candidate, key, displayedValue) {
+  const numeric = Number(candidate?.field_confidence?.[key]);
+  if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
+  return String(displayedValue || '').trim() ? 'Detected' : '—';
 }
 
 function OCRPanel({
@@ -1273,7 +1312,6 @@ function OCRPanel({
   cancellingIotOcr,
   cancelSupported,
 }) {
-  const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
@@ -1309,10 +1347,6 @@ function OCRPanel({
               </>
             )}
           </Button>
-
-          <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-xs font-medium">
-            Confidence: {confidence}
-          </Badge>
 
           <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-xs font-medium">
             Extracted Preview
@@ -1375,9 +1409,7 @@ function OCRPanel({
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
                   <span className="text-right text-xs font-semibold text-blue-700">
-                    {reviewCandidate.field_confidence?.[key] != null
-                      ? `${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
-                      : '—'}
+                    {gradeOcrScore(reviewCandidate, key, correctedFields?.[key])}
                   </span>
                 </label>
               ))}
@@ -1391,28 +1423,10 @@ function OCRPanel({
                   className="bg-stone-100 font-bold text-stone-900"
                 />
                 <span className="text-right text-xs font-semibold text-blue-700">
-                  {reviewCandidate.field_confidence?.gwa != null
-                    ? `${Number(reviewCandidate.field_confidence.gwa).toFixed(1)}%`
-                    : '—'}
+                  {gradeOcrScore(reviewCandidate, 'gwa', correctedFields?.gwa)}
                 </span>
               </div>
             </div>
-
-            {(reviewCandidate.validation_issues || []).length > 0 && (
-              <details className="rounded-md border border-amber-200 bg-white p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-amber-800">Validation Issues</summary>
-                <div className="mt-2 text-sm text-amber-900">
-                  {(reviewCandidate.validation_issues || []).map((issue, index) => (
-                    <p key={`${issue.code || 'issue'}-${index}`}>{issue.message || issue.code}</p>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            <details className="rounded-md border border-stone-200 bg-white p-3">
-              <summary className="cursor-pointer text-sm font-semibold text-stone-700">Raw OCR</summary>
-              <pre className="mt-2 whitespace-pre-wrap text-xs text-stone-600">{reviewCandidate.raw_text}</pre>
-            </details>
 
             {!gradeReviewCompleted && (
               <div className="flex justify-between gap-2">
@@ -1499,37 +1513,6 @@ function OCRPanel({
 
         {activeDoc?.id !== 'student_grade_forms' && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className="w-4 h-4 text-green-600" />
-            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
-              Application Metadata
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            {extractedData.applicationMetadata.map((item, index) => (
-              <div
-                key={`${item.label}-${index}`}
-                className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
-              >
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-stone-400">
-                    {item.label}
-                  </p>
-                  <p className="text-[15px] font-medium text-stone-800 mt-0.5">
-                    {item.value}
-                  </p>
-                </div>
-
-                <span className="text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
-                  {item.badge}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>}
-
-        <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-          <div className="flex items-center gap-2 mb-2">
             <ScanText className="w-4 h-4 text-stone-600" />
             <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
               Extracted Fields
@@ -1587,7 +1570,7 @@ function OCRPanel({
           ) : (
             <p className="text-sm text-stone-500">No structured fields extracted.</p>
           )}
-        </div>
+        </div>}
 
         {extractedData?.documentValidation?.shouldShow ? (
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
@@ -1692,20 +1675,6 @@ function OCRPanel({
             ) : null}
           </div>
         ) : null}
-
-        <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-orange-600" />
-            <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
-              Admin OCR Notes
-            </p>
-          </div>
-          <p className="text-sm text-stone-500 leading-relaxed">
-            Do not type the action taken. Invalid, wrong, mismatched, edited, or doctored
-            documents should be rejected. The admin should only provide the rejection reason
-            and any review remarks.
-          </p>
-        </div>
 
         <div className="rounded-lg border border-stone-200 bg-white p-3">
           <div className="flex items-center justify-between gap-3 mb-2">
@@ -2076,8 +2045,6 @@ function ChecklistCard({
 
 function VerificationActions({
   activeDoc,
-  comment,
-  onCommentChange,
   onVerify,
   onReject,
   onComplete,
@@ -2093,45 +2060,6 @@ function VerificationActions({
   return (
     <Card className="border-stone-200 shadow-none bg-white">
       <div className="p-5 space-y-4">
-        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-stone-400">
-            Selected Document
-          </p>
-          <p className="text-[15px] font-semibold text-stone-800 mt-1">
-            {activeDoc?.name || 'N/A'}
-          </p>
-          <p className="text-sm text-stone-400 mt-1">
-            {activeDoc?.id === 'application_form'
-              ? 'Text-based application form ready for admin review.'
-              : activeDoc?.url
-                ? 'Uploaded by student and ready for admin review.'
-                : 'No uploaded file from student yet.'}
-          </p>
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
-            Rejection Reason / Admin Remarks
-          </label>
-          <Textarea
-            placeholder={
-              activeDoc?.id === 'application_form'
-                ? 'Admin remarks for application form review.'
-                : hasUploadedDocument
-                  ? 'The rejection note is filled automatically from the reject modal. You may edit remarks here if needed.'
-                  : 'No uploaded document selected yet.'
-            }
-            value={comment}
-            onChange={(e) => onCommentChange(e.target.value)}
-            disabled={!hasUploadedDocument}
-            className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Note: Do not type the action performed. If the file is wrong, invalid, edited,
-            mismatched, or suspected doctored, reject it and provide the reason and any remarks only.
-          </p>
-        </div>
-
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
@@ -2632,22 +2560,37 @@ export default function DocumentVerification() {
         setReviewCandidate(candidate);
         setCorrectedFields(normalizeReviewFields(candidate));
         setRawOcrSnapshot(candidate.raw_text || '');
+        stopPolling();
+        setRunningIotOcr(false);
+        if (activeIotRequestRef.current?.requestId === requestId) {
+          activeIotRequestRef.current = null;
+        }
       })
       .catch((error) => {
         if (!cancelled) setIotOcrError(error.message || 'Failed to load OCR candidate');
       });
     return () => { cancelled = true; };
-  }, [activeDoc, id, reviewCandidate?.request_id]);
+  }, [activeDoc, id, reviewCandidate?.request_id, stopPolling]);
 
-  const handleCommentChange = (value) => {
-    setComment(value);
-    if (!activeDoc) return;
+  useEffect(() => {
+    const request = getActiveIotRequest(activeDoc);
+    const requestStatus = String(request?.status || '').toLowerCase();
+    const candidateReady = reviewCandidate?.document_key === activeDoc?.id;
+    if (!candidateReady && ![
+      'review_required',
+      'completed',
+      'cancelled',
+      'failed',
+      'expired',
+    ].includes(requestStatus)) return;
 
-    setDocComments((prev) => ({
-      ...prev,
-      [activeDoc.id]: value,
-    }));
-  };
+    stopPolling();
+    setRunningIotOcr(false);
+    const requestId = getIotOcrRequestId(request);
+    if (!requestId || activeIotRequestRef.current?.requestId === requestId) {
+      activeIotRequestRef.current = null;
+    }
+  }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
 
   const updateActiveDocStatus = (nextStatus, nextComment = null) => {
     if (!activeDoc || !hasUploadedDocument) return;
@@ -2748,8 +2691,7 @@ export default function DocumentVerification() {
         request: requestContext,
       };
 
-      let attempts = 0;
-      const maxAttempts = 180;
+      let consecutivePollErrors = 0;
 
       const pollFreshSnapshot = async () => {
         const activeRequest = activeIotRequestRef.current;
@@ -2761,8 +2703,6 @@ export default function DocumentVerification() {
         ) {
           return;
         }
-
-        attempts += 1;
 
         try {
           const snapshotResponse = await fetch(
@@ -2785,6 +2725,7 @@ export default function DocumentVerification() {
           }
 
           const snapshot = snapshotPayload?.data || {};
+          consecutivePollErrors = 0;
           const latestRequest = snapshot?.iot_ocr_request || {};
           const latestRequestId = getIotOcrRequestId(latestRequest);
           const requestStatus = String(latestRequest?.status || '').toLowerCase();
@@ -2827,7 +2768,7 @@ export default function DocumentVerification() {
               return;
             }
 
-            if (requestStatus === 'failed' || requestStatus === 'cancelled') {
+            if (['failed', 'cancelled', 'expired'].includes(requestStatus)) {
               await fetchApplicationDocuments({ soft: true });
               setBlankIotOverride(
                 latestRequest,
@@ -2843,23 +2784,10 @@ export default function DocumentVerification() {
             }
           }
         } catch (pollError) {
-          if (attempts >= maxAttempts) {
+          consecutivePollErrors += 1;
+          if (consecutivePollErrors % 30 === 0) {
             console.error('POLL IOT OCR ERROR:', pollError);
           }
-        }
-
-        if (attempts >= maxAttempts) {
-          await fetchApplicationDocuments({ soft: true });
-          setBlankIotOverride(
-            activeIotRequestRef.current?.request || null,
-            '(No fresh OCR result was produced.)'
-          );
-          stopPolling();
-          setRunningIotOcr(false);
-          setIotOcrError(
-            'The fresh OCR request did not finish within six minutes. Check the Pi worker logs and retry.'
-          );
-          return;
         }
 
         pollingRef.current = window.setTimeout(pollFreshSnapshot, 2000);
@@ -3368,8 +3296,6 @@ export default function DocumentVerification() {
 
           <VerificationActions
             activeDoc={activeDoc}
-            comment={comment}
-            onCommentChange={handleCommentChange}
             onVerify={handleVerify}
             onReject={() => setRejectModalOpen(true)}
             onComplete={handleCompleteVerification}

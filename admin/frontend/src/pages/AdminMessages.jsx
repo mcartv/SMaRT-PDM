@@ -72,6 +72,7 @@ function normalizeConversation(raw = {}) {
       raw.profile_photo_url?.toString() ||
       '',
     unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
+    isDisabled: raw.isDisabled === true || raw.is_disabled === true,
   }
 }
 
@@ -109,6 +110,7 @@ function normalizeArchivedThread(raw = {}) {
     lastMessage: raw.lastMessage?.toString() || raw.last_message?.toString() || '',
     lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
     archivedAt: raw.archivedAt?.toString() || raw.archived_at?.toString() || '',
+    isDisabled: raw.isDisabled === true || raw.is_disabled === true,
   }
 }
 
@@ -147,6 +149,7 @@ function toScholarSearchItem(raw = {}) {
     createdAt: '',
     unreadCount: 0,
     isSearchResult: true,
+    isDisabled: false,
   }
 }
 
@@ -275,12 +278,19 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
         <div className="min-w-0 flex-1 pr-8">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p
-                className={`truncate text-sm ${hasUnread ? 'font-bold text-stone-950' : 'font-medium text-stone-900'
-                  }`}
-              >
-                {item.name}
-              </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p
+                  className={`truncate text-sm ${hasUnread ? 'font-bold text-stone-950' : 'font-medium text-stone-900'
+                    }`}
+                >
+                  {item.name}
+                </p>
+                {item.type === 'private' && item.isDisabled ? (
+                  <span className="shrink-0 rounded-full bg-stone-200 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-stone-600">
+                    Account Disabled
+                  </span>
+                ) : null}
+              </div>
 
               <p className="truncate text-[11px] text-stone-500">
                 {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'No student number')}
@@ -1343,8 +1353,16 @@ export default function AdminMessages({
 
         const payload = await parseApiResponse(response, 'Failed to load messages.')
         const items = sortMessages((payload.items || []).map(normalizeMessage))
+        const counterpartyDisabled = payload?.counterparty?.is_disabled === true
 
         setMessages(items)
+        setConversations((current) =>
+          current.map((item) =>
+            item.id === counterpartyId
+              ? { ...item, isDisabled: counterpartyDisabled }
+              : item
+          )
+        )
         setError('')
       } catch (err) {
         if (!silent) {
@@ -1705,6 +1723,11 @@ export default function AdminMessages({
     const messageBody = draft.trim()
     if (!messageBody) return
 
+    if (activeType === 'private' && selectedItem?.isDisabled) {
+      setError('This account is currently disabled. You can view previous messages, but you cannot send new messages to this account.')
+      return
+    }
+
     setSending(true)
 
     try {
@@ -1768,6 +1791,7 @@ export default function AdminMessages({
                 lastSentAt: message.sentAt,
                 createdAt: message.sentAt,
                 unreadCount: 0,
+                isDisabled: selectedItem?.isDisabled === true,
               },
             ])
           }
@@ -2137,6 +2161,19 @@ export default function AdminMessages({
       markConversationRead,
       markRoomMessagesRead,
     ]
+  )
+
+  useSocketEvent(
+    'maintenance:updated',
+    async (data) => {
+      if (data?.module && data.module !== 'accounts') return
+
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        isOpen ? fetchScholarMembers() : Promise.resolve(),
+      ])
+    },
+    [activeConversationId, fetchConversations, fetchScholarMembers, isOpen]
   )
 
   useSocketEvent(
@@ -2568,6 +2605,11 @@ export default function AdminMessages({
                         <p className="text-base font-semibold text-stone-900">
                           {selectedItem.name}
                         </p>
+                        {selectedItem.type === 'private' && selectedItem.isDisabled ? (
+                          <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                            Account Disabled
+                          </span>
+                        ) : null}
                       </div>
 
                       <p className="mt-1 text-xs text-stone-500">
@@ -2605,6 +2647,14 @@ export default function AdminMessages({
                       )}
                     </div>
 
+                    {selectedItem.type === 'private' && selectedItem.isDisabled ? (
+                      <div className="border-t border-stone-200 bg-stone-50 px-5 py-4">
+                        <p className="text-sm font-semibold text-stone-800">This account is currently disabled.</p>
+                        <p className="mt-1 text-xs text-stone-500">
+                          Previous messages remain available, but new messages cannot be sent to this account.
+                        </p>
+                      </div>
+                    ) : (
                     <form
                       onSubmit={handleSendMessage}
                       className="border-t border-stone-100 bg-white px-5 py-3"
@@ -2638,6 +2688,7 @@ export default function AdminMessages({
                         </button>
                       </div>
                     </form>
+                    )}
                   </>
                 ) : (
                   <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 px-6 text-center">

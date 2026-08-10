@@ -7,6 +7,11 @@ const socketEventsPath = require.resolve('../utils/socketEvents');
 
 const messageServiceStub = {
   fetchConversationMessages: async () => [],
+  fetchUserSummary: async (userId) => ({
+    user_id: userId,
+    display_name: 'Fixture User',
+    is_disabled: false,
+  }),
   fetchRoomMessages: async () => [],
   sendMessage: async () => ({}),
 };
@@ -72,6 +77,11 @@ test('getConversationMessages returns service items', async () => {
   assert.deepEqual(res.body, {
     counterpartyId: 'user-2',
     counterparty_id: 'user-2',
+    counterparty: {
+      user_id: 'user-2',
+      name: 'Fixture User',
+      is_disabled: false,
+    },
     items: [{ message_id: 'msg-1', message_body: 'Hello' }],
     messages: [{ message_id: 'msg-1', message_body: 'Hello' }],
   });

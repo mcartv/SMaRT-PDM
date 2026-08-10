@@ -21,11 +21,12 @@ test('OSFA tracker is monitoring-only and exposes stage-focused views', () => {
   const tracker = read('pages/AllEndorsementsTracker.jsx');
 
   assert.match(tracker, /OSFA monitoring is read-only for office decisions/);
-  assert.match(tracker, /\['sdo', 'At SDO'\]/);
-  assert.match(tracker, /\['guidance', 'At Guidance'\]/);
-  assert.match(tracker, /\['pd', 'At PD'\]/);
-  assert.match(tracker, /\['completed', 'Completed'\]/);
-  assert.match(tracker, /\['stopped', 'Stopped'\]/);
+  assert.match(tracker, /value: 'active', label: 'In Progress'/);
+  assert.match(tracker, /value: 'sdo', label: 'SDO Review'/);
+  assert.match(tracker, /value: 'guidance', label: 'Guidance Review'/);
+  assert.match(tracker, /value: 'pd', label: 'PD Review'/);
+  assert.match(tracker, /value: 'completed', label: 'Completed'/);
+  assert.match(tracker, /value: 'stopped', label: 'Stopped'/);
 });
 
 test('public endorsement verification no longer renders deprecated SDO offense-detail fields', () => {

@@ -268,10 +268,10 @@ export default function AllEndorsementsTracker({
 
   const viewOptions = isAdminView
     ? [
-        { value: 'active', label: 'Active', count: summary.active },
-        { value: 'sdo', label: 'At SDO', count: summary.sdo },
-        { value: 'guidance', label: 'At Guidance', count: summary.guidance },
-        { value: 'pd', label: 'At PD', count: summary.pd },
+        { value: 'active', label: 'In Progress', count: summary.active },
+        { value: 'sdo', label: 'SDO Review', count: summary.sdo },
+        { value: 'guidance', label: 'Guidance Review', count: summary.guidance },
+        { value: 'pd', label: 'PD Review', count: summary.pd },
         { value: 'completed', label: 'Completed', count: summary.completed },
         { value: 'stopped', label: 'Stopped', count: summary.stopped },
       ]
@@ -307,10 +307,10 @@ export default function AllEndorsementsTracker({
           {isAdminView ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
               {[
-                { label: 'Active', value: summary.active },
-                { label: 'At SDO', value: summary.sdo },
-                { label: 'At Guidance', value: summary.guidance },
-                { label: 'At PD', value: summary.pd },
+                { label: 'In Progress', value: summary.active },
+                { label: 'SDO Review', value: summary.sdo },
+                { label: 'Guidance Review', value: summary.guidance },
+                { label: 'PD Review', value: summary.pd },
                 { label: 'Completed', value: summary.completed },
                 { label: 'Stopped', value: summary.stopped },
               ].map((item) => (

@@ -119,6 +119,27 @@ test('review_required is not Pi-active and can complete or expire', () => {
     assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'expired']);
 });
 
+test('fixed-lens worker can transition directly from previewing to capturing', () => {
+    assert.ok(service.ALLOWED_TRANSITIONS.previewing.includes('capturing'));
+});
+
+test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR', () => {
+    const fields = service.withDerivedGradeFields(
+        'student_grade_forms',
+        'STUDENT NUMBER STUDENT NAME COURSE : PDM-2023-003137 Petima , Venice Eve BsiT '
+            + 'COPY OF GRADEFOR THE PERIOD: 1st 2023-2024 GWA 1.89',
+        {}
+    );
+
+    assert.equal(fields.student_number.normalized_value, 'PDM-2023-003137');
+    assert.equal(fields.student_name.normalized_value, 'Petima, Venice Eve');
+    assert.equal(fields.course.normalized_value, 'BsiT');
+    assert.equal(fields.semester.normalized_value, '1st Semester');
+    assert.equal(fields.academic_year.normalized_value, '2023-2024');
+    assert.equal(fields.gwa.normalized_value, '1.89');
+    assert.deepEqual(fields.subjects, []);
+});
+
 test('admin cancellation is allowed for every Pi-active lifecycle state', () => {
     for (const status of service.PI_ACTIVE_STATUSES) {
         assert.ok(
@@ -143,7 +164,8 @@ test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
         { ...candidate, student_name: 'JUAN S. DELA CRUZ', gwa: '1.63' },
         candidate
     );
-    assert.equal(verified.student_name, 'JUAN S. DELA CRUZ');
+    assert.equal(verified.student_name, undefined);
+    assert.equal(verified.course, undefined);
     assert.equal(verified.gwa, '1.63');
     assert.throws(
         () => service.validateConfirmedDocumentFields(
@@ -223,12 +245,10 @@ test('late Pi result receives the same terminal stop contract', async () => {
     );
 });
 
-test('status updates persist expiration before opening the transition transaction', () => {
+test('requests have no automatic timeout expiration', () => {
     const fs = require('node:fs');
     const source = fs.readFileSync(servicePath, 'utf8');
-    const updateSource = source.slice(source.indexOf('exports.updateRequestStatus'));
-    assert.ok(
-        updateSource.indexOf('await expireStaleRequests(client, { force: true })') <
-        updateSource.indexOf("await client.query('BEGIN')")
-    );
+    assert.doesNotMatch(source, /expireStaleRequests/);
+    assert.doesNotMatch(source, /PENDING_TIMEOUT|PROCESSING_HEARTBEAT_TIMEOUT|REVIEW_TIMEOUT/);
+    assert.match(source, /expires_at: null/);
 });

@@ -857,7 +857,7 @@ function ReadinessOpeningCards({
                             className="h-9 rounded-lg border-stone-200 text-sm"
                             onClick={() => navigate(`/admin/applications/${row.application_id}/documents`)}
                           >
-                            Review
+                            View Application
                           </Button>
                           <Button
                             size="sm"
@@ -1493,9 +1493,20 @@ export default function ApplicationReview() {
     });
   }, [registryRows, search, filters]);
 
-  const isReadyForScholarHandling = (row) =>
-    row.scholar_activation_ready === true ||
-    (row.requirements_complete === true && row.endorsement_complete === true);
+  const isReadyForScholarHandling = (row) => {
+    const status = normalizeStatus(row.selection_status);
+    const isQueueStatus = ['reserved', 'promoted', 'waitlisted'].includes(status);
+    const hasFcfsRank = Number(row.queue_position || 0) > 0 && Boolean(row.fcfs_completed_at);
+    const isApproved = normalizeStatus(row.application_status) === 'approved';
+
+    return (
+      row.requirements_complete === true &&
+      row.endorsement_complete === true &&
+      hasFcfsRank &&
+      isQueueStatus &&
+      !isApproved
+    );
+  };
 
   const pendingRegistryRows = useMemo(
     () => filteredRegistryRows.filter((row) => !isReadyForScholarHandling(row)),
@@ -1599,7 +1610,7 @@ export default function ApplicationReview() {
               onClick={() => approveScholar(activationCandidate)}
             >
               {approvalLoadingId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-              Run Checks & Activate
+              Activate Scholar
             </Button>
           </DialogFooter>
         </DialogContent>

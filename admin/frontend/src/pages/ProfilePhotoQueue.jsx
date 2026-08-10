@@ -269,7 +269,7 @@ export default function ProfilePhotoQueue() {
         {
           method: 'PATCH',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ remarks: 'Approved' }),
+          body: JSON.stringify({}),
         }
       );
       const data = await response.json().catch(() => ({}));
@@ -453,7 +453,12 @@ export default function ProfilePhotoQueue() {
                           </div>
                           {item.rejection_reason && (
                             <p className="mt-2 text-xs text-red-700">
-                              {item.rejection_reason}
+                              Reason: {item.rejection_reason}
+                            </p>
+                          )}
+                          {item.remarks && (
+                            <p className="mt-1 text-xs text-stone-500">
+                              Remarks: {item.remarks}
                             </p>
                           )}
                         </div>

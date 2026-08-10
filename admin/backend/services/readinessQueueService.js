@@ -32,7 +32,7 @@ async function syncOpeningFcfsQueue(openingId) {
       `
         SELECT opening_id, allocated_slots
         FROM program_openings
-        WHERE opening_id = $1
+        WHERE opening_id = $1::uuid
         FOR UPDATE
       `,
       [normalizedOpeningId]
@@ -60,7 +60,7 @@ async function syncOpeningFcfsQueue(openingId) {
         FROM applications a
         INNER JOIN endorsement_slips es
           ON es.application_id = a.application_id
-        WHERE a.opening_id = $1
+        WHERE a.opening_id = $1::uuid
           AND COALESCE(a.is_archived, false) = false
           AND COALESCE(a.is_disqualified, false) = false
           AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved', 'rejected', 'disqualified')
@@ -87,7 +87,7 @@ async function syncOpeningFcfsQueue(openingId) {
       `
         SELECT COALESCE(MAX(queue_position), 0)::int AS max_position
         FROM applications
-        WHERE opening_id = $1
+        WHERE opening_id = $1::uuid
       `,
       [normalizedOpeningId]
     );
@@ -104,11 +104,11 @@ async function syncOpeningFcfsQueue(openingId) {
         `
           UPDATE applications
           SET
-            fcfs_completed_at = COALESCE(fcfs_completed_at, $2),
-            queue_position = COALESCE(queue_position, $3),
-            requirements_verified_at = COALESCE(requirements_verified_at, $2),
+            fcfs_completed_at = COALESCE(fcfs_completed_at, $2::timestamptz),
+            queue_position = COALESCE(queue_position, $3::integer),
+            requirements_verified_at = COALESCE(requirements_verified_at, $2::timestamptz),
             updated_at = now()
-          WHERE application_id = $1
+          WHERE application_id = $1::uuid
         `,
         [row.application_id, row.ready_at, queuePosition]
       );
@@ -122,7 +122,7 @@ async function syncOpeningFcfsQueue(openingId) {
         FROM applications a
         INNER JOIN students st
           ON st.current_application_id = a.application_id
-        WHERE a.opening_id = $1
+        WHERE a.opening_id = $1::uuid
           AND LOWER(COALESCE(a.application_status, '')) = 'approved'
           AND COALESCE(st.is_active_scholar, false) = true
           AND LOWER(COALESCE(st.scholarship_status, '')) = 'active'
@@ -144,7 +144,7 @@ async function syncOpeningFcfsQueue(openingId) {
         FROM applications a
         INNER JOIN endorsement_slips es
           ON es.application_id = a.application_id
-        WHERE a.opening_id = $1
+        WHERE a.opening_id = $1::uuid
           AND COALESCE(a.is_archived, false) = false
           AND COALESCE(a.is_disqualified, false) = false
           AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved', 'rejected', 'disqualified')
@@ -169,7 +169,7 @@ async function syncOpeningFcfsQueue(openingId) {
           .toLowerCase();
 
         const nextStatus =
-          previous === 'waitlisted'
+          previous === 'waitlisted' || previous === 'promoted'
             ? 'Promoted'
             : 'Reserved';
 
@@ -227,7 +227,7 @@ async function syncOpeningFcfsQueue(openingId) {
           waitlist_position,
           fcfs_completed_at
         FROM applications
-        WHERE opening_id = $1
+        WHERE opening_id = $1::uuid
           AND COALESCE(is_archived, false) = false
           AND LOWER(COALESCE(application_status, '')) NOT IN ('approved', 'rejected', 'disqualified')
           AND queue_position IS NOT NULL
@@ -251,7 +251,7 @@ async function syncApplicationReadiness(applicationId) {
   if (!normalizedApplicationId) return null;
 
   const { rows } = await pool.query(
-    'SELECT opening_id FROM applications WHERE application_id = $1 LIMIT 1',
+    'SELECT opening_id FROM applications WHERE application_id = $1::uuid LIMIT 1',
     [normalizedApplicationId]
   );
 

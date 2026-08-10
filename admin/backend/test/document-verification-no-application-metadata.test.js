@@ -29,8 +29,8 @@ test('grade review uses the bottom raw snapshot and visible OCR score labels', (
     assert.ok(gradeStart >= 0 && gradeEnd > gradeStart);
     assert.doesNotMatch(gradeCard, /<summary[^>]*>Raw OCR<\/summary>/);
     assert.doesNotMatch(gradeCard, />Validation Issues<\/summary>/);
-    assert.match(gradeCard, /gradeOcrScore\(reviewCandidate, key/);
-    assert.match(gradeCard, /gradeOcrScore\(reviewCandidate, 'gwa'/);
+    assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, key/);
+    assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, 'gwa'/);
 
     const fieldsStart = source.indexOf('const GRADE_REVIEW_FIELDS');
     const fieldsEnd = source.indexOf('];', fieldsStart);
@@ -47,4 +47,19 @@ test('review candidate always stops the running OCR UI', () => {
 
     assert.match(source, /setReviewCandidate\(candidate\);[\s\S]*?stopPolling\(\);[\s\S]*?setRunningIotOcr\(false\);/);
     assert.match(source, /candidateReady[\s\S]*?'review_required'[\s\S]*?stopPolling\(\);[\s\S]*?setRunningIotOcr\(false\);/);
+});
+
+test('indigency has a dedicated editable review while raw OCR is immutable', () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
+        'utf8'
+    );
+
+    assert.match(source, /const INDIGENCY_REVIEW_FIELDS/);
+    assert.match(source, />INDIGENCY OCR</);
+    assert.match(source, /deriveIndigencyReviewValues/);
+    assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
+    assert.match(source, /value=\{rawOcrSnapshot\}[\s\S]*?readOnly/);
+    assert.doesNotMatch(source, /onSaveRawOcr|onRawOcrChange|Save OCR Snapshot/);
+    assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency'\]\.includes/);
 });

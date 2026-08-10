@@ -140,6 +140,20 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
     assert.deepEqual(fields.subjects, []);
 });
 
+test('indigency review fields recover without changing immutable raw OCR', () => {
+    const rawText = 'Certificate Subject Name: MS. VENICE EVE PELIMA,\nIssue Date: 24 day of March 2025';
+    const fields = service.withDerivedIndigencyFields(
+        'certificate_of_indigency',
+        rawText,
+        {}
+    );
+
+    assert.equal(fields.certificate_subject_name.normalized_value, 'MS. VENICE EVE PELIMA,');
+    assert.equal(fields.issue_date.normalized_value, '24 day of March 2025');
+    assert.equal(fields.issuing_barangay, undefined);
+    assert.equal(rawText, 'Certificate Subject Name: MS. VENICE EVE PELIMA,\nIssue Date: 24 day of March 2025');
+});
+
 test('admin cancellation is allowed for every Pi-active lifecycle state', () => {
     for (const status of service.PI_ACTIVE_STATUSES) {
         assert.ok(

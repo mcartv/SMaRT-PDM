@@ -24,6 +24,7 @@ import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 
@@ -82,6 +83,27 @@ export default function AdminLayout() {
   });
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useSocketEvent('profile:updated', (payload) => {
+    const incoming = payload?.profile || payload?.account || null;
+    if (!incoming) return;
+
+    const current = (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem('adminProfile') || '{}');
+      } catch {
+        return {};
+      }
+    })();
+
+    if (payload?.user_id && current?.user_id && String(payload.user_id) !== String(current.user_id)) {
+      return;
+    }
+
+    const merged = { ...current, ...incoming };
+    sessionStorage.setItem('adminProfile', JSON.stringify(merged));
+    setAdminData(merged);
+  });
 
   useEffect(() => {
     const handleProfileUpdated = (event) => {

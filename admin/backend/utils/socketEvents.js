@@ -182,6 +182,10 @@ const socketEvents = {
     personalToolsUpdated: (io, userId, data) =>
         emitToUser(io, userId, 'personal-tools:updated', data),
 
+    /** Current portal profile/header avatar. */
+    profileUpdated: (io, userId, data) =>
+        emitToUser(io, userId, 'profile:updated', data),
+
     /** Messages and rooms. */
     messageCreated: (io, data, options = {}) => {
         const targetUserIds = normalizeUserIds(options.targetUserIds || []);

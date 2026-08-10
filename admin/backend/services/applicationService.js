@@ -343,7 +343,14 @@ function buildReadinessFlags(row = {}) {
     }
 
     const requirementsComplete = requirementsStatus === 'verified';
-    const scholarActivationReady = requirementsComplete && endorsementComplete;
+    const workflowComplete = requirementsComplete && endorsementComplete;
+    const selectionStatus = normalizeLookupValue(row.selection_status);
+    const queuePosition = row.queue_position == null ? null : Number(row.queue_position);
+    const waitlistPosition = row.waitlist_position == null ? null : Number(row.waitlist_position);
+    const fcfsQueued = workflowComplete && Number.isFinite(queuePosition) && queuePosition > 0;
+    const waitlisted = selectionStatus === 'waitlisted';
+    const holdsReservedSlot = ['reserved', 'promoted', 'selected'].includes(selectionStatus);
+    const scholarActivationReady = fcfsQueued && holdsReservedSlot && !waitlisted;
 
     if (endorsementStatusRaw === 'disqualified_major') {
         endorsementStatus = 'major_offense';
@@ -363,10 +370,14 @@ function buildReadinessFlags(row = {}) {
     return {
         requirements_complete: requirementsComplete,
         endorsement_complete: endorsementComplete,
+        workflow_complete: workflowComplete,
+        fcfs_queued: fcfsQueued,
+        is_waitlisted: waitlisted,
+        holds_reserved_slot: holdsReservedSlot,
         scholar_activation_ready: scholarActivationReady,
         requirements_incomplete: !requirementsComplete,
         endorsement_pending: !endorsementComplete,
-        needs_activation_attention: !scholarActivationReady,
+        needs_activation_attention: workflowComplete && !scholarActivationReady,
         blockers,
         verified_review_count: Number(row.verified_review_count || 0),
         uploaded_required_count: Number(row.uploaded_required_count || 0),
@@ -377,8 +388,8 @@ function buildReadinessFlags(row = {}) {
         endorsement_slip_code: deriveSlipCode(row.endorsement_slip_id || row.slip_id || null),
         endorsement_current_stage: row.endorsement_current_stage || row.current_stage || null,
         selection_status: row.selection_status || null,
-        queue_position: row.queue_position == null ? null : Number(row.queue_position),
-        waitlist_position: row.waitlist_position == null ? null : Number(row.waitlist_position),
+        queue_position: queuePosition,
+        waitlist_position: waitlistPosition,
         fcfs_completed_at: row.fcfs_completed_at || null,
         requirements_completed_at: row.requirements_completed_at || null,
         requirements_verified_at: row.requirements_verified_at || null,
@@ -2775,7 +2786,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
             );
         }
 
-        if (selectionStatus === 'waitlisted' || (capacity > 0 && queuePosition > capacity)) {
+        if (selectionStatus === 'waitlisted') {
             throw buildHttpError(
                 409,
                 `This applicant is waitlisted at FCFS position #${queuePosition}.`

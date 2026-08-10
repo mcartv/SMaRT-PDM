@@ -81,7 +81,11 @@ function mapCandidateRow(row) {
         document_key: row.document_key,
         template_id: row.template_id,
         raw_text: row.raw_text || '',
-        fields: withDerivedGradeFields(row.document_key, row.raw_text, storedFields),
+        fields: withDerivedIndigencyFields(
+            row.document_key,
+            row.raw_text,
+            withDerivedGradeFields(row.document_key, row.raw_text, storedFields)
+        ),
         field_confidence: row.field_confidence || {},
         validation_issues: row.validation_issues || [],
         review_required: true,
@@ -159,6 +163,39 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
     return fields;
 }
 
+function withDerivedIndigencyFields(documentKey, rawText, storedFields = {}) {
+    const normalizedKey = documentTypes.normalizeDocumentType(documentKey);
+    const source = storedFields && typeof storedFields === 'object' && !Array.isArray(storedFields)
+        ? storedFields
+        : {};
+    if (normalizedKey !== 'certificate_of_indigency') return source;
+
+    const fields = { ...source };
+    const missing = (key) => !String(fieldValue(fields[key]) ?? '').trim();
+    const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+    if (!text) return fields;
+
+    const subject = text.match(
+        /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    );
+    if (subject && missing('certificate_subject_name')) {
+        fields.certificate_subject_name = gradeField(subject[1].replace(/\s+,/g, ',').trim());
+    }
+
+    const issueDate = text.match(
+        /Issue\s+Date\s*[:\-]?\s*(.+?)(?=\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    );
+    if (issueDate && missing('issue_date')) {
+        fields.issue_date = gradeField(issueDate[1].trim());
+    }
+
+    const barangay = text.match(/Issuing\s+Barangay\s*[:\-]?\s*(.+)$/i);
+    if (barangay && missing('issuing_barangay')) {
+        fields.issuing_barangay = gradeField(barangay[1].trim());
+    }
+    return fields;
+}
+
 function normalizeGwa(value) {
     const raw = String(fieldValue(value) ?? '').trim();
     const numeric = Number(raw);
@@ -203,6 +240,11 @@ function normalizeCandidate(input, requestRow) {
         processing,
     };
     candidate.fields = withDerivedGradeFields(
+        candidate.document_key,
+        candidate.raw_text,
+        candidate.fields
+    );
+    candidate.fields = withDerivedIndigencyFields(
         candidate.document_key,
         candidate.raw_text,
         candidate.fields
@@ -581,10 +623,14 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
         const verifiedFields = validateConfirmedDocumentFields(
             normalizedDocumentKey,
             correctedFields,
-            withDerivedGradeFields(
+            withDerivedIndigencyFields(
                 normalizedDocumentKey,
                 row.candidate_raw_text,
-                row.candidate_fields
+                withDerivedGradeFields(
+                    normalizedDocumentKey,
+                    row.candidate_raw_text,
+                    row.candidate_fields
+                )
             )
         );
         await client.query(`
@@ -670,4 +716,5 @@ module.exports = {
     validateConfirmedDocumentFields,
     normalizeGwa,
     withDerivedGradeFields,
+    withDerivedIndigencyFields,
 };

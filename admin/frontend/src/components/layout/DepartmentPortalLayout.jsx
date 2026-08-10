@@ -97,6 +97,20 @@ export default function DepartmentPortalLayout({
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
 
+  useSocketEvent('profile:updated', (payload) => {
+    const incoming = payload?.profile || payload?.account || null;
+    if (!incoming) return;
+
+    const current = readStoredProfile(profileStorageKey) || {};
+    if (payload?.user_id && current?.user_id && String(payload.user_id) !== String(current.user_id)) {
+      return;
+    }
+
+    const merged = { ...current, ...incoming };
+    sessionStorage.setItem(profileStorageKey, JSON.stringify(merged));
+    setProfile(merged);
+  }, [profileStorageKey]);
+
   useEffect(() => {
     const handleProfileUpdated = (event) => {
       if (event.detail?.profileStorageKey !== profileStorageKey) return;

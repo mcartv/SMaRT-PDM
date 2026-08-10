@@ -1221,6 +1221,12 @@ const GRADE_REVIEW_FIELDS = [
   ['academic_year', 'Academic Year'],
 ];
 
+const INDIGENCY_REVIEW_FIELDS = [
+  ['certificate_subject_name', 'Certificate Subject Name'],
+  ['issue_date', 'Issue Date'],
+  ['issuing_barangay', 'Issuing Barangay'],
+];
+
 function ocrFieldValue(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value.normalized_value ?? value.raw_text ?? value.value ?? '';
@@ -1269,21 +1275,50 @@ function deriveGradeReviewValues(rawText) {
   return derived;
 }
 
-function normalizeReviewFields(candidate) {
-  const fields = candidate?.fields || {};
-  if (candidate?.document_key !== 'student_grade_forms') return fields;
-  const derived = deriveGradeReviewValues(candidate?.raw_text);
-  return {
-    ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
-      key,
-      ocrFieldValue(fields[key]) || derived[key] || '',
-    ])),
-    gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
-    subjects: Array.isArray(fields.subjects) ? fields.subjects : [],
-  };
+function deriveIndigencyReviewValues(rawText) {
+  const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+  const derived = {};
+  if (!text) return derived;
+
+  const subject = text.match(
+    /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+  );
+  if (subject) derived.certificate_subject_name = subject[1].replace(/\s+,/g, ',').trim();
+
+  const issueDate = text.match(
+    /Issue\s+Date\s*[:\-]?\s*(.+?)(?=\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+  );
+  if (issueDate) derived.issue_date = issueDate[1].trim();
+
+  const barangay = text.match(/Issuing\s+Barangay\s*[:\-]?\s*(.+)$/i);
+  if (barangay) derived.issuing_barangay = barangay[1].trim();
+  return derived;
 }
 
-function gradeOcrScore(candidate, key, displayedValue) {
+function normalizeReviewFields(candidate) {
+  const fields = candidate?.fields || {};
+  if (candidate?.document_key === 'student_grade_forms') {
+    const derived = deriveGradeReviewValues(candidate?.raw_text);
+    return {
+      ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
+        key,
+        ocrFieldValue(fields[key]) || derived[key] || '',
+      ])),
+      gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
+      subjects: Array.isArray(fields.subjects) ? fields.subjects : [],
+    };
+  }
+  if (candidate?.document_key === 'certificate_of_indigency') {
+    const derived = deriveIndigencyReviewValues(candidate?.raw_text);
+    return Object.fromEntries(INDIGENCY_REVIEW_FIELDS.map(([key]) => [
+      key,
+      ocrFieldValue(fields[key]) || derived[key] || '',
+    ]));
+  }
+  return fields;
+}
+
+function ocrScoreLabel(candidate, key, displayedValue) {
   const numeric = Number(candidate?.field_confidence?.[key]);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
   return String(displayedValue || '').trim() ? 'Detected' : '—';
@@ -1297,9 +1332,6 @@ function OCRPanel({
   iotOcrStatus,
   iotOcrError,
   rawOcrSnapshot,
-  onRawOcrChange,
-  onSaveRawOcr,
-  savingRawOcr,
   reviewCandidate,
   correctedFields,
   onCorrectedFieldsChange,
@@ -1314,7 +1346,9 @@ function OCRPanel({
 }) {
   const canRunIotOcr = activeDoc?.id !== 'application_form';
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
+  const isIndigencyReview = activeDoc?.id === 'certificate_of_indigency' && reviewCandidate;
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
+  const indigencyReviewCompleted = isIndigencyReview && reviewCandidate.status === 'completed';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -1409,7 +1443,7 @@ function OCRPanel({
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
                   <span className="text-right text-xs font-semibold text-blue-700">
-                    {gradeOcrScore(reviewCandidate, key, correctedFields?.[key])}
+                    {ocrScoreLabel(reviewCandidate, key, correctedFields?.[key])}
                   </span>
                 </label>
               ))}
@@ -1423,7 +1457,7 @@ function OCRPanel({
                   className="bg-stone-100 font-bold text-stone-900"
                 />
                 <span className="text-right text-xs font-semibold text-blue-700">
-                  {gradeOcrScore(reviewCandidate, 'gwa', correctedFields?.gwa)}
+                  {ocrScoreLabel(reviewCandidate, 'gwa', correctedFields?.gwa)}
                 </span>
               </div>
             </div>
@@ -1440,7 +1474,53 @@ function OCRPanel({
           </div>
         )}
 
-        {reviewCandidate && !isGradeReview && (
+        {isIndigencyReview && (
+          <div className={`rounded-xl border p-4 space-y-4 ${indigencyReviewCompleted ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-base font-bold tracking-wide text-stone-900">INDIGENCY OCR</p>
+                <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
+              </div>
+              <Badge className={indigencyReviewCompleted
+                ? 'border-green-200 bg-green-100 text-green-800'
+                : 'border-amber-200 bg-amber-100 text-amber-800'}>
+                {indigencyReviewCompleted ? 'OCR confirmed' : 'Review required'}
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
+                <label key={key} className="grid gap-1 sm:grid-cols-[180px_1fr_70px] sm:items-center">
+                  <span className="text-sm font-semibold text-stone-700">{label}</span>
+                  <Input
+                    value={ocrFieldValue(correctedFields?.[key])}
+                    readOnly={indigencyReviewCompleted}
+                    onChange={(event) => onCorrectedFieldsChange({
+                      ...correctedFields,
+                      [key]: event.target.value,
+                    })}
+                    className={indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}
+                  />
+                  <span className="text-right text-xs font-semibold text-amber-700">
+                    {ocrScoreLabel(reviewCandidate, key, correctedFields?.[key])}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {!indigencyReviewCompleted && (
+              <div className="flex justify-between gap-2">
+                <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
+                <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+                  {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirm OCR
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {reviewCandidate && !isGradeReview && !isIndigencyReview && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1511,7 +1591,7 @@ function OCRPanel({
           </div>
         )}
 
-        {activeDoc?.id !== 'student_grade_forms' && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+        {!['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id) && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ScanText className="w-4 h-4 text-stone-600" />
             <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
@@ -1677,31 +1757,13 @@ function OCRPanel({
         ) : null}
 
         <div className="rounded-lg border border-stone-200 bg-white p-3">
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <p className="text-xs uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onSaveRawOcr}
-              disabled={savingRawOcr || activeDoc?.id === 'application_form'}
-              className="h-8 rounded-lg border-stone-200 text-xs"
-            >
-              {savingRawOcr ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Saving
-                </>
-              ) : (
-                'Save OCR Snapshot'
-              )}
-            </Button>
-          </div>
+          <p className="mb-2 text-xs uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
 
           <Textarea
             value={rawOcrSnapshot}
-            onChange={(e) => onRawOcrChange(e.target.value)}
-            disabled={activeDoc?.id === 'application_form'}
-            className="min-h-[220px] text-sm text-stone-600 leading-relaxed whitespace-pre-wrap font-mono bg-stone-50 rounded-lg p-3 border border-stone-100 resize-y"
+            readOnly
+            aria-label="Immutable raw OCR snapshot"
+            className="min-h-[220px] cursor-default resize-y rounded-lg border border-stone-100 bg-stone-50 p-3 font-mono text-sm leading-relaxed text-stone-600 whitespace-pre-wrap"
           />
         </div>
       </div>
@@ -2163,7 +2225,6 @@ export default function DocumentVerification() {
   const [iotOcrError, setIotOcrError] = useState('');
   const [iotOcrResults, setIotOcrResults] = useState({});
   const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
-  const [savingRawOcr, setSavingRawOcr] = useState(false);
   const [reviewCandidate, setReviewCandidate] = useState(null);
   const [correctedFields, setCorrectedFields] = useState({});
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
@@ -2924,43 +2985,6 @@ export default function DocumentVerification() {
     }
   };
 
-  const handleSaveRawOcr = async () => {
-    if (!activeDoc || activeDoc.id === 'application_form') return;
-
-    try {
-      setSavingRawOcr(true);
-      setIotOcrError('');
-
-      const res = await fetch(
-        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/ocr-snapshot`,
-        {
-          method: 'POST', // FIXED
-          headers: {
-            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            raw_text: rawOcrSnapshot,
-          }),
-        }
-      );
-
-      const payload = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(payload.error || 'Failed to save OCR snapshot');
-      }
-
-      await fetchApplicationDocuments({ soft: true });
-
-    } catch (err) {
-      console.error('SAVE OCR ERROR:', err);
-      setIotOcrError(getOcrFailureMessage(err));
-    } finally {
-      setSavingRawOcr(false);
-    }
-  };
-
   const handleCompleteVerification = async () => {
     try {
       setSubmitting(true);
@@ -3248,9 +3272,6 @@ export default function DocumentVerification() {
                   iotOcrStatus={iotOcrStatus}
                   iotOcrError={iotOcrError}
                   rawOcrSnapshot={rawOcrSnapshot}
-                  onRawOcrChange={setRawOcrSnapshot}
-                  onSaveRawOcr={handleSaveRawOcr}
-                  savingRawOcr={savingRawOcr}
                   reviewCandidate={reviewCandidate}
                   correctedFields={correctedFields}
                   onCorrectedFieldsChange={setCorrectedFields}
@@ -3274,9 +3295,6 @@ export default function DocumentVerification() {
                     iotOcrStatus={iotOcrStatus}
                     iotOcrError={iotOcrError}
                     rawOcrSnapshot={rawOcrSnapshot}
-                    onRawOcrChange={setRawOcrSnapshot}
-                    onSaveRawOcr={handleSaveRawOcr}
-                    savingRawOcr={savingRawOcr}
                     reviewCandidate={reviewCandidate}
                     correctedFields={correctedFields}
                     onCorrectedFieldsChange={setCorrectedFields}

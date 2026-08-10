@@ -18,8 +18,8 @@ const APPLICATION_DOCUMENT_BUCKET = normalizeStorageBucketName(
 );
 const ENDORSEMENT_SLIP_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_ENDORSEMENT_SLIP_BUCKET ||
-        process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET ||
-        'documents'
+    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET ||
+    'documents'
 );
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
@@ -893,8 +893,8 @@ async function getMyFormData(userId) {
                         : profile?.father_present === false
                             ? false
                             : profile?.father_present === true
-                            ? true
-                            : Boolean(
+                                ? true
+                                : Boolean(
                                     hasFamilyName(father)
                                 ),
 
@@ -906,8 +906,8 @@ async function getMyFormData(userId) {
                         : profile?.mother_present === false
                             ? false
                             : profile?.mother_present === true
-                            ? true
-                            : Boolean(
+                                ? true
+                                : Boolean(
                                     hasFamilyName(mother)
                                 ),
 
@@ -1408,44 +1408,61 @@ function pickLatestRemark(...rows) {
 }
 
 async function fetchLatestApplication(studentId) {
+    if (!studentId) {
+        return null;
+    }
+
     const { data, error } = await supabase
         .from('applications')
         .select(`
-      application_id,
-      student_id,
-      opening_id,
-      program_id,
-      application_status,
-      document_status,
-      verification_status,
-      requirements_completed_at,
-      requirements_verified_at,
-      selection_status,
-      queue_position,
-      waitlist_position,
-      selection_batch_id,
-      selected_at,
-      waitlisted_at,
-      finalized_at,
-      activation_status,
-      activated_at,
-      can_reapply,
-      reapplication_reason,
-      rejection_reason,
-      remarks,
-      is_disqualified,
-      submission_date,
-      created_at,
-      updated_at
-    `)
+            application_id,
+            student_id,
+            opening_id,
+            program_id,
+            application_status,
+            document_status,
+            verification_status,
+            requirements_completed_at,
+            requirements_verified_at,
+            selection_status,
+            queue_position,
+            waitlist_position,
+            selection_batch_id,
+            selected_at,
+            waitlisted_at,
+            finalized_at,
+            activation_status,
+            activated_at,
+            can_reapply,
+            reapplication_reason,
+            rejection_reason,
+            remarks,
+            is_disqualified,
+            submission_date,
+            created_at,
+            updated_at,
+            is_archived
+        `)
         .eq('student_id', studentId)
-        .order('submission_date', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false, nullsFirst: false })
+        .eq('is_archived', false)
+        .neq('application_status', 'Rejected')
+        .order('submission_date', {
+            ascending: false,
+            nullsFirst: false,
+        })
+        .order('created_at', {
+            ascending: false,
+            nullsFirst: false,
+        })
         .limit(1);
 
-    if (error) throw error;
+    if (error) {
+        throw error;
+    }
 
-    return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    return Array.isArray(data) && data.length > 0
+        ? data[0]
+        : null;
 }
 
 async function fetchApplicationStatusRows(applicationId) {
@@ -2713,25 +2730,31 @@ async function submitMyApplicationForm(userId, payload = {}) {
     }
 
     const master = await getMasterStudent(student.master_student_id);
+
     const resolvedCourseId = firstNonEmpty(
         student.course_id,
         master?.course_id
     );
+
     const resolvedCourse = resolvedCourseId
         ? await getCourse(resolvedCourseId)
         : null;
 
     const sourceAcademic = payload.academic || {};
+
     payload = {
         ...payload,
+
         address: {
             ...(payload.address || {}),
+
             barangay: firstNonEmpty(
                 payload.address?.barangay,
                 payload.address?.barangay_name,
                 payload.address?.current_barangay,
                 storedFormData?.address?.barangay
             ),
+
             city_municipality: firstNonEmpty(
                 payload.address?.city_municipality,
                 payload.address?.city,
@@ -2739,13 +2762,16 @@ async function submitMyApplicationForm(userId, payload = {}) {
                 storedFormData?.address?.city_municipality,
                 storedFormData?.address?.city
             ),
+
             province: firstNonEmpty(
                 payload.address?.province,
                 storedFormData?.address?.province
             ),
         },
+
         academic: {
             ...sourceAcademic,
+
             current_course: firstNonEmpty(
                 resolvedCourse?.course_code,
                 resolvedCourse?.course_name,
@@ -2754,22 +2780,26 @@ async function submitMyApplicationForm(userId, payload = {}) {
                 sourceAcademic.current_course_code,
                 sourceAcademic.course_code
             ),
+
             current_course_code: firstNonEmpty(
                 resolvedCourse?.course_code,
                 sourceAcademic.current_course_code,
                 sourceAcademic.course_code
             ),
+
             current_course_name: firstNonEmpty(
                 resolvedCourse?.course_name,
                 sourceAcademic.current_course_name,
                 sourceAcademic.course_name
             ),
+
             current_year_level: firstNonEmpty(
                 sourceAcademic.current_year_level,
                 sourceAcademic.year_level,
                 student.year_level,
                 master?.year_level
             ),
+
             year_level: firstNonEmpty(
                 sourceAcademic.year_level,
                 sourceAcademic.current_year_level,
@@ -2788,23 +2818,44 @@ async function submitMyApplicationForm(userId, payload = {}) {
         safeText(payload.account?.opening_id);
 
     if (!openingId) {
-        throw createHttpError(400, 'Scholarship selection is required.');
+        throw createHttpError(
+            400,
+            'Scholarship selection is required.'
+        );
     }
+
+    // ---------------------------------------------------------
+    // Validate selected scholarship opening
+    // ---------------------------------------------------------
 
     const { data: opening, error: openingError } = await supabase
         .from('program_openings')
-        .select('opening_id, program_id, posting_status, is_archived')
+        .select(`
+            opening_id,
+            program_id,
+            posting_status,
+            is_archived
+        `)
         .eq('opening_id', openingId)
         .maybeSingle();
 
     if (openingError) throw openingError;
 
     if (!opening) {
-        throw createHttpError(404, 'Scholarship not found.');
+        throw createHttpError(
+            404,
+            'Scholarship not found.'
+        );
     }
 
-    if (opening.is_archived || opening.posting_status !== 'open') {
-        throw createHttpError(400, 'This scholarship is not accepting applications.');
+    if (
+        opening.is_archived === true ||
+        opening.posting_status !== 'open'
+    ) {
+        throw createHttpError(
+            400,
+            'This scholarship is not accepting applications.'
+        );
     }
 
     const personal = payload.personal || {};
@@ -2815,70 +2866,168 @@ async function submitMyApplicationForm(userId, payload = {}) {
     const support = payload.support || {};
     const discipline = payload.discipline || {};
     const essays = payload.essays || {};
+
     const submittedGwa = parseOptionalGwa(academic.gwa);
+
+    // ---------------------------------------------------------
+    // Student profile
+    // ---------------------------------------------------------
 
     const profilePayload = {
         student_id: student.student_id,
 
         date_of_birth: normalizeDate(
-            personal.date_of_birth || personal.dateOfBirth
+            personal.date_of_birth ||
+            personal.dateOfBirth
         ),
-        place_of_birth: safeText(personal.place_of_birth || personal.placeOfBirth),
-        civil_status: safeText(personal.civil_status || personal.civilStatus) || null,
-        maiden_name: safeText(personal.maiden_name || personal.maidenName),
-        religion: safeText(personal.religion),
-        citizenship: safeText(personal.citizenship) || 'Filipino',
 
-        unit_bldg_no: safeText(address.unit_bldg_no || address.unitBldgNo),
+        place_of_birth: safeText(
+            personal.place_of_birth ||
+            personal.placeOfBirth
+        ),
+
+        civil_status:
+            safeText(
+                personal.civil_status ||
+                personal.civilStatus
+            ) || null,
+
+        maiden_name: safeText(
+            personal.maiden_name ||
+            personal.maidenName
+        ),
+
+        religion: safeText(
+            personal.religion
+        ),
+
+        citizenship:
+            safeText(personal.citizenship) ||
+            'Filipino',
+
+        unit_bldg_no: safeText(
+            address.unit_bldg_no ||
+            address.unitBldgNo
+        ),
+
         house_lot_block_no: safeText(
-            address.house_lot_block_no || address.houseLotBlockNo
+            address.house_lot_block_no ||
+            address.houseLotBlockNo
         ),
-        street_address: safeText(address.street || address.street_address),
-        subdivision: safeText(address.subdivision),
-        barangay: safeText(address.barangay),
-        city: safeText(address.city_municipality || address.city),
-        province: safeText(address.province),
-        zip_code: safeText(address.zip_code || address.zipCode),
-        landline_number: safeText(contact.landline || contact.landline_number),
 
-        parent_guardian_address: safeText(family.parent_guardian_address),
-        same_address_as_applicant: boolValue(family.same_address_as_applicant),
-        father_present: boolValue(family.father_present, true),
-        mother_present: boolValue(family.mother_present, true),
-        guardian_only: boolValue(family.guardian_only),
+        street_address: safeText(
+            address.street ||
+            address.street_address
+        ),
+
+        subdivision: safeText(
+            address.subdivision
+        ),
+
+        barangay: safeText(
+            address.barangay
+        ),
+
+        city: safeText(
+            address.city_municipality ||
+            address.city
+        ),
+
+        province: safeText(
+            address.province
+        ),
+
+        zip_code: safeText(
+            address.zip_code ||
+            address.zipCode
+        ),
+
+        landline_number: safeText(
+            contact.landline ||
+            contact.landline_number
+        ),
+
+        parent_guardian_address: safeText(
+            family.parent_guardian_address
+        ),
+
+        same_address_as_applicant: boolValue(
+            family.same_address_as_applicant
+        ),
+
+        father_present: boolValue(
+            family.father_present,
+            true
+        ),
+
+        mother_present: boolValue(
+            family.mother_present,
+            true
+        ),
+
+        guardian_only: boolValue(
+            family.guardian_only
+        ),
 
         financial_support_type:
-            safeText(support.financial_support_type || support.financial_support) ||
-            null,
+            safeText(
+                support.financial_support_type ||
+                support.financial_support
+            ) || null,
+
         financial_support_other: safeText(
-            support.financial_support_other || support.scholarship_others_specify
+            support.financial_support_other ||
+            support.scholarship_others_specify
         ),
 
         has_prior_scholarship: boolValue(
-            support.has_prior_scholarship || support.scholarship_history
-        ),
-        prior_scholarship_details: safeText(
-            support.prior_scholarship_details || support.scholarship_details
+            support.has_prior_scholarship ||
+            support.scholarship_history
         ),
 
-        scholarship_elementary: boolValue(support.scholarship_elementary),
-        scholarship_high_school: boolValue(support.scholarship_high_school),
-        scholarship_college: boolValue(support.scholarship_college),
-        scholarship_others: boolValue(support.scholarship_others),
-        scholarship_others_specify: safeText(support.scholarship_others_specify),
+        prior_scholarship_details: safeText(
+            support.prior_scholarship_details ||
+            support.scholarship_details
+        ),
+
+        scholarship_elementary: boolValue(
+            support.scholarship_elementary
+        ),
+
+        scholarship_high_school: boolValue(
+            support.scholarship_high_school
+        ),
+
+        scholarship_college: boolValue(
+            support.scholarship_college
+        ),
+
+        scholarship_others: boolValue(
+            support.scholarship_others
+        ),
+
+        scholarship_others_specify: safeText(
+            support.scholarship_others_specify
+        ),
 
         has_disciplinary_record: boolValue(
-            discipline.has_disciplinary_record || discipline.disciplinary_action
+            discipline.has_disciplinary_record ||
+            discipline.disciplinary_action
         ),
+
         disciplinary_details: safeText(
-            discipline.disciplinary_details || discipline.disciplinary_explanation
+            discipline.disciplinary_details ||
+            discipline.disciplinary_explanation
         ),
 
         self_description: safeText(
-            essays.self_description || essays.describe_yourself_essay
+            essays.self_description ||
+            essays.describe_yourself_essay
         ),
+
         aims_and_ambitions: safeText(
-            essays.aims_and_ambitions || essays.aims_and_ambition_essay
+            essays.aims_and_ambitions ||
+            essays.aims_and_ambition_essay
         ),
 
         updated_at: new Date().toISOString(),
@@ -2886,72 +3035,194 @@ async function submitMyApplicationForm(userId, payload = {}) {
 
     const { error: profileError } = await supabase
         .from('student_profiles')
-        .upsert(profilePayload, { onConflict: 'student_id' });
+        .upsert(
+            profilePayload,
+            {
+                onConflict: 'student_id',
+            }
+        );
 
-    if (profileError) throw profileError;
+    if (profileError) {
+        throw profileError;
+    }
 
-    const nativeStatus = safeText(family.parent_native_status);
+    // ---------------------------------------------------------
+    // Family information
+    // ---------------------------------------------------------
+
+    const nativeStatus = safeText(
+        family.parent_native_status
+    );
+
     const isNative =
-        nativeStatus.toLowerCase().includes('yes') ? true :
-            nativeStatus.toLowerCase() === 'no' ? false :
-                null;
+        nativeStatus.toLowerCase().includes('yes')
+            ? true
+            : nativeStatus.toLowerCase() === 'no'
+                ? false
+                : null;
 
     const familyExtra = {
-        parent_guardian_address: safeText(family.parent_guardian_address),
-        is_marilao_native: isNative,
-        years_as_resident: intOrNull(family.parent_marilao_residency_duration),
-        origin_province: safeText(family.parent_previous_town_province),
+        parent_guardian_address:
+            safeText(
+                family.parent_guardian_address
+            ),
+
+        is_marilao_native:
+            isNative,
+
+        years_as_resident:
+            intOrNull(
+                family.parent_marilao_residency_duration
+            ),
+
+        origin_province:
+            safeText(
+                family.parent_previous_town_province
+            ),
     };
 
     const familyRows = [
-        familyPayload(student.student_id, 'Father', family.father || {}, familyExtra),
-        familyPayload(student.student_id, 'Mother', family.mother || {}, familyExtra),
-        familyPayload(student.student_id, 'Sibling', family.sibling || {}, familyExtra),
-        familyPayload(student.student_id, 'Guardian', family.guardian || {}, familyExtra),
+        familyPayload(
+            student.student_id,
+            'Father',
+            family.father || {},
+            familyExtra
+        ),
+
+        familyPayload(
+            student.student_id,
+            'Mother',
+            family.mother || {},
+            familyExtra
+        ),
+
+        familyPayload(
+            student.student_id,
+            'Sibling',
+            family.sibling || {},
+            familyExtra
+        ),
+
+        familyPayload(
+            student.student_id,
+            'Guardian',
+            family.guardian || {},
+            familyExtra
+        ),
     ];
 
     const { error: familyError } = await supabase
         .from('student_family')
-        .upsert(familyRows, { onConflict: 'student_id,relation' });
+        .upsert(
+            familyRows,
+            {
+                onConflict: 'student_id,relation',
+            }
+        );
 
-    if (familyError) throw familyError;
+    if (familyError) {
+        throw familyError;
+    }
+
+    // ---------------------------------------------------------
+    // Educational history
+    // ---------------------------------------------------------
 
     const educationRows = [
-        educationPayload(student.student_id, 'College', {
-            school: academic.college_school,
-            address: academic.college_address,
-            honors: academic.college_honors,
-            club: academic.college_club,
-            year_graduated: academic.college_year_graduated,
-        }),
-        educationPayload(student.student_id, 'High School', {
-            school: academic.high_school_school,
-            address: academic.high_school_address,
-            honors: academic.high_school_honors,
-            club: academic.high_school_club,
-            year_graduated: academic.high_school_year_graduated,
-        }),
-        educationPayload(student.student_id, 'Senior High School', {
-            school: academic.senior_high_school,
-            address: academic.senior_high_address,
-            honors: academic.senior_high_honors,
-            club: academic.senior_high_club,
-            year_graduated: academic.senior_high_year_graduated,
-        }),
-        educationPayload(student.student_id, 'Elementary', {
-            school: academic.elementary_school,
-            address: academic.elementary_address,
-            honors: academic.elementary_honors,
-            club: academic.elementary_club,
-            year_graduated: academic.elementary_year_graduated,
-        }),
+        educationPayload(
+            student.student_id,
+            'College',
+            {
+                school: academic.college_school,
+                address: academic.college_address,
+                honors: academic.college_honors,
+                club: academic.college_club,
+                year_graduated:
+                    academic.college_year_graduated,
+            }
+        ),
+
+        educationPayload(
+            student.student_id,
+            'High School',
+            {
+                school:
+                    academic.high_school_school,
+
+                address:
+                    academic.high_school_address,
+
+                honors:
+                    academic.high_school_honors,
+
+                club:
+                    academic.high_school_club,
+
+                year_graduated:
+                    academic.high_school_year_graduated,
+            }
+        ),
+
+        educationPayload(
+            student.student_id,
+            'Senior High School',
+            {
+                school:
+                    academic.senior_high_school,
+
+                address:
+                    academic.senior_high_address,
+
+                honors:
+                    academic.senior_high_honors,
+
+                club:
+                    academic.senior_high_club,
+
+                year_graduated:
+                    academic.senior_high_year_graduated,
+            }
+        ),
+
+        educationPayload(
+            student.student_id,
+            'Elementary',
+            {
+                school:
+                    academic.elementary_school,
+
+                address:
+                    academic.elementary_address,
+
+                honors:
+                    academic.elementary_honors,
+
+                club:
+                    academic.elementary_club,
+
+                year_graduated:
+                    academic.elementary_year_graduated,
+            }
+        ),
     ];
 
     const { error: educationError } = await supabase
         .from('student_education')
-        .upsert(educationRows, { onConflict: 'student_id,education_level' });
+        .upsert(
+            educationRows,
+            {
+                onConflict:
+                    'student_id,education_level',
+            }
+        );
 
-    if (educationError) throw educationError;
+    if (educationError) {
+        throw educationError;
+    }
+
+    // ---------------------------------------------------------
+    // Student update payload
+    // ---------------------------------------------------------
 
     const studentUpdatePayload = {
         is_profile_complete: true,
@@ -2959,90 +3230,264 @@ async function submitMyApplicationForm(userId, payload = {}) {
     };
 
     if (submittedGwa !== null) {
-        studentUpdatePayload.gwa = submittedGwa;
+        studentUpdatePayload.gwa =
+            submittedGwa;
     }
 
-    const { data: existingApplication, error: existingApplicationError } =
-        await supabase
-            .from('applications')
-            .select('application_id')
-            .eq('student_id', student.student_id)
-            .eq('opening_id', opening.opening_id)
-            .maybeSingle();
+    // =========================================================
+    // IMPORTANT FIX
+    //
+    // Only reuse an ACTIVE / NON-ARCHIVED application.
+    //
+    // Previously this lookup could find the student's old
+    // archived application for the same opening, causing the
+    // new submission to update that archived row.
+    //
+    // The Documents API intentionally ignores archived
+    // applications, which caused "0/0" document slots.
+    // =========================================================
 
-    if (existingApplicationError) throw existingApplicationError;
+    const {
+        data: existingApplication,
+        error: existingApplicationError,
+    } = await supabase
+        .from('applications')
+        .select(`
+            application_id,
+            is_archived
+        `)
+        .eq(
+            'student_id',
+            student.student_id
+        )
+        .eq(
+            'opening_id',
+            opening.opening_id
+        )
+        .eq(
+            'is_archived',
+            false
+        )
+        .maybeSingle();
+
+    if (existingApplicationError) {
+        throw existingApplicationError;
+    }
 
     let application;
 
+    // ---------------------------------------------------------
+    // Existing ACTIVE application
+    // ---------------------------------------------------------
+
     if (existingApplication?.application_id) {
-        const { data, error } = await supabase
+        const {
+            data,
+            error,
+        } = await supabase
             .from('applications')
             .update({
-                program_id: opening.program_id,
-                application_payload: payload,
-                application_status: 'Pending Review',
-                document_status: 'Missing Docs',
-                verification_status: 'pending',
-                updated_at: new Date().toISOString(),
+                program_id:
+                    opening.program_id,
+
+                application_payload:
+                    payload,
+
+                application_status:
+                    'Pending Review',
+
+                document_status:
+                    'Missing Docs',
+
+                verification_status:
+                    'pending',
+
+                is_archived:
+                    false,
+
+                updated_at:
+                    new Date().toISOString(),
             })
-            .eq('application_id', existingApplication.application_id)
+            .eq(
+                'application_id',
+                existingApplication.application_id
+            )
+            .eq(
+                'is_archived',
+                false
+            )
             .select('*')
             .single();
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
+
         application = data;
-    } else {
-        const { data, error } = await supabase
+    }
+
+    // ---------------------------------------------------------
+    // No active application exists.
+    //
+    // Old archived applications are left untouched.
+    // A completely NEW application is created.
+    // ---------------------------------------------------------
+
+    else {
+        const {
+            data,
+            error,
+        } = await supabase
             .from('applications')
             .insert([
                 {
-                    student_id: student.student_id,
-                    opening_id: opening.opening_id,
-                    program_id: opening.program_id,
-                    application_status: 'Pending Review',
-                    document_status: 'Missing Docs',
-                    verification_status: 'pending',
-                    application_payload: payload,
+                    student_id:
+                        student.student_id,
+
+                    opening_id:
+                        opening.opening_id,
+
+                    program_id:
+                        opening.program_id,
+
+                    application_status:
+                        'Pending Review',
+
+                    document_status:
+                        'Missing Docs',
+
+                    verification_status:
+                        'pending',
+
+                    application_payload:
+                        payload,
+
+                    is_archived:
+                        false,
                 },
             ])
             .select('*')
             .single();
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
+
         application = data;
     }
 
-    await createRequiredDocumentSlots(application.application_id, student.student_id);
-    const createdSlip = await ensureApplicationEndorsementSlip(application);
+    if (!application?.application_id) {
+        throw createHttpError(
+            500,
+            'Application could not be created.'
+        );
+    }
+
+    // =========================================================
+    // CONNECT THE NEW APPLICATION TO THE STUDENT
+    // =========================================================
+
+    studentUpdatePayload.current_application_id =
+        application.application_id;
+
+    studentUpdatePayload.current_program_id =
+        application.program_id ||
+        opening.program_id;
+
+    // =========================================================
+    // CREATE THE FIVE REQUIRED DOCUMENT SLOTS
+    // =========================================================
+
+    await createRequiredDocumentSlots(
+        application.application_id,
+        student.student_id
+    );
+
+    // =========================================================
+    // CREATE ENDORSEMENT WORKFLOW
+    // =========================================================
+
+    const createdSlip =
+        await ensureApplicationEndorsementSlip(
+            application
+        );
 
     if (createdSlip?.slip_id) {
         await createStaffNotificationsSafely(
             {
                 roles: ['sdo'],
-                type: 'Endorsement Slip',
-                title: 'New SDO approval request',
-                message: `${getStudentDisplayName(student)} submitted a scholarship application and is ready for SDO review.`,
-                referenceId: createdSlip.slip_id,
-                referenceType: 'endorsement_slip',
+
+                type:
+                    'Endorsement Slip',
+
+                title:
+                    'New SDO approval request',
+
+                message:
+                    `${getStudentDisplayName(student)} submitted a scholarship application and is ready for SDO review.`,
+
+                referenceId:
+                    createdSlip.slip_id,
+
+                referenceType:
+                    'endorsement_slip',
             },
+
             'SDO QUEUE'
         );
     }
 
-    await supabase
-        .from('students')
-        .update(studentUpdatePayload)
-        .eq('student_id', student.student_id);
+    // =========================================================
+    // SAVE CURRENT APPLICATION / PROGRAM TO STUDENT
+    // =========================================================
 
-    await supabase
-        .from(APPLICATION_DRAFT_TABLE)
+    const {
+        error: studentUpdateError,
+    } = await supabase
+        .from('students')
+        .update(
+            studentUpdatePayload
+        )
+        .eq(
+            'student_id',
+            student.student_id
+        );
+
+    if (studentUpdateError) {
+        throw studentUpdateError;
+    }
+
+    // =========================================================
+    // DELETE COMPLETED DRAFT
+    // =========================================================
+
+    const {
+        error: draftDeleteError,
+    } = await supabase
+        .from(
+            APPLICATION_DRAFT_TABLE
+        )
         .delete()
-        .eq('user_id', userId);
+        .eq(
+            'user_id',
+            userId
+        );
+
+    if (draftDeleteError) {
+        console.error(
+            'APPLICATION DRAFT DELETE ERROR:',
+            draftDeleteError.message
+        );
+    }
 
     return {
-        message: 'Application submitted successfully.',
+        message:
+            'Application submitted successfully.',
+
         application,
-        next: 'documents',
+
+        next:
+            'documents',
     };
 }
 

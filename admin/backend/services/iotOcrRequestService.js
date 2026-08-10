@@ -21,14 +21,6 @@ const FORBIDDEN_PAYLOAD_KEYS = new Set([
     'image', 'image_url', 'capture_url', 'capture_path', 'processed_image',
     'processed_image_url', 'base64_image',
 ]);
-const REQUEST_TTL_MS = 60 * 1000;
-const PENDING_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
-// The Pi sends a heartbeat every five seconds, renewing this timeout while
-// capture or OCR is genuinely active.
-const PROCESSING_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
-const REVIEW_TTL_SQL = `NOW() - INTERVAL '60 seconds'`;
-const EXPIRATION_SWEEP_INTERVAL_MS = 1000;
-let lastExpirationSweepAt = 0;
 
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
@@ -49,22 +41,6 @@ function assertTextOnlyPayload(value) {
         }
         assertTextOnlyPayload(nested);
     }
-}
-
-function addMilliseconds(value, milliseconds) {
-    const timestamp = new Date(value || 0).getTime();
-    return Number.isFinite(timestamp) && timestamp > 0
-        ? new Date(timestamp + milliseconds).toISOString()
-        : null;
-}
-
-function requestExpiresAt(row) {
-    if (row.status === 'pending') return addMilliseconds(row.created_at, REQUEST_TTL_MS);
-    if (['claimed', 'previewing', 'focusing', 'capturing', 'processing'].includes(row.status)) {
-        return addMilliseconds(row.processing_heartbeat_at || row.updated_at, REQUEST_TTL_MS);
-    }
-    if (row.status === 'review_required') return addMilliseconds(row.updated_at, REQUEST_TTL_MS);
-    return null;
 }
 
 function mapRequestRow(row) {
@@ -91,7 +67,7 @@ function mapRequestRow(row) {
         created_at: row.created_at || null,
         completed_at: row.completed_at || null,
         updated_at: row.updated_at || null,
-        expires_at: requestExpiresAt(row),
+        expires_at: null,
     };
 }
 
@@ -207,35 +183,6 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     };
 }
 
-async function expireStaleRequests(client, { force = false } = {}) {
-    const now = Date.now();
-    if (!force && now - lastExpirationSweepAt < EXPIRATION_SWEEP_INTERVAL_MS) return;
-    lastExpirationSweepAt = now;
-    await client.query(`
-        UPDATE public.iot_ocr_requests
-        SET status = 'expired', error_code = 'PENDING_TIMEOUT',
-            error_message = 'IoT OCR request expired while waiting for the Pi',
-            completed_at = NOW(), updated_at = NOW()
-        WHERE status = 'pending' AND created_at < ${PENDING_TTL_SQL}
-    `);
-    await client.query(`
-        UPDATE public.iot_ocr_requests
-        SET status = 'expired', error_code = 'PROCESSING_HEARTBEAT_TIMEOUT',
-            error_message = 'IoT OCR worker heartbeat expired',
-            completed_at = NOW(), updated_at = NOW()
-        WHERE status IN ('claimed', 'previewing', 'focusing', 'capturing', 'processing')
-          AND COALESCE(processing_heartbeat_at, updated_at) < ${PROCESSING_TTL_SQL}
-    `);
-    await client.query(`
-        UPDATE public.iot_ocr_requests
-        SET status = 'expired', error_code = 'REVIEW_TIMEOUT',
-            error_message = 'IoT OCR review expired before admin confirmation',
-            completed_at = NOW(), updated_at = NOW()
-        WHERE status = 'review_required'
-          AND updated_at < ${REVIEW_TTL_SQL}
-    `);
-}
-
 async function resolveRequestContext(client, applicationId, documentKey) {
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
     if (!applicationId || !normalizedDocumentKey) throw buildHttpError(400, 'Valid application and document are required');
@@ -260,7 +207,6 @@ exports.createRequest = async (input = {}) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await expireStaleRequests(client, { force: true });
         const context = await resolveRequestContext(
             client,
             input.applicationId || input.application_id,
@@ -298,7 +244,6 @@ exports.claimNextRequest = async ({ claimedBy } = {}) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await expireStaleRequests(client);
         const result = await client.query(`
             WITH next_request AS (
                 SELECT request_id FROM public.iot_ocr_requests
@@ -327,9 +272,6 @@ exports.updateRequestStatus = async ({ requestId, status, claimedBy } = {}) => {
     if (!isUuid(requestId) || !deviceId) throw buildHttpError(400, 'Valid request and Pi device UUID are required');
     const client = await pool.connect();
     try {
-        // Persist expiration independently. A rejected transition must not roll
-        // the expiration sweep back and resurrect a stale request.
-        await expireStaleRequests(client, { force: true });
         await client.query('BEGIN');
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -383,7 +325,6 @@ exports.completeRequest = async (input = {}) => {
     }
     const client = await pool.connect();
     try {
-        await expireStaleRequests(client, { force: true });
         await client.query('BEGIN');
         const selected = await client.query(
             'SELECT * FROM public.iot_ocr_requests WHERE request_id = $1::uuid FOR UPDATE',
@@ -467,7 +408,6 @@ exports.getRequestById = async ({ requestId, applicationId = null, documentKey =
 exports.getLatestRequestForDocument = async ({ applicationId, documentKey }) => {
     const client = await pool.connect();
     try {
-        await expireStaleRequests(client);
         const result = await client.query(`
             SELECT * FROM public.iot_ocr_requests
             WHERE application_id = $1::uuid AND document_key = $2
@@ -481,7 +421,6 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
     await ensureIotOcrSchema();
     const client = await pool.connect();
     try {
-        await expireStaleRequests(client);
         const params = [applicationId, documentTypes.normalizeDocumentType(documentKey)];
         const requestFilter = requestId ? 'AND r.request_id = $3::uuid' : '';
         if (requestId) params.push(requestId);

@@ -2748,8 +2748,7 @@ export default function DocumentVerification() {
         request: requestContext,
       };
 
-      let attempts = 0;
-      const maxAttempts = 180;
+      let consecutivePollErrors = 0;
 
       const pollFreshSnapshot = async () => {
         const activeRequest = activeIotRequestRef.current;
@@ -2761,8 +2760,6 @@ export default function DocumentVerification() {
         ) {
           return;
         }
-
-        attempts += 1;
 
         try {
           const snapshotResponse = await fetch(
@@ -2785,6 +2782,7 @@ export default function DocumentVerification() {
           }
 
           const snapshot = snapshotPayload?.data || {};
+          consecutivePollErrors = 0;
           const latestRequest = snapshot?.iot_ocr_request || {};
           const latestRequestId = getIotOcrRequestId(latestRequest);
           const requestStatus = String(latestRequest?.status || '').toLowerCase();
@@ -2827,7 +2825,7 @@ export default function DocumentVerification() {
               return;
             }
 
-            if (requestStatus === 'failed' || requestStatus === 'cancelled') {
+            if (['failed', 'cancelled', 'expired'].includes(requestStatus)) {
               await fetchApplicationDocuments({ soft: true });
               setBlankIotOverride(
                 latestRequest,
@@ -2843,23 +2841,10 @@ export default function DocumentVerification() {
             }
           }
         } catch (pollError) {
-          if (attempts >= maxAttempts) {
+          consecutivePollErrors += 1;
+          if (consecutivePollErrors % 30 === 0) {
             console.error('POLL IOT OCR ERROR:', pollError);
           }
-        }
-
-        if (attempts >= maxAttempts) {
-          await fetchApplicationDocuments({ soft: true });
-          setBlankIotOverride(
-            activeIotRequestRef.current?.request || null,
-            '(No fresh OCR result was produced.)'
-          );
-          stopPolling();
-          setRunningIotOcr(false);
-          setIotOcrError(
-            'The fresh OCR request did not finish within six minutes. Check the Pi worker logs and retry.'
-          );
-          return;
         }
 
         pollingRef.current = window.setTimeout(pollFreshSnapshot, 2000);

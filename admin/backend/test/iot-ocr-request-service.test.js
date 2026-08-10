@@ -223,12 +223,10 @@ test('late Pi result receives the same terminal stop contract', async () => {
     );
 });
 
-test('status updates persist expiration before opening the transition transaction', () => {
+test('requests have no automatic timeout expiration', () => {
     const fs = require('node:fs');
     const source = fs.readFileSync(servicePath, 'utf8');
-    const updateSource = source.slice(source.indexOf('exports.updateRequestStatus'));
-    assert.ok(
-        updateSource.indexOf('await expireStaleRequests(client, { force: true })') <
-        updateSource.indexOf("await client.query('BEGIN')")
-    );
+    assert.doesNotMatch(source, /expireStaleRequests/);
+    assert.doesNotMatch(source, /PENDING_TIMEOUT|PROCESSING_HEARTBEAT_TIMEOUT|REVIEW_TIMEOUT/);
+    assert.match(source, /expires_at: null/);
 });

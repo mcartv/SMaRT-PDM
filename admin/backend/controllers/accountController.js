@@ -33,6 +33,21 @@ function emitAccountUpdate(req, action, account = null) {
 
     if (socketEvents?.maintenanceUpdated) {
         socketEvents.maintenanceUpdated(io, payload);
+
+        if (
+            ['profile_update', 'profile_photo_update', 'profile_photo_remove'].includes(action) &&
+            account?.user_id &&
+            socketEvents?.profileUpdated
+        ) {
+            socketEvents.profileUpdated(io, account.user_id, {
+                user_id: account.user_id,
+                action,
+                profile: account,
+                profile_photo_url: account.profile_photo_url || null,
+                avatar_url: account.avatar_url || null,
+            });
+        }
+
         socketEvents.endorsementUpdated(io, {
             source: 'pd_course_assignment',
             action,

@@ -81,6 +81,26 @@ export default function SDOLayout() {
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
 
+  useSocketEvent('profile:updated', (payload) => {
+    const incoming = payload?.profile || payload?.account || null;
+    if (!incoming) return;
+
+    let current = {};
+    try {
+      current = JSON.parse(sessionStorage.getItem('sdoProfile') || '{}');
+    } catch {
+      current = {};
+    }
+
+    if (payload?.user_id && current?.user_id && String(payload.user_id) !== String(current.user_id)) {
+      return;
+    }
+
+    const merged = { ...current, ...incoming };
+    sessionStorage.setItem('sdoProfile', JSON.stringify(merged));
+    setProfile(merged);
+  });
+
   useEffect(() => {
     const handleProfileUpdated = (event) => {
       if (event.detail?.profileStorageKey !== 'sdoProfile') return;

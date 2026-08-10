@@ -14,6 +14,7 @@ function isApprovedScholar(student) {
 }
 
 const REQUIRED_APPLICATION_UPLOAD_KEYS = Object.freeze([
+  'birth_certificate',
   'certificate_of_registration',
   'student_grade_forms',
   'certificate_of_indigency',
@@ -26,6 +27,16 @@ function normalizeApplicationDocumentKey(value = '') {
     .toLowerCase()
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ');
+
+  if (
+    normalized === 'birth certificate' ||
+    normalized === 'birth certificate / psa' ||
+    normalized === 'certificate of live birth' ||
+    normalized === 'psa' ||
+    normalized === 'nso'
+  ) {
+    return 'birth_certificate';
+  }
 
   if (
     normalized === 'certificate of registration' ||
@@ -172,43 +183,73 @@ async function getStudentApplications(studentId) {
       can_reapply,
       reapplication_reason,
       submission_date,
-      is_disqualified
+      is_disqualified,
+      is_archived,
+      created_at,
+      updated_at
     `)
     .eq('student_id', studentId)
-    .order('submission_date', { ascending: false });
+    .order('submission_date', {
+      ascending: false,
+      nullsFirst: false,
+    })
+    .order('created_at', {
+      ascending: false,
+      nullsFirst: false,
+    });
 
   if (error) throw error;
+
   return data || [];
 }
 
 function isActiveApplication(application) {
-  const status = String(application?.application_status || '').toLowerCase();
-  const selection = String(application?.selection_status || '').toLowerCase();
-  return (
-    !['rejected'].includes(status) ||
-    ['qualified', 'selected', 'waitlisted', 'promoted'].includes(selection)
-  );
+  if (!application) {
+    return false;
+  }
+
+  if (application.is_archived === true) {
+    return false;
+  }
+
+  if (application.is_disqualified === true) {
+    return false;
+  }
+
+  const status = String(
+    application.application_status || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  const selection = String(
+    application.selection_status || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    status === 'rejected' ||
+    status === 'disqualified'
+  ) {
+    return false;
+  }
+
+  if (
+    selection === 'not selected' ||
+    selection === 'not_selected'
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 async function getOpeningsForMobile(userId) {
   const student = await getStudentByUserId(userId);
   const applications = await getStudentApplications(student?.student_id);
-  const activeApplication = applications.find((application) => {
-    const applicationStatus = String(
-      application?.application_status || ''
-    ).trim().toLowerCase();
-    const selectionStatus = String(
-      application?.selection_status || ''
-    ).trim().toLowerCase();
-
-    return (
-      application?.is_disqualified !== true &&
-      !['rejected', 'disqualified'].includes(applicationStatus) &&
-      !['not selected'].includes(selectionStatus)
-    );
-  }) || null;
-
-  const latestApplication = activeApplication || applications[0] || null;
+  const activeApplication =
+    applications.find(isActiveApplication) || null;
 
   const { data, error } = await supabase
     .from('program_openings')
@@ -292,7 +333,10 @@ async function getOpeningsForMobile(userId) {
       const program = row.scholarship_program || {};
       const benefactor = program.benefactors || null;
       const existing = applications.find(
-        (application) => String(application.opening_id) === String(row.opening_id)
+        (application) =>
+          application.is_archived !== true &&
+          String(application.opening_id) ===
+          String(row.opening_id)
       );
 
       const allocatedSlots = Number(row.allocated_slots || 0);
@@ -378,9 +422,9 @@ async function getOpeningsForMobile(userId) {
 
   const items = activeApplication?.opening_id
     ? allItems.filter(
-        (item) =>
-          String(item.opening_id) === String(activeApplication.opening_id)
-      )
+      (item) =>
+        String(item.opening_id) === String(activeApplication.opening_id)
+    )
     : allItems;
 
   return {
@@ -430,12 +474,25 @@ async function applyToOpeningForMobile(userId, openingId, body = {}) {
     throw createHttpError(400, 'This scholarship is not accepting applications.');
   }
 
-  const { data: existing, error: existingError } = await supabase
-    .from('applications')
-    .select('*')
-    .eq('student_id', student.student_id)
-    .eq('opening_id', openingId)
-    .maybeSingle();
+  const { data: existingApplications, error: existingError } =
+    await supabase
+      .from('applications')
+      .select('*')
+      .eq('student_id', student.student_id)
+      .eq('opening_id', openingId)
+      .eq('is_archived', false)
+      .order('created_at', {
+        ascending: false,
+      })
+      .limit(1);
+
+  if (existingError) throw existingError;
+
+  const existing =
+    Array.isArray(existingApplications) &&
+      existingApplications.length > 0
+      ? existingApplications[0]
+      : null;
 
   if (existingError) throw existingError;
 
@@ -505,7 +562,7 @@ async function applyToOpeningForMobile(userId, openingId, body = {}) {
   return {
     message:
       Number(opening.filled_slots || 0) >= Number(opening.allocated_slots || 0) &&
-      opening.waiting_list_enabled !== false
+        opening.waiting_list_enabled !== false
         ? 'Application submitted. Complete the requirements to be considered for the waiting list.'
         : 'Application submitted successfully.',
     application,

@@ -35,7 +35,7 @@ class ProgramOpening {
     this.isBenefactorArchived = false,
   });
 
-  static const int applicationUploadRequirementCount = 4;
+  static const int applicationUploadRequirementCount = 5;
 
   final String openingId;
   final String programId;

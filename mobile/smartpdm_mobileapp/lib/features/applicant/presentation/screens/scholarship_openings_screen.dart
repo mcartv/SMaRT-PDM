@@ -17,7 +17,7 @@ class ScholarshipOpeningsScreen extends StatefulWidget {
 }
 
 class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
-  static const int _defaultRequiredDocumentCount = 4;
+  static const int _defaultRequiredDocumentCount = 5;
   final ProgramOpeningService _programOpeningService = ProgramOpeningService();
 
   bool _isLoading = true;

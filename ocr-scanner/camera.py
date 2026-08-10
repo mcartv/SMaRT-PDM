@@ -47,40 +47,19 @@ class CameraController:
         )
         self._focus_window_open = False
 
-        positions = os.getenv(
-            "CAMERA_FOCUS_SWEEP_POSITIONS",
-            "0.5,1.0,1.5,1.75,2.0,2.25,2.5,2.75,3.0,"
-            "3.5,4.0,5.0,6.0,7.5,9.0,11.0,13.0",
+        try:
+            configured_lens_position = float(
+                os.getenv("CAMERA_FIXED_LENS_POSITION", "2.0")
+            )
+        except ValueError:
+            configured_lens_position = 2.0
+        self.fixed_lens_position = max(
+            2.0,
+            min(20.0, configured_lens_position),
         )
-        parsed = []
-        for raw in positions.split(","):
-            try:
-                value = float(raw.strip())
-            except ValueError:
-                continue
-            if 0.0 <= value <= 20.0:
-                parsed.append(value)
-
-        all_focus_positions = sorted(set(parsed)) or [
-            0.5, 1.0, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75,
-            3.0, 3.5, 4.0, 5.0, 6.0, 7.5, 9.0, 11.0, 13.0,
-        ]
-        maximum_steps = max(
-            3,
-            min(7, int(os.getenv("CAMERA_FOCUS_SWEEP_MAX_STEPS", "7"))),
-        )
-        if len(all_focus_positions) <= maximum_steps:
-            self.focus_sweep_positions = all_focus_positions
-        else:
-            last_index = len(all_focus_positions) - 1
-            indices = {
-                round(step * last_index / float(maximum_steps - 1))
-                for step in range(maximum_steps)
-            }
-            self.focus_sweep_positions = [
-                all_focus_positions[index]
-                for index in sorted(indices)
-            ]
+        # Compatibility for diagnostics; the production capture path does not
+        # sweep this collection.
+        self.focus_sweep_positions = [self.fixed_lens_position]
 
     @staticmethod
     def _run(
@@ -162,7 +141,7 @@ class CameraController:
         """Close live preview and immediately acknowledge the LEFT press."""
         self.stop_preview()
         self._start_preview_instruction_overlay(
-            "IMAGE PROCESSING - FINDING THE BEST FOCUS"
+            f"IMAGE PROCESSING - CAPTURING AT LENS {self.fixed_lens_position:.2f}"
         )
 
     def _stop_preview_instruction_overlay(self) -> None:
@@ -824,65 +803,45 @@ class CameraController:
         final = Path(self.capture_file)
         final.unlink(missing_ok=True)
 
-        # Preview #2: always show the real physical focus search.
-        coarse = self._coarse_sweep()
+        if status_callback:
+            status_callback('capturing')
 
-        if coarse is not None:
-            coarse_position, coarse_score, _ = coarse
-            print(
-                "[CAMERA] Sweep selected lens="
-                f"{coarse_position:.3f}; "
-                f"score={coarse_score:.2f}"
-            )
-
-            if status_callback:
-                status_callback('capturing')
-
-            selected = self._final_candidates(
-                coarse_position,
-                coarse_score,
-            )
-
-            if selected is not None:
-                winner, position, score = selected
-                os.replace(winner, final)
-
+        position = self.fixed_lens_position
+        sampled = self._sample_position(
+            position,
+            width=self.capture_width,
+            height=self.capture_height,
+            timeout_ms=1600,
+            suffix="fixed",
+        )
+        if sampled is not None:
+            score, image = sampled
+            if self._valid_jpeg(
+                image,
+                min_width=self.capture_width,
+                min_height=self.capture_height,
+            ):
+                self._stop_preview_instruction_overlay()
+                os.replace(image, final)
                 self._show_focus_frame(
                     final,
                     [
-                        "AUTOFOCUS COMPLETE",
-                        f"Selected lens: {position:.2f}",
-                        f"Final focus score: {score:.2f}",
+                        "FOCUSED IMAGE CAPTURED",
+                        f"Fixed lens position: {position:.2f}",
+                        f"Focus score: {score:.2f}",
                         "IMAGE PROCESSING - STARTING TESSERACT OCR",
                     ],
-                    wait_ms=1800,
+                    wait_ms=1200,
                 )
                 self._close_focus_preview()
-
                 print(
-                    "[CAMERA] Software autofocus verified. "
+                    "[CAMERA] Fixed focus capture accepted. "
                     f"Lens={position:.3f}; "
                     f"normalized score={score:.2f}. "
                     "OCR/submission unlocked."
                 )
                 return True
-
-        # Fallback to native autofocus only if the visible sweep fails.
-        native = self._try_native_autofocus()
-        if native is not None:
-            self._stop_preview_instruction_overlay()
-            self._show_focus_frame(
-                native,
-                [
-                    "AUTOFOCUS COMPLETE",
-                    "Focused image captured",
-                    "IMAGE PROCESSING - STARTING TESSERACT OCR",
-                ],
-                wait_ms=1200,
-            )
-            os.replace(native, final)
-            self._close_focus_preview()
-            return True
+            image.unlink(missing_ok=True)
 
         final.unlink(missing_ok=True)
         self._close_focus_preview()

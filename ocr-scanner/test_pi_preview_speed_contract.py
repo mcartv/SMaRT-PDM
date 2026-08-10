@@ -66,10 +66,8 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
     def test_camera_fast_defaults_remain_bounded(self):
         controller = camera.CameraController()
 
-        self.assertLessEqual(
-            len(controller.focus_sweep_positions),
-            7,
-        )
+        self.assertGreaterEqual(controller.fixed_lens_position, 2.0)
+        self.assertEqual(controller.focus_sweep_positions, [controller.fixed_lens_position])
         self.assertEqual(controller.capture_attempts, controller.native_af_attempts)
 
     def test_preprocessing_does_not_require_debug_disk_write(self):
@@ -174,17 +172,19 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
         self.assertIn("heartbeat_api = ApiClient()", heartbeat)
         self.assertIn("heartbeat_api.update_status", heartbeat)
 
-    def test_focus_sweep_is_bounded_and_final_capture_is_single(self):
+    def test_fixed_focus_capture_uses_one_full_resolution_sample(self):
         controller = camera.CameraController()
         source = Path("camera.py").read_text(encoding="utf-8")
-        final_capture = source[
-            source.index("def _final_candidates") :
-            source.index("def capture_image")
+        capture = source[
+            source.index("def capture_image") :
+            source.index("def cleanup")
         ]
 
-        self.assertLessEqual(len(controller.focus_sweep_positions), 7)
-        self.assertNotIn("for frame in range", final_capture)
-        self.assertEqual(final_capture.count("self._sample_position("), 1)
+        self.assertEqual(controller.fixed_lens_position, 2.0)
+        self.assertNotIn("_coarse_sweep", capture)
+        self.assertNotIn("_refine_position", capture)
+        self.assertNotIn("_try_native_autofocus", capture)
+        self.assertEqual(capture.count("self._sample_position("), 1)
 
     def test_left_press_gets_immediate_local_processing_feedback(self):
         source = Path("capture_session.py").read_text(encoding="utf-8")

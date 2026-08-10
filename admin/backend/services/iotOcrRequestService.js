@@ -220,7 +220,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     const requiredByDocument = {
         certificate_of_live_birth: ['child_name', 'mother_maiden_name', 'father_name'],
         certificate_of_indigency: ['certificate_subject_name', 'issue_date', 'issuing_barangay'],
-        student_grade_forms: ['student_number', 'student_name', 'course', 'semester', 'academic_year', 'subjects', 'gwa'],
+        student_grade_forms: ['student_number', 'semester', 'academic_year', 'subjects', 'gwa'],
     };
     const required = requiredByDocument[documentKey];
     if (!required) throw buildHttpError(400, 'Unsupported OCR document contract');
@@ -237,12 +237,10 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         throw buildHttpError(409, 'GWA is read-only. Retry OCR if the detected value is incorrect.');
     }
     return {
-        ...fields,
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
-        student_name: String(fieldValue(fields.student_name) ?? '').trim(),
-        course: String(fieldValue(fields.course) ?? '').trim(),
         semester: String(fieldValue(fields.semester) ?? '').trim(),
         academic_year: String(fieldValue(fields.academic_year) ?? '').trim(),
+        subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };
 }

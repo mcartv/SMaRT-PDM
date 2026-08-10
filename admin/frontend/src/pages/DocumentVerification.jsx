@@ -1217,8 +1217,6 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
-  ['student_name', 'Student Name'],
-  ['course', 'Course'],
   ['semester', 'Semester'],
   ['academic_year', 'Academic Year'],
 ];
@@ -1276,7 +1274,6 @@ function normalizeReviewFields(candidate) {
   if (candidate?.document_key !== 'student_grade_forms') return fields;
   const derived = deriveGradeReviewValues(candidate?.raw_text);
   return {
-    ...fields,
     ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
       key,
       ocrFieldValue(fields[key]) || derived[key] || '',
@@ -2623,12 +2620,37 @@ export default function DocumentVerification() {
         setReviewCandidate(candidate);
         setCorrectedFields(normalizeReviewFields(candidate));
         setRawOcrSnapshot(candidate.raw_text || '');
+        stopPolling();
+        setRunningIotOcr(false);
+        if (activeIotRequestRef.current?.requestId === requestId) {
+          activeIotRequestRef.current = null;
+        }
       })
       .catch((error) => {
         if (!cancelled) setIotOcrError(error.message || 'Failed to load OCR candidate');
       });
     return () => { cancelled = true; };
-  }, [activeDoc, id, reviewCandidate?.request_id]);
+  }, [activeDoc, id, reviewCandidate?.request_id, stopPolling]);
+
+  useEffect(() => {
+    const request = getActiveIotRequest(activeDoc);
+    const requestStatus = String(request?.status || '').toLowerCase();
+    const candidateReady = reviewCandidate?.document_key === activeDoc?.id;
+    if (!candidateReady && ![
+      'review_required',
+      'completed',
+      'cancelled',
+      'failed',
+      'expired',
+    ].includes(requestStatus)) return;
+
+    stopPolling();
+    setRunningIotOcr(false);
+    const requestId = getIotOcrRequestId(request);
+    if (!requestId || activeIotRequestRef.current?.requestId === requestId) {
+      activeIotRequestRef.current = null;
+    }
+  }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
 
   const handleCommentChange = (value) => {
     setComment(value);

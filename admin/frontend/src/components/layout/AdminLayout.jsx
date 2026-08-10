@@ -25,6 +25,7 @@ import usePortalNotifications from '../../hooks/usePortalNotifications';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import { authService } from '../../services/authService';
+import { clearPortalSession } from '../../utils/authStorage';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -91,6 +92,17 @@ export default function AdminLayout() {
     window.addEventListener('portal-profile:updated', handleProfileUpdated);
     return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
   }, []);
+
+  useEffect(() => {
+    const handleSessionInvalidated = (event) => {
+      if (event.detail?.portalName && event.detail.portalName !== 'admin') return;
+      clearPortalSession('admin');
+      navigate('/admin/login', { replace: true });
+    };
+
+    window.addEventListener('portal-session:invalidated', handleSessionInvalidated);
+    return () => window.removeEventListener('portal-session:invalidated', handleSessionInvalidated);
+  }, [navigate]);
 
   useEffect(() => {
     const handleMessageUnread = (event) => {

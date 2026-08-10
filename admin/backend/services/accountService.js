@@ -5,6 +5,7 @@ const supabase = require('../config/supabase');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const { extractAvatarStoragePath, resolveAvatarUrl } = require('./avatarService');
 const pdCourseAssignmentService = require('./pdCourseAssignmentService');
+const adminSessionService = require('./adminSessionService');
 
 const ROLE_CONFIG = {
     admin: {
@@ -576,6 +577,20 @@ async function createStaffAccount(payload, actorUserId = null) {
     }
 }
 
+async function revokeStaffSessionVersion(client, userId) {
+    await client.query(
+        `UPDATE users
+         SET token_version = COALESCE(token_version, 1) + 1
+         WHERE user_id = $1`,
+        [userId]
+    );
+
+    // Admin accounts also have managed server-side sessions. Revoke those rows
+    // at the same time so an invalidated Admin session cannot occupy a device
+    // slot after the account is changed, archived, or restored.
+    await adminSessionService.revokeAllAdminSessionsForUser(client, userId);
+}
+
 async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -643,6 +658,9 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         const nextIsArchived = payload.is_archived !== undefined
             ? payload.is_archived === true
             : current.is_archived === true;
+
+        const sessionIdentityChanged =
+            roleChanged || nextIsArchived !== (current.is_archived === true);
 
         if (
             currentRole === 'ro_coordinator' &&
@@ -743,6 +761,10 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             );
         }
 
+        if (sessionIdentityChanged) {
+            await revokeStaffSessionVersion(client, userId);
+        }
+
         await client.query(
             `
             UPDATE admin_profiles
@@ -792,7 +814,15 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
 
         await client.query('COMMIT');
 
-        return getStaffAccountById(userId, true);
+        const updatedAccount = await getStaffAccountById(userId, true);
+        if (updatedAccount && sessionIdentityChanged) {
+            Object.defineProperty(updatedAccount, 'session_invalidated', {
+                value: true,
+                enumerable: false,
+            });
+        }
+
+        return updatedAccount;
     } catch (error) {
         await client.query('ROLLBACK');
 
@@ -853,6 +883,7 @@ async function archiveStaffAccount(userId, actorUserId = null) {
             `UPDATE admin_profiles SET is_archived = true WHERE user_id = $1`,
             [userId]
         );
+        await revokeStaffSessionVersion(client, userId);
         await pdCourseAssignmentService.releaseAssignments(userId, client);
         await client.query(
             `UPDATE ro_area_coordinators
@@ -896,6 +927,9 @@ async function restoreStaffAccount(userId) {
              WHERE user_id = $1`,
             [userId]
         );
+        // Restoring an account deliberately does not revive its old browser
+        // sessions. The user must sign in again and receive the new version.
+        await revokeStaffSessionVersion(client, userId);
         if (existing.role === 'ro_coordinator') {
             await syncStandaloneRoCoordinatorAssignment({
                 userId,

@@ -5,6 +5,7 @@ import pdmLogo from '../assets/pdm-logo.png';
 import { buildApiUrl } from '@/api';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { getLoginErrorMessage } from '@/utils/loginErrors';
+import { consumePortalSessionFeedback } from '@/utils/authStorage';
 
 export default function DepartmentPortalLogin({
   portalKey,
@@ -27,6 +28,7 @@ export default function DepartmentPortalLogin({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionFeedback] = useState(() => consumePortalSessionFeedback(portalKey));
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -152,6 +154,23 @@ export default function DepartmentPortalLogin({
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5" aria-busy={isLoading}>
+            {sessionFeedback ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className={
+                  sessionFeedback.tone === 'danger'
+                    ? 'rounded-xl border border-red-200 bg-red-50 p-3.5 text-red-700'
+                    : sessionFeedback.tone === 'warning'
+                      ? 'rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-800'
+                      : 'rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-blue-800'
+                }
+              >
+                <p className="text-xs font-bold">{sessionFeedback.title}</p>
+                <p className="mt-1 text-xs leading-5">{sessionFeedback.message}</p>
+              </div>
+            ) : null}
+
             {error ? (
               <div
                 role="alert"

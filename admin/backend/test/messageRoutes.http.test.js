@@ -6,10 +6,29 @@ const { EventEmitter } = require('node:events');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
+const staffSessionService = require('../services/staffSessionService');
+const originalAssertCurrentStaffSession = staffSessionService.assertCurrentStaffSession;
+staffSessionService.assertCurrentStaffSession = async ({ decoded = {} } = {}) => ({
+  user_id: decoded.userId || decoded.user_id || decoded.sub,
+  user_role: String(decoded.role || '').toLowerCase() === 'sdo' ? 'SDO' : 'Admin',
+  is_archived: false,
+  token_version: Number(decoded.token_version || 1),
+  role: String(decoded.role || '').toLowerCase(),
+});
+
+process.on('exit', () => {
+  staffSessionService.assertCurrentStaffSession = originalAssertCurrentStaffSession;
+});
+
 const messageServicePath = require.resolve('../services/messageService');
 const messageServiceStub = {
   fetchConversations: async () => [],
   fetchConversationMessages: async () => [],
+  fetchUserSummary: async (userId) => ({
+    user_id: userId,
+    display_name: 'Fixture User',
+    is_disabled: false,
+  }),
   markConversationRead: async () => [],
   sendMessage: async () => ({}),
   fetchRooms: async () => [],
@@ -161,6 +180,11 @@ test('GET /api/messages/conversations/:counterpartyId returns authenticated conv
   assert.equal(res.statusCode, 200);
   const body = JSON.parse(res.body);
   assert.equal(body.counterpartyId, 'user-2');
+  assert.deepEqual(body.counterparty, {
+    user_id: 'user-2',
+    name: 'Fixture User',
+    is_disabled: false,
+  });
   assert.deepEqual(body.items, [
     {
       message_id: 'msg-1',

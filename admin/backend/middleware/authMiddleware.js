@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const adminSessionService = require('../services/adminSessionService');
+const staffSessionService = require('../services/staffSessionService');
 
 const protect = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -24,6 +25,13 @@ const protect = async (req, res, next) => {
         };
         req.authToken = token;
 
+        // JWT verification alone is not sufficient for staff accounts. Always
+        // confirm that the account still exists, is active, still belongs to
+        // the same role family, and has the same token_version as the session.
+        req.staffAccount = await staffSessionService.assertCurrentStaffSession({
+            decoded: req.user,
+        });
+
         if (normalizedRole === 'admin') {
             if (!decoded.sid) {
                 return res.status(401).json({
@@ -42,6 +50,13 @@ const protect = async (req, res, next) => {
     } catch (err) {
         console.error('JWT/SESSION VERIFY ERROR:', err.message);
 
+        if (err instanceof staffSessionService.StaffSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
         if (err instanceof adminSessionService.AdminSessionError) {
             return res.status(err.statusCode).json({
                 code: err.code,
@@ -50,6 +65,7 @@ const protect = async (req, res, next) => {
         }
 
         return res.status(401).json({
+            code: 'TOKEN_INVALID',
             message: 'Token is not valid',
         });
     }

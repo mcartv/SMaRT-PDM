@@ -1,7 +1,7 @@
 const LOGIN_ERROR_MESSAGES = {
   INVALID_CREDENTIALS: 'The email or password is incorrect.',
   ACCOUNT_DEACTIVATED:
-    'This account has been deactivated. Contact an administrator.',
+    'Your account has been disabled by an administrator. Please contact the administrator for assistance.',
   WRONG_PORTAL:
     'This account does not have access to this portal. Choose the correct office portal.',
   NETWORK_ERROR:

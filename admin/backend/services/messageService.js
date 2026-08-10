@@ -59,6 +59,11 @@ async function getUserSummary(userId) {
       st.pdm_id AS student_number,
       st.profile_photo_url,
       CASE
+        WHEN st.student_id IS NOT NULL THEN COALESCE(st.is_archived, false)
+        WHEN ap.admin_id IS NOT NULL THEN COALESCE(ap.is_archived, false)
+        ELSE false
+      END AS is_disabled,
+      CASE
         WHEN st.student_id IS NOT NULL THEN TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, ''))
         WHEN ap.admin_id IS NOT NULL THEN TRIM(COALESCE(ap.first_name, '') || ' ' || COALESCE(ap.last_name, ''))
         ELSE COALESCE(u.email, 'Unknown User')
@@ -82,6 +87,7 @@ async function getUserSummary(userId) {
 
   return {
     ...row,
+    is_disabled: row.is_disabled === true,
     profile_photo_url: row.profile_photo_url || null,
     avatar_url: await resolveAvatarUrl(row.profile_photo_url),
   };
@@ -243,6 +249,7 @@ exports.fetchConversations = async (currentUserId) => {
       avatar_url: summary?.avatar_url || null,
       role: summary?.role || '',
       email: summary?.email || '',
+      is_disabled: summary?.is_disabled === true,
       last_message: row.message_body || '',
       subject: row.subject || '',
       last_sent_at: row.sent_at,
@@ -406,6 +413,9 @@ exports.sendMessage = async ({
   messageBody,
   attachmentUrl = null,
 }) => {
+  // Enforce disabled-recipient protection in the INSERT itself so a stale UI
+  // or direct API call cannot message an archived account. Historical messages
+  // remain untouched and continue to resolve the original display name.
   const result = await db.query(
     `
     INSERT INTO messages (
@@ -416,7 +426,18 @@ exports.sendMessage = async ({
       message_body,
       attachment_url
     )
-    VALUES ($1, $2, NULL, $3, $4, $5)
+    SELECT $1, $2, NULL, $3, $4, $5
+    WHERE EXISTS (
+      SELECT 1
+      FROM users recipient
+      LEFT JOIN students st
+        ON st.user_id = recipient.user_id
+      LEFT JOIN admin_profiles ap
+        ON ap.user_id = recipient.user_id
+      WHERE recipient.user_id = $2
+        AND COALESCE(st.is_archived, false) = false
+        AND COALESCE(ap.is_archived, false) = false
+    )
     RETURNING
       message_id,
       sender_id,
@@ -432,6 +453,20 @@ exports.sendMessage = async ({
   );
 
   const message = result.rows[0];
+
+  if (!message) {
+    const receiverSummary = await getUserSummary(receiverId);
+    const error = new Error(
+      receiverSummary?.is_disabled
+        ? 'This account is currently disabled. You can view previous messages, but you cannot send new messages to this account.'
+        : 'The selected message recipient is no longer available.'
+    );
+    error.statusCode = receiverSummary?.is_disabled ? 409 : 404;
+    error.code = receiverSummary?.is_disabled
+      ? 'RECIPIENT_ACCOUNT_DISABLED'
+      : 'RECIPIENT_NOT_FOUND';
+    throw error;
+  }
 
   await createPrivateReadStates(message.message_id, senderId, receiverId);
 
@@ -1010,6 +1045,7 @@ exports.fetchArchivedThreads = async (currentUserId) => {
       room_id: null,
       name: summary?.display_name || 'Unknown User',
       student_number: summary?.student_number || '',
+      is_disabled: summary?.is_disabled === true,
       avatar_url: summary?.avatar_url || null,
       profile_photo_url: summary?.profile_photo_url || null,
       last_message: lastMessage.message_body || '',
@@ -1082,3 +1118,5 @@ exports.restoreRoom = async (currentUserId, roomId) => {
     room_id: roomId,
   };
 };
+
+exports.fetchUserSummary = getUserSummary;

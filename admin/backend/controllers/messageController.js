@@ -854,7 +854,12 @@ exports.getConversations = async (req, res) => {
           'Unknown user'
         ) AS name,
         COALESCE(s.pdm_id, ap.department, INITCAP(COALESCE(u.role, 'staff'))) AS student_number,
-        s.profile_photo_url AS avatar_url
+        s.profile_photo_url AS avatar_url,
+        CASE
+          WHEN s.student_id IS NOT NULL THEN COALESCE(s.is_archived, false)
+          WHEN ap.admin_id IS NOT NULL THEN COALESCE(ap.is_archived, false)
+          ELSE false
+        END AS is_disabled
       FROM ranked r
       LEFT JOIN users u
         ON u.user_id = r.counterparty_id
@@ -884,6 +889,9 @@ exports.getConversations = async (req, res) => {
 
       avatarUrl: row.avatar_url || null,
       avatar_url: row.avatar_url || null,
+
+      isDisabled: row.is_disabled === true,
+      is_disabled: row.is_disabled === true,
 
       lastMessage: row.message_body || '',
       last_message: row.message_body || '',
@@ -915,14 +923,21 @@ exports.getConversationMessages = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const items = await messageService.fetchConversationMessages(
-      currentUserId,
-      counterpartyId
-    );
+    const [items, counterparty] = await Promise.all([
+      messageService.fetchConversationMessages(currentUserId, counterpartyId),
+      messageService.fetchUserSummary(counterpartyId),
+    ]);
 
     return res.json({
       counterpartyId,
       counterparty_id: counterpartyId,
+      counterparty: counterparty
+        ? {
+            user_id: counterparty.user_id,
+            name: counterparty.display_name || 'Unknown User',
+            is_disabled: counterparty.is_disabled === true,
+          }
+        : null,
       items,
       messages: items,
     });
@@ -1253,6 +1268,7 @@ exports.sendMessage = async (req, res) => {
     return res.status(getStatusCode(err)).json({
       message: 'Failed to send message',
       error: err.message,
+      code: err.code || 'MESSAGE_SEND_FAILED',
     });
   }
 };

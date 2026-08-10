@@ -50,6 +50,7 @@ function buildAdminUserQuery(photoEnabled = false) {
             u.username,
             u.role AS user_role,
             u.password_hash,
+            COALESCE(u.token_version, 1)::integer AS token_version,
             u.phone_number,
             a.admin_id,
             a.first_name,
@@ -86,6 +87,7 @@ function buildToken(profile, role) {
             email: profile.email,
             department: profile.department || null,
             position: profile.position || null,
+            token_version: Number(profile.token_version || 1),
         },
         process.env.JWT_SECRET,
         { expiresIn: '1d' }
@@ -315,6 +317,21 @@ exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
 exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
 exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');
 exports.roCoordinatorLogin = async (req, res) => loginWithRole(req, res, 'ro_coordinator');
+
+exports.getStaffSessionStatus = async (req, res) => {
+    return res.status(200).json({
+        active: true,
+        user_id:
+            req.staffAccount?.user_id ||
+            req.user?.user_id ||
+            req.user?.userId ||
+            req.user?.sub ||
+            null,
+        role: req.user?.role || null,
+        token_version: Number(req.staffAccount?.token_version || 1),
+        checked_at: new Date().toISOString(),
+    });
+};
 
 exports.resumeAdminSession = async (req, res) => {
     try {

@@ -19,6 +19,7 @@ import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
+import { clearPortalSession } from '../../utils/authStorage';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -105,6 +106,17 @@ export default function DepartmentPortalLayout({
     window.addEventListener('portal-profile:updated', handleProfileUpdated);
     return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
   }, [profileStorageKey]);
+
+  useEffect(() => {
+    const handleSessionInvalidated = (event) => {
+      if (event.detail?.portalName && event.detail.portalName !== portalKey) return;
+      clearPortalSession(portalKey);
+      navigate(loginPath, { replace: true });
+    };
+
+    window.addEventListener('portal-session:invalidated', handleSessionInvalidated);
+    return () => window.removeEventListener('portal-session:invalidated', handleSessionInvalidated);
+  }, [loginPath, navigate, portalKey]);
 
   useEffect(() => {
     const handleMessageUnread = (event) => {

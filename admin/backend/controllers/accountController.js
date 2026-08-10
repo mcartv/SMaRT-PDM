@@ -48,6 +48,54 @@ function emitAccountUpdate(req, action, account = null) {
     }
 }
 
+function disconnectAccountSockets(
+    req,
+    userId,
+    {
+        reason = 'account-session-invalidated',
+        code = 'SESSION_REVOKED',
+        message = 'Your session is no longer active. Please sign in again.',
+    } = {}
+) {
+    const normalizedUserId = String(userId || '').trim();
+    const io = req.app?.get?.('io');
+
+    if (!io || !normalizedUserId) return;
+
+    const room = `user:${normalizedUserId}`;
+    console.log(`[Socket] Disconnecting active sessions for user ${normalizedUserId}: ${reason}`);
+
+    // Deliver the invalidation reason before tearing down the transport. A
+    // previous fire-and-disconnect flow could race on fast local connections:
+    // the socket was closed before the browser processed the logout event.
+    // Socket.IO acknowledgements let the browser confirm receipt; the timeout
+    // remains a hard fallback so revoked sessions are never kept connected.
+    const payload = {
+        code,
+        message,
+        reason,
+        user_id: normalizedUserId,
+        invalidated_at: new Date().toISOString(),
+    };
+
+    let disconnected = false;
+    const hardDisconnect = () => {
+        if (disconnected) return;
+        disconnected = true;
+        io.in(room).disconnectSockets(true);
+    };
+
+    io.to(room)
+        .timeout(1500)
+        .emit('session:invalidated', payload, () => {
+            hardDisconnect();
+        });
+
+    // Defensive fallback in case an adapter/client never resolves the
+    // acknowledgement callback.
+    setTimeout(hardDisconnect, 1750);
+}
+
 function emitCreatedNotifications(req, notifications = []) {
     const io = req.app.get('io');
 
@@ -223,6 +271,16 @@ exports.updateStaffAccount = async (req, res) => {
         emitAccountUpdate(req, 'update', account);
         await notifyAdminManagedAccountChange(req, account, 'Updated');
 
+        if (account.session_invalidated === true) {
+            disconnectAccountSockets(req, account.user_id, {
+                reason: 'account-role-or-status-updated',
+                code: account.is_archived ? 'ACCOUNT_DEACTIVATED' : 'SESSION_REVOKED',
+                message: account.is_archived
+                    ? 'This account has been deactivated. Contact an administrator.'
+                    : 'Your account access has changed. Please sign in again.',
+            });
+        }
+
         return res.status(200).json({
             success: true,
             data: account,
@@ -269,6 +327,11 @@ exports.archiveStaffAccount = async (req, res) => {
 
         emitAccountUpdate(req, 'archive', account);
         await notifyAdminManagedAccountChange(req, account, 'Archived');
+        disconnectAccountSockets(req, account.user_id, {
+            reason: 'account-archived',
+            code: 'ACCOUNT_DEACTIVATED',
+            message: 'This account has been deactivated. Contact an administrator.',
+        });
 
         return res.status(200).json({
             success: true,
@@ -313,6 +376,11 @@ exports.restoreStaffAccount = async (req, res) => {
 
         emitAccountUpdate(req, 'restore', account);
         await notifyAdminManagedAccountChange(req, account, 'Restored');
+        disconnectAccountSockets(req, account.user_id, {
+            reason: 'account-restored-login-required',
+            code: 'SESSION_REVOKED',
+            message: 'This account was restored. Please sign in again with a fresh session.',
+        });
 
         return res.status(200).json({
             success: true,

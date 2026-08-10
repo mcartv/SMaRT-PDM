@@ -1964,6 +1964,10 @@ function StudentCard({ application, onViewSlip }) {
             <InfoRow label="GWA Score" value={application?.student?.gwa} mono />
           </div>
           <InfoRow label="Course / Program" value={application?.student?.course} />
+          <InfoRow
+            label="Marilao Resident"
+            value={application?.student?.marilao_resident === true ? 'True' : 'False'}
+          />
           <InfoRow label="Document Status" value={application?.document_status} />
         </div>
       </div>

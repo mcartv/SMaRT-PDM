@@ -63,3 +63,13 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.doesNotMatch(source, /onSaveRawOcr|onRawOcrChange|Save OCR Snapshot/);
     assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency'\]\.includes/);
 });
+
+test('student summary displays confirmed Marilao residency as true or false', () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
+        'utf8'
+    );
+
+    assert.match(source, /label="Marilao Resident"/);
+    assert.match(source, /marilao_resident === true \? 'True' : 'False'/);
+});

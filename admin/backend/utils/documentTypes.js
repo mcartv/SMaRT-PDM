@@ -15,6 +15,9 @@ const DOCUMENT_TYPE_ALIASES = {
 
     certificate_of_indigency: 'certificate_of_indigency',
     indigency: 'certificate_of_indigency',
+    barangay_certificate: 'certificate_of_indigency',
+    certificate_of_residency: 'certificate_of_indigency',
+    barangay_clearance: 'certificate_of_indigency',
 
     lor: 'letter_of_request',
     letter_of_request: 'letter_of_request',

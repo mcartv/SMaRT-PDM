@@ -7,6 +7,7 @@ const _ = require('lodash');
 const iotOcrRequestService = require('./iotOcrRequestService');
 const documentTypes = require('../utils/documentTypes');
 const readinessQueueService = require('./readinessQueueService');
+const { resolveMarilaoResidency } = require('../utils/marilaoResidency');
 const {
     isRequestBoundSnapshotFresh,
 } = require('../utils/iotOcrSnapshotFreshness');
@@ -130,6 +131,9 @@ const DOCUMENT_TYPE_ALIASES = {
 
     certificate_of_indigency: 'certificate_of_indigency',
     indigency: 'certificate_of_indigency',
+    barangay_certificate: 'certificate_of_indigency',
+    certificate_of_residency: 'certificate_of_indigency',
+    barangay_clearance: 'certificate_of_indigency',
 
     lor: 'letter_of_request',
     letter_of_request: 'letter_of_request',
@@ -1195,6 +1199,7 @@ async function buildApplicationDetails(applicationId) {
         reviewsResult,
         ocrResult,
         iotOcrRequestsResult,
+        iotOcrReviewsResult,
     ] = await Promise.all([
         supabase
             .from('student_profiles')
@@ -1267,6 +1272,11 @@ async function buildApplicationDetails(applicationId) {
             `)
             .eq('application_id', applicationId)
             .order('created_at', { ascending: false }),
+        supabase
+            .from('iot_ocr_reviews')
+            .select('document_key, verified_fields, reviewed_at')
+            .eq('application_id', applicationId)
+            .order('reviewed_at', { ascending: false }),
     ]);
 
     const resultErrors = [
@@ -1277,6 +1287,7 @@ async function buildApplicationDetails(applicationId) {
         reviewsResult.error,
         ocrResult.error,
         iotOcrRequestsResult.error,
+        iotOcrReviewsResult.error,
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
@@ -1441,6 +1452,7 @@ async function buildApplicationDetails(applicationId) {
     const documents = ensureDocumentCoverage(normalizedDocuments);
 
     const readiness = await fetchApplicationReadiness(applicationId);
+    const marilaoResident = resolveMarilaoResidency(iotOcrReviewsResult.data || []);
 
     return {
         id: applicationRecord.application_id,
@@ -1479,6 +1491,7 @@ async function buildApplicationDetails(applicationId) {
             benefactor_name: benefactor.benefactor_name || 'N/A',
             course: courseCode,
             barangay: profile?.barangay || 'N/A',
+            marilao_resident: marilaoResident,
         },
         student_profile: profile,
         family_members: familyMembersResult.data || [],

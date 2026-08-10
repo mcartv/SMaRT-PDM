@@ -2623,7 +2623,8 @@ export default function DocumentVerification() {
     const request = getActiveIotRequest(activeDoc);
     const requestStatus = String(request?.status || '').toLowerCase();
     const shouldLoadCandidate = requestStatus === 'review_required' || (
-      activeDoc?.id === 'student_grade_forms' && requestStatus === 'completed'
+      ['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id)
+      && requestStatus === 'completed'
     );
     if (!activeDoc || !shouldLoadCandidate) {
       return;

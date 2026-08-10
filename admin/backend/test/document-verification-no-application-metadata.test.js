@@ -64,6 +64,10 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency'\]\.includes/);
     assert.match(source, /\['residency_address', 'Full Address'\]/);
     assert.match(source, /aria-label="Verified full residence address"/);
+    assert.match(
+        source,
+        /\['student_grade_forms', 'certificate_of_indigency'\]\.includes\(activeDoc\?\.id\)[\s\S]*?requestStatus === 'completed'/
+    );
 });
 
 test('student summary displays confirmed Marilao residency as true or false', () => {

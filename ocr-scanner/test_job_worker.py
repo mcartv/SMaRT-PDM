@@ -239,7 +239,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["source_payload"]["mode"], "interactive_camera")
 
     @patch("job_worker.extract_indigency_core_fields")
-    def test_indigency_uses_generic_ocr_then_existing_structured_extractor(self, extract):
+    def test_indigency_skips_generic_ocr_and_uses_one_structured_pass(self, extract):
         extract.return_value = _indigency_result()
 
         success, payload = job_worker.run_scan(
@@ -247,10 +247,12 @@ class JobWorkerTest(unittest.TestCase):
         )
 
         self.assertTrue(success)
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
         self.load_image.assert_called_once_with(CAPTURE_PATH)
         extract.assert_called_once()
         self.assertEqual(payload["status"], "review_required")
+        self.assertTrue(payload["source_payload"]["generic_ocr_skipped"])
+        self.assertEqual(payload["source_payload"]["generic_ocr_seconds"], 0.0)
         self.assertEqual(
             set(payload["extracted_fields"]["fields"]),
             {
@@ -368,7 +370,7 @@ class JobWorkerTest(unittest.TestCase):
         )
 
     @patch("job_worker.extract_indigency_core_fields")
-    def test_indigency_structured_failure_keeps_usable_raw_ocr(self, extract):
+    def test_indigency_structured_failure_does_not_run_generic_fallback(self, extract):
         extract.return_value = _indigency_result(
             status="failed",
             success=False,
@@ -379,9 +381,10 @@ class JobWorkerTest(unittest.TestCase):
             self.request("certificate_of_indigency")
         )
 
-        self.assertTrue(success)
-        self.assertEqual(payload["status"], "review_required")
-        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertFalse(success)
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["raw_text"], "")
+        self.generic_ocr.assert_not_called()
         self.assertEqual(payload["source_payload"]["ocr_status"], "failed")
         self.assertEqual(
             payload["source_payload"]["ocr_issue_codes"],
@@ -389,15 +392,16 @@ class JobWorkerTest(unittest.TestCase):
         )
 
     @patch("job_worker.extract_indigency_core_fields")
-    def test_indigency_extractor_exception_keeps_safe_fallback(self, extract):
+    def test_indigency_extractor_exception_fails_without_second_ocr(self, extract):
         extract.side_effect = RuntimeError("sensitive internals")
 
         success, payload = job_worker.run_scan(
             self.request("certificate_of_indigency")
         )
 
-        self.assertTrue(success)
-        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertFalse(success)
+        self.assertEqual(payload["raw_text"], "")
+        self.generic_ocr.assert_not_called()
         self.assertEqual(
             payload["source_payload"]["ocr_issue_codes"],
             ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"],
@@ -413,15 +417,16 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["raw_text"], "")
 
     @patch("job_worker.extract_indigency_core_fields")
-    def test_indigency_missing_capture_image_keeps_raw_review(self, extract):
+    def test_indigency_missing_capture_image_fails_without_generic_ocr(self, extract):
         self.load_image.return_value = None
 
         success, payload = job_worker.run_scan(
             self.request("certificate_of_indigency")
         )
 
-        self.assertTrue(success)
+        self.assertFalse(success)
         extract.assert_not_called()
+        self.generic_ocr.assert_not_called()
         self.assertEqual(
             payload["source_payload"]["ocr_issue_codes"],
             ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"],

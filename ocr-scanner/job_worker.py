@@ -666,67 +666,72 @@ def _run_generic_document_scan(
     document_type = str(build_document_type(request))
 
     processing_started_at = time.monotonic()
-    raw_text, corrected_text = _run_generic_ocr(capture_path)
-    generic_ocr_seconds = time.monotonic() - processing_started_at
-    log.info(
-        "Whole-document OCR finished request=%s document=%s seconds=%.1f",
-        _safe_request_ref(request_id),
-        document_key,
-        generic_ocr_seconds,
-    )
+    indigency_job = _is_indigency_job(request)
+    if indigency_job:
+        # The structured extractor already performs one full-page image_to_data
+        # pass and builds the immutable raw snapshot from those same fields.
+        # Avoid a second whole-page Tesseract pass for the same capture.
+        raw_text = ""
+        corrected_text = ""
+        generic_ocr_seconds = 0.0
+    else:
+        raw_text, corrected_text = _run_generic_ocr(capture_path)
+        generic_ocr_seconds = time.monotonic() - processing_started_at
+        log.info(
+            "Whole-document OCR finished request=%s document=%s seconds=%.1f",
+            _safe_request_ref(request_id),
+            document_key,
+            generic_ocr_seconds,
+        )
     extracted_fields = build_extracted_fields(document_key, raw_text)
     contract = get_contract(document_key)
-    if raw_text:
+    if indigency_job:
+        status = "processing"
+        error_message = None
+    elif raw_text:
         status = "review_required"
         error_message = None
     else:
         status = "failed"
         error_message = "OCR scan failed or returned empty raw_text."
 
-    if _is_indigency_job(request):
+    if indigency_job:
         extraction_result = None
         extraction_status = "not_started"
         extraction_issue_codes: list[str] = []
         extraction_seconds = 0.0
-        if status == "review_required":
-            try:
-                source_image = _load_registered_image(capture_path)
-                if source_image is None:
-                    extraction_status = "failed"
-                    extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
-                else:
-                    extraction_started_at = time.monotonic()
-                    extraction_result = extract_indigency_core_fields(
-                        source_image,
-                        field_reader=_fast_indigency_field_reader,
-                        config=IndigencyExtractionConfig(
-                            fast_mode=FAST_REVIEW_OCR_ENABLED,
-                            maximum_detection_width=INDIGENCY_MAX_WIDTH,
-                            ocr_timeout_seconds=INDIGENCY_OCR_TIMEOUT_SECONDS,
-                        ),
-                    )
-                    extraction_seconds = (
-                        time.monotonic() - extraction_started_at
-                    )
-                    log.info(
-                        "Indigency structured OCR finished "
-                        "request=%s seconds=%.1f fast_mode=%s",
-                        _safe_request_ref(request_id),
-                        extraction_seconds,
-                        FAST_REVIEW_OCR_ENABLED,
-                    )
-                    extraction_status = str(
-                        getattr(extraction_result, "status", "failed") or "failed"
-                    )
-                    extraction_issue_codes = _issue_codes(extraction_result)
-            except Exception:
-                extraction_result = None
+        try:
+            source_image = _load_registered_image(capture_path)
+            if source_image is None:
                 extraction_status = "failed"
-                extraction_issue_codes = ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"]
-
-            # Usable whole-document OCR remains the authoritative scan outcome.
-            status = "review_required"
-            error_message = None
+                extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
+            else:
+                extraction_started_at = time.monotonic()
+                extraction_result = extract_indigency_core_fields(
+                    source_image,
+                    field_reader=_fast_indigency_field_reader,
+                    config=IndigencyExtractionConfig(
+                        fast_mode=FAST_REVIEW_OCR_ENABLED,
+                        maximum_detection_width=INDIGENCY_MAX_WIDTH,
+                        ocr_timeout_seconds=INDIGENCY_OCR_TIMEOUT_SECONDS,
+                    ),
+                )
+                extraction_seconds = time.monotonic() - extraction_started_at
+                log.info(
+                    "Indigency structured OCR finished "
+                    "request=%s seconds=%.1f fast_mode=%s",
+                    _safe_request_ref(request_id),
+                    extraction_seconds,
+                    FAST_REVIEW_OCR_ENABLED,
+                )
+                extraction_status = str(
+                    getattr(extraction_result, "status", "failed") or "failed"
+                )
+                extraction_issue_codes = _issue_codes(extraction_result)
+        except Exception:
+            extraction_result = None
+            extraction_status = "failed"
+            extraction_issue_codes = ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"]
 
         extracted_fields = build_indigency_extracted_fields_from_result(
             raw_text,
@@ -787,6 +792,7 @@ def _run_generic_document_scan(
                 "raw_text_mode": "structured_ocr_fields_only",
                 "structured_raw_text_consistent": bool(raw_text),
                 "generic_page_text_persisted": False,
+                "generic_ocr_skipped": True,
                 "generic_ocr_seconds": round(generic_ocr_seconds, 3),
                 "structured_ocr_seconds": round(extraction_seconds, 3),
                 "processing_seconds": round(

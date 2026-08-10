@@ -43,6 +43,108 @@ def _confidence(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2) if values else None
 
 
+def _field(value: str) -> dict[str, str]:
+    cleaned = " ".join(str(value or "").strip(" :-,|").split())
+    return {
+        "raw_text": cleaned,
+        "normalized_value": cleaned,
+    }
+
+
+def _valid_direct_value(field_key: str, value: str) -> bool:
+    cleaned = " ".join(str(value or "").strip().split())
+    if not cleaned:
+        return False
+    if field_key == "student_number":
+        return bool(re.fullmatch(r"(?:PDM-?)?\d{4}-\d{4,7}", cleaned, re.I))
+    if field_key == "academic_year":
+        return bool(re.fullmatch(r"\d{4}\s*[-–]\s*\d{4}", cleaned))
+    if field_key == "gwa":
+        return bool(re.fullmatch(r"[1-5](?:\.\d{1,2})?", cleaned))
+    forbidden_labels = (
+        "student number",
+        "student name",
+        "academic year",
+        "grade for the period",
+    )
+    return not any(label in cleaned.casefold() for label in forbidden_labels)
+
+
+def _extract_layout_fields(
+    full_text: str,
+) -> dict[str, str]:
+    """Extract values from forms whose header labels and values are separate."""
+
+    extracted: dict[str, str] = {}
+    normalized = " ".join(full_text.split())
+
+    number_match = re.search(
+        r"\b((?:PDM[-\s]?)?\d{4}[-\s]\d{4,7})\b",
+        normalized,
+        re.I,
+    )
+    if number_match:
+        extracted["student_number"] = re.sub(
+            r"\s+",
+            "-",
+            number_match.group(1).upper(),
+        )
+
+    header_match = re.search(
+        r"STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s+"
+        r"(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+"
+        r"(?P<identity>.+?)\s+COPY\s+OF\s+GRADE\b",
+        normalized,
+        re.I,
+    )
+    if header_match:
+        identity = header_match.group("identity").strip(" :-,|")
+        identity_match = re.match(
+            r"(?P<name>.+?)\s+(?P<course>(?:BS|AB|B)[A-Z][A-Z0-9.\-]{1,12})$",
+            identity,
+            re.I,
+        )
+        if identity_match:
+            extracted["student_name"] = " ".join(
+                identity_match.group("name").replace(" ,", ",").split()
+            )
+            extracted["course"] = identity_match.group("course").upper()
+
+    period_match = re.search(
+        r"GRADE\s+FOR\s+THE\s+PERIOD\s*[:\-]?\s*"
+        r"(?P<semester>1ST|2ND|FIRST|SECOND|SUMMER)?"
+        r"(?:\s+SEMESTER)?\s+"
+        r"(?P<year>\d{4}\s*[-–]\s*\d{4})",
+        normalized,
+        re.I,
+    )
+    if period_match:
+        semester = str(period_match.group("semester") or "").strip()
+        if semester:
+            extracted["semester"] = {
+                "1ST": "1st Semester",
+                "2ND": "2nd Semester",
+                "FIRST": "First Semester",
+                "SECOND": "Second Semester",
+                "SUMMER": "Summer",
+            }[semester.upper()]
+        extracted["academic_year"] = re.sub(
+            r"\s*[-–]\s*",
+            "-",
+            period_match.group("year"),
+        )
+
+    gwa_match = re.search(
+        r"\bGWA\s*[:\-]?\s*([1-5](?:\.\d{1,2})?)\b",
+        normalized,
+        re.I,
+    )
+    if gwa_match:
+        extracted["gwa"] = gwa_match.group(1)
+
+    return extracted
+
+
 def scan_grade_form(image_path: str) -> GradeFormResult:
     processed = fast_preprocess(image_path)
     if processed is None:
@@ -63,6 +165,7 @@ def scan_grade_form(image_path: str) -> GradeFormResult:
 
     lines: dict[tuple[int, int, int], list[tuple[str, float]]] = defaultdict(list)
     all_words: list[str] = []
+    all_confidences: list[float] = []
     for index, word in enumerate(data.get("text", [])):
         text = str(word or "").strip()
         try:
@@ -78,6 +181,7 @@ def scan_grade_form(image_path: str) -> GradeFormResult:
         )
         lines[key].append((text, confidence))
         all_words.append(text)
+        all_confidences.append(confidence)
 
     fields: dict[str, Any] = {"subjects": []}
     confidences: dict[str, float | None] = {}
@@ -90,19 +194,27 @@ def scan_grade_form(image_path: str) -> GradeFormResult:
             if not match:
                 continue
             value = match.group(1).strip(" :-")
-            if value:
+            if _valid_direct_value(field_key, value):
                 fields[field_key] = {
                     "raw_text": value,
                     "normalized_value": value,
                 }
                 confidences[field_key] = _confidence([confidence for _, confidence in words])
 
+    raw_text = "\n".join(" ".join(word for word, _ in line) for line in lines.values())
+    fallback_confidence = _confidence(all_confidences)
+    for field_key, value in _extract_layout_fields(raw_text).items():
+        if field_key in fields or not value:
+            continue
+        fields[field_key] = _field(value)
+        confidences[field_key] = fallback_confidence
+
     anchors = sum(key in fields for key in FIELD_PATTERNS)
     matched = anchors >= 3 and "gwa" in fields
     if not matched:
         return GradeFormResult(
             False,
-            " ".join(all_words),
+            raw_text or " ".join(all_words),
             {},
             {},
             [{
@@ -121,4 +233,4 @@ def scan_grade_form(image_path: str) -> GradeFormResult:
             fields[key] = {"raw_text": "", "normalized_value": ""}
             confidences[key] = None
 
-    return GradeFormResult(True, "\n".join(" ".join(w for w, _ in line) for line in lines.values()), fields, confidences, issues)
+    return GradeFormResult(True, raw_text, fields, confidences, issues)

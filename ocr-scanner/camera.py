@@ -49,10 +49,10 @@ class CameraController:
 
         try:
             configured_lens_position = float(
-                os.getenv("CAMERA_FIXED_LENS_POSITION", "2.0")
+                os.getenv("CAMERA_FIXED_LENS_POSITION", "2.25")
             )
         except ValueError:
-            configured_lens_position = 2.0
+            configured_lens_position = 2.25
         self.fixed_lens_position = max(
             2.0,
             min(20.0, configured_lens_position),

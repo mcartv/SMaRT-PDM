@@ -180,7 +180,7 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
             source.index("def cleanup")
         ]
 
-        self.assertEqual(controller.fixed_lens_position, 2.0)
+        self.assertEqual(controller.fixed_lens_position, 2.25)
         self.assertNotIn("_coarse_sweep", capture)
         self.assertNotIn("_refine_position", capture)
         self.assertNotIn("_try_native_autofocus", capture)

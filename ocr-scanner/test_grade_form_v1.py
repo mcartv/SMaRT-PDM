@@ -63,6 +63,33 @@ class GradeFormPipelineTests(unittest.TestCase):
         self.assertEqual(result.fields, {})
         self.assertEqual(result.field_confidence, {})
 
+    @patch("pipeline.grade_form_v1.pytesseract.image_to_data")
+    @patch("pipeline.grade_form_v1.fast_preprocess")
+    def test_separate_header_labels_extract_visible_grade_form_values(
+        self,
+        preprocess,
+        image_to_data,
+    ):
+        preprocess.return_value = object()
+        image_to_data.return_value = tesseract_data([
+            [("STUDENT", 91), ("NUMBER", 92), ("STUDENT", 90), ("NAME", 93), ("COURSE", 94)],
+            [("PDM-2023-003137", 96), ("Pelima,", 92), ("Venice", 93), ("Eve", 91), ("BSIT", 95)],
+            [("COPY", 90), ("OF", 91), ("GRADE", 94), ("FOR", 92), ("THE", 93), ("PERIOD:", 91), ("1st", 94), ("2023-2024", 96)],
+            [("IT", 90), ("411", 91), ("3", 92), ("1.75", 95), ("PASSED", 94)],
+            [("GWA:", 97), ("1.59", 98)],
+        ])
+
+        result = scan_grade_form("capture.jpg")
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.fields["student_number"]["normalized_value"], "PDM-2023-003137")
+        self.assertEqual(result.fields["student_name"]["normalized_value"], "Pelima, Venice Eve")
+        self.assertEqual(result.fields["course"]["normalized_value"], "BSIT")
+        self.assertEqual(result.fields["semester"]["normalized_value"], "1st Semester")
+        self.assertEqual(result.fields["academic_year"]["normalized_value"], "2023-2024")
+        self.assertEqual(result.fields["gwa"]["normalized_value"], "1.59")
+        self.assertIsNotNone(result.field_confidence["student_name"])
+
 
 if __name__ == "__main__":
     unittest.main()

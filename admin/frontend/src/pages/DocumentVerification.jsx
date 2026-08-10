@@ -1488,7 +1488,7 @@ function OCRPanel({
           </div>
         )}
 
-        <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+        {activeDoc?.id !== 'student_grade_forms' && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ScanText className="w-4 h-4 text-stone-600" />
             <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
@@ -1547,7 +1547,7 @@ function OCRPanel({
           ) : (
             <p className="text-sm text-stone-500">No structured fields extracted.</p>
           )}
-        </div>
+        </div>}
 
         {extractedData?.documentValidation?.shouldShow ? (
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">

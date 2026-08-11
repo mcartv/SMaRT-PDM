@@ -10,7 +10,7 @@ export const guidanceMaintenanceConfig = {
     phone_number: '',
     position: 'Guidance Counselor',
     department: 'Guidance Office',
-    role: 'Guidance Staff',
+    role: 'Guidance Officer',
   },
 };
 

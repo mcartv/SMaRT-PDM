@@ -21,7 +21,7 @@ const ROLE_CONFIG = {
     guidance: {
         dbRole: 'Admin',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Staff',
+        position: 'Guidance Officer',
     },
     sdo: {
         dbRole: 'SDO',
@@ -448,7 +448,7 @@ async function getCurrentStaffProfile(userId) {
     const row = await fetchStaffAccountRow(userId, db, false);
 
     if (!row) {
-        throw createHttpError(404, 'Staff profile not found.');
+        throw createHttpError(404, 'Account profile not found.');
     }
 
     return decorateStaffAccount(row);
@@ -1057,7 +1057,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
         const currentProfile = await fetchStaffAccountRow(userId, client, false);
 
         if (!currentProfile) {
-            throw createHttpError(404, 'Staff profile not found.');
+            throw createHttpError(404, 'Account profile not found.');
         }
 
         const duplicateEmailResult = await client.query(
@@ -1140,7 +1140,7 @@ async function verifyCurrentStaffPassword(userId, payload = {}) {
 
     const passwordHash = result.rows[0]?.password_hash || '';
     if (!passwordHash) {
-        throw createHttpError(404, 'Staff account not found.');
+        throw createHttpError(404, 'Account not found.');
     }
 
     const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
@@ -1177,7 +1177,7 @@ async function changeCurrentStaffPassword(userId, payload = {}) {
 
     const passwordHash = result.rows[0]?.password_hash || '';
     if (!passwordHash) {
-        throw createHttpError(404, 'Staff account not found.');
+        throw createHttpError(404, 'Account not found.');
     }
 
     const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
@@ -1217,7 +1217,7 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     const photoEnabled = await hasAdminProfilePhotoColumn();
 
     if (!photoEnabled) {
-        throw createHttpError(400, 'Profile photo upload is not enabled yet for staff accounts.');
+        throw createHttpError(400, 'Profile photo upload is not enabled yet for these accounts.');
     }
 
     const currentProfile = await getCurrentStaffProfile(userId);
@@ -1263,7 +1263,7 @@ async function removeCurrentStaffProfilePhoto(userId) {
     const photoEnabled = await hasAdminProfilePhotoColumn();
 
     if (!photoEnabled) {
-        throw createHttpError(400, 'Profile photo removal is not enabled yet for staff accounts.');
+        throw createHttpError(400, 'Profile photo removal is not enabled yet for these accounts.');
     }
 
     const currentProfile = await getCurrentStaffProfile(userId);

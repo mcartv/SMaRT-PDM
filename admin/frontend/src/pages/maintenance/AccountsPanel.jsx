@@ -71,7 +71,7 @@ const ROLE_OPTIONS = [
         value: 'guidance',
         label: 'GCO',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Staff',
+        position: 'Guidance Officer',
     },
     {
         value: 'sdo',
@@ -517,7 +517,7 @@ function PasswordInput({ label, value, onChange, placeholder = '', disabled = fa
     );
 }
 
-function StaffCreateModal({
+function AccountCreateModal({
     open,
     form,
     saving,
@@ -836,7 +836,7 @@ function AdminCreateModal({
     );
 }
 
-function StaffEditModal({
+function AccountEditModal({
     open,
     form,
     setForm,
@@ -888,7 +888,7 @@ function StaffEditModal({
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">
-                        Update Staff Account
+                        Update Account
                     </h3>
 
                     <button
@@ -1066,7 +1066,7 @@ function StaffEditModal({
     );
 }
 
-function StaffProfileModal({ account, onClose, onEdit }) {
+function AccountProfileModal({ account, onClose, onEdit }) {
     if (!account) return null;
 
     const roleLabel = ROLE_OPTIONS.find((role) => role.value === account.role)?.label || account.role;
@@ -1083,13 +1083,13 @@ function StaffProfileModal({ account, onClose, onEdit }) {
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
-                        <p className="text-sm font-semibold text-stone-900">Staff Profile</p>
+                        <p className="text-sm font-semibold text-stone-900">Account Profile</p>
                         <p className="mt-0.5 text-xs text-stone-500">Account and assignment information</p>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
-                        aria-label="Close staff profile"
+                        aria-label="Close account profile"
                         className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
                     >
                         <X className="h-4 w-4" />
@@ -1280,7 +1280,7 @@ export default function AccountsPanel() {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to load staff accounts.'
+                    'Failed to load accounts.'
                 );
             }
             if (!courseResponse.ok) throw new Error(courseData.message || 'Failed to load courses.');
@@ -1290,7 +1290,7 @@ export default function AccountsPanel() {
             setCourses((Array.isArray(courseData) ? courseData : []).filter((course) => !course.is_archived));
             setRoAreas(Array.isArray(roAreaData.items) ? roAreaData.items : []);
         } catch (err) {
-            setError(err.message || 'Failed to load staff accounts.');
+            setError(err.message || 'Failed to load accounts.');
         } finally {
             setLoading(false);
         }
@@ -1550,7 +1550,7 @@ export default function AccountsPanel() {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to update staff account.'
+                    'Failed to update account.'
                 );
             }
 
@@ -1560,7 +1560,7 @@ export default function AccountsPanel() {
             setEditForm(DEFAULT_FORM);
             toast.success('Account updated', { description: 'Account details and course assignments were saved.' });
         } catch (err) {
-            setEditError(err.message || 'Failed to update staff account.');
+            setEditError(err.message || 'Failed to update account.');
         } finally {
             setUpdating(false);
         }
@@ -1611,7 +1611,7 @@ export default function AccountsPanel() {
 
     return (
         <div className="space-y-4">
-            <StaffCreateModal
+            <AccountCreateModal
                 open={createOpen}
                 form={form}
                 saving={saving}
@@ -1634,7 +1634,7 @@ export default function AccountsPanel() {
                 onSubmit={handleAdminSubmit}
             />
 
-            <StaffEditModal
+            <AccountEditModal
                 open={editOpen}
                 form={editForm}
                 setForm={setEditForm}
@@ -1648,7 +1648,7 @@ export default function AccountsPanel() {
                 currentUserId={editingAccountId}
             />
 
-            <StaffProfileModal
+            <AccountProfileModal
                 account={profileAccount}
                 onClose={() => setProfileAccount(null)}
                 onEdit={(account) => {
@@ -1663,7 +1663,7 @@ export default function AccountsPanel() {
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Staff Account Records
+                                    Account Records
                                 </p>
                                 <p className="mt-1 text-sm font-semibold text-stone-900">
                                     {currentCount} active · {archivedCount} archived
@@ -1726,7 +1726,7 @@ export default function AccountsPanel() {
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
                                                 <p className="text-sm font-semibold text-stone-900">Filter Accounts</p>
-                                                <p className="mt-0.5 text-xs text-stone-500">Narrow the staff registry.</p>
+                                                <p className="mt-0.5 text-xs text-stone-500">Narrow the account registry.</p>
                                             </div>
                                             {(roleFilter !== 'all' || courseFilter !== 'all') ? (
                                                 <button
@@ -1756,7 +1756,7 @@ export default function AccountsPanel() {
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="all">All Staff</SelectItem>
+                                                        <SelectItem value="all">All Accounts</SelectItem>
                                                         <SelectItem value="admin">Admin</SelectItem>
                                                         <SelectItem value="office">Office (SDO/GCO)</SelectItem>
                                                         <SelectItem value="pd">Program Director</SelectItem>
@@ -1848,7 +1848,7 @@ export default function AccountsPanel() {
                     {loading ? (
                         <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
                             <Loader2 className="h-5 w-5 animate-spin" />
-                            Loading staff accounts...
+                            Loading accounts...
                         </div>
                     ) : error ? (
                         <div className="m-4 flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-4 py-6 text-center text-xs text-red-700">
@@ -1861,12 +1861,12 @@ export default function AccountsPanel() {
                                 icon={UsersRound}
                                 title={
                                     pageTab === 'archived'
-                                        ? 'No archived staff accounts'
-                                        : 'No staff accounts found'
+                                        ? 'No archived accounts'
+                                        : 'No accounts found'
                                 }
                                 subtitle={
                                     pageTab === 'archived'
-                                        ? 'Archived staff accounts will appear here.'
+                                        ? 'Archived accounts will appear here.'
                                         : 'Create the first department account using Create Account.'
                                 }
                             />

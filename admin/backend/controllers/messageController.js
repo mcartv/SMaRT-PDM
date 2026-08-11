@@ -1412,7 +1412,7 @@ exports.createRoom = async (req, res) => {
     }
 
     if (!isAdminLike(req)) {
-      return res.status(403).json({ message: 'Staff messaging access is required.' });
+      return res.status(403).json({ message: 'Account messaging access is required.' });
     }
 
     const roomName =
@@ -1977,7 +1977,7 @@ exports.getMessagingContacts = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
     if (!isAdminLike(req)) {
-      return res.status(403).json({ message: 'Staff messaging access is required.' });
+      return res.status(403).json({ message: 'Account messaging access is required.' });
     }
 
     const studentParams = [currentUserId];
@@ -2060,7 +2060,7 @@ exports.getMessagingContacts = async (req, res) => {
     }));
 
     const staffItems = staffResult.rows.map((row) => {
-      const name = [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Staff Account';
+      const name = [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Account';
       const roleLabel = String(row.role || 'staff')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (character) => character.toUpperCase());
@@ -2079,8 +2079,8 @@ exports.getMessagingContacts = async (req, res) => {
         studentName: name,
         avatar_url: row.profile_photo_url,
         avatarUrl: row.profile_photo_url,
-        program_name: row.department || 'Staff Office',
-        programName: row.department || 'Staff Office',
+        program_name: row.department || 'Office',
+        programName: row.department || 'Office',
         benefactor_name: roleLabel,
         benefactorName: roleLabel,
         role: row.role,

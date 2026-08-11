@@ -15,7 +15,7 @@ export default function GuidanceProfile() {
       portalName="Guidance"
       positionFallback="Guidance Counselor"
       departmentFallback="Guidance Office"
-      roleFallback="Guidance Staff"
+      roleFallback="Guidance Officer"
       avatarTone="#1f4e79"
       bio="Handles moral standing review, counseling holds, and guidance-side endorsement decisions inside the SMaRT-PDM platform."
       accountConfig={guidanceMaintenanceConfig}

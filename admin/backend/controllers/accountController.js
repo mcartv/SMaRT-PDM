@@ -294,7 +294,7 @@ exports.getStaffAccounts = async (req, res) => {
         });
     } catch (err) {
         console.error('GET STAFF ACCOUNTS ERROR:', err);
-        return sendError(res, err, 'Failed to load staff accounts');
+        return sendError(res, err, 'Failed to load accounts');
     }
 };
 
@@ -308,7 +308,7 @@ exports.createStaffAccount = async (req, res) => {
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account?.user_id || null,
-            description: `Created staff account for ${account?.email || 'unknown email'}.`,
+            description: `Created account for ${account?.email || 'unknown email'}.`,
             metadata: {
                 user_id: account?.user_id || null,
                 email: account?.email || null,
@@ -326,11 +326,11 @@ exports.createStaffAccount = async (req, res) => {
         return res.status(201).json({
             success: true,
             data: account,
-            message: 'Staff account created successfully.',
+            message: 'Account created successfully.',
         });
     } catch (err) {
         console.error('CREATE STAFF ACCOUNT ERROR:', err);
-        return sendError(res, err, 'Failed to create staff account');
+        return sendError(res, err, 'Failed to create account');
     }
 };
 
@@ -377,9 +377,9 @@ exports.updateStaffAccount = async (req, res) => {
         if (!account) {
             return res.status(404).json({
                 success: false,
-                message: 'Staff account not found.',
+                message: 'Account not found.',
                 error: {
-                    message: 'Staff account not found.',
+                    message: 'Account not found.',
                 },
             });
         }
@@ -390,7 +390,7 @@ exports.updateStaffAccount = async (req, res) => {
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account.user_id || req.params.id,
-            description: `Updated staff account: ${account.email || req.params.id}.`,
+            description: `Updated account: ${account.email || req.params.id}.`,
             metadata: {
                 user_id: account.user_id || req.params.id,
                 email: account.email || null,
@@ -421,11 +421,11 @@ exports.updateStaffAccount = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: account,
-            message: 'Staff account updated successfully.',
+            message: 'Account updated successfully.',
         });
     } catch (err) {
         console.error('UPDATE STAFF ACCOUNT ERROR:', err);
-        return sendError(res, err, 'Failed to update staff account');
+        return sendError(res, err, 'Failed to update account');
     }
 };
 
@@ -439,9 +439,9 @@ exports.archiveStaffAccount = async (req, res) => {
         if (!account) {
             return res.status(404).json({
                 success: false,
-                message: 'Staff account not found.',
+                message: 'Account not found.',
                 error: {
-                    message: 'Staff account not found.',
+                    message: 'Account not found.',
                 },
             });
         }
@@ -452,7 +452,7 @@ exports.archiveStaffAccount = async (req, res) => {
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account.user_id || req.params.id,
-            description: `Archived staff account: ${account.email || req.params.id}.`,
+            description: `Archived account: ${account.email || req.params.id}.`,
             metadata: {
                 user_id: account.user_id || req.params.id,
                 email: account.email || null,
@@ -473,11 +473,11 @@ exports.archiveStaffAccount = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: account,
-            message: 'Staff account archived successfully.',
+            message: 'Account archived successfully.',
         });
     } catch (err) {
         console.error('ARCHIVE STAFF ACCOUNT ERROR:', err);
-        return sendError(res, err, 'Failed to archive staff account');
+        return sendError(res, err, 'Failed to archive account');
     }
 };
 
@@ -488,9 +488,9 @@ exports.restoreStaffAccount = async (req, res) => {
         if (!account) {
             return res.status(404).json({
                 success: false,
-                message: 'Staff account not found.',
+                message: 'Account not found.',
                 error: {
-                    message: 'Staff account not found.',
+                    message: 'Account not found.',
                 },
             });
         }
@@ -501,7 +501,7 @@ exports.restoreStaffAccount = async (req, res) => {
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account.user_id || req.params.id,
-            description: `Restored staff account: ${account.email || req.params.id}.`,
+            description: `Restored account: ${account.email || req.params.id}.`,
             metadata: {
                 user_id: account.user_id || req.params.id,
                 email: account.email || null,
@@ -522,11 +522,11 @@ exports.restoreStaffAccount = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: account,
-            message: 'Staff account restored successfully.',
+            message: 'Account restored successfully.',
         });
     } catch (err) {
         console.error('RESTORE STAFF ACCOUNT ERROR:', err);
-        return sendError(res, err, 'Failed to restore staff account');
+        return sendError(res, err, 'Failed to restore account');
     }
 };
 
@@ -540,7 +540,7 @@ exports.getCurrentStaffProfile = async (req, res) => {
         });
     } catch (err) {
         console.error('GET CURRENT STAFF PROFILE ERROR:', err);
-        return sendError(res, err, 'Failed to load current staff profile');
+        return sendError(res, err, 'Failed to load current account profile');
     }
 };
 
@@ -567,7 +567,7 @@ exports.updateCurrentStaffProfile = async (req, res) => {
         });
     } catch (err) {
         console.error('UPDATE CURRENT STAFF PROFILE ERROR:', err);
-        return sendError(res, err, 'Failed to update current staff profile');
+        return sendError(res, err, 'Failed to update current account profile');
     }
 };
 

@@ -536,7 +536,7 @@ async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = n
                 [userId]
             );
             if (!profileResult.rows.length) {
-                throw createHttpError(400, 'Select an active staff account.');
+                throw createHttpError(400, 'Select an active account.');
             }
             if (!isRoCoordinatorCapableStaff(profileResult.rows[0])) {
                 throw createHttpError(

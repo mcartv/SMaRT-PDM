@@ -21,7 +21,7 @@ test('normal Create Account excludes Admin and Create Admin Account has a separa
     assert.match(source, /buildApiUrl\('\/api\/accounts\/admin'\)/);
     assert.doesNotMatch(
         source,
-        /Create Staff Account/,
+        /Create Account/,
         'The ordinary creation action should use the approved Create Account wording.'
     );
 });

@@ -56,7 +56,13 @@ def candidate_from_worker_payload(
     issues = payload.get("validation_issues") or []
     source = payload.get("source_payload") or {}
     registration_status = str(source.get("registration_status") or "mismatch").lower()
-    if registration_status not in {"matched", "success", "registered"}:
+    registration_accepted = registration_status in {
+        "matched", "success", "registered",
+    } or (
+        document_key == "certificate_of_live_birth"
+        and registration_status == "review_required"
+    )
+    if not registration_accepted:
         registration_status = "mismatch"
         fields = {}
         confidence = {}

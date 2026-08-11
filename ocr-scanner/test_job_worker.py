@@ -406,7 +406,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["source_payload"]["ocr_status"], "review_required")
 
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_registration_failure_remains_failed(self, register):
+    def test_birth_registration_failure_preserves_fresh_raw_review_candidate(self, register):
         register.return_value = _stage_result(
             status="failed",
             success=False,
@@ -415,12 +415,31 @@ class JobWorkerTest(unittest.TestCase):
 
         success, payload = job_worker.run_scan(self.request("birth_certificate"))
 
-        self.assertFalse(success)
-        self.assertEqual(payload["status"], "failed")
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.assertEqual(payload["source_payload"]["registration_status"], "mismatch")
         self.assertEqual(
             payload["source_payload"]["registration_issue_codes"],
             ["FORM_GRID_NOT_FOUND"],
         )
+
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_registration_failure_without_raw_text_remains_failed(self, register):
+        register.return_value = _stage_result(
+            status="failed",
+            success=False,
+            issues=[{"code": "FORM_GRID_NOT_FOUND"}],
+        )
+        self.generic_ocr.return_value = ("", "")
+
+        success, payload = job_worker.run_scan(self.request("birth_certificate"))
+
+        self.assertFalse(success)
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["raw_text"], "")
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")

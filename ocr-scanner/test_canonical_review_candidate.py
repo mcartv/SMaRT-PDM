@@ -71,6 +71,29 @@ class CanonicalReviewCandidateTest(unittest.TestCase):
         self.assertEqual(candidate["fields"], fields)
         self.assertEqual(candidate["validation_issues"], [])
 
+    def test_successful_birth_registration_with_review_warnings_keeps_fields(self):
+        fields = {
+            "mother_maiden_name": {
+                "raw_text": "MARIA SANTOS",
+                "components": {
+                    "first_name": "MARIA",
+                    "middle_name": "",
+                    "last_name": "SANTOS",
+                },
+            },
+        }
+        candidate = candidate_from_worker_payload(
+            {"request_id": "request", "document_key": "birth_certificate"},
+            {
+                "raw_text": "MARIA SANTOS",
+                "extracted_fields": {"fields": fields},
+                "source_payload": {"registration_status": "review_required"},
+            },
+        ).serialize()
+
+        self.assertEqual(candidate["template_id"], "psa_birth_v1")
+        self.assertEqual(candidate["fields"], fields)
+
     def test_payload_document_type_recovers_missing_request_document_key(self):
         candidate = candidate_from_worker_payload(
             {"request_id": "request"},

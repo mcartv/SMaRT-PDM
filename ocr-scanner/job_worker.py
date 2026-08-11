@@ -406,9 +406,19 @@ def _run_birth_certificate_scan(
     try:
         registration_result = register_psa_birth_form(source_image)
         if not registration_result.success:
-            error_message = "Birth registration failed."
-            return False, {
-                "status": "failed",
+            # Registration failure forbids calibrated row extraction, but it
+            # must not discard a fresh text-only OCR result. Run the existing
+            # whole-page OCR path so the admin can inspect the immutable raw
+            # snapshot and retry the physical capture if necessary.
+            raw_text, _corrected_text = _run_generic_ocr(capture_path)
+            review_candidate_ready = bool(raw_text.strip())
+            error_message = (
+                None
+                if review_candidate_ready
+                else "Birth registration failed and no OCR text was recovered."
+            )
+            return review_candidate_ready, {
+                "status": "review_required" if review_candidate_ready else "failed",
                 "raw_text": raw_text,
                 "ocr_confidence": None,
                 "document_type": "birth_certificate",
@@ -426,18 +436,25 @@ def _run_birth_certificate_scan(
                     "document_key": document_key,
                     "document_type": document_type,
                     "document_contract_status": "approved",
-                    "registration_status": registration_result.status,
+                    "registration_status": "mismatch",
+                    "registration_stage_status": registration_result.status,
                     "registration_issue_codes": _issue_codes(registration_result),
                     "cropper_status": "not_started",
                     "cropper_issue_codes": [],
                     "ocr_status": "not_started",
                     "ocr_issue_codes": [],
                     "manual_review_required": True,
-                    "worker_status": "failed",
+                    "worker_status": (
+                        "review_required" if review_candidate_ready else "failed"
+                    ),
                     "ocr_attempts": ocr_attempts,
                     "preprocessing_variant": preprocessing_variant,
                     "structured_field_keys": [],
                 },
+                "validation_issues": [{
+                    "code": "PSA_BIRTH_V1_TEMPLATE_MISMATCH",
+                    "message": "Approved birth certificate template registration failed.",
+                }],
                 "error_message": error_message,
             }
 

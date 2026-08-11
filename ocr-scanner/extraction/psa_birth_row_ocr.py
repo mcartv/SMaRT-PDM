@@ -72,7 +72,7 @@ class PSABirthRowOCRConfig:
     target_height: int = 140
     blank_ink_ratio_threshold: float = 0.003
     low_confidence_threshold: float = 50.0
-    paddle_confidence_threshold: float = 0.80
+    paddle_confidence_threshold: float = 0.65
     paddle_model_name: str = "PP-OCRv6_medium_rec"
     paddle_batch_size: int = 3
     maximum_fallback_workers: int = 2

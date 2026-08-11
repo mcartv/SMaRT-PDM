@@ -449,7 +449,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
     def test_parallel_ensemble_uses_tesseract_below_paddle_threshold(self):
         keys = sorted(crop_output().crops)
         paddle_values = {
-            key: ("Pedro", 0.79)
+            key: ("Pedro", 0.64)
             for key in keys
         }
         with patch(
@@ -469,6 +469,46 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertEqual(mapped_fields(result)["child_name"].components["first_name"], "Alpha")
         self.assertEqual(result.metrics["confidence_source"], "paddleocr_tesseract_vote")
         self.assertTrue(result.metrics["ensemble_parallel"])
+
+    def test_default_paddle_threshold_accepts_sixty_five_percent(self):
+        self.assertEqual(
+            PSABirthRowOCRConfig().paddle_confidence_threshold,
+            0.65,
+        )
+
+        keys = sorted(crop_output().crops)
+        paddle_values = {
+            key: ("Pedro", 0.65)
+            for key in keys
+        }
+
+        def lower_confidence_tesseract(image, **_kwargs):
+            width = image.shape[1]
+            return {
+                "text": ["Alpha", "Beta", "Gamma"],
+                "conf": [60.0, 60.0, 60.0],
+                "left": [
+                    int(width * 0.08),
+                    int(width * 0.40),
+                    int(width * 0.76),
+                ],
+                "width": [max(10, int(width * 0.08))] * 3,
+            }
+
+        with patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            return_value=tuple(paddle_values[key] for key in keys),
+        ), patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=lower_confidence_tesseract,
+        ):
+            result = extract_psa_birth_row_text(crop_output())
+
+        self.assertTrue(result.success)
+        self.assertEqual(
+            mapped_fields(result)["child_name"].components["first_name"],
+            "Pedro",
+        )
 
     def test_parallel_ensemble_uses_higher_confidence_on_disagreement(self):
         keys = sorted(crop_output().crops)

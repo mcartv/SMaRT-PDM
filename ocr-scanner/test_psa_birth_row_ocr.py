@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from extraction.ocr_engine import OCRBinaryUnavailableError
+from extraction.paddle_birth_recognizer import PaddleBirthOCRUnavailable
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import (
     PREPROCESSING_VARIANT,
@@ -107,6 +108,14 @@ def issue_codes(result):
 
 
 class PSABirthRowOCRTest(unittest.TestCase):
+    def setUp(self):
+        self._paddle_unavailable = patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            side_effect=PaddleBirthOCRUnavailable("not installed in unit test"),
+        )
+        self._paddle_unavailable.start()
+        self.addCleanup(self._paddle_unavailable.stop)
+
     def test_watermark_fallback_preserves_shape_contract_without_mutating_crop(self):
         crop = np.full((48, 240, 3), 245, dtype=np.uint8)
         cv2.putText(
@@ -436,6 +445,86 @@ class PSABirthRowOCRTest(unittest.TestCase):
         )
         self.assertEqual(result.metrics["confidence_source"], "tesseract_image_to_data")
         self.assertEqual(mapped_fields(result)["child_name"].confidence, 91.33333333333333)
+
+    def test_parallel_ensemble_uses_tesseract_below_paddle_threshold(self):
+        keys = sorted(crop_output().crops)
+        paddle_values = {
+            key: ("Pedro", 0.79)
+            for key in keys
+        }
+        with patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            return_value=tuple(paddle_values[key] for key in keys),
+        ), patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=row_data_reader([
+                ("Alpha", "Beta", "Gamma"),
+                ("Delta", "Epsilon", "Zeta"),
+                ("Eta", "Theta", "Iota"),
+            ]),
+        ):
+            result = extract_psa_birth_row_text(crop_output())
+
+        self.assertTrue(result.success)
+        self.assertEqual(mapped_fields(result)["child_name"].components["first_name"], "Alpha")
+        self.assertEqual(result.metrics["confidence_source"], "paddleocr_tesseract_vote")
+        self.assertTrue(result.metrics["ensemble_parallel"])
+
+    def test_parallel_ensemble_uses_higher_confidence_on_disagreement(self):
+        keys = sorted(crop_output().crops)
+        paddle_values = {
+            key: ("Paddle", 0.99)
+            for key in keys
+        }
+        with patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            return_value=tuple(paddle_values[key] for key in keys),
+        ), patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=row_data_reader([
+                ("Alpha", "Beta", "Gamma"),
+                ("Delta", "Epsilon", "Zeta"),
+                ("Eta", "Theta", "Iota"),
+            ]),
+        ):
+            result = extract_psa_birth_row_text(crop_output())
+
+        child = mapped_fields(result)["child_name"]
+        self.assertEqual(child.components["first_name"], "Paddle")
+        self.assertEqual(child.component_confidence["first_name"], 99.0)
+        self.assertEqual(result.metrics["selected_engine_counts"], {"paddleocr": 9})
+
+    def test_parallel_ensemble_accepts_engine_agreement(self):
+        keys = sorted(crop_output().crops)
+        component_values = {
+            "child_name.first_name": "Alpha",
+            "child_name.middle_name": "Beta",
+            "child_name.last_name": "Gamma",
+            "mother_maiden_name.first_name": "Delta",
+            "mother_maiden_name.middle_name": "Epsilon",
+            "mother_maiden_name.last_name": "Zeta",
+            "father_name.first_name": "Eta",
+            "father_name.middle_name": "Theta",
+            "father_name.last_name": "Iota",
+        }
+        with patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            return_value=tuple((component_values[key], 0.70) for key in keys),
+        ), patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=row_data_reader([
+                ("Alpha", "Beta", "Gamma"),
+                ("Delta", "Epsilon", "Zeta"),
+                ("Eta", "Theta", "Iota"),
+            ]),
+        ):
+            result = extract_psa_birth_row_text(crop_output())
+
+        self.assertTrue(result.success)
+        self.assertEqual(
+            result.metrics["selected_engine_counts"],
+            {"paddleocr+tesseract_agreement": 9},
+        )
 
     def test_noisy_low_confidence_name_is_returned_for_review(self):
         calls = 0

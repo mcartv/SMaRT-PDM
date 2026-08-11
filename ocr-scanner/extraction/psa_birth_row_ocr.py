@@ -18,6 +18,10 @@ from .ocr_engine import (
     OCRInputError,
     ocr_image,
 )
+from .paddle_birth_recognizer import (
+    PaddleBirthOCRUnavailable,
+    recognize_birth_name_batch,
+)
 from .psa_birth_row_cropper import (
     COMPONENT_NAMES,
     FIELD_NAMES,
@@ -68,6 +72,9 @@ class PSABirthRowOCRConfig:
     target_height: int = 140
     blank_ink_ratio_threshold: float = 0.003
     low_confidence_threshold: float = 50.0
+    paddle_confidence_threshold: float = 0.80
+    paddle_model_name: str = "PP-OCRv6_medium_rec"
+    paddle_batch_size: int = 3
     maximum_fallback_workers: int = 2
     ocr_timeout_seconds: float = 8.0
 
@@ -85,6 +92,7 @@ class PSABirthRowOCRConfig:
             "maximum_name_tokens_per_cell",
             "maximum_name_characters_per_cell",
             "target_height",
+            "paddle_batch_size",
             "maximum_fallback_workers",
         ):
             value = getattr(self, name)
@@ -98,6 +106,10 @@ class PSABirthRowOCRConfig:
             raise ValueError("blank ink ratio threshold is invalid")
         if not 0.0 <= self.low_confidence_threshold <= 100.0:
             raise ValueError("low_confidence_threshold is invalid")
+        if not 0.0 <= self.paddle_confidence_threshold <= 1.0:
+            raise ValueError("paddle_confidence_threshold is invalid")
+        if not self.paddle_model_name.strip():
+            raise ValueError("paddle_model_name is required")
         if self.ocr_timeout_seconds <= 0.0:
             raise ValueError("ocr_timeout_seconds must be positive")
         if self.maximum_fallback_workers > 2:
@@ -415,6 +427,7 @@ class _ComponentObservation:
     raw_text: str = ""
     candidate: str = ""
     confidence: float | None = None
+    engine: str = ""
 
 
 def _tesseract_data(image: np.ndarray, timeout_seconds: float) -> Mapping[str, Any]:
@@ -508,7 +521,104 @@ def _observation_from_words(
         raw_text=raw_text,
         candidate=_closest_name_candidate(raw_text, config),
         confidence=_weighted_confidence(words),
+        engine="tesseract",
     )
+
+
+def _paddle_observation(
+    value: tuple[str, float | None],
+    config: PSABirthRowOCRConfig,
+) -> _ComponentObservation:
+    raw_text, unit_confidence = value
+    confidence = (
+        float(unit_confidence) * 100.0
+        if unit_confidence is not None
+        else None
+    )
+    return _ComponentObservation(
+        raw_text=_normalize_text(raw_text),
+        candidate=_closest_name_candidate(raw_text, config),
+        confidence=confidence,
+        engine="paddleocr",
+    )
+
+
+def _vote_key(value: str) -> str:
+    return "".join(character.casefold() for character in value if character.isalnum())
+
+
+def _vote_observations(
+    paddle: _ComponentObservation,
+    tesseract: _ComponentObservation,
+    config: PSABirthRowOCRConfig,
+) -> _ComponentObservation:
+    if paddle.candidate and tesseract.candidate:
+        if _vote_key(paddle.candidate) == _vote_key(tesseract.candidate):
+            paddle_confidence = paddle.confidence or 0.0
+            tesseract_confidence = tesseract.confidence or 0.0
+            preferred = paddle if paddle_confidence >= tesseract_confidence else tesseract
+            return _ComponentObservation(
+                raw_text=preferred.raw_text,
+                candidate=preferred.candidate,
+                confidence=max(paddle_confidence, tesseract_confidence),
+                engine="paddleocr+tesseract_agreement",
+            )
+        if (
+            paddle.confidence is None
+            or paddle.confidence < config.paddle_confidence_threshold * 100.0
+        ):
+            return tesseract
+        paddle_confidence = paddle.confidence or -1.0
+        tesseract_confidence = tesseract.confidence or -1.0
+        return paddle if paddle_confidence >= tesseract_confidence else tesseract
+    if paddle.candidate:
+        return paddle
+    return tesseract
+
+
+def _paddle_cell_observations(
+    keys: Sequence[str],
+    images: Sequence[np.ndarray],
+    config: PSABirthRowOCRConfig,
+) -> dict[str, _ComponentObservation]:
+    recognized = recognize_birth_name_batch(
+        images,
+        model_name=config.paddle_model_name,
+        batch_size=config.paddle_batch_size,
+    )
+    return {
+        key: _paddle_observation(
+            recognized[index] if index < len(recognized) else ("", None),
+            config,
+        )
+        for index, key in enumerate(keys)
+    }
+
+
+def _tesseract_row_observations(
+    rows: Mapping[str, tuple[np.ndarray, Sequence[float]]],
+    config: PSABirthRowOCRConfig,
+) -> tuple[
+    dict[str, dict[str, _ComponentObservation]],
+    set[str],
+]:
+    observations: dict[str, dict[str, _ComponentObservation]] = {}
+    failed: set[str] = set()
+    for field_name in FIELD_NAMES:
+        processed, boundaries = rows[field_name]
+        try:
+            observations[field_name] = _row_observations(
+                processed,
+                boundaries,
+                config,
+            )
+        except Exception:
+            failed.add(field_name)
+            observations[field_name] = {
+                name: _ComponentObservation(engine="tesseract")
+                for name in COMPONENT_NAMES
+            }
+    return observations, failed
 
 
 def _row_observations(
@@ -579,7 +689,7 @@ def _empty_components() -> Mapping[str, str]:
     return MappingProxyType({name: "" for name in COMPONENT_NAMES})
 
 
-def _extract_with_tesseract_data(
+def _extract_with_ensemble(
     output: PSABirthRowCropperOutput,
     resolved: PSABirthRowOCRConfig,
     *,
@@ -589,11 +699,18 @@ def _extract_with_tesseract_data(
     if set(output.row_crops) != set(FIELD_NAMES) or set(output.topology) != set(FIELD_NAMES):
         return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED")
 
-    observations: dict[str, dict[str, _ComponentObservation]] = {}
-    execution_failed_fields: set[str] = set()
+    expected_keys = {
+        f"{field_name}.{component_name}"
+        for field_name in FIELD_NAMES
+        for component_name in COMPONENT_NAMES
+    }
+    if set(output.crops) != expected_keys:
+        return _failure("REQUIRED_NAME_CELL_CROP_MISSING")
+
     attempts = 0
     preprocessing_seconds = 0.0
     ocr_seconds = 0.0
+    processed_rows: dict[str, tuple[np.ndarray, Sequence[float]]] = {}
     for field_name in FIELD_NAMES:
         row_crop = _valid_crop(output.row_crops.get(field_name))
         topology = output.topology.get(field_name)
@@ -602,20 +719,58 @@ def _extract_with_tesseract_data(
         preprocess_started = perf_counter()
         processed, _ink_ratio = _preprocess_cell(row_crop.copy(), resolved.target_height)
         preprocessing_seconds += perf_counter() - preprocess_started
-        attempts += 1
-        ocr_started = perf_counter()
+        processed_rows[field_name] = (
+            processed,
+            topology.relative_component_boundaries,
+        )
+
+    paddle_keys: list[str] = []
+    paddle_images: list[np.ndarray] = []
+    for key in sorted(expected_keys):
+        crop = _valid_crop(output.crops.get(key))
+        if crop is None:
+            return _failure("ROW_CROP_INVALID")
+        preprocess_started = perf_counter()
+        processed, _ink_ratio = _preprocess_cell(crop.copy(), resolved.target_height)
+        preprocessing_seconds += perf_counter() - preprocess_started
+        paddle_keys.append(key)
+        paddle_images.append(processed)
+
+    paddle_observations: dict[str, _ComponentObservation] = {}
+    paddle_available = True
+    ocr_started = perf_counter()
+    with ThreadPoolExecutor(max_workers=2) as engine_executor:
+        tesseract_future = engine_executor.submit(
+            _tesseract_row_observations,
+            processed_rows,
+            resolved,
+        )
+        paddle_future = engine_executor.submit(
+            _paddle_cell_observations,
+            paddle_keys,
+            paddle_images,
+            resolved,
+        )
+        observations, execution_failed_fields = tesseract_future.result()
         try:
-            observations[field_name] = _row_observations(
-                processed,
-                topology.relative_component_boundaries,
-                resolved,
-            )
-        except Exception:
-            execution_failed_fields.add(field_name)
-            observations[field_name] = {
-                name: _ComponentObservation() for name in COMPONENT_NAMES
-            }
-        ocr_seconds += perf_counter() - ocr_started
+            paddle_observations = paddle_future.result()
+        except PaddleBirthOCRUnavailable:
+            paddle_available = False
+    ocr_seconds += perf_counter() - ocr_started
+    attempts += 3 + (len(paddle_keys) if paddle_available else 0)
+
+    selected_engine_counts: dict[str, int] = {}
+    for key in paddle_keys:
+        field_name, component_name = key.split(".", 1)
+        selected = _vote_observations(
+            paddle_observations.get(key, _ComponentObservation(engine="paddleocr")),
+            observations[field_name][component_name],
+            resolved,
+        )
+        observations[field_name][component_name] = selected
+        selected_engine_counts[selected.engine or "none"] = (
+            selected_engine_counts.get(selected.engine or "none", 0) + 1
+        )
 
     fallback_keys = [
         f"{field_name}.{component_name}"
@@ -783,7 +938,16 @@ def _extract_with_tesseract_data(
         "name_cell_crop_used": bool(fallback_results),
         "full_row_crop_used": True,
         "full_page_generic_ocr_used": False,
-        "confidence_source": "tesseract_image_to_data",
+        "confidence_source": (
+            "paddleocr_tesseract_vote"
+            if paddle_available
+            else "tesseract_image_to_data"
+        ),
+        "paddle_model_name": resolved.paddle_model_name,
+        "paddle_confidence_threshold": resolved.paddle_confidence_threshold,
+        "paddle_available": paddle_available,
+        "ensemble_parallel": True,
+        "selected_engine_counts": dict(selected_engine_counts),
     }
     if successful == 0:
         return _failure("OCR_ALL_FIELDS_FAILED", data=result_data, **metrics)
@@ -823,7 +987,7 @@ def extract_psa_birth_row_text(
     if ocr_reader is not None and not callable(ocr_reader):
         return _failure("OCR_READER_INVALID")
     if ocr_reader is None:
-        return _extract_with_tesseract_data(
+        return _extract_with_ensemble(
             output,
             resolved,
             started=started,

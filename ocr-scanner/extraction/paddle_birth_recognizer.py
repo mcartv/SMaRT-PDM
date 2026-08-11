@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import logging
 from threading import Lock
 from typing import Any, Mapping, Sequence
 
@@ -11,14 +12,17 @@ class PaddleBirthOCRUnavailable(RuntimeError):
     """Raised when the optional Paddle birth-recognition runtime is unavailable."""
 
 
+log = logging.getLogger(__name__)
+
 _MODEL_LOCK = Lock()
 _INFERENCE_LOCK = Lock()
-_MODELS: dict[str, Any] = {}
+_MODELS: dict[tuple[str, str], Any] = {}
 
 
-def _load_model(model_name: str) -> Any:
+def _load_model(model_name: str, engine: str) -> Any:
+    cache_key = (model_name, engine)
     with _MODEL_LOCK:
-        existing = _MODELS.get(model_name)
+        existing = _MODELS.get(cache_key)
         if existing is not None:
             return existing
         try:
@@ -27,6 +31,14 @@ def _load_model(model_name: str) -> Any:
             model = model_type(
                 model_name=model_name,
                 device="cpu",
+                engine=engine,
+                engine_config={
+                    "device_type": "cpu",
+                    "providers": ["CPUExecutionProvider"],
+                    "intra_op_num_threads": 2,
+                    "inter_op_num_threads": 1,
+                    "execution_mode": "sequential",
+                },
                 enable_hpi=False,
                 cpu_threads=2,
             )
@@ -34,7 +46,7 @@ def _load_model(model_name: str) -> Any:
             raise PaddleBirthOCRUnavailable(
                 "PaddleOCR birth recognition is unavailable"
             ) from error
-        _MODELS[model_name] = model
+        _MODELS[cache_key] = model
         return model
 
 
@@ -54,7 +66,8 @@ def _result_payload(value: Any) -> Mapping[str, Any]:
 def recognize_birth_name_batch(
     images: Sequence[np.ndarray],
     *,
-    model_name: str = "PP-OCRv6_medium_rec",
+    model_name: str = "en_PP-OCRv5_mobile_rec",
+    engine: str = "onnxruntime",
     batch_size: int = 3,
 ) -> tuple[tuple[str, float | None], ...]:
     """Recognize already-cropped PSA name cells with one shared Paddle model."""
@@ -62,7 +75,7 @@ def recognize_birth_name_batch(
     prepared = [np.ascontiguousarray(image) for image in images]
     if not prepared:
         return ()
-    model = _load_model(model_name)
+    model = _load_model(model_name, engine)
     try:
         # Paddle inference objects are shared but are not documented as thread-safe.
         with _INFERENCE_LOCK:
@@ -89,6 +102,20 @@ def recognize_birth_name_batch(
         if score is not None and not 0.0 <= score <= 1.0:
             score = None
         observations.append((raw_text, score))
+    valid_scores = [score for _text, score in observations if score is not None]
+    log.info(
+        "Birth PaddleOCR inference engine=%s model=%s roi_count=%d "
+        "scored_count=%d mean_confidence=%s",
+        engine,
+        model_name,
+        len(observations),
+        len(valid_scores),
+        (
+            f"{sum(valid_scores) / len(valid_scores):.4f}"
+            if valid_scores
+            else "unavailable"
+        ),
+    )
     return tuple(observations)
 
 

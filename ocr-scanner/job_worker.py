@@ -103,6 +103,10 @@ BIRTH_CERTIFICATE_LENS_POSITION = min(
     32.0,
     max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "2.00"))),
 )
+BIRTH_PADDLE_ENABLED = (
+    os.getenv("BIRTH_PADDLE_ENABLED", "false").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
 BIRTH_CAMERA_CAPTURE_WIDTH = max(
     2304,
     int(os.getenv("BIRTH_CAMERA_CAPTURE_WIDTH", "4608")),
@@ -461,6 +465,48 @@ def _run_birth_certificate_scan(
             },
             "error_message": error_message,
         }
+    # Birth-only baseline gate: prove that the fixed camera capture contains
+    # machine-readable text before registration or structured name extraction.
+    # This result also remains the immutable full-page raw OCR snapshot.
+    raw_text, _corrected_text = _run_generic_ocr(capture_path)
+    if not raw_text.strip():
+        return False, {
+            "status": "failed",
+            "raw_text": "",
+            "ocr_confidence": None,
+            "document_type": "birth_certificate",
+            "manual_review_required": True,
+            "ocr_attempts": 1,
+            "preprocessing_variant": preprocessing_variant,
+            "extracted_fields": extracted_fields,
+            "source_payload": {
+                "source": "pi-worker-iot-ocr-request",
+                "mode": "birth_certificate_pipeline",
+                "request_id": request_id,
+                "application_id": application_id,
+                "student_id": student_id,
+                "student_name": student_name,
+                "document_key": document_key,
+                "document_type": document_type,
+                "document_contract_status": "approved",
+                "baseline_status": "failed",
+                "baseline_ocr_engine": "tesseract",
+                "registration_status": "not_started",
+                "topology_status": "not_started",
+                "cropper_status": "not_started",
+                "ocr_status": "not_started",
+                "manual_review_required": True,
+                "worker_status": "failed",
+                "structured_field_keys": [],
+            },
+            "validation_issues": [{
+                "code": "BIRTH_TESSERACT_BASELINE_EMPTY",
+                "message": "The fixed camera capture did not contain readable OCR text.",
+            }],
+            "error_message": (
+                "Birth camera baseline returned no readable Tesseract text."
+            ),
+        }
     try:
         registration_mode = "strict_grid"
         registration_attempts = 1
@@ -483,10 +529,8 @@ def _run_birth_certificate_scan(
                 registration_result = envelope_result
         if not registration_result.success:
             # Registration failure forbids calibrated row extraction, but it
-            # must not discard a fresh text-only OCR result. Run the existing
-            # whole-page OCR path so the admin can inspect the immutable raw
-            # snapshot and retry the physical capture if necessary.
-            raw_text, _corrected_text = _run_generic_ocr(capture_path)
+            # must not discard the fresh baseline result. The admin can inspect
+            # that immutable raw snapshot and retry the capture if necessary.
             review_candidate_ready = bool(raw_text.strip())
             error_message = (
                 None
@@ -540,7 +584,6 @@ def _run_birth_certificate_scan(
             registration_result.data.registered_image,
         )
         if not topology_result.success or topology_result.data is None:
-            raw_text, _corrected_text = _run_generic_ocr(capture_path)
             return bool(raw_text.strip()), {
                 "status": "review_required" if raw_text.strip() else "failed",
                 "raw_text": raw_text,
@@ -620,7 +663,10 @@ def _run_birth_certificate_scan(
                 "error_message": error_message,
             }
 
-        ocr_result = extract_psa_birth_row_text(crop_result.data)
+        ocr_result = extract_psa_birth_row_text(
+            crop_result.data,
+            config={"paddle_enabled": BIRTH_PADDLE_ENABLED},
+        )
         extracted_fields = build_birth_extracted_fields_from_ocr_result(
             raw_text="\n".join(field.raw_text for field in getattr(ocr_result.data, "fields", ()) if field.raw_text),
             field_texts={
@@ -642,7 +688,6 @@ def _run_birth_certificate_scan(
             ),
         )
         structured_text = extracted_fields["raw_text"]
-        raw_text, _corrected_text = _run_generic_ocr(capture_path)
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
         status = "review_required" if ocr_result.success else "failed"
@@ -684,6 +729,9 @@ def _run_birth_certificate_scan(
                 "confidence_source": ocr_result.metrics.get(
                     "confidence_source", "tesseract_image_to_data"
                 ),
+                "paddle_enabled": BIRTH_PADDLE_ENABLED,
+                "baseline_status": "matched",
+                "baseline_ocr_engine": "tesseract",
                 "structured_text_available": bool(structured_text.strip()),
                 "cropper_status": crop_result.status,
                 "cropper_issue_codes": _issue_codes(crop_result),

@@ -427,6 +427,10 @@ class JobWorkerTest(unittest.TestCase):
             topology=self.birth_topology.return_value.data,
         )
         ocr.assert_called_once()
+        self.assertEqual(
+            ocr.call_args.kwargs["config"],
+            {"paddle_enabled": False},
+        )
         self.assertEqual(payload["status"], "review_required")
         self.assertEqual(payload["ocr_attempts"], 3)
         self.assertEqual(payload["raw_text"], "RAW OCR")
@@ -600,6 +604,13 @@ class JobWorkerTest(unittest.TestCase):
         self.assertFalse(success)
         self.assertEqual(payload["status"], "failed")
         self.assertEqual(payload["raw_text"], "")
+        self.assertEqual(
+            payload["validation_issues"][0]["code"],
+            "BIRTH_TESSERACT_BASELINE_EMPTY",
+        )
+        self.assertEqual(payload["source_payload"]["registration_status"], "not_started")
+        register.assert_not_called()
+        self.birth_topology.assert_not_called()
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")

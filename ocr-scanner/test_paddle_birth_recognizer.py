@@ -48,7 +48,7 @@ class PaddleBirthRecognizerTest(unittest.TestCase):
         ):
             result = recognize_birth_name_batch(
                 images,
-                model_name="PP-OCRv6_medium_rec",
+                model_name="en_PP-OCRv5_mobile_rec",
                 batch_size=3,
             )
 
@@ -58,8 +58,17 @@ class PaddleBirthRecognizerTest(unittest.TestCase):
         )
         self.assertEqual(len(_FakeTextRecognition.instances), 1)
         model = _FakeTextRecognition.instances[0]
-        self.assertEqual(model.kwargs["model_name"], "PP-OCRv6_medium_rec")
+        self.assertEqual(model.kwargs["model_name"], "en_PP-OCRv5_mobile_rec")
         self.assertEqual(model.kwargs["device"], "cpu")
+        self.assertEqual(model.kwargs["engine"], "onnxruntime")
+        self.assertEqual(
+            model.kwargs["engine_config"]["providers"],
+            ["CPUExecutionProvider"],
+        )
+        self.assertEqual(
+            model.kwargs["engine_config"]["intra_op_num_threads"],
+            2,
+        )
         self.assertEqual(model.predict_calls[0][1], 3)
 
     def test_missing_runtime_fails_closed_for_tesseract_fallback(self):

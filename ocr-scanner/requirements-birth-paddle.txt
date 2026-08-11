@@ -4,3 +4,4 @@
 --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
 paddlepaddle==3.3.0
 paddleocr>=3.7,<4
+onnxruntime>=1.22,<2

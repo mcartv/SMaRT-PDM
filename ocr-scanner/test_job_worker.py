@@ -1,9 +1,12 @@
 import inspect
+import sys
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 import numpy as np
+
+sys.modules.setdefault("api", SimpleNamespace(ApiClient=MagicMock))
 
 import job_worker
 from capture_session import CANCELLED, CAPTURED, FAILED, CaptureSessionResult
@@ -153,6 +156,19 @@ def _indigency_result(status="review_required", success=True, issue_code=None):
     )
 
 
+def _grade_form_result(*, matched=True, raw_text="GWA: 1.63", fields=None):
+    return SimpleNamespace(
+        matched=matched,
+        raw_text=raw_text,
+        fields=fields or {},
+        field_confidence={},
+        validation_issues=([] if matched else [{
+            "code": "GRADE_FORM_V1_TEMPLATE_MISMATCH",
+            "message": "Approved grade form labels could not be registered.",
+        }]),
+    )
+
+
 class JobWorkerTest(unittest.TestCase):
     def setUp(self):
         job_worker._shutdown_requested.clear()
@@ -230,19 +246,44 @@ class JobWorkerTest(unittest.TestCase):
             ],
         )
 
-    def test_grade_form_uses_generic_ocr_for_same_captured_image(self):
-        with patch("job_worker.register_psa_birth_form") as birth, patch(
-            "job_worker.extract_indigency_core_fields"
-        ) as indigency:
-            success, payload = job_worker.run_scan(
-                self.request("student_grade_forms")
-            )
+    @patch("job_worker.scan_grade_form")
+    def test_grade_form_uses_registered_single_pass_for_same_captured_image(self, scan):
+        scan.return_value = _grade_form_result(
+            fields={"gwa": {"raw_text": "1.63", "normalized_value": "1.63"}}
+        )
+        success, payload = job_worker._run_grade_form_scan(
+            self.request("student_grade_forms"),
+            CAPTURE_PATH,
+        )
 
         self.assertTrue(success)
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
-        birth.assert_not_called()
-        indigency.assert_not_called()
-        self.assertEqual(payload["source_payload"]["mode"], "interactive_camera")
+        scan.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
+        self.assertEqual(
+            payload["source_payload"]["mode"],
+            "grade_form_registered_single_pass",
+        )
+
+    @patch("job_worker.scan_grade_form")
+    def test_grade_form_registration_mismatch_returns_raw_review_candidate(self, scan):
+        scan.return_value = _grade_form_result(
+            matched=False,
+            raw_text=(
+                "STUDENT NUMBER PDM-2023-003137 "
+                "GRADE FOR THE PERIOD 1st 2023-2024 GWA: 1.63"
+            ),
+        )
+
+        success, payload = job_worker._run_grade_form_scan(
+            self.request("student_grade_forms"),
+            CAPTURE_PATH,
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["source_payload"]["registration_status"], "mismatch")
+        self.assertIn("GWA: 1.63", payload["raw_text"])
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
 
     @patch("job_worker.extract_indigency_core_fields")
     def test_indigency_skips_generic_ocr_and_uses_one_structured_pass(self, extract):
@@ -419,10 +460,14 @@ class JobWorkerTest(unittest.TestCase):
             ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"],
         )
 
-    def test_empty_generic_ocr_remains_failed(self):
-        self.generic_ocr.return_value = ("", "")
+    @patch("job_worker.scan_grade_form")
+    def test_empty_grade_form_ocr_remains_failed(self, scan):
+        scan.return_value = _grade_form_result(matched=False, raw_text="")
 
-        success, payload = job_worker.run_scan(self.request("student_grade_forms"))
+        success, payload = job_worker._run_grade_form_scan(
+            self.request("student_grade_forms"),
+            CAPTURE_PATH,
+        )
 
         self.assertFalse(success)
         self.assertEqual(payload["status"], "failed")

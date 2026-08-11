@@ -873,7 +873,12 @@ def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
         result = None
 
     matched = bool(result and result.matched)
-    status = "review_required" if matched else "failed"
+    has_ocr_text = bool(result and str(result.raw_text or "").strip())
+    # A registration mismatch is still a valid machine-generated review
+    # candidate. Returning it lets the admin inspect the immutable raw OCR and
+    # correct any safely derived fields instead of silently losing the scan.
+    review_candidate_ready = bool(result and (matched or has_ocr_text))
+    status = "review_required" if review_candidate_ready else "failed"
     elapsed = time.monotonic() - started_at
     log.info(
         "Grade form OCR finished request=%s status=%s seconds=%.1f",
@@ -881,7 +886,7 @@ def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
         status,
         elapsed,
     )
-    return matched, {
+    return review_candidate_ready, {
         "status": status,
         "raw_text": result.raw_text if result else "",
         "field_confidence": result.field_confidence if result else {},
@@ -905,7 +910,7 @@ def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
             "ocr_engine": "tesseract",
             "processing_seconds": round(elapsed, 3),
         },
-        "error_message": None if matched else "Approved grade form registration failed.",
+        "error_message": None if review_candidate_ready else "Grade form OCR did not return text.",
     }
 
 

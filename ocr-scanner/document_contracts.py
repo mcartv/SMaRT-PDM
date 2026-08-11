@@ -123,18 +123,31 @@ def build_extracted_fields(document_key: str, raw_text: str) -> Dict[str, Any]:
 
 def build_birth_extracted_fields_from_ocr_result(
     raw_text: str,
-    field_texts: Dict[str, str],
+    field_texts: Dict[str, Any],
     ocr_attempts: int = 0,
     preprocessing_variant: str = "registered_whole_row_ocr",
 ) -> Dict[str, Any]:
     contract = get_contract("certificate_of_live_birth")
-    fields = {
-        name: {
-            "raw_text": value,
-            "review_required": True,
-        }
-        for name, value in field_texts.items()
-    }
+    fields: Dict[str, Any] = {}
+    for name, value in field_texts.items():
+        if isinstance(value, Mapping):
+            components = value.get("components")
+            fields[name] = {
+                "raw_text": str(value.get("raw_text") or ""),
+                "normalized_value": str(value.get("raw_text") or ""),
+                "components": {
+                    component: str((components or {}).get(component) or "")
+                    for component in ("first_name", "middle_name", "last_name")
+                },
+                "section_status": str(value.get("section_status") or "present"),
+                "review_required": True,
+            }
+        else:
+            fields[name] = {
+                "raw_text": str(value or ""),
+                "normalized_value": str(value or ""),
+                "review_required": True,
+            }
     return {
         "document_type": "birth_certificate",
         "review_required": True,

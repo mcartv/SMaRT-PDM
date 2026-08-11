@@ -64,15 +64,31 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
     assert.match(source, /value=\{rawOcrSnapshot\}[\s\S]*?readOnly/);
     assert.doesNotMatch(source, /onSaveRawOcr|onRawOcrChange|Save OCR Snapshot/);
-    assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency'\]\.includes/);
+    assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'\]\.includes/);
     assert.match(source, /\['residency_address', 'Full Address'\]/);
     assert.doesNotMatch(source, /\['issue_date', 'Issue Date'\]/);
     assert.doesNotMatch(source, /\['issuing_barangay', 'Issuing Barangay'\]/);
     assert.match(source, /aria-label="Verified full residence address"/);
     assert.match(
         source,
-        /\['student_grade_forms', 'certificate_of_indigency'\]\.includes\(activeDoc\?\.id\)[\s\S]*?requestStatus === 'completed'/
+        /\['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'\]\.includes\(activeDoc\?\.id\)[\s\S]*?requestStatus === 'completed'/
     );
+});
+
+test('birth certificate has a dedicated parent review card and immutable raw snapshot', () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
+        'utf8'
+    );
+
+    assert.match(source, />BIRTH CERTIFICATE OCR</);
+    assert.match(source, /const BIRTH_PARENT_FIELDS/);
+    assert.match(source, /mother_maiden_name/);
+    assert.match(source, /father_name/);
+    assert.match(source, /Child Name \(reference\)/);
+    assert.match(source, /Confirm Parents/);
+    assert.match(source, /isBirthReview/);
+    assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
 });
 
 test('registration and request letter cannot run IoT OCR', () => {

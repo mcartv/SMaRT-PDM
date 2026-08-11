@@ -478,7 +478,14 @@ def _run_birth_certificate_scan(
         ocr_result = extract_psa_birth_row_text(crop_result.data)
         extracted_fields = build_birth_extracted_fields_from_ocr_result(
             raw_text="\n".join(field.raw_text for field in getattr(ocr_result.data, "fields", ()) if field.raw_text),
-            field_texts={field.name: field.raw_text for field in getattr(ocr_result.data, "fields", ())},
+            field_texts={
+                field.name: {
+                    "raw_text": field.raw_text,
+                    "components": dict(field.components),
+                    "section_status": field.section_status,
+                }
+                for field in getattr(ocr_result.data, "fields", ())
+            },
             ocr_attempts=int(ocr_result.metrics.get("total_ocr_attempts", len(getattr(ocr_result.data, "fields", ())))),
             preprocessing_variant=(
                 ocr_result.data.fields[0].preprocessing_variant

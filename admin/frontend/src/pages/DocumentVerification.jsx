@@ -1245,6 +1245,17 @@ const INDIGENCY_REVIEW_FIELDS = [
   ['residency_address', 'Full Address'],
 ];
 
+const BIRTH_PARENT_FIELDS = [
+  ['mother_maiden_name', "Mother's Maiden Name"],
+  ['father_name', "Father's Name"],
+];
+
+const BIRTH_NAME_PARTS = [
+  ['first_name', 'First Name'],
+  ['middle_name', 'Middle Name'],
+  ['last_name', 'Last Name'],
+];
+
 function ocrFieldValue(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value.normalized_value ?? value.raw_text ?? value.value ?? '';
@@ -1313,6 +1324,29 @@ function deriveIndigencyReviewValues(rawText) {
   return derived;
 }
 
+function normalizeBirthName(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const components = source.components && typeof source.components === 'object'
+    ? source.components
+    : source;
+  const normalized = {
+    first_name: String(components.first_name || '').trim(),
+    middle_name: String(components.middle_name || '').trim(),
+    last_name: String(components.last_name || '').trim(),
+    section_status: String(source.section_status || 'present'),
+  };
+  if (normalized.first_name || normalized.last_name) return normalized;
+
+  const parts = String(ocrFieldValue(value) || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) normalized.first_name = parts[0];
+  if (parts.length >= 2) {
+    normalized.first_name = parts[0];
+    normalized.middle_name = parts.slice(1, -1).join(' ');
+    normalized.last_name = parts[parts.length - 1];
+  }
+  return normalized;
+}
+
 function normalizeReviewFields(candidate) {
   const fields = candidate?.fields || {};
   if (candidate?.document_key === 'student_grade_forms') {
@@ -1332,6 +1366,13 @@ function normalizeReviewFields(candidate) {
       key,
       ocrFieldValue(fields[key]) || derived[key] || '',
     ]));
+  }
+  if (candidate?.document_key === 'birth_certificate') {
+    return {
+      child_name: normalizeBirthName(fields.child_name),
+      mother_maiden_name: normalizeBirthName(fields.mother_maiden_name),
+      father_name: normalizeBirthName(fields.father_name),
+    };
   }
   return fields;
 }
@@ -1367,8 +1408,10 @@ function OCRPanel({
   );
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
   const isIndigencyReview = activeDoc?.id === 'certificate_of_indigency' && reviewCandidate;
+  const isBirthReview = activeDoc?.id === 'birth_certificate' && reviewCandidate;
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
   const indigencyReviewCompleted = isIndigencyReview && reviewCandidate.status === 'completed';
+  const birthReviewCompleted = isBirthReview && reviewCandidate.status === 'completed';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -1557,7 +1600,81 @@ function OCRPanel({
           </div>
         )}
 
-        {reviewCandidate && !isGradeReview && !isIndigencyReview && (
+        {isBirthReview && (
+          <div className={`rounded-xl border p-4 space-y-4 ${birthReviewCompleted ? 'border-green-200 bg-green-50' : 'border-rose-200 bg-rose-50'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-base font-bold tracking-wide text-stone-900">BIRTH CERTIFICATE OCR</p>
+                <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
+              </div>
+              <Badge className={birthReviewCompleted
+                ? 'border-green-200 bg-green-100 text-green-800'
+                : 'border-rose-200 bg-rose-100 text-rose-800'}>
+                {birthReviewCompleted ? 'OCR confirmed' : 'Review required'}
+              </Badge>
+            </div>
+
+            <div className="rounded-lg border border-rose-100 bg-white p-3">
+              <p className="mb-2 text-sm font-semibold text-stone-700">Child Name (reference)</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {BIRTH_NAME_PARTS.map(([part, label]) => (
+                  <label key={part} className="space-y-1">
+                    <span className="text-xs text-stone-500">{label}</span>
+                    <Input
+                      value={correctedFields?.child_name?.[part] || ''}
+                      readOnly
+                      aria-label={`Child ${label}`}
+                      className="bg-stone-100"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
+              <div key={fieldKey} className="rounded-lg border border-rose-100 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-stone-800">{heading}</p>
+                  <span className="text-xs font-semibold text-rose-700">
+                    {ocrScoreLabel(reviewCandidate, fieldKey, correctedFields?.[fieldKey]?.first_name)}
+                  </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {BIRTH_NAME_PARTS.map(([part, label]) => (
+                    <label key={part} className="space-y-1">
+                      <span className="text-xs text-stone-500">{label}</span>
+                      <Input
+                        value={correctedFields?.[fieldKey]?.[part] || ''}
+                        readOnly={birthReviewCompleted}
+                        aria-label={`${heading} ${label}`}
+                        onChange={(event) => onCorrectedFieldsChange({
+                          ...correctedFields,
+                          [fieldKey]: {
+                            ...(correctedFields?.[fieldKey] || {}),
+                            [part]: event.target.value,
+                          },
+                        })}
+                        className={birthReviewCompleted ? 'bg-stone-100' : 'bg-white'}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {!birthReviewCompleted && (
+              <div className="flex justify-between gap-2">
+                <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
+                <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+                  {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirm Parents
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {reviewCandidate && !isGradeReview && !isIndigencyReview && !isBirthReview && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1628,7 +1745,7 @@ function OCRPanel({
           </div>
         )}
 
-        {!['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id) && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+        {!['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'].includes(activeDoc?.id) && <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ScanText className="w-4 h-4 text-stone-600" />
             <p className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
@@ -2944,7 +3061,7 @@ export default function DocumentVerification() {
     const request = getActiveIotRequest(activeDoc);
     const requestStatus = String(request?.status || '').toLowerCase();
     const shouldLoadCandidate = requestStatus === 'review_required' || (
-      ['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id)
+      ['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'].includes(activeDoc?.id)
       && requestStatus === 'completed'
     );
     if (!activeDoc || !shouldLoadCandidate) {

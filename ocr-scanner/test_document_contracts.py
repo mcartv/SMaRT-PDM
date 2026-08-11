@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 
 from document_contracts import (
+    build_birth_extracted_fields_from_ocr_result,
     build_extracted_fields,
     build_indigency_extracted_fields_from_result,
     get_contract,
@@ -125,6 +126,37 @@ class DocumentContractsTest(unittest.TestCase):
                 "residency_address",
             ),
         )
+
+    def test_birth_ocr_candidate_preserves_parsed_name_components(self):
+        payload = build_birth_extracted_fields_from_ocr_result(
+            "JUAN S DELA CRUZ\nMARIA R SANTOS\nPEDRO M DELA CRUZ",
+            {
+                "child_name": {
+                    "raw_text": "JUAN S DELA CRUZ",
+                    "components": {
+                        "first_name": "JUAN",
+                        "middle_name": "S",
+                        "last_name": "DELA CRUZ",
+                    },
+                    "section_status": "present",
+                },
+                "mother_maiden_name": {
+                    "raw_text": "MARIA R SANTOS",
+                    "components": {
+                        "first_name": "MARIA",
+                        "middle_name": "R",
+                        "last_name": "SANTOS",
+                    },
+                    "section_status": "present",
+                },
+            },
+        )
+
+        self.assertEqual(
+            payload["fields"]["mother_maiden_name"]["components"],
+            {"first_name": "MARIA", "middle_name": "R", "last_name": "SANTOS"},
+        )
+        self.assertEqual(payload["fields"]["child_name"]["section_status"], "present")
         self.assertNotIn("issue_date", payload["fields"])
         self.assertNotIn("issuing_barangay", payload["fields"])
         self.assertNotIn("applicant_name", payload["fields"])

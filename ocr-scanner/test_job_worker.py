@@ -96,6 +96,12 @@ def _birth_ocr_result(status="review_required", success=True, issues=None):
         SimpleNamespace(
             name=name,
             raw_text=value,
+            components={
+                "first_name": value.split()[0] if value else "",
+                "middle_name": "",
+                "last_name": value.split()[-1] if value else "",
+            },
+            section_status="present",
             review_required=True,
             success=success,
             issue_codes=() if success else ("OCR_EXECUTION_FAILED",),

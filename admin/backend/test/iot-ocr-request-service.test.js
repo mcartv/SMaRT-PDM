@@ -259,6 +259,42 @@ test('grade confirmation rejects an invalid Tesseract GWA', () => {
     assert.throws(() => service.normalizeGwa('5.50'), /1.00 to 5.00/);
 });
 
+test('birth confirmation normalizes parent components without overwriting child identity', () => {
+    const verified = service.validateConfirmedDocumentFields('birth_certificate', {
+        child_name: { components: { first_name: 'JUAN', middle_name: 'S', last_name: 'DELA CRUZ' } },
+        mother_maiden_name: { components: { first_name: 'MARIA', middle_name: 'R', last_name: 'SANTOS' } },
+        father_name: { components: { first_name: 'PEDRO', middle_name: 'M', last_name: 'DELA CRUZ' } },
+    });
+
+    assert.deepEqual(verified.mother_maiden_name, {
+        first_name: 'MARIA', middle_name: 'R', last_name: 'SANTOS',
+    });
+    assert.deepEqual(verified.father_name, {
+        first_name: 'PEDRO', middle_name: 'M', last_name: 'DELA CRUZ',
+    });
+    assert.throws(
+        () => service.validateConfirmedDocumentFields('birth_certificate', {
+            child_name: { first_name: 'JUAN', last_name: 'DELA CRUZ' },
+            mother_maiden_name: { first_name: 'MARIA', last_name: '' },
+            father_name: { first_name: 'PEDRO', last_name: 'DELA CRUZ' },
+        }),
+        /Mother's maiden name requires first_name and last_name/
+    );
+});
+
+test('verified birth parents upsert Mother and Father using the confirmation transaction', async () => {
+    const calls = [];
+    const client = { query: async (sql, params) => { calls.push({ sql, params }); return { rows: [] }; } };
+    await service.upsertVerifiedBirthParents(client, requestRow().student_id, {
+        mother_maiden_name: { first_name: 'MARIA', middle_name: 'R', last_name: 'SANTOS' },
+        father_name: { first_name: 'PEDRO', middle_name: '', last_name: 'DELA CRUZ' },
+    });
+
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls.map((call) => call.params[1]), ['Mother', 'Father']);
+    assert.ok(calls.every((call) => String(call.sql).includes('ON CONFLICT (student_id, relation)')));
+});
+
 test('same-state Pi update is treated as a processing heartbeat', async () => {
     const row = requestRow({ status: 'processing' });
     activeClient = {

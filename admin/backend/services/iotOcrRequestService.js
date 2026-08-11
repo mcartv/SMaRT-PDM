@@ -218,6 +218,56 @@ function normalizeGwa(value) {
     return Number(numeric.toFixed(2));
 }
 
+function birthNameComponents(value, { required = true, label = 'Name' } = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const components = source.components && typeof source.components === 'object'
+        ? source.components
+        : source;
+    let firstName = String(components.first_name ?? '').trim();
+    let middleName = String(components.middle_name ?? '').trim();
+    let lastName = String(components.last_name ?? '').trim();
+
+    if (!firstName && !lastName) {
+        const raw = String(fieldValue(value) ?? '').replace(/\s+/g, ' ').trim();
+        const parts = raw.split(' ').filter(Boolean);
+        if (parts.length === 1) firstName = parts[0];
+        if (parts.length >= 2) {
+            firstName = parts[0];
+            lastName = parts[parts.length - 1];
+            middleName = parts.slice(1, -1).join(' ');
+        }
+    }
+
+    if (required && (!firstName || !lastName)) {
+        throw buildHttpError(400, `${label} requires first_name and last_name`);
+    }
+    return {
+        first_name: firstName,
+        middle_name: middleName,
+        last_name: lastName,
+    };
+}
+
+async function upsertVerifiedBirthParents(client, studentId, verifiedFields) {
+    const parents = [
+        ['Mother', verifiedFields.mother_maiden_name],
+        ['Father', verifiedFields.father_name],
+    ];
+    for (const [relation, name] of parents) {
+        if (!name?.first_name || !name?.last_name) continue;
+        await client.query(`
+            INSERT INTO public.student_family
+                (student_id, relation, first_name, middle_name, last_name, updated_at)
+            VALUES ($1::uuid, $2, $3, NULLIF($4, ''), $5, NOW())
+            ON CONFLICT (student_id, relation) DO UPDATE SET
+                first_name = EXCLUDED.first_name,
+                middle_name = EXCLUDED.middle_name,
+                last_name = EXCLUDED.last_name,
+                updated_at = NOW()
+        `, [studentId, relation, name.first_name, name.middle_name, name.last_name]);
+    }
+}
+
 function buildVerifiedApplicationPatch(documentKey, verifiedFields = {}) {
     if (documentKey === 'student_grade_forms') {
         return { student: { gwa: normalizeGwa(verifiedFields.gwa) } };
@@ -291,6 +341,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     assertTextOnlyPayload(fields);
 
     const requiredByDocument = {
+        birth_certificate: ['child_name', 'mother_maiden_name', 'father_name'],
         certificate_of_live_birth: ['child_name', 'mother_maiden_name', 'father_name'],
         certificate_of_indigency: [
             'certificate_subject_name',
@@ -314,6 +365,23 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         )
     ));
     if (missing.length) throw buildHttpError(400, `Missing confirmed OCR fields: ${missing.join(', ')}`);
+    if (['birth_certificate', 'certificate_of_live_birth'].includes(documentKey)) {
+        const fatherSource = fields.father_name;
+        const fatherStatus = String(fatherSource?.section_status ?? '').toLowerCase();
+        const fatherRequired = fatherStatus !== 'not_applicable';
+        return {
+            child_name: birthNameComponents(fields.child_name, {
+                label: 'Child name',
+            }),
+            mother_maiden_name: birthNameComponents(fields.mother_maiden_name, {
+                label: "Mother's maiden name",
+            }),
+            father_name: birthNameComponents(fields.father_name, {
+                required: fatherRequired,
+                label: "Father's name",
+            }),
+        };
+    }
     if (documentKey === 'certificate_of_indigency') {
         return Object.fromEntries(required.map((key) => [key, fields[key]]));
     }
@@ -700,6 +768,9 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
                 WHERE student_id = $1::uuid
             `, [row.student_id, gwa]);
         }
+        if (normalizedDocumentKey === 'birth_certificate') {
+            await upsertVerifiedBirthParents(client, row.student_id, verifiedFields);
+        }
         const updated = await client.query(`
             UPDATE public.iot_ocr_requests SET status = 'completed', reviewed_by = $2::uuid,
                 reviewed_at = NOW(), completed_at = NOW(), updated_at = NOW()
@@ -770,6 +841,8 @@ module.exports = {
     assertTextOnlyPayload,
     validateConfirmedDocumentFields,
     normalizeGwa,
+    birthNameComponents,
+    upsertVerifiedBirthParents,
     buildVerifiedApplicationPatch,
     withDerivedGradeFields,
     withDerivedIndigencyFields,

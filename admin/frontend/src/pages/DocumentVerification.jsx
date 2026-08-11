@@ -2193,7 +2193,7 @@ function VerificationActions({
       icon: ShieldCheck,
       title: 'Requirements review completed',
       description:
-        'This application has already been finalized. Document review actions are now locked.',
+        'Application has already been finalized.',
       container:
         'border-emerald-200 bg-emerald-50/80',
       iconContainer:

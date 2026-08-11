@@ -1131,11 +1131,31 @@ async function buildApplicationDetails(applicationId) {
         application_id,
         student_id,
         program_id,
+        opening_id,
+
         application_status,
         document_status,
+
+        verification_status,
+        requirements_completed_at,
+        requirements_verified_at,
+
+        selection_status,
+        queue_position,
+        waitlist_position,
+        fcfs_completed_at,
+
+        activation_status,
+        activated_at,
+
         submission_date,
+        created_at,
+        updated_at,
+
+        is_archived,
         is_disqualified,
         rejection_reason,
+        remarks,
         evaluator_id,
 
         students!applications_student_id_fkey (
@@ -1164,26 +1184,42 @@ async function buildApplicationDetails(applicationId) {
         .single();
 
     if (applicationError) {
-        console.error('Supabase Application Detail Error:', applicationError);
+        console.error(
+            'Supabase Application Detail Error:',
+            applicationError
+        );
         throw new Error(applicationError.message);
     }
 
     if (applicationRecord?.student_id) {
-        const { data: studentScholarState, error: studentScholarError } = await supabase
+        const {
+            data: studentScholarState,
+            error: studentScholarError,
+        } = await supabase
             .from('students')
-            .select('scholarship_status, current_application_id')
-            .eq('student_id', applicationRecord.student_id)
+            .select(
+                'scholarship_status, current_application_id'
+            )
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
             .maybeSingle();
 
         if (studentScholarError) {
-            console.error('Supabase Student Scholar State Error:', studentScholarError);
+            console.error(
+                'Supabase Student Scholar State Error:',
+                studentScholarError
+            );
             throw new Error(studentScholarError.message);
         }
 
         if (
-            studentScholarState?.scholarship_status === 'Active' &&
+            studentScholarState?.scholarship_status ===
+            'Active' &&
             studentScholarState?.current_application_id &&
-            studentScholarState.current_application_id !== applicationId
+            studentScholarState.current_application_id !==
+            applicationId
         ) {
             throw new Error(
                 'This student already has another active scholarship application.'
@@ -1204,27 +1240,53 @@ async function buildApplicationDetails(applicationId) {
         supabase
             .from('student_profiles')
             .select('*')
-            .eq('student_id', applicationRecord.student_id)
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
             .maybeSingle(),
+
         supabase
             .from('student_family')
             .select('*')
-            .eq('student_id', applicationRecord.student_id)
-            .order('relation', { ascending: true }),
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
+            .order('relation', {
+                ascending: true,
+            }),
+
         supabase
             .from('student_education')
             .select('*')
-            .eq('student_id', applicationRecord.student_id)
-            .order('education_level', { ascending: true }),
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
+            .order('education_level', {
+                ascending: true,
+            }),
+
         supabase
             .from('application_documents')
             .select('*')
-            .eq('application_id', applicationId)
-            .order('submitted_at', { ascending: true }),
+            .eq(
+                'application_id',
+                applicationId
+            )
+            .order('submitted_at', {
+                ascending: true,
+            }),
+
         supabase
             .from('application_document_reviews')
             .select('*')
-            .eq('application_id', applicationId),
+            .eq(
+                'application_id',
+                applicationId
+            ),
+
         supabase
             .from('ocr_extracted_documents')
             .select(`
@@ -1247,11 +1309,25 @@ async function buildApplicationDetails(applicationId) {
                 scanned_at,
                 updated_at
             `)
-            .eq('linked_record_id', applicationId)
-            .eq('student_id', applicationRecord.student_id)
-            .eq('linked_record_type', 'application')
-            .order('scanned_at', { ascending: false })
-            .order('updated_at', { ascending: false }),
+            .eq(
+                'linked_record_id',
+                applicationId
+            )
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
+            .eq(
+                'linked_record_type',
+                'application'
+            )
+            .order('scanned_at', {
+                ascending: false,
+            })
+            .order('updated_at', {
+                ascending: false,
+            }),
+
         supabase
             .from('iot_ocr_requests')
             .select(`
@@ -1270,13 +1346,26 @@ async function buildApplicationDetails(applicationId) {
                 completed_at,
                 updated_at
             `)
-            .eq('application_id', applicationId)
-            .order('created_at', { ascending: false }),
+            .eq(
+                'application_id',
+                applicationId
+            )
+            .order('created_at', {
+                ascending: false,
+            }),
+
         supabase
             .from('iot_ocr_reviews')
-            .select('document_key, verified_fields, reviewed_at')
-            .eq('application_id', applicationId)
-            .order('reviewed_at', { ascending: false }),
+            .select(
+                'document_key, verified_fields, reviewed_at'
+            )
+            .eq(
+                'application_id',
+                applicationId
+            )
+            .order('reviewed_at', {
+                ascending: false,
+            }),
     ]);
 
     const resultErrors = [
@@ -1291,212 +1380,716 @@ async function buildApplicationDetails(applicationId) {
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
-        console.error('Supabase Application Detail Relation Error:', resultErrors[0]);
-        throw new Error(resultErrors[0].message);
+        console.error(
+            'Supabase Application Detail Relation Error:',
+            resultErrors[0]
+        );
+
+        throw new Error(
+            resultErrors[0].message
+        );
     }
 
-    const student = applicationRecord.students || {};
-    const scholarshipProgram = applicationRecord.scholarship_program || {};
-    const benefactor = scholarshipProgram.benefactors || {};
-    const profile = profileResult.data || null;
+    const student =
+        applicationRecord.students || {};
 
-    let userContact = { email: 'N/A', phone_number: 'N/A' };
+    const scholarshipProgram =
+        applicationRecord.scholarship_program || {};
+
+    const benefactor =
+        scholarshipProgram.benefactors || {};
+
+    const profile =
+        profileResult.data || null;
+
+    let userContact = {
+        email: 'N/A',
+        phone_number: 'N/A',
+    };
 
     if (student.user_id) {
-        const { data: userData, error: userError } = await supabase
+        const {
+            data: userData,
+            error: userError,
+        } = await supabase
             .from('users')
-            .select('email, phone_number')
-            .eq('user_id', student.user_id)
+            .select(
+                'email, phone_number'
+            )
+            .eq(
+                'user_id',
+                student.user_id
+            )
             .maybeSingle();
 
         if (userError) {
-            console.error('Supabase User Fetch Error:', userError);
-            throw new Error(userError.message);
+            console.error(
+                'Supabase User Fetch Error:',
+                userError
+            );
+
+            throw new Error(
+                userError.message
+            );
         }
 
-        if (userData) userContact = userData;
+        if (userData) {
+            userContact = userData;
+        }
     }
 
     let courseCode = 'N/A';
+
     if (student.course_id) {
-        const { data: courseData, error: courseError } = await supabase
+        const {
+            data: courseData,
+            error: courseError,
+        } = await supabase
             .from('academic_course')
             .select('course_code')
-            .eq('course_id', student.course_id)
+            .eq(
+                'course_id',
+                student.course_id
+            )
             .maybeSingle();
 
         if (courseError) {
-            console.error('Supabase Course Fetch Error:', courseError);
-            throw new Error(courseError.message);
+            console.error(
+                'Supabase Course Fetch Error:',
+                courseError
+            );
+
+            throw new Error(
+                courseError.message
+            );
         }
 
-        if (courseData) courseCode = courseData.course_code;
+        if (courseData) {
+            courseCode =
+                courseData.course_code;
+        }
     }
 
     const reviewByKey = new Map(
-        (reviewsResult.data || []).map((review) => [review.document_key, review])
+        (reviewsResult.data || []).map(
+            (review) => [
+                review.document_key,
+                review,
+            ]
+        )
     );
+
     const ocrByKey = new Map();
 
-    (ocrResult.data || []).forEach((ocrRow) => {
-        const resolvedKey = normalizeDocumentType(
-            ocrRow.document_key || ocrRow.document_type || ''
-        );
+    (ocrResult.data || []).forEach(
+        (ocrRow) => {
+            const resolvedKey =
+                normalizeDocumentType(
+                    ocrRow.document_key ||
+                    ocrRow.document_type ||
+                    ''
+                );
 
-        if (!resolvedKey || ocrByKey.has(resolvedKey)) {
+            if (
+                !resolvedKey ||
+                ocrByKey.has(resolvedKey)
+            ) {
+                return;
+            }
+
+            ocrByKey.set(
+                resolvedKey,
+                buildOcrProjection(ocrRow)
+            );
+        }
+    );
+
+    const latestIotOcrRequestByKey =
+        new Map();
+
+    (
+        iotOcrRequestsResult.data || []
+    ).forEach((requestRow) => {
+        const resolvedKey =
+            normalizeDocumentType(
+                requestRow.document_key ||
+                requestRow.document_type ||
+                ''
+            );
+
+        if (
+            !resolvedKey ||
+            latestIotOcrRequestByKey.has(
+                resolvedKey
+            )
+        ) {
             return;
         }
 
-        ocrByKey.set(resolvedKey, buildOcrProjection(ocrRow));
-    });
-    const latestIotOcrRequestByKey = new Map();
+        latestIotOcrRequestByKey.set(
+            resolvedKey,
+            {
+                request_id:
+                    requestRow.request_id,
 
-    (iotOcrRequestsResult.data || []).forEach((requestRow) => {
-        const resolvedKey = normalizeDocumentType(
-            requestRow.document_key || requestRow.document_type || ''
+                document_key:
+                    resolvedKey,
+
+                document_type:
+                    requestRow.document_type ||
+                    null,
+
+                status:
+                    requestRow.status ||
+                    'pending',
+
+                requested_by:
+                    requestRow.requested_by ||
+                    null,
+
+                claimed_by:
+                    requestRow.claimed_by ||
+                    null,
+
+                error_message:
+                    requestRow.error_message ||
+                    null,
+
+                created_at:
+                    requestRow.created_at ||
+                    null,
+
+                claimed_at:
+                    requestRow.claimed_at ||
+                    null,
+
+                completed_at:
+                    requestRow.completed_at ||
+                    null,
+
+                updated_at:
+                    requestRow.updated_at ||
+                    null,
+            }
+        );
+    });
+
+    const rawDocuments =
+        documentsResult.data || [];
+
+    const normalizedDocuments =
+        await Promise.all(
+            rawDocuments.map(
+                async (document) => {
+                    const documentKey =
+                        getDocumentKey(
+                            document
+                        );
+
+                    const review =
+                        reviewByKey.get(
+                            documentKey
+                        ) || null;
+
+                    const ocr =
+                        ocrByKey.get(
+                            documentKey
+                        ) || null;
+
+                    const latestIotOcrRequest =
+                        latestIotOcrRequestByKey.get(
+                            documentKey
+                        ) || null;
+
+                    const filePath =
+                        document.file_path ||
+                        null;
+
+                    const signedUrl =
+                        filePath
+                            ? await getSignedFileUrl(
+                                filePath
+                            )
+                            : null;
+
+                    return {
+                        id: documentKey,
+
+                        document_key:
+                            documentKey,
+
+                        name:
+                            DOCUMENT_TYPE_TO_NAME[
+                            documentKey
+                            ] ||
+                            document.document_type ||
+                            'Document',
+
+                        document_type:
+                            document.document_type ||
+                            null,
+
+                        file_name:
+                            document.file_name ||
+                            null,
+
+                        file_path:
+                            filePath,
+
+                        url:
+                            signedUrl ||
+                            document.file_url ||
+                            null,
+
+                        file_url:
+                            signedUrl ||
+                            document.file_url ||
+                            null,
+
+                        signed_url:
+                            signedUrl ||
+                            null,
+
+                        status:
+                            deriveReviewStatus(
+                                document,
+                                review
+                            ),
+
+                        admin_comment:
+                            review?.admin_comment ||
+                            document.notes ||
+                            '',
+
+                        notes:
+                            document.notes ||
+                            null,
+
+                        ocr:
+                            ocr || {},
+
+                        ocr_confidence:
+                            ocr?.confidence ??
+                            null,
+
+                        iot_ocr_request:
+                            latestIotOcrRequest,
+
+                        ocr_job:
+                            latestIotOcrRequest,
+
+                        uploaded_at:
+                            document.submitted_at ||
+                            null,
+
+                        submitted_at:
+                            document.submitted_at ||
+                            null,
+
+                        reviewed_at:
+                            review?.reviewed_at ||
+                            null,
+                    };
+                }
+            )
         );
 
-        if (!resolvedKey || latestIotOcrRequestByKey.has(resolvedKey)) {
-            return;
-        }
+    const projectedDocumentKeys =
+        new Set(
+            normalizedDocuments.map(
+                (document) =>
+                    document.document_key
+            )
+        );
 
-        latestIotOcrRequestByKey.set(resolvedKey, {
-            request_id: requestRow.request_id,
-            document_key: resolvedKey,
-            document_type: requestRow.document_type || null,
-            status: requestRow.status || 'pending',
-            requested_by: requestRow.requested_by || null,
-            claimed_by: requestRow.claimed_by || null,
-            error_message: requestRow.error_message || null,
-            created_at: requestRow.created_at || null,
-            claimed_at: requestRow.claimed_at || null,
-            completed_at: requestRow.completed_at || null,
-            updated_at: requestRow.updated_at || null,
-        });
-    });
-
-    const rawDocuments = documentsResult.data || [];
-
-    const normalizedDocuments = await Promise.all(
-        rawDocuments
-            .map(async (document) => {
-                const documentKey = getDocumentKey(document);
-                const review = reviewByKey.get(documentKey) || null;
-                const ocr = ocrByKey.get(documentKey) || null;
-                const latestIotOcrRequest = latestIotOcrRequestByKey.get(documentKey) || null;
-                const filePath = document.file_path || null;
-                const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
-
-                return {
-                    id: documentKey,
-                    document_key: documentKey,
-                    name: DOCUMENT_TYPE_TO_NAME[documentKey] || document.document_type || 'Document',
-                    document_type: document.document_type || null,
-                    file_name: document.file_name || null,
-                    file_path: filePath,
-                    url: signedUrl || document.file_url || null,
-                    file_url: signedUrl || document.file_url || null,
-                    signed_url: signedUrl || null,
-                    status: deriveReviewStatus(document, review),
-                    admin_comment: review?.admin_comment || document.notes || '',
-                    notes: document.notes || null,
-                    ocr: ocr || {},
-                    ocr_confidence: ocr?.confidence ?? null,
-                    iot_ocr_request: latestIotOcrRequest,
-                    ocr_job: latestIotOcrRequest,
-                    uploaded_at: document.submitted_at || null,
-                    submitted_at: document.submitted_at || null,
-                    reviewed_at: review?.reviewed_at || null,
-                };
-            })
-    );
-    const projectedDocumentKeys = new Set(
-        normalizedDocuments.map((document) => document.document_key)
-    );
-
-    for (const [documentKey, ocr] of ocrByKey) {
+    for (
+        const [documentKey, ocr]
+        of ocrByKey
+    ) {
         if (
             !documentKey ||
-            projectedDocumentKeys.has(documentKey)
-        ) continue;
+            projectedDocumentKeys.has(
+                documentKey
+            )
+        ) {
+            continue;
+        }
 
-        normalizedDocuments.push(buildOcrOnlyDocument({
-            documentKey,
-            ocr,
-            latestIotOcrRequest: latestIotOcrRequestByKey.get(documentKey) || null,
-        }));
+        normalizedDocuments.push(
+            buildOcrOnlyDocument({
+                documentKey,
+                ocr,
+
+                latestIotOcrRequest:
+                    latestIotOcrRequestByKey.get(
+                        documentKey
+                    ) || null,
+            })
+        );
     }
 
     normalizedDocuments.push({
         id: 'application_form',
-        document_key: 'application_form',
-        name: 'Application Form',
-        document_type: 'Application Form',
-        file_name: null,
-        file_path: null,
-        url: null,
-        file_url: null,
-        signed_url: null,
-        status: reviewByKey.get('application_form')?.review_status || 'pending',
-        admin_comment: reviewByKey.get('application_form')?.admin_comment || '',
-        notes: null,
-        ocr: {},
-        ocr_confidence: null,
-        iot_ocr_request: latestIotOcrRequestByKey.get('application_form') || null,
-        ocr_job: latestIotOcrRequestByKey.get('application_form') || null,
-        uploaded_at: applicationRecord.submission_date || null,
-        submitted_at: applicationRecord.submission_date || null,
-        reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
+
+        document_key:
+            'application_form',
+
+        name:
+            'Application Form',
+
+        document_type:
+            'Application Form',
+
+        file_name:
+            null,
+
+        file_path:
+            null,
+
+        url:
+            null,
+
+        file_url:
+            null,
+
+        signed_url:
+            null,
+
+        status:
+            reviewByKey.get(
+                'application_form'
+            )?.review_status ||
+            'pending',
+
+        admin_comment:
+            reviewByKey.get(
+                'application_form'
+            )?.admin_comment ||
+            '',
+
+        notes:
+            null,
+
+        ocr:
+            {},
+
+        ocr_confidence:
+            null,
+
+        iot_ocr_request:
+            latestIotOcrRequestByKey.get(
+                'application_form'
+            ) || null,
+
+        ocr_job:
+            latestIotOcrRequestByKey.get(
+                'application_form'
+            ) || null,
+
+        uploaded_at:
+            applicationRecord.submission_date ||
+            null,
+
+        submitted_at:
+            applicationRecord.submission_date ||
+            null,
+
+        reviewed_at:
+            reviewByKey.get(
+                'application_form'
+            )?.reviewed_at ||
+            null,
     });
 
-    const documents = ensureDocumentCoverage(normalizedDocuments);
+    const documents =
+        ensureDocumentCoverage(
+            normalizedDocuments
+        );
 
-    const readiness = await fetchApplicationReadiness(applicationId);
-    const marilaoResident = resolveMarilaoResidency(iotOcrReviewsResult.data || []);
+    const readiness =
+        await fetchApplicationReadiness(
+            applicationId
+        );
+
+    const marilaoResident =
+        resolveMarilaoResidency(
+            iotOcrReviewsResult.data || []
+        );
 
     return {
-        id: applicationRecord.application_id,
+        /*
+         * Keep the important application workflow fields
+         * at the TOP LEVEL because the admin frontend
+         * consumes the response returned by
+         * GET /api/applications/:id/documents directly.
+         */
+        id:
+            applicationRecord.application_id,
+
+        application_id:
+            applicationRecord.application_id,
+
+        student_id:
+            applicationRecord.student_id,
+
+        program_id:
+            applicationRecord.program_id,
+
+        opening_id:
+            applicationRecord.opening_id ||
+            null,
+
+        application_status:
+            applicationRecord.application_status,
+
+        document_status:
+            applicationRecord.document_status,
+
+        /*
+         * CRITICAL:
+         * DocumentVerification.jsx reads this field to
+         * determine whether "Save Requirements Review"
+         * has already been finalized.
+         */
+        verification_status:
+            applicationRecord.verification_status ||
+            'pending',
+
+        requirements_completed_at:
+            applicationRecord.requirements_completed_at ||
+            null,
+
+        requirements_verified_at:
+            applicationRecord.requirements_verified_at ||
+            null,
+
+        selection_status:
+            applicationRecord.selection_status ||
+            'Unranked',
+
+        queue_position:
+            applicationRecord.queue_position ??
+            null,
+
+        waitlist_position:
+            applicationRecord.waitlist_position ??
+            null,
+
+        fcfs_completed_at:
+            applicationRecord.fcfs_completed_at ||
+            null,
+
+        activation_status:
+            applicationRecord.activation_status ||
+            'Not Activated',
+
+        activated_at:
+            applicationRecord.activated_at ||
+            null,
+
+        submitted:
+            applicationRecord.submission_date,
+
+        submission_date:
+            applicationRecord.submission_date,
+
+        created_at:
+            applicationRecord.created_at ||
+            null,
+
+        updated_at:
+            applicationRecord.updated_at ||
+            null,
+
+        is_archived:
+            applicationRecord.is_archived ===
+            true,
+
+        disqualified:
+            !!applicationRecord.is_disqualified,
+
+        is_disqualified:
+            !!applicationRecord.is_disqualified,
+
+        rejection_reason:
+            applicationRecord.rejection_reason ||
+            null,
+
+        remarks:
+            applicationRecord.remarks ||
+            null,
+
+        evaluator_id:
+            applicationRecord.evaluator_id ||
+            null,
+
+        /*
+         * Keep the same values nested too. Other
+         * consumers may use response.application.*
+         */
         application: {
-            application_id: applicationRecord.application_id,
-            student_id: applicationRecord.student_id,
-            program_id: applicationRecord.program_id,
-            application_status: applicationRecord.application_status,
-            document_status: applicationRecord.document_status,
-            submission_date: applicationRecord.submission_date,
-            is_disqualified: !!applicationRecord.is_disqualified,
-            rejection_reason: applicationRecord.rejection_reason || null,
-            evaluator_id: applicationRecord.evaluator_id || null,
+            application_id:
+                applicationRecord.application_id,
+
+            student_id:
+                applicationRecord.student_id,
+
+            program_id:
+                applicationRecord.program_id,
+
+            opening_id:
+                applicationRecord.opening_id ||
+                null,
+
+            application_status:
+                applicationRecord.application_status,
+
+            document_status:
+                applicationRecord.document_status,
+
+            verification_status:
+                applicationRecord.verification_status ||
+                'pending',
+
+            requirements_completed_at:
+                applicationRecord.requirements_completed_at ||
+                null,
+
+            requirements_verified_at:
+                applicationRecord.requirements_verified_at ||
+                null,
+
+            selection_status:
+                applicationRecord.selection_status ||
+                'Unranked',
+
+            queue_position:
+                applicationRecord.queue_position ??
+                null,
+
+            waitlist_position:
+                applicationRecord.waitlist_position ??
+                null,
+
+            fcfs_completed_at:
+                applicationRecord.fcfs_completed_at ||
+                null,
+
+            activation_status:
+                applicationRecord.activation_status ||
+                'Not Activated',
+
+            activated_at:
+                applicationRecord.activated_at ||
+                null,
+
+            submission_date:
+                applicationRecord.submission_date,
+
+            created_at:
+                applicationRecord.created_at ||
+                null,
+
+            updated_at:
+                applicationRecord.updated_at ||
+                null,
+
+            is_archived:
+                applicationRecord.is_archived ===
+                true,
+
+            is_disqualified:
+                !!applicationRecord.is_disqualified,
+
+            rejection_reason:
+                applicationRecord.rejection_reason ||
+                null,
+
+            remarks:
+                applicationRecord.remarks ||
+                null,
+
+            evaluator_id:
+                applicationRecord.evaluator_id ||
+                null,
         },
-        application_status: applicationRecord.application_status,
-        document_status: applicationRecord.document_status,
-        submitted: applicationRecord.submission_date,
-        disqualified: !!applicationRecord.is_disqualified,
-        rejection_reason: applicationRecord.rejection_reason || null,
+
         student: {
             name:
-                `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+                `${student.first_name || ''
+                    } ${student.last_name || ''
+                    }`
+                    .trim() ||
                 'Unknown Student',
+
             initials:
-                `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase() ||
+                `${student.first_name?.[0] ||
+                    ''
+                    }${student.last_name?.[0] ||
+                    ''
+                    }`
+                    .toUpperCase() ||
                 'NA',
-            avatar_url: await resolveAvatarUrl(student.profile_photo_url),
-            pdm_id: student.pdm_id || 'N/A',
-            email: userContact.email || 'N/A',
-            phone: userContact.phone_number || 'N/A',
-            year: student.year_level
-                ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
-                : 'N/A',
-            gwa: student.gwa ?? 'N/A',
-            program: scholarshipProgram.program_name || 'General',
-            benefactor_name: benefactor.benefactor_name || 'N/A',
-            course: courseCode,
-            barangay: profile?.barangay || 'N/A',
-            marilao_resident: marilaoResident,
+
+            avatar_url:
+                await resolveAvatarUrl(
+                    student.profile_photo_url
+                ),
+
+            pdm_id:
+                student.pdm_id ||
+                'N/A',
+
+            email:
+                userContact.email ||
+                'N/A',
+
+            phone:
+                userContact.phone_number ||
+                'N/A',
+
+            year:
+                student.year_level
+                    ? `${student.year_level
+                    }${getOrdinalSuffix(
+                        student.year_level
+                    )} Year`
+                    : 'N/A',
+
+            gwa:
+                student.gwa ??
+                'N/A',
+
+            program:
+                scholarshipProgram.program_name ||
+                'General',
+
+            benefactor_name:
+                benefactor.benefactor_name ||
+                'N/A',
+
+            course:
+                courseCode,
+
+            barangay:
+                profile?.barangay ||
+                'N/A',
+
+            marilao_resident:
+                marilaoResident,
         },
-        student_profile: profile,
-        family_members: familyMembersResult.data || [],
-        education_records: educationRecordsResult.data || [],
+
+        student_profile:
+            profile,
+
+        family_members:
+            familyMembersResult.data || [],
+
+        education_records:
+            educationRecordsResult.data || [],
+
         documents,
+
         readiness,
     };
 }

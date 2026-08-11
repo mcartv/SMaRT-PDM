@@ -10,18 +10,15 @@ import {
     ChevronLeft,
     ChevronRight,
     UserMinus,
-    CheckCircle2,
     AlertCircle,
     Loader2,
     X,
-    ShieldCheck,
     FileSearch,
     MessageSquare,
     ArrowLeft,
     CalendarDays,
     CircleOff,
     ListOrdered,
-    Trophy,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -291,16 +288,8 @@ function buildApplicantState(app) {
     const isEndorsementComplete = endorsementStatus === 'completed';
     const hasRemarks = String(app.remarks || '').trim().length > 0;
 
-    const canApprove =
-        !isApproved &&
-        !isQualified &&
-        !isDisqualified &&
-        isInReviewStage &&
-        isVerified &&
-        isEndorsementComplete;
-
     let decisionHint = '';
-    if (!isApproved && !isQualified && !canApprove) {
+    if (!isApproved && !isQualified) {
         decisionHint = !isInReviewStage
             ? 'Move to review.'
             : !isVerified
@@ -322,7 +311,6 @@ function buildApplicantState(app) {
         isVerified,
         isEndorsementComplete,
         hasRemarks,
-        canApprove,
         decisionHint,
         appMeta: getAppStatusMeta(displayedStatus),
         gwaMeta: getGwaMeta(app.gwa),
@@ -492,16 +480,8 @@ function RemarksModal({ app, value, onChange, onSave, onClose, saving }) {
 
 function ApplicantTable({
     pageData,
-    openingFilled,
-    decisionLoading,
-    selected,
-    viewMode,
-    allVisibleSelected,
-    onToggleSelect,
-    onToggleAllVisible,
     onReviewDocuments,
     onOpenRemarks,
-    onApprove,
     onDisqualify,
     fcfsOrder,
 }) {
@@ -510,17 +490,6 @@ function ApplicantTable({
             <table className="w-full min-w-[1180px]">
                 <thead className="bg-stone-50">
                     <tr className="border-b border-stone-200">
-                        {viewMode === VIEW_MODES.current ? (
-                            <th className="w-10 px-3 py-3 text-left">
-                                <input
-                                    type="checkbox"
-                                    checked={allVisibleSelected}
-                                    onChange={onToggleAllVisible}
-                                    className="accent-stone-700"
-                                    aria-label="Select all eligible applicants on this page"
-                                />
-                            </th>
-                        ) : null}
                         <th className="w-20 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
                             FCFS
                         </th>
@@ -565,20 +534,6 @@ function ApplicantTable({
                                 className={`border-b border-stone-100 align-top transition hover:bg-stone-50 ${state.isDisqualified ? 'bg-red-50/20' : ''
                                     }`}
                             >
-                                {viewMode === VIEW_MODES.current ? (
-                                    <td className="px-3 py-4">
-                                        {!state.isApproved && !state.isQualified ? (
-                                            <input
-                                                type="checkbox"
-                                                checked={selected.has(app.id)}
-                                                onChange={() => onToggleSelect(app.id)}
-                                                disabled={!state.canApprove}
-                                                className="accent-stone-700 disabled:opacity-40"
-                                                aria-label={`Select ${app.name}`}
-                                            />
-                                        ) : null}
-                                    </td>
-                                ) : null}
 
                                 <td className="px-3 py-4">
                                     {isRanked ? (
@@ -713,11 +668,9 @@ function ApplicantTable({
 
                                     {!state.isApproved &&
                                         !state.isQualified &&
-                                        !state.canApprove ? (
+                                        state.decisionHint ? (
                                         <p className="mt-2 text-right text-[11px] text-stone-400">
-                                            {openingFilled
-                                                ? 'No available slot for direct qualification.'
-                                                : state.decisionHint}
+                                            {state.decisionHint}
                                         </p>
                                     ) : null}
                                 </td>
@@ -746,13 +699,10 @@ export default function OpeningApplications() {
     const [viewMode, setViewMode] = useState(initialView);
 
     const [page, setPage] = useState(1);
-    const [selected, setSelected] = useState(new Set());
-
     const [disqApp, setDisqApp] = useState(null);
     const [remarksModal, setRemarksModal] = useState(null);
     const [remarksText, setRemarksText] = useState('');
     const [remarksSaving, setRemarksSaving] = useState(false);
-    const [decisionLoading, setDecisionLoading] = useState(null);
 
     const reloadApplications = async ({ soft = false } = {}) => {
         try {
@@ -845,9 +795,11 @@ export default function OpeningApplications() {
                     if (app.is_archived === true) {
                         return false;
                     }
+
                     if (isApprovedCandidate(app)) {
                         return false;
                     }
+
                     return (
                         Boolean(app.fcfs_completed_at) ||
                         Number(app.queue_position) > 0
@@ -874,8 +826,6 @@ export default function OpeningApplications() {
     const changeViewMode = (nextView) => {
         setViewMode(nextView);
         setPage(1);
-        setSelected(new Set());
-
         const nextParams = new URLSearchParams(searchParams);
         if (nextView === VIEW_MODES.finalSelection) {
             nextParams.set('view', VIEW_MODES.finalSelection);
@@ -916,7 +866,6 @@ export default function OpeningApplications() {
 
     useEffect(() => {
         setPage(1);
-        setSelected(new Set());
     }, [search, viewMode]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -935,40 +884,6 @@ export default function OpeningApplications() {
         ['filled', 'closed'].includes(
             String(opening?.status || opening?.posting_status || '').toLowerCase()
         );
-
-    const selectablePageData = useMemo(
-        () => pageData.filter((application) => buildApplicantState(application).canApprove),
-        [pageData]
-    );
-
-    const allVisibleSelected = useMemo(
-        () =>
-            selectablePageData.length > 0 &&
-            selectablePageData.every((application) => selected.has(application.id)),
-        [selectablePageData, selected]
-    );
-
-    const toggleOne = (id) => {
-        setSelected((prev) => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
-    };
-
-    const toggleAllVisible = () => {
-        setSelected((prev) => {
-            const next = new Set(prev);
-
-            if (allVisibleSelected) {
-                selectablePageData.forEach((application) => next.delete(application.id));
-            } else {
-                selectablePageData.forEach((application) => next.add(application.id));
-            }
-
-            return next;
-        });
-    };
 
     const handleDisqualify = async (id, reason) => {
         try {
@@ -1005,49 +920,6 @@ export default function OpeningApplications() {
         } catch (err) {
             console.error('DISQUALIFY ERROR:', err);
             alert(err.message || 'Failed to disqualify application');
-        }
-    };
-
-    const handleDecision = async (id, action) => {
-        try {
-            setDecisionLoading(id);
-
-            if (action !== 'approve') {
-                throw new Error('Unsupported action');
-            }
-
-            const res = await fetch(buildApiUrl(`/api/applications/${id}/approve`), {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!res.ok) {
-                const message = await parseErrorResponse(res, `Failed to ${action} application`);
-                throw new Error(message);
-            }
-
-            setApps((prev) =>
-                prev.map((a) =>
-                    a.id === id
-                        ? {
-                            ...a,
-                            selection_status: 'Qualified',
-                            is_reconsideration_candidate: false,
-                            is_scholar: false,
-                        }
-                        : a
-                )
-            );
-
-            await reloadApplications({ soft: true });
-        } catch (err) {
-            console.error('APPLICATION DECISION ERROR:', err);
-            alert(err.message || 'Failed to update applicant qualification');
-        } finally {
-            setDecisionLoading(null);
         }
     };
 
@@ -1095,17 +967,6 @@ export default function OpeningApplications() {
         } finally {
             setRemarksSaving(false);
         }
-    };
-
-    const handleBulkApprove = async () => {
-        if (selected.size === 0) return;
-
-        const ids = Array.from(selected);
-        for (const id of ids) {
-            await handleDecision(id, 'approve');
-        }
-
-        setSelected(new Set());
     };
 
     const openingMetaLine = [opening?.semester, opening?.academic_year].filter(Boolean).join(' · ');
@@ -1285,16 +1146,8 @@ export default function OpeningApplications() {
                     ) : (
                         <ApplicantTable
                             pageData={pageData}
-                            openingFilled={openingFilled}
-                            decisionLoading={decisionLoading}
-                            selected={selected}
-                            viewMode={viewMode}
-                            allVisibleSelected={allVisibleSelected}
-                            onToggleSelect={toggleOne}
-                            onToggleAllVisible={toggleAllVisible}
                             onReviewDocuments={(id) => navigate(`/admin/applications/${id}/documents`)}
                             onOpenRemarks={handleOpenRemarks}
-                            onApprove={(id) => handleDecision(id, 'approve')}
                             onDisqualify={setDisqApp}
                             fcfsOrder={fcfsOrder}
                         />

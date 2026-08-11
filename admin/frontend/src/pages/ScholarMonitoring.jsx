@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
@@ -40,12 +41,7 @@ import {
   CalendarDays,
   ShieldAlert,
   FileText,
-  Files,
-  ScanSearch,
-  ExternalLink,
   FileCheck2,
-  ShieldCheck,
-  CheckCircle2,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -97,7 +93,7 @@ const REMOVAL_REASONS = [
 ];
 
 const RENEWAL_STATUS_STYLE = {
-  pending_submission: { label: 'Pending Submission', color: '#78716c', bg: '#f5f5f4' },
+  pending_submission: { label: 'Pending', color: '#78716c', bg: '#f5f5f4' },
   submitted: { label: 'Submitted', color: C.blue, bg: C.blueSoft },
   under_review: { label: 'Under Review', color: C.amber, bg: C.amberSoft },
   approved: { label: 'Approved', color: C.green, bg: C.greenSoft },
@@ -138,124 +134,58 @@ function getRoStatusMeta(value) {
   return RO_STATUS_STYLE.Pending;
 }
 
-function getFileTypeLabel(url = '', name = '') {
-  const value = `${url} ${name}`.toLowerCase();
-  if (value.includes('.pdf')) return 'PDF';
-  if (
-    value.includes('.png') ||
-    value.includes('.jpg') ||
-    value.includes('.jpeg') ||
-    value.includes('.webp')
-  ) return 'Image';
-  return 'File';
-}
-
-function isImageFile(url = '', name = '') {
-  const value = `${url} ${name}`.toLowerCase();
-  return ['.png', '.jpg', '.jpeg', '.webp', '.gif'].some((ext) => value.includes(ext));
+function normalizeRenewalStatus(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
 }
 
 function getRenewalStatusMeta(raw) {
-  const key = String(raw || '').toLowerCase();
-  return RENEWAL_STATUS_STYLE[key] || RENEWAL_STATUS_STYLE.pending_submission;
+  const key = normalizeRenewalStatus(raw);
+
+  const styles = {
+    pending_submission: { label: 'Pending', color: C.muted, bg: '#f5f5f4' },
+    submitted: { label: 'Submitted', color: C.blue, bg: C.blueSoft },
+    under_review: { label: 'Under Review', color: C.amber, bg: C.amberSoft },
+    approved: { label: 'Approved', color: C.green, bg: C.greenSoft },
+    needs_reupload: { label: 'Needs Re-upload', color: C.red, bg: C.redSoft },
+    rejected: { label: 'Rejected', color: C.red, bg: C.redSoft },
+    flagged: { label: 'Flagged', color: C.red, bg: C.redSoft },
+    failed: { label: 'Failed', color: C.red, bg: C.redSoft },
+  };
+
+  return styles[key] || {
+    label: String(raw || 'Pending'),
+    color: C.muted,
+    bg: '#f5f5f4',
+  };
 }
 
-function deriveRenewalStatusFromDocuments(documents = []) {
-  if (!Array.isArray(documents) || documents.length === 0) {
-    return 'pending_submission';
+function getRenewalDocumentStatusMeta(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+
+  if (value.includes('verified')) return { color: C.green, bg: C.greenSoft };
+  if (value.includes('rejected') || value.includes('reupload') || value.includes('missing')) {
+    return { color: C.red, bg: C.redSoft };
+  }
+  if (value.includes('uploaded') || value.includes('review') || value.includes('flagged')) {
+    return { color: C.amber, bg: C.amberSoft };
   }
 
-  const uploaded = documents.filter((d) => d.url);
-  if (uploaded.length === 0) return 'pending_submission';
+  return { color: C.muted, bg: '#f5f5f4' };
+}
 
-  const hasMissing = documents.some((d) => !d.url);
-  const hasFlagged = documents.some((d) => String(d.ocrStatus || '').toLowerCase() === 'flagged');
-  const hasVerified = documents.length > 0 && documents.every((d) => {
-    if (!d.url) return false;
-    const ocr = String(d.ocrStatus || '').toLowerCase();
-    return ocr === 'verified' || ocr === 'ready for ocr' || ocr === 'not analyzed';
+function formatRenewalDate(value) {
+  if (!value) return 'Not yet submitted';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
   });
-
-  if (hasFlagged || hasMissing) return 'needs_reupload';
-  if (hasVerified) return 'submitted';
-  return 'under_review';
-}
-
-function normalizeRenewalDocuments(payload, scholar) {
-  if (Array.isArray(payload)) {
-    return payload.map((doc, index) => ({
-      id: doc.id || `${doc.document_type || 'doc'}-${index}`,
-      name: doc.name || doc.document_name || doc.document_type || `Document ${index + 1}`,
-      type: doc.type || doc.document_type || 'Renewal Document',
-      url: doc.url || doc.file_url || doc.document_url || '',
-      status: doc.status || doc.verification_status || 'Pending Review',
-      uploadedAt: doc.uploaded_at || doc.created_at || null,
-      ocrStatus: doc.ocr_status || 'Not Analyzed',
-      extractedText: doc.extracted_text || '',
-      ocrFields: doc.ocr_fields || {},
-      remarks: doc.remarks || '',
-      confidence: typeof doc.confidence === 'number' ? doc.confidence : null,
-    }));
-  }
-
-  if (payload && Array.isArray(payload.documents)) {
-    return normalizeRenewalDocuments(payload.documents, scholar);
-  }
-
-  return [
-    {
-      id: 'cor',
-      name: 'Certificate of Registration',
-      type: 'COR',
-      url: scholar?.certificate_of_registration_url || '',
-      status: scholar?.certificate_of_registration_url ? 'Uploaded' : 'Missing',
-      uploadedAt: null,
-      ocrStatus: scholar?.certificate_of_registration_url ? 'Ready for OCR' : 'Not Available',
-      extractedText: '',
-      ocrFields: {},
-      remarks: '',
-      confidence: null,
-    },
-    {
-      id: 'grades',
-      name: 'Grade Form',
-      type: 'Grades',
-      url: scholar?.grade_form_url || '',
-      status: scholar?.grade_form_url ? 'Uploaded' : 'Missing',
-      uploadedAt: null,
-      ocrStatus: scholar?.grade_form_url ? 'Ready for OCR' : 'Not Available',
-      extractedText: '',
-      ocrFields: {},
-      remarks: '',
-      confidence: null,
-    },
-    {
-      id: 'indigency',
-      name: 'Certificate of Indigency',
-      type: 'Indigency',
-      url: scholar?.certificate_of_indigency_url || '',
-      status: scholar?.certificate_of_indigency_url ? 'Uploaded' : 'Missing',
-      uploadedAt: null,
-      ocrStatus: scholar?.certificate_of_indigency_url ? 'Ready for OCR' : 'Not Available',
-      extractedText: '',
-      ocrFields: {},
-      remarks: '',
-      confidence: null,
-    },
-    {
-      id: 'validid',
-      name: 'Valid ID',
-      type: 'Identification',
-      url: scholar?.valid_id_url || '',
-      status: scholar?.valid_id_url ? 'Uploaded' : 'Missing',
-      uploadedAt: null,
-      ocrStatus: scholar?.valid_id_url ? 'Ready for OCR' : 'Not Available',
-      extractedText: '',
-      ocrFields: {},
-      remarks: '',
-      confidence: null,
-    },
-  ];
 }
 
 // ─── Filter Modal ────────────────────────────────────────────────
@@ -274,6 +204,7 @@ function FilterModal({
   setDraftStatus,
   draftSortBy,
   setDraftSortBy,
+  batchLabel = 'Batch Year',
   onApply,
   onClear,
 }) {
@@ -325,7 +256,7 @@ function FilterModal({
 
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-              Batch Year
+              {batchLabel}
             </label>
             <Select value={draftBatchYear} onValueChange={setDraftBatchYear}>
               <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
@@ -703,617 +634,6 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
   );
 }
 
-// ─── Renewal Modal ───────────────────────────────────────────────
-function RenewalModal({ open, scholar, onClose }) {
-  const [loading, setLoading] = useState(false);
-  const [documents, setDocuments] = useState([]);
-  const [selectedDocId, setSelectedDocId] = useState(null);
-  const [loadError, setLoadError] = useState('');
-  const [adminRemarks, setAdminRemarks] = useState('');
-  const [decision, setDecision] = useState('');
-  const [savingAction, setSavingAction] = useState('');
-
-  useEffect(() => {
-    if (!open || !scholar) return;
-
-    let mounted = true;
-
-    const fetchRenewalDocuments = async () => {
-      try {
-        setLoading(true);
-        setLoadError('');
-        setAdminRemarks('');
-        setDecision('');
-        setSavingAction('');
-
-        const token = sessionStorage.getItem('adminToken');
-        const res = await fetch(buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents`), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error('Renewal documents endpoint not available');
-        }
-
-        const data = await res.json();
-        const normalized = normalizeRenewalDocuments(data, scholar);
-
-        if (mounted) {
-          setDocuments(normalized);
-          setSelectedDocId(normalized.find((d) => d.url)?.id || normalized[0]?.id || null);
-        }
-      } catch (err) {
-        const fallbackDocs = normalizeRenewalDocuments(null, scholar);
-
-        if (mounted) {
-          setDocuments(fallbackDocs);
-          setSelectedDocId(fallbackDocs.find((d) => d.url)?.id || fallbackDocs[0]?.id || null);
-          setLoadError(
-            'Using fallback renewal document fields. Connect your backend endpoint for full OCR extraction and validation data.'
-          );
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchRenewalDocuments();
-
-    return () => {
-      mounted = false;
-    };
-  }, [open, scholar]);
-
-  if (!open || !scholar) return null;
-
-  const selectedDoc = documents.find((doc) => doc.id === selectedDocId) || null;
-
-  const uploadedCount = documents.filter((doc) => doc.url).length;
-  const missingCount = documents.filter((doc) => !doc.url).length;
-  const verifiedCount = documents.filter(
-    (doc) => String(doc.ocrStatus || '').toLowerCase() === 'verified'
-  ).length;
-
-  const renewalStatus = deriveRenewalStatusFromDocuments(documents);
-  const renewalMeta = getRenewalStatusMeta(renewalStatus);
-
-  const isReadyToApprove =
-    uploadedCount > 0 &&
-    missingCount === 0 &&
-    !!selectedDoc?.url;
-
-  const updateSelectedDocument = (patch) => {
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === selectedDocId
-          ? { ...doc, ...patch }
-          : doc
-      )
-    );
-  };
-
-  const handleVerifyOCR = async () => {
-    if (!selectedDoc) return;
-
-    try {
-      setSavingAction('verify');
-
-      const token = sessionStorage.getItem('adminToken');
-
-      await fetch(
-        buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents/${selectedDoc.id}/verify`),
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            remarks: adminRemarks || '',
-            ocr_status: 'Verified',
-          }),
-        }
-      ).catch(() => null);
-
-      updateSelectedDocument({
-        ocrStatus: 'Verified',
-        status: 'Verified',
-        remarks: adminRemarks || selectedDoc.remarks || '',
-      });
-    } catch (err) {
-      console.error('VERIFY RENEWAL OCR ERROR:', err);
-      alert(err.message || 'Failed to verify renewal document');
-    } finally {
-      setSavingAction('');
-    }
-  };
-
-  const handleSaveRenewalDecision = async (nextDecision) => {
-    const finalDecision = nextDecision || decision;
-
-    if (!finalDecision) {
-      alert('Select a renewal decision first.');
-      return;
-    }
-
-    if (
-      (finalDecision === 'on_hold' ||
-        finalDecision === 'rejected' ||
-        finalDecision === 'needs_reupload') &&
-      !adminRemarks.trim()
-    ) {
-      alert('Remarks are required for hold, reject, or re-upload.');
-      return;
-    }
-
-    try {
-      setSavingAction(finalDecision);
-
-      const token = sessionStorage.getItem('adminToken');
-
-      const payload = {
-        decision: finalDecision,
-        remarks: adminRemarks.trim(),
-        renewal_status:
-          finalDecision === 'approved'
-            ? 'approved'
-            : finalDecision === 'needs_reupload'
-              ? 'needs_reupload'
-              : 'on_hold',
-        scholar_status:
-          finalDecision === 'approved'
-            ? 'Active'
-            : 'On Hold',
-      };
-
-      const res = await fetch(
-        buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-review`),
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!res.ok) {
-        const raw = await res.text().catch(() => '');
-        console.warn('Renewal review endpoint response:', raw);
-      }
-
-      if (finalDecision === 'approved') {
-        alert('Renewal approved successfully.');
-      } else {
-        alert('Renewal marked as On Hold.');
-      }
-
-      onClose();
-    } catch (err) {
-      console.error('SAVE RENEWAL DECISION ERROR:', err);
-      alert(err.message || 'Failed to save renewal decision');
-    } finally {
-      setSavingAction('');
-    }
-  };
-
-  const displayOcrStatus = selectedDoc?.ocrStatus || 'Pending OCR';
-  const displayDocStatus = selectedDoc?.status || 'Pending Review';
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-sm p-3"
-      onClick={onClose}
-    >
-      <Card
-        className="w-[96vw] max-w-[1500px] h-[94vh] overflow-hidden border-stone-200 shadow-2xl rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50">
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold text-stone-800">Renewal Review Workspace</h3>
-            <p className="text-xs text-stone-500 mt-0.5 truncate">
-              {scholar.student_name} · {scholar.student_number || 'No PDM ID'} · scholar renewal validation
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <span
-              className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-              style={{ background: renewalMeta.bg, color: renewalMeta.color }}
-            >
-              {renewalMeta.label}
-            </span>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 rounded-lg border-stone-200 text-xs"
-              onClick={() => window.open(selectedDoc?.url, '_blank')}
-              disabled={!selectedDoc?.url}
-            >
-              <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-              Open File
-            </Button>
-
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="px-5 py-2 border-b border-stone-100 bg-white flex items-center justify-between">
-          <div className="flex items-center gap-3 text-xs text-stone-500">
-            <span>
-              Docs: <span className="font-medium text-stone-700">{uploadedCount}</span>
-            </span>
-            <span>
-              Missing: <span className="font-medium text-red-600">{missingCount}</span>
-            </span>
-            <span>
-              OCR Verified: <span className="font-medium text-green-600">{verifiedCount}</span>
-            </span>
-          </div>
-
-          <div className="text-xs">
-            <span className="text-stone-400">GWA: </span>
-            <span className="font-medium text-stone-700">
-              {Number.isFinite(Number(scholar.gwa))
-                ? Number(scholar.gwa).toFixed(2)
-                : '—'}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_320px] h-[calc(94vh-150px)]">
-          <div className="border-r border-stone-100 bg-stone-50/60 overflow-y-auto">
-            <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 sticky top-0">
-              <div className="flex items-center gap-2">
-                <Files className="w-4 h-4 text-stone-500" />
-                <h4 className="text-sm font-semibold text-stone-800">Renewal Requirements</h4>
-              </div>
-            </div>
-
-            <div className="p-3 space-y-2">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center min-h-[240px] gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin text-stone-300" />
-                  <p className="text-xs text-stone-400">Loading renewal docs...</p>
-                </div>
-              ) : documents.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-5 text-xs text-stone-500">
-                  No renewal documents found.
-                </div>
-              ) : (
-                documents.map((doc) => {
-                  const selected = doc.id === selectedDocId;
-                  const hasFile = Boolean(doc.url);
-
-                  return (
-                    <button
-                      key={doc.id}
-                      onClick={() => setSelectedDocId(doc.id)}
-                      className={`w-full text-left rounded-xl border px-3 py-2.5 transition-all ${selected
-                        ? 'border-amber-300 bg-amber-50 shadow-sm'
-                        : 'border-stone-200 bg-white hover:bg-stone-50'
-                        }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-stone-800 truncate">{doc.name}</p>
-                          <p className="text-[11px] text-stone-400 mt-0.5">{doc.type}</p>
-                        </div>
-
-                        <span
-                          className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0"
-                          style={{
-                            background: hasFile ? C.greenSoft : C.redSoft,
-                            color: hasFile ? C.green : C.red,
-                          }}
-                        >
-                          {hasFile ? 'Uploaded' : 'Missing'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-2.5">
-                        <span className="text-[10px] px-2 py-1 rounded-full bg-stone-100 text-stone-600">
-                          {getFileTypeLabel(doc.url, doc.name)}
-                        </span>
-
-                        <span
-                          className="text-[10px] font-medium"
-                          style={{
-                            color: String(doc.ocrStatus || '').toLowerCase() === 'verified'
-                              ? C.green
-                              : String(doc.ocrStatus || '').toLowerCase() === 'flagged'
-                                ? C.red
-                                : C.amber,
-                          }}
-                        >
-                          {doc.ocrStatus || 'Pending OCR'}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden border-r border-stone-100">
-            <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-              <div className="min-w-0">
-                <h4 className="text-sm font-semibold text-stone-800">Document Preview</h4>
-                <p className="text-xs text-stone-400 mt-0.5 truncate">
-                  {selectedDoc?.name || 'No document selected'}
-                </p>
-              </div>
-
-              {selectedDoc?.url && (
-                <a
-                  href={selectedDoc.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center text-xs font-medium text-amber-700 hover:text-amber-800 shrink-0"
-                >
-                  Open original
-                  <ExternalLink className="w-3 h-3 ml-1" />
-                </a>
-              )}
-            </div>
-
-            <div className="h-[calc(100%-61px)] bg-stone-100 flex items-center justify-center overflow-auto p-4">
-              {!selectedDoc ? (
-                <div className="text-center">
-                  <FileText className="w-8 h-8 text-stone-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-stone-600">No document selected</p>
-                  <p className="text-xs text-stone-400 mt-1">Choose a renewal document from the left panel.</p>
-                </div>
-              ) : !selectedDoc.url ? (
-                <div className="text-center">
-                  <AlertTriangle className="w-8 h-8 text-red-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-stone-700">Document not uploaded</p>
-                  <p className="text-xs text-stone-400 mt-1">
-                    This requirement is still missing for this scholar.
-                  </p>
-                </div>
-              ) : isImageFile(selectedDoc.url, selectedDoc.name) ? (
-                <img
-                  src={selectedDoc.url}
-                  alt={selectedDoc.name}
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
-                />
-              ) : (
-                <iframe
-                  title={selectedDoc.name}
-                  src={selectedDoc.url}
-                  className="w-full h-full border-0 bg-white rounded-lg"
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="bg-stone-50/50 overflow-y-auto">
-            <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 sticky top-0 z-10">
-              <div className="flex items-center gap-2">
-                <ScanSearch className="w-4 h-4 text-stone-500" />
-                <h4 className="text-sm font-semibold text-stone-800">Validation Panel</h4>
-              </div>
-            </div>
-
-            <div className="p-4 space-y-3">
-              {loadError && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-700">
-                  {loadError}
-                </div>
-              )}
-
-              {!selectedDoc ? (
-                <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-6 text-center">
-                  <p className="text-sm font-medium text-stone-600">No OCR data to display</p>
-                  <p className="text-xs text-stone-400 mt-1">Select a document first.</p>
-                </div>
-              ) : (
-                <>
-                  <Card className="border-stone-200 shadow-none">
-                    <CardHeader className="pb-2">
-                      <h5 className="text-sm font-semibold text-stone-800">OCR Summary</h5>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-xs">
-                      <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2 bg-white">
-                        <span className="text-stone-500">OCR Status</span>
-                        <span
-                          className="font-medium"
-                          style={{
-                            color:
-                              String(displayOcrStatus).toLowerCase() === 'verified'
-                                ? C.green
-                                : String(displayOcrStatus).toLowerCase() === 'flagged'
-                                  ? C.red
-                                  : C.amber,
-                          }}
-                        >
-                          {displayOcrStatus}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2 bg-white">
-                        <span className="text-stone-500">Document Status</span>
-                        <span className="font-medium text-stone-800">{displayDocStatus}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2 bg-white">
-                        <span className="text-stone-500">Confidence</span>
-                        <span className="font-medium text-stone-800">
-                          {typeof selectedDoc.confidence === 'number'
-                            ? `${selectedDoc.confidence}%`
-                            : 'Not available'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2 bg-white">
-                        <span className="text-stone-500">Uploaded At</span>
-                        <span className="font-medium text-stone-800">
-                          {selectedDoc.uploadedAt
-                            ? new Date(selectedDoc.uploadedAt).toLocaleDateString()
-                            : 'Not available'}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-stone-200 shadow-none">
-                    <CardHeader className="pb-2">
-                      <h5 className="text-sm font-semibold text-stone-800">Extracted Fields</h5>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-xs">
-                      {selectedDoc.ocrFields && Object.keys(selectedDoc.ocrFields).length > 0 ? (
-                        Object.entries(selectedDoc.ocrFields).map(([key, value]) => (
-                          <div
-                            key={key}
-                            className="rounded-lg border border-stone-200 px-3 py-2 bg-white"
-                          >
-                            <p className="text-[11px] uppercase tracking-wide text-stone-400">
-                              {key.replace(/_/g, ' ')}
-                            </p>
-                            <p className="font-medium text-stone-800 mt-1 break-words">
-                              {String(value || '—')}
-                            </p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-4 text-stone-500">
-                          No extracted OCR fields yet.
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-stone-200 shadow-none">
-                    <CardHeader className="pb-2">
-                      <h5 className="text-sm font-semibold text-stone-800">Extracted Text</h5>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="rounded-xl border border-stone-200 bg-white p-3 min-h-[110px] max-h-[180px] overflow-y-auto">
-                        {selectedDoc.extractedText ? (
-                          <p className="text-xs leading-relaxed text-stone-700 whitespace-pre-wrap">
-                            {selectedDoc.extractedText}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-stone-400">
-                            No OCR text returned yet for this document.
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-stone-200 shadow-none">
-                    <CardHeader className="pb-2">
-                      <h5 className="text-sm font-semibold text-stone-800">Renewal Decision</h5>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid grid-cols-1 gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full h-9 rounded-lg border-green-200 text-green-700 hover:bg-green-50 text-xs justify-start"
-                          disabled={!selectedDoc?.url || savingAction === 'verify'}
-                          onClick={handleVerifyOCR}
-                        >
-                          {savingAction === 'verify' ? (
-                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                          )}
-                          Verify OCR
-                        </Button>
-
-                        <Select value={decision} onValueChange={setDecision}>
-                          <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
-                            <SelectValue placeholder="Select renewal decision" />
-                          </SelectTrigger>
-                          <SelectContent className="z-[100]">
-                            <SelectItem value="approved">Renewal Approved</SelectItem>
-                            <SelectItem value="needs_reupload">Needs Re-upload</SelectItem>
-                            <SelectItem value="on_hold">On Hold</SelectItem>
-                            <SelectItem value="rejected">Reject Renewal</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <Textarea
-                          value={adminRemarks}
-                          onChange={(e) => setAdminRemarks(e.target.value)}
-                          placeholder="Enter remarks, deficiencies, or final renewal notes..."
-                          className="min-h-[100px] rounded-lg border-stone-200 text-sm resize-none bg-white"
-                        />
-
-                        <div className="space-y-2">
-                          <Button
-                            size="sm"
-                            className="w-full h-9 rounded-lg text-white text-xs border-none justify-center"
-                            style={{ background: C.green }}
-                            disabled={!isReadyToApprove || savingAction === 'approved'}
-                            onClick={() => handleSaveRenewalDecision('approved')}
-                          >
-                            {savingAction === 'approved' ? (
-                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                            ) : (
-                              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
-                            )}
-                            Approve Renewal
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs justify-center"
-                            disabled={savingAction === 'rejected'}
-                            onClick={() => handleSaveRenewalDecision('rejected')}
-                          >
-                            {savingAction === 'rejected' ? (
-                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                            ) : (
-                              <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
-                            )}
-                            Reject Renewal
-                          </Button>
-                        </div>
-
-                        <p className="text-[11px] text-stone-400 leading-relaxed">
-                          Approve if the renewal is complete and valid. Reject if the renewal fails review.
-                          Rejected renewals should place the scholar on hold.
-                        </p>
-                      </div>
-
-                      <div className="pt-2 border-t border-stone-100 flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          className="h-9 rounded-lg border-stone-200 text-xs"
-                          onClick={onClose}
-                        >
-                          Close
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
 // ─── Archive Scholar Modal ───────────────────────────────────────
 function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
   const [reason, setReason] = useState('');
@@ -1434,6 +754,9 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
 
 // ─── Main Component ──────────────────────────────────────────────
 export default function ScholarMonitoring() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [scholars, setScholars] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -1455,13 +778,17 @@ export default function ScholarMonitoring() {
   const [selectedScholar, setSelectedScholar] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  const [renewalOpen, setRenewalOpen] = useState(false);
-  const [renewalScholar, setRenewalScholar] = useState(null);
+  const [renewals, setRenewals] = useState([]);
+  const [renewalsLoading, setRenewalsLoading] = useState(true);
+  const [renewalsError, setRenewalsError] = useState('');
 
   const [archiveModalScholar, setArchiveModalScholar] = useState(null);
   const [archiveSaving, setArchiveSaving] = useState(false);
 
-  const [sectionMode, setSectionMode] = useState('registry');
+  const [sectionMode, setSectionMode] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab === 'renewals' ? 'renewals' : 'registry';
+  });
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftProgram, setDraftProgram] = useState('All Programs');
@@ -1512,6 +839,50 @@ export default function ScholarMonitoring() {
 
     fetchScholars();
   }, []);
+
+  const loadRenewals = useCallback(async ({ quiet = false } = {}) => {
+    try {
+      if (!quiet) setRenewalsLoading(true);
+      setRenewalsError('');
+
+      const response = await fetch(buildApiUrl('/api/renewals'), {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const payload = await response.json().catch(() => []);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to load renewal records');
+      }
+
+      setRenewals(Array.isArray(payload) ? payload : []);
+    } catch (err) {
+      console.error('RENEWALS LOAD ERROR:', err);
+      setRenewalsError(err.message || 'Failed to load renewal records');
+    } finally {
+      if (!quiet) setRenewalsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRenewals();
+  }, [loadRenewals]);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    setSectionMode(tab === 'renewals' ? 'renewals' : 'registry');
+  }, [location.search]);
+
+  useSocketEvent('renewal:updated', () => {
+    loadRenewals({ quiet: true });
+  }, [loadRenewals]);
+
+  useSocketEvent('renewal:approved', () => {
+    loadRenewals({ quiet: true });
+  }, [loadRenewals]);
 
   useSocketEvent('scholar:updated', () => {
     const fetchScholars = async () => {
@@ -1689,45 +1060,79 @@ export default function ScholarMonitoring() {
     }
   };
 
-  const handleOpenRenewal = async (scholar) => {
-    try {
-      const res = await fetch(buildApiUrl(`/api/scholars/${scholar.scholar_id}`), {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+  const handleSectionModeChange = (nextMode) => {
+    const mode = nextMode === 'renewals' ? 'renewals' : 'registry';
+    setSectionMode(mode);
+    setSearch('');
+    setProgram('All Programs');
+    setBatchYear('All Years');
+    setStatus('All Statuses');
+    setSortBy('Name A-Z');
+    setPage(1);
 
-      const rawText = await res.text();
-      const data = rawText ? JSON.parse(rawText) : scholar;
+    const params = new URLSearchParams(location.search);
+    if (mode === 'renewals') params.set('tab', 'renewals');
+    else params.delete('tab');
 
-      setRenewalScholar(data || scholar);
-      setRenewalOpen(true);
-    } catch (err) {
-      console.error('RENEWAL PROFILE FETCH ERROR:', err);
-      setRenewalScholar(scholar);
-      setRenewalOpen(true);
-    }
+    const searchString = params.toString();
+    navigate(
+      {
+        pathname: '/admin/scholars',
+        search: searchString ? `?${searchString}` : '',
+      },
+      { replace: true }
+    );
   };
 
-  const scholarsWithRenewalMeta = useMemo(() => {
-    return scholars.map((s) => {
-      const fallbackDocs = normalizeRenewalDocuments(null, s);
-      const renewal_status = deriveRenewalStatusFromDocuments(fallbackDocs);
-      return {
-        ...s,
-        renewal_status,
-      };
-    });
-  }, [scholars]);
+  const filteredRenewals = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
-  const renewalQueue = useMemo(() => {
-    return scholarsWithRenewalMeta.filter((s) =>
-      ['submitted', 'under_review', 'needs_reupload'].includes(
-        String(s.renewal_status || '').toLowerCase()
-      )
-    );
-  }, [scholarsWithRenewalMeta]);
+    let results = renewals.filter((renewal) => {
+      const name = String(renewal.student_name || '').toLowerCase();
+      const studentNumber = String(renewal.student_number || '').toLowerCase();
+      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
+      const programName = renewal.program_name || '';
+      const schoolYear = String(renewal.school_year_label || '');
+      const renewalStatus = String(renewal.renewal_status || '');
+
+      const matchSearch =
+        !q ||
+        name.includes(q) ||
+        studentNumber.includes(q) ||
+        normalizedStudentNumber.includes(normalizedQ) ||
+        String(programName).toLowerCase().includes(q);
+
+      const matchProgram = program === 'All Programs' || programName === program;
+      const matchYear = batchYear === 'All Years' || schoolYear === String(batchYear);
+      const matchStatus =
+        status === 'All Statuses' ||
+        normalizeRenewalStatus(renewalStatus) === normalizeRenewalStatus(status);
+
+      return matchSearch && matchProgram && matchYear && matchStatus;
+    });
+
+    results = [...results].sort((a, b) => {
+      const nameA = String(a.student_name || '').toLowerCase();
+      const nameB = String(b.student_name || '').toLowerCase();
+      const yearA = Number(String(a.school_year_label || '').split('-')[0]) || 0;
+      const yearB = Number(String(b.school_year_label || '').split('-')[0]) || 0;
+
+      switch (sortBy) {
+        case 'Name Z-A':
+          return nameB.localeCompare(nameA);
+        case 'Batch Newest':
+          return yearB - yearA;
+        case 'Batch Oldest':
+          return yearA - yearB;
+        case 'Name A-Z':
+        default:
+          return nameA.localeCompare(nameB);
+      }
+    });
+
+    return results;
+  }, [renewals, search, program, batchYear, status, sortBy]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1784,23 +1189,37 @@ export default function ScholarMonitoring() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil((sectionMode === 'registry' ? filtered.length : renewalQueue.length) / PAGE_SIZE)
+    Math.ceil((sectionMode === 'registry' ? filtered.length : filteredRenewals.length) / PAGE_SIZE)
   );
 
   const pageData = useMemo(() => {
-    const source = sectionMode === 'registry' ? filtered : renewalQueue;
+    const source = sectionMode === 'registry' ? filtered : filteredRenewals;
     return source.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [filtered, renewalQueue, page, sectionMode]);
+  }, [filtered, filteredRenewals, page, sectionMode]);
 
   const programOptions = useMemo(() => {
-    return ['All Programs', ...new Set(scholars.map((s) => s.program_name).filter(Boolean))];
-  }, [scholars]);
+    const source = sectionMode === 'registry' ? scholars : renewals;
+    return ['All Programs', ...new Set(source.map((item) => item.program_name).filter(Boolean))];
+  }, [scholars, renewals, sectionMode]);
 
   const batchOptions = useMemo(() => {
-    return ['All Years', ...new Set(scholars.map((s) => s.batch_year).filter(Boolean))];
-  }, [scholars]);
+    const values = sectionMode === 'registry'
+      ? scholars.map((item) => item.batch_year)
+      : renewals.map((item) => item.school_year_label);
 
-  const statusOptions = ['All Statuses', 'Active', 'At Risk', 'Inactive'];
+    return ['All Years', ...new Set(values.filter(Boolean))];
+  }, [scholars, renewals, sectionMode]);
+
+  const statusOptions = useMemo(() => {
+    if (sectionMode === 'registry') {
+      return ['All Statuses', 'Active', 'At Risk', 'Inactive'];
+    }
+
+    return [
+      'All Statuses',
+      ...new Set(renewals.map((item) => item.renewal_status).filter(Boolean)),
+    ];
+  }, [renewals, sectionMode]);
 
   const sortOptions = [
     'Name A-Z',
@@ -1882,15 +1301,6 @@ export default function ScholarMonitoring() {
         />
       )}
 
-      <RenewalModal
-        open={renewalOpen}
-        scholar={renewalScholar}
-        onClose={() => {
-          setRenewalOpen(false);
-          setRenewalScholar(null);
-        }}
-      />
-
       <ArchiveScholarModal
         scholar={archiveModalScholar}
         onClose={() => setArchiveModalScholar(null)}
@@ -1913,6 +1323,7 @@ export default function ScholarMonitoring() {
         setDraftStatus={setDraftStatus}
         draftSortBy={draftSortBy}
         setDraftSortBy={setDraftSortBy}
+        batchLabel={sectionMode === 'renewals' ? 'Academic Year' : 'Batch Year'}
         onApply={applyFilters}
         onClear={clearFilters}
       />
@@ -1939,7 +1350,7 @@ export default function ScholarMonitoring() {
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
               <button
-                onClick={() => setSectionMode('registry')}
+                onClick={() => handleSectionModeChange('registry')}
                 className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'registry'
                   ? 'bg-white text-stone-900 shadow-sm'
                   : 'text-stone-600'
@@ -1949,7 +1360,7 @@ export default function ScholarMonitoring() {
               </button>
 
               <button
-                onClick={() => setSectionMode('renewals')}
+                onClick={() => handleSectionModeChange('renewals')}
                 className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'renewals'
                   ? 'bg-white text-stone-900 shadow-sm'
                   : 'text-stone-600'
@@ -2002,12 +1413,31 @@ export default function ScholarMonitoring() {
           <p className="mt-1 text-xs text-stone-500">
             {sectionMode === 'registry'
               ? `Active scholar monitoring records · ${filtered.length} result${filtered.length !== 1 ? 's' : ''}`
-              : `Scholars with renewal submissions that need admin attention · ${renewalQueue.length} result${renewalQueue.length !== 1 ? 's' : ''}`}
+              : `Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length !== 1 ? 's' : ''}`}
           </p>
         </div>
 
         <CardContent className="p-4">
-          {pageData.length === 0 ? (
+          {sectionMode === 'renewals' && renewalsLoading ? (
+            <div className="flex min-h-[220px] items-center justify-center gap-2 text-sm text-stone-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading renewal records...
+            </div>
+          ) : sectionMode === 'renewals' && renewalsError ? (
+            <div className="min-h-[220px] rounded-xl border border-red-100 bg-red-50 p-6 text-center">
+              <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-red-400" />
+              <p className="text-sm font-semibold text-red-800">Failed to load renewal records</p>
+              <p className="mt-1 text-xs text-red-600">{renewalsError}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-4 border-red-200 text-xs text-red-700"
+                onClick={() => loadRenewals()}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : pageData.length === 0 ? (
             <div className="py-16 text-center text-sm text-stone-400">
               {sectionMode === 'registry'
                 ? 'No scholars match the current filters.'
@@ -2020,41 +1450,59 @@ export default function ScholarMonitoring() {
                   <TableRow className="bg-stone-50 hover:bg-stone-50">
                     <TableHead>Scholar</TableHead>
                     <TableHead>Program</TableHead>
-                    <TableHead>Batch</TableHead>
+                    <TableHead>Cycle</TableHead>
+                    <TableHead>Document Status</TableHead>
                     <TableHead>Renewal Status</TableHead>
+                    <TableHead>Submitted</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pageData.map((s) => {
-                    const renewalMeta = getRenewalStatusMeta(s.renewal_status);
+                  {pageData.map((renewal) => {
+                    const renewalMeta = getRenewalStatusMeta(renewal.renewal_status);
+                    const documentMeta = getRenewalDocumentStatusMeta(renewal.document_status);
+                    const cycleLabel = [
+                      renewal.semester_label,
+                      renewal.school_year_label ? `AY ${renewal.school_year_label}` : '',
+                    ].filter(Boolean).join(' · ');
 
                     return (
-                      <TableRow key={`renewal-${s.scholar_id}`} className="hover:bg-stone-50/70">
+                      <TableRow key={`renewal-${renewal.renewal_id || renewal.id}`} className="hover:bg-stone-50/70">
                         <TableCell>
                           <div>
-                            <p className="text-sm font-medium text-stone-800">{s.student_name}</p>
-                            <p className="text-xs text-stone-400">{s.student_number}</p>
+                            <p className="text-sm font-medium text-stone-800">{renewal.student_name}</p>
+                            <p className="text-xs text-stone-400">{renewal.student_number}</p>
                           </div>
                         </TableCell>
-                        <TableCell>{s.program_name || 'N/A'}</TableCell>
-                        <TableCell>{s.batch_year || 'N/A'}</TableCell>
+                        <TableCell>{renewal.program_name || 'N/A'}</TableCell>
+                        <TableCell className="text-xs text-stone-600">{cycleLabel || 'Current Period'}</TableCell>
                         <TableCell>
                           <span
-                            className="text-[10px] font-medium px-2 py-1 rounded-full"
+                            className="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                            style={{ background: documentMeta.bg, color: documentMeta.color }}
+                          >
+                            {renewal.document_status || 'Missing Docs'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
                             style={{ background: renewalMeta.bg, color: renewalMeta.color }}
                           >
                             {renewalMeta.label}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-stone-500">
+                          {formatRenewalDate(renewal.submitted_at)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-8 rounded-lg border-stone-200 text-xs"
-                            onClick={() => handleOpenRenewal(s)}
+                            onClick={() => navigate(`/admin/scholars/renewals/${renewal.renewal_id || renewal.id}`)}
                           >
-                            <FileCheck2 className="w-3.5 h-3.5 mr-1.5" />
+                            <FileCheck2 className="mr-1.5 h-3.5 w-3.5" />
                             Review Renewal
                           </Button>
                         </TableCell>
@@ -2174,9 +1622,9 @@ export default function ScholarMonitoring() {
             Showing {pageData.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
             {Math.min(
               page * PAGE_SIZE,
-              sectionMode === 'registry' ? filtered.length : renewalQueue.length
+              sectionMode === 'registry' ? filtered.length : filteredRenewals.length
             )}{' '}
-            of {sectionMode === 'registry' ? filtered.length : renewalQueue.length}
+            of {sectionMode === 'registry' ? filtered.length : filteredRenewals.length}
           </span>
 
           <div className="flex items-center gap-1.5">

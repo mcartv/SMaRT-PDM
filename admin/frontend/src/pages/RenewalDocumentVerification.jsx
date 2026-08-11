@@ -221,7 +221,7 @@ export default function RenewalDocumentVerification() {
       }
 
       alert('Renewal review saved successfully.');
-      navigate('/admin/renewals');
+      navigate('/admin/scholars?tab=renewals');
     } catch (err) {
       alert(err.message || 'Failed to save renewal review');
     } finally {
@@ -253,7 +253,7 @@ export default function RenewalDocumentVerification() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate('/admin/renewals')}
+          onClick={() => navigate('/admin/scholars?tab=renewals')}
           className="h-8 w-8 p-0 rounded-lg border-stone-200 bg-white"
         >
           <ArrowLeft size={15} />
@@ -261,7 +261,7 @@ export default function RenewalDocumentVerification() {
 
         <div>
           <p className="text-[11px] text-stone-400">
-            Scholar Renewals / {id}
+            Scholar Monitoring / Renewals / {id}
           </p>
           <h1 className="text-lg font-semibold text-stone-900">
             Renewal Verification

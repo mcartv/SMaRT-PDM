@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { getStoredPortalSession } from './utils/authStorage';
@@ -19,7 +19,6 @@ import OpeningApplications from './pages/OpeningApplications';
 import DocumentVerification from './pages/DocumentVerification';
 import ReportGeneration from './pages/ReportGeneration';
 import ScholarMonitoring from './pages/ScholarMonitoring';
-import RenewalReview from './pages/RenewalReview';
 import RenewalDocumentVerification from './pages/RenewalDocumentVerification';
 import ScholarshipOpenings from './pages/ScholarshipOpenings';
 import ROAdmin from './pages/ROAdmin';
@@ -67,6 +66,12 @@ const PortalEntryRedirect = () => {
 
 const RoleHome = () => {
   return <Navigate to="/admin/dashboard" replace />;
+};
+
+
+const LegacyRenewalDetailRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/admin/scholars/renewals/${id}`} replace />;
 };
 
 export default function App() {
@@ -132,10 +137,14 @@ export default function App() {
 
           {/* Other Admin Pages */}
           <Route path="scholars" element={<ScholarMonitoring />} />
-          <Route path="renewals" element={<RenewalReview />} />
+          <Route path="renewals" element={<Navigate to="/admin/scholars?tab=renewals" replace />} />
+          <Route
+            path="scholars/renewals/:id"
+            element={<RenewalDocumentVerification />}
+          />
           <Route
             path="renewals/:id"
-            element={<RenewalDocumentVerification />}
+            element={<LegacyRenewalDetailRedirect />}
           />
           <Route path="openings" element={<ScholarshipOpenings />} />
           <Route path="obligations" element={<ROAdmin />} />

@@ -58,9 +58,16 @@ POLL_INTERVAL_SECONDS = max(
     0.10,
     float(os.getenv("POLL_INTERVAL_SECONDS", "0.20")),
 )
-HEARTBEAT_INTERVAL_SECONDS = max(
-    3,
-    int(os.getenv("IOT_OCR_HEARTBEAT_INTERVAL_SECONDS", "5")),
+HEARTBEAT_INTERVAL_SECONDS = min(
+    0.50,
+    max(
+        0.25,
+        float(os.getenv("IOT_OCR_HEARTBEAT_INTERVAL_SECONDS", "0.50")),
+    ),
+)
+REQUEST_STOPPED_DISPLAY_SECONDS = max(
+    0.50,
+    float(os.getenv("IOT_OCR_STOPPED_DISPLAY_SECONDS", "1.25")),
 )
 WORKSPACE_RETENTION_SECONDS = max(
     3600,
@@ -1136,6 +1143,13 @@ def main():
             finally:
                 heartbeat_stop.set()
                 heartbeat_thread.join(timeout=1.0)
+                if request_stop.is_set() and not _shutdown_requested.is_set():
+                    publish_worker_activity(
+                        "request_stopped",
+                        request=request,
+                        camera_status="stopped",
+                    )
+                    _shutdown_requested.wait(REQUEST_STOPPED_DISPLAY_SECONDS)
                 publish_worker_activity("idle", camera_status="ready")
 
         except KeyboardInterrupt:

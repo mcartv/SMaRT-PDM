@@ -127,6 +127,8 @@ const ACTIVE_IOT_OCR_STATUSES = new Set([
   'processing',
 ]);
 
+const IOT_OCR_STATUS_POLL_INTERVAL_MS = 500;
+
 const IOT_OCR_STATUS_MESSAGES = {
   pending: 'Waiting for Raspberry Pi',
   claimed: 'Raspberry Pi received the request',
@@ -2535,7 +2537,16 @@ export default function DocumentVerification() {
   );
   const persistedIotRequest = getActiveIotRequest(activeDoc);
   const persistedIotOcrRunning = isActiveIotRequest(persistedIotRequest);
-  const effectiveRunningIotOcr = runningIotOcr || persistedIotOcrRunning;
+  const persistedIotRequestId = getIotOcrRequestId(persistedIotRequest);
+  const candidateRequestId = getIotOcrRequestId(reviewCandidate);
+  const candidateStatus = String(reviewCandidate?.status || '').toLowerCase();
+  const candidateFinishedCurrentRequest = Boolean(
+    persistedIotRequestId
+    && candidateRequestId === persistedIotRequestId
+    && ['review_required', 'completed'].includes(candidateStatus)
+  );
+  const effectiveRunningIotOcr = !candidateFinishedCurrentRequest
+    && (runningIotOcr || persistedIotOcrRunning);
   const iotOcrStatus = String(
     persistedIotRequest?.status || (runningIotOcr ? 'pending' : '')
   ).toLowerCase();
@@ -2631,12 +2642,18 @@ export default function DocumentVerification() {
           await fetchApplicationDocuments({ soft: true });
         } finally {
           if (activeIotRequestRef.current?.requestId === requestId) {
-            pollingRef.current = window.setTimeout(pollPersistedRequest, 2000);
+            pollingRef.current = window.setTimeout(
+              pollPersistedRequest,
+              IOT_OCR_STATUS_POLL_INTERVAL_MS
+            );
           }
         }
       };
 
-      pollingRef.current = window.setTimeout(pollPersistedRequest, 2000);
+      pollingRef.current = window.setTimeout(
+        pollPersistedRequest,
+        IOT_OCR_STATUS_POLL_INTERVAL_MS
+      );
     }
   }, [
     activeDoc,
@@ -2688,7 +2705,15 @@ export default function DocumentVerification() {
   useEffect(() => {
     const request = getActiveIotRequest(activeDoc);
     const requestStatus = String(request?.status || '').toLowerCase();
-    const candidateReady = reviewCandidate?.document_key === activeDoc?.id;
+    const requestId = getIotOcrRequestId(request);
+    const candidateReady = Boolean(
+      requestId
+      && reviewCandidate?.document_key === activeDoc?.id
+      && getIotOcrRequestId(reviewCandidate) === requestId
+      && ['review_required', 'completed'].includes(
+        String(reviewCandidate?.status || '').toLowerCase()
+      )
+    );
     if (!candidateReady && ![
       'review_required',
       'completed',
@@ -2699,7 +2724,6 @@ export default function DocumentVerification() {
 
     stopPolling();
     setRunningIotOcr(false);
-    const requestId = getIotOcrRequestId(request);
     if (!requestId || activeIotRequestRef.current?.requestId === requestId) {
       activeIotRequestRef.current = null;
     }
@@ -2845,7 +2869,22 @@ export default function DocumentVerification() {
           const snapshotFresh = snapshot?.snapshot_fresh === true;
 
           if (latestRequestId === requestId) {
+            setIotOcrResults((current) => ({
+              ...current,
+              [targetDocumentId]: {
+                ...(current[targetDocumentId] || {}),
+                iot_ocr_request: latestRequest,
+                ocr_job: latestRequest,
+              },
+            }));
+            activeIotRequestRef.current = {
+              ...activeRequest,
+              request: latestRequest,
+            };
+
             if (requestStatus === 'review_required') {
+              stopPolling();
+              setRunningIotOcr(false);
               const candidateResponse = await fetch(
                 `${API_BASE}/api/applications/${id}/documents/${targetDocumentId}/iot-ocr?request_id=${encodeURIComponent(requestId)}`,
                 { headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` }, cache: 'no-store' }
@@ -2903,7 +2942,10 @@ export default function DocumentVerification() {
           }
         }
 
-        pollingRef.current = window.setTimeout(pollFreshSnapshot, 2000);
+        pollingRef.current = window.setTimeout(
+          pollFreshSnapshot,
+          IOT_OCR_STATUS_POLL_INTERVAL_MS
+        );
       };
 
       await pollFreshSnapshot();

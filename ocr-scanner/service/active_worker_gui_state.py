@@ -38,6 +38,13 @@ ACTIVITY_PATH = Path(
     )
 )
 ACTIVITY_FRESH_SECONDS = 15
+PUBLISH_INTERVAL_SECONDS = min(
+    0.50,
+    max(
+        0.10,
+        float(os.environ.get("SMART_PDM_GUI_STATE_INTERVAL_SECONDS", "0.25")),
+    ),
+)
 
 _running = True
 
@@ -302,7 +309,7 @@ def main() -> int:
         log("bridge_started")
 
         while _running:
-            time.sleep(5)
+            time.sleep(PUBLISH_INTERVAL_SECONDS)
             sequence += 1
             publish_once(contract, sequence)
 

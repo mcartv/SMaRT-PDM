@@ -171,6 +171,22 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
 
         self.assertIn("heartbeat_api = ApiClient()", heartbeat)
         self.assertIn("heartbeat_api.update_status", heartbeat)
+        self.assertIn(
+            'IOT_OCR_HEARTBEAT_INTERVAL_SECONDS", "0.50"',
+            source,
+        )
+        self.assertIn(
+            'IOT_OCR_STOPPED_DISPLAY_SECONDS", "1.25"',
+            source,
+        )
+        stopped_index = source.index(
+            'publish_worker_activity(\n                        "request_stopped"'
+        )
+        idle_index = source.index(
+            'publish_worker_activity("idle", camera_status="ready")',
+            stopped_index,
+        )
+        self.assertLess(stopped_index, idle_index)
 
     def test_fixed_lens_capture_uses_one_cropped_full_resolution_sample(self):
         controller = camera.CameraController()

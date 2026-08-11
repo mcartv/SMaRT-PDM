@@ -185,6 +185,28 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertIn("uncertain-token", result.data.raw_text)
 
+    def test_production_contract_skips_optional_date_and_barangay_fields(self):
+        calls = []
+
+        def reader(crop, field_name):
+            calls.append(field_name)
+            return _field_reader(crop, field_name)
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=reader,
+            config=IndigencyExtractionConfig(include_optional_fields=False),
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(
+            tuple(field.name for field in result.data.fields),
+            ("certificate_subject_name", "residency_address"),
+        )
+        self.assertNotIn("issue_date", calls)
+        self.assertNotIn("issuing_barangay", calls)
+
     def test_title_must_be_in_upper_document_portion(self):
         result = extract_indigency_core_fields(
             self.image,

@@ -305,16 +305,6 @@ test('approved indigency fields persist provisionally without applicant fallback
         success: true,
         review_required: true,
       },
-      issue_date: {
-        raw_text: '',
-        success: false,
-        review_required: true,
-      },
-      issuing_barangay: {
-        raw_text: 'SAMPLE BARANGAY',
-        success: true,
-        review_required: true,
-      },
     },
   };
   const persistence = buildStructuredOcrPersistence({
@@ -323,12 +313,10 @@ test('approved indigency fields persist provisionally without applicant fallback
     sourcePayload: {
       worker_status: 'review_required',
       ocr_status: 'review_required',
-      ocr_issue_codes: ['ISSUE_DATE_NOT_EXTRACTED'],
+      ocr_issue_codes: [],
       structured_field_keys: [
         'certificate_subject_name',
         'residency_address',
-        'issue_date',
-        'issuing_barangay',
       ],
     },
   });
@@ -339,14 +327,8 @@ test('approved indigency fields persist provisionally without applicant fallback
     persistence.ocr_processing_metadata.structured_field_keys,
     [
       'certificate_subject_name',
-      'issue_date',
-      'issuing_barangay',
       'residency_address',
     ]
-  );
-  assert.equal(
-    persistence.ocr_structured_fields.fields.issue_date.raw_text,
-    ''
   );
   assert.equal(
     Object.hasOwn(persistence.ocr_structured_fields.fields, 'applicant_name'),

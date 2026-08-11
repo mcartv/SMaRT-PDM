@@ -52,14 +52,10 @@ _INDIGENCY_CONTRACT = DocumentContract(
     source_regions=[
         "Certification clause",
         "Residency clause",
-        "Issue date clause",
-        "Issuing office header",
     ],
     fields=[
         ContractField("certificate_subject_name"),
         ContractField("residency_address"),
-        ContractField("issue_date"),
-        ContractField("issuing_barangay"),
     ],
 )
 
@@ -204,8 +200,6 @@ def build_indigency_extracted_fields_from_result(
     for field_name in (
         "certificate_subject_name",
         "residency_address",
-        "issue_date",
-        "issuing_barangay",
     ):
         field = result_fields.get(field_name)
         field_payload = {

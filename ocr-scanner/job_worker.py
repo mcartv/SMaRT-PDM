@@ -290,8 +290,6 @@ def _build_indigency_structured_raw_text(
     definitions = (
         ("certificate_subject_name", "Certificate Subject Name"),
         ("residency_address", "Full Address"),
-        ("issue_date", "Issue Date"),
-        ("issuing_barangay", "Issuing Barangay"),
     )
     fields = (
         extracted_fields.get("fields", {})
@@ -721,6 +719,7 @@ def _run_generic_document_scan(
                         fast_mode=FAST_REVIEW_OCR_ENABLED,
                         maximum_detection_width=INDIGENCY_MAX_WIDTH,
                         ocr_timeout_seconds=INDIGENCY_OCR_TIMEOUT_SECONDS,
+                        include_optional_fields=False,
                     ),
                 )
                 extraction_seconds = time.monotonic() - extraction_started_at

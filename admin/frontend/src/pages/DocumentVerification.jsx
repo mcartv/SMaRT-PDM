@@ -576,7 +576,6 @@ export function buildExtractedData(activeDoc, application) {
     const indigencyFieldDefinitions = [
       ['certificate_subject_name', 'Certificate Subject Name'],
       ['residency_address', 'Full Address'],
-      ['issuing_barangay', 'Issuing Barangay'],
     ];
 
     indigencyFieldDefinitions.forEach(([fieldKey, label]) => {
@@ -1241,8 +1240,6 @@ const GRADE_REVIEW_FIELDS = [
 const INDIGENCY_REVIEW_FIELDS = [
   ['certificate_subject_name', 'Certificate Subject Name'],
   ['residency_address', 'Full Address'],
-  ['issue_date', 'Issue Date'],
-  ['issuing_barangay', 'Issuing Barangay'],
 ];
 
 function ocrFieldValue(value) {
@@ -1308,13 +1305,6 @@ function deriveIndigencyReviewValues(rawText) {
   );
   if (address) derived.residency_address = address[1].trim();
 
-  const issueDate = text.match(
-    /Issue\s+Date\s*[:\-]?\s*(.+?)(?=\s+Issuing\s+Barangay\s*[:\-]?|$)/i
-  );
-  if (issueDate) derived.issue_date = issueDate[1].trim();
-
-  const barangay = text.match(/Issuing\s+Barangay\s*[:\-]?\s*(.+)$/i);
-  if (barangay) derived.issuing_barangay = barangay[1].trim();
   return derived;
 }
 

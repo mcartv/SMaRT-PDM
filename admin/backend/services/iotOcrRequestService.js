@@ -190,17 +190,8 @@ function withDerivedIndigencyFields(documentKey, rawText, storedFields = {}) {
         fields.residency_address = gradeField(address[1].trim());
     }
 
-    const issueDate = text.match(
-        /Issue\s+Date\s*[:\-]?\s*(.+?)(?=\s+Issuing\s+Barangay\s*[:\-]?|$)/i
-    );
-    if (issueDate && missing('issue_date')) {
-        fields.issue_date = gradeField(issueDate[1].trim());
-    }
-
-    const barangay = text.match(/Issuing\s+Barangay\s*[:\-]?\s*(.+)$/i);
-    if (barangay && missing('issuing_barangay')) {
-        fields.issuing_barangay = gradeField(barangay[1].trim());
-    }
+    delete fields.issue_date;
+    delete fields.issuing_barangay;
     return fields;
 }
 
@@ -290,8 +281,6 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         certificate_of_indigency: [
             'certificate_subject_name',
             'residency_address',
-            'issue_date',
-            'issuing_barangay',
         ],
         student_grade_forms: ['student_number', 'semester', 'academic_year', 'subjects', 'gwa'],
     };
@@ -306,6 +295,9 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         )
     ));
     if (missing.length) throw buildHttpError(400, `Missing confirmed OCR fields: ${missing.join(', ')}`);
+    if (documentKey === 'certificate_of_indigency') {
+        return Object.fromEntries(required.map((key) => [key, fields[key]]));
+    }
     if (documentKey === 'student_grade_forms' && !Array.isArray(fields.subjects)) {
         throw buildHttpError(400, 'subjects must be an array');
     }

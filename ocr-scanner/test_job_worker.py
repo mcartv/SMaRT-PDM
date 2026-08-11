@@ -269,10 +269,10 @@ class JobWorkerTest(unittest.TestCase):
             {
                 "certificate_subject_name",
                 "residency_address",
-                "issue_date",
-                "issuing_barangay",
             },
         )
+        config = extract.call_args.kwargs["config"]
+        self.assertFalse(config.include_optional_fields)
 
     @patch("job_worker.extract_indigency_core_fields")
     def test_indigency_alias_uses_same_pipeline(self, extract):

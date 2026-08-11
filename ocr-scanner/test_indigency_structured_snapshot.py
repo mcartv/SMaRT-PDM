@@ -79,11 +79,9 @@ class IndigencyStructuredSnapshotTest(unittest.TestCase):
             [
                 "Certificate Subject Name: OCR SUBJECT NAME",
                 "Full Address: 12 SAMPLE STREET MARILAO BULACAN",
-                "Issue Date: 24th day of March",
-                "Issuing Barangay: OCR BARANGAY",
             ],
         )
-        self.assertEqual(len(snapshot.splitlines()), 4)
+        self.assertEqual(len(snapshot.splitlines()), 2)
 
         for field in payload["fields"].values():
             value = str(field.get("raw_text") or "").strip()
@@ -116,7 +114,7 @@ class IndigencyStructuredSnapshotTest(unittest.TestCase):
         snapshot = build_snapshot(payload)
 
         self.assertIn("OCR SUBJECT", snapshot)
-        self.assertIn("OCR BARANGAY", snapshot)
+        self.assertNotIn("OCR BARANGAY", snapshot)
         self.assertNotIn("Not extracted", snapshot)
         self.assertNotIn("Issue Date:", snapshot)
 

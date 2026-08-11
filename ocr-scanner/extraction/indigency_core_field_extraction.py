@@ -56,6 +56,7 @@ class IndigencyExtractionConfig:
     fast_mode: bool = False
     maximum_detection_width: int = 1600
     ocr_timeout_seconds: float = 25.0
+    include_optional_fields: bool = True
 
 
 @dataclass(frozen=True)
@@ -1304,16 +1305,6 @@ def extract_indigency_core_fields(
                 _issue("FIELD_ANCHOR_AMBIGUOUS", "certificate_subject_name")
             )
 
-    barangay_candidates = _issuing_barangay_candidates(words, title)
-    if len(barangay_candidates) > 1:
-        issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issuing_barangay"))
-
-    dates = _date_candidates(paragraphs)
-    date_selection = dates[0][1] if len(dates) == 1 else None
-    date_anchor = dates[0][0] if len(dates) == 1 else ""
-    if len(dates) > 1:
-        issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issue_date"))
-
     address_candidates = _residency_address_candidates(
         paragraphs,
         resolved.maximum_residency_address_length,
@@ -1326,7 +1317,7 @@ def extract_indigency_core_fields(
     if len(address_candidates) > 1:
         issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "residency_address"))
 
-    fields = (
+    required_fields = (
         _read_field(
             "certificate_subject_name",
             subject_selection,
@@ -1345,22 +1336,37 @@ def extract_indigency_core_fields(
             ocr_reader,
             resolved,
         ),
-        _read_date_field(
-            date_selection,
-            date_anchor,
-            transformed_source,
-            variant,
-            ocr_reader,
-            resolved,
-        ),
-        _read_issuing_barangay_field(
-            barangay_candidates,
-            transformed_source,
-            variant,
-            ocr_reader,
-            resolved,
-        ),
     )
+    if resolved.include_optional_fields:
+        barangay_candidates = _issuing_barangay_candidates(words, title)
+        if len(barangay_candidates) > 1:
+            issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issuing_barangay"))
+
+        dates = _date_candidates(paragraphs)
+        date_selection = dates[0][1] if len(dates) == 1 else None
+        date_anchor = dates[0][0] if len(dates) == 1 else ""
+        if len(dates) > 1:
+            issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issue_date"))
+
+        fields = required_fields + (
+            _read_date_field(
+                date_selection,
+                date_anchor,
+                transformed_source,
+                variant,
+                ocr_reader,
+                resolved,
+            ),
+            _read_issuing_barangay_field(
+                barangay_candidates,
+                transformed_source,
+                variant,
+                ocr_reader,
+                resolved,
+            ),
+        )
+    else:
+        fields = required_fields
     for field in fields:
         for code in field.issue_codes:
             issues.append(_issue(code, field.name))

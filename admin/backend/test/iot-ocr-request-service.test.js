@@ -147,7 +147,10 @@ test('indigency review fields recover full address without changing immutable ra
     const fields = service.withDerivedIndigencyFields(
         'certificate_of_indigency',
         rawText,
-        {}
+        {
+            issue_date: { normalized_value: 'legacy date' },
+            issuing_barangay: { normalized_value: 'legacy barangay' },
+        }
     );
 
     assert.equal(fields.certificate_subject_name.normalized_value, 'MS. VENICE EVE PELIMA,');
@@ -155,7 +158,7 @@ test('indigency review fields recover full address without changing immutable ra
         fields.residency_address.normalized_value,
         '12 SAMPLE STREET, LIAS, MARILAO, BULACAN'
     );
-    assert.equal(fields.issue_date.normalized_value, '24 day of March 2025');
+    assert.equal(fields.issue_date, undefined);
     assert.equal(fields.issuing_barangay, undefined);
     assert.match(rawText, /Full Address: 12 SAMPLE STREET/);
 });
@@ -170,7 +173,10 @@ test('indigency confirmation requires and preserves the verified full address', 
 
     assert.deepEqual(
         service.validateConfirmedDocumentFields('certificate_of_indigency', fields),
-        fields
+        {
+            certificate_subject_name: fields.certificate_subject_name,
+            residency_address: fields.residency_address,
+        }
     );
     assert.throws(
         () => service.validateConfirmedDocumentFields(

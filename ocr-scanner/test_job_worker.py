@@ -111,6 +111,11 @@ def _birth_ocr_result(status="review_required", success=True, issues=None):
 
 
 def _indigency_result(status="review_required", success=True, issue_code=None):
+    raw_page_text = (
+        "CERTIFICATE OF INDIGENCY\n"
+        "This is to certify that SUBJECT OCR is a bona fide resident of "
+        "12 SAMPLE STREET MARILAO BULACAN."
+    )
     values = {
         "certificate_subject_name": "SUBJECT OCR",
         "residency_address": "12 SAMPLE STREET MARILAO BULACAN",
@@ -135,6 +140,7 @@ def _indigency_result(status="review_required", success=True, issue_code=None):
         success=success,
         data=(
             SimpleNamespace(
+                raw_text=raw_page_text,
                 fields=fields,
                 field_count=4,
                 detection_variant="otsu_threshold",
@@ -254,6 +260,10 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(payload["source_payload"]["generic_ocr_skipped"])
         self.assertEqual(payload["source_payload"]["generic_ocr_seconds"], 0.0)
         self.assertEqual(payload["source_payload"]["registration_status"], "matched")
+        self.assertEqual(payload["raw_text"], extract.return_value.data.raw_text)
+        self.assertNotIn("Certificate Subject Name:", payload["raw_text"])
+        self.assertNotIn("Full Address:", payload["raw_text"])
+        self.assertEqual(payload["source_payload"]["raw_text_mode"], "tesseract_page_words")
         self.assertEqual(
             set(payload["extracted_fields"]["fields"]),
             {

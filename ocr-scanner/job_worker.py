@@ -733,8 +733,12 @@ def _run_generic_document_scan(
             extraction_status = "failed"
             extraction_issue_codes = ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"]
 
+        page_raw_text = str(
+            getattr(getattr(extraction_result, "data", None), "raw_text", "")
+            or ""
+        ).strip()
         extracted_fields = build_indigency_extracted_fields_from_result(
-            raw_text,
+            page_raw_text,
             extraction_result,
         )
         structured_raw_text = _build_indigency_structured_raw_text(
@@ -742,7 +746,7 @@ def _run_generic_document_scan(
         )
 
         if structured_raw_text:
-            raw_text = structured_raw_text
+            raw_text = page_raw_text
             corrected_text = structured_raw_text
             status = "review_required"
             error_message = None
@@ -787,7 +791,7 @@ def _run_generic_document_scan(
                 "capture_status": CAPTURED,
                 "capture_error_code": None,
                 "cancelled": False,
-                "returncode": 0 if raw_text else 1,
+                "returncode": 0 if structured_raw_text else 1,
                 "ocr_status": extraction_status,
                 "registration_status": registration_status,
                 "ocr_issue_codes": extraction_issue_codes,
@@ -797,9 +801,9 @@ def _run_generic_document_scan(
                 "structured_field_keys": sorted(
                     extracted_fields.get("fields", {}).keys()
                 ),
-                "raw_text_mode": "structured_ocr_fields_only",
-                "structured_raw_text_consistent": bool(raw_text),
-                "generic_page_text_persisted": False,
+                "raw_text_mode": "tesseract_page_words",
+                "structured_raw_text_consistent": bool(structured_raw_text),
+                "generic_page_text_persisted": bool(raw_text),
                 "generic_ocr_skipped": True,
                 "generic_ocr_seconds": round(generic_ocr_seconds, 3),
                 "structured_ocr_seconds": round(extraction_seconds, 3),

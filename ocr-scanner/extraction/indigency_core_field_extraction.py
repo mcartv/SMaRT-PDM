@@ -119,6 +119,7 @@ class IndigencyFieldResult:
 
 @dataclass(frozen=True)
 class IndigencyExtractionOutput:
+    raw_text: str
     fields: tuple[IndigencyFieldResult, ...]
     field_count: int
     detection_variant: str
@@ -354,6 +355,28 @@ def _group_paragraphs(words: Sequence[PositionalWord]) -> tuple[tuple[Positional
         for group in groups.values()
     ]
     return tuple(sorted(ordered, key=lambda group: min(word.top for word in group)))
+
+
+def _raw_page_text(data: Mapping[str, Sequence[Any]]) -> str:
+    text_values = data.get("text", ()) if isinstance(data, Mapping) else ()
+    block_values = data.get("block_num", ()) if isinstance(data, Mapping) else ()
+    paragraph_values = data.get("par_num", ()) if isinstance(data, Mapping) else ()
+    line_values = data.get("line_num", ()) if isinstance(data, Mapping) else ()
+    lines: dict[tuple[int, int, int], list[str]] = {}
+    for index, value in enumerate(text_values):
+        text = str(value or "").strip()
+        if not text:
+            continue
+        try:
+            key = (
+                int(block_values[index]),
+                int(paragraph_values[index]),
+                int(line_values[index]),
+            )
+        except (IndexError, TypeError, ValueError):
+            key = (0, 0, index)
+        lines.setdefault(key, []).append(text)
+    return "\n".join(" ".join(tokens) for tokens in lines.values()).strip()
 
 
 def _title_candidate(
@@ -1169,6 +1192,7 @@ def extract_indigency_core_fields(
             tuple[PositionalWord, ...],
             np.ndarray,
             float,
+            str,
         ]
     ] = []
     candidate_count = 0
@@ -1195,10 +1219,12 @@ def extract_indigency_core_fields(
         for variant, detection_image in detection_variants:
             candidate_count += 1
             try:
-                words = _parse_words(
-                    detection_reader(detection_image.copy(), variant, resolved),
+                word_data = detection_reader(
+                    detection_image.copy(),
+                    variant,
                     resolved,
                 )
+                words = _parse_words(word_data, resolved)
                 candidates.append(
                     (
                         _variant_score(
@@ -1211,6 +1237,7 @@ def extract_indigency_core_fields(
                         words,
                         transformed_candidate,
                         angle,
+                        _raw_page_text(word_data),
                     )
                 )
             except (
@@ -1245,6 +1272,7 @@ def extract_indigency_core_fields(
         words,
         transformed_source,
         angle,
+        selected_raw_text,
     ) = max(candidates, key=lambda candidate: candidate[0])
     title = _title_candidate(words, transformed_source.shape[0], resolved.title_maximum_y)
     if title is None:
@@ -1353,6 +1381,7 @@ def extract_indigency_core_fields(
         }
     )
     output = IndigencyExtractionOutput(
+        raw_text=selected_raw_text,
         fields=fields,
         field_count=len(fields),
         detection_variant=variant,

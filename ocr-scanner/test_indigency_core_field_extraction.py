@@ -155,10 +155,35 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
             fields["residency_address"].raw_text,
             "12 SAMPLE STREET MARILAO BULACAN.",
         )
+        self.assertIn("CERTIFICATE OF INDIGENCY", result.data.raw_text)
+        self.assertIn("bona fide resident of", result.data.raw_text)
+        self.assertNotIn("Certificate Subject Name:", result.data.raw_text)
+        self.assertNotIn("Full Address:", result.data.raw_text)
         self.assertIn(
             "INDIGENCY_MANUAL_REVIEW_REQUIRED",
             {issue["code"] for issue in result.issues},
         )
+
+    def test_raw_text_preserves_low_confidence_tesseract_tokens(self):
+        data = _valid_word_data()
+        _add_line(
+            data,
+            "uncertain-token",
+            y=900,
+            block=6,
+            paragraph=1,
+            line=1,
+        )
+        data["conf"][-1] = 1
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: data,
+            field_reader=_field_reader,
+        )
+
+        self.assertTrue(result.success)
+        self.assertIn("uncertain-token", result.data.raw_text)
 
     def test_title_must_be_in_upper_document_portion(self):
         result = extract_indigency_core_fields(

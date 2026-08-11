@@ -1,4 +1,4 @@
-"""Robust Raspberry Pi Camera Module 3 document autofocus for SMaRT-PDM."""
+"""Fixed-lens Raspberry Pi Camera Module 3 capture for SMaRT-PDM."""
 
 from __future__ import annotations
 
@@ -12,8 +12,6 @@ from typing import Optional, Sequence, Tuple
 
 
 class CameraController:
-    ANALYSIS_WIDTH = 1024
-
     def __init__(self) -> None:
         self.preview_process: Optional[subprocess.Popen] = None
         self.preview_overlay_process: Optional[subprocess.Popen] = None
@@ -29,9 +27,6 @@ class CameraController:
         )
         self.minimum_jpeg_bytes = max(
             20000, int(os.getenv("CAMERA_MIN_JPEG_BYTES", "50000"))
-        )
-        self.minimum_focus_score = max(
-            8.0, float(os.getenv("CAMERA_MIN_FOCUS_SCORE", "22.0"))
         )
         self.capture_status_enabled = (
             os.getenv("CAMERA_FOCUS_PREVIEW", "true").strip().lower()
@@ -112,8 +107,8 @@ class CameraController:
                 [
                     "rpicam-hello",
                     "--timeout", "0",
-                    "--autofocus-mode", "continuous",
-                    "--autofocus-range", "full",
+                    "--autofocus-mode", "manual",
+                    "--lens-position", f"{self.fixed_lens_position:.4f}",
                     *self._roi_args(),
                 ],
                 stdout=subprocess.DEVNULL,
@@ -196,76 +191,6 @@ class CameraController:
                 return image.width, image.height
         except Exception:
             return None
-
-    @classmethod
-    def _focus_score(cls, path: str) -> Optional[float]:
-        try:
-            import cv2
-            import numpy as np
-
-            image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-            if image is None or image.size == 0:
-                return None
-
-            height, width = image.shape[:2]
-            roi = image[
-                int(height * 0.08):int(height * 0.92),
-                int(width * 0.08):int(width * 0.92),
-            ]
-            if roi.size == 0:
-                roi = image
-
-            rh, rw = roi.shape[:2]
-            if rw <= 0 or rh <= 0:
-                return None
-
-            scale = cls.ANALYSIS_WIDTH / float(rw)
-            target_height = max(1, int(round(rh * scale)))
-            interpolation = (
-                cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
-            )
-            normalized = cv2.resize(
-                roi,
-                (cls.ANALYSIS_WIDTH, target_height),
-                interpolation=interpolation,
-            )
-
-            clahe = cv2.createCLAHE(
-                clipLimit=2.0,
-                tileGridSize=(8, 8),
-            )
-            normalized = clahe.apply(normalized)
-
-            lap_score = float(
-                cv2.Laplacian(
-                    normalized,
-                    cv2.CV_64F,
-                    ksize=3,
-                ).var()
-            )
-
-            gx = cv2.Sobel(
-                normalized,
-                cv2.CV_64F,
-                1,
-                0,
-                ksize=3,
-            )
-            gy = cv2.Sobel(
-                normalized,
-                cv2.CV_64F,
-                0,
-                1,
-                ksize=3,
-            )
-            tenengrad = float(np.mean(gx * gx + gy * gy))
-            return lap_score + (tenengrad / 1000.0)
-        except Exception:
-            return None
-
-    @classmethod
-    def _sharpness(cls, path: str) -> Optional[float]:
-        return cls._focus_score(path)
 
     def _common_capture_args(
         self,
@@ -393,7 +318,7 @@ class CameraController:
             pass
         self._capture_window_open = False
 
-    def _sample_position(
+    def _capture_fixed_position(
         self,
         position: float,
         *,
@@ -401,7 +326,7 @@ class CameraController:
         height: int,
         timeout_ms: int,
         suffix: str,
-    ) -> Optional[Tuple[float, Path]]:
+    ) -> Optional[Path]:
         image = Path(
             f"{self.capture_file}.{suffix}-{position:.4f}.jpg"
         )
@@ -429,16 +354,11 @@ class CameraController:
             image.unlink(missing_ok=True)
             return None
 
-        if self._jpeg_dimensions(str(image)) is None:
+        if not image.is_file():
             image.unlink(missing_ok=True)
             return None
 
-        score = self._focus_score(str(image))
-        if score is None:
-            image.unlink(missing_ok=True)
-            return None
-
-        return score, image
+        return image
 
     def capture_image(
         self,
@@ -457,15 +377,14 @@ class CameraController:
             status_callback('capturing')
 
         position = self.fixed_lens_position
-        sampled = self._sample_position(
+        image = self._capture_fixed_position(
             position,
             width=self.capture_width,
             height=self.capture_height,
             timeout_ms=self.capture_timeout_ms,
             suffix="fixed",
         )
-        if sampled is not None:
-            score, image = sampled
+        if image is not None:
             if self._valid_jpeg(
                 image,
                 min_width=self.capture_width,
@@ -473,22 +392,11 @@ class CameraController:
             ):
                 self._stop_preview_instruction_overlay()
                 os.replace(image, final)
-                self._show_capture_frame(
-                    final,
-                    [
-                        "IMAGE CAPTURED",
-                        f"Fixed lens position: {position:.2f}",
-                        f"Sharpness score: {score:.2f}",
-                        "IMAGE PROCESSING - STARTING TESSERACT OCR",
-                    ],
-                    wait_ms=450,
-                )
                 self._close_capture_status()
                 print(
                     "[CAMERA] Fixed-lens capture accepted. "
                     f"Lens={position:.3f}; "
-                    f"normalized score={score:.2f}. "
-                    "OCR/submission unlocked."
+                    "starting preprocessing and OCR."
                 )
                 return True
             image.unlink(missing_ok=True)

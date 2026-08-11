@@ -200,7 +200,17 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
         self.assertNotIn("_coarse_sweep", capture)
         self.assertNotIn("_refine_position", capture)
         self.assertNotIn("_try_native_autofocus", capture)
-        self.assertEqual(capture.count("self._sample_position("), 1)
+        self.assertEqual(capture.count("self._capture_fixed_position("), 1)
+        self.assertNotIn("_focus_score", capture)
+        self.assertNotIn("Sharpness score", capture)
+
+        preview = source[
+            source.index("def start_preview") :
+            source.index("def _start_preview_instruction_overlay")
+        ]
+        self.assertIn('"--autofocus-mode", "manual"', preview)
+        self.assertIn('"--lens-position"', preview)
+        self.assertNotIn('"continuous"', preview)
 
         camera_source = Path("camera.py").read_text(encoding="utf-8")
         self.assertNotIn("COARSE SWEEP", camera_source)

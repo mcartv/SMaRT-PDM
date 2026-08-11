@@ -209,7 +209,7 @@ export default function AdminLayout() {
 
   return (
     <div
-      className="flex h-dvh w-full overflow-hidden"
+      className="admin-ui flex h-dvh w-full overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -232,7 +232,7 @@ export default function AdminLayout() {
       {/* Sidebar */}
       <aside
         className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
-        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
+        style={{ width: collapsed ? '76px' : 'clamp(216px, 18vw, 248px)', background: theme.base }}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm" style={{ background: theme.active }}>
@@ -316,7 +316,7 @@ export default function AdminLayout() {
 
       {/* Main Content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-3 sm:px-4 md:px-6">
           <div className="min-w-0">
             <h1 className="text-sm font-semibold leading-tight text-stone-800">
               SMaRT PDM
@@ -506,7 +506,7 @@ export default function AdminLayout() {
         </header>
 
         <main
-          className="min-h-0 flex-1 overflow-y-auto p-5 md:p-6"
+          className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"
           style={{ background: theme.mainBg }}
         >
           <div

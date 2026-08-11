@@ -182,3 +182,79 @@
     @apply font-sans;
   }
 }
+/* -------------------------------------------------------------------------- */
+/* Admin portal readability + small-monitor typography                         */
+/* -------------------------------------------------------------------------- */
+/*
+ * The admin UI contains many dense tables, badges, helper labels, and status
+ * rows. Some of those previously used 10px/11px text, which becomes difficult
+ * to read on smaller laptop/desktop displays. These rules are intentionally
+ * scoped to AdminLayout via `.admin-ui`, so public pages and other portals keep
+ * their existing typography.
+ *
+ * We do not use CSS zoom/transform scaling. Increasing only the smallest text
+ * and tightening responsive page spacing keeps tables, cards, dialogs, and
+ * navigation dimensions stable instead of changing the whole layout scale.
+ */
+.admin-ui {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Never allow the intentionally tiny utility sizes to fall below readable UI
+   text. 12px is reserved for metadata/badges; normal controls remain 13–14px. */
+.admin-ui [class~="text-[10px]"],
+.admin-ui [class~="text-[11px]"] {
+  font-size: 0.75rem !important;
+  line-height: 1rem !important;
+}
+
+.admin-ui [class~="text-[12px]"],
+.admin-ui .text-xs {
+  font-size: 0.8125rem !important;
+  line-height: 1.125rem !important;
+}
+
+.admin-ui input::placeholder,
+.admin-ui textarea::placeholder {
+  opacity: 0.82;
+}
+
+/* Dense tables keep their existing layout/scroll behavior, but text gets a
+   reliable line box so rows do not clip after the readability increase. */
+.admin-ui table {
+  line-height: 1.35;
+}
+
+.admin-ui th,
+.admin-ui td {
+  vertical-align: middle;
+}
+
+/* Long helper copy may wrap instead of forcing cards wider than the viewport. */
+.admin-ui p,
+.admin-ui label {
+  overflow-wrap: break-word;
+}
+
+/* On compact desktop/laptop widths, preserve usable content area while keeping
+   text readable. Individual pages can still opt into horizontal table scroll. */
+@media (max-width: 1180px) {
+  .admin-ui {
+    font-size: 13.5px;
+  }
+
+  .admin-ui [class~="tracking-[0.18em]"] {
+    letter-spacing: 0.12em !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-ui [class~="tracking-[0.18em]"] {
+    letter-spacing: 0.08em !important;
+  }
+}

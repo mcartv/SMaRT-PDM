@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
@@ -9,13 +10,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import {
   Table,
   TableBody,
   TableCell,
@@ -24,30 +18,32 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Users,
-  GraduationCap,
-  TrendingUp,
-  TrendingDown,
   AlertCircle,
   Award,
-  FileCheck2,
-  ClipboardList,
   Building2,
+  ClipboardCheck,
+  ClipboardList,
+  Clock3,
+  FileCheck2,
+  GraduationCap,
+  ListOrdered,
   Loader2,
   RefreshCw,
-  FileWarning,
+  RotateCcw,
+  Users,
+  Wallet,
 } from 'lucide-react';
 import {
-  BarChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 import { buildApiUrl } from '@/api';
 
@@ -74,15 +70,15 @@ const TOOLTIP_STYLE = {
   contentStyle: {
     background: C.surface,
     border: `1px solid ${C.border}`,
-    borderRadius: 8,
+    borderRadius: 10,
     fontSize: 12,
     color: C.text,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
   },
 };
 
 const AXIS_PROPS = {
-  tick: { fontSize: 11, fill: C.muted },
+  tick: { fontSize: 12, fill: C.muted },
   axisLine: false,
   tickLine: false,
 };
@@ -98,52 +94,74 @@ const CHART_COLORS = [
 
 const ICON_MAP = {
   total_applications: ClipboardList,
-  pending_review: FileWarning,
-  verified_documents: FileCheck2,
+  needs_action: ClipboardCheck,
+  ready_for_activation: FileCheck2,
+  waitlisted: ListOrdered,
   active_scholars: GraduationCap,
   open_openings: Award,
+  active_payouts: Wallet,
   benefactors: Building2,
   default: Users,
 };
 
 function formatNumber(value) {
-  const num = Number(value || 0);
-  return num.toLocaleString();
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toLocaleString() : '0';
+}
+
+function formatDate(value) {
+  if (!value) return 'N/A';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function getStatusMeta(status) {
-  const normalized = String(status || '').toLowerCase();
+  const normalized = String(status || '').trim().toLowerCase();
 
-  if (normalized.includes('approved') || normalized.includes('verified') || normalized.includes('active')) {
-    return {
-      bg: C.greenSoft,
-      color: C.green,
-    };
+  if (
+    normalized.includes('approved') ||
+    normalized.includes('verified') ||
+    normalized.includes('active') ||
+    normalized.includes('completed') ||
+    normalized.includes('reserved') ||
+    normalized.includes('promoted')
+  ) {
+    return { bg: C.greenSoft, color: C.green };
   }
 
-  if (normalized.includes('pending') || normalized.includes('review') || normalized.includes('queued')) {
-    return {
-      bg: C.amberSoft,
-      color: C.amber,
-    };
+  if (
+    normalized.includes('pending') ||
+    normalized.includes('review') ||
+    normalized.includes('waiting') ||
+    normalized.includes('waitlisted') ||
+    normalized.includes('uploaded') ||
+    normalized.includes('submitted')
+  ) {
+    return { bg: C.amberSoft, color: C.amber };
   }
 
-  if (normalized.includes('rejected') || normalized.includes('flagged') || normalized.includes('disqualified')) {
-    return {
-      bg: C.redSoft,
-      color: C.red,
-    };
+  if (
+    normalized.includes('rejected') ||
+    normalized.includes('flagged') ||
+    normalized.includes('disqualified') ||
+    normalized.includes('failed')
+  ) {
+    return { bg: C.redSoft, color: C.red };
   }
 
-  return {
-    bg: C.sand,
-    color: C.muted,
-  };
+  return { bg: C.sand, color: C.muted };
 }
 
 function EmptyChart({ label }) {
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-200 bg-stone-50/70">
+    <div className="flex h-full min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-200 bg-stone-50/70 px-4 text-center">
       <AlertCircle className="mb-2 h-5 w-5 text-stone-300" />
       <p className="text-xs font-medium text-stone-500">{label}</p>
     </div>
@@ -152,100 +170,132 @@ function EmptyChart({ label }) {
 
 function StatCard({ item }) {
   const Icon = ICON_MAP[item.key] || ICON_MAP.default;
-  const up = item.up !== false;
 
   return (
-    <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4">
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-xl"
-          style={{
-            background: item.soft || C.amberSoft,
-          }}
-        >
-          <Icon
-            className="h-4 w-4"
-            style={{
-              color: item.accent || C.brown,
-            }}
-          />
+    <Card
+      className="min-w-0 shadow-none"
+      style={{ borderColor: C.border, background: C.surface }}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-stone-500">{item.label}</p>
+            <p className="mt-1 text-2xl font-semibold leading-none text-stone-900">
+              {formatNumber(item.value)}
+            </p>
+          </div>
+
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: item.soft || C.amberSoft }}
+          >
+            <Icon
+              className="h-4 w-4"
+              style={{ color: item.accent || C.brown }}
+            />
+          </div>
         </div>
 
-        <Badge
-          variant="outline"
-          className="border-none text-xs font-medium"
-          style={{
-            background: up ? C.greenSoft : C.redSoft,
-            color: up ? C.green : C.red,
-          }}
-        >
-          {up ? (
-            <TrendingUp className="mr-1 h-3 w-3" />
-          ) : (
-            <TrendingDown className="mr-1 h-3 w-3" />
-          )}
-          {item.trend || 'Live'}
-        </Badge>
-      </CardHeader>
-
-      <CardContent className="px-4 pb-4">
-        <div className="text-2xl font-semibold">{formatNumber(item.value)}</div>
-        <p className="text-xs text-stone-500">{item.label}</p>
-        <p className="text-[11px] text-stone-400">{item.sub || 'Current system data'}</p>
+        <p className="mt-3 min-h-8 text-xs leading-4 text-stone-400">
+          {item.sub || 'Current system data'}
+        </p>
       </CardContent>
     </Card>
   );
 }
 
+function ActionRow({ item, onOpen }) {
+  const count = Number(item.value || 0);
+  const needsAttention = count > 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(item.path)}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3.5 py-3 text-left transition hover:border-stone-300 hover:bg-stone-50"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-stone-800">{item.label}</p>
+        <p className="mt-0.5 text-xs leading-4 text-stone-500">{item.sub}</p>
+      </div>
+
+      <span
+        className="flex min-w-8 shrink-0 items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold"
+        style={{
+          background: needsAttention ? C.amberSoft : C.greenSoft,
+          color: needsAttention ? C.amber : C.green,
+        }}
+      >
+        {formatNumber(count)}
+      </span>
+    </button>
+  );
+}
+
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+
   const [dashboard, setDashboard] = useState({
     summaryCards: [],
-    applicationStatus: [],
-    openingStatus: [],
-    documentSummary: [],
+    actionSummary: [],
+    applicationPipeline: [],
     scholarsByBenefactor: [],
     recentApplications: [],
+    generatedAt: null,
   });
+
   const [loading, setLoading] = useState(true);
   const [silentLoading, setSilentLoading] = useState(false);
   const [error, setError] = useState('');
-  const [chartTab, setChartTab] = useState('applications');
 
   const loadDashboard = useCallback(async (options = {}) => {
     const silent = options.silent === true;
     const audit = options.audit === true;
 
     try {
-      if (silent) {
-        setSilentLoading(true);
-      } else {
-        setLoading(true);
-      }
+      if (silent) setSilentLoading(true);
+      else setLoading(true);
 
       setError('');
 
       const token = sessionStorage.getItem('adminToken') || '';
-
-      const res = await fetch(buildApiUrl(`/api/dashboard${audit ? '?audit=1' : ''}`), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const res = await fetch(
+        buildApiUrl(`/api/dashboard${audit ? '?audit=1' : ''}`),
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(payload?.message || payload?.error || 'Failed to load dashboard data.');
+        throw new Error(
+          payload?.message ||
+            payload?.error ||
+            'Failed to load dashboard data.'
+        );
       }
 
       setDashboard({
-        summaryCards: Array.isArray(payload.summaryCards) ? payload.summaryCards : [],
-        applicationStatus: Array.isArray(payload.applicationStatus) ? payload.applicationStatus : [],
-        openingStatus: Array.isArray(payload.openingStatus) ? payload.openingStatus : [],
-        documentSummary: Array.isArray(payload.documentSummary) ? payload.documentSummary : [],
-        scholarsByBenefactor: Array.isArray(payload.scholarsByBenefactor) ? payload.scholarsByBenefactor : [],
-        recentApplications: Array.isArray(payload.recentApplications) ? payload.recentApplications : [],
+        summaryCards: Array.isArray(payload.summaryCards)
+          ? payload.summaryCards
+          : [],
+        actionSummary: Array.isArray(payload.actionSummary)
+          ? payload.actionSummary
+          : [],
+        applicationPipeline: Array.isArray(payload.applicationPipeline)
+          ? payload.applicationPipeline
+          : [],
+        scholarsByBenefactor: Array.isArray(payload.scholarsByBenefactor)
+          ? payload.scholarsByBenefactor
+          : [],
+        recentApplications: Array.isArray(payload.recentApplications)
+          ? payload.recentApplications
+          : [],
+        generatedAt: payload.generatedAt || null,
       });
     } catch (err) {
       console.error('DASHBOARD LOAD ERROR:', err);
@@ -271,11 +321,11 @@ export default function AdminDashboard() {
   useSocketEvent('application:approved', refreshRealtime, [refreshRealtime]);
   useSocketEvent('application:rejected', refreshRealtime, [refreshRealtime]);
   useSocketEvent('application:disqualified', refreshRealtime, [refreshRealtime]);
-
   useSocketEvent('application-document:uploaded', refreshRealtime, [refreshRealtime]);
   useSocketEvent('application-document:reviewed', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('application-ocr:queued', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('application-ocr:snapshot-saved', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('endorsement:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('endorsement:completed', refreshRealtime, [refreshRealtime]);
 
   useSocketEvent('scholar:created', refreshRealtime, [refreshRealtime]);
   useSocketEvent('scholar:updated', refreshRealtime, [refreshRealtime]);
@@ -294,12 +344,15 @@ export default function AdminDashboard() {
   useSocketEvent('payout:restored', refreshRealtime, [refreshRealtime]);
   useSocketEvent('scholar:released', refreshRealtime, [refreshRealtime]);
 
+  useSocketEvent('renewal:created', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('renewal:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('renewal:reviewed', refreshRealtime, [refreshRealtime]);
+
   useSocketEvent('ro:updated', refreshRealtime, [refreshRealtime]);
   useSocketEvent('ro:archived', refreshRealtime, [refreshRealtime]);
   useSocketEvent('ro:restored', refreshRealtime, [refreshRealtime]);
 
   useSocketEvent('maintenance:updated', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('report:updated', refreshRealtime, [refreshRealtime]);
 
   const summaryCards = useMemo(() => {
     if (dashboard.summaryCards.length) return dashboard.summaryCards;
@@ -307,49 +360,111 @@ export default function AdminDashboard() {
     return [
       {
         key: 'total_applications',
-        label: 'Total Applications',
+        label: 'Applications',
         value: 0,
-        sub: 'Current active records',
-        trend: 'Live',
-        up: true,
-        accent: C.brown,
-        soft: C.amberSoft,
+        sub: 'Active application records',
       },
       {
-        key: 'pending_review',
-        label: 'Pending Review',
+        key: 'needs_action',
+        label: 'Needs Review',
         value: 0,
-        sub: 'Applications needing action',
-        trend: 'Needs action',
-        up: false,
-        accent: C.amber,
-        soft: C.amberSoft,
+        sub: 'Applications still requiring OSFA processing',
       },
       {
-        key: 'verified_documents',
-        label: 'Verified Documents',
+        key: 'ready_for_activation',
+        label: 'Ready for Activation',
         value: 0,
-        sub: 'Completed verification',
-        trend: 'Verified',
-        up: true,
-        accent: C.green,
-        soft: C.greenSoft,
+        sub: 'Reserved or promoted applicants',
+      },
+      {
+        key: 'waitlisted',
+        label: 'Waiting List',
+        value: 0,
+        sub: 'Qualified applicants waiting for a slot',
       },
       {
         key: 'active_scholars',
         label: 'Active Scholars',
         value: 0,
-        sub: 'Current scholar records',
-        trend: 'Current',
-        up: true,
-        accent: C.brownLight,
-        soft: C.sand,
+        sub: 'Current active scholar records',
+      },
+      {
+        key: 'open_openings',
+        label: 'Open Openings',
+        value: 0,
+        sub: 'Scholarship openings accepting applicants',
+      },
+      {
+        key: 'active_payouts',
+        label: 'Active Payout Batches',
+        value: 0,
+        sub: 'Payout batches not yet completed',
+      },
+      {
+        key: 'benefactors',
+        label: 'Benefactors',
+        value: 0,
+        sub: 'Current active benefactor records',
       },
     ];
   }, [dashboard.summaryCards]);
 
+  const actionSummary = useMemo(() => {
+    if (dashboard.actionSummary.length) return dashboard.actionSummary;
+
+    return [
+      {
+        key: 'requirements_review',
+        label: 'Requirements Review',
+        value: 0,
+        sub: 'Applications whose requirements are not yet verified',
+        path: '/admin/applications',
+      },
+      {
+        key: 'endorsement_review',
+        label: 'Endorsement Review',
+        value: 0,
+        sub: 'Verified applicants still completing endorsements',
+        path: '/admin/endorsements',
+      },
+      {
+        key: 'renewals_pending',
+        label: 'Renewal Review',
+        value: 0,
+        sub: 'Renewal records that still need processing',
+        path: '/admin/renewals',
+      },
+      {
+        key: 'ro_attention',
+        label: 'RO Obligations',
+        value: 0,
+        sub: 'Active obligations or logs requiring attention',
+        path: '/admin/obligations',
+      },
+      {
+        key: 'payout_pending',
+        label: 'Payout Status',
+        value: 0,
+        sub: 'Scholar payout entries still Pending or On Hold',
+        path: '/admin/payout',
+      },
+      {
+        key: 'waiting_list',
+        label: 'Waiting List',
+        value: 0,
+        sub: 'Qualified applicants currently waiting for capacity',
+        path: '/admin/applications',
+      },
+    ];
+  }, [dashboard.actionSummary]);
+
   if (loading) {
-    return <PageLoadingSkeleton label="Loading Admin dashboard" variant="dashboard" />;
+    return (
+      <PageLoadingSkeleton
+        label="Loading Admin dashboard"
+        variant="dashboard"
+      />
+    );
   }
 
   if (error) {
@@ -357,8 +472,11 @@ export default function AdminDashboard() {
       <div className="space-y-4 py-2" style={{ background: C.bg }}>
         <div className="rounded-xl border border-red-100 bg-red-50 p-6 text-center">
           <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-400" />
-          <p className="text-sm font-semibold text-red-800">Failed to load dashboard</p>
+          <p className="text-sm font-semibold text-red-800">
+            Failed to load dashboard
+          </p>
           <p className="mt-1 text-xs text-red-600">{error}</p>
+
           <Button
             onClick={() => loadDashboard({ audit: true })}
             variant="outline"
@@ -375,11 +493,26 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-5 py-2" style={{ background: C.bg }}>
-      <div className="flex items-center justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-stone-900">
+            System Overview
+          </h1>
+          <p className="mt-1 text-xs text-stone-500">
+            Current scholarship operations, workload, and scholar activity.
+            {dashboard.generatedAt
+              ? ` Updated ${new Date(dashboard.generatedAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}.`
+              : ''}
+          </p>
+        </div>
+
         <Button
           variant="outline"
           size="sm"
-          className="h-8 rounded-lg border-stone-200 text-xs"
+          className="h-9 self-start rounded-lg border-stone-200 text-xs sm:self-auto"
           onClick={() => loadDashboard({ silent: true })}
           disabled={silentLoading}
         >
@@ -392,126 +525,137 @@ export default function AdminDashboard() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {summaryCards.map((item) => (
-          <StatCard key={item.key || item.label} item={item} />
-        ))}
-      </div>
+      <section>
+        <div className="mb-2 flex items-center gap-2">
+          <Users className="h-4 w-4 text-stone-500" />
+          <h2 className="text-sm font-semibold text-stone-800">At a Glance</h2>
+        </div>
 
-      <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-        <Tabs value={chartTab} onValueChange={setChartTab} className="w-full">
-          <CardHeader className="flex flex-col gap-3 border-b border-stone-100 pb-4 md:flex-row md:items-center md:justify-between">
-            <CardTitle className="text-sm font-semibold">
-              Scholarship Operations Overview
-            </CardTitle>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+          {summaryCards.map((item) => (
+            <StatCard key={item.key || item.label} item={item} />
+          ))}
+        </div>
+      </section>
 
-            <TabsList
-              className="h-8 rounded-lg p-1"
-              style={{ background: 'color-mix(in srgb, var(--portal-base) 8%, white)' }}
-            >
-              <TabsTrigger value="applications" className="px-4 text-xs">
-                Applications
-              </TabsTrigger>
-              <TabsTrigger value="openings" className="px-4 text-xs">
-                Openings
-              </TabsTrigger>
-              <TabsTrigger value="documents" className="px-4 text-xs">
-                Documents
-              </TabsTrigger>
-            </TabsList>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.4fr)]">
+        <Card
+          className="shadow-none"
+          style={{ borderColor: C.border, background: C.surface }}
+        >
+          <CardHeader className="border-b border-stone-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-stone-500" />
+              <CardTitle className="text-sm font-semibold">
+                Action Center
+              </CardTitle>
+            </div>
+            <p className="text-xs text-stone-500">
+              Work items that may require administrator attention.
+            </p>
           </CardHeader>
 
-          <CardContent className="h-72 min-h-0 min-w-0 pt-4">
-            <TabsContent value="applications" className="h-full min-h-0 min-w-0">
-              {chartTab === 'applications' && (dashboard.applicationStatus.length ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <BarChart data={dashboard.applicationStatus}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                    <XAxis dataKey="name" {...AXIS_PROPS} />
-                    <YAxis {...AXIS_PROPS} allowDecimals={false} />
-                    <Tooltip {...TOOLTIP_STYLE} />
-                    <Bar dataKey="value" fill={C.brownMid} radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyChart label="No application status data available." />
-              ))}
-            </TabsContent>
-
-            <TabsContent value="openings" className="h-full min-h-0 min-w-0">
-              {chartTab === 'openings' && (dashboard.openingStatus.length ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <BarChart data={dashboard.openingStatus}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                    <XAxis dataKey="name" {...AXIS_PROPS} />
-                    <YAxis {...AXIS_PROPS} allowDecimals={false} />
-                    <Tooltip {...TOOLTIP_STYLE} />
-                    <Bar dataKey="value" fill={C.yellow} radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyChart label="No scholarship opening data available." />
-              ))}
-            </TabsContent>
-
-            <TabsContent value="documents" className="h-full min-h-0 min-w-0">
-              {chartTab === 'documents' && (dashboard.documentSummary.length ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <BarChart data={dashboard.documentSummary}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                    <XAxis dataKey="name" {...AXIS_PROPS} />
-                    <YAxis {...AXIS_PROPS} allowDecimals={false} />
-                    <Tooltip {...TOOLTIP_STYLE} />
-                    <Bar dataKey="value" fill={C.amber} radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyChart label="No document verification data available." />
-              ))}
-            </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-          <CardHeader>
-            <CardTitle className="text-sm">Document / OCR Verification Summary</CardTitle>
-          </CardHeader>
-
-          <CardContent className="h-56 min-h-0 min-w-0">
-            {dashboard.documentSummary.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                <BarChart data={dashboard.documentSummary}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                  <XAxis dataKey="name" {...AXIS_PROPS} />
-                  <YAxis {...AXIS_PROPS} allowDecimals={false} />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="value" fill={C.brownMid} radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChart label="No OCR or document records found." />
-            )}
+          <CardContent className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-1">
+            {actionSummary.map((item) => (
+              <ActionRow
+                key={item.key}
+                item={item}
+                onOpen={(path) => navigate(path)}
+              />
+            ))}
           </CardContent>
         </Card>
 
-        <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-          <CardHeader>
-            <CardTitle className="text-sm">Scholars by Benefactor</CardTitle>
+        <Card
+          className="min-w-0 shadow-none"
+          style={{ borderColor: C.border, background: C.surface }}
+        >
+          <CardHeader className="border-b border-stone-100 pb-3">
+            <CardTitle className="text-sm font-semibold">
+              Application Lifecycle
+            </CardTitle>
+            <p className="text-xs text-stone-500">
+              Current active applications grouped by their actual workflow stage.
+            </p>
           </CardHeader>
 
-          <CardContent className="grid h-56 min-h-0 min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-            {dashboard.scholarsByBenefactor.length ? (
-              <>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+          <CardContent className="h-[330px] min-h-0 min-w-0 pt-4">
+            {dashboard.applicationPipeline.length ? (
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={0}
+                minHeight={1}
+              >
+                <BarChart
+                  data={dashboard.applicationPipeline}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    horizontal={false}
+                    stroke={C.border}
+                  />
+                  <XAxis
+                    type="number"
+                    {...AXIS_PROPS}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={126}
+                    {...AXIS_PROPS}
+                  />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <Bar
+                    dataKey="value"
+                    fill={C.brownMid}
+                    radius={[0, 8, 8, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart label="No active application data available." />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card
+        className="min-w-0 shadow-none"
+        style={{ borderColor: C.border, background: C.surface }}
+      >
+        <CardHeader className="border-b border-stone-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-stone-500" />
+            <CardTitle className="text-sm font-semibold">
+              Active Scholars by Benefactor
+            </CardTitle>
+          </div>
+          <p className="text-xs text-stone-500">
+            Distribution of currently active scholars across benefactors.
+          </p>
+        </CardHeader>
+
+        <CardContent className="grid min-h-[270px] min-w-0 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
+          {dashboard.scholarsByBenefactor.length ? (
+            <>
+              <div className="h-[250px] min-w-0">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={1}
+                >
                   <PieChart>
                     <Pie
                       data={dashboard.scholarsByBenefactor}
                       dataKey="value"
                       nameKey="name"
-                      innerRadius={45}
-                      outerRadius={75}
+                      innerRadius={58}
+                      outerRadius={92}
                       paddingAngle={2}
                     >
                       {dashboard.scholarsByBenefactor.map((entry, index) => (
@@ -524,128 +668,167 @@ export default function AdminDashboard() {
                     <Tooltip {...TOOLTIP_STYLE} />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
 
-                <div className="flex flex-col justify-center gap-2 overflow-y-auto">
-                  {dashboard.scholarsByBenefactor.map((item, index) => (
-                    <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                          style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
-                        />
-                        <span className="truncate text-xs text-stone-600">{item.name}</span>
-                      </div>
-                      <span className="text-xs font-semibold text-stone-800">
-                        {formatNumber(item.value)}
+              <div className="grid content-center gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                {dashboard.scholarsByBenefactor.map((item, index) => (
+                  <div
+                    key={`${item.name}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-stone-100 px-3 py-2"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{
+                          background:
+                            CHART_COLORS[index % CHART_COLORS.length],
+                        }}
+                      />
+                      <span className="truncate text-xs text-stone-600">
+                        {item.name}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="md:col-span-2">
-                <EmptyChart label="No benefactor-scholar distribution available." />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
-      <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-        <CardHeader className="border-b border-stone-100">
-          <CardTitle className="text-sm">Recent Applications Needing Action</CardTitle>
+                    <span className="text-xs font-semibold text-stone-800">
+                      {formatNumber(item.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="lg:col-span-2">
+              <EmptyChart label="No active scholar distribution is available yet." />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card
+        className="min-w-0 shadow-none"
+        style={{ borderColor: C.border, background: C.surface }}
+      >
+        <CardHeader className="border-b border-stone-100 pb-3">
+          <CardTitle className="text-sm font-semibold">
+            Recent Applicants
+          </CardTitle>
+          <p className="text-xs text-stone-500">
+            Latest active application records across scholarship openings.
+          </p>
         </CardHeader>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student</TableHead>
-              <TableHead>Program / Opening</TableHead>
-              <TableHead>Application Status</TableHead>
-              <TableHead>Document Status</TableHead>
-              <TableHead>Submitted</TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {dashboard.recentApplications.length ? (
-              dashboard.recentApplications.map((row) => {
-                const appMeta = getStatusMeta(row.application_status);
-                const docMeta = getStatusMeta(row.document_status);
-
-                return (
-                  <TableRow key={row.application_id}>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm font-medium text-stone-800">
-                          {row.student_name || 'Unknown Student'}
-                        </p>
-                        <p className="text-xs text-stone-400">
-                          {row.student_number || 'No Student ID'}
-                        </p>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <div>
-                        <p className="text-sm text-stone-700">
-                          {row.program_name || 'No Program'}
-                        </p>
-                        <p className="text-xs text-stone-400">
-                          {row.opening_title || 'No Opening'}
-                        </p>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <span
-                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
-                        style={{
-                          background: appMeta.bg,
-                          color: appMeta.color,
-                        }}
-                      >
-                        {row.application_status || 'Unknown'}
-                      </span>
-                    </TableCell>
-
-                    <TableCell>
-                      <span
-                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
-                        style={{
-                          background: docMeta.bg,
-                          color: docMeta.color,
-                        }}
-                      >
-                        {row.document_status || 'Unknown'}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="text-xs text-stone-500">
-                      {row.submission_date
-                        ? new Date(row.submission_date).toLocaleDateString()
-                        : 'N/A'}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5}>
-                  <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 text-center">
-                    <AlertCircle className="h-5 w-5 text-stone-300" />
-                    <p className="text-sm font-medium text-stone-500">
-                      No pending application work items.
-                    </p>
-                    <p className="text-xs text-stone-400">
-                      Recent applications needing review will appear here.
-                    </p>
-                  </div>
-                </TableCell>
+                <TableHead className="min-w-[170px]">Student</TableHead>
+                <TableHead className="min-w-[200px]">
+                  Program / Opening
+                </TableHead>
+                <TableHead className="min-w-[140px]">
+                  Application Status
+                </TableHead>
+                <TableHead className="min-w-[140px]">
+                  Requirements Status
+                </TableHead>
+                <TableHead className="min-w-[130px]">
+                  FCFS / Activation
+                </TableHead>
+                <TableHead className="min-w-[110px]">Submitted</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+
+            <TableBody>
+              {dashboard.recentApplications.length ? (
+                dashboard.recentApplications.map((row) => {
+                  const appMeta = getStatusMeta(row.application_status);
+                  const documentMeta = getStatusMeta(row.document_status);
+                  const workflowMeta = getStatusMeta(row.workflow_status);
+
+                  return (
+                    <TableRow key={row.application_id}>
+                      <TableCell>
+                        <div>
+                          <p className="text-sm font-medium text-stone-800">
+                            {row.student_name || 'Unknown Student'}
+                          </p>
+                          <p className="text-xs text-stone-400">
+                            {row.student_number || 'No Student ID'}
+                          </p>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div>
+                          <p className="text-sm text-stone-700">
+                            {row.program_name || 'No Program'}
+                          </p>
+                          <p className="text-xs text-stone-400">
+                            {row.opening_title || 'No Opening'}
+                          </p>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <span
+                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                          style={{
+                            background: appMeta.bg,
+                            color: appMeta.color,
+                          }}
+                        >
+                          {row.application_status || 'Unknown'}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span
+                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                          style={{
+                            background: documentMeta.bg,
+                            color: documentMeta.color,
+                          }}
+                        >
+                          {row.document_status || 'Unknown'}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span
+                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                          style={{
+                            background: workflowMeta.bg,
+                            color: workflowMeta.color,
+                          }}
+                        >
+                          {row.workflow_status || 'Processing'}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-xs text-stone-500">
+                        {formatDate(row.submission_date)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 text-center">
+                      <AlertCircle className="h-5 w-5 text-stone-300" />
+                      <p className="text-sm font-medium text-stone-500">
+                        No application records found.
+                      </p>
+                      <p className="text-xs text-stone-400">
+                        New applications will appear here.
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
     </div>
   );

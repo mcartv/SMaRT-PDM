@@ -2136,8 +2136,10 @@ exports.fetchApplications = async () => {
       sp.program_name
 
     FROM applications a
-    LEFT JOIN students st
+    INNER JOIN students st
       ON a.student_id = st.student_id
+    INNER JOIN users u
+      ON st.user_id = u.user_id
     LEFT JOIN program_openings po
       ON a.opening_id = po.opening_id
     LEFT JOIN academic_years ay
@@ -2149,6 +2151,11 @@ exports.fetchApplications = async () => {
 
     WHERE
       COALESCE(a.is_archived, FALSE) = FALSE
+      AND COALESCE(st.is_archived, FALSE) = FALSE
+      AND st.user_id IS NOT NULL
+      AND COALESCE(u.is_otp_verified, FALSE) = TRUE
+      AND LOWER(COALESCE(u.username, '')) NOT LIKE 'deleted-%'
+      AND LOWER(COALESCE(u.email, '')) NOT LIKE 'deleted-%'
       AND COALESCE(po.is_archived, FALSE) = FALSE
       AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
       AND COALESCE(a.is_disqualified, FALSE) = FALSE
@@ -2197,8 +2204,10 @@ exports.fetchApplications = async () => {
       sp.program_name
 
     FROM applications a
-    LEFT JOIN students st
+    INNER JOIN students st
       ON a.student_id = st.student_id
+    INNER JOIN users u
+      ON st.user_id = u.user_id
     LEFT JOIN program_openings po
       ON a.opening_id = po.opening_id
     LEFT JOIN academic_years ay
@@ -2210,6 +2219,11 @@ exports.fetchApplications = async () => {
 
     WHERE
       COALESCE(a.is_archived, FALSE) = FALSE
+      AND COALESCE(st.is_archived, FALSE) = FALSE
+      AND st.user_id IS NOT NULL
+      AND COALESCE(u.is_otp_verified, FALSE) = TRUE
+      AND LOWER(COALESCE(u.username, '')) NOT LIKE 'deleted-%'
+      AND LOWER(COALESCE(u.email, '')) NOT LIKE 'deleted-%'
       AND COALESCE(po.is_archived, FALSE) = FALSE
       AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
       AND COALESCE(a.is_disqualified, FALSE) = FALSE

@@ -233,7 +233,7 @@ class JobWorkerTest(unittest.TestCase):
 
         self.assertEqual(grade_camera.fixed_lens_position, 2.00)
         self.assertEqual(indigency_camera.fixed_lens_position, 1.50)
-        self.assertEqual(birth_camera.fixed_lens_position, 1.75)
+        self.assertEqual(birth_camera.fixed_lens_position, 2.00)
 
     def test_generic_document_uses_one_shared_capture_and_same_path(self):
         success, payload = job_worker.run_scan(self.request("unknown_key"))
@@ -442,6 +442,39 @@ class JobWorkerTest(unittest.TestCase):
             "relaxed_validated_grid",
         )
         self.assertEqual(payload["source_payload"]["registration_attempts"], 2)
+        self.assertTrue(payload["extracted_fields"]["fields"])
+
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form_grid_envelope")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_uses_validated_grid_envelope_before_calibrated_crops(
+        self, register, envelope, crop, ocr
+    ):
+        register.return_value = _stage_result(
+            status="failed",
+            success=False,
+            issues=[{"code": "FORM_GRID_NOT_FOUND"}],
+        )
+        envelope.return_value = _birth_registration_result("review_required")
+        crop.return_value = _birth_crop_result("review_required")
+        ocr.return_value = _birth_ocr_result()
+
+        success, payload = job_worker.run_scan(self.request("birth_certificate"))
+
+        self.assertTrue(success)
+        self.assertEqual(register.call_count, 2)
+        envelope.assert_called_once()
+        crop.assert_called_once_with(
+            envelope.return_value.data.registered_image,
+            registration_metadata=_birth_registration_context("review_required"),
+        )
+        self.generic_ocr.assert_not_called()
+        self.assertEqual(
+            payload["source_payload"]["registration_mode"],
+            "validated_grid_envelope",
+        )
+        self.assertEqual(payload["source_payload"]["registration_attempts"], 3)
         self.assertTrue(payload["extracted_fields"]["fields"])
 
     @patch("job_worker.register_psa_birth_form")

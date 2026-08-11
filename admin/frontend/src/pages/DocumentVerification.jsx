@@ -1461,7 +1461,7 @@ function OCRPanel({
             <div>
               <span className="font-semibold">Running IoT OCR...</span>{' '}
               {iotOcrStatus === 'capturing' && activeDoc?.id === 'birth_certificate'
-                ? 'Capturing once at fixed lens position 1.75'
+                ? 'Capturing once at fixed lens position 2.00'
                 : IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
             </div>
             {cancelSupported && <Button

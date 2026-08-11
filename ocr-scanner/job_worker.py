@@ -45,7 +45,10 @@ from extraction.indigency_core_field_extraction import (
 )
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
-from extraction.psa_form_registration import register_psa_birth_form
+from extraction.psa_form_registration import (
+    register_psa_birth_form,
+    register_psa_birth_form_grid_envelope,
+)
 from ocr import extract_text, get_last_ocr_confidence
 from pipeline.result_serializer import candidate_from_worker_payload
 from pipeline.grade_form_v1 import scan_grade_form
@@ -95,7 +98,7 @@ GRADE_FORM_LENS_POSITION = min(
 )
 BIRTH_CERTIFICATE_LENS_POSITION = min(
     32.0,
-    max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "1.75"))),
+    max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "2.00"))),
 )
 BIRTH_RELAXED_REGISTRATION_CONFIG = {
     # Birth-only recovery for the fixed physical scanner station. The normal
@@ -435,6 +438,12 @@ def _run_birth_certificate_scan(
             if relaxed_result.success:
                 registration_result = relaxed_result
                 registration_mode = "relaxed_validated_grid"
+        if not registration_result.success:
+            registration_attempts += 1
+            envelope_result = register_psa_birth_form_grid_envelope(source_image)
+            if envelope_result.success:
+                registration_result = envelope_result
+                registration_mode = "validated_grid_envelope"
         if not registration_result.success:
             # Registration failure forbids calibrated row extraction, but it
             # must not discard a fresh text-only OCR result. Run the existing

@@ -2003,6 +2003,206 @@ def register_psa_birth_form(
     )
 
 
+def register_psa_birth_form_grid_envelope(
+    raw_image: Any,
+    config: PSAFormRegistrationConfig | Mapping[str, Any] | None = None,
+) -> StageResult[PSAFormRegistrationOutput]:
+    """Recover a displaced PSA grid, then enforce canonical topology.
+
+    This is intentionally separate from the normal station calibration. It
+    does not authorize coordinate extraction merely because a rectangle was
+    found: the warped candidate must contain all calibrated PSA row bands,
+    enough vertical/horizontal landmarks, and registered outer edges.
+    """
+    try:
+        resolved = _build_config(config)
+    except (KeyError, TypeError, ValueError):
+        return _failure("INVALID_REGISTRATION_CONFIG")
+
+    source = _prepare_source(raw_image)
+    if source is None:
+        return _failure("INVALID_SOURCE_IMAGE")
+    height, width = source.shape[:2]
+    if width < resolved.minimum_source_width or height < resolved.minimum_source_height:
+        return _failure("SOURCE_IMAGE_TOO_SMALL", source_dimensions=(width, height))
+
+    try:
+        _, _, _, _, horizontal_mask, vertical_mask = _variants(source)
+        grid_mask = cv2.bitwise_or(horizontal_mask, vertical_mask)
+        grid_mask = cv2.dilate(
+            grid_mask,
+            cv2.getStructuringElement(
+                cv2.MORPH_RECT,
+                (
+                    max(5, int(round(width * 0.0035))),
+                    max(5, int(round(height * 0.0045))),
+                ),
+            ),
+            iterations=2,
+        )
+        contours = cv2.findContours(
+            grid_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )[0]
+    except cv2.error:
+        return _failure("FORM_GRID_ENVELOPE_NOT_FOUND")
+
+    destination = np.asarray(
+        [
+            [0, 0],
+            [resolved.output_width - 1, 0],
+            [resolved.output_width - 1, resolved.output_height - 1],
+            [0, resolved.output_height - 1],
+        ],
+        dtype=np.float32,
+    )
+    candidates: list[tuple[float, np.ndarray, np.ndarray, np.ndarray, Any, Any]] = []
+    minimum_area = resolved.expected_area_ratio * 0.35
+    maximum_area = min(0.55, resolved.expected_area_ratio * 3.0)
+
+    for contour in contours:
+        hull = cv2.convexHull(contour)
+        perimeter = cv2.arcLength(hull, True)
+        if perimeter <= 0:
+            continue
+        approximation = None
+        for epsilon in (0.005, 0.01, 0.02, 0.03):
+            proposed = cv2.approxPolyDP(
+                hull,
+                epsilon * perimeter,
+                True,
+            ).reshape(-1, 2)
+            if len(proposed) == 4:
+                approximation = proposed
+                break
+        if approximation is None:
+            continue
+        try:
+            corners = _order_corners(approximation)
+        except ValueError:
+            continue
+        expected = _expected_pixels(resolved, width, height)
+        geometry = _candidate_geometry(corners, expected, width, height)
+        if geometry is None:
+            continue
+        area_ratio, aspect_ratio, _corner_deviation, opposite_ratio = geometry
+        if not minimum_area <= area_ratio <= maximum_area:
+            continue
+        if not 0.72 <= aspect_ratio <= 1.38:
+            continue
+        if opposite_ratio > resolved.review_opposite_edge_ratio:
+            continue
+
+        try:
+            homography = cv2.getPerspectiveTransform(
+                corners.astype(np.float32),
+                destination,
+            )
+            registered = cv2.warpPerspective(
+                source,
+                homography,
+                (resolved.output_width, resolved.output_height),
+                flags=cv2.INTER_CUBIC,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
+        except cv2.error:
+            continue
+        if registered is None or registered.shape[:2] != (
+            resolved.output_height,
+            resolved.output_width,
+        ):
+            continue
+        registered = np.ascontiguousarray(registered, dtype=source.dtype)
+        row_topology = _registered_row_topology(registered, resolved)
+        canonical = _canonical_landmarks(registered, resolved)
+        if not row_topology.covered or canonical is None:
+            continue
+        if canonical[6] > resolved.review_canonical_edge_deviation:
+            continue
+
+        area_score = max(
+            0.0,
+            1.0 - abs(area_ratio - resolved.expected_area_ratio) / resolved.expected_area_ratio,
+        )
+        aspect_score = max(
+            0.0,
+            1.0 - abs(aspect_ratio - resolved.expected_aspect_ratio) / 0.35,
+        )
+        score = 0.65 * row_topology.score + 0.20 * aspect_score + 0.15 * area_score
+        candidates.append(
+            (score, corners, homography, registered, row_topology, canonical)
+        )
+
+    if not candidates:
+        return _failure(
+            "FORM_GRID_ENVELOPE_TOPOLOGY_INVALID",
+            source_dimensions=(width, height),
+            envelope_candidate_count=0,
+        )
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    score, corners, homography, registered, row_topology, canonical = candidates[0]
+    normalized = corners / np.asarray([width - 1, height - 1], dtype=np.float64)
+    top = float(np.linalg.norm(corners[1] - corners[0]))
+    bottom = float(np.linalg.norm(corners[2] - corners[3]))
+    left = float(np.linalg.norm(corners[3] - corners[0]))
+    right = float(np.linalg.norm(corners[2] - corners[1]))
+    area_ratio = abs(float(cv2.contourArea(corners.astype(np.float32)))) / float(width * height)
+    aspect_ratio = ((top + bottom) / 2.0) / ((left + right) / 2.0)
+    metadata = PSAFormTransformationMetadata(
+        source_dimensions=(width, height),
+        output_dimensions=(resolved.output_width, resolved.output_height),
+        normalized_registration_corners=tuple(
+            NormalizedPoint(float(point[0]), float(point[1]))
+            for point in normalized
+        ),
+        homography=tuple(float(value) for value in homography.reshape(-1)),
+        horizontal_line_count=len(row_topology.positions),
+        vertical_line_count=len(canonical[4]),
+        intersection_count=(
+            len(row_topology.positions) * len(canonical[4])
+        ),
+        candidate_count=len(candidates),
+        candidate_score=float(score),
+        registration_area_ratio=area_ratio,
+        aspect_ratio=aspect_ratio,
+        maximum_corner_deviation=float(
+            np.max(np.abs(normalized - np.asarray([
+                [point.x, point.y] for point in resolved.expected_corners
+            ], dtype=np.float64)))
+        ),
+        opposite_edge_ratio=max(top, bottom) / min(top, bottom),
+        maximum_canonical_edge_deviation=float(canonical[6]),
+        canonical_left_boundary=float(canonical[0]),
+        canonical_right_boundary=float(canonical[1]),
+        canonical_top_boundary=float(canonical[2]),
+        canonical_bottom_boundary=float(canonical[3]),
+        canonical_vertical_landmarks=tuple(canonical[4]),
+        canonical_horizontal_landmarks=tuple(canonical[5]),
+        perspective_applied=True,
+        boundary_inferred=False,
+    )
+    return StageResult(
+        stage=STAGE_NAME,
+        success=True,
+        status="review_required",
+        data=PSAFormRegistrationOutput(
+            registered_image=registered.copy(),
+            transformation_metadata=metadata,
+        ),
+        issues=[_issue("REGISTRATION_GRID_ENVELOPE_RECOVERY")],
+        metrics={
+            "registration_mode": "validated_grid_envelope",
+            "candidate_count": len(candidates),
+            "candidate_score": round(float(score), 6),
+            "postwarp_target_topology_score": row_topology.score,
+            "postwarp_target_maximum_residual": max(row_topology.residuals),
+            "maximum_canonical_edge_deviation": canonical[6],
+        },
+    )
+
+
 CALIBRATION_DEFAULTS: Mapping[str, Any] = MappingProxyType(
     {
         "corners": _default_corners(),

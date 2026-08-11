@@ -23,6 +23,7 @@ from extraction.psa_form_registration import (
     _repair_premature_bottom_boundary,
     _repair_premature_right_boundary,
     register_psa_birth_form,
+    register_psa_birth_form_grid_envelope,
 )
 
 
@@ -317,6 +318,42 @@ class PSAFormRegistrationTest(unittest.TestCase):
         self.assertEqual(result.data.registered_image.shape[:2], (1375, 1400))
         self.assertNotIn("TARGET_ROWS_OUTSIDE_FRAME", issue_codes(result))
         self.assertLessEqual(result.data.transformation_metadata.maximum_canonical_edge_deviation, 0.020)
+
+    def test_grid_envelope_recovers_displaced_complete_psa_topology(self):
+        translated = DEFAULT_CORNERS + np.asarray(
+            [0.14 * (WIDTH - 1), 0],
+            dtype=np.float32,
+        )
+        source = synthetic_grid(translated)
+
+        station_result = register_psa_birth_form(source)
+        result = register_psa_birth_form_grid_envelope(source)
+
+        self.assertFalse(station_result.success)
+        self.assertTrue(result.success, result.issues)
+        self.assertEqual(result.status, "review_required")
+        self.assertEqual(result.data.registered_image.shape[:2], (1375, 1400))
+        self.assertIn("REGISTRATION_GRID_ENVELOPE_RECOVERY", issue_codes(result))
+        self.assertGreaterEqual(
+            result.metrics["postwarp_target_topology_score"],
+            0.0,
+        )
+        self.assertLessEqual(
+            result.metrics["maximum_canonical_edge_deviation"],
+            PSAFormRegistrationConfig().review_canonical_edge_deviation,
+        )
+
+    def test_grid_envelope_rejects_incomplete_topology_before_coordinates(self):
+        incomplete = synthetic_grid(
+            horizontal=HORIZONTAL_LEVELS[:6],
+            vertical=(0.0, 0.5, 1.0),
+        )
+
+        result = register_psa_birth_form_grid_envelope(incomplete)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status, "failed")
+        self.assertIn("FORM_GRID_ENVELOPE_TOPOLOGY_INVALID", issue_codes(result))
 
     def test_four_degree_rotation_requires_position_review(self):
         result = register_psa_birth_form(synthetic_grid(rotate_corners(DEFAULT_CORNERS, 4.0)))

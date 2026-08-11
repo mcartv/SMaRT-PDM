@@ -2155,85 +2155,354 @@ function VerificationActions({
   submitting,
   canCompleteVerification,
   finalVerificationStatus,
+  requirementsReviewAlreadySaved,
 }) {
-  return (
-    <Card className="border-stone-200 shadow-none bg-white">
-      <div className="p-5 space-y-4">
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onVerify}
-            disabled={!hasUploadedDocument}
-            className="h-9 rounded-lg text-sm border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <CheckCircle size={13} className="mr-1.5" /> Verify
-          </Button>
+  const isSaved = requirementsReviewAlreadySaved === true;
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onReject}
-            disabled={!hasUploadedDocument}
-            className="h-9 rounded-lg text-sm border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <XCircle size={13} className="mr-1.5" /> Reject
-          </Button>
+  const waitingForUploads =
+    !isSaved &&
+    (!hasAnyUpload || !hasCompleteRequirements);
+
+  const waitingForReview =
+    !isSaved &&
+    hasCompleteRequirements &&
+    !allRequiredDocsReviewed;
+
+  const hasRejectedRequirement =
+    !isSaved &&
+    hasCompleteRequirements &&
+    allRequiredDocsReviewed &&
+    finalVerificationStatus !== 'verified';
+
+  const readyToSave =
+    !isSaved &&
+    canCompleteVerification &&
+    finalVerificationStatus === 'verified';
+
+  const canReviewActiveDocument =
+    hasUploadedDocument &&
+    !isSaved &&
+    !submitting;
+
+  let statusConfig;
+
+  if (isSaved) {
+    statusConfig = {
+      icon: ShieldCheck,
+      title: 'Requirements review completed',
+      description:
+        'This application has already been finalized. Document review actions are now locked.',
+      container:
+        'border-emerald-200 bg-emerald-50/80',
+      iconContainer:
+        'bg-emerald-100 text-emerald-700',
+      titleColor:
+        'text-emerald-900',
+      descriptionColor:
+        'text-emerald-700',
+    };
+  } else if (waitingForUploads) {
+    statusConfig = {
+      icon: Clock,
+      title: 'Waiting for complete requirements',
+      description: !hasAnyUpload
+        ? 'The student has not submitted the required documents yet.'
+        : `All ${requiredDocCount} required items must be available before the requirements review can be finalized.`,
+      container:
+        'border-stone-200 bg-stone-50',
+      iconContainer:
+        'bg-stone-200 text-stone-600',
+      titleColor:
+        'text-stone-800',
+      descriptionColor:
+        'text-stone-500',
+    };
+  } else if (waitingForReview) {
+    statusConfig = {
+      icon: AlertTriangle,
+      title: 'Review remaining requirements',
+      description:
+        `All ${requiredDocCount} required items are available. Verify or reject each item before saving the requirements review.`,
+      container:
+        'border-amber-200 bg-amber-50/80',
+      iconContainer:
+        'bg-amber-100 text-amber-700',
+      titleColor:
+        'text-amber-900',
+      descriptionColor:
+        'text-amber-700',
+    };
+  } else if (hasRejectedRequirement) {
+    statusConfig = {
+      icon: XCircle,
+      title: 'Review contains rejected requirements',
+      description:
+        'One or more requirements were rejected. Saving will finalize the requirements review as rejected.',
+      container:
+        'border-red-200 bg-red-50/80',
+      iconContainer:
+        'bg-red-100 text-red-700',
+      titleColor:
+        'text-red-900',
+      descriptionColor:
+        'text-red-700',
+    };
+  } else {
+    statusConfig = {
+      icon: CheckCircle,
+      title: 'Ready to save',
+      description:
+        `All ${requiredDocCount} required items have been verified. Save the requirements review to continue the application workflow.`,
+      container:
+        'border-emerald-200 bg-emerald-50/80',
+      iconContainer:
+        'bg-emerald-100 text-emerald-700',
+      titleColor:
+        'text-emerald-900',
+      descriptionColor:
+        'text-emerald-700',
+    };
+  }
+
+  const StatusIcon = statusConfig.icon;
+
+  const saveButtonLabel = (() => {
+    if (submitting) {
+      return 'Saving Requirements Review...';
+    }
+
+    if (isSaved) {
+      return 'Requirements Review Saved';
+    }
+
+    if (!hasAnyUpload) {
+      return 'Waiting for Requirements';
+    }
+
+    if (!hasCompleteRequirements) {
+      return `Waiting for All ${requiredDocCount} Items`;
+    }
+
+    if (!allRequiredDocsReviewed) {
+      return 'Review All Items First';
+    }
+
+    if (finalVerificationStatus === 'verified') {
+      return 'Save Requirements Review';
+    }
+
+    return 'Save Rejected Requirements Review';
+  })();
+
+  const saveDisabled =
+    submitting ||
+    isSaved ||
+    !canCompleteVerification;
+
+  const saveButtonClass = (() => {
+    const base =
+      'h-11 w-full rounded-xl border-none text-sm font-semibold shadow-none transition-all duration-200';
+
+    if (isSaved) {
+      return `${base}
+        bg-stone-200
+        text-stone-500
+        hover:bg-stone-200
+        disabled:bg-stone-200
+        disabled:text-stone-500
+        disabled:opacity-100
+        disabled:cursor-not-allowed`;
+    }
+
+    if (!canCompleteVerification) {
+      return `${base}
+        bg-stone-200
+        text-stone-500
+        hover:bg-stone-200
+        disabled:bg-stone-200
+        disabled:text-stone-500
+        disabled:opacity-100
+        disabled:cursor-not-allowed`;
+    }
+
+    if (finalVerificationStatus === 'rejected') {
+      return `${base}
+        bg-red-600
+        text-white
+        hover:bg-red-700
+        disabled:bg-stone-200
+        disabled:text-stone-500
+        disabled:opacity-100`;
+    }
+
+    return `${base}
+      bg-blue-900
+      text-white
+      hover:bg-blue-800
+      disabled:bg-stone-200
+      disabled:text-stone-500
+      disabled:opacity-100`;
+  })();
+
+  return (
+    <Card className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-none">
+      <div className="p-4 sm:p-5">
+        {/* Current document review actions */}
+        <div className="mb-4">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-stone-800">
+                Review selected document
+              </p>
+
+              <p className="mt-0.5 text-xs text-stone-500">
+                {activeDoc?.name || 'No document selected'}
+              </p>
+            </div>
+
+            {activeDoc && (
+              <Badge
+                className={
+                  isSaved
+                    ? 'border-stone-200 bg-stone-100 text-stone-500'
+                    : 'border-blue-100 bg-blue-50 text-blue-700'
+                }
+              >
+                {isSaved ? 'Finalized' : 'Review'}
+              </Badge>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onVerify}
+              disabled={!canReviewActiveDocument}
+              className="
+                h-10
+                rounded-xl
+                border-stone-200
+                bg-white
+                text-sm
+                font-medium
+                text-stone-700
+                shadow-none
+                hover:border-emerald-300
+                hover:bg-emerald-50
+                hover:text-emerald-700
+                disabled:border-stone-200
+                disabled:bg-stone-50
+                disabled:text-stone-400
+                disabled:opacity-100
+                disabled:cursor-not-allowed
+              "
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Verify
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onReject}
+              disabled={!canReviewActiveDocument}
+              className="
+                h-10
+                rounded-xl
+                border-stone-200
+                bg-white
+                text-sm
+                font-medium
+                text-stone-700
+                shadow-none
+                hover:border-red-300
+                hover:bg-red-50
+                hover:text-red-700
+                disabled:border-stone-200
+                disabled:bg-stone-50
+                disabled:text-stone-400
+                disabled:opacity-100
+                disabled:cursor-not-allowed
+              "
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              Reject
+            </Button>
+          </div>
+
+          {!hasUploadedDocument &&
+            activeDoc?.id !== 'application_form' && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
+                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+
+                <p>
+                  This document must be uploaded before it can be reviewed.
+                </p>
+              </div>
+            )}
         </div>
 
-        {!hasUploadedDocument && activeDoc?.id !== 'application_form' && (
-          <p className="text-sm text-stone-400">
-            Student must upload this document first before review actions can be applied.
-          </p>
-        )}
+        {/* Divider */}
+        <div className="my-4 h-px bg-stone-100" />
 
-        {!hasAnyUpload && (
-          <p className="text-sm text-stone-400">
-            Requirements review is disabled until the required items are available.
-          </p>
-        )}
+        {/* Overall requirements review */}
+        <div>
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-stone-800">
+              Requirements review
+            </p>
 
-        {hasAnyUpload && !hasCompleteRequirements && (
-          <p className="text-sm text-orange-600">
-            Requirements review is disabled until all {requiredDocCount} required items are available.
-          </p>
-        )}
+            <p className="mt-0.5 text-xs text-stone-500">
+              Finalize the complete document checklist for this application.
+            </p>
+          </div>
 
-        {hasCompleteRequirements && !allRequiredDocsReviewed && (
-          <p className="text-sm text-orange-600">
-            All {requiredDocCount} items are present. Apply admin review actions to each item before saving requirements completion.
-          </p>
-        )}
+          <div
+            className={`mb-4 flex items-start gap-3 rounded-xl border px-3.5 py-3 ${statusConfig.container}`}
+          >
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${statusConfig.iconContainer}`}
+            >
+              <StatusIcon className="h-4 w-4" />
+            </div>
 
-        {hasCompleteRequirements && allRequiredDocsReviewed && finalVerificationStatus !== 'verified' && (
-          <p className="text-sm text-orange-600">
-            Requirements review can be completed, but the application will be marked as rejected and can be archived afterward.
-          </p>
-        )}
+            <div className="min-w-0">
+              <p
+                className={`text-sm font-semibold ${statusConfig.titleColor}`}
+              >
+                {statusConfig.title}
+              </p>
 
-        <Button
-          onClick={onComplete}
-          disabled={submitting || !canCompleteVerification}
-          className="w-full h-10 rounded-lg font-medium text-[15px] text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: C.blue }}
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving Requirements Review...
-            </>
-          ) : !hasAnyUpload ? (
-            'Save Requirements Review'
-          ) : !hasCompleteRequirements ? (
-            `Wait for All ${requiredDocCount} Items`
-          ) : !allRequiredDocsReviewed ? (
-            'Review All Items First'
-          ) : finalVerificationStatus === 'verified' ? (
-            'Save Requirements Review'
-          ) : (
-            'Save Rejected Requirements Review'
-          )}
-        </Button>
+              <p
+                className={`mt-0.5 text-xs leading-5 ${statusConfig.descriptionColor}`}
+              >
+                {statusConfig.description}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            onClick={onComplete}
+            disabled={saveDisabled}
+            className={saveButtonClass}
+          >
+            {submitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : isSaved ? (
+              <ShieldCheck className="mr-2 h-4 w-4" />
+            ) : readyToSave ? (
+              <CheckCircle className="mr-2 h-4 w-4" />
+            ) : hasRejectedRequirement ? (
+              <XCircle className="mr-2 h-4 w-4" />
+            ) : (
+              <Clock className="mr-2 h-4 w-4" />
+            )}
+
+            {saveButtonLabel}
+          </Button>
+        </div>
       </div>
     </Card>
   );
@@ -2329,14 +2598,6 @@ export default function DocumentVerification() {
             next[d.id] = d.admin_comment || '';
           });
 
-          return next;
-        });;
-
-        setDocComments((prev) => {
-          const next = { ...prev };
-          normalizedDocs.forEach((d) => {
-            if (!(d.id in next)) next[d.id] = d.admin_comment || '';
-          });
           return next;
         });
 
@@ -2578,8 +2839,23 @@ export default function DocumentVerification() {
     (d) => isDocumentAvailable(d) && d.status === 'verified'
   );
 
-  const canCompleteVerification = allRequiredDocsUploaded && allRequiredDocsReviewed;
-  const finalVerificationStatus = allRequiredDocsVerified ? 'verified' : 'rejected';
+  const finalVerificationStatus =
+    allRequiredDocsVerified
+      ? 'verified'
+      : 'rejected';
+
+  const persistedVerificationStatus = normalizeKey(
+    application?.verification_status || ''
+  ).replace(/\s+/g, '_');
+
+  const requirementsReviewAlreadySaved =
+    persistedVerificationStatus === 'verified' ||
+    persistedVerificationStatus === 'rejected';
+
+  const canCompleteVerification =
+    allRequiredDocsUploaded &&
+    allRequiredDocsReviewed &&
+    !requirementsReviewAlreadySaved;
 
   const progress = docs.length ? Math.round((reviewedCount / docs.length) * 100) : 0;
   const hasUploadedDocument =
@@ -2723,9 +2999,18 @@ export default function DocumentVerification() {
     setComment(resolvedComment);
   };
 
-  const handleVerify = () => updateActiveDocStatus('verified');
+  const handleVerify = () => {
+    if (requirementsReviewAlreadySaved) return;
+
+    updateActiveDocStatus('verified');
+  };
 
   const handleRejectConfirm = (finalComment) => {
+    if (requirementsReviewAlreadySaved) {
+      setRejectModalOpen(false);
+      return;
+    }
+
     updateActiveDocStatus('rejected', finalComment);
     setRejectModalOpen(false);
   };
@@ -3038,6 +3323,14 @@ export default function DocumentVerification() {
   };
 
   const handleCompleteVerification = async () => {
+    if (requirementsReviewAlreadySaved) {
+      return;
+    }
+
+    if (!canCompleteVerification) {
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -3377,6 +3670,7 @@ export default function DocumentVerification() {
             submitting={submitting}
             canCompleteVerification={canCompleteVerification}
             finalVerificationStatus={finalVerificationStatus}
+            requirementsReviewAlreadySaved={requirementsReviewAlreadySaved}
           />
         </div>
       </div>

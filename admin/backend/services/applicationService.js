@@ -2451,6 +2451,36 @@ exports.attemptScholarActivationIfReady = async (applicationId) => {
     };
 };
 
+function normalizeReviewDecision(value = 'pending') {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+
+    switch (normalized) {
+        case 'verified':
+        case 'approved':
+        case 'accepted':
+            return 'verified';
+
+        case 'rejected':
+        case 'flagged':
+        case 'needs_reupload':
+        case 'reupload_required':
+            return 'rejected';
+
+        case 'uploaded':
+        case 'under_review':
+        case 'review':
+            return 'uploaded';
+
+        case 'pending':
+        case '':
+        default:
+            return 'pending';
+    }
+}
+
 exports.saveApplicationVerification = async (applicationId, payload, user) => {
     const {
         document_reviews = [],
@@ -2534,7 +2564,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
                 file_url: doc.url || null,
 
                 review_status: normalizedReviewStatus,
-                
+
                 notes: doc.comment || null,
                 remarks: doc.comment || null,
 

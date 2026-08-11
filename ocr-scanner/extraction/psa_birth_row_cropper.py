@@ -17,8 +17,8 @@ from .stage_result import StageResult
 STAGE_NAME = "psa_birth_row_cropper"
 REGISTERED_WIDTH = 1400
 REGISTERED_HEIGHT = 1375
-GEOMETRY_ARTIFACT_VERSION = 2
-GEOMETRY_MODE = "per_row_fixed_cells"
+GEOMETRY_ARTIFACT_VERSION = 3
+GEOMETRY_MODE = "validated_per_row_topology"
 PREPROCESSING_VARIANT = "registered_fixed_per_row_name_cell"
 FIELD_NAMES = ("child_name", "mother_maiden_name", "father_name")
 COMPONENT_NAMES = ("first_name", "middle_name", "last_name")
@@ -60,6 +60,10 @@ class PSABirthRowCropperConfig:
         DEFAULT_MINIMUM_PERSISTENT_GRID_THICKNESS_PIXELS
     )
     review_on_registration_issue: bool = True
+    topology_horizontal_search_pixels: int = 28
+    topology_vertical_search_pixels: int = 36
+    topology_minimum_line_coverage: float = 0.42
+    topology_intersection_radius_pixels: int = 5
 
     def __post_init__(self) -> None:
         if (self.registered_width, self.registered_height) != (
@@ -128,6 +132,9 @@ class PSABirthRowCropperConfig:
             "vertical_inset_pixels",
             "minimum_cell_width_pixels",
             "minimum_cell_height_pixels",
+            "topology_horizontal_search_pixels",
+            "topology_vertical_search_pixels",
+            "topology_intersection_radius_pixels",
         ):
             value = getattr(self, field_name)
             if (
@@ -138,6 +145,11 @@ class PSABirthRowCropperConfig:
                 raise ValueError(
                     f"{field_name} must be a non-negative integer"
                 )
+
+        if not 0.0 < self.topology_minimum_line_coverage <= 1.0:
+            raise ValueError(
+                "topology_minimum_line_coverage must be in the interval (0, 1]"
+            )
 
         thickness = self.minimum_persistent_grid_thickness_pixels
         if (
@@ -173,6 +185,31 @@ class PSABirthRowCropperOutput:
     crops: Mapping[str, np.ndarray]
     registered_width: int
     registered_height: int
+    row_crops: Mapping[str, np.ndarray] = field(default_factory=dict)
+    topology: Mapping[str, "ValidatedNameRowTopology"] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ValidatedNameRowTopology:
+    field_name: str
+    top: int
+    bottom: int
+    component_boundaries: tuple[int, int, int, int]
+    horizontal_coverage: tuple[float, float]
+    vertical_coverage: tuple[float, float, float, float]
+    maximum_residual_pixels: int
+    intersection_count: int
+
+    @property
+    def relative_component_boundaries(self) -> tuple[float, float, float, float]:
+        left, first, middle, right = self.component_boundaries
+        span = float(max(1, right - left))
+        return (
+            0.0,
+            (first - left) / span,
+            (middle - left) / span,
+            1.0,
+        )
 
 
 @dataclass(frozen=True)
@@ -671,10 +708,207 @@ def _registration_requires_review(
     return bool(metadata.issues)
 
 
+def _strongest_projection_position(
+    projection: np.ndarray,
+    *,
+    expected: int,
+    radius: int,
+    denominator: int,
+    minimum_coverage: float,
+) -> tuple[int, float] | None:
+    if projection.ndim != 1 or projection.size == 0 or denominator <= 0:
+        return None
+    start = max(0, expected - radius)
+    stop = min(projection.size, expected + radius + 1)
+    if start >= stop:
+        return None
+    window = projection[start:stop].astype(np.float64) / float(denominator)
+    if window.size == 0:
+        return None
+    qualifying = np.flatnonzero(window >= minimum_coverage)
+    if qualifying.size == 0:
+        return None
+    clusters = _runs(qualifying)
+    cluster_start, cluster_stop = min(
+        clusters,
+        key=lambda run: (
+            abs((start + ((run[0] + run[1]) // 2)) - expected),
+            -float(np.max(window[run[0] : run[1] + 1])),
+        ),
+    )
+    best_offset = int(round((cluster_start + cluster_stop) / 2.0))
+    coverage = float(np.max(window[cluster_start : cluster_stop + 1]))
+    return start + best_offset, coverage
+
+
+def _validate_name_row_topology(
+    image: np.ndarray,
+    row: FixedNameRowGeometry,
+    config: PSABirthRowCropperConfig,
+) -> ValidatedNameRowTopology | None:
+    gray = _gray(image)
+    inverse = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+    )[1]
+    expected_boundaries = row.columns
+    expected_top = max(0, row.value_top - config.vertical_inset_pixels - 2)
+    expected_bottom = min(
+        image.shape[0] - 1,
+        row.value_bottom + config.vertical_inset_pixels + 2,
+    )
+    left = max(0, expected_boundaries[0] - config.topology_vertical_search_pixels)
+    right = min(
+        image.shape[1],
+        expected_boundaries[-1] + config.topology_vertical_search_pixels + 1,
+    )
+    horizontal_projection = np.count_nonzero(inverse[:, left:right], axis=1)
+    detected_top = _strongest_projection_position(
+        horizontal_projection,
+        expected=expected_top,
+        radius=config.topology_horizontal_search_pixels,
+        denominator=max(1, right - left),
+        minimum_coverage=config.topology_minimum_line_coverage,
+    )
+    detected_bottom = _strongest_projection_position(
+        horizontal_projection,
+        expected=expected_bottom,
+        radius=config.topology_horizontal_search_pixels,
+        denominator=max(1, right - left),
+        minimum_coverage=config.topology_minimum_line_coverage,
+    )
+    if detected_top is None or detected_bottom is None:
+        return None
+    top, top_coverage = detected_top
+    bottom, bottom_coverage = detected_bottom
+    if bottom - top < config.minimum_cell_height_pixels:
+        return None
+
+    vertical_projection = np.count_nonzero(
+        inverse[top : bottom + 1, :],
+        axis=0,
+    )
+    detected_boundaries: list[int] = []
+    vertical_coverages: list[float] = []
+    for expected in expected_boundaries:
+        detected = _strongest_projection_position(
+            vertical_projection,
+            expected=expected,
+            radius=config.topology_vertical_search_pixels,
+            denominator=max(1, bottom - top + 1),
+            minimum_coverage=config.topology_minimum_line_coverage,
+        )
+        if detected is None:
+            return None
+        position, coverage = detected
+        detected_boundaries.append(position)
+        vertical_coverages.append(coverage)
+    if any(
+        second - first < config.minimum_cell_width_pixels
+        for first, second in zip(detected_boundaries, detected_boundaries[1:])
+    ):
+        return None
+
+    intersection_count = 0
+    radius = config.topology_intersection_radius_pixels
+    for y in (top, bottom):
+        for x in detected_boundaries:
+            patch = inverse[
+                max(0, y - radius) : min(image.shape[0], y + radius + 1),
+                max(0, x - radius) : min(image.shape[1], x + radius + 1),
+            ]
+            if patch.size and np.count_nonzero(patch):
+                intersection_count += 1
+    if intersection_count != 8:
+        return None
+
+    residuals = (
+        abs(top - expected_top),
+        abs(bottom - expected_bottom),
+        *(abs(value - expected) for value, expected in zip(
+            detected_boundaries,
+            expected_boundaries,
+        )),
+    )
+    return ValidatedNameRowTopology(
+        field_name=row.field_name,
+        top=int(top),
+        bottom=int(bottom),
+        component_boundaries=tuple(int(value) for value in detected_boundaries),
+        horizontal_coverage=(float(top_coverage), float(bottom_coverage)),
+        vertical_coverage=tuple(float(value) for value in vertical_coverages),
+        maximum_residual_pixels=max(residuals),
+        intersection_count=intersection_count,
+    )
+
+
+def validate_psa_birth_name_topology(
+    registered_image: Any,
+    config: PSABirthRowCropperConfig | Mapping[str, Any] | None = None,
+) -> StageResult[Mapping[str, ValidatedNameRowTopology]]:
+    try:
+        resolved = _resolve_config(config)
+    except (TypeError, ValueError):
+        return StageResult(
+            stage=STAGE_NAME,
+            success=False,
+            status="failed",
+            data=None,
+            issues=[_issue("BIRTH_NAME_TOPOLOGY_CONFIG_INVALID")],
+            metrics={},
+        )
+    image = _prepare_image(registered_image)
+    if image is None or image.shape[:2] != (REGISTERED_HEIGHT, REGISTERED_WIDTH):
+        return StageResult(
+            stage=STAGE_NAME,
+            success=False,
+            status="failed",
+            data=None,
+            issues=[_issue("BIRTH_NAME_TOPOLOGY_IMAGE_INVALID")],
+            metrics={},
+        )
+    topology: dict[str, ValidatedNameRowTopology] = {}
+    for row in _fixed_rows(resolved):
+        detected = _validate_name_row_topology(image, row, resolved)
+        if detected is None:
+            return StageResult(
+                stage=STAGE_NAME,
+                success=False,
+                status="failed",
+                data=None,
+                issues=[_issue("BIRTH_NAME_ROW_TOPOLOGY_INVALID", row.field_name)],
+                metrics={
+                    "topology_status": "mismatch",
+                    "validated_row_count": len(topology),
+                },
+            )
+        topology[row.field_name] = detected
+    return StageResult(
+        stage=STAGE_NAME,
+        success=True,
+        status="success",
+        data=MappingProxyType(dict(topology)),
+        issues=[],
+        metrics={
+            "topology_status": "matched",
+            "validated_row_count": len(topology),
+            "validated_intersection_count": sum(
+                item.intersection_count for item in topology.values()
+            ),
+            "maximum_residual_pixels": max(
+                item.maximum_residual_pixels for item in topology.values()
+            ),
+        },
+    )
+
+
 def crop_psa_birth_name_rows(
     registered_image: Any,
     registration_metadata: Any = None,
     config: PSABirthRowCropperConfig | Mapping[str, Any] | None = None,
+    topology: Mapping[str, ValidatedNameRowTopology] | None = None,
 ) -> StageResult[PSABirthRowCropperOutput]:
     try:
         resolved = _resolve_config(config)
@@ -697,8 +931,29 @@ def crop_psa_birth_name_rows(
     if registration_metadata is not None and metadata is None:
         return _failure("REGISTRATION_METADATA_INVALID")
 
+    if topology is None:
+        topology_result = validate_psa_birth_name_topology(image, resolved)
+        if not topology_result.success or topology_result.data is None:
+            return _failure(
+                "BIRTH_NAME_TOPOLOGY_REQUIRED",
+                topology_status="mismatch",
+                topology_issue_codes=tuple(
+                    str(issue.get("code") or "")
+                    for issue in topology_result.issues
+                ),
+            )
+        resolved_topology = dict(topology_result.data)
+    else:
+        resolved_topology = dict(topology)
+    if set(resolved_topology) != set(FIELD_NAMES) or not all(
+        isinstance(resolved_topology.get(name), ValidatedNameRowTopology)
+        for name in FIELD_NAMES
+    ):
+        return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED")
+
     regions: list[RegionResult] = []
     crops: dict[str, np.ndarray] = {}
+    row_crops: dict[str, np.ndarray] = {}
     issues: list[dict[str, str]] = []
     cell_grid_metrics: dict[str, dict[str, Any]] = {}
     row_metrics: dict[str, Any] = {}
@@ -706,22 +961,62 @@ def crop_psa_birth_name_rows(
     fixed_rows = _fixed_rows(resolved)
 
     for row in fixed_rows:
-        row_metrics[f"{row.field_name}_geometry_source"] = (
-            "fixed_per_row_calibration"
+        detected_topology = resolved_topology[row.field_name]
+        detected_left, detected_first, detected_middle, detected_right = (
+            detected_topology.component_boundaries
         )
-        row_metrics[f"{row.field_name}_value_top"] = row.value_top
-        row_metrics[f"{row.field_name}_value_bottom"] = row.value_bottom
-        row_metrics[f"{row.field_name}_column_boundaries"] = row.columns
+        expected_border_top = max(
+            0,
+            row.value_top - resolved.vertical_inset_pixels - 2,
+        )
+        expected_border_bottom = min(
+            image.shape[0] - 1,
+            row.value_bottom + resolved.vertical_inset_pixels + 2,
+        )
+        crop_top = detected_topology.top + (row.value_top - expected_border_top)
+        crop_bottom = detected_topology.bottom - (
+            expected_border_bottom - row.value_bottom
+        )
+        if crop_bottom - crop_top < resolved.minimum_cell_height_pixels:
+            return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED", row.field_name)
+        row_metrics[f"{row.field_name}_geometry_source"] = (
+            "validated_per_row_topology"
+        )
+        row_metrics[f"{row.field_name}_value_top"] = crop_top
+        row_metrics[f"{row.field_name}_value_bottom"] = crop_bottom
+        row_metrics[f"{row.field_name}_column_boundaries"] = (
+            detected_topology.component_boundaries
+        )
+
+        row_crop = _crop_name_cell(
+            image,
+            left=detected_left,
+            right=detected_right,
+            top=crop_top,
+            bottom=crop_bottom,
+            horizontal_inset=resolved.internal_padding_pixels,
+            vertical_inset=0,
+            minimum_width=resolved.minimum_cell_width_pixels * 3,
+            minimum_height=resolved.minimum_cell_height_pixels,
+        )
+        if row_crop is None:
+            return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED", row.field_name)
+        raw_row_crop, _ = row_crop
+        row_crops[row.field_name] = _remove_grid_lines(raw_row_crop)
 
         for component_name, raw_left, raw_right in (
-            row.component_boundaries
+            (
+                ("first_name", detected_left, detected_first),
+                ("middle_name", detected_first, detected_middle),
+                ("last_name", detected_middle, detected_right),
+            )
         ):
             crop_result = _crop_name_cell(
                 image,
                 left=raw_left,
                 right=raw_right,
-                top=row.value_top,
-                bottom=row.value_bottom,
+                top=crop_top,
+                bottom=crop_bottom,
                 horizontal_inset=resolved.internal_padding_pixels,
                 vertical_inset=resolved.vertical_inset_pixels,
                 minimum_width=resolved.minimum_cell_width_pixels,
@@ -825,6 +1120,13 @@ def crop_psa_birth_name_rows(
         ),
         registered_width=width,
         registered_height=height,
+        row_crops=MappingProxyType(
+            {
+                name: np.array(crop, copy=True)
+                for name, crop in row_crops.items()
+            }
+        ),
+        topology=MappingProxyType(dict(resolved_topology)),
     )
 
     metrics = {
@@ -832,25 +1134,30 @@ def crop_psa_birth_name_rows(
         "registered_height": height,
         "geometry_artifact_version": GEOMETRY_ARTIFACT_VERSION,
         "geometry_mode": GEOMETRY_MODE,
-        "geometry_source": "accepted_private_visual_calibration",
+        "geometry_source": "validated_private_visual_calibration",
         "region_count": len(regions),
         "cell_crop_count": len(crops),
         "per_row_column_boundaries": {
-            row.field_name: row.columns
-            for row in fixed_rows
+            name: item.component_boundaries
+            for name, item in resolved_topology.items()
         },
         "per_row_value_bands": {
             row.field_name: (
-                row.value_top,
-                row.value_bottom,
+                row_metrics[f"{row.field_name}_value_top"],
+                row_metrics[f"{row.field_name}_value_bottom"],
             )
             for row in fixed_rows
         },
         "horizontal_inset_pixels": resolved.internal_padding_pixels,
         "vertical_inset_pixels": resolved.vertical_inset_pixels,
         "registration_review_propagated": registration_review,
-        "full_row_crop_used": False,
-        "dynamic_geometry_repositioning_used": False,
+        "full_row_crop_used": True,
+        "dynamic_geometry_repositioning_used": True,
+        "topology_status": "matched",
+        "validated_row_count": len(resolved_topology),
+        "validated_intersection_count": sum(
+            item.intersection_count for item in resolved_topology.values()
+        ),
         "cell_grid_metrics": dict(cell_grid_metrics),
         **row_metrics,
     }

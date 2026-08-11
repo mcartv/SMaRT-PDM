@@ -43,7 +43,10 @@ from extraction.indigency_core_field_extraction import (
     IndigencyExtractionConfig,
     extract_indigency_core_fields,
 )
-from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
+from extraction.psa_birth_row_cropper import (
+    crop_psa_birth_name_rows,
+    validate_psa_birth_name_topology,
+)
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import (
     register_psa_birth_form,
@@ -368,6 +371,31 @@ def _registration_context(registration_result: Any) -> Dict[str, Any]:
     }
 
 
+def _birth_topology_summary(topology: Any) -> Dict[str, Any]:
+    if not isinstance(topology, dict) and not hasattr(topology, "items"):
+        return {}
+    summary: Dict[str, Any] = {}
+    for name, row in topology.items():
+        boundaries = getattr(row, "component_boundaries", None)
+        top = getattr(row, "top", None)
+        bottom = getattr(row, "bottom", None)
+        if (
+            not isinstance(name, str)
+            or not isinstance(boundaries, tuple)
+            or len(boundaries) != 4
+            or not all(isinstance(value, int) for value in boundaries)
+            or not isinstance(top, int)
+            or not isinstance(bottom, int)
+        ):
+            continue
+        summary[name] = {
+            "top": top,
+            "bottom": bottom,
+            "component_boundaries": list(boundaries),
+        }
+    return summary
+
+
 def _run_birth_certificate_scan(
     request: Dict,
     capture_path: str,
@@ -441,9 +469,10 @@ def _run_birth_certificate_scan(
         if not registration_result.success:
             registration_attempts += 1
             envelope_result = register_psa_birth_form_grid_envelope(source_image)
+            registration_result = envelope_result
+            registration_mode = "validated_grid_envelope"
             if envelope_result.success:
                 registration_result = envelope_result
-                registration_mode = "validated_grid_envelope"
         if not registration_result.success:
             # Registration failure forbids calibrated row extraction, but it
             # must not discard a fresh text-only OCR result. Run the existing
@@ -499,9 +528,57 @@ def _run_birth_certificate_scan(
                 "error_message": error_message,
             }
 
+        topology_result = validate_psa_birth_name_topology(
+            registration_result.data.registered_image,
+        )
+        if not topology_result.success or topology_result.data is None:
+            raw_text, _corrected_text = _run_generic_ocr(capture_path)
+            return bool(raw_text.strip()), {
+                "status": "review_required" if raw_text.strip() else "failed",
+                "raw_text": raw_text,
+                "ocr_confidence": None,
+                "field_confidence": {},
+                "document_type": "birth_certificate",
+                "manual_review_required": True,
+                "ocr_attempts": ocr_attempts,
+                "preprocessing_variant": preprocessing_variant,
+                "extracted_fields": extracted_fields,
+                "source_payload": {
+                    "source": "pi-worker-iot-ocr-request",
+                    "mode": "birth_certificate_pipeline",
+                    "request_id": request_id,
+                    "application_id": application_id,
+                    "student_id": student_id,
+                    "student_name": student_name,
+                    "document_key": document_key,
+                    "document_type": document_type,
+                    "document_contract_status": "approved",
+                    "registration_status": registration_result.status,
+                    "registration_mode": registration_mode,
+                    "registration_attempts": registration_attempts,
+                    "registration_issue_codes": _issue_codes(registration_result),
+                    "topology_status": "mismatch",
+                    "topology_issue_codes": _issue_codes(topology_result),
+                    "cropper_status": "not_started",
+                    "ocr_status": "not_started",
+                    "manual_review_required": True,
+                    "worker_status": "review_required" if raw_text.strip() else "failed",
+                    "structured_field_keys": [],
+                },
+                "validation_issues": [{
+                    "code": "PSA_BIRTH_NAME_TOPOLOGY_MISMATCH",
+                    "message": "Items 1, 6, and 13 did not match the calibrated PSA grid.",
+                }],
+                "error_message": (
+                    None if raw_text.strip()
+                    else "Birth name-row topology failed and no OCR text was recovered."
+                ),
+            }
+
         crop_result = crop_psa_birth_name_rows(
             registration_result.data.registered_image,
             registration_metadata=_registration_context(registration_result),
+            topology=topology_result.data,
         )
         if not crop_result.success:
             error_message = "Birth row cropper failed."
@@ -543,6 +620,9 @@ def _run_birth_certificate_scan(
                     "raw_text": field.raw_text,
                     "components": dict(field.components),
                     "section_status": field.section_status,
+                    "confidence": field.confidence,
+                    "component_confidence": dict(field.component_confidence),
+                    "component_raw_text": dict(field.component_raw_text),
                 }
                 for field in getattr(ocr_result.data, "fields", ())
             },
@@ -553,7 +633,8 @@ def _run_birth_certificate_scan(
                 else preprocessing_variant
             ),
         )
-        raw_text = extracted_fields["raw_text"]
+        structured_text = extracted_fields["raw_text"]
+        raw_text, _corrected_text = _run_generic_ocr(capture_path)
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
         status = "review_required" if ocr_result.success else "failed"
@@ -563,6 +644,10 @@ def _run_birth_certificate_scan(
             "status": status,
             "raw_text": raw_text,
             "ocr_confidence": None,
+            "field_confidence": {
+                field.name: field.confidence
+                for field in getattr(ocr_result.data, "fields", ())
+            },
             "document_type": "birth_certificate",
             "manual_review_required": True,
             "ocr_attempts": ocr_attempts,
@@ -582,6 +667,16 @@ def _run_birth_certificate_scan(
                 "registration_mode": registration_mode,
                 "registration_attempts": registration_attempts,
                 "registration_issue_codes": _issue_codes(registration_result),
+                "topology_status": "matched",
+                "topology_issue_codes": _issue_codes(topology_result),
+                "topology_validated_row_count": topology_result.metrics.get(
+                    "validated_row_count", 0
+                ),
+                "topology_rows": _birth_topology_summary(topology_result.data),
+                "confidence_source": ocr_result.metrics.get(
+                    "confidence_source", "tesseract_image_to_data"
+                ),
+                "structured_text_available": bool(structured_text.strip()),
                 "cropper_status": crop_result.status,
                 "cropper_issue_codes": _issue_codes(crop_result),
                 "ocr_status": ocr_result.status,
@@ -592,6 +687,13 @@ def _run_birth_certificate_scan(
                 "preprocessing_variant": preprocessing_variant,
                 "structured_field_keys": sorted(field.name for field in getattr(ocr_result.data, "fields", ())),
             },
+            "validation_issues": [
+                {
+                    "code": str(issue.get("code") or "BIRTH_OCR_REVIEW"),
+                    "message": "Birth certificate OCR requires admin review.",
+                }
+                for issue in getattr(ocr_result, "issues", ())
+            ],
             "error_message": error_message,
         }
         return status == "review_required", payload

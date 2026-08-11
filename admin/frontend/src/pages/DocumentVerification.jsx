@@ -1617,7 +1617,12 @@ function OCRPanel({
             </div>
 
             <div className="rounded-lg border border-rose-100 bg-white p-3">
-              <p className="mb-2 text-sm font-semibold text-stone-700">Child Name (reference)</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-stone-700">Child Name (reference)</p>
+                <span className="text-xs font-semibold text-rose-700">
+                  {ocrScoreLabel(reviewCandidate, 'child_name', correctedFields?.child_name?.first_name)}
+                </span>
+              </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {BIRTH_NAME_PARTS.map(([part, label]) => (
                   <label key={part} className="space-y-1">

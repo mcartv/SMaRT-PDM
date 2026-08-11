@@ -38,6 +38,7 @@ class ReviewCandidate:
     field_confidence: dict[str, Optional[float]]
     validation_issues: list[dict[str, Any]]
     registration_status: str
+    processing_metadata: dict[str, Any] = field(default_factory=dict)
 
     def serialize(self) -> dict[str, Any]:
         payload = {
@@ -54,6 +55,7 @@ class ReviewCandidate:
                 "registration_status": self.registration_status,
                 "preprocessing_variant": self.template_id,
                 "ocr_engine": "tesseract",
+                **dict(self.processing_metadata),
             },
         }
         _assert_text_only(payload)

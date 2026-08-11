@@ -20,16 +20,21 @@ from extraction.psa_birth_row_ocr import (
 
 WIDTH = 1400
 HEIGHT = 1375
-ROWS = ((4, 105), (486, 614), (1086, 1192))
-DIVIDERS = (315, 640, 965, 1390)
+ROW_GEOMETRIES = (
+    ("child_name", 358, 652, 963, 1248, 50, 104),
+    ("mother_maiden_name", 321, 587, 923, 1211, 685, 732),
+    ("father_name", 278, 580, 921, 1268, 1238, 1290),
+)
 
 
 def form_image() -> np.ndarray:
     image = np.full((HEIGHT, WIDTH, 3), 255, dtype=np.uint8)
-    for top, bottom in ROWS:
-        cv2.line(image, (0, top), (1390, top), (0, 0, 0), 4)
-        cv2.line(image, (0, bottom), (1390, bottom), (0, 0, 0), 4)
-        for divider in DIVIDERS:
+    for _name, left, first, middle, right, value_top, value_bottom in ROW_GEOMETRIES:
+        top = value_top - 3
+        bottom = value_bottom + 3
+        cv2.line(image, (left, top), (right, top), (0, 0, 0), 2)
+        cv2.line(image, (left, bottom), (right, bottom), (0, 0, 0), 2)
+        for divider in (left, first, middle, right):
             cv2.line(
                 image,
                 (divider, top),
@@ -73,6 +78,23 @@ def valid_outputs():
         "Theta",
         "Iota",
     ]
+
+
+def row_data_reader(rows):
+    values = iter(rows)
+
+    def reader(image, **_kwargs):
+        first, middle, last = next(values)
+        width = image.shape[1]
+        texts = [first, middle, last]
+        return {
+            "text": texts,
+            "conf": [94.0, 88.0, 92.0],
+            "left": [int(width * 0.08), int(width * 0.40), int(width * 0.76)],
+            "width": [max(10, int(width * 0.08))] * 3,
+        }
+
+    return reader
 
 
 def mapped_fields(result):
@@ -368,32 +390,94 @@ class PSABirthRowOCRTest(unittest.TestCase):
             {"REQUIRED_NAME_CELL_CROP_MISSING"},
         )
 
-    def test_default_reader_uses_psm_seven_once_per_cell(self):
+    def test_default_reader_uses_image_to_data_once_per_row(self):
         with patch(
-            "extraction.psa_birth_row_ocr.ocr_image",
-            side_effect=valid_outputs(),
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=row_data_reader([
+                ("Alpha", "Beta", "Gamma"),
+                ("Delta", "Epsilon", "Zeta"),
+                ("Eta", "Theta", "Iota"),
+            ]),
         ) as mocked:
             result = extract_psa_birth_row_text(crop_output())
 
         self.assertTrue(result.success)
-        self.assertEqual(mocked.call_count, 9)
+        self.assertEqual(mocked.call_count, 3)
         self.assertTrue(
             all(
-                call.kwargs["config"]["page_segmentation_mode"] == 7
+                "--psm 7" in call.kwargs["config"]
+                and call.kwargs["output_type"] is not None
                 for call in mocked.call_args_list
             )
         )
+        self.assertEqual(result.metrics["confidence_source"], "tesseract_image_to_data")
+        self.assertEqual(mapped_fields(result)["child_name"].confidence, 91.33333333333333)
+
+    def test_noisy_low_confidence_name_is_returned_for_review(self):
+        calls = 0
+
+        def noisy_reader(image, **_kwargs):
+            nonlocal calls
+            calls += 1
+            if calls > 3:
+                return {"text": [], "conf": [], "left": [], "width": []}
+            width = image.shape[1]
+            return {
+                "text": ["MARIA", "D.", "SARMIENT0"],
+                "conf": [42.0, 37.0, 39.0],
+                "left": [int(width * 0.08), int(width * 0.40), int(width * 0.76)],
+                "width": [max(10, int(width * 0.08))] * 3,
+            }
+
+        with patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=noisy_reader,
+        ):
+            result = extract_psa_birth_row_text(crop_output())
+
+        child = mapped_fields(result)["child_name"]
+        self.assertEqual(child.components["last_name"], "SARMIENTO")
+        self.assertLess(child.confidence, 50.0)
+        self.assertIn("birth_name_low_confidence", child.issue_codes)
+
+    def test_row_word_boxes_preserve_multiword_surname_order(self):
+        def data_reader(image, **_kwargs):
+            width = image.shape[1]
+            return {
+                "text": ["JUAN", "S.", "DELA", "CRUZ"],
+                "conf": [96.0, 93.0, 91.0, 94.0],
+                "left": [
+                    int(width * 0.08),
+                    int(width * 0.40),
+                    int(width * 0.74),
+                    int(width * 0.84),
+                ],
+                "width": [max(10, int(width * 0.07))] * 4,
+            }
+
+        with patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=data_reader,
+        ):
+            result = extract_psa_birth_row_text(crop_output())
+
+        self.assertTrue(result.success)
+        child = mapped_fields(result)["child_name"]
+        self.assertEqual(child.components["last_name"], "DELA CRUZ")
+        self.assertEqual(child.raw_text, "JUAN S. DELA CRUZ")
 
     def test_missing_binary_maps_to_field_failure(self):
         with patch(
-            "extraction.psa_birth_row_ocr.ocr_image",
-            side_effect=[
-                OCRBinaryUnavailableError("missing"),
-                *valid_outputs()[1:],
-            ],
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=OCRBinaryUnavailableError("missing"),
         ):
             result = extract_psa_birth_row_text(crop_output())
-        self.assertFalse(mapped_fields(result)["child_name"].success)
+        fields = mapped_fields(result)
+        self.assertFalse(fields["child_name"].success)
+        self.assertFalse(fields["mother_maiden_name"].success)
+        self.assertTrue(
+            all(not field.raw_text for field in result.data.fields)
+        )
 
     def test_upstream_review_is_propagated(self):
         output = crop_output()

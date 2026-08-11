@@ -87,12 +87,29 @@ class CanonicalReviewCandidateTest(unittest.TestCase):
             {
                 "raw_text": "MARIA SANTOS",
                 "extracted_fields": {"fields": fields},
-                "source_payload": {"registration_status": "review_required"},
+                "field_confidence": {"mother_maiden_name": 92.4},
+                "source_payload": {
+                    "registration_status": "review_required",
+                    "registration_mode": "validated_grid_envelope",
+                    "topology_status": "matched",
+                    "topology_validated_row_count": 3,
+                    "topology_rows": {
+                        "mother_maiden_name": {
+                            "top": 682,
+                            "bottom": 735,
+                            "component_boundaries": [321, 587, 923, 1211],
+                        },
+                    },
+                    "confidence_source": "tesseract_image_to_data",
+                },
             },
         ).serialize()
 
         self.assertEqual(candidate["template_id"], "psa_birth_v1")
         self.assertEqual(candidate["fields"], fields)
+        self.assertEqual(candidate["field_confidence"]["mother_maiden_name"], 92.4)
+        self.assertEqual(candidate["processing"]["topology_status"], "matched")
+        self.assertEqual(candidate["processing"]["topology_validated_row_count"], 3)
 
     def test_payload_document_type_recovers_missing_request_document_key(self):
         candidate = candidate_from_worker_payload(

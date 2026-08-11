@@ -55,6 +55,19 @@ def _birth_registration_context(status="success"):
     }
 
 
+def _birth_topology_result():
+    return _stage_result(
+        status="success",
+        success=True,
+        data={
+            "child_name": object(),
+            "mother_maiden_name": object(),
+            "father_name": object(),
+        },
+        metrics={"topology_status": "matched", "validated_row_count": 3},
+    )
+
+
 def _birth_crop_result(status="success"):
     names = ("child_name", "mother_maiden_name", "father_name")
     crops = {
@@ -107,6 +120,17 @@ def _birth_ocr_result(status="review_required", success=True, issues=None):
             issue_codes=() if success else ("OCR_EXECUTION_FAILED",),
             preprocessing_variant="registered_whole_row_ocr",
             ocr_attempts=1,
+            confidence=91.0,
+            component_confidence={
+                "first_name": 91.0,
+                "middle_name": None,
+                "last_name": 91.0,
+            },
+            component_raw_text={
+                "first_name": value.split()[0] if value else "",
+                "middle_name": "",
+                "last_name": value.split()[-1] if value else "",
+            },
         )
         for name, value in values.items()
     )
@@ -190,11 +214,17 @@ class JobWorkerTest(unittest.TestCase):
             "job_worker._load_registered_image",
             return_value=np.full((1375, 1400, 3), 240, dtype=np.uint8),
         )
+        self.birth_topology_patcher = patch(
+            "job_worker.validate_psa_birth_name_topology",
+            return_value=_birth_topology_result(),
+        )
         self.capture = self.capture_patcher.start()
         self.generic_ocr = self.generic_ocr_patcher.start()
         self.load_image = self.load_image_patcher.start()
+        self.birth_topology = self.birth_topology_patcher.start()
 
     def tearDown(self):
+        self.birth_topology_patcher.stop()
         self.load_image_patcher.stop()
         self.generic_ocr_patcher.stop()
         self.capture_patcher.stop()
@@ -241,7 +271,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(success)
         self.capture.assert_called_once()
         self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
-        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["status"], "review_required")
         self.assertEqual(payload["raw_text"], "RAW OCR")
         self.assertEqual(payload["source_payload"]["capture_status"], CAPTURED)
 
@@ -355,7 +385,7 @@ class JobWorkerTest(unittest.TestCase):
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_uses_same_capture_without_generic_ocr(
+    def test_birth_uses_same_capture_and_preserves_full_page_raw_ocr(
         self, register, crop, ocr
     ):
         register.return_value = _birth_registration_result()
@@ -367,15 +397,50 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(success)
         self.capture.assert_called_once()
         self.load_image.assert_called_once_with(CAPTURE_PATH)
-        self.generic_ocr.assert_not_called()
+        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
         register.assert_called_once()
         crop.assert_called_once_with(
             register.return_value.data.registered_image,
             registration_metadata=_birth_registration_context(),
+            topology=self.birth_topology.return_value.data,
         )
         ocr.assert_called_once()
         self.assertEqual(payload["status"], "review_required")
         self.assertEqual(payload["ocr_attempts"], 3)
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(
+            payload["field_confidence"],
+            {
+                "child_name": 91.0,
+                "mother_maiden_name": 91.0,
+                "father_name": 91.0,
+            },
+        )
+        self.assertEqual(payload["source_payload"]["topology_status"], "matched")
+
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_topology_failure_never_crops_or_runs_structured_ocr(
+        self, register, crop, ocr
+    ):
+        register.return_value = _birth_registration_result()
+        self.birth_topology.return_value = _stage_result(
+            status="failed",
+            success=False,
+            issues=[{"code": "BIRTH_NAME_ROW_TOPOLOGY_INVALID"}],
+            metrics={"topology_status": "mismatch"},
+        )
+
+        success, payload = job_worker.run_scan(self.request("birth_certificate"))
+
+        self.assertTrue(success)
+        crop.assert_not_called()
+        ocr.assert_not_called()
+        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.assertEqual(payload["source_payload"]["topology_status"], "mismatch")
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
@@ -436,7 +501,7 @@ class JobWorkerTest(unittest.TestCase):
             register.call_args_list[1].kwargs["config"],
             job_worker.BIRTH_RELAXED_REGISTRATION_CONFIG,
         )
-        self.generic_ocr.assert_not_called()
+        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
         self.assertEqual(
             payload["source_payload"]["registration_mode"],
             "relaxed_validated_grid",
@@ -468,8 +533,9 @@ class JobWorkerTest(unittest.TestCase):
         crop.assert_called_once_with(
             envelope.return_value.data.registered_image,
             registration_metadata=_birth_registration_context("review_required"),
+            topology=self.birth_topology.return_value.data,
         )
-        self.generic_ocr.assert_not_called()
+        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
         self.assertEqual(
             payload["source_payload"]["registration_mode"],
             "validated_grid_envelope",
@@ -495,7 +561,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["source_payload"]["registration_status"], "mismatch")
         self.assertEqual(
             payload["source_payload"]["registration_issue_codes"],
-            ["FORM_GRID_NOT_FOUND"],
+            ["FORM_GRID_ENVELOPE_TOPOLOGY_INVALID"],
         )
 
     @patch("job_worker.register_psa_birth_form")
@@ -702,6 +768,11 @@ class JobWorkerTest(unittest.TestCase):
                 "registration_status": "matched",
                 "preprocessing_variant": "psa_birth_v1",
                 "ocr_engine": "tesseract",
+                "registration_mode": "",
+                "topology_status": "unknown",
+                "topology_validated_row_count": 0,
+                "topology_rows": {},
+                "confidence_source": "",
             },
         )
 

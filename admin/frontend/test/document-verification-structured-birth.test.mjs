@@ -80,10 +80,7 @@ test('structured birth OCR renders three provisional fields without raw text', (
     'Structured row OCR completed.\nNo combined raw OCR snapshot was supplied.'
   );
   assert.notEqual(buildRawOcrSnapshot(activeDoc), '(No OCR text yet)');
-  assert.equal(
-    mapped.applicationMetadata[0].value,
-    'APPLICATION PROFILE NAME'
-  );
+  assert.equal(mapped.applicationMetadata, undefined);
   assert.ok(
     mapped.extractedFields.every(
       (field) => field.value !== 'APPLICATION PROFILE NAME'

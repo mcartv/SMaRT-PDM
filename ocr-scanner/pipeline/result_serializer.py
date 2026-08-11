@@ -82,4 +82,17 @@ def candidate_from_worker_payload(
         field_confidence=confidence,
         validation_issues=issues,
         registration_status=registration_status,
+        processing_metadata=(
+            {
+                "registration_mode": str(source.get("registration_mode") or ""),
+                "topology_status": str(source.get("topology_status") or "unknown"),
+                "topology_validated_row_count": int(
+                    source.get("topology_validated_row_count") or 0
+                ),
+                "topology_rows": source.get("topology_rows") or {},
+                "confidence_source": str(source.get("confidence_source") or ""),
+            }
+            if document_key == "certificate_of_live_birth"
+            else {}
+        ),
     )

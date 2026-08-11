@@ -139,6 +139,17 @@ class DocumentContractsTest(unittest.TestCase):
                         "last_name": "DELA CRUZ",
                     },
                     "section_status": "present",
+                    "confidence": 92.5,
+                    "component_confidence": {
+                        "first_name": 95.0,
+                        "middle_name": 88.0,
+                        "last_name": 94.5,
+                    },
+                    "component_raw_text": {
+                        "first_name": "JUAN",
+                        "middle_name": "S",
+                        "last_name": "DELA CRUZ",
+                    },
                 },
                 "mother_maiden_name": {
                     "raw_text": "MARIA R SANTOS",
@@ -157,6 +168,11 @@ class DocumentContractsTest(unittest.TestCase):
             {"first_name": "MARIA", "middle_name": "R", "last_name": "SANTOS"},
         )
         self.assertEqual(payload["fields"]["child_name"]["section_status"], "present")
+        self.assertEqual(payload["fields"]["child_name"]["confidence"], 92.5)
+        self.assertEqual(
+            payload["fields"]["child_name"]["component_confidence"]["last_name"],
+            94.5,
+        )
         self.assertNotIn("issue_date", payload["fields"])
         self.assertNotIn("issuing_barangay", payload["fields"])
         self.assertNotIn("applicant_name", payload["fields"])

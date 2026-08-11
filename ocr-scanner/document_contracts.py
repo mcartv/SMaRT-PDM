@@ -140,6 +140,17 @@ def build_birth_extracted_fields_from_ocr_result(
                     for component in ("first_name", "middle_name", "last_name")
                 },
                 "section_status": str(value.get("section_status") or "present"),
+                "confidence": value.get("confidence"),
+                "component_confidence": {
+                    component: (value.get("component_confidence") or {}).get(component)
+                    for component in ("first_name", "middle_name", "last_name")
+                },
+                "component_raw_text": {
+                    component: str(
+                        (value.get("component_raw_text") or {}).get(component) or ""
+                    )
+                    for component in ("first_name", "middle_name", "last_name")
+                },
                 "review_required": True,
             }
         else:

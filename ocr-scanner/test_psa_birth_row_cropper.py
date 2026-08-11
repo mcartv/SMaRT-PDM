@@ -22,6 +22,7 @@ from extraction.psa_birth_row_cropper import (
     _remove_grid_lines,
     _validate_cell_geometry,
     crop_psa_birth_name_rows,
+    validate_psa_birth_name_topology,
 )
 from extraction.stage_result import StageResult
 
@@ -336,7 +337,7 @@ class PSABirthRowCropperTest(unittest.TestCase):
             245.0,
         )
 
-    def test_dynamic_geometry_does_not_reposition_cells(self):
+    def test_topology_refinement_ignores_unrelated_page_lines(self):
         source = form_image()
         cv2.line(source, (0, 300), (1399, 300), (0, 0, 0), 4)
         cv2.line(source, (200, 0), (200, 1374), (0, 0, 0), 4)
@@ -344,9 +345,10 @@ class PSABirthRowCropperTest(unittest.TestCase):
         result = crop_psa_birth_name_rows(source)
 
         self.assertTrue(result.success, result.issues)
-        self.assertFalse(
+        self.assertTrue(
             result.metrics["dynamic_geometry_repositioning_used"]
         )
+        self.assertEqual(result.metrics["topology_status"], "matched")
         self.assertEqual(
             result.metrics["child_name_value_top"],
             50,
@@ -362,7 +364,7 @@ class PSABirthRowCropperTest(unittest.TestCase):
         self.assertEqual(result.metrics["geometry_mode"], GEOMETRY_MODE)
         self.assertEqual(
             result.metrics["geometry_source"],
-            "accepted_private_visual_calibration",
+            "validated_private_visual_calibration",
         )
 
     def test_all_output_crops_are_independent_grayscale_arrays(self):
@@ -686,7 +688,58 @@ class PSABirthRowCropperTest(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual(
             issue_codes(result),
-            {"birth_item_6_value_band_invalid"},
+            {"BIRTH_NAME_TOPOLOGY_REQUIRED"},
+        )
+
+    def test_missing_required_item_boundary_rejects_topology(self):
+        source = form_image()
+        cv2.rectangle(
+            source,
+            (923 - 8, 685 - 32),
+            (923 + 8, 732 + 32),
+            (255, 255, 255),
+            -1,
+        )
+
+        topology = validate_psa_birth_name_topology(source)
+        result = crop_psa_birth_name_rows(source)
+
+        self.assertFalse(topology.success)
+        self.assertEqual(
+            issue_codes(topology),
+            {"BIRTH_NAME_ROW_TOPOLOGY_INVALID"},
+        )
+        self.assertFalse(result.success)
+        self.assertEqual(issue_codes(result), {"BIRTH_NAME_TOPOLOGY_REQUIRED"})
+
+    def test_validated_topology_refines_shifted_component_boundaries(self):
+        shifted_rows = tuple(
+            (
+                name,
+                left + 12,
+                first + 12,
+                middle + 12,
+                right + 12,
+                top,
+                bottom,
+            )
+            for name, left, first, middle, right, top, bottom in ROW_GEOMETRIES
+        )
+        source = np.full((HEIGHT, WIDTH, 3), 255, dtype=np.uint8)
+        for _name, left, first, middle, right, value_top, value_bottom in shifted_rows:
+            top = value_top - 3
+            bottom = value_bottom + 3
+            cv2.line(source, (left, top), (right, top), (0, 0, 0), 2)
+            cv2.line(source, (left, bottom), (right, bottom), (0, 0, 0), 2)
+            for divider in (left, first, middle, right):
+                cv2.line(source, (divider, top), (divider, bottom), (0, 0, 0), 2)
+
+        result = crop_psa_birth_name_rows(source)
+
+        self.assertTrue(result.success, result.issues)
+        self.assertEqual(
+            result.metrics["per_row_column_boundaries"]["child_name"],
+            (370, 664, 975, 1260),
         )
 
     def test_invalid_grid_thresholds_are_rejected(self):

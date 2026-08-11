@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from time import perf_counter
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
 
 import cv2
 import numpy as np
+import pytesseract
+from pytesseract import Output
 
 from .ocr_engine import (
     OCRBinaryUnavailableError,
@@ -39,8 +42,12 @@ _FORBIDDEN_LABELS = frozenset(
         "name",
         "maiden name",
         "first",
+        "first name",
         "middle",
+        "middle name",
         "last",
+        "last name",
+        "surname",
         "sex",
         "date of birth",
         "citizenship",
@@ -60,6 +67,9 @@ class PSABirthRowOCRConfig:
     maximum_name_characters_per_cell: int = 50
     target_height: int = 140
     blank_ink_ratio_threshold: float = 0.003
+    low_confidence_threshold: float = 50.0
+    maximum_fallback_workers: int = 2
+    ocr_timeout_seconds: float = 8.0
 
     def __post_init__(self) -> None:
         if tuple(self.required_fields) != REQUIRED_FIELDS:
@@ -75,6 +85,7 @@ class PSABirthRowOCRConfig:
             "maximum_name_tokens_per_cell",
             "maximum_name_characters_per_cell",
             "target_height",
+            "maximum_fallback_workers",
         ):
             value = getattr(self, name)
             if (
@@ -85,6 +96,12 @@ class PSABirthRowOCRConfig:
                 raise ValueError(f"{name} must be a positive integer")
         if not 0.0 <= self.blank_ink_ratio_threshold <= 0.1:
             raise ValueError("blank ink ratio threshold is invalid")
+        if not 0.0 <= self.low_confidence_threshold <= 100.0:
+            raise ValueError("low_confidence_threshold is invalid")
+        if self.ocr_timeout_seconds <= 0.0:
+            raise ValueError("ocr_timeout_seconds must be positive")
+        if self.maximum_fallback_workers > 2:
+            raise ValueError("maximum_fallback_workers must not exceed two")
         object.__setattr__(self, "preprocessing_variant", PREPROCESSING_VARIANT)
 
 
@@ -99,6 +116,13 @@ class PSABirthRowOCRFieldResult:
     issue_codes: tuple[str, ...]
     preprocessing_variant: str
     ocr_attempts: int
+    confidence: float | None = None
+    component_confidence: Mapping[str, float | None] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+    component_raw_text: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
 
 @dataclass(frozen=True)
@@ -275,7 +299,10 @@ def _validate_candidate(
         return ""
     if any(
         label in candidate.casefold()
-        for label in ("date of birth", "maiden name", "citizenship", "residence")
+        for label in (
+            "date of birth", "maiden name", "citizenship", "residence",
+            "name of child", "name of mother", "name of father",
+        )
     ):
         return ""
     return candidate if _ALLOWED_NAME_PATTERN.fullmatch(candidate) else ""
@@ -312,8 +339,378 @@ def _default_reader(image: np.ndarray) -> str:
     )
 
 
+@dataclass(frozen=True)
+class _ComponentObservation:
+    raw_text: str = ""
+    candidate: str = ""
+    confidence: float | None = None
+
+
+def _tesseract_data(image: np.ndarray, timeout_seconds: float) -> Mapping[str, Any]:
+    kwargs = {
+        "config": "--oem 3 --psm 7 -l eng",
+        "output_type": Output.DICT,
+    }
+    try:
+        return pytesseract.image_to_data(
+            image,
+            timeout=timeout_seconds,
+            **kwargs,
+        )
+    except TypeError:
+        return pytesseract.image_to_data(image, **kwargs)
+
+
+def _valid_data_words(data: Mapping[str, Any]) -> list[dict[str, Any]]:
+    keys = ("text", "conf", "left", "width")
+    values = [list(data.get(key, ())) for key in keys]
+    if not values or any(len(value) != len(values[0]) for value in values):
+        return []
+    words: list[dict[str, Any]] = []
+    for text, confidence, left, width in zip(*values):
+        raw = _normalize_text(text)
+        try:
+            numeric_confidence = float(confidence)
+            numeric_left = int(left)
+            numeric_width = int(width)
+        except (TypeError, ValueError):
+            continue
+        if not raw or numeric_confidence < 0 or numeric_width <= 0:
+            continue
+        words.append({
+            "text": raw,
+            "confidence": numeric_confidence,
+            "left": numeric_left,
+            "width": numeric_width,
+        })
+    return words
+
+
+def _closest_name_candidate(value: Any, config: PSABirthRowOCRConfig) -> str:
+    raw = _normalize_text(value)
+    if not raw:
+        return ""
+    tokens: list[str] = []
+    substitutions = str.maketrans({"0": "O", "1": "I", "5": "S", "8": "B"})
+    for source_token in raw.split():
+        token = source_token.strip("\"“”()[]{}:;,!?|_=+*/\\")
+        if any(character.isalpha() for character in token):
+            token = token.translate(substitutions)
+        if any(character.isdigit() for character in token):
+            continue
+        token = re.sub(r"[^A-Za-zÀ-ÖØ-öø-ÿÑñ.'’\-]", "", token)
+        if token:
+            tokens.append(token)
+    candidate = " ".join(tokens)
+    if not candidate:
+        return ""
+    lowered = candidate.casefold()
+    if lowered in _FORBIDDEN_LABELS or any(
+        label in lowered
+        for label in (
+            "date of birth", "maiden name", "citizenship", "residence",
+            "name of child", "name of mother", "name of father",
+        )
+    ):
+        return ""
+    return _validate_candidate(candidate, config)
+
+
+def _weighted_confidence(words: Sequence[Mapping[str, Any]]) -> float | None:
+    weighted = [
+        (float(word["confidence"]), max(1, len(str(word["text"]))))
+        for word in words
+        if word.get("confidence") is not None
+    ]
+    denominator = sum(weight for _confidence, weight in weighted)
+    if denominator <= 0:
+        return None
+    return sum(confidence * weight for confidence, weight in weighted) / denominator
+
+
+def _observation_from_words(
+    words: Sequence[Mapping[str, Any]],
+    config: PSABirthRowOCRConfig,
+) -> _ComponentObservation:
+    raw_text = " ".join(str(word.get("text") or "") for word in words).strip()
+    return _ComponentObservation(
+        raw_text=raw_text,
+        candidate=_closest_name_candidate(raw_text, config),
+        confidence=_weighted_confidence(words),
+    )
+
+
+def _row_observations(
+    processed: np.ndarray,
+    boundaries: Sequence[float],
+    config: PSABirthRowOCRConfig,
+) -> dict[str, _ComponentObservation]:
+    words = _valid_data_words(_tesseract_data(processed, config.ocr_timeout_seconds))
+    inner_left = 18
+    inner_width = max(1, processed.shape[1] - 36)
+    grouped: dict[str, list[Mapping[str, Any]]] = {
+        name: [] for name in COMPONENT_NAMES
+    }
+    for word in words:
+        center = float(word["left"]) + float(word["width"]) / 2.0
+        normalized = (center - inner_left) / float(inner_width)
+        if normalized < boundaries[1]:
+            component = "first_name"
+        elif normalized < boundaries[2]:
+            component = "middle_name"
+        else:
+            component = "last_name"
+        grouped[component].append(word)
+    return {
+        name: _observation_from_words(grouped[name], config)
+        for name in COMPONENT_NAMES
+    }
+
+
+def _cell_observation(
+    crop: np.ndarray,
+    config: PSABirthRowOCRConfig,
+) -> _ComponentObservation:
+    processed, _ink_ratio = _preprocess_cell(crop.copy(), config.target_height)
+    words = _valid_data_words(_tesseract_data(processed, config.ocr_timeout_seconds))
+    return _observation_from_words(words, config)
+
+
+def _prefer_observation(
+    primary: _ComponentObservation,
+    fallback: _ComponentObservation,
+) -> _ComponentObservation:
+    if not primary.candidate:
+        return fallback if fallback.candidate else primary
+    if not fallback.candidate:
+        return primary
+    primary_confidence = primary.confidence if primary.confidence is not None else -1.0
+    fallback_confidence = fallback.confidence if fallback.confidence is not None else -1.0
+    return fallback if fallback_confidence > primary_confidence else primary
+
+
 def _empty_components() -> Mapping[str, str]:
     return MappingProxyType({name: "" for name in COMPONENT_NAMES})
+
+
+def _extract_with_tesseract_data(
+    output: PSABirthRowCropperOutput,
+    resolved: PSABirthRowOCRConfig,
+    *,
+    started: float,
+    upstream_review: bool,
+) -> StageResult[PSABirthRowOCROutput]:
+    if set(output.row_crops) != set(FIELD_NAMES) or set(output.topology) != set(FIELD_NAMES):
+        return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED")
+
+    observations: dict[str, dict[str, _ComponentObservation]] = {}
+    execution_failed_fields: set[str] = set()
+    attempts = 0
+    preprocessing_seconds = 0.0
+    ocr_seconds = 0.0
+    for field_name in FIELD_NAMES:
+        row_crop = _valid_crop(output.row_crops.get(field_name))
+        topology = output.topology.get(field_name)
+        if row_crop is None or topology is None:
+            return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED")
+        preprocess_started = perf_counter()
+        processed, _ink_ratio = _preprocess_cell(row_crop.copy(), resolved.target_height)
+        preprocessing_seconds += perf_counter() - preprocess_started
+        attempts += 1
+        ocr_started = perf_counter()
+        try:
+            observations[field_name] = _row_observations(
+                processed,
+                topology.relative_component_boundaries,
+                resolved,
+            )
+        except Exception:
+            execution_failed_fields.add(field_name)
+            observations[field_name] = {
+                name: _ComponentObservation() for name in COMPONENT_NAMES
+            }
+        ocr_seconds += perf_counter() - ocr_started
+
+    fallback_keys = [
+        f"{field_name}.{component_name}"
+        for field_name in FIELD_NAMES
+        for component_name in COMPONENT_NAMES
+        if (
+            not observations[field_name][component_name].candidate
+            or observations[field_name][component_name].confidence is None
+            or observations[field_name][component_name].confidence
+            < resolved.low_confidence_threshold
+        )
+    ]
+    fallback_results: dict[str, _ComponentObservation] = {}
+    fallback_started = perf_counter()
+    if fallback_keys:
+        with ThreadPoolExecutor(
+            max_workers=min(resolved.maximum_fallback_workers, len(fallback_keys))
+        ) as executor:
+            futures = {
+                executor.submit(
+                    _cell_observation,
+                    np.array(output.crops[key], copy=True),
+                    resolved,
+                ): key
+                for key in fallback_keys
+                if _valid_crop(output.crops.get(key)) is not None
+            }
+            attempts += len(futures)
+            for future in as_completed(futures):
+                key = futures[future]
+                try:
+                    fallback_results[key] = future.result()
+                except Exception:
+                    fallback_results[key] = _ComponentObservation()
+    ocr_seconds += perf_counter() - fallback_started
+
+    for key, fallback in fallback_results.items():
+        field_name, component_name = key.split(".", 1)
+        observations[field_name][component_name] = _prefer_observation(
+            observations[field_name][component_name],
+            fallback,
+        )
+
+    results: list[PSABirthRowOCRFieldResult] = []
+    successful = 0
+    controlled_blank_father = 0
+    low_confidence_fields = 0
+    for field_name in FIELD_NAMES:
+        row = observations[field_name]
+        components = {
+            name: row[name].candidate for name in COMPONENT_NAMES
+        }
+        raw_components = {
+            name: row[name].raw_text for name in COMPONENT_NAMES
+        }
+        component_confidence = {
+            name: row[name].confidence for name in COMPONENT_NAMES
+        }
+        relevant_confidences = [
+            confidence
+            for name, confidence in component_confidence.items()
+            if components[name] and confidence is not None
+        ]
+        confidence = (
+            sum(relevant_confidences) / len(relevant_confidences)
+            if relevant_confidences
+            else None
+        )
+        codes: set[str] = set()
+        any_not_applicable = field_name == "father_name" and any(
+            _normalize_not_applicable_candidate(value) == "N/A"
+            for value in raw_components.values()
+        )
+        any_text = any(components.values())
+        required_present = bool(components["first_name"]) and bool(
+            components["last_name"]
+        )
+        if field_name in execution_failed_fields and not any_text:
+            success = False
+            section_status = "incomplete"
+            assembled = ""
+            codes.add("OCR_EXECUTION_FAILED")
+        elif field_name == "father_name" and any_not_applicable and not any_text:
+            success = True
+            section_status = "not_applicable"
+            assembled = "N/A"
+            codes.add("father_name_not_applicable")
+        elif field_name == "father_name" and not any(
+            raw_components.values()
+        ):
+            success = True
+            section_status = "blank"
+            assembled = ""
+            controlled_blank_father += 1
+            codes.add("father_section_blank")
+        else:
+            assembled = " ".join(
+                components[name] for name in COMPONENT_NAMES if components[name]
+            )
+            success = required_present
+            section_status = "present" if success else "incomplete"
+            if not success:
+                codes.add(
+                    "father_name_incomplete"
+                    if field_name == "father_name"
+                    else f"{field_name}_not_found"
+                )
+        if any(
+            components[name]
+            and (
+                component_confidence[name] is None
+                or component_confidence[name] < resolved.low_confidence_threshold
+            )
+            for name in COMPONENT_NAMES
+        ):
+            codes.add("birth_name_low_confidence")
+            low_confidence_fields += 1
+        if success:
+            successful += 1
+        results.append(
+            PSABirthRowOCRFieldResult(
+                name=field_name,
+                raw_text=assembled,
+                components=MappingProxyType(dict(components)),
+                section_status=section_status,
+                review_required=True,
+                success=success,
+                issue_codes=tuple(sorted(codes)),
+                preprocessing_variant=resolved.preprocessing_variant,
+                ocr_attempts=(
+                    1 + sum(
+                        1 for component_name in COMPONENT_NAMES
+                        if f"{field_name}.{component_name}" in fallback_results
+                    )
+                ),
+                confidence=confidence,
+                component_confidence=MappingProxyType(dict(component_confidence)),
+                component_raw_text=MappingProxyType(dict(raw_components)),
+            )
+        )
+
+    result_data = PSABirthRowOCROutput(fields=tuple(results), field_count=3)
+    metrics = {
+        "field_count": 3,
+        "cell_count": 9,
+        "successful_field_count": successful,
+        "failed_field_count": 3 - successful,
+        "controlled_blank_father_count": controlled_blank_father,
+        "low_confidence_field_count": low_confidence_fields,
+        "row_ocr_attempts": 3,
+        "fallback_cell_ocr_attempts": len(fallback_results),
+        "total_ocr_attempts": attempts,
+        "preprocessing_seconds": round(preprocessing_seconds, 6),
+        "ocr_seconds": round(ocr_seconds, 6),
+        "total_processing_seconds": round(perf_counter() - started, 6),
+        "manual_review_required": True,
+        "name_cell_crop_used": bool(fallback_results),
+        "full_row_crop_used": True,
+        "full_page_generic_ocr_used": False,
+        "confidence_source": "tesseract_image_to_data",
+    }
+    if successful == 0:
+        return _failure("OCR_ALL_FIELDS_FAILED", data=result_data, **metrics)
+    issues: list[dict[str, str]] = []
+    if successful < 3:
+        issues.append(_issue("OCR_PARTIAL_FAILURE"))
+    if low_confidence_fields:
+        issues.append(_issue("BIRTH_NAME_LOW_CONFIDENCE"))
+    if controlled_blank_father:
+        issues.append(_issue("father_section_blank", "father_name"))
+    if upstream_review:
+        issues.append(_issue("REGISTRATION_REVIEW_PROPAGATED"))
+    issues.append(_issue("OCR_MANUAL_REVIEW_REQUIRED"))
+    return StageResult(
+        stage=STAGE_NAME,
+        success=True,
+        status="review_required",
+        data=result_data,
+        issues=issues,
+        metrics=metrics,
+    )
 
 
 def extract_psa_birth_row_text(
@@ -331,7 +728,16 @@ def extract_psa_birth_row_text(
         return _failure("ROW_CROP_OUTPUT_INVALID")
     if ocr_reader is not None and not callable(ocr_reader):
         return _failure("OCR_READER_INVALID")
-    reader = ocr_reader or _default_reader
+    if ocr_reader is None:
+        return _extract_with_tesseract_data(
+            output,
+            resolved,
+            started=started,
+            upstream_review=(
+                getattr(crop_output, "status", "") == "review_required"
+            ),
+        )
+    reader = ocr_reader
 
     expected_keys = {
         f"{field}.{component}"

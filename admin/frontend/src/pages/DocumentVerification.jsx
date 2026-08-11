@@ -1347,7 +1347,20 @@ function normalizeBirthName(value) {
   return normalized;
 }
 
-function normalizeReviewFields(candidate) {
+const BIRTH_OCR_DOCUMENT_KEYS = new Set([
+  'birth_certificate',
+  'certificate_of_live_birth',
+]);
+
+function isSameOcrDocument(left, right) {
+  const normalize = (value) => {
+    const key = String(value || '').trim().toLowerCase();
+    return BIRTH_OCR_DOCUMENT_KEYS.has(key) ? 'birth_certificate' : key;
+  };
+  return Boolean(normalize(left)) && normalize(left) === normalize(right);
+}
+
+export function normalizeReviewFields(candidate) {
   const fields = candidate?.fields || {};
   if (candidate?.document_key === 'student_grade_forms') {
     const derived = deriveGradeReviewValues(candidate?.raw_text);
@@ -1367,7 +1380,7 @@ function normalizeReviewFields(candidate) {
       ocrFieldValue(fields[key]) || derived[key] || '',
     ]));
   }
-  if (candidate?.document_key === 'birth_certificate') {
+  if (BIRTH_OCR_DOCUMENT_KEYS.has(String(candidate?.document_key || '').toLowerCase())) {
     return {
       child_name: normalizeBirthName(fields.child_name),
       mother_maiden_name: normalizeBirthName(fields.mother_maiden_name),
@@ -1379,6 +1392,14 @@ function normalizeReviewFields(candidate) {
 
 function ocrScoreLabel(candidate, key, displayedValue) {
   const numeric = Number(candidate?.field_confidence?.[key]);
+  if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
+  return String(displayedValue || '').trim() ? 'Detected' : '—';
+}
+
+function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
+  const numeric = Number(
+    candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey]
+  );
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
   return String(displayedValue || '').trim() ? 'Detected' : '—';
 }
@@ -1626,7 +1647,17 @@ function OCRPanel({
               <div className="grid gap-2 sm:grid-cols-3">
                 {BIRTH_NAME_PARTS.map(([part, label]) => (
                   <label key={part} className="space-y-1">
-                    <span className="text-xs text-stone-500">{label}</span>
+                    <span className="flex items-center justify-between gap-2 text-xs text-stone-500">
+                      <span>{label}</span>
+                      <span className="font-semibold text-rose-600">
+                        {birthComponentScoreLabel(
+                          reviewCandidate,
+                          'child_name',
+                          part,
+                          correctedFields?.child_name?.[part]
+                        )}
+                      </span>
+                    </span>
                     <Input
                       value={correctedFields?.child_name?.[part] || ''}
                       readOnly
@@ -1649,7 +1680,17 @@ function OCRPanel({
                 <div className="grid gap-2 sm:grid-cols-3">
                   {BIRTH_NAME_PARTS.map(([part, label]) => (
                     <label key={part} className="space-y-1">
-                      <span className="text-xs text-stone-500">{label}</span>
+                      <span className="flex items-center justify-between gap-2 text-xs text-stone-500">
+                        <span>{label}</span>
+                        <span className="font-semibold text-rose-600">
+                          {birthComponentScoreLabel(
+                            reviewCandidate,
+                            fieldKey,
+                            part,
+                            correctedFields?.[fieldKey]?.[part]
+                          )}
+                        </span>
+                      </span>
                       <Input
                         value={correctedFields?.[fieldKey]?.[part] || ''}
                         readOnly={birthReviewCompleted}
@@ -3006,12 +3047,12 @@ export default function DocumentVerification() {
     if (!activeDoc) return;
     setComment(docComments[activeDoc.id] || '');
     setIotOcrError('');
-    if (reviewCandidate && reviewCandidate.document_key !== activeDoc.id) {
+    if (reviewCandidate && !isSameOcrDocument(reviewCandidate.document_key, activeDoc.id)) {
       setReviewCandidate(null);
       setCorrectedFields({});
     }
 
-    if (!runningIotOcr && reviewCandidate?.document_key !== activeDoc.id) {
+    if (!runningIotOcr && !isSameOcrDocument(reviewCandidate?.document_key, activeDoc.id)) {
       setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
     }
   }, [activeDoc, application, docComments, runningIotOcr, reviewCandidate?.document_key]);
@@ -3109,7 +3150,7 @@ export default function DocumentVerification() {
     const requestId = getIotOcrRequestId(request);
     const candidateReady = Boolean(
       requestId
-      && reviewCandidate?.document_key === activeDoc?.id
+      && isSameOcrDocument(reviewCandidate?.document_key, activeDoc?.id)
       && getIotOcrRequestId(reviewCandidate) === requestId
       && ['review_required', 'completed'].includes(
         String(reviewCandidate?.status || '').toLowerCase()

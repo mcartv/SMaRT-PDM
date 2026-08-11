@@ -384,7 +384,7 @@ export default function AdminProfile() {
 
                     <SectionCard
                         title="Recent Activity"
-                        subtitle="Latest actions recorded in the Audit Trail for this admin account."
+                        subtitle="Latest actions recorded in System Logs for this admin account."
                         icon={Activity}
                     >
                         {activityLoading ? (
@@ -399,7 +399,7 @@ export default function AdminProfile() {
                             </div>
                         ) : recentActivity.length === 0 ? (
                             <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-500">
-                                No audit activity has been recorded for this account yet.
+                                No system log activity has been recorded for this account yet.
                             </div>
                         ) : (
                             <div className="space-y-2">

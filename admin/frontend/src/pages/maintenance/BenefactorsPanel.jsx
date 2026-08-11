@@ -59,7 +59,7 @@ function BenefactorOnlyModal({
 
                 <CardContent className="p-4 space-y-3">
                     <div className="space-y-1.5">
-                        <FieldLabel>Organization Name</FieldLabel>
+                        <FieldLabel>Benefactor Name</FieldLabel>
                         <Input
                             value={form.benefactor_name}
                             onChange={(e) =>

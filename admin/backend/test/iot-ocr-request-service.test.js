@@ -222,16 +222,18 @@ test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
         { ...candidate, student_name: 'JUAN S. DELA CRUZ', gwa: '1.63' },
         candidate
     );
-    assert.equal(verified.student_name, 'JUAN S. DELA CRUZ');
-    assert.equal(verified.course, 'BSIT');
+    assert.equal(verified.student_name, undefined);
+    assert.equal(verified.course, undefined);
+    assert.equal(verified.semester, undefined);
+    assert.equal(verified.academic_year, undefined);
     assert.equal(verified.gwa, '1.63');
     assert.throws(
         () => service.validateConfirmedDocumentFields(
             'student_grade_forms',
-            { ...candidate, student_name: '   ' },
+            { ...candidate, student_number: '   ' },
             candidate
         ),
-        /student_name/
+        /student_number/
     );
     assert.throws(
         () => service.validateConfirmedDocumentFields(

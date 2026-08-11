@@ -35,8 +35,11 @@ test('grade review uses the bottom raw snapshot and visible OCR score labels', (
     const fieldsStart = source.indexOf('const GRADE_REVIEW_FIELDS');
     const fieldsEnd = source.indexOf('];', fieldsStart);
     const visibleFields = source.slice(fieldsStart, fieldsEnd);
-    assert.match(visibleFields, /student_name|Student Name/);
-    assert.match(visibleFields, /course|Course/);
+    assert.match(visibleFields, /student_number|Student Number/);
+    assert.doesNotMatch(visibleFields, /student_name|Student Name/);
+    assert.doesNotMatch(visibleFields, /course|Course/);
+    assert.doesNotMatch(visibleFields, /semester|Semester/);
+    assert.doesNotMatch(visibleFields, /academic_year|Academic Year/);
 });
 
 test('review candidate always stops the running OCR UI', () => {

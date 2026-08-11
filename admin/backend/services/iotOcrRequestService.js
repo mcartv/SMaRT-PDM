@@ -286,10 +286,6 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         ],
         student_grade_forms: [
             'student_number',
-            'student_name',
-            'course',
-            'semester',
-            'academic_year',
             'subjects',
             'gwa',
         ],
@@ -321,10 +317,6 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     }
     return {
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
-        student_name: String(fieldValue(fields.student_name) ?? '').trim(),
-        course: String(fieldValue(fields.course) ?? '').trim(),
-        semester: String(fieldValue(fields.semester) ?? '').trim(),
-        academic_year: String(fieldValue(fields.academic_year) ?? '').trim(),
         subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };

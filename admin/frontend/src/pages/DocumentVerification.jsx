@@ -1233,10 +1233,6 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
-  ['student_name', 'Student Name'],
-  ['course', 'Course'],
-  ['semester', 'Semester'],
-  ['academic_year', 'Academic Year'],
 ];
 
 const INDIGENCY_REVIEW_FIELDS = [

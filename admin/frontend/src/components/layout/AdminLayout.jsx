@@ -232,9 +232,12 @@ export default function AdminLayout() {
       {/* Sidebar */}
       <aside
         className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
-        style={{ width: collapsed ? '76px' : 'clamp(216px, 18vw, 248px)', background: theme.base }}
+        style={{
+          width: collapsed ? '68px' : 'clamp(190px, 15vw, 200px)',
+          background: theme.base,
+        }}
       >
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
+        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-white/10 px-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm" style={{ background: theme.active }}>
             <img
               src={pdmLogo}
@@ -255,7 +258,7 @@ export default function AdminLayout() {
           )}
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
@@ -267,7 +270,7 @@ export default function AdminLayout() {
                 item.path === '/admin/endorsements'
               }
               className={({ isActive }) =>
-                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
+                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'} rounded-xl px-2.5 py-2 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'
                   : 'hover:bg-white/7'
                 }`
@@ -287,10 +290,10 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="space-y-1.5 border-t border-white/10 p-3">
+        <div className="space-y-1 border-t border-white/10 p-2.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/7`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-2.5'} rounded-xl px-2.5 py-2 text-sm transition-colors hover:bg-white/7`}
             style={{ color: theme.text }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
@@ -304,7 +307,7 @@ export default function AdminLayout() {
 
           <button
             onClick={handleLogout}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-red-500/20`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-2.5'} rounded-xl px-2.5 py-2 text-sm transition-colors hover:bg-red-500/20`}
             style={{ color: theme.text }}
             title={collapsed ? 'Logout' : ''}
           >

@@ -2303,13 +2303,6 @@ exports.runApplicationDocumentIotOcr = async ({
     documentKey,
     requestedBy = null,
 }) => {
-    const availability = require('./iotOcrPresenceService').getAvailability();
-    if (!availability.online) {
-        const error = new Error('Raspberry Pi OCR scanner is offline. Start the Pi worker and try again.');
-        error.statusCode = 503;
-        error.code = 'PI_OFFLINE';
-        throw error;
-    }
     if (!applicationId) {
         throw new Error('applicationId is required');
     }
@@ -2320,8 +2313,19 @@ exports.runApplicationDocumentIotOcr = async ({
         throw new Error('documentKey is required');
     }
 
-    if (normalizedDocumentKey === 'application_form') {
-        throw new Error('IoT OCR is only available for camera-scannable documents');
+    if (!iotOcrRequestService.isIotOcrDocumentEnabled(normalizedDocumentKey)) {
+        const error = new Error('IoT OCR is unavailable for this document');
+        error.statusCode = 400;
+        error.code = 'IOT_OCR_DOCUMENT_DISABLED';
+        throw error;
+    }
+
+    const availability = require('./iotOcrPresenceService').getAvailability();
+    if (!availability.online) {
+        const error = new Error('Raspberry Pi OCR scanner is offline. Start the Pi worker and try again.');
+        error.statusCode = 503;
+        error.code = 'PI_OFFLINE';
+        throw error;
     }
 
     const documentTypeName =

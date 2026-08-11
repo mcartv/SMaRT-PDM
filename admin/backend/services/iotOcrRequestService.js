@@ -8,6 +8,11 @@ const PI_ACTIVE_STATUSES = Object.freeze([
     'pending', 'claimed', 'previewing', 'focusing', 'capturing', 'processing',
 ]);
 const TERMINAL_STATUSES = Object.freeze(['completed', 'cancelled', 'failed', 'expired']);
+const IOT_OCR_DISABLED_DOCUMENT_KEYS = Object.freeze([
+    'application_form',
+    'certificate_of_registration',
+    'letter_of_request',
+]);
 const ALLOWED_TRANSITIONS = Object.freeze({
     pending: Object.freeze(['claimed', 'expired', 'cancelled']),
     claimed: Object.freeze(['previewing', 'cancelled', 'failed', 'expired']),
@@ -27,6 +32,13 @@ function buildHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
+}
+
+function isIotOcrDocumentEnabled(documentKey) {
+    const normalized = documentTypes.normalizeDocumentType(documentKey);
+    return Boolean(
+        normalized && !IOT_OCR_DISABLED_DOCUMENT_KEYS.includes(normalized)
+    );
 }
 
 function isUuid(value) {
@@ -325,7 +337,9 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
 async function resolveRequestContext(client, applicationId, documentKey) {
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
     if (!applicationId || !normalizedDocumentKey) throw buildHttpError(400, 'Valid application and document are required');
-    if (normalizedDocumentKey === 'application_form') throw buildHttpError(400, 'Document cannot be camera scanned');
+    if (!isIotOcrDocumentEnabled(normalizedDocumentKey)) {
+        throw buildHttpError(400, 'IoT OCR is unavailable for this document');
+    }
     const documentType = documentTypes.DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
     if (!documentType) throw buildHttpError(400, 'Invalid document_key');
     const result = await client.query(`
@@ -708,6 +722,9 @@ exports.retryRequest = async ({ applicationId, documentKey, requestId, requested
     await ensureIotOcrSchema();
     const requesterId = normalizeUserId(requestedBy);
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
+    if (!isIotOcrDocumentEnabled(normalizedDocumentKey)) {
+        throw buildHttpError(400, 'IoT OCR is unavailable for this document');
+    }
     if (!requesterId || !isUuid(requestId)) throw buildHttpError(400, 'Valid requester and previous request are required');
     const client = await pool.connect();
     try {
@@ -756,4 +773,6 @@ module.exports = {
     buildVerifiedApplicationPatch,
     withDerivedGradeFields,
     withDerivedIndigencyFields,
+    IOT_OCR_DISABLED_DOCUMENT_KEYS,
+    isIotOcrDocumentEnabled,
 };

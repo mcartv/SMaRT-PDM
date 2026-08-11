@@ -114,6 +114,15 @@ test('text-only contract recursively rejects image fields', () => {
     );
 });
 
+test('IoT OCR is disabled only for registration, request letter, and application form', () => {
+    assert.equal(service.isIotOcrDocumentEnabled('certificate_of_registration'), false);
+    assert.equal(service.isIotOcrDocumentEnabled('letter_of_request'), false);
+    assert.equal(service.isIotOcrDocumentEnabled('application_form'), false);
+    assert.equal(service.isIotOcrDocumentEnabled('student_grade_forms'), true);
+    assert.equal(service.isIotOcrDocumentEnabled('certificate_of_indigency'), true);
+    assert.equal(service.isIotOcrDocumentEnabled('birth_certificate'), true);
+});
+
 test('review_required is not Pi-active and can complete or expire', () => {
     assert.equal(service.PI_ACTIVE_STATUSES.includes('review_required'), false);
     assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'expired']);

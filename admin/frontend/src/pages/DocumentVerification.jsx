@@ -118,6 +118,11 @@ const REQUIRED_DOCUMENTS = [
 ];
 
 const OCR_DOCUMENTS = REQUIRED_DOCUMENTS;
+const IOT_OCR_DISABLED_DOCUMENT_KEYS = new Set([
+  'application_form',
+  'certificate_of_registration',
+  'letter_of_request',
+]);
 const ACTIVE_IOT_OCR_STATUSES = new Set([
   'pending',
   'claimed',
@@ -1357,7 +1362,9 @@ function OCRPanel({
   cancellingIotOcr,
   cancelSupported,
 }) {
-  const canRunIotOcr = activeDoc?.id !== 'application_form';
+  const canRunIotOcr = Boolean(
+    activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
+  );
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
   const isIndigencyReview = activeDoc?.id === 'certificate_of_indigency' && reviewCandidate;
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
@@ -1390,7 +1397,11 @@ function OCRPanel({
             ) : (
               <>
                 <ScanText className="w-3.5 h-3.5 mr-1.5" />
-                {piAvailabilityChecked && !piOnline ? 'Pi OCR Offline' : 'Use IoT OCR'}
+                {!canRunIotOcr
+                  ? 'IoT OCR unavailable'
+                  : piAvailabilityChecked && !piOnline
+                    ? 'Pi OCR Offline'
+                    : 'Use IoT OCR'}
               </>
             )}
           </Button>

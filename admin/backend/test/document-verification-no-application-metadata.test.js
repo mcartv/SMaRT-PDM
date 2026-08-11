@@ -75,6 +75,19 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     );
 });
 
+test('registration and request letter cannot run IoT OCR', () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
+        'utf8'
+    );
+
+    assert.match(source, /IOT_OCR_DISABLED_DOCUMENT_KEYS/);
+    assert.match(source, /'certificate_of_registration'/);
+    assert.match(source, /'letter_of_request'/);
+    assert.match(source, /!IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(activeDoc\.id\)/);
+    assert.match(source, /IoT OCR unavailable/);
+});
+
 test('student summary displays confirmed Marilao residency as true or false', () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),

@@ -3319,7 +3319,7 @@ export default function DocumentVerification() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (response.status === 404) setIotOcrCapabilities((current) => ({ ...current, admin_cancel: false }));
-        throw new Error(payload.error || 'Failed to cancel OCR request');
+        throw new Error(payload.error || 'Failed to cancel OCR request.');
       }
       stopPolling();
       setRunningIotOcr(false);
@@ -3333,7 +3333,7 @@ export default function DocumentVerification() {
       }));
       await fetchApplicationDocuments({ soft: true });
     } catch (error) {
-      setIotOcrError(error.message || 'Failed to cancel OCR request');
+      setIotOcrError(error.message || 'Failed to cancel OCR request.');
     } finally {
       setCancellingIotOcr(false);
     }

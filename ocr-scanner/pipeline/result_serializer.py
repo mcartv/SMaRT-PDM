@@ -11,12 +11,41 @@ TEMPLATE_IDS = {
     "student_grade_forms": "grade_form_v1",
 }
 
+DOCUMENT_KEY_ALIASES = {
+    "certificate_of_birth": "certificate_of_live_birth",
+    "psa_birth_certificate": "certificate_of_live_birth",
+    "birth_certificate": "certificate_of_live_birth",
+    "indigency": "certificate_of_indigency",
+    "barangay_certificate": "certificate_of_indigency",
+    "certificate_of_residency": "certificate_of_indigency",
+    "barangay_clearance": "certificate_of_indigency",
+}
+
+
+def _canonical_document_key(request: dict[str, Any], payload: dict[str, Any]) -> str:
+    extracted = payload.get("extracted_fields") or {}
+    source = payload.get("source_payload") or {}
+    candidates = (
+        request.get("document_key"),
+        extracted.get("document_type") if isinstance(extracted, dict) else None,
+        payload.get("document_type"),
+        source.get("document_key") if isinstance(source, dict) else None,
+    )
+    for candidate in candidates:
+        normalized = str(candidate or "").strip().lower().replace(" ", "_")
+        if not normalized:
+            continue
+        canonical = DOCUMENT_KEY_ALIASES.get(normalized, normalized)
+        if canonical in TEMPLATE_IDS:
+            return canonical
+    return ""
+
 
 def candidate_from_worker_payload(
     request: dict[str, Any],
     payload: dict[str, Any],
 ) -> ReviewCandidate:
-    document_key = str(request.get("document_key") or "")
+    document_key = _canonical_document_key(request, payload)
     extracted = payload.get("extracted_fields") or {}
     fields = extracted.get("fields") if isinstance(extracted, dict) else {}
     if not isinstance(fields, dict):
@@ -26,7 +55,7 @@ def candidate_from_worker_payload(
         confidence = {}
     issues = payload.get("validation_issues") or []
     source = payload.get("source_payload") or {}
-    registration_status = str(source.get("registration_status") or "mismatch")
+    registration_status = str(source.get("registration_status") or "mismatch").lower()
     if registration_status not in {"matched", "success", "registered"}:
         registration_status = "mismatch"
         fields = {}

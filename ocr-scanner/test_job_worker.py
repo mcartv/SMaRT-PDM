@@ -253,6 +253,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["status"], "review_required")
         self.assertTrue(payload["source_payload"]["generic_ocr_skipped"])
         self.assertEqual(payload["source_payload"]["generic_ocr_seconds"], 0.0)
+        self.assertEqual(payload["source_payload"]["registration_status"], "matched")
         self.assertEqual(
             set(payload["extracted_fields"]["fields"]),
             {
@@ -386,6 +387,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["raw_text"], "")
         self.generic_ocr.assert_not_called()
         self.assertEqual(payload["source_payload"]["ocr_status"], "failed")
+        self.assertEqual(payload["source_payload"]["registration_status"], "mismatch")
         self.assertEqual(
             payload["source_payload"]["ocr_issue_codes"],
             ["INDIGENCY_DOCUMENT_NOT_DETECTED"],
@@ -495,24 +497,44 @@ class JobWorkerTest(unittest.TestCase):
     def test_submit_and_verify_preserves_payload_contract(self):
         api = MagicMock()
         api.submit_result.return_value = {"ok": True}
+        fields = {"child_name": {"raw_text": "CHILD NAME", "success": True}}
         payload = {
             "status": "review_required",
             "raw_text": "provisional text",
             "ocr_confidence": None,
-            "extracted_fields": {"document_type": "birth_certificate"},
-            "source_payload": {"worker_status": "review_required"},
+            "extracted_fields": {
+                "document_type": "birth_certificate",
+                "fields": fields,
+            },
+            "source_payload": {"registration_status": "matched"},
             "error_message": None,
         }
 
-        self.assertTrue(job_worker.submit_and_verify(api, "request-123", payload))
+        self.assertTrue(job_worker.submit_and_verify(
+            api,
+            "request-123",
+            payload,
+            request={
+                "request_id": "request-123",
+                "document_key": "birth_certificate",
+            },
+        ))
         api.submit_result.assert_called_once_with(
             job_id="request-123",
             status="review_required",
             raw_text="provisional text",
-            ocr_confidence=None,
-            extracted_fields={"document_type": "birth_certificate"},
-            source_payload={"worker_status": "review_required"},
-            error_message=None,
+            extracted_fields={
+                "template_id": "psa_birth_v1",
+                "document_key": "certificate_of_live_birth",
+                "fields": fields,
+                "field_confidence": {},
+                "validation_issues": [],
+            },
+            source_payload={
+                "registration_status": "matched",
+                "preprocessing_variant": "psa_birth_v1",
+                "ocr_engine": "tesseract",
+            },
         )
 
 

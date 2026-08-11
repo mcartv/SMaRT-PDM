@@ -127,7 +127,7 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
     const fields = service.withDerivedGradeFields(
         'student_grade_forms',
         'STUDENT NUMBER STUDENT NAME COURSE : PDM-2023-003137 Petima , Venice Eve BsiT '
-            + 'COPY OF GRADEFOR THE PERIOD: 1st 2023-2024 GWA 1.89',
+            + 'COPY OF GRADEFOR THE PERIOD: 1st 2023-2024 O W A SCORE . 1,89',
         {}
     );
 

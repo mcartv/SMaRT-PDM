@@ -157,9 +157,11 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
         }
     }
 
-    const gwaMatch = text.match(/\bGWA\s*[:;=\-]?\s*([1-5](?:[.,]\d{1,2})?)\b/i);
+    const gwaMatch = text.match(
+        /\b(?:G\s*W\s*A|[O0]\s*W\s*A)(?:\s+SCORE)?\b\s*[:;=.\-|]?\s*([1-5])(?:\s*[.,]\s*|\s+)?(\d{1,2})?\b/i
+    );
     if (gwaMatch && missing('gwa')) {
-        fields.gwa = gradeField(gwaMatch[1].replace(',', '.'));
+        fields.gwa = gradeField(gwaMatch[1] + (gwaMatch[2] ? `.${gwaMatch[2]}` : ''));
     }
     return fields;
 }

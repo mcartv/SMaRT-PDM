@@ -90,6 +90,29 @@ class GradeFormPipelineTests(unittest.TestCase):
         self.assertEqual(result.fields["gwa"]["normalized_value"], "1.59")
         self.assertIsNotNone(result.field_confidence["student_name"])
 
+    @patch("pipeline.grade_form_v1.pytesseract.image_to_data")
+    @patch("pipeline.grade_form_v1.fast_preprocess")
+    def test_gwa_accepts_common_tesseract_label_and_decimal_errors(
+        self,
+        preprocess,
+        image_to_data,
+    ):
+        preprocess.return_value = object()
+        image_to_data.return_value = tesseract_data([
+            [("Student", 94), ("Number:", 95), ("2023-001234", 93)],
+            [("Name:", 92), ("JUAN", 93), ("DELA", 91), ("CRUZ", 95)],
+            [("Course:", 90), ("BSIT", 91)],
+            [("Semester:", 95), ("1st", 96), ("Semester", 94)],
+            [("Academic", 97), ("Year:", 96), ("2025-2026", 97)],
+            [("OWA.", 96), ("1,69", 95)],
+        ])
+
+        result = scan_grade_form("capture.jpg")
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.fields["gwa"]["normalized_value"], "1.69")
+        self.assertEqual(result.field_confidence["gwa"], 95.5)
+
 
 if __name__ == "__main__":
     unittest.main()

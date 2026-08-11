@@ -89,6 +89,10 @@ INDIGENCY_FIELD_TIMEOUT_SECONDS = max(
     3.0,
     float(os.getenv("INDIGENCY_FIELD_TIMEOUT_SECONDS", "8")),
 )
+GRADE_FORM_LENS_POSITION = min(
+    32.0,
+    max(0.0, float(os.getenv("GRADE_FORM_LENS_POSITION", "2.00"))),
+)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -914,6 +918,11 @@ def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
     }
 
 
+def _configure_camera_for_document(camera: CameraController, document_key: str) -> None:
+    if document_key == "student_grade_forms":
+        camera.fixed_lens_position = GRADE_FORM_LENS_POSITION
+
+
 def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bool, Dict]:
     request_ref = _safe_request_ref(get_request_id(request))
     document_key = str(request.get("document_key") or "unknown")
@@ -922,6 +931,7 @@ def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bo
     workspace = Path("/tmp/smart-pdm") / get_request_id(request)
     workspace.mkdir(parents=True, exist_ok=True)
     camera = CameraController()
+    _configure_camera_for_document(camera, document_key)
     camera.capture_file = str(workspace / "capture.jpg")
 
     capture_result = run_capture_session(

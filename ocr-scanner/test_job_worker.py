@@ -207,6 +207,22 @@ class JobWorkerTest(unittest.TestCase):
         request.update(overrides)
         return request
 
+    def test_grade_form_uses_2_00_lens_without_changing_indigency(self):
+        grade_camera = SimpleNamespace(fixed_lens_position=1.50)
+        indigency_camera = SimpleNamespace(fixed_lens_position=1.50)
+
+        job_worker._configure_camera_for_document(
+            grade_camera,
+            "student_grade_forms",
+        )
+        job_worker._configure_camera_for_document(
+            indigency_camera,
+            "certificate_of_indigency",
+        )
+
+        self.assertEqual(grade_camera.fixed_lens_position, 2.00)
+        self.assertEqual(indigency_camera.fixed_lens_position, 1.50)
+
     def test_generic_document_uses_one_shared_capture_and_same_path(self):
         success, payload = job_worker.run_scan(self.request("unknown_key"))
 

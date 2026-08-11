@@ -33,7 +33,9 @@ FIELD_PATTERNS = {
         r"^\s*(?:academic\s*year|school\s*year|a\.?y\.?)\s*[:\-]?\s*(.+)$", re.I
     ),
     "gwa": re.compile(
-        r"^\s*(?:GWA|general\s+weighted\s+average)\s*[:\-]?\s*([1-5](?:\.\d{1,2})?)\b",
+        r"^\s*(?:G\s*W\s*A|[O0]\s*W\s*A|general\s+weighted\s+average)"
+        r"(?:\s+score)?\s*[:;=.\-|]?\s*"
+        r"([1-5](?:\s*[.,]\s*\d{1,2}|\s+\d{1,2})?)\b",
         re.I,
     ),
 }
@@ -51,6 +53,14 @@ def _field(value: str) -> dict[str, str]:
     }
 
 
+def _normalize_gwa_text(value: str) -> str:
+    compact = " ".join(str(value or "").strip().split())
+    match = re.fullmatch(r"([1-5])(?:\s*[.,]\s*|\s+)?(\d{1,2})?", compact)
+    if not match:
+        return compact
+    return match.group(1) + (f".{match.group(2)}" if match.group(2) else "")
+
+
 def _valid_direct_value(field_key: str, value: str) -> bool:
     cleaned = " ".join(str(value or "").strip().split())
     if not cleaned:
@@ -60,7 +70,7 @@ def _valid_direct_value(field_key: str, value: str) -> bool:
     if field_key == "academic_year":
         return bool(re.fullmatch(r"\d{4}\s*[-–]\s*\d{4}", cleaned))
     if field_key == "gwa":
-        return bool(re.fullmatch(r"[1-5](?:\.\d{1,2})?", cleaned))
+        return bool(re.fullmatch(r"[1-5](?:\.\d{1,2})?", _normalize_gwa_text(cleaned)))
     forbidden_labels = (
         "student number",
         "student name",
@@ -135,12 +145,13 @@ def _extract_layout_fields(
         )
 
     gwa_match = re.search(
-        r"\bGWA\s*[:\-]?\s*([1-5](?:\.\d{1,2})?)\b",
+        r"\b(?:G\s*W\s*A|[O0]\s*W\s*A)(?:\s+SCORE)?\b"
+        r"\s*[:;=.\-|]?\s*([1-5](?:\s*[.,]\s*\d{1,2}|\s+\d{1,2})?)\b",
         normalized,
         re.I,
     )
     if gwa_match:
-        extracted["gwa"] = gwa_match.group(1)
+        extracted["gwa"] = _normalize_gwa_text(gwa_match.group(1))
 
     return extracted
 
@@ -194,6 +205,8 @@ def scan_grade_form(image_path: str) -> GradeFormResult:
             if not match:
                 continue
             value = match.group(1).strip(" :-")
+            if field_key == "gwa":
+                value = _normalize_gwa_text(value)
             if _valid_direct_value(field_key, value):
                 fields[field_key] = {
                     "raw_text": value,

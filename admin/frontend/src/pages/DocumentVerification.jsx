@@ -1287,8 +1287,10 @@ function deriveGradeReviewValues(rawText) {
     derived.academic_year = period[2].replace(/\s*[-–]\s*/g, '-');
   }
 
-  const gwa = text.match(/\bGWA\s*[:;=\-]?\s*([1-5](?:[.,]\d{1,2})?)\b/i);
-  if (gwa) derived.gwa = gwa[1].replace(',', '.');
+  const gwa = text.match(
+    /\b(?:G\s*W\s*A|[O0]\s*W\s*A)(?:\s+SCORE)?\b\s*[:;=.\-|]?\s*([1-5])(?:\s*[.,]\s*|\s+)?(\d{1,2})?\b/i
+  );
+  if (gwa) derived.gwa = gwa[1] + (gwa[2] ? `.${gwa[2]}` : '');
   return derived;
 }
 

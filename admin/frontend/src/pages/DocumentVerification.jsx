@@ -3101,7 +3101,7 @@ export default function DocumentVerification() {
       });
     } catch (err) {
       console.error('COMPLETE VERIFICATION ERROR:', err);
-      alert(err.message || 'Failed to complete the verification');
+      alert(err.message || 'Failed to complete verification');
     } finally {
       setSubmitting(false);
     }

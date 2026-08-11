@@ -585,9 +585,12 @@ exports.verifyCurrentStaffPassword = async (req, res) => {
 
 exports.changeCurrentStaffPassword = async (req, res) => {
     try {
-        await accountService.changeCurrentStaffPassword(getActorUserId(req), req.body || {});
-
         const actorUserId = getActorUserId(req);
+        const result = await accountService.changeCurrentStaffPassword(
+            actorUserId,
+            req.body || {}
+        );
+
         if (actorUserId) {
             try {
                 const notification = await notificationService.createUserNotification({
@@ -602,9 +605,19 @@ exports.changeCurrentStaffPassword = async (req, res) => {
             } catch (notificationError) {
                 console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
             }
+
+            disconnectAccountSockets(req, actorUserId, {
+                reason: 'password-changed',
+                code: 'PASSWORD_CHANGED',
+                message: 'Your password was changed. Please sign in again using your new password.',
+            });
         }
 
-        return res.status(200).json({ success: true, message: 'Password changed successfully.' });
+        return res.status(200).json({
+            success: true,
+            session_invalidated: result?.session_invalidated === true,
+            message: 'Password changed successfully. Please sign in again.',
+        });
     } catch (err) {
         console.error('CHANGE CURRENT STAFF PASSWORD ERROR:', err);
         return sendError(res, err, 'Failed to change password');

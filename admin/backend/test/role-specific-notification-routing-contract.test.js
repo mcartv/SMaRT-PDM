@@ -66,7 +66,8 @@ test('RO notifications are shown in department portals only with active RO coord
   const source = read('admin/frontend/src/hooks/usePortalNotifications.js');
 
   assert.match(source, /buildApiUrl\('\/api\/accounts\/me'\)/);
-  assert.match(source, /payload\?\.has_ro_coordinator_access === true/);
+  assert.match(source, /payload\?\.data\?\.has_ro_coordinator_access === true/);
+  assert.doesNotMatch(source, /payload\?\.has_ro_coordinator_access === true/);
   assert.match(source, /hasRoCoordinatorAccess === true/);
   assert.match(source, /'return_of_obligation'/);
   assert.match(source, /'ro_time_log'/);

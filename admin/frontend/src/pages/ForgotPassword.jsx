@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import {
     KeyRound,
     Eye,
@@ -20,13 +20,11 @@ const SB_BASE = '#7c4a2e';
 const SB_SUB = '#d4a98a';
 
 const ADMIN_LOGIN_PATH = '/admin/login';
-const OFFICIAL_ADMIN_EMAIL = 'smartpdm.system@gmail.com';
-
 const START_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/start');
 const VERIFY_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/verify');
 const FINALIZE_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/reset');
 
-const AUTO_REQUEST_STORAGE_KEY = 'smartpdm_admin_reset_last_request_at';
+const RESET_REQUEST_STORAGE_KEY_PREFIX = 'smartpdm_admin_reset_last_request_at';
 const RESEND_SECONDS = 60;
 
 async function requestJson(url, body, fallbackMessage) {
@@ -74,8 +72,21 @@ function getPasswordChecks(password) {
     ];
 }
 
-function getRemainingCooldown() {
-    const lastRequestedAt = Number(sessionStorage.getItem(AUTO_REQUEST_STORAGE_KEY) || 0);
+function normalizeEmail(value) {
+    return String(value || '').replace(/\s+/g, '').trim().toLowerCase();
+}
+
+function getCooldownStorageKey(email) {
+    return `${RESET_REQUEST_STORAGE_KEY_PREFIX}:${normalizeEmail(email)}`;
+}
+
+function getRemainingCooldown(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return 0;
+
+    const lastRequestedAt = Number(
+        sessionStorage.getItem(getCooldownStorageKey(normalizedEmail)) || 0
+    );
 
     if (!lastRequestedAt) return 0;
 
@@ -85,10 +96,11 @@ function getRemainingCooldown() {
 
 export default function ForgotPassword() {
     const navigate = useNavigate();
+    const location = useLocation();
     const otpRefs = useRef([]);
-    const autoRequestStartedRef = useRef(false);
 
-    const [step, setStep] = useState('otp');
+    const [email, setEmail] = useState(() => normalizeEmail(location.state?.email || ''));
+    const [step, setStep] = useState('email');
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [resetToken, setResetToken] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -141,54 +153,57 @@ export default function ForgotPassword() {
         setResendTimer(seconds);
     };
 
-    const sendOtpRequest = useCallback(
-        async ({ automatic = false } = {}) => {
-            clearFeedback();
+    const sendOtpRequest = async () => {
+        clearFeedback();
 
-            if (automatic) {
-                const remaining = getRemainingCooldown();
+        const normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail) {
+            setStep('email');
+            setError('Enter your Admin email address.');
+            return;
+        }
 
-                if (remaining > 0) {
-                    setNotice('A recovery code was already requested. Check the official admin email.');
-                    startResendTimer(remaining);
-                    focusFirstOtp();
-                    return;
-                }
-            }
+        const remaining = getRemainingCooldown(normalizedEmail);
+        if (remaining > 0) {
+            setStep('otp');
+            setNotice('A recovery code was already requested. Check your Admin email.');
+            startResendTimer(remaining);
+            focusFirstOtp();
+            return;
+        }
 
-            setLoading(true);
+        setLoading(true);
 
-            try {
-                sessionStorage.setItem(AUTO_REQUEST_STORAGE_KEY, String(Date.now()));
+        try {
+            await requestJson(
+                START_RESET_URL,
+                { email: normalizedEmail },
+                'Unable to send recovery code.'
+            );
 
-                await requestJson(
-                    START_RESET_URL,
-                    { email: OFFICIAL_ADMIN_EMAIL },
-                    'Unable to send recovery code.'
-                );
+            sessionStorage.setItem(
+                getCooldownStorageKey(normalizedEmail),
+                String(Date.now())
+            );
+            setEmail(normalizedEmail);
+            setStep('otp');
+            setOtp(['', '', '', '', '', '']);
+            setResetToken('');
+            setNotice('If this active Admin account exists, a recovery code has been sent.');
+            startResendTimer();
+            focusFirstOtp();
+        } catch (err) {
+            console.error('[FORGOT PASSWORD] SEND OTP ERROR:', err);
+            setError(err.message || 'Unable to send recovery code.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-                setStep('otp');
-                setOtp(['', '', '', '', '', '']);
-                setResetToken('');
-                setNotice('Recovery code sent to the official admin email.');
-                startResendTimer();
-                focusFirstOtp();
-            } catch (err) {
-                console.error('[FORGOT PASSWORD] SEND OTP ERROR:', err);
-                setError(err.message || 'Unable to send recovery code.');
-            } finally {
-                setLoading(false);
-            }
-        },
-        []
-    );
-
-    useEffect(() => {
-        if (autoRequestStartedRef.current) return;
-
-        autoRequestStartedRef.current = true;
-        sendOtpRequest({ automatic: true });
-    }, [sendOtpRequest]);
+    const handleEmailSubmit = async (event) => {
+        event.preventDefault();
+        await sendOtpRequest();
+    };
 
     const handleVerifyOtp = async (event) => {
         event.preventDefault();
@@ -199,7 +214,7 @@ export default function ForgotPassword() {
             const data = await requestJson(
                 VERIFY_RESET_URL,
                 {
-                    email: OFFICIAL_ADMIN_EMAIL,
+                    email: normalizeEmail(email),
                     otp: otpValue,
                 },
                 'Invalid or expired recovery code.'
@@ -241,7 +256,7 @@ export default function ForgotPassword() {
             await requestJson(
                 FINALIZE_RESET_URL,
                 {
-                    email: OFFICIAL_ADMIN_EMAIL,
+                    email: normalizeEmail(email),
                     resetToken,
                     newPassword,
                 },
@@ -255,7 +270,7 @@ export default function ForgotPassword() {
             setConfirmPass('');
             setNotice('');
             setError('');
-            sessionStorage.removeItem(AUTO_REQUEST_STORAGE_KEY);
+            sessionStorage.removeItem(getCooldownStorageKey(email));
         } catch (err) {
             console.error('[FORGOT PASSWORD] RESET PASSWORD ERROR:', err);
             setError(err.message || 'Unable to reset password.');
@@ -399,6 +414,63 @@ export default function ForgotPassword() {
         </div>
     );
 
+    const renderEmailStep = () => (
+        <>
+            <div className="mb-8">
+                <div className="flex items-center gap-2 mb-2 text-orange-800">
+                    <KeyRound size={18} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">
+                        Account Recovery
+                    </span>
+                </div>
+
+                <h1 className="text-3xl font-bold text-stone-900">
+                    Forgot password
+                </h1>
+
+                <p className="text-stone-500 text-sm mt-1">
+                    Enter the email address of the Admin account you want to recover.
+                </p>
+            </div>
+
+            {renderFeedback()}
+
+            <form onSubmit={handleEmailSubmit} className="space-y-5">
+                <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-stone-700 ml-1">
+                        Admin Email Address
+                    </label>
+                    <input
+                        type="email"
+                        required
+                        autoComplete="email"
+                        placeholder="admin@pdm.edu.ph"
+                        value={email}
+                        onChange={(event) => setEmail(normalizeEmail(event.target.value))}
+                        className={inputClass}
+                        disabled={loading}
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    disabled={!normalizeEmail(email) || loading}
+                    className={buttonClass}
+                    style={buttonStyle}
+                >
+                    {loading ? (
+                        <>
+                            <RefreshCw size={16} className="animate-spin" />
+                            Sending...
+                        </>
+                    ) : (
+                        'Send Recovery Code'
+                    )}
+                </button>
+            </form>
+        </>
+    );
+
     const renderOtpStep = () => (
         <>
             <div className="mb-8">
@@ -414,7 +486,7 @@ export default function ForgotPassword() {
                 </h1>
 
                 <p className="text-stone-500 text-sm mt-1">
-                    The recovery code was sent to the official admin email.
+                    Enter the recovery code sent to your Admin email.
                 </p>
             </div>
 
@@ -463,7 +535,7 @@ export default function ForgotPassword() {
                     )}
                 </button>
 
-                <div className="text-center">
+                <div className="space-y-2 text-center">
                     {resendTimer > 0 ? (
                         <p className="text-xs text-stone-400">
                             Resend in {resendTimer}s
@@ -479,6 +551,20 @@ export default function ForgotPassword() {
                             Resend Code
                         </button>
                     )}
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            clearFeedback();
+                            setOtp(['', '', '', '', '', '']);
+                            setResetToken('');
+                            setStep('email');
+                        }}
+                        disabled={loading}
+                        className="text-[11px] font-semibold text-stone-500 hover:text-stone-800 hover:underline disabled:opacity-60"
+                    >
+                        Use a different Admin email
+                    </button>
                 </div>
             </form>
         </>
@@ -625,6 +711,8 @@ export default function ForgotPassword() {
 
     const renderStep = () => {
         switch (step) {
+            case 'email':
+                return renderEmailStep();
             case 'otp':
                 return renderOtpStep();
             case 'reset':
@@ -632,7 +720,7 @@ export default function ForgotPassword() {
             case 'done':
                 return renderDoneStep();
             default:
-                return renderOtpStep();
+                return renderEmailStep();
         }
     };
 

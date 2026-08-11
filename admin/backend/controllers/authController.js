@@ -9,10 +9,6 @@ const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const adminSessionService = require('../services/adminSessionService');
 
-const ALLOWED_ADMIN_EMAIL = String(
-    process.env.ALLOWED_ADMIN_EMAIL || 'smartpdm.system@gmail.com'
-).trim().toLowerCase();
-
 function emitAdminSessionUpdated(req, action, session = null) {
     socketEvents.emitEvent(req.app?.get?.('io'), 'admin-session:updated', {
         action,
@@ -137,16 +133,13 @@ async function findStaffByEmail(email) {
 
 async function findAuthorizedAdminForReset(email) {
     const normalizedEmail = normalizeEmail(email);
-
-    if (normalizedEmail !== ALLOWED_ADMIN_EMAIL) {
-        return null;
-    }
+    if (!normalizedEmail) return null;
 
     const user = await findStaffByEmail(normalizedEmail);
 
     if (!user) return null;
     if (!user.admin_id) return null;
-    if (normalizeEmail(user.email) !== ALLOWED_ADMIN_EMAIL) return null;
+    if (user.is_archived === true) return null;
 
     const resolvedRole = resolveStaffRole(user);
 
@@ -602,13 +595,9 @@ exports.startAdminPasswordReset = async (req, res) => {
 
         const resetOtpId = insertResult.rows[0]?.reset_otp_id;
 
-        const resetEmailRecipient =
-            process.env.ADMIN_RESET_EMAIL_TO ||
-            user.email;
-
         try {
             await sendAdminResetOtp({
-                to: resetEmailRecipient,
+                to: user.email,
                 otp,
                 expiresSeconds: RESET_OTP_TTL_SECONDS,
             });
@@ -813,7 +802,8 @@ exports.resetAdminPassword = async (req, res) => {
             await client.query(
                 `
                 UPDATE users
-                SET password_hash = $1
+                SET password_hash = $1,
+                    token_version = COALESCE(token_version, 1) + 1
                 WHERE user_id = $2
                 `,
                 [passwordHash, resetRow.user_id]

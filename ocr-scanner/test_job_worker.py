@@ -9,6 +9,7 @@ import numpy as np
 sys.modules.setdefault("api", SimpleNamespace(ApiClient=MagicMock))
 
 import job_worker
+from birth_manual_review import BirthManualReviewResult
 from capture_session import CANCELLED, CAPTURED, FAILED, CaptureSessionResult
 
 
@@ -93,6 +94,7 @@ def _birth_crop_result(status="success"):
         data=SimpleNamespace(
             regions=regions,
             crops=crops,
+            row_crops=crops,
             registered_width=1400,
             registered_height=1375,
         ),
@@ -246,18 +248,21 @@ class JobWorkerTest(unittest.TestCase):
     def test_grade_form_uses_2_00_lens_without_changing_indigency(self):
         grade_camera = SimpleNamespace(
             fixed_lens_position=1.50,
+            focus_mode="manual",
             capture_profile="default",
             capture_width=2304,
             capture_height=1296,
         )
         indigency_camera = SimpleNamespace(
             fixed_lens_position=1.50,
+            focus_mode="manual",
             capture_profile="default",
             capture_width=2304,
             capture_height=1296,
         )
         birth_camera = SimpleNamespace(
             fixed_lens_position=1.50,
+            focus_mode="manual",
             capture_profile="default",
             capture_width=2304,
             capture_height=1296,
@@ -278,7 +283,10 @@ class JobWorkerTest(unittest.TestCase):
 
         self.assertEqual(grade_camera.fixed_lens_position, 2.00)
         self.assertEqual(indigency_camera.fixed_lens_position, 1.50)
-        self.assertEqual(birth_camera.fixed_lens_position, 2.00)
+        self.assertEqual(birth_camera.fixed_lens_position, 1.50)
+        self.assertEqual(birth_camera.focus_mode, "continuous")
+        self.assertEqual(grade_camera.focus_mode, "manual")
+        self.assertEqual(indigency_camera.focus_mode, "manual")
         self.assertEqual(grade_camera.capture_profile, "default")
         self.assertEqual(indigency_camera.capture_profile, "default")
         self.assertEqual(grade_camera.capture_width, 2304)
@@ -443,6 +451,59 @@ class JobWorkerTest(unittest.TestCase):
             },
         )
         self.assertEqual(payload["source_payload"]["topology_status"], "matched")
+
+    @patch("job_worker.collect_birth_manual_review")
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_manual_entry_replaces_only_structured_fields(
+        self,
+        register,
+        crop,
+        ocr,
+        collect_manual,
+    ):
+        register.return_value = _birth_registration_result()
+        crop.return_value = _birth_crop_result()
+        ocr.return_value = _birth_ocr_result()
+        collect_manual.return_value = BirthManualReviewResult(
+            "submitted",
+            fields={
+                "child_name": {
+                    "first_name": "Manual Child",
+                    "middle_name": "M",
+                    "last_name": "Entry",
+                },
+                "mother_maiden_name": {
+                    "first_name": "Manual Mother",
+                    "middle_name": "M",
+                    "last_name": "Entry",
+                },
+                "father_name": {
+                    "first_name": "Manual Father",
+                    "middle_name": "M",
+                    "last_name": "Entry",
+                },
+            },
+        )
+
+        success, payload = job_worker.run_scan(self.request("birth_certificate"))
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        fields = payload["extracted_fields"]["fields"]
+        self.assertEqual(
+            fields["mother_maiden_name"]["components"]["first_name"],
+            "Manual Mother",
+        )
+        self.assertIsNone(payload["field_confidence"]["mother_maiden_name"])
+        self.assertEqual(
+            payload["source_payload"]["structured_value_source"],
+            "pi_local_human_review",
+        )
+        self.assertNotIn("image", payload)
+        self.assertNotIn("capture_path", payload)
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")

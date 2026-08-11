@@ -9,8 +9,6 @@ import {
   savePortalSessionFeedback,
 } from '@/utils/authStorage';
 
-const OFFICIAL_ADMIN_EMAIL = 'smartpdm.system@gmail.com';
-
 export class AuthRequestError extends Error {
   constructor(message, { status = 0, code = 'AUTH_REQUEST_ERROR' } = {}) {
     super(message);
@@ -180,19 +178,19 @@ export const authService = {
     });
   },
 
-  startAdminPasswordReset: async (email = OFFICIAL_ADMIN_EMAIL) => {
+  startAdminPasswordReset: async (email) => {
     return requestJson('/api/auth/admin/forgot-password/start', {
-      body: { email },
+      body: { email: String(email || '').trim().toLowerCase() },
       fallbackMessage: 'Unable to send recovery code',
     });
   },
 
   verifyAdminPasswordResetOtp: async (
     otp,
-    email = OFFICIAL_ADMIN_EMAIL
+    email
   ) => {
     return requestJson('/api/auth/admin/forgot-password/verify', {
-      body: { email, otp },
+      body: { email: String(email || '').trim().toLowerCase(), otp },
       fallbackMessage: 'Invalid or expired recovery code',
     });
   },
@@ -200,10 +198,10 @@ export const authService = {
   resetAdminPassword: async (
     resetToken,
     newPassword,
-    email = OFFICIAL_ADMIN_EMAIL
+    email
   ) => {
     return requestJson('/api/auth/admin/forgot-password/reset', {
-      body: { email, resetToken, newPassword },
+      body: { email: String(email || '').trim().toLowerCase(), resetToken, newPassword },
       fallbackMessage: 'Unable to reset password',
     });
   },

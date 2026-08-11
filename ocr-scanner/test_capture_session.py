@@ -234,6 +234,31 @@ class CaptureSessionTest(unittest.TestCase):
             timeout_ms=camera.capture_timeout_ms,
             suffix="fixed",
         )
+
+    def test_birth_capture_uses_one_continuous_autofocus_still(self):
+        camera = CameraController()
+        camera.capture_profile = "psa_birth_v1"
+        camera.focus_mode = "continuous"
+        camera._valid_jpeg = MagicMock(return_value=True)
+        camera._capture_fixed_position = MagicMock()
+
+        with tempfile.TemporaryDirectory() as directory:
+            camera.capture_file = str(Path(directory) / "capture.jpg")
+            attempt_file = Path(f"{camera.capture_file}.autofocus.jpg")
+            attempt_file.write_bytes(b"mock-jpeg")
+            camera._capture_continuous_autofocus = MagicMock(
+                return_value=attempt_file,
+            )
+
+            self.assertTrue(camera.capture_image(restart_preview=False))
+            self.assertTrue(Path(camera.capture_file).is_file())
+
+        camera._capture_continuous_autofocus.assert_called_once_with(
+            width=camera.capture_width,
+            height=camera.capture_height,
+            timeout_ms=camera.autofocus_capture_timeout_ms,
+        )
+        camera._capture_fixed_position.assert_not_called()
 class ButtonReaderTest(unittest.TestCase):
     @staticmethod
     def event(code):

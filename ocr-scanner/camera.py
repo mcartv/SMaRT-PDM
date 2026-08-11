@@ -1,4 +1,4 @@
-"""Fixed-lens Raspberry Pi Camera Module 3 capture for SMaRT-PDM."""
+"""Raspberry Pi Camera Module 3 capture for SMaRT-PDM."""
 
 from __future__ import annotations
 
@@ -34,6 +34,11 @@ class CameraController:
         )
         self._capture_window_open = False
         self.capture_profile = "default"
+        self.focus_mode = "manual"
+        self.autofocus_capture_timeout_ms = max(
+            1000,
+            int(os.getenv("BIRTH_CAMERA_AUTOFOCUS_TIMEOUT_MS", "1200")),
+        )
         self.birth_exposure_time_us = max(
             100, int(os.getenv("BIRTH_CAMERA_EXPOSURE_TIME_US", "20000"))
         )
@@ -47,8 +52,8 @@ class CameraController:
             0.0, float(os.getenv("BIRTH_CAMERA_CONTRAST", "1.2"))
         )
 
-        # This installation is calibrated at one manual Camera Module 3 lens
-        # position. Do not replace this with autofocus or a sweep.
+        # Grade Form, Indigency, and generic documents retain their calibrated
+        # manual focus. Birth explicitly opts into continuous autofocus.
         self.fixed_lens_position = 1.50
         self.capture_roi = self._parse_roi(
             os.getenv("CAMERA_CAPTURE_ROI", "0.08,0.08,0.84,0.84")
@@ -128,13 +133,18 @@ class CameraController:
         # Keep the preview command compatible with older rpicam-apps builds.
         # Deterministic exposure controls are required only for the still that
         # enters the Birth OCR pipeline.
-        return [
+        command = [
             "rpicam-hello",
             "--timeout", "0",
-            "--autofocus-mode", "manual",
-            "--lens-position", f"{self.fixed_lens_position:.4f}",
-            *self._roi_args(),
         ]
+        if self.focus_mode == "continuous":
+            command.extend(["--autofocus-mode", "continuous"])
+        else:
+            command.extend([
+                "--autofocus-mode", "manual",
+                "--lens-position", f"{self.fixed_lens_position:.4f}",
+            ])
+        return command + self._roi_args()
 
     def start_preview(self) -> bool:
         self.clear_hardware()
@@ -181,9 +191,12 @@ class CameraController:
     def show_processing_status(self) -> None:
         """Close live preview and immediately acknowledge the LEFT press."""
         self.stop_preview()
-        self._start_preview_instruction_overlay(
-            f"IMAGE PROCESSING - CAPTURING AT LENS {self.fixed_lens_position:.2f}"
+        message = (
+            "IMAGE PROCESSING - AUTOFOCUSING AND CAPTURING"
+            if self.focus_mode == "continuous"
+            else f"IMAGE PROCESSING - CAPTURING AT LENS {self.fixed_lens_position:.2f}"
         )
+        self._start_preview_instruction_overlay(message)
 
     def _stop_preview_instruction_overlay(self) -> None:
         process = self.preview_overlay_process
@@ -272,6 +285,25 @@ class CameraController:
         ) + [
             "--autofocus-mode", "manual",
             "--lens-position", f"{lens_position:.4f}",
+        ]
+
+    def _continuous_autofocus_command(
+        self,
+        image: Path,
+        *,
+        width: int,
+        height: int,
+        timeout_ms: int,
+        use_profile_tuning: bool = True,
+    ) -> list[str]:
+        return self._common_capture_args(
+            image,
+            width,
+            height,
+            timeout_ms,
+            use_profile_tuning=use_profile_tuning,
+        ) + [
+            "--autofocus-mode", "continuous",
         ]
 
     def _valid_jpeg(
@@ -427,6 +459,60 @@ class CameraController:
 
         return image
 
+    def _capture_continuous_autofocus(
+        self,
+        *,
+        width: int,
+        height: int,
+        timeout_ms: int,
+    ) -> Optional[Path]:
+        image = Path(f"{self.capture_file}.autofocus.jpg")
+        image.unlink(missing_ok=True)
+        command_timeout = max(15.0, timeout_ms / 1000.0 + 8.0)
+
+        try:
+            result = self._run(
+                self._continuous_autofocus_command(
+                    image,
+                    width=width,
+                    height=height,
+                    timeout_ms=timeout_ms,
+                ),
+                timeout=command_timeout,
+            )
+            if result.returncode != 0 and self.capture_profile == "psa_birth_v1":
+                image.unlink(missing_ok=True)
+                print(
+                    "[CAMERA] Birth capture controls unavailable; "
+                    "retrying autofocus with compatible camera defaults."
+                )
+                result = self._run(
+                    self._continuous_autofocus_command(
+                        image,
+                        width=width,
+                        height=height,
+                        timeout_ms=timeout_ms,
+                        use_profile_tuning=False,
+                    ),
+                    timeout=command_timeout,
+                )
+        except Exception as exc:
+            image.unlink(missing_ok=True)
+            print(
+                "[CAMERA] Autofocus still capture failed. "
+                f"ErrorType={type(exc).__name__}"
+            )
+            return None
+
+        if result.returncode != 0 or not image.is_file():
+            print(
+                "[CAMERA] Autofocus still process failed. "
+                f"ReturnCode={result.returncode}; Profile={self.capture_profile}"
+            )
+            image.unlink(missing_ok=True)
+            return None
+        return image
+
     def capture_image(
         self,
         *,
@@ -444,13 +530,20 @@ class CameraController:
             status_callback('capturing')
 
         position = self.fixed_lens_position
-        image = self._capture_fixed_position(
-            position,
-            width=self.capture_width,
-            height=self.capture_height,
-            timeout_ms=self.capture_timeout_ms,
-            suffix="fixed",
-        )
+        if self.focus_mode == "continuous":
+            image = self._capture_continuous_autofocus(
+                width=self.capture_width,
+                height=self.capture_height,
+                timeout_ms=self.autofocus_capture_timeout_ms,
+            )
+        else:
+            image = self._capture_fixed_position(
+                position,
+                width=self.capture_width,
+                height=self.capture_height,
+                timeout_ms=self.capture_timeout_ms,
+                suffix="fixed",
+            )
         if image is not None:
             if self._valid_jpeg(
                 image,
@@ -460,9 +553,13 @@ class CameraController:
                 self._stop_preview_instruction_overlay()
                 os.replace(image, final)
                 self._close_capture_status()
+                focus_summary = (
+                    "continuous autofocus"
+                    if self.focus_mode == "continuous"
+                    else f"manual lens {position:.3f}"
+                )
                 print(
-                    "[CAMERA] Fixed-lens capture accepted. "
-                    f"Lens={position:.3f}; "
+                    f"[CAMERA] Capture accepted using {focus_summary}; "
                     "starting preprocessing and OCR."
                 )
                 return True
@@ -472,7 +569,7 @@ class CameraController:
         self._close_capture_status()
 
         print(
-            "[CAMERA] No verified fixed-lens capture. "
+            "[CAMERA] No verified camera capture. "
             "OCR/submission blocked."
         )
 

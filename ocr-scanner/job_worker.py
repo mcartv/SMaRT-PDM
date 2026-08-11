@@ -31,6 +31,10 @@ except ImportError:  # pragma: no cover - test/runtime fallback
         return False
 
 from api import ApiClient
+from birth_manual_review import (
+    build_manual_field_texts,
+    collect_birth_manual_review,
+)
 from capture_session import CANCELLED, CAPTURED, CaptureSessionResult, run_capture_session
 from camera import CameraController
 from document_contracts import (
@@ -98,10 +102,6 @@ INDIGENCY_FIELD_TIMEOUT_SECONDS = max(
 GRADE_FORM_LENS_POSITION = min(
     32.0,
     max(0.0, float(os.getenv("GRADE_FORM_LENS_POSITION", "2.00"))),
-)
-BIRTH_CERTIFICATE_LENS_POSITION = min(
-    32.0,
-    max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "2.00"))),
 )
 BIRTH_PADDLE_ENABLED = (
     os.getenv("BIRTH_PADDLE_ENABLED", "false").strip().lower()
@@ -411,6 +411,7 @@ def _birth_topology_summary(topology: Any) -> Dict[str, Any]:
 def _run_birth_certificate_scan(
     request: Dict,
     capture_path: str,
+    request_stop=None,
 ) -> Tuple[bool, Dict]:
     request_id = get_request_id(request)
     application_id = str(request.get("application_id") or "")
@@ -667,9 +668,7 @@ def _run_birth_certificate_scan(
             crop_result.data,
             config={"paddle_enabled": BIRTH_PADDLE_ENABLED},
         )
-        extracted_fields = build_birth_extracted_fields_from_ocr_result(
-            raw_text="\n".join(field.raw_text for field in getattr(ocr_result.data, "fields", ()) if field.raw_text),
-            field_texts={
+        ocr_field_texts = {
                 field.name: {
                     "raw_text": field.raw_text,
                     "components": dict(field.components),
@@ -679,7 +678,52 @@ def _run_birth_certificate_scan(
                     "component_raw_text": dict(field.component_raw_text),
                 }
                 for field in getattr(ocr_result.data, "fields", ())
+            }
+        manual_review = collect_birth_manual_review(
+            request_id=request_id,
+            capture_path=capture_path,
+            row_crops=getattr(crop_result.data, "row_crops", {}),
+            initial_fields={
+                field_name: dict(value.get("components") or {})
+                for field_name, value in ocr_field_texts.items()
             },
+            should_stop=(
+                (lambda: bool(request_stop and request_stop.is_set()))
+                if request_stop is not None
+                else None
+            ),
+        )
+        if manual_review.status == "cancelled":
+            return False, {
+                "status": "cancelled",
+                "raw_text": raw_text,
+                "document_type": "birth_certificate",
+                "manual_review_required": True,
+                "extracted_fields": _empty_birth_extracted_fields(),
+                "source_payload": {
+                    "source": "pi-worker-iot-ocr-request",
+                    "mode": "birth_certificate_pipeline",
+                    "request_id": request_id,
+                    "document_key": document_key,
+                    "worker_status": "cancelled",
+                    "manual_entry_status": "cancelled",
+                },
+                "validation_issues": [],
+                "error_message": None,
+            }
+
+        field_texts = (
+            build_manual_field_texts(manual_review.fields)
+            if manual_review.status == "submitted"
+            else ocr_field_texts
+        )
+        extracted_fields = build_birth_extracted_fields_from_ocr_result(
+            raw_text="\n".join(
+                str(value.get("raw_text") or "")
+                for value in field_texts.values()
+                if value.get("raw_text")
+            ),
+            field_texts=field_texts,
             ocr_attempts=int(ocr_result.metrics.get("total_ocr_attempts", len(getattr(ocr_result.data, "fields", ())))),
             preprocessing_variant=(
                 ocr_result.data.fields[0].preprocessing_variant
@@ -690,16 +734,25 @@ def _run_birth_certificate_scan(
         structured_text = extracted_fields["raw_text"]
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
-        status = "review_required" if ocr_result.success else "failed"
-        error_message = None if ocr_result.success else "Birth OCR adapter failed."
+        structured_ready = (
+            manual_review.status == "submitted" or ocr_result.success
+        )
+        status = "review_required" if structured_ready else "failed"
+        error_message = (
+            None if structured_ready else "Birth OCR adapter failed."
+        )
 
         payload = {
             "status": status,
             "raw_text": raw_text,
             "ocr_confidence": None,
             "field_confidence": {
-                field.name: field.confidence
-                for field in getattr(ocr_result.data, "fields", ())
+                field_name: (
+                    None
+                    if manual_review.status == "submitted"
+                    else value.get("confidence")
+                )
+                for field_name, value in field_texts.items()
             },
             "document_type": "birth_certificate",
             "manual_review_required": True,
@@ -726,30 +779,43 @@ def _run_birth_certificate_scan(
                     "validated_row_count", 0
                 ),
                 "topology_rows": _birth_topology_summary(topology_result.data),
-                "confidence_source": ocr_result.metrics.get(
-                    "confidence_source", "tesseract_image_to_data"
+                "confidence_source": (
+                    "pi_local_human_review"
+                    if manual_review.status == "submitted"
+                    else ocr_result.metrics.get(
+                        "confidence_source", "tesseract_image_to_data"
+                    )
                 ),
                 "paddle_enabled": BIRTH_PADDLE_ENABLED,
                 "baseline_status": "matched",
                 "baseline_ocr_engine": "tesseract",
+                "manual_entry_status": manual_review.status,
+                "structured_value_source": (
+                    "pi_local_human_review"
+                    if manual_review.status == "submitted"
+                    else "birth_ocr_fallback"
+                ),
                 "structured_text_available": bool(structured_text.strip()),
                 "cropper_status": crop_result.status,
                 "cropper_issue_codes": _issue_codes(crop_result),
                 "ocr_status": ocr_result.status,
                 "ocr_issue_codes": _issue_codes(ocr_result),
                 "manual_review_required": True,
-                "worker_status": ocr_result.status,
+                "worker_status": status,
                 "ocr_attempts": ocr_attempts,
                 "preprocessing_variant": preprocessing_variant,
-                "structured_field_keys": sorted(field.name for field in getattr(ocr_result.data, "fields", ())),
+                "structured_field_keys": sorted(field_texts),
             },
-            "validation_issues": [
+            "validation_issues": ([{
+                "code": "BIRTH_PI_MANUAL_ENTRY_REQUIRES_ADMIN_CONFIRMATION",
+                "message": "Pi-local Birth entries require admin confirmation.",
+            }] if manual_review.status == "submitted" else [
                 {
                     "code": str(issue.get("code") or "BIRTH_OCR_REVIEW"),
                     "message": "Birth certificate OCR requires admin review.",
                 }
                 for issue in getattr(ocr_result, "issues", ())
-            ],
+            ]),
             "error_message": error_message,
         }
         return status == "review_required", payload
@@ -1149,7 +1215,7 @@ def _configure_camera_for_document(camera: CameraController, document_key: str) 
     if document_key == "student_grade_forms":
         camera.fixed_lens_position = GRADE_FORM_LENS_POSITION
     elif _is_birth_certificate_job({"document_key": document_key}):
-        camera.fixed_lens_position = BIRTH_CERTIFICATE_LENS_POSITION
+        camera.focus_mode = "continuous"
         camera.capture_profile = "psa_birth_v1"
         camera.capture_width = BIRTH_CAMERA_CAPTURE_WIDTH
         camera.capture_height = BIRTH_CAMERA_CAPTURE_HEIGHT
@@ -1205,7 +1271,11 @@ def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bo
     )
 
     if _is_birth_certificate_job(request):
-        success, payload = _run_birth_certificate_scan(request, capture_result.capture_path)
+        success, payload = _run_birth_certificate_scan(
+            request,
+            capture_result.capture_path,
+            request_stop=request_stop,
+        )
     elif document_key == "student_grade_forms":
         success, payload = _run_grade_form_scan(request, capture_result.capture_path)
     else:

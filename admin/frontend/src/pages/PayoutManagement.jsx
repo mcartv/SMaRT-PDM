@@ -229,119 +229,6 @@ function PaginationFooter({
   );
 }
 
-function BenefactorScholarGraph({ rows, loading, error, onRefresh }) {
-  const normalizedRows = Array.isArray(rows) ? rows : [];
-  const maxCount = Math.max(1, ...normalizedRows.map((row) => Number(row.scholar_count || 0)));
-  const totalScholars = normalizedRows.reduce(
-    (sum, row) => sum + Number(row.scholar_count || 0),
-    0
-  );
-
-  return (
-    <section
-      className="overflow-hidden rounded-2xl border bg-white"
-      style={{ borderColor: C.line }}
-    >
-      <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-stone-500" />
-            <h2 className="text-sm font-semibold text-stone-800">
-              Scholar Count by Benefactor
-            </h2>
-          </div>
-          <p className="mt-1 text-xs text-stone-500">
-            Active scholars grouped by their current scholarship benefactor.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="rounded-xl bg-stone-50 px-3 py-2 text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
-              Active Scholars
-            </p>
-            <p className="text-base font-semibold text-stone-900">{totalScholars}</p>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={loading}
-            className="h-9 rounded-xl border-stone-200 text-xs"
-          >
-            {loading ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : null}
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      <div className="p-4 sm:p-5">
-        {loading && normalizedRows.length === 0 ? (
-          <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-stone-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading scholar counts...
-          </div>
-        ) : error ? (
-          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-4 text-sm text-red-700">
-            {error}
-          </div>
-        ) : normalizedRows.length === 0 ? (
-          <div className="py-12 text-center text-sm text-stone-400">
-            No active scholar records are available yet.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {normalizedRows.map((row) => {
-              const count = Number(row.scholar_count || 0);
-              const width = Math.max(2, (count / maxCount) * 100);
-
-              return (
-                <div
-                  key={row.benefactor_name}
-                  className="grid gap-2 sm:grid-cols-[minmax(150px,240px)_1fr_64px] sm:items-center"
-                >
-                  <div className="min-w-0">
-                    <p
-                      className="truncate text-xs font-semibold text-stone-700"
-                      title={row.benefactor_name}
-                    >
-                      {row.benefactor_name}
-                    </p>
-                  </div>
-
-                  <div className="h-8 overflow-hidden rounded-lg bg-stone-100">
-                    <div
-                      className="flex h-full items-center justify-end rounded-lg px-2 transition-[width] duration-300"
-                      style={{
-                        width: `${width}%`,
-                        minWidth: count > 0 ? '2.25rem' : '0',
-                        background: C.brownMid,
-                      }}
-                    >
-                      {count > 0 ? (
-                        <span className="text-[10px] font-semibold text-white">{count}</span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-1 text-xs text-stone-500">
-                    <Users className="h-3.5 w-3.5" />
-                    <span className="font-semibold text-stone-800">{count}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function PostPayoutCreatePrompt({
   open,
   payout,
@@ -440,9 +327,6 @@ export default function PayoutManagement() {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [academicYears, setAcademicYears] = useState([]);
-  const [benefactorScholarRows, setBenefactorScholarRows] = useState([]);
-  const [benefactorScholarLoading, setBenefactorScholarLoading] = useState(true);
-  const [benefactorScholarError, setBenefactorScholarError] = useState('');
 
   const [postCreateOpen, setPostCreateOpen] = useState(false);
   const [newPayoutForPrompt, setNewPayoutForPrompt] = useState(null);
@@ -451,7 +335,6 @@ export default function PayoutManagement() {
 
   useEffect(() => {
     loadAll();
-    loadBenefactorScholarCounts();
   }, []);
 
   useSocketEvent('payout:created', () => {
@@ -472,26 +355,6 @@ export default function PayoutManagement() {
 
   useSocketEvent('scholar:released', () => {
     loadAll();
-  }, []);
-
-  useSocketEvent('scholar:created', () => {
-    loadBenefactorScholarCounts();
-  }, []);
-
-  useSocketEvent('scholar:updated', () => {
-    loadBenefactorScholarCounts();
-  }, []);
-
-  useSocketEvent('scholar:archived', () => {
-    loadBenefactorScholarCounts();
-  }, []);
-
-  useSocketEvent('scholar:restored', () => {
-    loadBenefactorScholarCounts();
-  }, []);
-
-  useSocketEvent('report:updated', () => {
-    loadBenefactorScholarCounts();
   }, []);
 
   useEffect(() => {
@@ -515,48 +378,6 @@ export default function PayoutManagement() {
 
     loadOpeningEligibility(form.opening_id);
   }, [form.opening_id]);
-
-  const loadBenefactorScholarCounts = async () => {
-    try {
-      setBenefactorScholarLoading(true);
-      setBenefactorScholarError('');
-
-      const res = await fetch(
-        `${API_BASE}/reports/preview?reportType=scholars_by_benefactor&silent=true`,
-        { headers: getAuthHeaders(false) }
-      );
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(
-          data?.error || data?.message || 'Failed to load scholar counts by benefactor'
-        );
-      }
-
-      const rows = Array.isArray(data?.rows) ? data.rows : [];
-
-      setBenefactorScholarRows(
-        rows
-          .map((row) => ({
-            benefactor_name: String(row?.benefactor_name || 'Unassigned').trim() || 'Unassigned',
-            scholar_count: Math.max(0, Number(row?.scholar_count || 0)),
-          }))
-          .sort((a, b) =>
-            b.scholar_count - a.scholar_count ||
-            a.benefactor_name.localeCompare(b.benefactor_name)
-          )
-      );
-    } catch (err) {
-      console.error('BENEFACTOR SCHOLAR COUNT LOAD ERROR:', err);
-      setBenefactorScholarRows([]);
-      setBenefactorScholarError(
-        err.message || 'Failed to load scholar counts by benefactor'
-      );
-    } finally {
-      setBenefactorScholarLoading(false);
-    }
-  };
 
   const loadAll = async () => {
     try {
@@ -1270,13 +1091,6 @@ export default function PayoutManagement() {
       />
 
       <PayoutProofReviewPanel />
-
-      <BenefactorScholarGraph
-        rows={benefactorScholarRows}
-        loading={benefactorScholarLoading}
-        error={benefactorScholarError}
-        onRefresh={loadBenefactorScholarCounts}
-      />
 
       <section
         className="rounded-2xl border bg-white p-3 sm:p-4"

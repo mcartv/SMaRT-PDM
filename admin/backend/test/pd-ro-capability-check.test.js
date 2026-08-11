@@ -17,7 +17,7 @@ const accountService = fs.readFileSync(
 test('department layouts check RO capability through accounts/me instead of RO summary', () => {
   assert.match(layout, /\/api\/accounts\/me/);
   assert.doesNotMatch(layout, /\/api\/ro-coordinator\/summary/);
-  assert.match(layout, /has_ro_coordinator_access === true/);
+  assert.match(layout, /data\?\.data\?\.has_ro_coordinator_access === true/);
 });
 
 test('account profile exposes active RO coordinator capability for PD, SDO, Guidance, and dedicated coordinators', () => {

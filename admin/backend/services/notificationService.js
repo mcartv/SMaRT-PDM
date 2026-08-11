@@ -137,6 +137,76 @@ async function createNotificationsForAudience({
         return [];
     }
 
+    const timestamp = createdAt || new Date().toISOString();
+    const isCanonicalAnnouncement =
+        referenceId &&
+        String(referenceType || '').trim().toLowerCase() === 'announcement' &&
+        String(type || '').trim().toLowerCase() === 'announcement';
+
+    if (isCanonicalAnnouncement) {
+        const userIds = users
+            .map((targetUser) => String(targetUser?.user_id || '').trim())
+            .filter(Boolean);
+
+        const { rows } = await db.query(
+            `
+            INSERT INTO notifications (
+                user_id,
+                type,
+                title,
+                message,
+                reference_id,
+                reference_type,
+                is_read,
+                push_sent,
+                created_at
+            )
+            SELECT
+                target.user_id,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                false,
+                false,
+                $7::timestamptz
+            FROM unnest($1::uuid[]) AS target(user_id)
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM notifications existing
+                WHERE existing.user_id = target.user_id
+                  AND existing.reference_id = $5
+                  AND existing.reference_type = $6
+                  AND lower(existing.type) = lower($2)
+            )
+            ON CONFLICT DO NOTHING
+            RETURNING
+                notification_id,
+                user_id,
+                type,
+                title,
+                message,
+                reference_id,
+                reference_type,
+                is_read,
+                push_sent,
+                created_at
+            `,
+            [
+                userIds,
+                type,
+                title,
+                message,
+                referenceId,
+                referenceType,
+                timestamp,
+            ]
+        );
+
+        return rows || [];
+    }
+
     const rows = users.map((targetUser) => ({
         user_id: targetUser.user_id,
         type,
@@ -146,7 +216,7 @@ async function createNotificationsForAudience({
         reference_type: referenceType,
         is_read: false,
         push_sent: false,
-        created_at: createdAt || new Date().toISOString(),
+        created_at: timestamp,
     }));
 
     const { data, error } = await supabase

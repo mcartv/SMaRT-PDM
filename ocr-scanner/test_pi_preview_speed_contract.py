@@ -211,7 +211,21 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
         ]
         self.assertIn('"--autofocus-mode", "manual"', preview)
         self.assertIn('"--lens-position"', preview)
-        self.assertNotIn('"continuous"', preview)
+        default_preview = controller._preview_command()
+        self.assertEqual(
+            default_preview[default_preview.index("--autofocus-mode") + 1],
+            "manual",
+        )
+        self.assertIn("--lens-position", default_preview)
+
+        controller.capture_profile = "psa_birth_v1"
+        controller.focus_mode = "continuous"
+        birth_preview = controller._preview_command()
+        self.assertEqual(
+            birth_preview[birth_preview.index("--autofocus-mode") + 1],
+            "continuous",
+        )
+        self.assertNotIn("--lens-position", birth_preview)
 
         camera_source = Path("camera.py").read_text(encoding="utf-8")
         self.assertNotIn("COARSE SWEEP", camera_source)

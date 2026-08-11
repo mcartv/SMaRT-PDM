@@ -282,7 +282,15 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
             'certificate_subject_name',
             'residency_address',
         ],
-        student_grade_forms: ['student_number', 'semester', 'academic_year', 'subjects', 'gwa'],
+        student_grade_forms: [
+            'student_number',
+            'student_name',
+            'course',
+            'semester',
+            'academic_year',
+            'subjects',
+            'gwa',
+        ],
     };
     const required = requiredByDocument[documentKey];
     if (!required) throw buildHttpError(400, 'Unsupported OCR document contract');
@@ -290,7 +298,8 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         fields[key] === undefined
         || fields[key] === null
         || (
-            documentKey === 'certificate_of_indigency'
+            key !== 'subjects'
+            && ['certificate_of_indigency', 'student_grade_forms'].includes(documentKey)
             && !String(fieldValue(fields[key]) ?? '').trim()
         )
     ));
@@ -310,6 +319,8 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     }
     return {
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
+        student_name: String(fieldValue(fields.student_name) ?? '').trim(),
+        course: String(fieldValue(fields.course) ?? '').trim(),
         semester: String(fieldValue(fields.semester) ?? '').trim(),
         academic_year: String(fieldValue(fields.academic_year) ?? '').trim(),
         subjects: fields.subjects,

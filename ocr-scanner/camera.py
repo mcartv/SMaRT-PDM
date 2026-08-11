@@ -124,18 +124,23 @@ class CameraController:
         output = f"{result.stdout}\n{result.stderr}".casefold()
         return result.returncode == 0 and "imx708" in output
 
+    def _preview_command(self) -> list[str]:
+        # Keep the preview command compatible with older rpicam-apps builds.
+        # Deterministic exposure controls are required only for the still that
+        # enters the Birth OCR pipeline.
+        return [
+            "rpicam-hello",
+            "--timeout", "0",
+            "--autofocus-mode", "manual",
+            "--lens-position", f"{self.fixed_lens_position:.4f}",
+            *self._roi_args(),
+        ]
+
     def start_preview(self) -> bool:
         self.clear_hardware()
         try:
             self.preview_process = subprocess.Popen(
-                [
-                    "rpicam-hello",
-                    "--timeout", "0",
-                    "--autofocus-mode", "manual",
-                    "--lens-position", f"{self.fixed_lens_position:.4f}",
-                    *self._capture_tuning_args(),
-                    *self._roi_args(),
-                ],
+                self._preview_command(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
@@ -144,6 +149,11 @@ class CameraController:
             return False
         time.sleep(1.0)
         self.is_previewing = self.preview_process.poll() is None
+        if not self.is_previewing:
+            print(
+                "[CAMERA] Preview process exited before ready. "
+                f"ReturnCode={self.preview_process.returncode}"
+            )
         if self.is_previewing:
             self._start_preview_instruction_overlay()
         return self.is_previewing
@@ -223,6 +233,8 @@ class CameraController:
         width: int,
         height: int,
         timeout_ms: int,
+        *,
+        use_profile_tuning: bool = True,
     ) -> list[str]:
         args = [
             "rpicam-still",
@@ -233,7 +245,11 @@ class CameraController:
             "--timeout", str(timeout_ms),
             "--nopreview",
             *self._roi_args(),
-            *self._capture_tuning_args(),
+            *(
+                self._capture_tuning_args()
+                if use_profile_tuning
+                else ["--awb", "auto"]
+            ),
         ]
         return args
 
@@ -245,12 +261,14 @@ class CameraController:
         width: int,
         height: int,
         timeout_ms: int,
+        use_profile_tuning: bool = True,
     ) -> list[str]:
         return self._common_capture_args(
             image,
             width,
             height,
             timeout_ms,
+            use_profile_tuning=use_profile_tuning,
         ) + [
             "--autofocus-mode", "manual",
             "--lens-position", f"{lens_position:.4f}",
@@ -358,6 +376,7 @@ class CameraController:
         )
         image.unlink(missing_ok=True)
 
+        command_timeout = max(15.0, timeout_ms / 1000.0 + 8.0)
         try:
             result = self._run(
                 self._manual_command(
@@ -367,16 +386,38 @@ class CameraController:
                     height=height,
                     timeout_ms=timeout_ms,
                 ),
-                timeout=max(
-                    15.0,
-                    timeout_ms / 1000.0 + 8.0,
-                ),
+                timeout=command_timeout,
             )
-        except Exception:
+            if result.returncode != 0 and self.capture_profile == "psa_birth_v1":
+                image.unlink(missing_ok=True)
+                print(
+                    "[CAMERA] Birth deterministic controls unavailable; "
+                    "retrying one still with compatible camera defaults."
+                )
+                result = self._run(
+                    self._manual_command(
+                        image,
+                        position,
+                        width=width,
+                        height=height,
+                        timeout_ms=timeout_ms,
+                        use_profile_tuning=False,
+                    ),
+                    timeout=command_timeout,
+                )
+        except Exception as exc:
             image.unlink(missing_ok=True)
+            print(
+                "[CAMERA] Still capture command failed. "
+                f"ErrorType={type(exc).__name__}"
+            )
             return None
 
         if result.returncode != 0:
+            print(
+                "[CAMERA] Still capture process failed. "
+                f"ReturnCode={result.returncode}; Profile={self.capture_profile}"
+            )
             image.unlink(missing_ok=True)
             return None
 

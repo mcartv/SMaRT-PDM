@@ -206,8 +206,8 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
         self.assertNotIn("Sharpness score", capture)
 
         preview = source[
-            source.index("def start_preview") :
-            source.index("def _start_preview_instruction_overlay")
+            source.index("def _preview_command") :
+            source.index("def start_preview")
         ]
         self.assertIn('"--autofocus-mode", "manual"', preview)
         self.assertIn('"--lens-position"', preview)

@@ -70,6 +70,41 @@ class CameraFixedLensGateTest(unittest.TestCase):
         self.assertNotIn("--shutter", command)
         self.assertNotIn("--gain", command)
 
+    def test_birth_preview_uses_known_compatible_arguments(self):
+        controller = CameraController()
+        controller.capture_profile = "psa_birth_v1"
+        controller.fixed_lens_position = 2.00
+
+        command = controller._preview_command()
+
+        self.assertEqual(command[command.index("--lens-position") + 1], "2.0000")
+        self.assertNotIn("--shutter", command)
+        self.assertNotIn("--gain", command)
+        self.assertNotIn("--awb", command)
+        self.assertNotIn("--brightness", command)
+        self.assertNotIn("--contrast", command)
+
+    def test_birth_compatibility_still_retains_lens_and_resolution(self):
+        controller = CameraController()
+        controller.capture_profile = "psa_birth_v1"
+        controller.fixed_lens_position = 2.00
+
+        command = controller._manual_command(
+            Path("/tmp/birth-compatible.jpg"),
+            controller.fixed_lens_position,
+            width=4608,
+            height=2592,
+            timeout_ms=controller.capture_timeout_ms,
+            use_profile_tuning=False,
+        )
+
+        self.assertEqual(command[command.index("--width") + 1], "4608")
+        self.assertEqual(command[command.index("--height") + 1], "2592")
+        self.assertEqual(command[command.index("--lens-position") + 1], "2.0000")
+        self.assertEqual(command[command.index("--awb") + 1], "auto")
+        self.assertNotIn("--shutter", command)
+        self.assertNotIn("--gain", command)
+
 
 if __name__ == "__main__":
     unittest.main()

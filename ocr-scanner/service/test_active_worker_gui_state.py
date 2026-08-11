@@ -10,6 +10,9 @@ import active_worker_gui_state as bridge
 
 
 class ActiveWorkerGuiStateTests(unittest.TestCase):
+    def test_gui_bridge_publishes_worker_activity_with_subsecond_latency(self):
+        self.assertLessEqual(bridge.PUBLISH_INTERVAL_SECONDS, 0.5)
+
     def test_fresh_worker_activity_replaces_false_idle_state(self):
         contract = bridge.load_contract()
         with tempfile.TemporaryDirectory() as directory:

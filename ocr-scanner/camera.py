@@ -41,7 +41,7 @@ class CameraController:
 
         # This installation is calibrated at one manual Camera Module 3 lens
         # position. Do not replace this with autofocus or a sweep.
-        self.fixed_lens_position = 2.25
+        self.fixed_lens_position = 1.00
         self.capture_roi = self._parse_roi(
             os.getenv("CAMERA_CAPTURE_ROI", "0.08,0.08,0.84,0.84")
         )

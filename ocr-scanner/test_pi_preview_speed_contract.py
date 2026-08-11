@@ -66,7 +66,7 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
     def test_camera_fast_defaults_remain_bounded(self):
         controller = camera.CameraController()
 
-        self.assertEqual(controller.fixed_lens_position, 2.25)
+        self.assertEqual(controller.fixed_lens_position, 1.00)
         self.assertEqual(controller.capture_timeout_ms, 650)
         self.assertEqual(controller.capture_roi, (0.08, 0.08, 0.84, 0.84))
 
@@ -171,6 +171,22 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
 
         self.assertIn("heartbeat_api = ApiClient()", heartbeat)
         self.assertIn("heartbeat_api.update_status", heartbeat)
+        self.assertIn(
+            'IOT_OCR_HEARTBEAT_INTERVAL_SECONDS", "0.50"',
+            source,
+        )
+        self.assertIn(
+            'IOT_OCR_STOPPED_DISPLAY_SECONDS", "1.25"',
+            source,
+        )
+        stopped_index = source.index(
+            'publish_worker_activity(\n                        "request_stopped"'
+        )
+        idle_index = source.index(
+            'publish_worker_activity("idle", camera_status="ready")',
+            stopped_index,
+        )
+        self.assertLess(stopped_index, idle_index)
 
     def test_fixed_lens_capture_uses_one_cropped_full_resolution_sample(self):
         controller = camera.CameraController()
@@ -180,7 +196,7 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
             source.index("def cleanup")
         ]
 
-        self.assertEqual(controller.fixed_lens_position, 2.25)
+        self.assertEqual(controller.fixed_lens_position, 1.00)
         self.assertNotIn("_coarse_sweep", capture)
         self.assertNotIn("_refine_position", capture)
         self.assertNotIn("_try_native_autofocus", capture)
@@ -204,7 +220,7 @@ class PreviewAndSpeedContractTest(unittest.TestCase):
         mode_index = command.index("--autofocus-mode")
         self.assertEqual(command[mode_index + 1], "manual")
         lens_index = command.index("--lens-position")
-        self.assertEqual(command[lens_index + 1], "2.2500")
+        self.assertEqual(command[lens_index + 1], "1.0000")
 
     def test_left_press_gets_immediate_local_processing_feedback(self):
         source = Path("capture_session.py").read_text(encoding="utf-8")

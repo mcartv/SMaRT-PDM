@@ -252,16 +252,27 @@ function getDocumentCandidateScore(rawDoc = {}) {
     rawDoc.file_url ||
     '';
 
+  const persistedReviewStatus = normalizeKey(
+    rawDoc.review_status ||
+    rawDoc.status ||
+    rawDoc.document_status ||
+    ''
+  ).replace(/\s+/g, '_');
+
   let score = 0;
+
   if (resolvedUrl) score += 100;
   if (rawDoc.file_path) score += 60;
   if (rawDoc.current_version_id) score += 50;
   if (rawDoc.is_submitted === true) score += 40;
   if (rawDoc.submitted_at || rawDoc.uploaded_at) score += 20;
   if (rawDoc.file_name) score += 10;
-  if (rawDoc.status === 'verified') score += 8;
-  if (rawDoc.status === 'uploaded') score += 6;
-  if (rawDoc.status === 'rejected') score += 4;
+
+  if (persistedReviewStatus === 'verified') score += 30;
+  else if (persistedReviewStatus === 'rejected') score += 25;
+  else if (persistedReviewStatus === 'reupload_required') score += 20;
+  else if (persistedReviewStatus === 'under_review') score += 10;
+  else if (persistedReviewStatus === 'uploaded') score += 6;
 
   return score;
 }
@@ -291,7 +302,10 @@ function normalizeRequiredDocuments(rawDocs = []) {
     );
 
     const rawStatus = normalizeKey(
-      rawDoc.status || rawDoc.document_status || rawDoc.review_status || 'pending'
+      rawDoc.review_status ||
+      rawDoc.status ||
+      rawDoc.document_status ||
+      'pending'
     );
 
     let normalizedStatus = rawStatus.replace(/\s+/g, '_');
@@ -312,7 +326,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       name: config.name,
       url: resolvedUrl,
       status: normalizedStatus || 'pending',
-      admin_comment: rawDoc.admin_comment || rawDoc.comment || rawDoc.notes || '',
+      admin_comment: rawDoc.admin_comment || rawDoc.comment || rawDoc.remarks || rawDoc.notes || '',
       ocr: rawDoc.ocr || {},
       ocr_confidence: rawDoc.ocr_confidence ?? rawDoc.ocr?.confidence ?? null,
       file_name: rawDoc.file_name || '',
@@ -1651,11 +1665,10 @@ function OCRPanel({
                     </p>
                   </div>
                   <span
-                    className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
-                      item.badge === 'Provisional OCR'
-                        ? 'bg-orange-50 text-orange-700'
-                        : 'bg-green-50 text-green-700'
-                    }`}
+                    className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.badge === 'Provisional OCR'
+                      ? 'bg-orange-50 text-orange-700'
+                      : 'bg-green-50 text-green-700'
+                      }`}
                   >
                     {item.badge}
                   </span>
@@ -2290,20 +2303,34 @@ export default function DocumentVerification() {
         }
 
         const data = await res.json();
-        const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
+        const normalizedDocs = normalizeRequiredDocuments(
+          data?.documents || []
+        );
 
         setApplication({
           ...data,
           documents: normalizedDocs,
         });
 
-        setDocStatuses((prev) => {
-          const next = { ...prev };
+        setDocStatuses(() => {
+          const next = {};
+
           normalizedDocs.forEach((d) => {
-            if (!(d.id in next)) next[d.id] = d.status || 'pending';
+            next[d.id] = d.status || 'pending';
           });
+
           return next;
         });
+
+        setDocComments(() => {
+          const next = {};
+
+          normalizedDocs.forEach((d) => {
+            next[d.id] = d.admin_comment || '';
+          });
+
+          return next;
+        });;
 
         setDocComments((prev) => {
           const next = { ...prev };

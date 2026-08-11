@@ -1380,35 +1380,35 @@ async function buildApplicationDetails(applicationId) {
     const normalizedDocuments = await Promise.all(
         rawDocuments
             .map(async (document) => {
-            const documentKey = getDocumentKey(document);
-            const review = reviewByKey.get(documentKey) || null;
-            const ocr = ocrByKey.get(documentKey) || null;
-            const latestIotOcrRequest = latestIotOcrRequestByKey.get(documentKey) || null;
-            const filePath = document.file_path || null;
-            const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
+                const documentKey = getDocumentKey(document);
+                const review = reviewByKey.get(documentKey) || null;
+                const ocr = ocrByKey.get(documentKey) || null;
+                const latestIotOcrRequest = latestIotOcrRequestByKey.get(documentKey) || null;
+                const filePath = document.file_path || null;
+                const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
 
-            return {
-                id: documentKey,
-                document_key: documentKey,
-                name: DOCUMENT_TYPE_TO_NAME[documentKey] || document.document_type || 'Document',
-                document_type: document.document_type || null,
-                file_name: document.file_name || null,
-                file_path: filePath,
-                url: signedUrl || document.file_url || null,
-                file_url: signedUrl || document.file_url || null,
-                signed_url: signedUrl || null,
-                status: deriveReviewStatus(document, review),
-                admin_comment: review?.admin_comment || document.notes || '',
-                notes: document.notes || null,
-                ocr: ocr || {},
-                ocr_confidence: ocr?.confidence ?? null,
-                iot_ocr_request: latestIotOcrRequest,
-                ocr_job: latestIotOcrRequest,
-                uploaded_at: document.submitted_at || null,
-                submitted_at: document.submitted_at || null,
-                reviewed_at: review?.reviewed_at || null,
-            };
-        })
+                return {
+                    id: documentKey,
+                    document_key: documentKey,
+                    name: DOCUMENT_TYPE_TO_NAME[documentKey] || document.document_type || 'Document',
+                    document_type: document.document_type || null,
+                    file_name: document.file_name || null,
+                    file_path: filePath,
+                    url: signedUrl || document.file_url || null,
+                    file_url: signedUrl || document.file_url || null,
+                    signed_url: signedUrl || null,
+                    status: deriveReviewStatus(document, review),
+                    admin_comment: review?.admin_comment || document.notes || '',
+                    notes: document.notes || null,
+                    ocr: ocr || {},
+                    ocr_confidence: ocr?.confidence ?? null,
+                    iot_ocr_request: latestIotOcrRequest,
+                    ocr_job: latestIotOcrRequest,
+                    uploaded_at: document.submitted_at || null,
+                    submitted_at: document.submitted_at || null,
+                    reviewed_at: review?.reviewed_at || null,
+                };
+            })
     );
     const projectedDocumentKeys = new Set(
         normalizedDocuments.map((document) => document.document_key)
@@ -2484,16 +2484,16 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
     const reviewRows = document_reviews
         .map((doc) => ({
-        application_id: applicationId,
-        document_key: doc.document_key || doc.document_id || doc.id,
-        document_name: doc.name,
-        review_status: doc.status || 'pending',
-        admin_comment: doc.comment || '',
-        file_url: doc.url || null,
-        reviewed_by: reviewedBy,
-        reviewed_at: reviewedAt,
-        updated_at: reviewedAt,
-    }));
+            application_id: applicationId,
+            document_key: doc.document_key || doc.document_id || doc.id,
+            document_name: doc.name,
+            review_status: doc.status || 'pending',
+            admin_comment: doc.comment || '',
+            file_url: doc.url || null,
+            reviewed_by: reviewedBy,
+            reviewed_at: reviewedAt,
+            updated_at: reviewedAt,
+        }));
 
     if (reviewRows.length > 0) {
         const { error: reviewError } = await supabase
@@ -2522,12 +2522,22 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
         if (!documentTypeName) continue;
 
+        const normalizedReviewStatus =
+            normalizeReviewDecision(
+                doc.status || 'pending'
+            );
+
         const { error: submittedDocumentError } = await supabase
             .from('application_documents')
             .update({
                 is_submitted: !!doc.url,
                 file_url: doc.url || null,
+
+                review_status: normalizedReviewStatus,
+                
                 notes: doc.comment || null,
+                remarks: doc.comment || null,
+
                 updated_at: reviewedAt,
             })
             .eq('application_id', applicationId)

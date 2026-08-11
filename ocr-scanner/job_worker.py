@@ -1067,23 +1067,25 @@ def main():
             heartbeat_stop = threading.Event()
             request_stop = threading.Event()
             current_status = {"value": "claimed"}
+            status_update_lock = threading.Lock()
 
             def report_status(status):
-                if request_stop.is_set():
-                    return False
-                current_status["value"] = status
-                worker_state, camera_status = lifecycle_worker_state(status)
-                publish_worker_activity(worker_state, request=request, camera_status=camera_status)
-                if not api.update_status(request_id, status):
-                    log.warning(
-                        "Lifecycle status update failed request=%s status=%s",
-                        _safe_request_ref(request_id),
-                        status,
-                    )
-                    request_stop.set()
-                    publish_worker_activity("request_stopped", request=request, camera_status="stopped")
-                    return False
-                return True
+                with status_update_lock:
+                    if request_stop.is_set():
+                        return False
+                    current_status["value"] = status
+                    worker_state, camera_status = lifecycle_worker_state(status)
+                    publish_worker_activity(worker_state, request=request, camera_status=camera_status)
+                    if not api.update_status(request_id, status):
+                        log.warning(
+                            "Lifecycle status update failed request=%s status=%s",
+                            _safe_request_ref(request_id),
+                            status,
+                        )
+                        request_stop.set()
+                        publish_worker_activity("request_stopped", request=request, camera_status="stopped")
+                        return False
+                    return True
 
             def send_heartbeat():
                 # Use an independent HTTP session. requests.Session is not
@@ -1091,16 +1093,25 @@ def main():
                 # can otherwise contend with this lease-renewal path.
                 heartbeat_api = ApiClient()
                 while not heartbeat_stop.wait(HEARTBEAT_INTERVAL_SECONDS):
-                    worker_state, camera_status = lifecycle_worker_state(current_status["value"])
-                    publish_worker_activity(worker_state, request=request, camera_status=camera_status)
-                    if not heartbeat_api.update_status(request_id, current_status["value"]):
+                    heartbeat_failed = False
+                    failed_status = None
+                    with status_update_lock:
+                        if heartbeat_stop.is_set() or request_stop.is_set():
+                            break
+                        heartbeat_status = current_status["value"]
+                        worker_state, camera_status = lifecycle_worker_state(heartbeat_status)
+                        publish_worker_activity(worker_state, request=request, camera_status=camera_status)
+                        if not heartbeat_api.update_status(request_id, heartbeat_status):
+                            heartbeat_failed = True
+                            failed_status = heartbeat_status
+                            request_stop.set()
+                            publish_worker_activity("request_stopped", request=request, camera_status="stopped")
+                    if heartbeat_failed:
                         log.warning(
                             "Lifecycle heartbeat failed request=%s status=%s",
                             _safe_request_ref(request_id),
-                            current_status["value"],
+                            failed_status,
                         )
-                        request_stop.set()
-                        publish_worker_activity("request_stopped", request=request, camera_status="stopped")
                         while not heartbeat_stop.wait(5):
                             publish_worker_activity(
                                 "request_stopped",

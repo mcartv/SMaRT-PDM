@@ -134,7 +134,7 @@ const IOT_OCR_STATUS_MESSAGES = {
   claimed: 'Raspberry Pi received the request',
   previewing: 'Position the document on the Raspberry Pi',
   focusing: 'Locking the fixed camera position',
-  capturing: 'Capturing once at fixed lens position 1.00',
+  capturing: 'Capturing once at fixed lens position 1.50',
   processing: 'Preprocessing the capture and running OCR',
   review_required: 'OCR ready for admin review',
   completed: 'OCR confirmed',

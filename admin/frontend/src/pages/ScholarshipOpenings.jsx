@@ -66,16 +66,10 @@ const INITIAL_FORM = {
     filled_slots_preview: 0,
     waiting_list_enabled: true,
     waiting_list_limit: 0,
-    financial_allocation: '',
     announcement_text: '',
     posting_status: 'draft',
     target_audience: 'Applicants',
 };
-
-function fmtMoney(v) {
-    const n = Number(v || 0);
-    return `₱${n.toLocaleString()}`;
-}
 
 function normalizeAudience(value) {
     if (!value) return '';
@@ -345,13 +339,6 @@ function OpeningModal({
         posting_status: derivePersistedOpeningStatus(form, form.posting_status),
     });
 
-    const allocatedSlots = Number(form.allocated_slots) || 0;
-    const totalFinancial = Number(form.financial_allocation) || 0;
-    const perScholarFinancial =
-        allocatedSlots > 0 && totalFinancial > 0
-            ? Math.floor(totalFinancial / allocatedSlots)
-            : 0;
-
     const audienceLabel = targetAudienceLabel(form.target_audience);
 
     const canSubmit =
@@ -373,7 +360,7 @@ function OpeningModal({
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">{title}</h3>
                         <p className="mt-0.5 text-xs text-stone-500">
-                            Configure the opening details, slots, and financial allocation.
+                            Configure the opening details, capacity, waiting list, and notes.
                         </p>
                     </div>
 
@@ -624,48 +611,6 @@ function OpeningModal({
                                 ) : null}
                             </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Total Financial Allocation (₱)
-                                </label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    step="1000"
-                                    value={form.financial_allocation}
-                                    onChange={(e) =>
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            financial_allocation: e.target.value,
-                                        }))
-                                    }
-                                    placeholder="0"
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Per Scholar Amount (₱)
-                                </label>
-                                <Input
-                                    type="number"
-                                    readOnly
-                                    value={perScholarFinancial}
-                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
-                                    style={{ color: C.brownMid }}
-                                />
-                            </div>
-
-                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                                <p className="text-xs text-emerald-700">
-                                    <span className="font-semibold">Allocated Slots:</span>{' '}
-                                    {allocatedSlots}
-                                    {' · '}
-                                    <span className="font-semibold">Per Scholar:</span>{' '}
-                                    ₱{perScholarFinancial.toLocaleString()}
-                                </p>
-                            </div>
                         </div>
                     </div>
 
@@ -928,12 +873,6 @@ function OpeningCard({
     const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
     const isBusy = actionLoadingId === opening.opening_id;
 
-    const perScholar =
-        opening.per_scholar_amount ??
-        (allocatedSlots > 0
-            ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
-            : 0);
-
     return (
         <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
             <CardContent className="p-4">
@@ -979,7 +918,7 @@ function OpeningCard({
                                 {opening.benefactor_name || 'No Benefactor'}
                             </p>
 
-                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
                                     <p className="text-[10px] uppercase tracking-wide text-stone-500">
                                         AY
@@ -1007,14 +946,6 @@ function OpeningCard({
                                     </p>
                                 </div>
 
-                                <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
-                                        Per Scholar
-                                    </p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
-                                        {fmtMoney(perScholar)}
-                                    </p>
-                                </div>
                             </div>
 
                             {opening.announcement_text && (
@@ -1313,8 +1244,7 @@ export default function ScholarshipOpenings() {
             const noCoreData =
                 !o.opening_title &&
                 !o.program_name &&
-                Number(o.allocated_slots || 0) === 0 &&
-                Number(o.financial_allocation || 0) === 0;
+                Number(o.allocated_slots || 0) === 0;
 
             if (noCoreData) return false;
             if (status === 'archived' && !o.opening_title) return false;
@@ -1463,7 +1393,6 @@ export default function ScholarshipOpenings() {
                     0,
                 waiting_list_enabled: existingDraft.waiting_list_enabled !== false,
                 waiting_list_limit: existingDraft.waiting_list_limit ?? 0,
-                financial_allocation: existingDraft.financial_allocation ?? '',
                 announcement_text:
                     existingDraft.announcement_text ??
                     template.description ??
@@ -1487,7 +1416,6 @@ export default function ScholarshipOpenings() {
             filled_slots_preview: 0,
             waiting_list_enabled: true,
             waiting_list_limit: 0,
-            financial_allocation: '',
             announcement_text: template.description || '',
             posting_status: 'draft',
             target_audience: computedAudience,
@@ -1514,7 +1442,6 @@ export default function ScholarshipOpenings() {
                 0,
             waiting_list_enabled: opening.waiting_list_enabled !== false,
             waiting_list_limit: opening.waiting_list_limit ?? 0,
-            financial_allocation: opening.financial_allocation ?? '',
             announcement_text: opening.announcement_text || '',
             posting_status: opening.posting_status || 'draft',
             target_audience: deriveTargetAudience(opening),
@@ -1547,12 +1474,6 @@ export default function ScholarshipOpenings() {
                 return;
             }
 
-            const financialAllocation = Number(form.financial_allocation || 0);
-            const perScholarAmount =
-                allocatedSlots > 0 && financialAllocation > 0
-                    ? Math.floor(financialAllocation / allocatedSlots)
-                    : 0;
-
             setSaving(true);
 
             const isEdit = modalMode === 'edit' && editingOpeningId;
@@ -1571,8 +1492,6 @@ export default function ScholarshipOpenings() {
                 allocated_slots: allocatedSlots,
                 waiting_list_enabled: form.waiting_list_enabled !== false,
                 waiting_list_limit: Math.max(0, Number(form.waiting_list_limit || 0)),
-                financial_allocation: financialAllocation,
-                per_scholar_amount: perScholarAmount,
                 announcement_text: form.announcement_text?.trim() || null,
                 posting_status: computedStatus,
             };

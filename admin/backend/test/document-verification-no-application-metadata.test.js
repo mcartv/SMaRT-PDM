@@ -89,6 +89,10 @@ test('birth certificate has a dedicated parent review card and immutable raw sna
     assert.match(source, /Confirm Parents/);
     assert.match(source, /isBirthReview/);
     assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
+    assert.match(
+        source,
+        /activeDoc\?\.id !== 'birth_certificate' && extractedData\?\.documentValidation\?\.shouldShow/
+    );
 });
 
 test('registration and request letter cannot run IoT OCR', () => {

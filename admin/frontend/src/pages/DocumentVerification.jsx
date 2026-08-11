@@ -1460,7 +1460,9 @@ function OCRPanel({
           <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
             <div>
               <span className="font-semibold">Running IoT OCR...</span>{' '}
-              {IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
+              {iotOcrStatus === 'capturing' && activeDoc?.id === 'birth_certificate'
+                ? 'Capturing once at fixed lens position 1.75'
+                : IOT_OCR_STATUS_MESSAGES[iotOcrStatus] || 'Request is still active.'}
             </div>
             {cancelSupported && <Button
               type="button"
@@ -1805,7 +1807,7 @@ function OCRPanel({
           )}
         </div>}
 
-        {extractedData?.documentValidation?.shouldShow ? (
+        {activeDoc?.id !== 'birth_certificate' && extractedData?.documentValidation?.shouldShow ? (
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">

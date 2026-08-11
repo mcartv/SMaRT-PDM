@@ -93,6 +93,10 @@ GRADE_FORM_LENS_POSITION = min(
     32.0,
     max(0.0, float(os.getenv("GRADE_FORM_LENS_POSITION", "2.00"))),
 )
+BIRTH_CERTIFICATE_LENS_POSITION = min(
+    32.0,
+    max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "1.75"))),
+)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -945,6 +949,8 @@ def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
 def _configure_camera_for_document(camera: CameraController, document_key: str) -> None:
     if document_key == "student_grade_forms":
         camera.fixed_lens_position = GRADE_FORM_LENS_POSITION
+    elif _is_birth_certificate_job({"document_key": document_key}):
+        camera.fixed_lens_position = BIRTH_CERTIFICATE_LENS_POSITION
 
 
 def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bool, Dict]:

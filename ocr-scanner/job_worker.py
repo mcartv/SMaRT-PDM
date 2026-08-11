@@ -97,6 +97,21 @@ BIRTH_CERTIFICATE_LENS_POSITION = min(
     32.0,
     max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "1.75"))),
 )
+BIRTH_RELAXED_REGISTRATION_CONFIG = {
+    # Birth-only recovery for the fixed physical scanner station. The normal
+    # strict registration always runs first. These tolerances still require a
+    # detected PSA grid and the registration module's post-warp row/column
+    # topology checks before calibrated name cells may be read.
+    "review_horizontal_lines": 5,
+    "review_vertical_lines": 2,
+    "boundary_search_distance": 0.14,
+    "line_cluster_distance": 0.009,
+    "review_corner_deviation": 0.09,
+    "maximum_extended_corner_deviation": 0.13,
+    "review_opposite_edge_ratio": 1.35,
+    "review_canonical_edge_deviation": 0.03,
+    "registered_line_minimum_coverage": 0.16,
+}
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -408,7 +423,18 @@ def _run_birth_certificate_scan(
             "error_message": error_message,
         }
     try:
+        registration_mode = "strict_grid"
+        registration_attempts = 1
         registration_result = register_psa_birth_form(source_image)
+        if not registration_result.success:
+            registration_attempts += 1
+            relaxed_result = register_psa_birth_form(
+                source_image,
+                config=BIRTH_RELAXED_REGISTRATION_CONFIG,
+            )
+            if relaxed_result.success:
+                registration_result = relaxed_result
+                registration_mode = "relaxed_validated_grid"
         if not registration_result.success:
             # Registration failure forbids calibrated row extraction, but it
             # must not discard a fresh text-only OCR result. Run the existing
@@ -442,6 +468,8 @@ def _run_birth_certificate_scan(
                     "document_contract_status": "approved",
                     "registration_status": "mismatch",
                     "registration_stage_status": registration_result.status,
+                    "registration_mode": registration_mode,
+                    "registration_attempts": registration_attempts,
                     "registration_issue_codes": _issue_codes(registration_result),
                     "cropper_status": "not_started",
                     "cropper_issue_codes": [],
@@ -486,6 +514,8 @@ def _run_birth_certificate_scan(
                     "document_type": document_type,
                     "document_contract_status": "approved",
                     "registration_status": registration_result.status,
+                    "registration_mode": registration_mode,
+                    "registration_attempts": registration_attempts,
                     "registration_issue_codes": _issue_codes(registration_result),
                     "cropper_status": crop_result.status,
                     "cropper_issue_codes": _issue_codes(crop_result),
@@ -540,6 +570,8 @@ def _run_birth_certificate_scan(
                 "document_type": document_type,
                 "document_contract_status": "approved",
                 "registration_status": registration_result.status,
+                "registration_mode": registration_mode,
+                "registration_attempts": registration_attempts,
                 "registration_issue_codes": _issue_codes(registration_result),
                 "cropper_status": crop_result.status,
                 "cropper_issue_codes": _issue_codes(crop_result),

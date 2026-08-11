@@ -285,6 +285,28 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertGreaterEqual(reader.calls[0].shape[0], 140)
         self.assertGreater(float(np.mean(reader.calls[0][10:20, :])), 180.0)
 
+    def test_faint_name_cells_are_contrast_enhanced_before_ocr(self):
+        output = crop_output()
+        faint = output.crops["child_name.first_name"]
+        faint[:, :] = 246
+        cv2.putText(
+            faint,
+            "ALPHA",
+            (8, max(25, faint.shape[0] - 10)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            205,
+            1,
+            cv2.LINE_AA,
+        )
+        reader = RecordingReader(valid_outputs())
+
+        result = extract_psa_birth_row_text(output, ocr_reader=reader)
+
+        self.assertTrue(result.success)
+        self.assertLess(int(reader.calls[0].min()), 100)
+        self.assertGreaterEqual(reader.calls[0].shape[0], 140)
+
     def test_exactly_nine_bounded_ocr_attempts_are_recorded(self):
         result = extract_psa_birth_row_text(
             crop_output(),

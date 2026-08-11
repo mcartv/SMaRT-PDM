@@ -202,9 +202,13 @@ def _preprocess_cell(
     crop: np.ndarray,
     target_height: int,
 ) -> tuple[np.ndarray, float]:
-    gray = cv2.GaussianBlur(_gray(crop), (3, 3), 0)
+    gray = _gray(crop)
     if int(gray.max()) - int(gray.min()) >= 8:
-        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+        gray = cv2.createCLAHE(
+            clipLimit=2.0,
+            tileGridSize=(8, 8),
+        ).apply(gray)
+    gray = cv2.medianBlur(gray, 3)
     _, binary = cv2.threshold(
         gray,
         0,

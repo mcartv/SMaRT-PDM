@@ -5,7 +5,7 @@ from camera import CameraController
 
 
 class CameraFixedLensGateTest(unittest.TestCase):
-    def test_capture_command_is_manual_lens_225_with_sensor_crop(self):
+    def test_capture_command_is_manual_lens_100_with_sensor_crop(self):
         controller = CameraController()
         command = controller._manual_command(
             Path("/tmp/image.jpg"),
@@ -20,7 +20,7 @@ class CameraFixedLensGateTest(unittest.TestCase):
         mode_index = command.index("--autofocus-mode")
         self.assertEqual(command[mode_index + 1], "manual")
         lens_index = command.index("--lens-position")
-        self.assertEqual(command[lens_index + 1], "2.2500")
+        self.assertEqual(command[lens_index + 1], "1.0000")
         roi_index = command.index("--roi")
         self.assertEqual(
             command[roi_index + 1],

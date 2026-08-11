@@ -218,7 +218,7 @@ class CaptureSessionTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             camera.capture_file = str(Path(directory) / "capture.jpg")
-            attempt_file = Path(f"{camera.capture_file}.fixed-2.2500.jpg")
+            attempt_file = Path(f"{camera.capture_file}.fixed-1.0000.jpg")
             attempt_file.write_bytes(b"mock-jpeg")
             camera._sample_position = MagicMock(
                 return_value=(120.0, attempt_file)
@@ -230,7 +230,7 @@ class CaptureSessionTest(unittest.TestCase):
         camera.stop_preview.assert_called_once()
         camera.start_preview.assert_not_called()
         camera._sample_position.assert_called_once_with(
-            2.25,
+            1.00,
             width=camera.capture_width,
             height=camera.capture_height,
             timeout_ms=camera.capture_timeout_ms,

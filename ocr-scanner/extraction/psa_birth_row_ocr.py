@@ -74,6 +74,7 @@ class PSABirthRowOCRConfig:
     target_height: int = 140
     blank_ink_ratio_threshold: float = 0.003
     low_confidence_threshold: float = 50.0
+    paddle_enabled: bool = False
     paddle_confidence_threshold: float = 0.60
     paddle_model_name: str = "en_PP-OCRv5_mobile_rec"
     paddle_engine: str = "onnxruntime"
@@ -109,6 +110,8 @@ class PSABirthRowOCRConfig:
             raise ValueError("blank ink ratio threshold is invalid")
         if not 0.0 <= self.low_confidence_threshold <= 100.0:
             raise ValueError("low_confidence_threshold is invalid")
+        if not isinstance(self.paddle_enabled, bool):
+            raise ValueError("paddle_enabled must be boolean")
         if not 0.0 <= self.paddle_confidence_threshold <= 1.0:
             raise ValueError("paddle_confidence_threshold is invalid")
         if not self.paddle_model_name.strip():
@@ -771,49 +774,57 @@ def _extract_with_ensemble(
 
     paddle_keys: list[str] = []
     paddle_images: list[np.ndarray] = []
-    for key in sorted(expected_keys):
-        crop = _valid_crop(output.crops.get(key))
-        if crop is None:
-            return _failure("ROW_CROP_INVALID")
-        preprocess_started = perf_counter()
-        processed = preprocess_for_paddle(crop.copy(), resolved.target_height)
-        preprocessing_seconds += perf_counter() - preprocess_started
-        paddle_keys.append(key)
-        paddle_images.append(processed)
+    if resolved.paddle_enabled:
+        for key in sorted(expected_keys):
+            crop = _valid_crop(output.crops.get(key))
+            if crop is None:
+                return _failure("ROW_CROP_INVALID")
+            preprocess_started = perf_counter()
+            processed = preprocess_for_paddle(crop.copy(), resolved.target_height)
+            preprocessing_seconds += perf_counter() - preprocess_started
+            paddle_keys.append(key)
+            paddle_images.append(processed)
 
     paddle_observations: dict[str, _ComponentObservation] = {}
-    paddle_available = True
+    paddle_available = False
     ocr_started = perf_counter()
-    with ThreadPoolExecutor(max_workers=2) as engine_executor:
-        tesseract_future = engine_executor.submit(
-            _tesseract_row_observations,
+    if resolved.paddle_enabled:
+        with ThreadPoolExecutor(max_workers=2) as engine_executor:
+            tesseract_future = engine_executor.submit(
+                _tesseract_row_observations,
+                processed_rows,
+                resolved,
+            )
+            paddle_future = engine_executor.submit(
+                _paddle_cell_observations,
+                paddle_keys,
+                paddle_images,
+                resolved,
+            )
+            observations, execution_failed_fields = tesseract_future.result()
+            try:
+                paddle_observations = paddle_future.result()
+                paddle_available = True
+                log.info(
+                    "Birth PaddleOCR observations model=%s engine=%s confidences=%s",
+                    resolved.paddle_model_name,
+                    resolved.paddle_engine,
+                    {
+                        key: (
+                            round(observation.confidence, 2)
+                            if observation.confidence is not None
+                            else None
+                        )
+                        for key, observation in sorted(paddle_observations.items())
+                    },
+                )
+            except PaddleBirthOCRUnavailable:
+                paddle_available = False
+    else:
+        observations, execution_failed_fields = _tesseract_row_observations(
             processed_rows,
             resolved,
         )
-        paddle_future = engine_executor.submit(
-            _paddle_cell_observations,
-            paddle_keys,
-            paddle_images,
-            resolved,
-        )
-        observations, execution_failed_fields = tesseract_future.result()
-        try:
-            paddle_observations = paddle_future.result()
-            log.info(
-                "Birth PaddleOCR observations model=%s engine=%s confidences=%s",
-                resolved.paddle_model_name,
-                resolved.paddle_engine,
-                {
-                    key: (
-                        round(observation.confidence, 2)
-                        if observation.confidence is not None
-                        else None
-                    )
-                    for key, observation in sorted(paddle_observations.items())
-                },
-            )
-        except PaddleBirthOCRUnavailable:
-            paddle_available = False
     ocr_seconds += perf_counter() - ocr_started
     attempts += 3 + (len(paddle_keys) if paddle_available else 0)
 
@@ -831,13 +842,14 @@ def _extract_with_ensemble(
             selected_engine_counts.get(selected.engine or "none", 0) + 1
         )
         selected_engine_by_component[key] = selected.engine or "none"
-    log.info(
-        "Birth OCR vote model=%s engine=%s threshold=%.2f decisions=%s",
-        resolved.paddle_model_name,
-        resolved.paddle_engine,
-        resolved.paddle_confidence_threshold,
-        dict(sorted(selected_engine_by_component.items())),
-    )
+    if resolved.paddle_enabled:
+        log.info(
+            "Birth OCR vote model=%s engine=%s threshold=%.2f decisions=%s",
+            resolved.paddle_model_name,
+            resolved.paddle_engine,
+            resolved.paddle_confidence_threshold,
+            dict(sorted(selected_engine_by_component.items())),
+        )
 
     fallback_keys = [
         f"{field_name}.{component_name}"
@@ -1012,6 +1024,7 @@ def _extract_with_ensemble(
         ),
         "paddle_model_name": resolved.paddle_model_name,
         "paddle_engine": resolved.paddle_engine,
+        "paddle_enabled": resolved.paddle_enabled,
         "paddle_confidence_threshold": resolved.paddle_confidence_threshold,
         "paddle_available": paddle_available,
         "ensemble_parallel": True,

@@ -451,6 +451,9 @@ class PSABirthRowOCRTest(unittest.TestCase):
 
     def test_default_reader_uses_image_to_data_once_per_row(self):
         with patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            side_effect=AssertionError("Paddle must be disabled by default"),
+        ), patch(
             "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
             side_effect=row_data_reader([
                 ("Alpha", "Beta", "Gamma"),
@@ -470,6 +473,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
             )
         )
         self.assertEqual(result.metrics["confidence_source"], "tesseract_image_to_data")
+        self.assertFalse(result.metrics["paddle_enabled"])
         self.assertEqual(mapped_fields(result)["child_name"].confidence, 91.33333333333333)
 
     def test_parallel_ensemble_uses_tesseract_below_paddle_threshold(self):
@@ -489,7 +493,10 @@ class PSABirthRowOCRTest(unittest.TestCase):
                 ("Eta", "Theta", "Iota"),
             ]),
         ):
-            result = extract_psa_birth_row_text(crop_output())
+            result = extract_psa_birth_row_text(
+                crop_output(),
+                config={"paddle_enabled": True},
+            )
 
         self.assertTrue(result.success)
         self.assertEqual(mapped_fields(result)["child_name"].components["first_name"], "Alpha")
@@ -505,6 +512,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
             PSABirthRowOCRConfig().paddle_model_name,
             "en_PP-OCRv5_mobile_rec",
         )
+        self.assertFalse(PSABirthRowOCRConfig().paddle_enabled)
         self.assertEqual(PSABirthRowOCRConfig().paddle_engine, "onnxruntime")
 
         keys = sorted(crop_output().crops)
@@ -533,7 +541,10 @@ class PSABirthRowOCRTest(unittest.TestCase):
             "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
             side_effect=lower_confidence_tesseract,
         ):
-            result = extract_psa_birth_row_text(crop_output())
+            result = extract_psa_birth_row_text(
+                crop_output(),
+                config={"paddle_enabled": True},
+            )
 
         self.assertTrue(result.success)
         self.assertEqual(
@@ -558,7 +569,10 @@ class PSABirthRowOCRTest(unittest.TestCase):
                 ("Eta", "Theta", "Iota"),
             ]),
         ):
-            result = extract_psa_birth_row_text(crop_output())
+            result = extract_psa_birth_row_text(
+                crop_output(),
+                config={"paddle_enabled": True},
+            )
 
         child = mapped_fields(result)["child_name"]
         self.assertEqual(child.components["first_name"], "Paddle")
@@ -589,7 +603,10 @@ class PSABirthRowOCRTest(unittest.TestCase):
                 ("Eta", "Theta", "Iota"),
             ]),
         ):
-            result = extract_psa_birth_row_text(crop_output())
+            result = extract_psa_birth_row_text(
+                crop_output(),
+                config={"paddle_enabled": True},
+            )
 
         self.assertTrue(result.success)
         self.assertEqual(

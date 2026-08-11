@@ -1732,7 +1732,7 @@ export default function ApplicationReview() {
             onApproveScholar={setActivationCandidate}
             approvalLoadingId={approvalLoadingId}
             title="Applicant Registry"
-            subtitle="Applicants with incomplete documents or pending endorsement before moving to readiness."
+            subtitle="Applicants with incomplete documents/pending endorsement before moving to readiness."
             mode="registry"
             page={page}
             totalPages={tableTotalPages}

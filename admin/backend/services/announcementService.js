@@ -341,6 +341,23 @@ exports.updateAnnouncement = async (announcementId, payload) => {
     const isScheduled = !!schedDate && !forceDraft;
     const nowIso = new Date().toISOString();
 
+    const { data: currentAnnouncement, error: currentError } = await supabase
+        .from('announcements')
+        .select('status, publish_date, published_at')
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', false)
+        .single();
+
+    if (currentError) {
+        console.error('SUPABASE LOAD ANNOUNCEMENT BEFORE UPDATE ERROR:', currentError);
+        throw new Error(currentError.message);
+    }
+
+    const wasPublished =
+        String(currentAnnouncement?.status || '').trim().toLowerCase() === 'published';
+    const publishesImmediately = !forceDraft && !isScheduled;
+    const publishedNow = publishesImmediately && !wasPublished;
+
     const updateRow = {
         subject: (title || '').trim(),
         content: (content || '').trim(),
@@ -349,8 +366,20 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         is_ro_voluntary: !!isRoVoluntary,
         status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
         scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
-        publish_date: forceDraft ? null : isScheduled ? null : nowIso,
-        published_at: forceDraft ? null : isScheduled ? null : nowIso,
+        publish_date: forceDraft
+            ? null
+            : isScheduled
+                ? null
+                : wasPublished
+                    ? currentAnnouncement?.publish_date || currentAnnouncement?.published_at || nowIso
+                    : nowIso,
+        published_at: forceDraft
+            ? null
+            : isScheduled
+                ? null
+                : wasPublished
+                    ? currentAnnouncement?.published_at || currentAnnouncement?.publish_date || nowIso
+                    : nowIso,
         updated_at: nowIso,
     };
 
@@ -369,13 +398,14 @@ exports.updateAnnouncement = async (announcementId, payload) => {
 
     let notificationsInserted = 0;
 
-    if (data.status === 'Published') {
+    if (publishedNow && data.status === 'Published') {
         notificationsInserted = await createAnnouncementNotifications(data);
     }
 
     return {
         ...(await mapSingleAnnouncementRow(data)),
         notificationsInserted,
+        publishedNow,
     };
 };
 

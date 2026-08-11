@@ -364,18 +364,22 @@ async function getScholarCountRows({
         where.push(`b.benefactor_id = $${params.length}`);
     }
 
-    const groupBy = benefactorId && benefactorId !== 'all'
-        ? ['sp.program_name', 'b.benefactor_name']
+    const isSpecificBenefactor = benefactorId && benefactorId !== 'all';
+
+    const groupBy = isSpecificBenefactor
+        ? ['b.benefactor_id', 'b.benefactor_name', 'sp.program_id', 'sp.program_name']
         : ['b.benefactor_id', 'b.benefactor_name'];
 
-    const orderBy = benefactorId && benefactorId !== 'all'
-        ? 'ORDER BY scholar_count DESC, sp.program_name ASC'
-        : 'ORDER BY scholar_count DESC, b.benefactor_name ASC';
+    const orderBy = isSpecificBenefactor
+        ? 'ORDER BY scholar_count DESC, sp.program_name ASC NULLS LAST'
+        : 'ORDER BY scholar_count DESC, b.benefactor_name ASC NULLS LAST';
 
     const query = `
     SELECT
-      ${benefactorId && benefactorId !== 'all' ? 'sp.program_name,' : 'b.benefactor_id, b.benefactor_name,'}
-      COUNT(*)::int AS scholar_count
+      b.benefactor_id,
+      COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name,
+      ${isSpecificBenefactor ? "sp.program_id, COALESCE(sp.program_name, 'Unassigned Program') AS program_name," : ''}
+      COUNT(DISTINCT st.student_id)::int AS scholar_count
     FROM students st
     LEFT JOIN scholarship_program sp ON st.current_program_id = sp.program_id
     LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id

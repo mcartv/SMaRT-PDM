@@ -79,3 +79,11 @@ test('public pages do not open unauthenticated staff sockets and auth failures c
     assert.match(authStorage, /clearPortalSession\(resolvedPortalName\)/);
     assert.match(authStorage, /portal-session:invalidated/);
 });
+
+test('self-service password changes revoke all existing staff sessions', () => {
+    assert.match(accountService, /changeCurrentStaffPassword[\s\S]*revokeStaffSessionVersion\(client, userId\)/);
+    assert.match(accountService, /session_invalidated: true/);
+    assert.match(accountController, /reason: 'password-changed'/);
+    assert.match(accountController, /code: 'PASSWORD_CHANGED'/);
+    assert.match(authController, /SET password_hash = \$1,[\s\S]*token_version = COALESCE\(token_version, 1\) \+ 1/);
+});

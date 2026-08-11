@@ -40,8 +40,6 @@ function emitAnnouncementRealtime(req, announcement, action = 'updated') {
     if (!io || !announcement) return;
 
     const payload = buildAnnouncementSocketPayload(announcement, action);
-    const status = String(payload.status || '').toLowerCase();
-
     const emitFallback = (eventName, data) => {
         io.emit(eventName, data);
     };
@@ -62,7 +60,7 @@ function emitAnnouncementRealtime(req, announcement, action = 'updated') {
         }
     }
 
-    if (action === 'published' || status === 'published') {
+    if (action === 'published') {
         if (socketEvents?.announcementPublished) {
             socketEvents.announcementPublished(io, payload);
         } else {
@@ -292,7 +290,7 @@ exports.updateAnnouncement = async (req, res) => {
 
         emitAnnouncementRealtime(req, updated, audit.eventAction);
 
-        if (String(updated?.status || '').toLowerCase() === 'published') {
+        if (updated?.publishedNow === true) {
             emitAnnouncementRealtime(req, updated, 'published');
         }
 

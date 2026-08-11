@@ -230,7 +230,7 @@ export default function usePortalNotifications({
         throw new Error(payload?.error || payload?.message || 'Failed to resolve RO access.');
       }
 
-      setHasRoCoordinatorAccess(payload?.has_ro_coordinator_access === true);
+      setHasRoCoordinatorAccess(payload?.data?.has_ro_coordinator_access === true);
     } catch (error) {
       console.error('NOTIFICATION RO CAPABILITY CHECK ERROR:', error);
       setHasRoCoordinatorAccess(false);

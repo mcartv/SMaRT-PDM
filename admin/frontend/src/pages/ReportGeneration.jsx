@@ -240,11 +240,21 @@ export default function ReportGeneration({
 
   const scholarCountChartData = useMemo(() => {
     if (!isScholarCountReport || previewRows.length === 0) return [];
-    return previewRows.map((row) => ({
-      name: row[scholarCountXAxisKey] || 'Unknown',
-      count: Number(row.scholar_count || 0),
-    }));
-  }, [isScholarCountReport, previewRows, scholarCountXAxisKey]);
+
+    return previewRows
+      .map((row) => ({
+        name:
+          row[scholarCountXAxisKey] ||
+          (benefactorId === 'all' ? 'Unassigned Benefactor' : 'Unassigned Program'),
+        count: Number(row.scholar_count || 0),
+      }))
+      .filter((row) => Number.isFinite(row.count));
+  }, [benefactorId, isScholarCountReport, previewRows, scholarCountXAxisKey]);
+
+  const scholarCountChartHeight = useMemo(
+    () => Math.max(300, scholarCountChartData.length * 54),
+    [scholarCountChartData.length]
+  );
 
   const selectedLabels = useMemo(() => {
     const year =
@@ -895,7 +905,9 @@ export default function ReportGeneration({
                 </h2>
                 <p className="mt-0.5 text-xs text-stone-500">
                   {previewRows.length > 0
-                    ? `Showing ${previewRows.length} of ${previewTotal} matching records.`
+                    ? isScholarCountReport
+                      ? `${previewTotal} active scholar(s) across ${previewRows.length} ${benefactorId === 'all' ? 'benefactor(s)' : 'program(s)'}.`
+                      : `Showing ${previewRows.length} of ${previewTotal} matching records.`
                     : 'No matching records found for the selected filters.'}
                 </p>
               </div>
@@ -931,16 +943,28 @@ export default function ReportGeneration({
                     </p>
                   </div>
                 </div>
-                <div className="h-[340px] min-h-0 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                    <BarChart data={scholarCountChartData} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-30} textAnchor="end" height={60} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip formatter={(value) => [value, 'Scholars']} />
-                      <Bar dataKey="count" fill="#7c4a2e" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="max-h-[520px] min-h-0 min-w-0 overflow-y-auto">
+                  <div style={{ height: `${scholarCountChartHeight}px`, minWidth: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                      <BarChart
+                        data={scholarCountChartData}
+                        layout="vertical"
+                        margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={180}
+                          tick={{ fontSize: 12 }}
+                          interval={0}
+                        />
+                        <Tooltip formatter={(value) => [Number(value || 0), 'Scholars']} />
+                        <Bar dataKey="count" fill="#7c4a2e" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
             ) : null}

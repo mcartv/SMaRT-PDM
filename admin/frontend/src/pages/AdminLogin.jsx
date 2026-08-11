@@ -235,7 +235,7 @@ export default function AdminLogin() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/forgot-password')}
+                  onClick={() => navigate('/admin/forgot-password', { state: { email } })}
                   className="text-[10px] font-bold hover:underline"
                   style={{ color: theme.base }}
                 >

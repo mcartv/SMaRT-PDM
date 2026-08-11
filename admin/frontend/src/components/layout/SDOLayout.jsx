@@ -168,7 +168,7 @@ export default function SDOLayout() {
         }
 
         const data = await response.json();
-        setHasRoCoordinatorAccess(data?.has_ro_coordinator_access === true);
+        setHasRoCoordinatorAccess(data?.data?.has_ro_coordinator_access === true);
       })
       .catch((error) => {
         if (error.name !== 'AbortError') setHasRoCoordinatorAccess(false);

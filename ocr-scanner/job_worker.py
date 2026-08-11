@@ -758,6 +758,13 @@ def _run_generic_document_scan(
         preprocessing_variant = str(
             extracted_fields.get("preprocessing_variant") or "positional_ocr"
         )
+        registration_status = (
+            "matched"
+            if extraction_result is not None
+            and bool(getattr(extraction_result, "success", False))
+            and extraction_status == "review_required"
+            else "mismatch"
+        )
         payload = {
             "status": status,
             "raw_text": raw_text,
@@ -782,6 +789,7 @@ def _run_generic_document_scan(
                 "cancelled": False,
                 "returncode": 0 if raw_text else 1,
                 "ocr_status": extraction_status,
+                "registration_status": registration_status,
                 "ocr_issue_codes": extraction_issue_codes,
                 "manual_review_required": True,
                 "worker_status": status,

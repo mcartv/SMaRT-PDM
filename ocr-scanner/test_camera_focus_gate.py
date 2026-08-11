@@ -33,6 +33,43 @@ class CameraFixedLensGateTest(unittest.TestCase):
             (0.08, 0.08, 0.84, 0.84),
         )
 
+    def test_birth_profile_uses_deterministic_capture_controls(self):
+        controller = CameraController()
+        controller.capture_profile = "psa_birth_v1"
+        controller.fixed_lens_position = 2.00
+        command = controller._manual_command(
+            Path("/tmp/birth.jpg"),
+            controller.fixed_lens_position,
+            width=4608,
+            height=2592,
+            timeout_ms=controller.capture_timeout_ms,
+        )
+
+        expected = {
+            "--shutter": "20000",
+            "--gain": "1.00",
+            "--awb": "off",
+            "--brightness": "0.10",
+            "--contrast": "1.20",
+            "--lens-position": "2.0000",
+        }
+        for option, value in expected.items():
+            self.assertEqual(command[command.index(option) + 1], value)
+
+    def test_default_profile_retains_automatic_white_balance(self):
+        controller = CameraController()
+        command = controller._manual_command(
+            Path("/tmp/default.jpg"),
+            controller.fixed_lens_position,
+            width=controller.capture_width,
+            height=controller.capture_height,
+            timeout_ms=controller.capture_timeout_ms,
+        )
+
+        self.assertEqual(command[command.index("--awb") + 1], "auto")
+        self.assertNotIn("--shutter", command)
+        self.assertNotIn("--gain", command)
+
 
 if __name__ == "__main__":
     unittest.main()

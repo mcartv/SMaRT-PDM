@@ -15,6 +15,7 @@ from extraction.psa_birth_row_ocr import (
     PSABirthRowOCRConfig,
     PSABirthRowOCROutput,
     extract_psa_birth_row_text,
+    preprocess_psa_watermark,
 )
 
 
@@ -106,6 +107,29 @@ def issue_codes(result):
 
 
 class PSABirthRowOCRTest(unittest.TestCase):
+    def test_watermark_fallback_preserves_shape_contract_without_mutating_crop(self):
+        crop = np.full((48, 240, 3), 245, dtype=np.uint8)
+        cv2.putText(
+            crop,
+            "SARMIENTO",
+            (8, 33),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (15, 15, 15),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.line(crop, (0, 12), (239, 12), (215, 185, 220), 2)
+        original = crop.copy()
+
+        processed, ink_ratio = preprocess_psa_watermark(crop, 140)
+
+        self.assertEqual(processed.dtype, np.uint8)
+        self.assertEqual(processed.ndim, 2)
+        self.assertGreaterEqual(processed.shape[0], 168)
+        self.assertGreater(ink_ratio, 0.0)
+        np.testing.assert_array_equal(crop, original)
+
     def test_nine_cells_assemble_three_structured_fields(self):
         reader = RecordingReader(valid_outputs())
         result = extract_psa_birth_row_text(

@@ -33,6 +33,19 @@ class CameraController:
             not in {"0", "false", "no", "off"}
         )
         self._capture_window_open = False
+        self.capture_profile = "default"
+        self.birth_exposure_time_us = max(
+            100, int(os.getenv("BIRTH_CAMERA_EXPOSURE_TIME_US", "20000"))
+        )
+        self.birth_analogue_gain = max(
+            1.0, float(os.getenv("BIRTH_CAMERA_ANALOGUE_GAIN", "1.0"))
+        )
+        self.birth_brightness = min(
+            1.0, max(-1.0, float(os.getenv("BIRTH_CAMERA_BRIGHTNESS", "0.1")))
+        )
+        self.birth_contrast = max(
+            0.0, float(os.getenv("BIRTH_CAMERA_CONTRAST", "1.2"))
+        )
 
         # This installation is calibrated at one manual Camera Module 3 lens
         # position. Do not replace this with autofocus or a sweep.
@@ -64,6 +77,17 @@ class CameraController:
         return [
             "--roi",
             ",".join(f"{value:.4f}" for value in self.capture_roi),
+        ]
+
+    def _capture_tuning_args(self) -> list[str]:
+        if self.capture_profile != "psa_birth_v1":
+            return ["--awb", "auto"]
+        return [
+            "--shutter", str(self.birth_exposure_time_us),
+            "--gain", f"{self.birth_analogue_gain:.2f}",
+            "--awb", "off",
+            "--brightness", f"{self.birth_brightness:.2f}",
+            "--contrast", f"{self.birth_contrast:.2f}",
         ]
 
     @staticmethod
@@ -109,6 +133,7 @@ class CameraController:
                     "--timeout", "0",
                     "--autofocus-mode", "manual",
                     "--lens-position", f"{self.fixed_lens_position:.4f}",
+                    *self._capture_tuning_args(),
                     *self._roi_args(),
                 ],
                 stdout=subprocess.DEVNULL,
@@ -199,17 +224,18 @@ class CameraController:
         height: int,
         timeout_ms: int,
     ) -> list[str]:
-        return [
+        args = [
             "rpicam-still",
             "--output", str(image),
             "--width", str(width),
             "--height", str(height),
             "--quality", str(self.capture_quality),
             "--timeout", str(timeout_ms),
-            "--awb", "auto",
             "--nopreview",
             *self._roi_args(),
+            *self._capture_tuning_args(),
         ]
+        return args
 
     def _manual_command(
         self,

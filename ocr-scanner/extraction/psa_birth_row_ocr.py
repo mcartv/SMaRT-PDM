@@ -263,6 +263,77 @@ def _preprocess_cell(
     return np.ascontiguousarray(bordered), float(ink_ratio)
 
 
+def preprocess_psa_watermark(
+    crop: np.ndarray,
+    target_height: int,
+) -> tuple[np.ndarray, float]:
+    """Build a Birth-only fallback that suppresses colored PSA security ink.
+
+    The primary ``_preprocess_cell`` path is intentionally unchanged. This
+    fallback preserves luminance text and uses LAB chroma only to identify
+    colored watermark pixels; discarding luminance would also discard black
+    typewritten names.
+    """
+
+    if crop.ndim == 2:
+        bgr = cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
+    elif crop.ndim == 3 and crop.shape[2] == 4:
+        bgr = cv2.cvtColor(crop, cv2.COLOR_BGRA2BGR)
+    else:
+        bgr = crop.copy()
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
+    luminance, channel_a, channel_b = cv2.split(lab)
+    chroma_distance = cv2.add(
+        cv2.absdiff(channel_a, np.full_like(channel_a, 128)),
+        cv2.absdiff(channel_b, np.full_like(channel_b, 128)),
+    )
+    watermark_mask = cv2.threshold(
+        chroma_distance,
+        14,
+        255,
+        cv2.THRESH_BINARY,
+    )[1]
+    watermark_mask = cv2.morphologyEx(
+        watermark_mask,
+        cv2.MORPH_CLOSE,
+        np.ones((1, 5), np.uint8),
+    )
+    suppressed = luminance.copy()
+    suppressed[watermark_mask > 0] = 255
+    background = cv2.GaussianBlur(suppressed, (0, 0), 3.0)
+    normalized = cv2.divide(suppressed, background, scale=255)
+    binary = cv2.adaptiveThreshold(
+        normalized,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        51,
+        5,
+    )
+    cleaned = _remove_grid_lines(binary)
+    ink_ratio = np.count_nonzero(cleaned < 180) / float(cleaned.size or 1)
+    height, width = cleaned.shape
+    scale = max(3.0, target_height / float(max(height, 1)))
+    resized = cv2.resize(
+        cleaned,
+        (
+            max(1, int(round(width * scale))),
+            max(target_height, int(round(height * scale))),
+        ),
+        interpolation=cv2.INTER_CUBIC,
+    )
+    bordered = cv2.copyMakeBorder(
+        resized,
+        14,
+        14,
+        18,
+        18,
+        cv2.BORDER_CONSTANT,
+        value=255,
+    )
+    return np.ascontiguousarray(bordered), float(ink_ratio)
+
+
 def _normalize_text(value: Any) -> str:
     text = "" if value is None else str(value)
     return _SPACE_PATTERN.sub(
@@ -470,10 +541,25 @@ def _row_observations(
 def _cell_observation(
     crop: np.ndarray,
     config: PSABirthRowOCRConfig,
-) -> _ComponentObservation:
+) -> tuple[_ComponentObservation, int]:
     processed, _ink_ratio = _preprocess_cell(crop.copy(), config.target_height)
     words = _valid_data_words(_tesseract_data(processed, config.ocr_timeout_seconds))
-    return _observation_from_words(words, config)
+    primary = _observation_from_words(words, config)
+    if (
+        primary.candidate
+        and primary.confidence is not None
+        and primary.confidence >= config.low_confidence_threshold
+    ):
+        return primary, 1
+    watermark_processed, _watermark_ink_ratio = preprocess_psa_watermark(
+        crop.copy(),
+        config.target_height,
+    )
+    watermark_words = _valid_data_words(
+        _tesseract_data(watermark_processed, config.ocr_timeout_seconds)
+    )
+    watermark = _observation_from_words(watermark_words, config)
+    return _prefer_observation(primary, watermark), 2
 
 
 def _prefer_observation(
@@ -543,6 +629,7 @@ def _extract_with_tesseract_data(
         )
     ]
     fallback_results: dict[str, _ComponentObservation] = {}
+    fallback_attempt_counts: dict[str, int] = {}
     fallback_started = perf_counter()
     if fallback_keys:
         with ThreadPoolExecutor(
@@ -561,9 +648,13 @@ def _extract_with_tesseract_data(
             for future in as_completed(futures):
                 key = futures[future]
                 try:
-                    fallback_results[key] = future.result()
+                    observation, attempt_count = future.result()
+                    fallback_results[key] = observation
+                    fallback_attempt_counts[key] = attempt_count
                 except Exception:
                     fallback_results[key] = _ComponentObservation()
+                    fallback_attempt_counts[key] = 1
+    attempts += sum(fallback_attempt_counts.values()) - len(fallback_results)
     ocr_seconds += perf_counter() - fallback_started
 
     for key, fallback in fallback_results.items():
@@ -681,6 +772,9 @@ def _extract_with_tesseract_data(
         "low_confidence_field_count": low_confidence_fields,
         "row_ocr_attempts": 3,
         "fallback_cell_ocr_attempts": len(fallback_results),
+        "watermark_fallback_ocr_attempts": sum(
+            max(0, count - 1) for count in fallback_attempt_counts.values()
+        ),
         "total_ocr_attempts": attempts,
         "preprocessing_seconds": round(preprocessing_seconds, 6),
         "ocr_seconds": round(ocr_seconds, 6),

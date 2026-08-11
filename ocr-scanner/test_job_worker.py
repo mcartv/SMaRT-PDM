@@ -244,9 +244,24 @@ class JobWorkerTest(unittest.TestCase):
         return request
 
     def test_grade_form_uses_2_00_lens_without_changing_indigency(self):
-        grade_camera = SimpleNamespace(fixed_lens_position=1.50)
-        indigency_camera = SimpleNamespace(fixed_lens_position=1.50)
-        birth_camera = SimpleNamespace(fixed_lens_position=1.50)
+        grade_camera = SimpleNamespace(
+            fixed_lens_position=1.50,
+            capture_profile="default",
+            capture_width=2304,
+            capture_height=1296,
+        )
+        indigency_camera = SimpleNamespace(
+            fixed_lens_position=1.50,
+            capture_profile="default",
+            capture_width=2304,
+            capture_height=1296,
+        )
+        birth_camera = SimpleNamespace(
+            fixed_lens_position=1.50,
+            capture_profile="default",
+            capture_width=2304,
+            capture_height=1296,
+        )
 
         job_worker._configure_camera_for_document(
             grade_camera,
@@ -264,6 +279,13 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(grade_camera.fixed_lens_position, 2.00)
         self.assertEqual(indigency_camera.fixed_lens_position, 1.50)
         self.assertEqual(birth_camera.fixed_lens_position, 2.00)
+        self.assertEqual(grade_camera.capture_profile, "default")
+        self.assertEqual(indigency_camera.capture_profile, "default")
+        self.assertEqual(grade_camera.capture_width, 2304)
+        self.assertEqual(indigency_camera.capture_width, 2304)
+        self.assertEqual(birth_camera.capture_profile, "psa_birth_v1")
+        self.assertEqual(birth_camera.capture_width, 4608)
+        self.assertEqual(birth_camera.capture_height, 2592)
 
     def test_generic_document_uses_one_shared_capture_and_same_path(self):
         success, payload = job_worker.run_scan(self.request("unknown_key"))

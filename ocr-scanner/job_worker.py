@@ -103,6 +103,14 @@ BIRTH_CERTIFICATE_LENS_POSITION = min(
     32.0,
     max(0.0, float(os.getenv("BIRTH_CERTIFICATE_LENS_POSITION", "2.00"))),
 )
+BIRTH_CAMERA_CAPTURE_WIDTH = max(
+    2304,
+    int(os.getenv("BIRTH_CAMERA_CAPTURE_WIDTH", "4608")),
+)
+BIRTH_CAMERA_CAPTURE_HEIGHT = max(
+    1296,
+    int(os.getenv("BIRTH_CAMERA_CAPTURE_HEIGHT", "2592")),
+)
 BIRTH_RELAXED_REGISTRATION_CONFIG = {
     # Birth-only recovery for the fixed physical scanner station. The normal
     # strict registration always runs first. These tolerances still require a
@@ -1094,6 +1102,9 @@ def _configure_camera_for_document(camera: CameraController, document_key: str) 
         camera.fixed_lens_position = GRADE_FORM_LENS_POSITION
     elif _is_birth_certificate_job({"document_key": document_key}):
         camera.fixed_lens_position = BIRTH_CERTIFICATE_LENS_POSITION
+        camera.capture_profile = "psa_birth_v1"
+        camera.capture_width = BIRTH_CAMERA_CAPTURE_WIDTH
+        camera.capture_height = BIRTH_CAMERA_CAPTURE_HEIGHT
 
 
 def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bool, Dict]:

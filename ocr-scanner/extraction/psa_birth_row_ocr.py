@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import logging
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from time import perf_counter
@@ -477,6 +478,13 @@ class _ComponentObservation:
     engine: str = ""
 
 
+_TESSERACT_VARIANTS = (
+    "mild_clahe",
+    "otsu_grid_removed",
+    "watermark_suppressed",
+)
+
+
 def _tesseract_data(image: np.ndarray, timeout_seconds: float) -> Mapping[str, Any]:
     kwargs = {
         "config": "--oem 3 --psm 7 -l eng",
@@ -557,6 +565,151 @@ def _weighted_confidence(words: Sequence[Mapping[str, Any]]) -> float | None:
     if denominator <= 0:
         return None
     return sum(confidence * weight for confidence, weight in weighted) / denominator
+
+
+def _safe_name_candidate(value: Any, config: PSABirthRowOCRConfig) -> str:
+    """Keep plausible OCR spelling intact for the admin review boundary."""
+
+    raw = _normalize_text(value)
+    if not raw:
+        return ""
+    tokens = [
+        token.strip("\"()[]{}:;,!?|_=+*/\\")
+        for token in raw.split()
+    ]
+    candidate = " ".join(token for token in tokens if token)
+    if not candidate:
+        return ""
+    if len(candidate) > config.maximum_name_characters_per_cell:
+        return ""
+    if len(candidate.split()) > config.maximum_name_tokens_per_cell:
+        return ""
+    if sum(character.isalpha() for character in candidate) < config.minimum_alpha_characters:
+        return ""
+    lowered = candidate.casefold()
+    if lowered in _FORBIDDEN_LABELS or any(
+        label in lowered
+        for label in (
+            "date of birth",
+            "maiden name",
+            "citizenship",
+            "residence",
+            "name of child",
+            "name of mother",
+            "name of father",
+        )
+    ):
+        return ""
+    if any(
+        not (
+            character.isalpha()
+            or character.isdigit()
+            or character.isspace()
+            or character in ".'-\u2019"
+        )
+        for character in candidate
+    ):
+        return ""
+    return candidate
+
+
+def preprocess_mild_tesseract(
+    crop: np.ndarray,
+    target_height: int,
+) -> np.ndarray:
+    gray = _gray(crop)
+    if int(gray.max()) - int(gray.min()) >= 8:
+        gray = cv2.createCLAHE(
+            clipLimit=1.5,
+            tileGridSize=(8, 8),
+        ).apply(gray)
+    height, width = gray.shape
+    scale = max(1.0, target_height / float(max(height, 1)))
+    resized = cv2.resize(
+        gray,
+        (
+            max(1, int(round(width * scale))),
+            max(target_height, int(round(height * scale))),
+        ),
+        interpolation=cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA,
+    )
+    return np.ascontiguousarray(
+        cv2.copyMakeBorder(
+            resized,
+            14,
+            14,
+            18,
+            18,
+            cv2.BORDER_CONSTANT,
+            value=255,
+        )
+    )
+
+
+def _safe_observation_from_words(
+    words: Sequence[Mapping[str, Any]],
+    config: PSABirthRowOCRConfig,
+    variant: str,
+) -> _ComponentObservation:
+    raw_text = " ".join(str(word.get("text") or "") for word in words).strip()
+    not_applicable = _normalize_not_applicable_candidate(raw_text)
+    return _ComponentObservation(
+        raw_text=raw_text,
+        candidate=not_applicable or _safe_name_candidate(raw_text, config),
+        confidence=_weighted_confidence(words),
+        engine=f"tesseract:{variant}",
+    )
+
+
+def _variant_observations(
+    crop: np.ndarray,
+    config: PSABirthRowOCRConfig,
+) -> tuple[_ComponentObservation, tuple[_ComponentObservation, ...], float]:
+    preprocess_started = perf_counter()
+    mild = preprocess_mild_tesseract(crop.copy(), config.target_height)
+    otsu, _otsu_ink = _preprocess_cell(crop.copy(), config.target_height)
+    watermark, _watermark_ink = preprocess_psa_watermark(
+        crop.copy(),
+        config.target_height,
+    )
+    preprocessing_seconds = perf_counter() - preprocess_started
+    observations: list[_ComponentObservation] = []
+    for variant, processed in zip(
+        _TESSERACT_VARIANTS,
+        (mild, otsu, watermark),
+    ):
+        words = _valid_data_words(
+            _tesseract_data(processed, config.ocr_timeout_seconds)
+        )
+        observations.append(
+            _safe_observation_from_words(words, config, variant)
+        )
+    plausible = [item for item in observations if item.candidate]
+    if not plausible:
+        selected = max(
+            observations,
+            key=lambda item: item.confidence if item.confidence is not None else -1.0,
+        )
+        return selected, tuple(observations), preprocessing_seconds
+    normalized = [
+        _normalize_text(item.candidate).casefold() for item in plausible
+    ]
+    counts = Counter(normalized)
+    majority_key, majority_count = counts.most_common(1)[0]
+    pool = (
+        [
+            item
+            for item in plausible
+            if _normalize_text(item.candidate).casefold() == majority_key
+        ]
+        if majority_count >= 2
+        else plausible
+    )
+    selected = max(
+        pool,
+        key=lambda item: item.confidence if item.confidence is not None else -1.0,
+    )
+    return selected, tuple(observations), preprocessing_seconds
 
 
 def _observation_from_words(
@@ -1053,6 +1206,232 @@ def _extract_with_ensemble(
     )
 
 
+def _extract_nine_cell_tesseract(
+    output: PSABirthRowCropperOutput,
+    resolved: PSABirthRowOCRConfig,
+    *,
+    started: float,
+    upstream_review: bool,
+) -> StageResult[PSABirthRowOCROutput]:
+    if set(output.topology) != set(FIELD_NAMES):
+        return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED")
+    ordered_keys = [
+        f"{field_name}.{component_name}"
+        for field_name in FIELD_NAMES
+        for component_name in COMPONENT_NAMES
+    ]
+    if set(output.crops) != set(ordered_keys):
+        return _failure("REQUIRED_NAME_CELL_CROP_MISSING")
+    if any(_valid_crop(output.crops.get(key)) is None for key in ordered_keys):
+        return _failure("ROW_CROP_INVALID")
+
+    selected: dict[str, _ComponentObservation] = {}
+    all_variants: dict[str, tuple[_ComponentObservation, ...]] = {}
+    failed_keys: set[str] = set()
+    preprocessing_seconds = 0.0
+    ocr_started = perf_counter()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            executor.submit(
+                _variant_observations,
+                np.array(output.crops[key], copy=True),
+                resolved,
+            ): key
+            for key in ordered_keys
+        }
+        for future in as_completed(futures):
+            key = futures[future]
+            try:
+                chosen, observations, preprocess_elapsed = future.result()
+            except Exception:
+                failed_keys.add(key)
+                chosen = _ComponentObservation(engine="tesseract:failed")
+                observations = tuple(
+                    _ComponentObservation(engine=f"tesseract:{variant}")
+                    for variant in _TESSERACT_VARIANTS
+                )
+                preprocess_elapsed = 0.0
+            selected[key] = chosen
+            all_variants[key] = observations
+            preprocessing_seconds += preprocess_elapsed
+    ocr_seconds = perf_counter() - ocr_started
+
+    results: list[PSABirthRowOCRFieldResult] = []
+    successful = 0
+    controlled_blank_father = 0
+    low_confidence_fields = 0
+    for field_name in FIELD_NAMES:
+        row = {
+            component_name: selected[f"{field_name}.{component_name}"]
+            for component_name in COMPONENT_NAMES
+        }
+        raw_components = {
+            name: row[name].raw_text for name in COMPONENT_NAMES
+        }
+        components = {
+            name: row[name].candidate for name in COMPONENT_NAMES
+        }
+        component_confidence = {
+            name: row[name].confidence for name in COMPONENT_NAMES
+        }
+        codes: set[str] = set()
+        not_applicable_components = {
+            name
+            for name in COMPONENT_NAMES
+            if _normalize_not_applicable_candidate(raw_components[name]) == "N/A"
+        }
+        if field_name != "father_name":
+            for name in not_applicable_components:
+                components[name] = ""
+                codes.add("positional_validation_failed")
+        father_named_components = [
+            components[name]
+            for name in COMPONENT_NAMES
+            if name not in not_applicable_components and components[name]
+        ]
+        if field_name == "father_name" and not_applicable_components:
+            for name in not_applicable_components:
+                components[name] = ""
+            if father_named_components:
+                codes.add("father_name_not_applicable_conflict")
+                section_status = "incomplete"
+                success = False
+            else:
+                components = {name: "" for name in COMPONENT_NAMES}
+                codes.add("father_name_not_applicable")
+                section_status = "not_applicable"
+                success = True
+        elif field_name == "father_name" and not any(raw_components.values()):
+            codes.add("father_section_blank")
+            section_status = "blank"
+            success = True
+            controlled_blank_father += 1
+        else:
+            required_present = bool(components["first_name"]) and bool(
+                components["last_name"]
+            )
+            success = required_present
+            section_status = "present" if success else "incomplete"
+            if not success:
+                codes.add(
+                    "father_name_incomplete"
+                    if field_name == "father_name"
+                    else f"{field_name}_not_found"
+                )
+        if any(
+            f"{field_name}.{name}" in failed_keys for name in COMPONENT_NAMES
+        ):
+            codes.add("OCR_EXECUTION_FAILED")
+        contaminated = any(
+            components[name]
+            and any(character.isdigit() for character in components[name])
+            for name in COMPONENT_NAMES
+        )
+        if contaminated:
+            codes.add("birth_name_character_contamination")
+        low_confidence = any(
+            components[name]
+            and (
+                component_confidence[name] is None
+                or component_confidence[name] < resolved.low_confidence_threshold
+            )
+            for name in COMPONENT_NAMES
+        )
+        if low_confidence or contaminated:
+            codes.add("birth_name_low_confidence")
+            low_confidence_fields += 1
+        relevant_confidences = [
+            component_confidence[name]
+            for name in COMPONENT_NAMES
+            if components[name] and component_confidence[name] is not None
+        ]
+        confidence = (
+            sum(relevant_confidences) / len(relevant_confidences)
+            if relevant_confidences
+            else None
+        )
+        if success:
+            successful += 1
+        assembled = " ".join(
+            components[name] for name in COMPONENT_NAMES if components[name]
+        )
+        if section_status == "not_applicable":
+            assembled = "N/A"
+        results.append(
+            PSABirthRowOCRFieldResult(
+                name=field_name,
+                raw_text=assembled,
+                components=MappingProxyType(dict(components)),
+                section_status=section_status,
+                review_required=True,
+                success=success,
+                issue_codes=tuple(sorted(codes)),
+                preprocessing_variant=resolved.preprocessing_variant,
+                ocr_attempts=9,
+                confidence=confidence,
+                component_confidence=MappingProxyType(dict(component_confidence)),
+                component_raw_text=MappingProxyType(dict(raw_components)),
+            )
+        )
+
+    result_data = PSABirthRowOCROutput(fields=tuple(results), field_count=3)
+    diagnostics = {
+        key: [
+            {
+                "variant": observation.engine.removeprefix("tesseract:"),
+                "raw_text": observation.raw_text,
+                "candidate": observation.candidate,
+                "confidence": observation.confidence,
+            }
+            for observation in all_variants[key]
+        ]
+        for key in ordered_keys
+    }
+    metrics = {
+        "field_count": 3,
+        "cell_count": 9,
+        "successful_field_count": successful,
+        "failed_field_count": 3 - successful,
+        "controlled_blank_father_count": controlled_blank_father,
+        "low_confidence_field_count": low_confidence_fields,
+        "row_ocr_attempts": 0,
+        "cell_ocr_attempts": 27,
+        "total_ocr_attempts": 27,
+        "preprocessing_seconds": round(preprocessing_seconds, 6),
+        "ocr_seconds": round(ocr_seconds, 6),
+        "total_processing_seconds": round(perf_counter() - started, 6),
+        "manual_review_required": True,
+        "name_cell_crop_used": True,
+        "full_row_crop_used": False,
+        "full_page_generic_ocr_used": False,
+        "confidence_source": "tesseract_image_to_data_three_variant_vote",
+        "ocr_variants": list(_TESSERACT_VARIANTS),
+        "maximum_workers": 2,
+        "variant_observations": diagnostics,
+        "paddle_enabled": False,
+    }
+    if successful == 0:
+        return _failure("OCR_ALL_FIELDS_FAILED", data=result_data, **metrics)
+    issues: list[dict[str, str]] = []
+    if successful < 3:
+        issues.append(_issue("OCR_PARTIAL_FAILURE"))
+    if low_confidence_fields:
+        issues.append(_issue("BIRTH_NAME_LOW_CONFIDENCE"))
+    if controlled_blank_father:
+        issues.append(_issue("father_section_blank", "father_name"))
+    if upstream_review:
+        issues.append(_issue("REGISTRATION_REVIEW_PROPAGATED"))
+    issues.append(_issue("OCR_MANUAL_REVIEW_REQUIRED"))
+    return StageResult(
+        stage=STAGE_NAME,
+        success=True,
+        status="review_required",
+        data=result_data,
+        issues=issues,
+        metrics=metrics,
+    )
+
+
 def extract_psa_birth_row_text(
     crop_output: Any,
     ocr_reader: Callable[[np.ndarray], Any] | None = None,
@@ -1069,7 +1448,7 @@ def extract_psa_birth_row_text(
     if ocr_reader is not None and not callable(ocr_reader):
         return _failure("OCR_READER_INVALID")
     if ocr_reader is None:
-        return _extract_with_ensemble(
+        return _extract_nine_cell_tesseract(
             output,
             resolved,
             started=started,

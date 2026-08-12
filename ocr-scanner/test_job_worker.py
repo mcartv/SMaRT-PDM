@@ -9,7 +9,6 @@ import numpy as np
 sys.modules.setdefault("api", SimpleNamespace(ApiClient=MagicMock))
 
 import job_worker
-from birth_manual_review import BirthManualReviewResult
 from capture_session import CANCELLED, CAPTURED, FAILED, CaptureSessionResult
 
 
@@ -141,7 +140,11 @@ def _birth_ocr_result(status="review_required", success=True, issues=None):
         success=success,
         data=SimpleNamespace(fields=fields, field_count=3),
         issues=issues,
-        metrics={"total_ocr_attempts": 3},
+        metrics={
+            "total_ocr_attempts": 27,
+            "confidence_source": "tesseract_image_to_data_three_variant_vote",
+            "variant_observations": {"child_name.first_name": []},
+        },
     )
 
 
@@ -415,7 +418,7 @@ class JobWorkerTest(unittest.TestCase):
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_uses_same_capture_and_preserves_full_page_raw_ocr(
+    def test_birth_uses_nine_cell_raw_snapshot_without_full_page_ocr(
         self, register, crop, ocr
     ):
         register.return_value = _birth_registration_result()
@@ -427,7 +430,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(success)
         self.capture.assert_called_once()
         self.load_image.assert_called_once_with(CAPTURE_PATH)
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
         register.assert_called_once()
         crop.assert_called_once_with(
             register.return_value.data.registered_image,
@@ -435,13 +438,13 @@ class JobWorkerTest(unittest.TestCase):
             topology=self.birth_topology.return_value.data,
         )
         ocr.assert_called_once()
-        self.assertEqual(
-            ocr.call_args.kwargs["config"],
-            {"paddle_enabled": False},
-        )
+        self.assertEqual(ocr.call_args.kwargs, {})
         self.assertEqual(payload["status"], "review_required")
-        self.assertEqual(payload["ocr_attempts"], 3)
-        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(payload["ocr_attempts"], 27)
+        self.assertEqual(
+            payload["raw_text"],
+            "Child\t\tOne\nMother\t\tOne\nFather\t\tOne",
+        )
         self.assertEqual(
             payload["field_confidence"],
             {
@@ -451,57 +454,37 @@ class JobWorkerTest(unittest.TestCase):
             },
         )
         self.assertEqual(payload["source_payload"]["topology_status"], "matched")
+        self.assertEqual(
+            payload["source_payload"]["raw_text_mode"],
+            "nine_cell_selected_observations",
+        )
+        self.assertEqual(payload["source_payload"]["manual_entry_status"], "disabled")
+        self.assertFalse(payload["source_payload"]["paddle_enabled"])
 
-    @patch("job_worker.collect_birth_manual_review")
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_manual_entry_replaces_only_structured_fields(
+    def test_birth_worker_never_opens_pi_local_manual_entry(
         self,
         register,
         crop,
         ocr,
-        collect_manual,
     ):
         register.return_value = _birth_registration_result()
         crop.return_value = _birth_crop_result()
         ocr.return_value = _birth_ocr_result()
-        collect_manual.return_value = BirthManualReviewResult(
-            "submitted",
-            fields={
-                "child_name": {
-                    "first_name": "Manual Child",
-                    "middle_name": "M",
-                    "last_name": "Entry",
-                },
-                "mother_maiden_name": {
-                    "first_name": "Manual Mother",
-                    "middle_name": "M",
-                    "last_name": "Entry",
-                },
-                "father_name": {
-                    "first_name": "Manual Father",
-                    "middle_name": "M",
-                    "last_name": "Entry",
-                },
-            },
-        )
 
         success, payload = job_worker.run_scan(self.request("birth_certificate"))
 
         self.assertTrue(success)
         self.assertEqual(payload["status"], "review_required")
-        self.assertEqual(payload["raw_text"], "RAW OCR")
         fields = payload["extracted_fields"]["fields"]
         self.assertEqual(
             fields["mother_maiden_name"]["components"]["first_name"],
-            "Manual Mother",
+            "Mother",
         )
-        self.assertIsNone(payload["field_confidence"]["mother_maiden_name"])
-        self.assertEqual(
-            payload["source_payload"]["structured_value_source"],
-            "pi_local_human_review",
-        )
+        self.assertEqual(payload["field_confidence"]["mother_maiden_name"], 91.0)
+        self.assertEqual(payload["source_payload"]["manual_entry_status"], "disabled")
         self.assertNotIn("image", payload)
         self.assertNotIn("capture_path", payload)
 
@@ -521,11 +504,11 @@ class JobWorkerTest(unittest.TestCase):
 
         success, payload = job_worker.run_scan(self.request("birth_certificate"))
 
-        self.assertTrue(success)
+        self.assertFalse(success)
         crop.assert_not_called()
         ocr.assert_not_called()
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
-        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.generic_ocr.assert_not_called()
+        self.assertEqual(payload["raw_text"], "")
         self.assertEqual(payload["extracted_fields"]["fields"], {})
         self.assertEqual(payload["source_payload"]["topology_status"], "mismatch")
 
@@ -588,7 +571,7 @@ class JobWorkerTest(unittest.TestCase):
             register.call_args_list[1].kwargs["config"],
             job_worker.BIRTH_RELAXED_REGISTRATION_CONFIG,
         )
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
         self.assertEqual(
             payload["source_payload"]["registration_mode"],
             "relaxed_validated_grid",
@@ -622,7 +605,7 @@ class JobWorkerTest(unittest.TestCase):
             registration_metadata=_birth_registration_context("review_required"),
             topology=self.birth_topology.return_value.data,
         )
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
         self.assertEqual(
             payload["source_payload"]["registration_mode"],
             "validated_grid_envelope",
@@ -631,7 +614,7 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(payload["extracted_fields"]["fields"])
 
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_registration_failure_preserves_fresh_raw_review_candidate(self, register):
+    def test_birth_registration_failure_never_creates_unstructured_candidate(self, register):
         register.return_value = _stage_result(
             status="failed",
             success=False,
@@ -640,11 +623,11 @@ class JobWorkerTest(unittest.TestCase):
 
         success, payload = job_worker.run_scan(self.request("birth_certificate"))
 
-        self.assertTrue(success)
-        self.assertEqual(payload["status"], "review_required")
-        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertFalse(success)
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["raw_text"], "")
         self.assertEqual(payload["extracted_fields"]["fields"], {})
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
         self.assertEqual(payload["source_payload"]["registration_status"], "mismatch")
         self.assertEqual(
             payload["source_payload"]["registration_issue_codes"],
@@ -652,7 +635,7 @@ class JobWorkerTest(unittest.TestCase):
         )
 
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_registration_failure_without_raw_text_remains_failed(self, register):
+    def test_birth_registration_failure_does_not_run_full_page_ocr(self, register):
         register.return_value = _stage_result(
             status="failed",
             success=False,
@@ -667,10 +650,11 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["raw_text"], "")
         self.assertEqual(
             payload["validation_issues"][0]["code"],
-            "BIRTH_TESSERACT_BASELINE_EMPTY",
+            "PSA_BIRTH_V1_TEMPLATE_MISMATCH",
         )
-        self.assertEqual(payload["source_payload"]["registration_status"], "not_started")
-        register.assert_not_called()
+        self.assertEqual(payload["source_payload"]["registration_status"], "mismatch")
+        self.generic_ocr.assert_not_called()
+        self.assertGreaterEqual(register.call_count, 1)
         self.birth_topology.assert_not_called()
 
     @patch("job_worker.extract_psa_birth_row_text")

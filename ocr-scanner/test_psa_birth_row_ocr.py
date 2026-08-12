@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -8,6 +9,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+import extraction.psa_birth_row_ocr as birth_ocr
 from extraction.ocr_engine import OCRBinaryUnavailableError
 from extraction.paddle_birth_recognizer import PaddleBirthOCRUnavailable
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
@@ -449,6 +451,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
             {"REQUIRED_NAME_CELL_CROP_MISSING"},
         )
 
+    @unittest.skip("superseded by nine-cell three-variant extraction")
     def test_default_reader_uses_image_to_data_once_per_row(self):
         with patch(
             "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
@@ -476,6 +479,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertFalse(result.metrics["paddle_enabled"])
         self.assertEqual(mapped_fields(result)["child_name"].confidence, 91.33333333333333)
 
+    @unittest.skip("PaddleOCR is disabled in the Birth execution path")
     def test_parallel_ensemble_uses_tesseract_below_paddle_threshold(self):
         keys = sorted(crop_output().crops)
         paddle_values = {
@@ -503,6 +507,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertEqual(result.metrics["confidence_source"], "paddleocr_tesseract_vote")
         self.assertTrue(result.metrics["ensemble_parallel"])
 
+    @unittest.skip("PaddleOCR is disabled in the Birth execution path")
     def test_default_paddle_threshold_accepts_sixty_percent(self):
         self.assertEqual(
             PSABirthRowOCRConfig().paddle_confidence_threshold,
@@ -552,6 +557,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
             "Pedro",
         )
 
+    @unittest.skip("PaddleOCR is disabled in the Birth execution path")
     def test_parallel_ensemble_uses_higher_confidence_on_disagreement(self):
         keys = sorted(crop_output().crops)
         paddle_values = {
@@ -579,6 +585,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertEqual(child.component_confidence["first_name"], 99.0)
         self.assertEqual(result.metrics["selected_engine_counts"], {"paddleocr": 9})
 
+    @unittest.skip("PaddleOCR is disabled in the Birth execution path")
     def test_parallel_ensemble_accepts_engine_agreement(self):
         keys = sorted(crop_output().crops)
         component_values = {
@@ -614,6 +621,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
             {"paddleocr+tesseract_agreement": 9},
         )
 
+    @unittest.skip("superseded by per-cell noisy-candidate voting test")
     def test_noisy_low_confidence_name_is_returned_for_review(self):
         calls = 0
 
@@ -641,6 +649,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertLess(child.confidence, 50.0)
         self.assertIn("birth_name_low_confidence", child.issue_codes)
 
+    @unittest.skip("row word-box splitting was removed; cells define components")
     def test_row_word_boxes_preserve_multiword_surname_order(self):
         def data_reader(image, **_kwargs):
             width = image.shape[1]
@@ -666,6 +675,167 @@ class PSABirthRowOCRTest(unittest.TestCase):
         child = mapped_fields(result)["child_name"]
         self.assertEqual(child.components["last_name"], "DELA CRUZ")
         self.assertEqual(child.raw_text, "JUAN S. DELA CRUZ")
+
+    def test_default_path_runs_exactly_three_variants_for_nine_cells(self):
+        def data_reader(_image, **_kwargs):
+            return {
+                "text": ["ALPHA"],
+                "conf": [91.0],
+                "left": [4],
+                "width": [30],
+            }
+
+        with patch(
+            "extraction.psa_birth_row_ocr.recognize_birth_name_batch",
+            side_effect=AssertionError("Paddle must never run"),
+        ), patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=data_reader,
+        ) as mocked:
+            result = extract_psa_birth_row_text(crop_output())
+
+        self.assertTrue(result.success, result.issues)
+        self.assertEqual(mocked.call_count, 27)
+        self.assertEqual(result.metrics["cell_ocr_attempts"], 27)
+        self.assertEqual(result.metrics["row_ocr_attempts"], 0)
+        self.assertFalse(result.metrics["full_row_crop_used"])
+        self.assertFalse(result.metrics["paddle_enabled"])
+        self.assertEqual(result.metrics["maximum_workers"], 2)
+        self.assertEqual(len(result.metrics["variant_observations"]), 9)
+
+    def test_three_variant_vote_prefers_majority_value(self):
+        readings = iter(
+            [
+                ("VENICE EVE", 72.0),
+                ("VENICE EVE", 81.0),
+                ("VENLCE EVE", 96.0),
+            ]
+        )
+
+        def data_reader(_image, **_kwargs):
+            text, confidence = next(readings)
+            return {
+                "text": text.split(),
+                "conf": [confidence] * len(text.split()),
+                "left": list(range(len(text.split()))),
+                "width": [10] * len(text.split()),
+            }
+
+        crop = np.full((50, 220, 3), 255, dtype=np.uint8)
+        with patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=data_reader,
+        ):
+            selected, observations, _elapsed = birth_ocr._variant_observations(
+                crop,
+                PSABirthRowOCRConfig(),
+            )
+
+        self.assertEqual(selected.raw_text, "VENICE EVE")
+        self.assertEqual(selected.confidence, 81.0)
+        self.assertEqual(len(observations), 3)
+
+    def test_three_variant_vote_keeps_highest_confidence_noisy_spelling(self):
+        readings = iter(
+            [("PELIMA", 44.0), ("PEL1MA", 79.0), ("PELlMA", 68.0)]
+        )
+
+        def data_reader(_image, **_kwargs):
+            text, confidence = next(readings)
+            return {
+                "text": [text],
+                "conf": [confidence],
+                "left": [2],
+                "width": [40],
+            }
+
+        crop = np.full((50, 220, 3), 255, dtype=np.uint8)
+        with patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=data_reader,
+        ):
+            selected, _observations, _elapsed = birth_ocr._variant_observations(
+                crop,
+                PSABirthRowOCRConfig(),
+            )
+
+        self.assertEqual(selected.candidate, "PEL1MA")
+        self.assertEqual(selected.raw_text, "PEL1MA")
+
+    def test_default_path_requires_validated_topology(self):
+        output = crop_output()
+        invalid = type(output)(
+            regions=output.regions,
+            crops=output.crops,
+            registered_width=output.registered_width,
+            registered_height=output.registered_height,
+            row_crops=output.row_crops,
+            topology={},
+        )
+        with patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data"
+        ) as mocked:
+            result = extract_psa_birth_row_text(invalid)
+
+        self.assertFalse(result.success)
+        self.assertEqual(issue_codes(result), {"BIRTH_NAME_TOPOLOGY_REQUIRED"})
+        mocked.assert_not_called()
+
+    def test_physical_cells_preserve_compound_first_name_and_father_na(self):
+        output = crop_output()
+        ordered_keys = [
+            f"{field}.{component}"
+            for field in ("child_name", "mother_maiden_name", "father_name")
+            for component in ("first_name", "middle_name", "last_name")
+        ]
+        marked_crops = {
+            key: np.full((40, 80, 3), index, dtype=np.uint8)
+            for index, key in enumerate(ordered_keys, start=1)
+        }
+        values = {
+            1: "VENICE EVE",
+            2: "",
+            3: "PELIMA",
+            4: "ROWENA",
+            5: "FRANCISCO",
+            6: "DELA CRUZ",
+            7: "N/A",
+            8: "",
+            9: "",
+        }
+
+        def recognize(crop, _config):
+            text = values[int(crop[0, 0, 0])]
+            observation = birth_ocr._ComponentObservation(
+                raw_text=text,
+                candidate=("N/A" if text == "N/A" else text),
+                confidence=94.0 if text else None,
+                engine="tesseract:mild_clahe",
+            )
+            return observation, (observation, observation, observation), 0.0
+
+        with patch(
+            "extraction.psa_birth_row_ocr._variant_observations",
+            side_effect=recognize,
+        ):
+            result = extract_psa_birth_row_text(
+                replace(output, crops=marked_crops)
+            )
+
+        fields = mapped_fields(result)
+        self.assertEqual(
+            fields["child_name"].components["first_name"],
+            "VENICE EVE",
+        )
+        self.assertEqual(
+            fields["mother_maiden_name"].components["last_name"],
+            "DELA CRUZ",
+        )
+        self.assertEqual(fields["father_name"].section_status, "not_applicable")
+        self.assertEqual(
+            dict(fields["father_name"].components),
+            {"first_name": "", "middle_name": "", "last_name": ""},
+        )
 
     def test_missing_binary_maps_to_field_failure(self):
         with patch(

@@ -14,6 +14,15 @@ test('recognizes Marilao and its barangays as residency evidence', () => {
 });
 
 test('only confirmed full residence address establishes Marilao residency', () => {
+    assert.equal(resolveMarilaoResidency([]), null);
+
+    assert.equal(resolveMarilaoResidency([
+        {
+            document_key: 'certificate_of_indigency',
+            verified_fields: { issuing_barangay: 'Lias' },
+        },
+    ]), null);
+
     assert.equal(resolveMarilaoResidency([
         {
             document_key: 'certificate_of_indigency',
@@ -42,15 +51,8 @@ test('only confirmed full residence address establishes Marilao residency', () =
 
     assert.equal(resolveMarilaoResidency([
         {
-            document_key: 'certificate_of_indigency',
-            verified_fields: { issuing_barangay: 'Lias' },
-        },
-    ]), false);
-
-    assert.equal(resolveMarilaoResidency([
-        {
             document_key: 'student_grade_forms',
             verified_fields: { address: 'Marilao' },
         },
-    ]), false);
+    ]), null);
 });

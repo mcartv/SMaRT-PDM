@@ -32,6 +32,7 @@ import {
 
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
@@ -192,8 +193,8 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Section</span>
-                    <span className="font-medium text-stone-800">{scholar.section || 'N/A'}</span>
+                    <span className="text-stone-500">Course</span>
+                    <span className="font-medium text-stone-800">{scholar.course_code || scholar.course_name || 'N/A'}</span>
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
@@ -250,9 +251,9 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                   <div className="rounded-lg border border-stone-200 px-3 py-3">
                     <div className="flex items-center gap-2 text-stone-500 mb-1">
                       <ShieldAlert size={13} />
-                      <span>Section</span>
+                      <span>Course</span>
                     </div>
-                    <p className="font-medium text-stone-800">{scholar.section || 'Not available'}</p>
+                    <p className="font-medium text-stone-800">{scholar.course_code || scholar.course_name || 'Not available'}</p>
                   </div>
 
                   <div className="rounded-lg border border-stone-200 px-3 py-3">
@@ -282,7 +283,7 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                 <CardContent>
                   <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
                     <p className="text-xs text-stone-600 leading-relaxed">
-                      Use this view to validate scholar identity, batch, section, program, and
+                      Use this view to validate scholar identity, batch, course, program, and
                       existing disciplinary remarks before saving an SDO update.
                     </p>
                   </div>
@@ -298,6 +299,7 @@ function ScholarViewModal({ scholar, draft, onClose }) {
 
 // ─── Main Component ──────────────────────────────────────────────
 export default function SDOScholarList() {
+  const { theme } = usePortalTheme('sdo');
   const [scholars, setScholars] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -410,7 +412,8 @@ export default function SDOScholarList() {
         (scholar.student_number || '').toLowerCase().includes(q) ||
         (scholar.program_name || '').toLowerCase().includes(q) ||
         (scholar.batch_year || '').toLowerCase().includes(q) ||
-        (scholar.section || '').toLowerCase().includes(q);
+        (scholar.course_code || '').toLowerCase().includes(q) ||
+        (scholar.course_name || '').toLowerCase().includes(q);
 
       const matchesProgram =
         program === 'All Programs' || scholar.program_name === program;
@@ -579,7 +582,7 @@ export default function SDOScholarList() {
   }
 
   return (
-    <div className="space-y-5 py-2" style={{ background: C.bg }}>
+    <div className="space-y-5 py-2">
       {viewScholar && (
         <ScholarViewModal
           scholar={viewScholar}
@@ -588,54 +591,68 @@ export default function SDOScholarList() {
         />
       )}
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
-            Scholar Monitoring
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            Review scholar records and manage disciplinary standing.
-          </p>
+      <section
+        className="overflow-hidden rounded-[26px] border p-6"
+        style={{
+          borderColor: theme.border,
+          background: `linear-gradient(135deg, ${theme.accentSoft}, white 70%)`,
+        }}
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
+              style={{ background: theme.base, color: '#fff' }}
+            >
+              <ShieldAlert className="h-3.5 w-3.5" />
+              SDO Scholars
+            </div>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-900">
+              Scholar Monitoring
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              Review scholar records and manage disciplinary standing.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => loadScholars({ soft: true })}
+            className="w-fit border-stone-200 bg-white"
+          >
+            {refreshing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Refresh
+          </Button>
         </div>
+      </section>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => loadScholars({ soft: true })}
-          className="rounded-lg text-xs border-stone-200 text-stone-600"
-        >
-          {refreshing ? (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-          )}
-          Refresh
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((s) => (
-          <Card key={s.label} className="border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
+          <Card key={s.label} className="rounded-[20px] border-stone-200 shadow-none">
+            <CardContent className="flex items-center gap-3 p-4">
               <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center"
+                className="flex h-10 w-10 items-center justify-center rounded-xl"
                 style={{ background: s.soft }}
               >
                 <s.icon className="w-4 h-4" style={{ color: s.accent }} />
               </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="text-2xl font-semibold" style={{ color: C.text }}>
-                {s.value}
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  {s.label}
+                </p>
+                <p className="mt-1 text-xl font-semibold text-stone-900">{s.value}</p>
               </div>
-              <p className="text-xs text-stone-500 mt-0.5">{s.label}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card className="border-stone-200 shadow-none overflow-hidden">
-        <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-4 px-5">
+      <Card className="overflow-hidden rounded-[22px] border-stone-200 shadow-none">
+        <CardHeader className="border-b border-stone-100 bg-white p-4">
           <div className="space-y-4">
             <div className="flex flex-col gap-3 xl:flex-row">
               <div className="relative flex-1">
@@ -643,7 +660,7 @@ export default function SDOScholarList() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search scholar, student ID, batch, program, or section"
+                  placeholder="Search scholar, student ID, batch, program, or course"
                   className="h-10 rounded-lg border-stone-200 pl-9 text-sm bg-white"
                 />
               </div>
@@ -725,7 +742,7 @@ export default function SDOScholarList() {
                 <TableHead className="text-xs font-medium text-stone-500 py-3 px-5">Scholar</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Student ID</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Program</TableHead>
-                <TableHead className="text-xs font-medium text-stone-500 py-3">Section</TableHead>
+                <TableHead className="text-xs font-medium text-stone-500 py-3">Course</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 w-[160px]">Disciplinary Standing</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 min-w-[280px]">Comment</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Action</TableHead>
@@ -768,7 +785,7 @@ export default function SDOScholarList() {
                       </TableCell>
 
                       <TableCell className="py-3.5 align-top text-sm text-stone-600">
-                        {scholar.section || '—'}
+                        {scholar.course_code || scholar.course_name || '—'}
                       </TableCell>
 
                       <TableCell className="py-3.5 align-top">
@@ -819,7 +836,7 @@ export default function SDOScholarList() {
                             onClick={() => handleSave(scholar)}
                             disabled={savingId === scholar.scholar_id}
                             className="h-8 rounded-lg text-white text-xs px-4 border-none"
-                            style={{ background: C.brownMid }}
+                            style={{ background: theme.base }}
                           >
                             {savingId === scholar.scholar_id ? (
                               <>

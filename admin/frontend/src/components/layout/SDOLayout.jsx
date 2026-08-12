@@ -11,7 +11,6 @@ import {
   ChevronRight,
   LogOut,
   Settings,
-  Users,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
@@ -42,7 +41,6 @@ const baseNavItems = [
   { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/sdo/queue', label: 'For Endorsement', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
-  { path: '/sdo/students-with-records', label: 'Students with Records', icon: Users },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
   { path: '/sdo/settings', label: 'Settings', icon: Settings },

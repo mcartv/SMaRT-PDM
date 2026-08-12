@@ -10,7 +10,6 @@ import {
   NotebookPen,
   RefreshCw,
   ShieldAlert,
-  Users,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -69,8 +68,6 @@ const DASHBOARD_CONFIG = {
     queueLabel: 'Approval Requests',
     trackerPath: '/sdo/tracker',
     reportsPath: '/sdo/reports',
-    maintenancePath: '/sdo/maintenance',
-    recordsPath: '/sdo/students-with-records',
     detailBasePath: '/sdo/endorsements',
     accent: 'from-emerald-700 via-emerald-600 to-teal-600',
     accentSoft: 'bg-emerald-50 text-emerald-700',
@@ -109,7 +106,6 @@ const DASHBOARD_CONFIG = {
     queueLabel: 'Approval Requests',
     trackerPath: '/guidance/tracker',
     reportsPath: '/guidance/reports',
-    maintenancePath: '/guidance/maintenance',
     detailBasePath: '/guidance/endorsements',
     accent: 'from-sky-700 via-sky-600 to-blue-600',
     accentSoft: 'bg-sky-50 text-sky-700',
@@ -148,7 +144,6 @@ const DASHBOARD_CONFIG = {
     queueLabel: 'Approval Requests',
     trackerPath: '/pd/tracker',
     reportsPath: '/pd/reports',
-    maintenancePath: '/pd/maintenance',
     detailBasePath: '/pd/endorsements',
     accent: 'from-violet-700 via-violet-600 to-fuchsia-600',
     accentSoft: 'bg-violet-50 text-violet-700',
@@ -216,32 +211,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [sdoRecordsSummary, setSdoRecordsSummary] = useState({
-    total_students: 0,
-    total_records: 0,
-    latest_record: null,
-  });
-
-  const loadSdoRecordsSummary = useCallback(async () => {
-    if (officeKey !== 'sdo') return;
-    try {
-      const response = await fetch(
-        buildApiUrl('/api/student-registry/sdo-records/summary'),
-        { headers: buildHeaders(tokenStorageKey) }
-      );
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        setSdoRecordsSummary({
-          total_students: Number(data.total_students || 0),
-          total_records: Number(data.total_records || 0),
-          latest_record: data.latest_record || null,
-        });
-      }
-    } catch {
-      // The endorsement dashboard remains usable if the optional records summary is unavailable.
-    }
-  }, [officeKey, tokenStorageKey]);
-
   const loadRows = useCallback(async ({ soft = false } = {}) => {
     try {
       if (soft) {
@@ -271,8 +240,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   useEffect(() => {
     loadRows();
-    loadSdoRecordsSummary();
-  }, [loadRows, loadSdoRecordsSummary]);
+  }, [loadRows]);
 
   useSocketEvent(
     'endorsement:updated',
@@ -280,14 +248,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
       loadRows({ soft: true });
     },
     [tokenStorageKey]
-  );
-
-  useSocketEvent(
-    'sdo-records:updated',
-    () => {
-      loadSdoRecordsSummary();
-    },
-    [officeKey, tokenStorageKey]
   );
 
   const cards = useMemo(() => config.cards(rows), [config, rows]);
@@ -331,16 +291,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
   const recentActivity = useMemo(() => {
     const activity = [];
 
-    if (officeKey === 'sdo' && sdoRecordsSummary.latest_record?.created_at) {
-      activity.push({
-        slip_id: `sdo-record-${sdoRecordsSummary.latest_record.record_id}`,
-        student_name: sdoRecordsSummary.latest_record.student_number,
-        stage_label: 'Disciplinary record imported',
-        status: sdoRecordsSummary.latest_record.offense_type,
-        acted_at: sdoRecordsSummary.latest_record.created_at,
-      });
-    }
-
     rows.forEach((row) => {
       (row.stages || []).forEach((stage) => {
         if (!stage?.acted_at) return;
@@ -357,7 +307,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
     return activity
       .sort((a, b) => new Date(b.acted_at).getTime() - new Date(a.acted_at).getTime())
       .slice(0, 4);
-  }, [officeKey, rows, sdoRecordsSummary.latest_record]);
+  }, [rows]);
 
   if (loading) {
     return <PageLoadingSkeleton label={`Loading ${config.title}`} variant="dashboard" />;
@@ -407,8 +357,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            variant="outline"
-            className="border-stone-200 bg-white"
+            className="border-none text-white shadow-sm"
+            style={{ background: theme.base }}
             onClick={() => navigate(config.trackerPath)}
           >
             Open Tracker
@@ -416,7 +366,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
           </Button>
           <Button
             variant="outline"
-            className="border-stone-200 bg-white"
+            className="bg-white"
+            style={{ borderColor: theme.border, color: theme.base }}
             onClick={() => loadRows({ soft: true })}
           >
             {refreshing ? (
@@ -441,36 +392,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
             />
           ))}
       </div>
-
-      {officeKey === 'sdo' ? (
-        <Card className="rounded-[22px] border-stone-200 shadow-none">
-          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-              style={{ background: theme.accentSoft, color: theme.base }}
-            >
-              <Users className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-stone-900">Disciplinary Records</p>
-              <p className="mt-1 text-xs text-stone-500">
-                {sdoRecordsSummary.total_students} students with {sdoRecordsSummary.total_records} record entries
-                {sdoRecordsSummary.latest_record?.created_at
-                  ? ` · Latest update ${formatDate(sdoRecordsSummary.latest_record.created_at)}`
-                  : ''}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="shrink-0 border-stone-200"
-              onClick={() => navigate(config.recordsPath)}
-            >
-              View Students
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
         <Card className="rounded-[24px] border-stone-200 shadow-none">
@@ -500,7 +421,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                   key={row.slip_id}
                   type="button"
                   onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
-                  className="w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition hover:bg-stone-50"
+                  className="w-full rounded-[22px] border bg-white p-4 text-left transition hover:shadow-sm"
+                  style={{ borderColor: theme.border }}
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">
@@ -558,7 +480,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               </div>
               <Button
                 variant="outline"
-                className="w-full justify-between border-stone-200"
+                className="w-full justify-between border-stone-200 bg-white text-stone-700"
                 onClick={() => navigate(config.trackerPath)}
               >
                 {config.queueLabel}
@@ -566,28 +488,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               </Button>
               <Button
                 variant="outline"
-                className="w-full justify-between border-stone-200"
+                className="w-full justify-between border-stone-200 bg-white text-stone-700"
                 onClick={() => navigate(config.reportsPath)}
               >
                 Reports
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              {officeKey === 'sdo' ? (
-                <Button
-                  variant="outline"
-                  className="w-full justify-between border-stone-200"
-                  onClick={() => navigate(config.recordsPath)}
-                >
-                  Students with Records
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                className="w-full justify-between border-stone-200"
-                onClick={() => navigate(config.maintenancePath)}
-              >
-                Maintenance
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -631,7 +535,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               <h2 className="text-base font-semibold text-stone-900">Recently Updated Slips</h2>
               <p className="text-sm text-stone-500">A lightweight list of completed or recently moved endorsements.</p>
             </div>
-            <Badge variant="outline" className="border-stone-200 text-stone-700">
+            <Badge
+              variant="outline"
+              style={{ borderColor: theme.border, color: theme.base }}
+            >
               {recentRows.length} shown
             </Badge>
           </div>
@@ -647,7 +554,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                 key={row.slip_id}
                 type="button"
                 onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
-                className="w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition hover:bg-stone-50"
+                className="w-full rounded-[22px] border bg-white p-4 text-left transition hover:shadow-sm"
+                style={{ borderColor: theme.border }}
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
@@ -660,7 +568,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                     <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
                       {row.overall_status_label}
                     </Badge>
-                    <Badge variant="outline" className="border-stone-200 text-stone-700">
+                    <Badge
+                      variant="outline"
+                      style={{ borderColor: theme.border, color: theme.base }}
+                    >
                       {row.current_stage_label}
                     </Badge>
                   </div>

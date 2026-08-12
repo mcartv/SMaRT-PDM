@@ -55,7 +55,6 @@ import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
-import SDOStudentsWithRecords from './pages/SDOStudentsWithRecords';
 import SDOProfile from './pages/SDOProfile';
 import SDOMaintenance from './pages/SDOMaintenance';
 
@@ -336,7 +335,6 @@ export default function App() {
             }
           />
           <Route path="scholars" element={<SDOScholarList />} />
-          <Route path="students-with-records" element={<SDOStudentsWithRecords />} />
           <Route path="profile" element={<SDOProfile />} />
           <Route path="settings" element={<SDOMaintenance />} />
           <Route path="maintenance" element={<Navigate to="/sdo/settings" replace />} />

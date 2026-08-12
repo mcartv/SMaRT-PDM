@@ -111,7 +111,9 @@ function normalizeScholarRow(row) {
       row.sdo_status
     ),
 
-    section: row.section || '',
+    course_id: row.course_id || null,
+    course_code: row.course_code || '',
+    course_name: row.course_name || '',
 
     /*
      * These fields are retained for frontend compatibility.
@@ -273,8 +275,9 @@ exports.fetchAllScholars = async () => {
       st.gwa,
       st.sdo_status,
 
-      ''::text
-        AS section,
+      st.course_id,
+      ac.course_code,
+      ac.course_name,
 
       u.email,
 
@@ -295,6 +298,9 @@ exports.fetchAllScholars = async () => {
     LEFT JOIN scholarship_program sp
       ON sp.program_id =
         st.current_program_id
+
+    LEFT JOIN academic_course ac
+      ON ac.course_id = st.course_id
 
     LEFT JOIN academic_years ay
       ON ay.academic_year_id =
@@ -398,6 +404,9 @@ exports.fetchScholarById = async (studentId) => {
 
       st.gwa,
       st.sdo_status,
+      st.course_id,
+      ac.course_code,
+      ac.course_name,
       st.profile_photo_url,
 
       u.email,
@@ -423,6 +432,9 @@ exports.fetchScholarById = async (studentId) => {
     LEFT JOIN scholarship_program sp
       ON sp.program_id =
         st.current_program_id
+
+    LEFT JOIN academic_course ac
+      ON ac.course_id = st.course_id
 
     LEFT JOIN academic_years ay
       ON ay.academic_year_id =

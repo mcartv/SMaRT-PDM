@@ -32,13 +32,9 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 const API_BASE = buildApiUrl('/api');
-
-const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
-};
 
 const OFFICE_REPORT_FILTERS = {
   endorsements: [
@@ -81,31 +77,30 @@ function getAuthHeaders(tokenStorageKey = 'adminToken') {
   };
 }
 
-function TemplateCard({ report, active, onClick }) {
+function TemplateCard({ report, active, onClick, theme }) {
   return (
     <button
       type="button"
       onClick={() => onClick(report.id)}
       className={`w-full rounded-2xl border p-4 text-left transition-all ${active
-        ? 'border-[#7c4a2e] bg-amber-50'
+        ? ''
         : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
         }`}
+      style={active ? { borderColor: theme.base, background: theme.accentSoft } : undefined}
     >
       <div className="flex items-start gap-4">
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active
-            ? 'border-[#7c4a2e] bg-[#7c4a2e] text-white'
+            ? 'text-white'
             : 'border-stone-200 bg-stone-50 text-stone-500'
             }`}
+          style={active ? { borderColor: theme.base, background: theme.base } : undefined}
         >
           <FileText className="h-4 w-4" />
         </div>
 
         <div className="min-w-0">
-          <p
-            className={`truncate text-sm font-semibold ${active ? 'text-[#5c2d0e]' : 'text-stone-900'
-              }`}
-          >
+          <p className="truncate text-sm font-semibold" style={{ color: active ? theme.base : '#1c1917' }}>
             {report.name}
           </p>
           <p className="mt-1 text-xs text-stone-500">{report.sub}</p>
@@ -156,6 +151,16 @@ export default function ReportGeneration({
   allowedReportTypes = null,
   defaultReportType = '',
 }) {
+  const portalKey = tokenStorageKey === 'sdoToken'
+    ? 'sdo'
+    : tokenStorageKey === 'guidanceToken'
+      ? 'guidance'
+      : tokenStorageKey === 'pdToken'
+        ? 'pd'
+        : tokenStorageKey === 'roCoordinatorToken'
+          ? 'ro_coordinator'
+          : 'admin';
+  const { theme } = usePortalTheme(portalKey);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -663,6 +668,7 @@ export default function ReportGeneration({
                 report={report}
                 active={selected === report.id}
                 onClick={setSelected}
+                theme={theme}
               />
             ))}
           </CardContent>
@@ -844,7 +850,8 @@ export default function ReportGeneration({
             <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row">
               <Button
                 variant="outline"
-                className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                className="h-11 rounded-xl text-sm font-semibold"
+                style={{ borderColor: theme.border, color: theme.base }}
                 disabled={previewLoading || generating}
                 onClick={handlePreviewReport}
               >
@@ -859,7 +866,7 @@ export default function ReportGeneration({
               <div className="flex flex-1 gap-3">
                 <Button
                   className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
-                  style={{ background: C.brown }}
+                  style={{ background: theme.base }}
                   disabled={generating}
                   onClick={handleGenerateReport}
                 >
@@ -872,7 +879,8 @@ export default function ReportGeneration({
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                  className="h-11 rounded-xl text-sm font-semibold"
+                  style={{ borderColor: theme.border, color: theme.base }}
                   disabled={generating}
                   onClick={() => handleDownloadByFormat('csv')}
                 >
@@ -883,7 +891,8 @@ export default function ReportGeneration({
 
               <Button
                 variant="outline"
-                className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                className="h-11 rounded-xl text-sm font-semibold"
+                style={{ borderColor: theme.border, color: theme.base }}
                 disabled={previewLoading || generating}
                 onClick={resetFilters}
               >
@@ -961,7 +970,7 @@ export default function ReportGeneration({
                           interval={0}
                         />
                         <Tooltip formatter={(value) => [Number(value || 0), 'Scholars']} />
-                        <Bar dataKey="count" fill="#7c4a2e" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="count" fill={theme.base} radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

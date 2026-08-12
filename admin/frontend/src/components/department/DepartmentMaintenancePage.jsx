@@ -28,12 +28,10 @@ import {
   Camera,
   Palette,
   PenTool,
-  FileSpreadsheet,
   Trash2,
   ZoomIn,
 } from 'lucide-react';
 import ThemePanel from '@/pages/maintenance/ThemePanel';
-import SDOStudentRegistryImport from '@/components/department/SDOStudentRegistryImport';
 
 const PORTAL_PROFILE_UPDATED_EVENT = 'portal-profile:updated';
 
@@ -946,9 +944,6 @@ export default function DepartmentMaintenancePage({
   const [tab, setTab] = useState('general');
   const tabs = [
     { key: 'general', label: 'General', icon: SlidersHorizontal },
-    ...(config.enableStudentRegistryImport
-      ? [{ key: 'student-list', label: 'Record Import', icon: FileSpreadsheet }]
-      : []),
     { key: 'theme', label: 'Theme', icon: Palette },
     { key: 'audit', label: 'Audit', icon: ClipboardList },
   ];
@@ -987,7 +982,6 @@ export default function DepartmentMaintenancePage({
               palette={palette}
             />
           )}
-          {tab === 'student-list' && <SDOStudentRegistryImport palette={palette} />}
           {tab === 'theme' && (
             <ThemePanel
               tokenStorageKey={tokenStorageKey}

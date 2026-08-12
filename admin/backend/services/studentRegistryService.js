@@ -1085,11 +1085,5 @@ async function listSdoStudentRegistry({ limit = 100, offset = 0 } = {}) {
 
 module.exports = {
   importStudentRegistryFile,
-  importSdoDisciplinaryRecordsFile,
-  previewSdoDisciplinaryRecordsFile,
   listStudentRegistry,
-  listSdoStudentRegistry,
-  listSdoStudentsWithRecords,
-  getSdoStudentRecordHistory,
-  getSdoRecordsSummary,
 };

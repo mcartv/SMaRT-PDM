@@ -63,13 +63,25 @@ function isMarilaoResidenceReview(review = {}) {
     return LOCATION_FIELD_KEYS.some((key) => isMarilaoLocation(fields[key]));
 }
 
+function hasConfirmedResidenceAddress(review = {}) {
+    const documentKey = normalizeLocation(review.document_key).replace(/\s+/g, '_');
+    if (!MARILAO_DOCUMENT_KEYS.has(documentKey)) return false;
+    const fields = review.verified_fields;
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return false;
+    return LOCATION_FIELD_KEYS.some((key) => normalizeLocation(fieldValue(fields[key])));
+}
+
 function resolveMarilaoResidency(reviews = []) {
-    return Array.isArray(reviews) && reviews.some(isMarilaoResidenceReview);
+    if (!Array.isArray(reviews)) return null;
+    const confirmedResidenceReviews = reviews.filter(hasConfirmedResidenceAddress);
+    if (confirmedResidenceReviews.length === 0) return null;
+    return confirmedResidenceReviews.some(isMarilaoResidenceReview);
 }
 
 module.exports = {
     MARILAO_BARANGAYS,
     isMarilaoLocation,
     isMarilaoResidenceReview,
+    hasConfirmedResidenceAddress,
     resolveMarilaoResidency,
 };

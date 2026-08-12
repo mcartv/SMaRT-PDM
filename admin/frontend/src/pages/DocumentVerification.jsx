@@ -2167,9 +2167,14 @@ function StudentCard({ application, onViewSlip }) {
           <InfoRow label="Course / Program" value={application?.student?.course} />
           <InfoRow
             label="Marilao Resident"
-            value={application?.student?.marilao_resident === true ? 'True' : 'False'}
+            value={
+              application?.student?.marilao_resident === true
+                ? 'True'
+                : application?.student?.marilao_resident === false
+                  ? 'False'
+                  : 'N/A'
+            }
           />
-          <InfoRow label="Document Status" value={application?.document_status} />
         </div>
       </div>
     </Card>

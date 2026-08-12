@@ -108,12 +108,15 @@ test('registration and request letter cannot run IoT OCR', () => {
     assert.match(source, /IoT OCR unavailable/);
 });
 
-test('student summary displays confirmed Marilao residency as true or false', () => {
+test('student summary displays tri-state confirmed Marilao residency', () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
         'utf8'
     );
 
     assert.match(source, /label="Marilao Resident"/);
-    assert.match(source, /marilao_resident === true \? 'True' : 'False'/);
+    assert.match(source, /marilao_resident === true/);
+    assert.match(source, /marilao_resident === false/);
+    assert.match(source, /: 'N\/A'/);
+    assert.doesNotMatch(source, /<InfoRow label="Document Status"/);
 });

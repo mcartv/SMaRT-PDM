@@ -193,19 +193,19 @@ export default function usePortalNotifications({
   portalRootPath,
   limit = 8,
 }) {
-  const seenStorageKey = `smartpdm-seen-notifications:${portalRootPath}:${tokenStorageKey}`;
+  const openedStorageKey = `smartpdm-opened-notifications:${portalRootPath}:${tokenStorageKey}`;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
 
-  const [seenNotificationIds, setSeenNotificationIds] = useState(() => {
+  const readOpenedNotificationIds = useCallback(() => {
     try {
-      return new Set(JSON.parse(sessionStorage.getItem(seenStorageKey) || '[]'));
+      return new Set(JSON.parse(sessionStorage.getItem(openedStorageKey) || '[]'));
     } catch {
       return new Set();
     }
-  });
+  }, [openedStorageKey]);
 
   const syncItems = useCallback((updater) => {
     setItems((current) => {
@@ -279,7 +279,11 @@ export default function usePortalNotifications({
           isRelevantPortalNotification(portalRootPath, item, {
             hasRoCoordinatorAccess,
           })
-        );
+        )
+        .map((item) => ({
+          ...item,
+          is_recently_opened: readOpenedNotificationIds().has(item.notification_id),
+        }));
       setItems(sortNotifications(normalized));
     } catch (error) {
       console.error('NOTIFICATION LOAD ERROR:', error);
@@ -287,7 +291,7 @@ export default function usePortalNotifications({
     } finally {
       setLoading(false);
     }
-  }, [hasRoCoordinatorAccess, limit, portalRootPath, tokenStorageKey]);
+  }, [hasRoCoordinatorAccess, limit, portalRootPath, readOpenedNotificationIds, tokenStorageKey]);
 
   useEffect(() => {
     loadNotifications();
@@ -402,26 +406,6 @@ export default function usePortalNotifications({
     [items]
   );
 
-  const unseenCount = useMemo(
-    () => items.filter(
-      (item) => item.is_read !== true && !seenNotificationIds.has(item.notification_id)
-    ).length,
-    [items, seenNotificationIds]
-  );
-
-  const markNotificationsSeen = useCallback(() => {
-    setSeenNotificationIds((current) => {
-      const next = new Set(current);
-      items.forEach((item) => next.add(item.notification_id));
-      try {
-        sessionStorage.setItem(seenStorageKey, JSON.stringify([...next]));
-      } catch {
-        // The in-memory seen state still works when session storage is unavailable.
-      }
-      return next;
-    });
-  }, [items, seenStorageKey]);
-
   const newNotifications = useMemo(
     () => items.filter((item) => item.is_read !== true),
     [items]
@@ -435,6 +419,21 @@ export default function usePortalNotifications({
   const openNotification = useCallback(
     async (notification, navigate) => {
       if (!notification) return;
+
+      const openedIds = readOpenedNotificationIds();
+      openedIds.add(notification.notification_id);
+      try {
+        sessionStorage.setItem(openedStorageKey, JSON.stringify([...openedIds]));
+      } catch {
+        // The in-memory highlight still works when session storage is unavailable.
+      }
+      syncItems((current) =>
+        current.map((item) =>
+          item.notification_id === notification.notification_id
+            ? { ...item, is_read: true, is_recently_opened: true }
+            : item
+        )
+      );
 
       if (notification.is_read !== true) {
         await markAsRead(notification.notification_id);
@@ -458,7 +457,7 @@ export default function usePortalNotifications({
         }
       }
     },
-    [markAsRead, portalRootPath]
+    [markAsRead, openedStorageKey, portalRootPath, readOpenedNotificationIds, syncItems]
   );
 
   return {
@@ -466,13 +465,11 @@ export default function usePortalNotifications({
     newNotifications,
     earlierNotifications,
     unreadCount,
-    unseenCount,
     loading,
     markingAll,
     reloadNotifications: loadNotifications,
     markAsRead,
     markAllAsRead,
-    markNotificationsSeen,
     openNotification,
     formatNotificationTime,
   };

@@ -193,10 +193,19 @@ export default function usePortalNotifications({
   portalRootPath,
   limit = 8,
 }) {
+  const seenStorageKey = `smartpdm-seen-notifications:${portalRootPath}:${tokenStorageKey}`;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+
+  const [seenNotificationIds, setSeenNotificationIds] = useState(() => {
+    try {
+      return new Set(JSON.parse(sessionStorage.getItem(seenStorageKey) || '[]'));
+    } catch {
+      return new Set();
+    }
+  });
 
   const syncItems = useCallback((updater) => {
     setItems((current) => {
@@ -291,6 +300,12 @@ export default function usePortalNotifications({
       const token = sessionStorage.getItem(tokenStorageKey);
       if (!token) return;
 
+      syncItems((current) =>
+        current.map((item) =>
+          item.notification_id === notificationId ? { ...item, is_read: true } : item
+        )
+      );
+
       try {
         const response = await fetch(buildApiUrl(`/api/notifications/${notificationId}/read`), {
           method: 'PATCH',
@@ -313,6 +328,11 @@ export default function usePortalNotifications({
         );
       } catch (error) {
         console.error('MARK NOTIFICATION READ ERROR:', error);
+        syncItems((current) =>
+          current.map((item) =>
+            item.notification_id === notificationId ? { ...item, is_read: false } : item
+          )
+        );
       }
     },
     [syncItems, tokenStorageKey]
@@ -382,6 +402,26 @@ export default function usePortalNotifications({
     [items]
   );
 
+  const unseenCount = useMemo(
+    () => items.filter(
+      (item) => item.is_read !== true && !seenNotificationIds.has(item.notification_id)
+    ).length,
+    [items, seenNotificationIds]
+  );
+
+  const markNotificationsSeen = useCallback(() => {
+    setSeenNotificationIds((current) => {
+      const next = new Set(current);
+      items.forEach((item) => next.add(item.notification_id));
+      try {
+        sessionStorage.setItem(seenStorageKey, JSON.stringify([...next]));
+      } catch {
+        // The in-memory seen state still works when session storage is unavailable.
+      }
+      return next;
+    });
+  }, [items, seenStorageKey]);
+
   const newNotifications = useMemo(
     () => items.filter((item) => item.is_read !== true),
     [items]
@@ -426,11 +466,13 @@ export default function usePortalNotifications({
     newNotifications,
     earlierNotifications,
     unreadCount,
+    unseenCount,
     loading,
     markingAll,
     reloadNotifications: loadNotifications,
     markAsRead,
     markAllAsRead,
+    markNotificationsSeen,
     openNotification,
     formatNotificationTime,
   };

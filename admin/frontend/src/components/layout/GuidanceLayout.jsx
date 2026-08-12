@@ -4,8 +4,6 @@ export default function GuidanceLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="guidance"
-      title="SMaRT PDM Guidance Panel"
-      subtitle="Guidance clearance and moral standing review"
       officeName="Guidance Office"
       loginPath="/guidance/login"
       dashboardPath="/guidance/dashboard"

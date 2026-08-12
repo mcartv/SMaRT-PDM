@@ -51,10 +51,18 @@ function readStoredProfile(storageKey) {
   }
 }
 
+function getHeaderGreeting(profile) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = String(
+    profile?.first_name || profile?.name || profile?.full_name || ''
+  ).trim().split(/\s+/)[0];
+
+  return `${greeting}, ${firstName || 'there'}`;
+}
+
 export default function DepartmentPortalLayout({
   portalKey,
-  title,
-  subtitle,
   officeName,
   loginPath,
   dashboardPath,
@@ -85,9 +93,11 @@ export default function DepartmentPortalLayout({
     newNotifications,
     earlierNotifications,
     unreadCount,
+    unseenCount,
     loading: notificationsLoading,
     markingAll,
     markAllAsRead,
+    markNotificationsSeen,
     openNotification,
     formatNotificationTime,
   } = usePortalNotifications({
@@ -226,7 +236,7 @@ export default function DepartmentPortalLayout({
 
   const profileImage = resolveProfileImage(profile);
   const displayName = profile?.name || officeName;
-  const displayPosition = profile?.position || title;
+  const displayPosition = profile?.position || officeName;
   const portalDisplayName = portalKey
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -341,9 +351,13 @@ export default function DepartmentPortalLayout({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold leading-tight text-stone-800">{title}</h1>
+            <h1 className="text-sm font-semibold leading-tight text-stone-800">
+              {getHeaderGreeting(profile)}
+            </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="truncate text-[11px] text-stone-500">{subtitle}</p>
+              <p className="truncate text-[11px] text-stone-500">
+                Welcome to SMaRT-PDM.
+              </p>
               <span
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
                 style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
@@ -356,7 +370,10 @@ export default function DepartmentPortalLayout({
           <div className="flex items-center gap-3">
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => setNotifOpen((current) => !current)}
+                onClick={() => setNotifOpen((current) => {
+                  if (!current) markNotificationsSeen();
+                  return !current;
+                })}
                 className="relative rounded-xl border border-stone-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-stone-100"
                 style={notifOpen ? { borderColor: theme.accentSoft, background: theme.accentSoft } : undefined}
                 title="Open notifications"
@@ -364,7 +381,7 @@ export default function DepartmentPortalLayout({
                 aria-expanded={notifOpen}
               >
                 <Bell className="h-4 w-4" style={{ color: theme.base }} />
-                {unreadCount > 0 ? (
+                {unseenCount > 0 ? (
                   <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 ) : null}
               </button>
@@ -447,7 +464,7 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98]"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-xs font-semibold text-stone-800">

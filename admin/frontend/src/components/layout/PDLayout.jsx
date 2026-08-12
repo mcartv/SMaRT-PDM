@@ -4,8 +4,6 @@ export default function PDLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="pd"
-      title="SMaRT PDM PD Panel"
-      subtitle="Program director endorsement review"
       officeName="Program Director Office"
       loginPath="/pd/login"
       dashboardPath="/pd/dashboard"

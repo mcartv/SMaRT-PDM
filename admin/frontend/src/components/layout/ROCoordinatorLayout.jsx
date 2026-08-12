@@ -4,8 +4,6 @@ export default function ROCoordinatorLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="ro_coordinator"
-      title="SMaRT PDM RO Coordinator Panel"
-      subtitle="Return of Obligation assignment review"
       officeName="RO Coordinator"
       loginPath="/ro-coordinator/login"
       dashboardPath="/ro-coordinator/dashboard"

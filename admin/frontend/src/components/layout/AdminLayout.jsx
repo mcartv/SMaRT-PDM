@@ -72,9 +72,11 @@ export default function AdminLayout() {
     newNotifications,
     earlierNotifications,
     unreadCount,
+    unseenCount,
     loading: notificationsLoading,
     markingAll,
     markAllAsRead,
+    markNotificationsSeen,
     openNotification,
     formatNotificationTime,
   } = usePortalNotifications({
@@ -340,7 +342,10 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => setNotifOpen(!notifOpen)}
+                onClick={() => {
+                  if (!notifOpen) markNotificationsSeen();
+                  setNotifOpen(!notifOpen);
+                }}
                 className="relative rounded-xl border border-stone-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-stone-100"
                 style={notifOpen ? { borderColor: theme.accentSoft, background: theme.accentSoft } : undefined}
                 title="Open notifications"
@@ -348,7 +353,7 @@ export default function AdminLayout() {
                 aria-expanded={notifOpen}
               >
                 <Bell className="h-4 w-4" style={{ color: theme.base }} />
-                {unreadCount > 0 && (
+                {unseenCount > 0 && (
                   <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 )}
               </button>
@@ -429,7 +434,8 @@ export default function AdminLayout() {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className="w-full border-b border-stone-50 bg-white px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98]"
+                            style={{ background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-xs font-semibold text-stone-800">

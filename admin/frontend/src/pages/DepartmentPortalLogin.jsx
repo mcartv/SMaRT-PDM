@@ -247,7 +247,7 @@ export default function DepartmentPortalLogin({
           </form>
 
           <p className="mt-8 text-center text-xs font-medium text-stone-400">
-            Contact <span className="text-stone-600">IT Support</span> for account issues.
+            Contact <span className="text-stone-600">Administrator</span> for account issues.
           </p>
         </div>
       </div>

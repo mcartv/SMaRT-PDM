@@ -373,16 +373,18 @@ export default function ROCoordinatorQueue({
             <Button
               type="button"
               variant="outline"
+              size="icon"
               disabled={!hasDetailFilters}
               onClick={() => {
                 setCourseFilter('all');
                 setYearFilter('all');
                 setProgramFilter('all');
               }}
-              className="h-10 border-stone-200"
+              className="h-10 w-10 justify-self-end border-stone-200"
+              title="Clear filters"
+              aria-label="Clear filters"
             >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Clear Filters
+              <RotateCcw className="h-4 w-4" />
             </Button>
           </div>
         </div>

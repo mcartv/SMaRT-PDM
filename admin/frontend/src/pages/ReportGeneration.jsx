@@ -181,7 +181,6 @@ export default function ReportGeneration({
 
   const [previewRows, setPreviewRows] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
-  const [previewSummary, setPreviewSummary] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
   const [feedback, setFeedback] = useState(null);
@@ -197,7 +196,6 @@ export default function ReportGeneration({
   useEffect(() => {
     setPreviewRows([]);
     setPreviewTotal(0);
-    setPreviewSummary(null);
     setHasPreviewed(false);
   }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
 
@@ -356,7 +354,6 @@ export default function ReportGeneration({
     setDateTo('');
     setPreviewRows([]);
     setPreviewTotal(0);
-    setPreviewSummary(null);
     setHasPreviewed(false);
   }
 
@@ -376,7 +373,6 @@ export default function ReportGeneration({
 
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
-      setPreviewSummary(data.summary || null);
       setHasPreviewed(true);
       setFeedback({
         tone: 'success',
@@ -552,60 +548,6 @@ export default function ReportGeneration({
     }
   }
 
-  const summaryEntries = useMemo(() => {
-    if (isScholarCountReport) {
-      return [
-        { label: 'Total Scholars', value: previewTotal },
-      ];
-    }
-
-    if (!previewSummary || !isOfficeEndorsementReport) return [];
-
-    if (selected === 'endorsements') {
-      return [
-        { label: 'Total', value: previewSummary.total || 0 },
-        { label: 'Pending', value: previewSummary.pending || 0 },
-        { label: 'Completed', value: previewSummary.completed || 0 },
-        { label: 'Stopped', value: previewSummary.stopped || 0 },
-      ];
-    }
-
-    if (selected === 'sdo') {
-      return [
-        { label: 'Total', value: previewSummary.total ?? 0 },
-        { label: 'Pending', value: previewSummary.pending ?? 0 },
-        { label: 'No Offense', value: previewSummary.noOffense ?? 0 },
-        { label: 'Minor', value: previewSummary.minor ?? 0 },
-        { label: 'Major', value: previewSummary.major ?? 0 },
-      ];
-    }
-
-    if (selected === 'guidance') {
-      return [
-        { label: 'Total', value: previewSummary.total ?? 0 },
-        { label: 'Pending', value: previewSummary.pending ?? 0 },
-        { label: 'Good Moral', value: previewSummary.goodMoral ?? 0 },
-        { label: 'Completed', value: previewSummary.completed ?? 0 },
-      ];
-    }
-
-    if (selected === 'ro') {
-      return [
-        { label: 'Assigned Scholars', value: previewSummary.assignedScholars ?? previewSummary.total ?? 0 },
-        { label: 'Pending Validation', value: previewSummary.pendingValidation ?? 0 },
-        { label: 'Cleared RO', value: previewSummary.cleared ?? 0 },
-      ];
-    }
-
-    return [
-      { label: 'Total', value: previewSummary.total ?? 0 },
-      { label: 'Pending', value: previewSummary.pending ?? 0 },
-      { label: 'Good Standing', value: previewSummary.goodStanding ?? 0 },
-      { label: 'Average Standing', value: previewSummary.averageStanding ?? 0 },
-      { label: 'Completed', value: previewSummary.completed ?? 0 },
-    ];
-  }, [isOfficeEndorsementReport, isScholarCountReport, previewSummary, previewTotal, selected]);
-
   if (loading) {
     return <PageLoadingSkeleton label="Loading reports" variant="cards" />;
   }
@@ -686,10 +628,6 @@ export default function ReportGeneration({
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-[11px] text-stone-500">
-                <Filter className="h-3.5 w-3.5" />
-                Live database export
-              </div>
             </div>
           </div>
 
@@ -930,16 +868,6 @@ export default function ReportGeneration({
           </div>
 
           <CardContent className="p-0">
-            {summaryEntries.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 border-b border-stone-100 p-4 md:grid-cols-5">
-                {summaryEntries.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-wide text-stone-400">{item.label}</p>
-                    <p className="mt-1 text-lg font-semibold text-stone-900">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            ) : null}
             {isScholarCountReport && previewRows.length > 0 ? (
               <div className="border-b border-stone-100 p-4">
                 <div className="mb-4 flex items-center justify-between gap-4">

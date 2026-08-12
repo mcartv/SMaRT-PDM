@@ -325,9 +325,12 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
               <Badge className={STAGE_META[slip.overall_status] || 'bg-stone-100 text-stone-700'}>
                 {formatStageBadgeLabel(slip.overall_status_label || slip.overall_status)}
               </Badge>
-              <Badge variant="outline" className="border-white/25 bg-white/10 text-white">
-                {formatStageBadgeLabel(slip.current_stage_label || slip.current_stage)}
-              </Badge>
+              {formatStageBadgeLabel(slip.current_stage_label || slip.current_stage)
+                !== formatStageBadgeLabel(slip.overall_status_label || slip.overall_status) ? (
+                  <Badge variant="outline" className="border-white/25 bg-white/10 text-white">
+                    {formatStageBadgeLabel(slip.current_stage_label || slip.current_stage)}
+                  </Badge>
+                ) : null}
               <Badge variant="outline" className="border-white/25 bg-white/10 text-white font-mono">
                 {slip.slip_code || 'N/A'}
               </Badge>
@@ -393,8 +396,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             <DetailItem label="Program" value={slip.program_name || 'N/A'} />
             <DetailItem label="Semester" value={slip.semester || 'N/A'} />
             <DetailItem label="School Year" value={slip.school_year || 'N/A'} />
-            <DetailItem label="GWA" value={slip.grade_summary?.gwa ?? 'N/A'} />
-            <DetailItem label="Stored Final PDF" value={slip.final_pdf_url ? 'Available' : 'Not stored'} />
+            {isPdView ? <DetailItem label="GWA" value={slip.grade_summary?.gwa ?? 'N/A'} /> : null}
 
             {slip.final_pdf_url ? (
               <div className="sm:col-span-2">

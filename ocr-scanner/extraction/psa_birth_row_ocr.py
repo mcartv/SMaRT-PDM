@@ -600,16 +600,10 @@ def _safe_name_candidate(value: Any, config: PSABirthRowOCRConfig) -> str:
         )
     ):
         return ""
-    if any(
-        not (
-            character.isalpha()
-            or character.isdigit()
-            or character.isspace()
-            or character in ".'-\u2019"
-        )
-        for character in candidate
-    ):
-        return ""
+    # Keep alpha-containing OCR observations visible at the admin correction
+    # boundary.  Real PSA copies commonly produce stray watermark/grid
+    # punctuation; hiding the entire name is more harmful than returning the
+    # noisy spelling with a contamination issue.
     return candidate
 
 
@@ -646,6 +640,24 @@ def preprocess_mild_tesseract(
     )
 
 
+def build_birth_cell_previews(
+    crop: np.ndarray,
+    config: PSABirthRowOCRConfig | Mapping[str, Any] | None = None,
+) -> Mapping[str, np.ndarray]:
+    """Build the exact Birth OCR variants for local calibration inspection."""
+
+    resolved = _resolve_config(config)
+    mild = preprocess_mild_tesseract(crop.copy(), resolved.target_height)
+    otsu, _ = _preprocess_cell(crop.copy(), resolved.target_height)
+    watermark, _ = preprocess_psa_watermark(crop.copy(), resolved.target_height)
+    return MappingProxyType({
+        "original": np.array(crop, copy=True),
+        "mild_clahe": mild,
+        "otsu_grid_removed": otsu,
+        "watermark_suppressed": watermark,
+    })
+
+
 def _safe_observation_from_words(
     words: Sequence[Mapping[str, Any]],
     config: PSABirthRowOCRConfig,
@@ -678,12 +690,19 @@ def _variant_observations(
         _TESSERACT_VARIANTS,
         (mild, otsu, watermark),
     ):
-        words = _valid_data_words(
-            _tesseract_data(processed, config.ocr_timeout_seconds)
-        )
-        observations.append(
-            _safe_observation_from_words(words, config, variant)
-        )
+        try:
+            words = _valid_data_words(
+                _tesseract_data(processed, config.ocr_timeout_seconds)
+            )
+            observations.append(
+                _safe_observation_from_words(words, config, variant)
+            )
+        except Exception:
+            # A single preprocessing/Tesseract variant must not erase text
+            # already recovered by another variant for the same physical cell.
+            observations.append(
+                _ComponentObservation(engine=f"tesseract:{variant}:failed")
+            )
     plausible = [item for item in observations if item.candidate]
     if not plausible:
         selected = max(
@@ -1053,6 +1072,7 @@ def _extract_with_ensemble(
 
     results: list[PSABirthRowOCRFieldResult] = []
     successful = 0
+    required_row_success: dict[str, bool] = {}
     controlled_blank_father = 0
     low_confidence_fields = 0
     for field_name in FIELD_NAMES:
@@ -1127,6 +1147,7 @@ def _extract_with_ensemble(
             low_confidence_fields += 1
         if success:
             successful += 1
+        required_row_success[field_name] = success
         results.append(
             PSABirthRowOCRFieldResult(
                 name=field_name,
@@ -1184,8 +1205,17 @@ def _extract_with_ensemble(
         "selected_engine_counts": dict(selected_engine_counts),
         "selected_engine_by_component": dict(selected_engine_by_component),
     }
-    if successful == 0:
-        return _failure("OCR_ALL_FIELDS_FAILED", data=result_data, **metrics)
+    required_names_ready = bool(
+        required_row_success.get("child_name")
+        and required_row_success.get("mother_maiden_name")
+    )
+    metrics["required_names_ready"] = required_names_ready
+    if not required_names_ready:
+        return _failure(
+            "OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND",
+            data=result_data,
+            **metrics,
+        )
     issues: list[dict[str, str]] = []
     if successful < 3:
         issues.append(_issue("OCR_PARTIAL_FAILURE"))
@@ -1258,6 +1288,7 @@ def _extract_nine_cell_tesseract(
 
     results: list[PSABirthRowOCRFieldResult] = []
     successful = 0
+    required_row_success: dict[str, bool] = {}
     controlled_blank_father = 0
     low_confidence_fields = 0
     for field_name in FIELD_NAMES:
@@ -1352,6 +1383,7 @@ def _extract_nine_cell_tesseract(
         )
         if success:
             successful += 1
+        required_row_success[field_name] = success
         assembled = " ".join(
             components[name] for name in COMPONENT_NAMES if components[name]
         )
@@ -1410,8 +1442,17 @@ def _extract_nine_cell_tesseract(
         "variant_observations": diagnostics,
         "paddle_enabled": False,
     }
-    if successful == 0:
-        return _failure("OCR_ALL_FIELDS_FAILED", data=result_data, **metrics)
+    required_names_ready = bool(
+        required_row_success.get("child_name")
+        and required_row_success.get("mother_maiden_name")
+    )
+    metrics["required_names_ready"] = required_names_ready
+    if not required_names_ready:
+        return _failure(
+            "OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND",
+            data=result_data,
+            **metrics,
+        )
     issues: list[dict[str, str]] = []
     if successful < 3:
         issues.append(_issue("OCR_PARTIAL_FAILURE"))
@@ -1548,6 +1589,7 @@ def extract_psa_birth_row_text(
 
     results: list[PSABirthRowOCRFieldResult] = []
     successful = 0
+    required_row_success: dict[str, bool] = {}
     controlled_blank_father = 0
     for field_name in FIELD_NAMES:
         values = component_values[field_name]
@@ -1603,6 +1645,7 @@ def extract_psa_birth_row_text(
 
         if success:
             successful += 1
+        required_row_success[field_name] = success
         assembled = " ".join(
             values.get(component, "")
             for component in COMPONENT_NAMES
@@ -1647,9 +1690,14 @@ def extract_psa_birth_row_text(
         "name_cell_crop_used": True,
         "full_page_generic_ocr_used": False,
     }
-    if successful == 0:
+    required_names_ready = bool(
+        required_row_success.get("child_name")
+        and required_row_success.get("mother_maiden_name")
+    )
+    metrics["required_names_ready"] = required_names_ready
+    if not required_names_ready:
         return _failure(
-            "OCR_ALL_FIELDS_FAILED",
+            "OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND",
             data=result_data,
             **metrics,
         )

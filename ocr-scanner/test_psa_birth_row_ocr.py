@@ -254,7 +254,7 @@ class PSABirthRowOCRTest(unittest.TestCase):
         self.assertFalse(child.success)
         self.assertEqual(child.components["first_name"], "")
         self.assertIn("birth_name_source_conflict", child.issue_codes)
-        self.assertIn("OCR_PARTIAL_FAILURE", issue_codes(result))
+        self.assertIn("OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND", issue_codes(result))
 
     def test_blank_father_row_is_controlled_blank(self):
         outputs = valid_outputs()
@@ -409,9 +409,13 @@ class PSABirthRowOCRTest(unittest.TestCase):
         )
         child = mapped_fields(result)["child_name"]
 
-        self.assertTrue(result.success)
+        self.assertFalse(result.success)
         self.assertFalse(child.success)
         self.assertIn("OCR_EXECUTION_FAILED", child.issue_codes)
+        self.assertEqual(
+            issue_codes(result),
+            {"OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND"},
+        )
 
     def test_all_ocr_failures_return_failed_stage_without_fabrication(self):
         result = extract_psa_birth_row_text(
@@ -421,7 +425,10 @@ class PSABirthRowOCRTest(unittest.TestCase):
 
         self.assertFalse(result.success)
         self.assertEqual(result.status, "failed")
-        self.assertEqual(issue_codes(result), {"OCR_ALL_FIELDS_FAILED"})
+        self.assertEqual(
+            issue_codes(result),
+            {"OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND"},
+        )
         self.assertTrue(
             all(field.raw_text == "" for field in result.data.fields)
         )
@@ -733,6 +740,32 @@ class PSABirthRowOCRTest(unittest.TestCase):
 
         self.assertEqual(selected.raw_text, "VENICE EVE")
         self.assertEqual(selected.confidence, 81.0)
+        self.assertEqual(len(observations), 3)
+
+    def test_one_variant_exception_preserves_other_observations(self):
+        readings = iter((RuntimeError("timeout"), {
+            "text": ["ROWENA"], "conf": [88.0], "left": [2], "width": [40],
+        }, {
+            "text": ["ROWENA"], "conf": [91.0], "left": [2], "width": [40],
+        }))
+
+        def data_reader(_image, **_kwargs):
+            value = next(readings)
+            if isinstance(value, Exception):
+                raise value
+            return value
+
+        crop = np.full((50, 220, 3), 255, dtype=np.uint8)
+        with patch(
+            "extraction.psa_birth_row_ocr.pytesseract.image_to_data",
+            side_effect=data_reader,
+        ):
+            selected, observations, _elapsed = birth_ocr._variant_observations(
+                crop,
+                PSABirthRowOCRConfig(),
+            )
+        self.assertEqual(selected.candidate, "ROWENA")
+        self.assertEqual(selected.confidence, 91.0)
         self.assertEqual(len(observations), 3)
 
     def test_three_variant_vote_keeps_highest_confidence_noisy_spelling(self):

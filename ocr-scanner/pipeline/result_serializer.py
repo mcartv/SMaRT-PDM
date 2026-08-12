@@ -91,6 +91,13 @@ def candidate_from_worker_payload(
                 ),
                 "topology_rows": source.get("topology_rows") or {},
                 "confidence_source": str(source.get("confidence_source") or ""),
+                "row_identity_status": str(
+                    source.get("row_identity_status") or "unknown"
+                ),
+                "row_identity_rows": source.get("row_identity_rows") or {},
+                "diagnostic_only": bool(source.get("diagnostic_only", False)),
+                "raw_text_mode": str(source.get("raw_text_mode") or ""),
+                "calibration": source.get("calibration") or {},
             }
             if document_key == "certificate_of_live_birth"
             else {}

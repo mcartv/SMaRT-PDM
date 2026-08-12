@@ -657,6 +657,32 @@ class JobWorkerTest(unittest.TestCase):
         self.assertGreaterEqual(register.call_count, 1)
         self.birth_topology.assert_not_called()
 
+    @patch("job_worker._run_birth_diagnostic_ocr", return_value="UNSTRUCTURED PAGE OCR\n")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_registration_failure_persists_diagnostic_review_candidate(
+        self,
+        register,
+        diagnostic_ocr,
+    ):
+        register.return_value = _stage_result(
+            status="failed",
+            success=False,
+            issues=[{"code": "FORM_NOT_REGISTERED"}],
+        )
+
+        success, payload = job_worker.run_scan(self.request("birth_certificate"))
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "UNSTRUCTURED PAGE OCR\n")
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.assertTrue(payload["source_payload"]["diagnostic_only"])
+        self.assertEqual(
+            payload["source_payload"]["raw_text_mode"],
+            "diagnostic_full_page_tesseract",
+        )
+        diagnostic_ocr.assert_called_once()
+
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")
@@ -851,6 +877,11 @@ class JobWorkerTest(unittest.TestCase):
                 "topology_validated_row_count": 0,
                 "topology_rows": {},
                 "confidence_source": "",
+                "row_identity_status": "unknown",
+                "row_identity_rows": {},
+                "diagnostic_only": False,
+                "raw_text_mode": "",
+                "calibration": {},
             },
         )
 

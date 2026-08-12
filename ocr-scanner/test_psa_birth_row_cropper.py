@@ -688,10 +688,10 @@ class PSABirthRowCropperTest(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual(
             issue_codes(result),
-            {"BIRTH_NAME_TOPOLOGY_REQUIRED"},
+            {"birth_item_6_value_band_invalid"},
         )
 
-    def test_missing_required_item_boundary_rejects_topology(self):
+    def test_missing_required_item_boundary_uses_calibrated_review_fallback(self):
         source = form_image()
         cv2.rectangle(
             source,
@@ -704,13 +704,14 @@ class PSABirthRowCropperTest(unittest.TestCase):
         topology = validate_psa_birth_name_topology(source)
         result = crop_psa_birth_name_rows(source)
 
-        self.assertFalse(topology.success)
+        self.assertTrue(topology.success)
+        self.assertEqual(topology.status, "review_required")
         self.assertEqual(
             issue_codes(topology),
-            {"BIRTH_NAME_ROW_TOPOLOGY_INVALID"},
+            {"BIRTH_NAME_ROW_TOPOLOGY_WEAK"},
         )
-        self.assertFalse(result.success)
-        self.assertEqual(issue_codes(result), {"BIRTH_NAME_TOPOLOGY_REQUIRED"})
+        self.assertTrue(result.success)
+        self.assertEqual(result.metrics["topology_status"], "matched")
 
     def test_validated_topology_refines_shifted_component_boundaries(self):
         shifted_rows = tuple(

@@ -27,6 +27,21 @@ const servicePath = require.resolve('../services/iotOcrRequestService');
 delete require.cache[servicePath];
 const service = require('../services/iotOcrRequestService');
 
+test('diagnostic-only birth candidate cannot be confirmed', () => {
+    assert.throws(
+        () => service.validateConfirmedDocumentFields(
+            'birth_certificate',
+            {
+                child_name: {},
+                mother_maiden_name: {},
+                father_name: { section_status: 'not_applicable' },
+            },
+            {}
+        ),
+        /diagnostic text only/i
+    );
+});
+
 function requestRow(overrides = {}) {
     return {
         request_id: REQUEST_UUID,

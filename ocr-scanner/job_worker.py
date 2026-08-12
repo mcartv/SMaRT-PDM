@@ -31,6 +31,7 @@ except ImportError:  # pragma: no cover - test/runtime fallback
         return False
 
 from api import ApiClient
+from birth_station_calibration import load_birth_station_calibration
 from capture_session import CANCELLED, CAPTURED, CaptureSessionResult, run_capture_session
 from camera import CameraController
 from document_contracts import (
@@ -48,6 +49,7 @@ from extraction.psa_birth_row_cropper import (
     validate_psa_birth_name_topology,
 )
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
+from extraction.psa_birth_row_identity import identify_psa_birth_name_rows
 from extraction.psa_form_registration import (
     register_psa_birth_form,
     register_psa_birth_form_grid_envelope,
@@ -392,8 +394,74 @@ def _birth_topology_summary(topology: Any) -> Dict[str, Any]:
             "top": top,
             "bottom": bottom,
             "component_boundaries": list(boundaries),
+            "evidence_status": str(getattr(row, "evidence_status", "matched")),
         }
     return summary
+
+
+def _run_birth_diagnostic_ocr(source_image: Any) -> str:
+    """Return exact unstructured Tesseract output for review evidence only."""
+
+    if source_image is None:
+        return ""
+    try:
+        return str(pytesseract.image_to_string(
+            source_image,
+            config="--oem 3 --psm 6 -l eng",
+            timeout=30.0,
+        ) or "")
+    except Exception:
+        return ""
+
+
+def _birth_diagnostic_review_payload(
+    request: Dict,
+    source_image: Any,
+    *,
+    issue_code: str,
+    issue_message: str,
+    source_updates: Dict[str, Any] | None = None,
+) -> Tuple[bool, Dict]:
+    raw_text = _run_birth_diagnostic_ocr(source_image)
+    has_text = bool(raw_text.strip())
+    status = "review_required" if has_text else "failed"
+    source_payload = {
+        "source": "pi-worker-iot-ocr-request",
+        "mode": "birth_certificate_pipeline",
+        "request_id": get_request_id(request),
+        "document_key": str(request.get("document_key") or ""),
+        "document_type": str(build_document_type(request)),
+        "document_contract_status": "approved",
+        "registration_status": "mismatch",
+        "topology_status": "unknown",
+        "row_identity_status": "unknown",
+        "cropper_status": "not_started",
+        "ocr_status": "diagnostic_only" if has_text else "failed",
+        "raw_text_mode": "diagnostic_full_page_tesseract",
+        "structured_value_source": "none",
+        "diagnostic_only": True,
+        "manual_review_required": True,
+        "worker_status": status,
+        "structured_field_keys": [],
+    }
+    source_payload.update(source_updates or {})
+    return has_text, {
+        "status": status,
+        "raw_text": raw_text,
+        "ocr_confidence": None,
+        "field_confidence": {},
+        "document_type": "birth_certificate",
+        "manual_review_required": True,
+        "ocr_attempts": 1 if has_text else 0,
+        "preprocessing_variant": "diagnostic_full_page_tesseract",
+        "extracted_fields": _empty_birth_extracted_fields(),
+        "source_payload": source_payload,
+        "validation_issues": [{
+            "code": issue_code,
+            "message": issue_message,
+        }],
+        "error_message": None if has_text else issue_message,
+    }
 
 
 def _run_birth_certificate_scan(
@@ -475,127 +543,91 @@ def _run_birth_certificate_scan(
             if envelope_result.success:
                 registration_result = envelope_result
         if not registration_result.success:
-            error_message = "Birth template registration failed."
-            return False, {
-                "status": "failed",
-                "raw_text": "",
-                "ocr_confidence": None,
-                "document_type": "birth_certificate",
-                "manual_review_required": True,
-                "ocr_attempts": ocr_attempts,
-                "preprocessing_variant": preprocessing_variant,
-                "extracted_fields": extracted_fields,
-                "source_payload": {
-                    "source": "pi-worker-iot-ocr-request",
-                    "mode": "birth_certificate_pipeline",
-                    "request_id": request_id,
-                    "application_id": application_id,
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "document_key": document_key,
-                    "document_type": document_type,
-                    "document_contract_status": "approved",
+            return _birth_diagnostic_review_payload(
+                request,
+                source_image,
+                issue_code="PSA_BIRTH_V1_TEMPLATE_MISMATCH",
+                issue_message="Approved birth certificate template registration failed.",
+                source_updates={
                     "registration_status": "mismatch",
                     "registration_stage_status": registration_result.status,
                     "registration_mode": registration_mode,
                     "registration_attempts": registration_attempts,
                     "registration_issue_codes": _issue_codes(registration_result),
-                    "cropper_status": "not_started",
-                    "cropper_issue_codes": [],
-                    "ocr_status": "not_started",
-                    "ocr_issue_codes": [],
-                    "manual_review_required": True,
-                    "worker_status": "failed",
-                    "ocr_attempts": ocr_attempts,
-                    "preprocessing_variant": preprocessing_variant,
-                    "structured_field_keys": [],
                 },
-                "validation_issues": [{
-                    "code": "PSA_BIRTH_V1_TEMPLATE_MISMATCH",
-                    "message": "Approved birth certificate template registration failed.",
-                }],
-                "error_message": error_message,
-            }
+            )
 
+        cropper_config, calibration_metadata = load_birth_station_calibration()
         topology_result = validate_psa_birth_name_topology(
             registration_result.data.registered_image,
+            config=cropper_config,
         )
         if not topology_result.success or topology_result.data is None:
-            return False, {
-                "status": "failed",
-                "raw_text": "",
-                "ocr_confidence": None,
-                "field_confidence": {},
-                "document_type": "birth_certificate",
-                "manual_review_required": True,
-                "ocr_attempts": ocr_attempts,
-                "preprocessing_variant": preprocessing_variant,
-                "extracted_fields": extracted_fields,
-                "source_payload": {
-                    "source": "pi-worker-iot-ocr-request",
-                    "mode": "birth_certificate_pipeline",
-                    "request_id": request_id,
-                    "application_id": application_id,
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "document_key": document_key,
-                    "document_type": document_type,
-                    "document_contract_status": "approved",
+            return _birth_diagnostic_review_payload(
+                request,
+                source_image,
+                issue_code="PSA_BIRTH_NAME_TOPOLOGY_MISMATCH",
+                issue_message="Items 1, 6, and 13 could not use calibrated PSA row geometry.",
+                source_updates={
                     "registration_status": registration_result.status,
                     "registration_mode": registration_mode,
-                    "registration_attempts": registration_attempts,
-                    "registration_issue_codes": _issue_codes(registration_result),
                     "topology_status": "mismatch",
                     "topology_issue_codes": _issue_codes(topology_result),
-                    "cropper_status": "not_started",
-                    "ocr_status": "not_started",
-                    "manual_review_required": True,
-                    "worker_status": "failed",
-                    "structured_field_keys": [],
+                    "calibration": calibration_metadata,
                 },
-                "validation_issues": [{
-                    "code": "PSA_BIRTH_NAME_TOPOLOGY_MISMATCH",
-                    "message": "Items 1, 6, and 13 did not match the calibrated PSA grid.",
-                }],
-                "error_message": "Birth name-row topology validation failed.",
-            }
+            )
 
-        crop_result = crop_psa_birth_name_rows(
+        identity_result = identify_psa_birth_name_rows(
             registration_result.data.registered_image,
-            registration_metadata=_registration_context(registration_result),
-            topology=topology_result.data,
+            topology_result.data,
         )
-        if not crop_result.success:
-            error_message = "Birth row cropper failed."
-            return False, {
-                "status": "failed",
-                "raw_text": raw_text,
-                "ocr_confidence": None,
-                "ocr_attempts": ocr_attempts,
-                "preprocessing_variant": preprocessing_variant,
-                "extracted_fields": extracted_fields,
-                "source_payload": {
-                    "source": "pi-worker-iot-ocr-request",
-                    "mode": "birth_certificate_pipeline",
-                    "request_id": request_id,
-                    "application_id": application_id,
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "document_key": document_key,
-                    "document_type": document_type,
-                    "document_contract_status": "approved",
+        if not identity_result.success:
+            return _birth_diagnostic_review_payload(
+                request,
+                source_image,
+                issue_code="PSA_BIRTH_ROW_LABEL_CONFLICT",
+                issue_message="A calibrated Birth row matched a different printed item.",
+                source_updates={
                     "registration_status": registration_result.status,
                     "registration_mode": registration_mode,
-                    "registration_attempts": registration_attempts,
-                    "registration_issue_codes": _issue_codes(registration_result),
+                    "topology_status": topology_result.metrics.get(
+                        "topology_status", topology_result.status
+                    ),
+                    "topology_issue_codes": _issue_codes(topology_result),
+                    "row_identity_status": "conflict",
+                    "row_identity_issue_codes": _issue_codes(identity_result),
+                    "calibration": calibration_metadata,
+                },
+            )
+
+        crop_kwargs = {
+            "registration_metadata": _registration_context(registration_result),
+            "topology": topology_result.data,
+        }
+        if cropper_config:
+            crop_kwargs["config"] = cropper_config
+        crop_result = crop_psa_birth_name_rows(
+            registration_result.data.registered_image,
+            **crop_kwargs,
+        )
+        if not crop_result.success:
+            return _birth_diagnostic_review_payload(
+                request,
+                source_image,
+                issue_code="PSA_BIRTH_NAME_CROPPER_FAILED",
+                issue_message="The calibrated Birth name cells could not be cropped safely.",
+                source_updates={
+                    "registration_status": registration_result.status,
+                    "registration_mode": registration_mode,
+                    "topology_status": topology_result.metrics.get(
+                        "topology_status", topology_result.status
+                    ),
+                    "row_identity_status": identity_result.status,
                     "cropper_status": crop_result.status,
                     "cropper_issue_codes": _issue_codes(crop_result),
-                    "ocr_status": "not_started",
-                    "ocr_issue_codes": [],
-                    "manual_review_required": True,
+                    "calibration": calibration_metadata,
                 },
-                "error_message": error_message,
-            }
+            )
 
         ocr_result = extract_psa_birth_row_text(crop_result.data)
         ocr_field_texts = {
@@ -634,8 +666,28 @@ def _run_birth_certificate_scan(
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
         structured_ready = ocr_result.success
-        status = "review_required" if structured_ready else "failed"
-        error_message = None if structured_ready else "Birth OCR adapter failed."
+        if not structured_ready:
+            return _birth_diagnostic_review_payload(
+                request,
+                source_image,
+                issue_code="OCR_REQUIRED_BIRTH_NAMES_NOT_FOUND",
+                issue_message="Child and mother first/last names were not both detected.",
+                source_updates={
+                    "registration_status": registration_result.status,
+                    "registration_mode": registration_mode,
+                    "topology_status": topology_result.metrics.get(
+                        "topology_status", topology_result.status
+                    ),
+                    "topology_issue_codes": _issue_codes(topology_result),
+                    "row_identity_status": identity_result.status,
+                    "row_identity_issue_codes": _issue_codes(identity_result),
+                    "cropper_status": crop_result.status,
+                    "ocr_issue_codes": _issue_codes(ocr_result),
+                    "calibration": calibration_metadata,
+                },
+            )
+        status = "review_required"
+        error_message = None
 
         payload = {
             "status": status,
@@ -664,12 +716,18 @@ def _run_birth_certificate_scan(
                 "registration_mode": registration_mode,
                 "registration_attempts": registration_attempts,
                 "registration_issue_codes": _issue_codes(registration_result),
-                "topology_status": "matched",
+                "topology_status": topology_result.metrics.get(
+                    "topology_status", topology_result.status
+                ),
                 "topology_issue_codes": _issue_codes(topology_result),
                 "topology_validated_row_count": topology_result.metrics.get(
                     "validated_row_count", 0
                 ),
                 "topology_rows": _birth_topology_summary(topology_result.data),
+                "row_identity_status": identity_result.status,
+                "row_identity_issue_codes": _issue_codes(identity_result),
+                "row_identity_rows": identity_result.metrics.get("row_status", {}),
+                "calibration": calibration_metadata,
                 "confidence_source": ocr_result.metrics.get(
                     "confidence_source",
                     "tesseract_image_to_data_three_variant_vote",
@@ -703,32 +761,23 @@ def _run_birth_certificate_scan(
         }
         return status == "review_required", payload
     except Exception:
-        return False, {
-            "status": "failed",
-            "raw_text": "",
-            "ocr_confidence": None,
-            "document_type": "birth_certificate",
-            "manual_review_required": True,
-            "ocr_attempts": 0,
-            "preprocessing_variant": preprocessing_variant,
-            "extracted_fields": _empty_birth_extracted_fields(),
-            "source_payload": {
-                "source": "pi-worker-iot-ocr-request",
-                "mode": "birth_certificate_pipeline",
-                "request_id": request_id,
-                "document_key": document_key,
-                "worker_status": "failed",
+        return _birth_diagnostic_review_payload(
+            request,
+            source_image,
+            issue_code="BIRTH_PIPELINE_FAILED",
+            issue_message=(
+                "Birth structured extraction failed. The unstructured raw snapshot "
+                "is available for review only."
+            ),
+            source_updates={
                 "registration_status": "failed",
                 "registration_issue_codes": ["BIRTH_PIPELINE_FAILED"],
                 "cropper_status": "not_started",
                 "cropper_issue_codes": [],
-                "ocr_status": "not_started",
-                "ocr_issue_codes": [],
-                "manual_review_required": True,
-                "structured_field_keys": [],
+                "ocr_status": "diagnostic_only",
+                "ocr_issue_codes": ["BIRTH_PIPELINE_FAILED"],
             },
-            "error_message": "Birth pipeline failed.",
-        }
+        )
 
 
 def _capture_outcome_payload(

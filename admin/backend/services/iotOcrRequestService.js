@@ -411,6 +411,23 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     ));
     if (missing.length) throw buildHttpError(400, `Missing confirmed OCR fields: ${missing.join(', ')}`);
     if (['birth_certificate', 'certificate_of_live_birth'].includes(documentKey)) {
+        if (
+            candidateFields !== null
+            && (!candidateFields.child_name || !candidateFields.mother_maiden_name)
+        ) {
+            throw buildHttpError(
+                409,
+                'Birth OCR has diagnostic text only. Retry OCR before confirming parents.'
+            );
+        }
+        if (candidateFields !== null) {
+            birthNameComponents(candidateFields.child_name, {
+                label: 'Detected child name',
+            });
+            birthNameComponents(candidateFields.mother_maiden_name, {
+                label: "Detected mother's maiden name",
+            });
+        }
         const fatherSource = fields.father_name;
         const fatherStatus = String(fatherSource?.section_status ?? '').toLowerCase();
         const fatherRequired = fatherStatus !== 'not_applicable';

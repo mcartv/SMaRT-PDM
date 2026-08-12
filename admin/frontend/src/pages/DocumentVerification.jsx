@@ -1442,6 +1442,9 @@ function OCRPanel({
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
   const indigencyReviewCompleted = isIndigencyReview && reviewCandidate.status === 'completed';
   const birthReviewCompleted = isBirthReview && reviewCandidate.status === 'completed';
+  const birthDiagnosticOnly = Boolean(
+    isBirthReview && reviewCandidate?.processing?.diagnostic_only
+  );
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -1646,7 +1649,15 @@ function OCRPanel({
               </Badge>
             </div>
 
-            <div className="rounded-lg border border-rose-100 bg-white p-3">
+            {birthDiagnosticOnly && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                The Birth rows were not safely identified. The raw snapshot below is diagnostic
+                full-page OCR only and cannot be confirmed as parent information. Reposition the
+                complete form and retry OCR.
+              </div>
+            )}
+
+            {!birthDiagnosticOnly && <div className="rounded-lg border border-rose-100 bg-white p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-stone-700">Child Name (reference)</p>
                 <span className="text-xs font-semibold text-rose-700">
@@ -1676,9 +1687,9 @@ function OCRPanel({
                   </label>
                 ))}
               </div>
-            </div>
+            </div>}
 
-            {BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
+            {!birthDiagnosticOnly && BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
               <div key={fieldKey} className="rounded-lg border border-rose-100 bg-white p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-stone-800">{heading}</p>
@@ -1722,10 +1733,10 @@ function OCRPanel({
             {!birthReviewCompleted && (
               <div className="flex justify-between gap-2">
                 <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
-                <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+                {!birthDiagnosticOnly && <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
                   {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Confirm Parents
-                </Button>
+                </Button>}
               </div>
             )}
           </div>

@@ -97,6 +97,9 @@ test('birth certificate has a dedicated parent review card and immutable raw sna
     assert.match(source, /father_name/);
     assert.match(source, /Child Name \(reference\)/);
     assert.match(source, /Confirm Parents/);
+    assert.match(source, /birthDiagnosticOnly/);
+    assert.match(source, /diagnostic\s+full-page OCR only/);
+    assert.match(source, /!birthDiagnosticOnly && <Button onClick=\{onConfirmCandidate\}/);
     assert.match(source, /isBirthReview/);
     assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
     assert.match(

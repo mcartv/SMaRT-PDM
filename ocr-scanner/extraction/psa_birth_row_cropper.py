@@ -64,6 +64,7 @@ class PSABirthRowCropperConfig:
     topology_vertical_search_pixels: int = 36
     topology_minimum_line_coverage: float = 0.42
     topology_intersection_radius_pixels: int = 5
+    allow_calibrated_topology_fallback: bool = True
 
     def __post_init__(self) -> None:
         if (self.registered_width, self.registered_height) != (
@@ -199,6 +200,8 @@ class ValidatedNameRowTopology:
     vertical_coverage: tuple[float, float, float, float]
     maximum_residual_pixels: int
     intersection_count: int
+    evidence_status: str = "matched"
+    evidence_issue_codes: tuple[str, ...] = ()
 
     @property
     def relative_component_boundaries(self) -> tuple[float, float, float, float]:
@@ -870,30 +873,59 @@ def validate_psa_birth_name_topology(
             metrics={},
         )
     topology: dict[str, ValidatedNameRowTopology] = {}
+    issues: list[dict[str, str]] = []
+    fallback_rows: list[str] = []
     for row in _fixed_rows(resolved):
         detected = _validate_name_row_topology(image, row, resolved)
         if detected is None:
-            return StageResult(
-                stage=STAGE_NAME,
-                success=False,
-                status="failed",
-                data=None,
-                issues=[_issue("BIRTH_NAME_ROW_TOPOLOGY_INVALID", row.field_name)],
-                metrics={
-                    "topology_status": "mismatch",
-                    "validated_row_count": len(topology),
-                },
+            if not resolved.allow_calibrated_topology_fallback:
+                return StageResult(
+                    stage=STAGE_NAME,
+                    success=False,
+                    status="failed",
+                    data=None,
+                    issues=[_issue("BIRTH_NAME_ROW_TOPOLOGY_INVALID", row.field_name)],
+                    metrics={
+                        "topology_status": "mismatch",
+                        "validated_row_count": len(topology),
+                    },
+                )
+            expected_top = max(
+                0,
+                row.value_top - resolved.vertical_inset_pixels - 2,
+            )
+            expected_bottom = min(
+                image.shape[0] - 1,
+                row.value_bottom + resolved.vertical_inset_pixels + 2,
+            )
+            detected = ValidatedNameRowTopology(
+                field_name=row.field_name,
+                top=expected_top,
+                bottom=expected_bottom,
+                component_boundaries=tuple(int(value) for value in row.columns),
+                horizontal_coverage=(0.0, 0.0),
+                vertical_coverage=(0.0, 0.0, 0.0, 0.0),
+                maximum_residual_pixels=0,
+                intersection_count=0,
+                evidence_status="calibrated_fallback",
+                evidence_issue_codes=("BIRTH_NAME_ROW_TOPOLOGY_WEAK",),
+            )
+            fallback_rows.append(row.field_name)
+            issues.append(
+                _issue("BIRTH_NAME_ROW_TOPOLOGY_WEAK", row.field_name)
             )
         topology[row.field_name] = detected
     return StageResult(
         stage=STAGE_NAME,
         success=True,
-        status="success",
+        status="review_required" if issues else "success",
         data=MappingProxyType(dict(topology)),
-        issues=[],
+        issues=issues,
         metrics={
-            "topology_status": "matched",
-            "validated_row_count": len(topology),
+            "topology_status": "calibrated_fallback" if fallback_rows else "matched",
+            "validated_row_count": len(topology) - len(fallback_rows),
+            "calibrated_fallback_row_count": len(fallback_rows),
+            "calibrated_fallback_rows": fallback_rows,
             "validated_intersection_count": sum(
                 item.intersection_count for item in topology.values()
             ),

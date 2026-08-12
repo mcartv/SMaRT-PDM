@@ -88,6 +88,7 @@ function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return {
       eyebrow: 'Student Discipline Office',
+      shortLabel: 'SDO',
       stage: 'pending_sdo',
       resultKey: 'sdo',
       processedLabel: 'Processed by SDO',
@@ -98,6 +99,7 @@ function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'guidanceToken') {
     return {
       eyebrow: 'Guidance Office',
+      shortLabel: 'Guidance',
       stage: 'pending_guidance',
       resultKey: 'guidance',
       processedLabel: 'Processed by Guidance',
@@ -108,6 +110,7 @@ function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'pdToken') {
     return {
       eyebrow: 'Program Director',
+      shortLabel: 'PD',
       stage: 'pending_pd',
       resultKey: 'pd',
       processedLabel: 'Processed by Program Director',
@@ -283,13 +286,14 @@ export default function AllEndorsementsTracker({
       { value: 'finished', label: 'Finished' },
     ];
 
+  const officeRoleLabel = officeConfig?.shortLabel || 'Office';
   const officeSummaryCards = [
-    { label: 'Waiting for Office', value: getActiveRowsForOffice(rows, tokenStorageKey).length, icon: ClipboardCheck, tone: 'bg-violet-50 text-violet-700' },
-    { label: 'Processed by Office', value: summary.processedByOffice, icon: CheckCircle2, tone: 'bg-blue-50 text-blue-700' },
+    { label: `Pending ${officeRoleLabel}`, value: getActiveRowsForOffice(rows, tokenStorageKey).length, icon: ClipboardCheck, tone: 'bg-violet-50 text-violet-700' },
+    { label: `Processed by ${officeRoleLabel}`, value: summary.processedByOffice, icon: CheckCircle2, tone: 'bg-blue-50 text-blue-700' },
     { label: 'Completed', value: summary.completed, icon: CheckCircle2, tone: 'bg-green-50 text-green-700' },
-    ...(tokenStorageKey === 'pdToken'
-      ? []
-      : [{ label: 'Stopped', value: summary.stopped, icon: Ban, tone: 'bg-red-50 text-red-700' }]),
+    ...(tokenStorageKey === 'sdoToken'
+      ? [{ label: 'Major Offenses', value: summary.stopped, icon: Ban, tone: 'bg-red-50 text-red-700' }]
+      : []),
   ];
 
   if (loading) {

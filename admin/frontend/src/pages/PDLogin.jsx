@@ -5,7 +5,7 @@ export default function PDLogin() {
     <DepartmentPortalLogin
       portalKey="pd"
       portalLabel="PD"
-      officeName="Program Director Office"
+      officeName="Program Director"
       authPath="/api/auth/pd/login"
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"

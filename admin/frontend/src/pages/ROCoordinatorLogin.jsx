@@ -5,7 +5,7 @@ export default function ROCoordinatorLogin() {
     <DepartmentPortalLogin
       portalKey="ro_coordinator"
       portalLabel="RO Coordinator"
-      officeName="Return of Obligation Coordination"
+      officeName="Return of Obligation"
       authPath="/api/auth/ro-coordinator/login"
       tokenStorageKey="roCoordinatorToken"
       profileStorageKey="roCoordinatorProfile"

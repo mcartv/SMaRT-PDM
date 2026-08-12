@@ -149,6 +149,18 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
     assert.deepEqual(fields.subjects, []);
 });
 
+test('grade Academic Year recovers from THEPERIOO OCR noise', () => {
+    const fields = service.withDerivedGradeFields(
+        'student_grade_forms',
+        'STUDENT NUMBER PDM-2023-003137 COPY OF GRADE FOR THEPERIOO: '
+            + '1st 2023-2024 GWA: 1.89',
+        {}
+    );
+
+    assert.equal(fields.semester.normalized_value, '1st Semester');
+    assert.equal(fields.academic_year.normalized_value, '2023-2024');
+});
+
 test('indigency review fields recover full address without changing immutable raw OCR', () => {
     const rawText = 'Certificate Subject Name: MS. VENICE EVE PELIMA,\n'
         + 'Full Address: 12 SAMPLE STREET, LIAS, MARILAO, BULACAN\n'

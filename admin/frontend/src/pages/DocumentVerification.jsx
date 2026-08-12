@@ -1286,7 +1286,11 @@ function deriveGradeReviewValues(rawText) {
     }
   }
 
-  const period = text.match(
+  const periodText = text.replace(
+    /\bTHE\s*PERI[O0D]{2}\b/gi,
+    'THE PERIOD'
+  );
+  const period = periodText.match(
     /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
   );
   if (period) {

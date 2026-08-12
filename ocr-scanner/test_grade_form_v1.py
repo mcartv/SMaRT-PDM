@@ -92,6 +92,35 @@ class GradeFormPipelineTests(unittest.TestCase):
 
     @patch("pipeline.grade_form_v1.pytesseract.image_to_data")
     @patch("pipeline.grade_form_v1.fast_preprocess")
+    def test_academic_year_comes_from_noisy_grade_period_label(
+        self,
+        preprocess,
+        image_to_data,
+    ):
+        preprocess.return_value = object()
+        image_to_data.return_value = tesseract_data([
+            [("Student", 94), ("Number:", 95), ("PDM-2023-003137", 93)],
+            [("Name:", 92), ("VENICE", 93), ("PELIMA", 91)],
+            [("Course:", 90), ("BSIT", 91)],
+            [("COPY", 92), ("OF", 92), ("GRADE", 93), ("FOR", 94),
+             ("THEPERIOO:", 88), ("1st", 94), ("2023-2024", 96)],
+            [("GWA:", 97), ("1.89", 98)],
+        ])
+
+        result = scan_grade_form("capture.jpg")
+
+        self.assertTrue(result.matched)
+        self.assertEqual(
+            result.fields["academic_year"]["normalized_value"],
+            "2023-2024",
+        )
+        self.assertEqual(
+            result.fields["semester"]["normalized_value"],
+            "1st Semester",
+        )
+
+    @patch("pipeline.grade_form_v1.pytesseract.image_to_data")
+    @patch("pipeline.grade_form_v1.fast_preprocess")
     def test_gwa_accepts_common_tesseract_label_and_decimal_errors(
         self,
         preprocess,

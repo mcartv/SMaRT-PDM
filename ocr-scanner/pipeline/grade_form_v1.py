@@ -120,12 +120,21 @@ def _extract_layout_fields(
             )
             extracted["course"] = identity_match.group("course")
 
+    # Treat the labelled Grade Period as the authoritative Academic Year.
+    # Tesseract commonly joins the words and confuses the final D as O, e.g.
+    # "THEPERIOO: 1st 2023-2024".
+    normalized_period_text = re.sub(
+        r"\bTHE\s*PERI[O0D]{2}\b",
+        "THE PERIOD",
+        normalized,
+        flags=re.I,
+    )
     period_match = re.search(
         r"GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*"
         r"(?P<semester>1ST|2ND|FIRST|SECOND|SUMMER)?"
         r"(?:\s+SEMESTER)?\s+"
         r"(?P<year>\d{4}\s*[-–]\s*\d{4})",
-        normalized,
+        normalized_period_text,
         re.I,
     )
     if period_match:
@@ -147,7 +156,7 @@ def _extract_layout_fields(
     gwa_match = re.search(
         r"\b(?:G\s*W\s*A|[O0]\s*W\s*A)(?:\s+SCORE)?\b"
         r"\s*[:;=.\-|]?\s*([1-5](?:\s*[.,]\s*\d{1,2}|\s+\d{1,2})?)\b",
-        normalized,
+        normalized_period_text,
         re.I,
     )
     if gwa_match:

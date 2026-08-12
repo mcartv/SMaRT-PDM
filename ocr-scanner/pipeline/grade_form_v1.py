@@ -79,7 +79,7 @@ def _normalize_year_level(value: str) -> str:
         "6TH": 6, "SIXTH": 6,
     }[match.group(1).upper()]
     suffix = "st" if number == 1 else "nd" if number == 2 else "rd" if number == 3 else "th"
-    return f"{number}{suffix} Year"
+    return f"{number}{suffix}"
 
 
 def _valid_direct_value(field_key: str, value: str) -> bool:
@@ -145,7 +145,7 @@ def _extract_layout_fields(
     # Tesseract commonly joins the words and confuses the final D as O, e.g.
     # "THEPERIOO: 1st 2023-2024".
     normalized_period_text = re.sub(
-        r"\bTHE\s*PERI[O0D]{2}\b",
+        r"\bTHE\s*PERI[O0D]{2,4}\b",
         "THE PERIOD",
         normalized,
         flags=re.I,
@@ -153,8 +153,8 @@ def _extract_layout_fields(
     period_match = re.search(
         r"GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*"
         r"(?P<semester>1ST|2ND|FIRST|SECOND|SUMMER)?"
-        r"(?:\s+SEMESTER)?\s+"
-        r"(?P<year>\d{4}\s*[-–]\s*\d{4})",
+        r"(?:\s+SEMESTER)?"
+        r"(?:\s+\d{4}\s*[-–]\s*\d{4})?",
         normalized_period_text,
         re.I,
     )

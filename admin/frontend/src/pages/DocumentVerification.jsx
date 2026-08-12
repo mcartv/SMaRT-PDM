@@ -1287,11 +1287,11 @@ function deriveGradeReviewValues(rawText) {
   }
 
   const periodText = text.replace(
-    /\bTHE\s*PERI[O0D]{2}\b/gi,
+    /\bTHE\s*PERI[O0D]{2,4}\b/gi,
     'THE PERIOD'
   );
   const period = periodText.match(
-    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-–]\s*\d{4})?/i
   );
   if (period) {
     derived.semester = {
@@ -1302,10 +1302,10 @@ function deriveGradeReviewValues(rawText) {
       'SUMMER': 'Summer',
     }[String(period[1] || '').toUpperCase()] || '';
     derived.academic_year = {
-      '1ST': '1st Year',
-      '2ND': '2nd Year',
-      'FIRST': '1st Year',
-      'SECOND': '2nd Year',
+      '1ST': '1st',
+      '2ND': '2nd',
+      'FIRST': '1st',
+      'SECOND': '2nd',
     }[String(period[1] || '').toUpperCase()] || '';
   }
 

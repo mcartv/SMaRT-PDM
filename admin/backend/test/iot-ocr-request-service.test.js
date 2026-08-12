@@ -144,7 +144,7 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
     assert.equal(fields.student_name.normalized_value, 'Petima, Venice Eve');
     assert.equal(fields.course.normalized_value, 'BsiT');
     assert.equal(fields.semester.normalized_value, '1st Semester');
-    assert.equal(fields.academic_year.normalized_value, '1st Year');
+    assert.equal(fields.academic_year.normalized_value, '1st');
     assert.equal(fields.gwa.normalized_value, '1.89');
     assert.deepEqual(fields.subjects, []);
 });
@@ -152,13 +152,13 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
 test('grade Academic Year recovers from THEPERIOO OCR noise', () => {
     const fields = service.withDerivedGradeFields(
         'student_grade_forms',
-        'STUDENT NUMBER PDM-2023-003137 COPY OF GRADE FOR THEPERIOO: '
-            + '1st 2023-2024 GWA: 1.89',
+        'STUDENT NUMBER PDM-2023-003137 COPY OF GRADE FOR THEPERIODOO: '
+            + '1st GWA: 1.89',
         {}
     );
 
     assert.equal(fields.semester.normalized_value, '1st Semester');
-    assert.equal(fields.academic_year.normalized_value, '1st Year');
+    assert.equal(fields.academic_year.normalized_value, '1st');
 });
 
 test('indigency review fields recover full address without changing immutable raw OCR', () => {
@@ -234,7 +234,7 @@ test('grade confirmation keeps GWA and restores Academic Year', () => {
         student_name: { raw_text: 'JUAN DELA CRUZ', normalized_value: 'JUAN DELA CRUZ' },
         course: { raw_text: 'BSIT', normalized_value: 'BSIT' },
         semester: { raw_text: '1st Semester', normalized_value: '1st Semester' },
-        academic_year: { raw_text: '1st', normalized_value: '1st Year' },
+        academic_year: { raw_text: '1st', normalized_value: '1st' },
         gwa: { raw_text: '1.63', normalized_value: '1.63' },
         subjects: [],
     };
@@ -246,11 +246,11 @@ test('grade confirmation keeps GWA and restores Academic Year', () => {
     assert.equal(verified.student_name, undefined);
     assert.equal(verified.course, undefined);
     assert.equal(verified.semester, undefined);
-    assert.equal(verified.academic_year, '1st Year');
+    assert.equal(verified.academic_year, '1st');
     assert.equal(verified.gwa, '1.63');
     assert.deepEqual(
         service.buildVerifiedApplicationPatch('student_grade_forms', verified),
-        { student: { gwa: 1.63, academic_year: '1st Year' } }
+        { student: { gwa: 1.63, academic_year: '1st' } }
     );
     assert.throws(
         () => service.validateConfirmedDocumentFields(
@@ -288,10 +288,10 @@ test('grade confirmation persists GWA and year level atomically', async () => {
     const result = await service.persistVerifiedGradeSummary(
         client,
         requestRow().student_id,
-        { gwa: '1.63', academic_year: '1st Year' }
+        { gwa: '1.63', academic_year: '1st' }
     );
 
-    assert.deepEqual(result, { gwa: 1.63, academic_year: '1st Year' });
+    assert.deepEqual(result, { gwa: 1.63, academic_year: '1st' });
     const update = calls.find((call) => call.sql.startsWith('UPDATE public.students'));
     assert.ok(update);
     assert.match(update.sql, /year_level = \$3/);

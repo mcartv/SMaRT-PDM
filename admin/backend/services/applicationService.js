@@ -2059,7 +2059,7 @@ async function buildApplicationDetails(applicationId) {
 
             academic_year:
                 student.year_level
-                    ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
+                    ? `${student.year_level}${getOrdinalSuffix(student.year_level)}`
                     : 'N/A',
 
             gwa:

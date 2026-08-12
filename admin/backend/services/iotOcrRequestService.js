@@ -153,11 +153,11 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
     }
 
     const periodText = text.replace(
-        /\bTHE\s*PERI[O0D]{2}\b/gi,
+        /\bTHE\s*PERI[O0D]{2,4}\b/gi,
         'THE PERIOD'
     );
     const periodMatch = periodText.match(
-        /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND|SUMMER)?(?:\s+SEMESTER)?\s+(\d{4}\s*[-–]\s*\d{4})/i
+        /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-–]\s*\d{4})?/i
     );
     if (periodMatch) {
         const semester = {
@@ -224,7 +224,7 @@ function normalizeGwa(value) {
 function normalizeAcademicYear(value) {
     const normalized = normalizeYearLevel(value);
     if (!normalized) {
-        throw buildHttpError(400, 'Academic Year must be a year level such as 1st Year or 2nd Year');
+        throw buildHttpError(400, 'Academic Year must be an ordinal such as 1st or 2nd');
     }
     return normalized.label;
 }
@@ -242,7 +242,7 @@ function normalizeYearLevel(value) {
         '6TH': 6, SIXTH: 6,
     }[match[1].toUpperCase()];
     const suffix = number === 1 ? 'st' : number === 2 ? 'nd' : number === 3 ? 'rd' : 'th';
-    return { number, label: `${number}${suffix} Year` };
+    return { number, label: `${number}${suffix}` };
 }
 
 async function persistVerifiedGradeSummary(client, studentId, verifiedFields) {

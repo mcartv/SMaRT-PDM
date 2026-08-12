@@ -495,9 +495,6 @@ export default function AdminDashboard() {
     <div className="space-y-5 py-2" style={{ background: C.bg }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-stone-900">
-            System Overview
-          </h1>
           <p className="mt-1 text-xs text-stone-500">
             Current scholarship operations, workload, and scholar activity.
             {dashboard.generatedAt

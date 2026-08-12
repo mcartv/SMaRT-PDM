@@ -118,7 +118,6 @@ export default function App() {
                 tokenStorageKey="adminToken"
                 detailBasePath="/admin/endorsements"
                 title="Endorsement Monitoring"
-                subtitle="Monitor every endorsement from SDO to Guidance to Program Director without signing on behalf of another office."
               />
             }
           />

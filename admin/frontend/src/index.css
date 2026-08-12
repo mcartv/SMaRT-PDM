@@ -182,19 +182,13 @@
     @apply font-sans;
   }
 }
+
 /* -------------------------------------------------------------------------- */
 /* Admin portal readability + small-monitor typography                         */
 /* -------------------------------------------------------------------------- */
 /*
- * The admin UI contains many dense tables, badges, helper labels, and status
- * rows. Some of those previously used 10px/11px text, which becomes difficult
- * to read on smaller laptop/desktop displays. These rules are intentionally
- * scoped to AdminLayout via `.admin-ui`, so public pages and other portals keep
- * their existing typography.
- *
- * We do not use CSS zoom/transform scaling. Increasing only the smallest text
- * and tightening responsive page spacing keeps tables, cards, dialogs, and
- * navigation dimensions stable instead of changing the whole layout scale.
+ * Keep the Admin portal readable on compact laptop/desktop displays.
+ * These rules are scoped to AdminLayout via `.admin-ui`.
  */
 .admin-ui {
   min-width: 0;
@@ -205,8 +199,6 @@
   text-rendering: optimizeLegibility;
 }
 
-/* Never allow the intentionally tiny utility sizes to fall below readable UI
-   text. 12px is reserved for metadata/badges; normal controls remain 13–14px. */
 .admin-ui [class~="text-[10px]"],
 .admin-ui [class~="text-[11px]"] {
   font-size: 0.75rem !important;
@@ -224,8 +216,6 @@
   opacity: 0.82;
 }
 
-/* Dense tables keep their existing layout/scroll behavior, but text gets a
-   reliable line box so rows do not clip after the readability increase. */
 .admin-ui table {
   line-height: 1.35;
 }
@@ -235,14 +225,11 @@
   vertical-align: middle;
 }
 
-/* Long helper copy may wrap instead of forcing cards wider than the viewport. */
 .admin-ui p,
 .admin-ui label {
   overflow-wrap: break-word;
 }
 
-/* On compact desktop/laptop widths, preserve usable content area while keeping
-   text readable. Individual pages can still opt into horizontal table scroll. */
 @media (max-width: 1180px) {
   .admin-ui {
     font-size: 13.5px;
@@ -256,5 +243,197 @@
 @media (max-width: 900px) {
   .admin-ui [class~="tracking-[0.18em]"] {
     letter-spacing: 0.08em !important;
+  }
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Admin portal compact module layout                                           */
+/* -------------------------------------------------------------------------- */
+/*
+ * Shared density pass for Dashboard, Applications, Endorsements, Scholars,
+ * Obligations, Payout, Reports, Openings, Announcements, Profile Photos, and
+ * Maintenance.
+ *
+ * Typography is intentionally left readable. Space is recovered from page
+ * padding, card padding, control height, gaps, and table row height instead of
+ * shrinking normal text.
+ */
+
+/* Give modules more usable room without removing the page breathing space. */
+.admin-ui main {
+  padding: 0.75rem !important;
+}
+
+@media (min-width: 640px) {
+  .admin-ui main {
+    padding: 0.875rem !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-ui main {
+    padding: 1rem !important;
+  }
+}
+
+/* Compact the most common vertical stacks used as page/module shells. */
+.admin-ui main [class~="space-y-8"]> :not([hidden])~ :not([hidden]) {
+  margin-top: 1rem !important;
+}
+
+.admin-ui main [class~="space-y-6"]> :not([hidden])~ :not([hidden]) {
+  margin-top: 0.875rem !important;
+}
+
+.admin-ui main [class~="space-y-5"]> :not([hidden])~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}
+
+.admin-ui main [class~="space-y-4"]> :not([hidden])~ :not([hidden]) {
+  margin-top: 0.625rem !important;
+}
+
+/* Reduce oversized module/card padding while preserving readable labels. */
+.admin-ui main [class~="p-8"] {
+  padding: 1.125rem !important;
+}
+
+.admin-ui main [class~="p-6"] {
+  padding: 1rem !important;
+}
+
+.admin-ui main [class~="p-5"] {
+  padding: 0.875rem !important;
+}
+
+.admin-ui main [class~="p-4"] {
+  padding: 0.75rem !important;
+}
+
+.admin-ui main [class~="px-8"] {
+  padding-left: 1.125rem !important;
+  padding-right: 1.125rem !important;
+}
+
+.admin-ui main [class~="px-6"] {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+.admin-ui main [class~="px-5"] {
+  padding-left: 0.875rem !important;
+  padding-right: 0.875rem !important;
+}
+
+.admin-ui main [class~="px-4"] {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+.admin-ui main [class~="py-8"] {
+  padding-top: 1.125rem !important;
+  padding-bottom: 1.125rem !important;
+}
+
+.admin-ui main [class~="py-6"] {
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+
+.admin-ui main [class~="py-5"] {
+  padding-top: 0.875rem !important;
+  padding-bottom: 0.875rem !important;
+}
+
+.admin-ui main [class~="py-4"] {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+/* Reduce large gaps in toolbars, cards, summary grids, and page headers. */
+.admin-ui main [class~="gap-8"] {
+  gap: 1rem !important;
+}
+
+.admin-ui main [class~="gap-6"] {
+  gap: 0.875rem !important;
+}
+
+.admin-ui main [class~="gap-5"] {
+  gap: 0.75rem !important;
+}
+
+.admin-ui main [class~="gap-4"] {
+  gap: 0.625rem !important;
+}
+
+/* Keep controls compact enough for small monitors without shrinking their text. */
+.admin-ui main input[class~="h-12"],
+.admin-ui main button[class~="h-12"] {
+  height: 2.5rem !important;
+}
+
+.admin-ui main input[class~="h-11"],
+.admin-ui main button[class~="h-11"] {
+  height: 2.375rem !important;
+}
+
+.admin-ui main input[class~="h-10"],
+.admin-ui main button[class~="h-10"] {
+  height: 2.25rem !important;
+}
+
+/* Consistent dense tables: easier to scan and more rows fit on screen. */
+.admin-ui main table th {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+.admin-ui main table td {
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+}
+
+/* Cards remain visually consistent but consume less vertical space. */
+.admin-ui main [class~="rounded-2xl"] {
+  border-radius: 0.875rem !important;
+}
+
+/* Long top toolbars should wrap cleanly rather than force horizontal overflow. */
+@media (max-width: 1180px) {
+
+  .admin-ui main [class~="xl:flex-row"],
+  .admin-ui main [class~="lg:flex-row"] {
+    row-gap: 0.5rem !important;
+  }
+
+  .admin-ui main [class~="max-w-7xl"] {
+    max-width: 100% !important;
+  }
+}
+
+/* On very compact displays, recover a little more page area while leaving
+   normal text sizes unchanged. */
+@media (max-width: 980px) {
+  .admin-ui main {
+    padding: 0.625rem !important;
+  }
+
+  .admin-ui main [class~="p-6"],
+  .admin-ui main [class~="p-5"] {
+    padding: 0.75rem !important;
+  }
+
+  .admin-ui main [class~="px-6"],
+  .admin-ui main [class~="px-5"] {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .admin-ui main [class~="py-6"],
+  .admin-ui main [class~="py-5"] {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
   }
 }

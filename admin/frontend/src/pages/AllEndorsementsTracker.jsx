@@ -268,42 +268,35 @@ export default function AllEndorsementsTracker({
 
   const viewOptions = isAdminView
     ? [
-        { value: 'active', label: 'In Progress', count: summary.active },
-        { value: 'sdo', label: 'SDO Review', count: summary.sdo },
-        { value: 'guidance', label: 'Guidance Review', count: summary.guidance },
-        { value: 'pd', label: 'PD Review', count: summary.pd },
-        { value: 'completed', label: 'Completed', count: summary.completed },
-        { value: 'stopped', label: 'Stopped', count: summary.stopped },
-      ]
+      { value: 'active', label: 'In Progress', count: summary.active },
+      { value: 'sdo', label: 'SDO Review', count: summary.sdo },
+      { value: 'guidance', label: 'Guidance Review', count: summary.guidance },
+      { value: 'pd', label: 'PD Review', count: summary.pd },
+      { value: 'completed', label: 'Completed', count: summary.completed },
+      { value: 'stopped', label: 'Stopped', count: summary.stopped },
+    ]
     : [
-        { value: 'active', label: 'Active Applicants' },
-        { value: 'finished', label: 'Finished' },
-      ];
+      { value: 'active', label: 'Active Applicants' },
+      { value: 'finished', label: 'Finished' },
+    ];
 
   if (loading) {
     return <PageLoadingSkeleton label="Loading endorsement tracker" showStats />;
   }
 
   return (
-    <div className="space-y-5 py-2">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">{title}</h1>
-          <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
-          {isAdminView ? (
-            <p className="mt-2 text-xs font-medium text-stone-500">
-              OSFA monitoring is read-only for office decisions. SDO, Guidance, and PD must record their own endorsements using their authenticated accounts.
-            </p>
-          ) : null}
+    <div className="space-y-3 py-1.5">
+      {!isAdminView ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-stone-900">{title}</h1>
+            <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+          </div>
         </div>
-        <Button variant="outline" className="border-stone-200" onClick={() => loadRows({ soft: true })}>
-          {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
-      </div>
+      ) : null}
 
       <Card className="border-stone-200 shadow-none">
-        <CardHeader className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
+        <CardHeader className="space-y-2.5 border-b border-stone-100 bg-stone-50/60 px-4 py-3">
           {isAdminView ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
               {[
@@ -314,7 +307,7 @@ export default function AllEndorsementsTracker({
                 { label: 'Completed', value: summary.completed },
                 { label: 'Stopped', value: summary.stopped },
               ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                <div key={item.label} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
                   <p className="mt-2 text-xl font-semibold text-stone-900">{item.value}</p>
                 </div>
@@ -328,7 +321,7 @@ export default function AllEndorsementsTracker({
                 { label: 'Completed', value: summary.completed },
                 { label: 'Stopped', value: summary.stopped },
               ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                <div key={item.label} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
                   <p className="mt-2 text-xl font-semibold text-stone-900">{item.value}</p>
                 </div>
@@ -336,18 +329,19 @@ export default function AllEndorsementsTracker({
             </div>
           )}
 
-          <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search by student, PDM ID, program, opening, or current office"
-                className="pl-9"
+                className="h-9 pl-9 text-sm"
               />
             </div>
+
             <Select value={viewMode} onValueChange={handleViewModeChange}>
-              <SelectTrigger className="w-full lg:w-56">
+              <SelectTrigger className="h-9 w-full text-sm lg:w-52">
                 <SelectValue placeholder="Filter by workflow" />
               </SelectTrigger>
               <SelectContent>
@@ -358,8 +352,9 @@ export default function AllEndorsementsTracker({
                 ))}
               </SelectContent>
             </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full lg:w-64">
+              <SelectTrigger className="h-9 w-full text-sm lg:w-56">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -370,57 +365,74 @@ export default function AllEndorsementsTracker({
                 ))}
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 border-stone-200 px-3 text-xs"
+              onClick={() => loadRows({ soft: true })}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh
+            </Button>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </CardHeader>
 
-        <CardContent className="space-y-4 p-5">
+        <CardContent className="p-4">
           {filteredRows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
               No endorsement records match the current view and filters.
             </div>
           ) : (
-            filteredRows.map((row) => (
-              <div key={row.slip_id} className="rounded-2xl border border-stone-200 bg-white p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-stone-900">{row.student_name}</p>
-                      <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
-                        {row.overall_status_label || formatStatus(row.overall_status)}
-                      </Badge>
-                      <Badge variant="outline" className="border-stone-200 bg-white text-stone-600">
-                        {row.current_stage_label || formatStatus(row.current_stage)}
-                      </Badge>
-                      {row.slip_code ? (
-                        <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
-                          {row.slip_code}
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {filteredRows.map((row) => (
+                <div key={row.slip_id} className="rounded-xl border border-stone-200 bg-white p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+                        <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
+                          {row.overall_status_label || formatStatus(row.overall_status)}
                         </Badge>
-                      ) : null}
+                        <Badge variant="outline" className="border-stone-200 bg-white text-stone-600">
+                          {row.current_stage_label || formatStatus(row.current_stage)}
+                        </Badge>
+                        {row.slip_code ? (
+                          <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
+                            {row.slip_code}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-stone-600">
+                        {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
+                      </p>
+                      <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
                     </div>
-                    <p className="text-sm text-stone-600">
-                      {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
-                    </p>
-                    <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 shrink-0 rounded-lg border-blue-200 bg-blue-50 px-3 font-medium text-blue-800 hover:bg-blue-100"
+                      onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      {isAdminView ? 'Monitor Slip' : 'View Slip'}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-10 rounded-xl border-blue-200 bg-blue-50 px-4 font-medium text-blue-800 hover:bg-blue-100"
-                    onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    {isAdminView ? 'Monitor Slip' : 'View Slip'}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  <div className="mt-3 rounded-xl bg-stone-50 px-3 py-2.5">
+                    <EndorsementProgressTracker tracker={row.tracker} compact className="space-y-2" />
+                  </div>
                 </div>
-
-                <div className="mt-4 rounded-2xl bg-stone-50 px-4 py-3">
-                  <EndorsementProgressTracker tracker={row.tracker} compact className="space-y-2" />
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
 
           {!isAdminView && viewMode === 'active' && officeConfig ? (

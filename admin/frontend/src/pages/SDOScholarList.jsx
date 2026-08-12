@@ -25,7 +25,6 @@ import {
   ShieldAlert,
   CalendarDays,
   GraduationCap,
-  RefreshCw,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -308,7 +307,6 @@ export default function SDOScholarList() {
     major: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
   const [search, setSearch] = useState('');
@@ -325,9 +323,7 @@ export default function SDOScholarList() {
 
   const loadScholars = async ({ soft = false } = {}) => {
     try {
-      if (soft) {
-        setRefreshing(true);
-      } else {
+      if (!soft) {
         setLoading(true);
         setError('');
       }
@@ -365,7 +361,6 @@ export default function SDOScholarList() {
       setError(err.message || 'Failed to load scholar list.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -590,45 +585,6 @@ export default function SDOScholarList() {
           onClose={() => setViewScholar(null)}
         />
       )}
-
-      <section
-        className="overflow-hidden rounded-[26px] border p-6"
-        style={{
-          borderColor: theme.border,
-          background: `linear-gradient(135deg, ${theme.accentSoft}, white 70%)`,
-        }}
-      >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
-              style={{ background: theme.base, color: '#fff' }}
-            >
-              <ShieldAlert className="h-3.5 w-3.5" />
-              SDO Scholars
-            </div>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-900">
-              Scholar Monitoring
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              Review scholar records and manage disciplinary standing.
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => loadScholars({ soft: true })}
-            className="w-fit border-stone-200 bg-white"
-          >
-            {refreshing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            Refresh
-          </Button>
-        </div>
-      </section>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((s) => (

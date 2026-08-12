@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight, Eye, Loader2, RefreshCw, Search } from 'lucide-react';
+import { ArrowRight, Ban, CheckCircle2, ClipboardCheck, Eye, Loader2, RefreshCw, Search } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
@@ -87,6 +87,7 @@ function getActiveRowsForOffice(rows, tokenStorageKey) {
 function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return {
+      eyebrow: 'Student Discipline Office',
       stage: 'pending_sdo',
       resultKey: 'sdo',
       processedLabel: 'Processed by SDO',
@@ -96,6 +97,7 @@ function getOfficeConfig(tokenStorageKey) {
 
   if (tokenStorageKey === 'guidanceToken') {
     return {
+      eyebrow: 'Guidance Office',
       stage: 'pending_guidance',
       resultKey: 'guidance',
       processedLabel: 'Processed by Guidance',
@@ -105,6 +107,7 @@ function getOfficeConfig(tokenStorageKey) {
 
   if (tokenStorageKey === 'pdToken') {
     return {
+      eyebrow: 'Program Director',
       stage: 'pending_pd',
       resultKey: 'pd',
       processedLabel: 'Processed by Program Director',
@@ -280,6 +283,15 @@ export default function AllEndorsementsTracker({
       { value: 'finished', label: 'Finished' },
     ];
 
+  const officeSummaryCards = [
+    { label: 'Waiting for Office', value: getActiveRowsForOffice(rows, tokenStorageKey).length, icon: ClipboardCheck, tone: 'bg-violet-50 text-violet-700' },
+    { label: 'Processed by Office', value: summary.processedByOffice, icon: CheckCircle2, tone: 'bg-blue-50 text-blue-700' },
+    { label: 'Completed', value: summary.completed, icon: CheckCircle2, tone: 'bg-green-50 text-green-700' },
+    ...(tokenStorageKey === 'pdToken'
+      ? []
+      : [{ label: 'Stopped', value: summary.stopped, icon: Ban, tone: 'bg-red-50 text-red-700' }]),
+  ];
+
   if (loading) {
     return <PageLoadingSkeleton label="Loading endorsement tracker" showStats />;
   }
@@ -287,12 +299,13 @@ export default function AllEndorsementsTracker({
   return (
     <div className="space-y-3 py-1.5">
       {!isAdminView ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-stone-900">{title}</h1>
-            <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
-          </div>
-        </div>
+        <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+            {getOfficeConfig(tokenStorageKey)?.eyebrow || 'Endorsement Office'}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-stone-900">{title}</h1>
+          <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+        </section>
       ) : null}
 
       <Card className="border-stone-200 shadow-none">
@@ -314,16 +327,16 @@ export default function AllEndorsementsTracker({
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                { label: 'Waiting for Office', value: getActiveRowsForOffice(rows, tokenStorageKey).length },
-                { label: 'Processed by Office', value: summary.processedByOffice },
-                { label: 'Completed', value: summary.completed },
-                { label: 'Stopped', value: summary.stopped },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
-                  <p className="mt-2 text-xl font-semibold text-stone-900">{item.value}</p>
+            <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${officeSummaryCards.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+              {officeSummaryCards.map((item) => (
+                <div key={item.label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2.5">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.tone}`}>
+                    {createElement(item.icon, { className: 'h-4 w-4' })}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
+                    <p className="mt-1 text-xl font-semibold text-stone-900">{item.value}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -400,9 +413,12 @@ export default function AllEndorsementsTracker({
                         <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
                           {row.overall_status_label || formatStatus(row.overall_status)}
                         </Badge>
-                        <Badge variant="outline" className="border-stone-200 bg-white text-stone-600">
-                          {row.current_stage_label || formatStatus(row.current_stage)}
-                        </Badge>
+                        {(row.current_stage_label || formatStatus(row.current_stage))
+                          !== (row.overall_status_label || formatStatus(row.overall_status)) ? (
+                            <Badge variant="outline" className="border-stone-200 bg-white text-stone-600">
+                              {row.current_stage_label || formatStatus(row.current_stage)}
+                            </Badge>
+                          ) : null}
                         {row.slip_code ? (
                           <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
                             {row.slip_code}

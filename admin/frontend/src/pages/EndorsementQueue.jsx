@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
@@ -6,8 +6,10 @@ import {
   Check,
   CheckCircle2,
   Circle,
+  ClipboardCheck,
   Eye,
   FileText,
+  GraduationCap,
   Loader2,
   RefreshCw,
   RotateCcw,
@@ -378,17 +380,24 @@ function SummaryStrip({ queueKey, rows }) {
           { label: 'Completed Endorsements', value: rows.filter((row) => getDecision('guidance', row) !== 'pending').length },
         ]
       : [
-          { label: 'For Endorsement', value: pending },
-          { label: 'Good Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'good_scholastic_standing').length },
-          { label: 'Average Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'average_scholastic_standing').length },
+          { label: 'For Endorsement', value: pending, icon: ClipboardCheck, tone: 'bg-violet-50 text-violet-700' },
+          { label: 'Good Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'good_scholastic_standing').length, icon: GraduationCap, tone: 'bg-green-50 text-green-700' },
+          { label: 'Average Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'average_scholastic_standing').length, icon: FileText, tone: 'bg-amber-50 text-amber-700' },
         ];
 
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       {cards.map((item) => (
-        <div key={item.label} className="rounded-xl border border-stone-200 bg-white px-4 py-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">{item.label}</p>
-          <p className="mt-1 text-xl font-semibold text-stone-900">{item.value}</p>
+        <div key={item.label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3.5">
+          {item.icon ? (
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.tone}`}>
+              {createElement(item.icon, { className: 'h-4 w-4' })}
+            </div>
+          ) : null}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">{item.label}</p>
+            <p className="mt-1 text-xl font-semibold text-stone-900">{item.value}</p>
+          </div>
         </div>
       ))}
     </div>

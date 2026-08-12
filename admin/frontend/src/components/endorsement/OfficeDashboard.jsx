@@ -118,12 +118,6 @@ const DASHBOARD_CONFIG = {
         tone: 'bg-blue-50 text-blue-700',
       },
       {
-        label: 'Good Moral',
-        value: rows.filter((row) => ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
-        icon: CheckCircle2,
-        tone: 'bg-green-50 text-green-700',
-      },
-      {
         label: 'Forwarded to PD',
         value: rows.filter((row) => row.current_stage === 'pending_pd' && ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
         icon: ArrowRight,
@@ -380,7 +374,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className={`grid grid-cols-1 gap-3 ${cards.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
         {cards.map((card) => (
             <SummaryCard
               key={card.label}

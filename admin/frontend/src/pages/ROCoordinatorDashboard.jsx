@@ -138,8 +138,8 @@ export default function ROCoordinatorDashboard() {
       <Card className="overflow-hidden rounded-[24px] border-stone-200 shadow-none">
         <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-stone-900">Priority Requests</h2>
-            <p className="mt-1 text-sm text-stone-500">The oldest pending requests in your assigned area.</p>
+            <h2 className="text-base font-semibold text-stone-900">Pending Requests</h2>
+            <p className="mt-1 text-sm text-stone-500">Requests are listed from oldest to newest.</p>
           </div>
           <Button variant="outline" onClick={() => loadDashboard({ soft: true })} disabled={refreshing} className="border-stone-200">
             {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}

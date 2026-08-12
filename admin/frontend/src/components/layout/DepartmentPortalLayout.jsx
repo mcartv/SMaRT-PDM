@@ -53,7 +53,7 @@ function readStoredProfile(storageKey) {
 
 function getHeaderGreeting(profile) {
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
   const firstName = String(
     profile?.first_name || profile?.name || profile?.full_name || ''
   ).trim().split(/\s+/)[0];
@@ -235,10 +235,14 @@ export default function DepartmentPortalLayout({
   const profileImage = resolveProfileImage(profile);
   const displayName = profile?.name || officeName;
   const displayPosition = profile?.position || officeName;
-  const portalDisplayName = portalKey
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+  const portalDisplayName = portalKey === 'pd'
+    ? 'PD'
+    : portalKey
+      .split('_')
+      .map((part) => part.toLowerCase() === 'ro'
+        ? 'RO'
+        : part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   const navItems = [
     { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
     ...(queuePath ? [{ path: queuePath, label: queueLabel, icon: FileText }] : []),
@@ -349,7 +353,7 @@ export default function DepartmentPortalLayout({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold leading-tight text-stone-800">
+            <h1 className="text-base font-semibold leading-tight text-stone-800 md:text-lg">
               {getHeaderGreeting(profile)}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">

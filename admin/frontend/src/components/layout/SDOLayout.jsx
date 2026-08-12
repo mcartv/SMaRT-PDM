@@ -48,7 +48,7 @@ const baseNavItems = [
 
 function getHeaderGreeting(profile) {
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
   const firstName = String(
     profile?.first_name || profile?.name || profile?.full_name || ''
   ).trim().split(/\s+/)[0];
@@ -384,7 +384,7 @@ export default function SDOLayout() {
         {/* Header */}
         <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-stone-800 leading-tight">
+            <h1 className="text-base font-semibold text-stone-800 leading-tight md:text-lg">
               {getHeaderGreeting(profile)}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">

@@ -221,15 +221,6 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
     );
   }, [slip]);
 
-  const lastActionAt = useMemo(() => {
-    if (!historyItems.length) return slip?.submitted_at || null;
-
-    return historyItems
-      .map((stage) => stage.acted_at)
-      .filter(Boolean)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
-  }, [historyItems, slip]);
-
   // Frontend privacy guard mirrors the backend least-privilege policy.
   // Admin may inspect the complete application, PD may inspect only the Grade
   // Report needed for scholastic standing, and SDO/Guidance must not receive
@@ -319,6 +310,11 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
               {slip.pdm_id || 'No PDM ID'} • {slip.opening_title || 'Opening not set'} • {slip.semester || 'N/A'} / {slip.school_year || 'N/A'}
             </p>
 
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-white/70">
+              <Clock3 className="h-3.5 w-3.5" />
+              Submitted {formatDate(slip.submitted_at)}
+            </p>
+
             {isAdminView ? (
               <p className="mt-3 max-w-2xl rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/85">
                 Read-only office monitoring: OSFA can review the complete workflow and application records, but SDO, Guidance, and Program Director decisions must be recorded by those offices.
@@ -380,71 +376,12 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
-          <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Current Office</p>
-            <p className="mt-2 text-lg font-semibold text-stone-900">
-              {formatStageBadgeLabel(slip.current_stage_label || slip.current_stage)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
-          <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Submitted</p>
-            <p className="mt-2 text-sm font-semibold text-stone-900">{formatDate(slip.submitted_at)}</p>
-          </CardContent>
-        </Card>
-        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
-          <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Last Activity</p>
-            <p className="mt-2 text-sm font-semibold text-stone-900">{formatDate(lastActionAt)}</p>
-          </CardContent>
-        </Card>
-        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
-          <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Files Attached</p>
-            <p className="mt-2 text-lg font-semibold text-stone-900">{(slip.documents || []).length}</p>
-          </CardContent>
-        </Card>
-      </section>
-
-      <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
-        <CardContent className="grid gap-3 p-5 md:grid-cols-3">
-          <div className={`rounded-[20px] border px-4 py-4 ${meta.cardTint}`}>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Slip Code</p>
-            <p className="mt-2 font-mono text-sm font-semibold text-stone-900">{slip.slip_code || 'N/A'}</p>
-            <p className="mt-2 text-xs text-stone-500">Use this code when cross-checking the printed slip, registry, and admin records.</p>
-          </div>
-          <div className={`rounded-[20px] border px-4 py-4 ${meta.cardTint}`}>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Final Handling</p>
-            <p className="mt-2 text-sm font-semibold text-stone-900">
-              {slip.overall_status === 'completed'
-                ? 'Endorsement complete'
-                : 'Endorsement still in progress'}
-            </p>
-            <p className="mt-2 text-xs text-stone-500">
-              Final scholar activation still depends on endorsement completion and admin requirements readiness.
-            </p>
-          </div>
-          <div className={`rounded-[20px] border px-4 py-4 ${meta.cardTint}`}>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">PDF Access</p>
-            <p className="mt-2 text-sm font-semibold text-stone-900">
-              {slip.final_pdf_url ? 'Stored final copy available' : 'Use generated PDF download'}
-            </p>
-            <p className="mt-2 text-xs text-stone-500">
-              Admin and offices can download the latest slip copy directly from this page anytime.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
           <CardHeader className="border-b border-stone-100">
             <div>
-              <h2 className="text-base font-semibold text-stone-900">At a Glance</h2>
-              <p className="text-sm text-stone-500">Core student and slip information first.</p>
+              <h2 className="text-base font-semibold text-stone-900">Applicant &amp; Endorsement Details</h2>
+              <p className="text-sm text-stone-500">Review the applicant's identity, scholarship, and academic information.</p>
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 p-5 sm:grid-cols-2">

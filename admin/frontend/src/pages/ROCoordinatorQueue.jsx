@@ -118,6 +118,9 @@ export default function ROCoordinatorQueue({
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
+  const [courseFilter, setCourseFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
+  const [programFilter, setProgramFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -133,6 +136,28 @@ export default function ROCoordinatorQueue({
     if (search.trim()) params.set('search', search.trim());
     return `/api/ro-coordinator/requests?${params.toString()}`;
   }, [search, status]);
+
+  const courseOptions = useMemo(
+    () => [...new Set(items.map((item) => item.course_code).filter(Boolean))].sort(),
+    [items]
+  );
+  const yearOptions = useMemo(
+    () => [...new Set(items.map((item) => String(item.year_level || '')).filter(Boolean))]
+      .sort((a, b) => Number(a) - Number(b)),
+    [items]
+  );
+  const programOptions = useMemo(
+    () => [...new Set(items.map((item) => item.program_name).filter(Boolean))].sort(),
+    [items]
+  );
+  const filteredItems = useMemo(
+    () => items.filter((item) =>
+      (courseFilter === 'all' || item.course_code === courseFilter)
+      && (yearFilter === 'all' || String(item.year_level || '') === yearFilter)
+      && (programFilter === 'all' || item.program_name === programFilter)),
+    [courseFilter, items, programFilter, yearFilter]
+  );
+  const hasDetailFilters = courseFilter !== 'all' || yearFilter !== 'all' || programFilter !== 'all';
 
   const loadRequests = useCallback(async ({ soft = false } = {}) => {
     try {
@@ -292,7 +317,8 @@ export default function ROCoordinatorQueue({
       {viewMode === 'placements' ? (
         <>
       <div className="rounded-2xl border border-stone-200 bg-white p-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((filter) => (
               <button
@@ -312,6 +338,53 @@ export default function ROCoordinatorQueue({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search student, PDM ID, or course..." className="h-10 rounded-xl border-stone-200 pl-9" />
           </div>
+          </div>
+          <div className="grid gap-2 border-t border-stone-100 pt-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_140px_minmax(0,1.35fr)_auto]">
+            <select
+              value={courseFilter}
+              onChange={(event) => setCourseFilter(event.target.value)}
+              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
+              style={{ '--tw-ring-color': `${theme.base}22` }}
+              aria-label="Filter RO requests by course"
+            >
+              <option value="all">All Courses</option>
+              {courseOptions.map((course) => <option key={course} value={course}>{course}</option>)}
+            </select>
+            <select
+              value={yearFilter}
+              onChange={(event) => setYearFilter(event.target.value)}
+              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
+              style={{ '--tw-ring-color': `${theme.base}22` }}
+              aria-label="Filter RO requests by year level"
+            >
+              <option value="all">All Years</option>
+              {yearOptions.map((year) => <option key={year} value={year}>Year {year}</option>)}
+            </select>
+            <select
+              value={programFilter}
+              onChange={(event) => setProgramFilter(event.target.value)}
+              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
+              style={{ '--tw-ring-color': `${theme.base}22` }}
+              aria-label="Filter RO requests by scholarship program"
+            >
+              <option value="all">All Scholarship Programs</option>
+              {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!hasDetailFilters}
+              onClick={() => {
+                setCourseFilter('all');
+                setYearFilter('all');
+                setProgramFilter('all');
+              }}
+              className="h-10 border-stone-200"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Clear Filters
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -324,9 +397,9 @@ export default function ROCoordinatorQueue({
 
       {loading ? (
         <SectionLoadingSkeleton label="Loading coordinator queue" rows={5} />
-      ) : items.length ? (
+      ) : filteredItems.length ? (
         <div className="space-y-3">
-          {items.map((request) => {
+          {filteredItems.map((request) => {
             const pending = request.coordinator_status === 'Pending';
             return (
               <Card key={request.placement_id || request.ro_id} className="overflow-hidden rounded-[22px] border-stone-200 shadow-none">
@@ -404,7 +477,7 @@ export default function ROCoordinatorQueue({
         <div className="rounded-[22px] border border-dashed border-stone-200 bg-white px-6 py-16 text-center">
           {status === 'pending' ? <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" /> : <Clock3 className="mx-auto h-9 w-9 text-stone-300" />}
           <p className="mt-3 text-sm font-semibold text-stone-800">No {FILTERS.find((filter) => filter.key === status)?.label.toLowerCase()} found</p>
-          <p className="mt-1 text-xs text-stone-500">{status === 'pending' ? 'You are caught up. New requests appear here automatically.' : 'Try another status or clear your search.'}</p>
+          <p className="mt-1 text-xs text-stone-500">{hasDetailFilters ? 'Try clearing or changing the Course, Year, or Scholarship Program filters.' : status === 'pending' ? 'You are caught up. New requests appear here automatically.' : 'Try another status or clear your search.'}</p>
         </div>
       )}
         </>

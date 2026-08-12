@@ -4,7 +4,7 @@ export default function PDLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="pd"
-      officeName="Program Director Office"
+      officeName="Program Director"
       loginPath="/pd/login"
       dashboardPath="/pd/dashboard"
       profilePath="/pd/profile"

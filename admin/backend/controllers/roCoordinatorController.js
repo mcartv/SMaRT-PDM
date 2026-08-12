@@ -165,7 +165,14 @@ exports.getRequests = async (req, res) => {
          AND ($2::text IS NULL OR rp.placement_status = $2)
          AND ($3::text = '' OR CONCAT_WS(' ', s.first_name, s.last_name, s.pdm_id, ac.course_code, sp.program_name, rd.department_name) ILIKE '%' || $3 || '%')
        ORDER BY CASE rp.placement_status WHEN 'Pending' THEN 0 WHEN 'Rejected' THEN 1 ELSE 2 END,
-                rp.updated_at DESC`,
+                CASE
+                  WHEN rp.placement_status = 'Pending'
+                  THEN COALESCE(rp.requested_at, rp.created_at)
+                END ASC,
+                CASE
+                  WHEN rp.placement_status <> 'Pending'
+                  THEN rp.updated_at
+                END DESC`,
       [coordinator.assignmentIds, statusValue, search]
     );
     return res.json({

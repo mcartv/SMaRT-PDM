@@ -4,7 +4,7 @@ export default function GuidanceLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="guidance"
-      officeName="Guidance Office"
+      officeName="Guidance"
       loginPath="/guidance/login"
       dashboardPath="/guidance/dashboard"
       profilePath="/guidance/profile"

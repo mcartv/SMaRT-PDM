@@ -27,9 +27,7 @@ import {
   FileCheck2,
   GraduationCap,
   ListOrdered,
-  Loader2,
   RefreshCw,
-  RotateCcw,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -173,20 +171,22 @@ function StatCard({ item }) {
 
   return (
     <Card
-      className="min-w-0 shadow-none"
+      className="min-w-0 rounded-xl shadow-none"
       style={{ borderColor: C.border, background: C.surface }}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-2.5">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-stone-500">{item.label}</p>
-            <p className="mt-1 text-2xl font-semibold leading-none text-stone-900">
+            <p className="text-xs font-medium leading-4 text-stone-500">
+              {item.label}
+            </p>
+            <p className="mt-1 text-xl font-semibold leading-none text-stone-900">
               {formatNumber(item.value)}
             </p>
           </div>
 
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
             style={{ background: item.soft || C.amberSoft }}
           >
             <Icon
@@ -196,7 +196,7 @@ function StatCard({ item }) {
           </div>
         </div>
 
-        <p className="mt-3 min-h-8 text-xs leading-4 text-stone-400">
+        <p className="mt-2 text-xs leading-4 text-stone-400">
           {item.sub || 'Current system data'}
         </p>
       </CardContent>
@@ -245,7 +245,6 @@ export default function AdminDashboard() {
   });
 
   const [loading, setLoading] = useState(true);
-  const [silentLoading, setSilentLoading] = useState(false);
   const [error, setError] = useState('');
 
   const loadDashboard = useCallback(async (options = {}) => {
@@ -253,8 +252,7 @@ export default function AdminDashboard() {
     const audit = options.audit === true;
 
     try {
-      if (silent) setSilentLoading(true);
-      else setLoading(true);
+      if (!silent) setLoading(true);
 
       setError('');
 
@@ -274,8 +272,8 @@ export default function AdminDashboard() {
       if (!res.ok) {
         throw new Error(
           payload?.message ||
-            payload?.error ||
-            'Failed to load dashboard data.'
+          payload?.error ||
+          'Failed to load dashboard data.'
         );
       }
 
@@ -302,7 +300,6 @@ export default function AdminDashboard() {
       setError(err.message || 'Failed to load dashboard data.');
     } finally {
       setLoading(false);
-      setSilentLoading(false);
     }
   }, []);
 
@@ -492,55 +489,21 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-5 py-2" style={{ background: C.bg }}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="mt-1 text-xs text-stone-500">
-            Current scholarship operations, workload, and scholar activity.
-            {dashboard.generatedAt
-              ? ` Updated ${new Date(dashboard.generatedAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}.`
-              : ''}
-          </p>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-9 self-start rounded-lg border-stone-200 text-xs sm:self-auto"
-          onClick={() => loadDashboard({ silent: true })}
-          disabled={silentLoading}
-        >
-          {silentLoading ? (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-          )}
-          Refresh
-        </Button>
-      </div>
-
+    <div className="space-y-3 py-1" style={{ background: C.bg }}>
       <section>
-        <div className="mb-2 flex items-center gap-2">
-          <Users className="h-4 w-4 text-stone-500" />
-          <h2 className="text-sm font-semibold text-stone-800">At a Glance</h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 2xl:grid-cols-8">
           {summaryCards.map((item) => (
             <StatCard key={item.key || item.label} item={item} />
           ))}
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.45fr)]">
         <Card
           className="shadow-none"
           style={{ borderColor: C.border, background: C.surface }}
         >
-          <CardHeader className="border-b border-stone-100 pb-3">
+          <CardHeader className="border-b border-stone-100 px-4 py-3">
             <div className="flex items-center gap-2">
               <Clock3 className="h-4 w-4 text-stone-500" />
               <CardTitle className="text-sm font-semibold">
@@ -552,7 +515,7 @@ export default function AdminDashboard() {
             </p>
           </CardHeader>
 
-          <CardContent className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-1">
+          <CardContent className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-1">
             {actionSummary.map((item) => (
               <ActionRow
                 key={item.key}
@@ -567,7 +530,7 @@ export default function AdminDashboard() {
           className="min-w-0 shadow-none"
           style={{ borderColor: C.border, background: C.surface }}
         >
-          <CardHeader className="border-b border-stone-100 pb-3">
+          <CardHeader className="border-b border-stone-100 px-4 py-3">
             <CardTitle className="text-sm font-semibold">
               Application Lifecycle
             </CardTitle>
@@ -576,7 +539,7 @@ export default function AdminDashboard() {
             </p>
           </CardHeader>
 
-          <CardContent className="h-[330px] min-h-0 min-w-0 pt-4">
+          <CardContent className="h-[280px] min-h-0 min-w-0 px-3 pb-3 pt-3">
             {dashboard.applicationPipeline.length ? (
               <ResponsiveContainer
                 width="100%"
@@ -624,7 +587,7 @@ export default function AdminDashboard() {
         className="min-w-0 shadow-none"
         style={{ borderColor: C.border, background: C.surface }}
       >
-        <CardHeader className="border-b border-stone-100 pb-3">
+        <CardHeader className="border-b border-stone-100 px-4 py-3">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-stone-500" />
             <CardTitle className="text-sm font-semibold">
@@ -636,10 +599,10 @@ export default function AdminDashboard() {
           </p>
         </CardHeader>
 
-        <CardContent className="grid min-h-[270px] min-w-0 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
+        <CardContent className="grid min-h-[230px] min-w-0 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(210px,0.65fr)]">
           {dashboard.scholarsByBenefactor.length ? (
             <>
-              <div className="h-[250px] min-w-0">
+              <div className="h-[220px] min-w-0">
                 <ResponsiveContainer
                   width="100%"
                   height="100%"
@@ -705,7 +668,7 @@ export default function AdminDashboard() {
         className="min-w-0 shadow-none"
         style={{ borderColor: C.border, background: C.surface }}
       >
-        <CardHeader className="border-b border-stone-100 pb-3">
+        <CardHeader className="border-b border-stone-100 px-4 py-3">
           <CardTitle className="text-sm font-semibold">
             Recent Applicants
           </CardTitle>

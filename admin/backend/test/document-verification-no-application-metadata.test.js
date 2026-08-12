@@ -39,7 +39,15 @@ test('grade review uses the bottom raw snapshot and visible OCR score labels', (
     assert.doesNotMatch(visibleFields, /student_name|Student Name/);
     assert.doesNotMatch(visibleFields, /course|Course/);
     assert.doesNotMatch(visibleFields, /semester|Semester/);
-    assert.match(visibleFields, /\['academic_year', 'Academic Year'\]/);
+    assert.doesNotMatch(visibleFields, /academic_year|Academic Year/);
+    const applicationService = fs.readFileSync(
+        path.resolve(__dirname, '../services/applicationService.js'),
+        'utf8'
+    );
+    assert.match(
+        applicationService,
+        /academic_year:[\s\S]*?student\.year_level[\s\S]*?getOrdinalSuffix\(student\.year_level\)/
+    );
     assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, key/);
     assert.match(source, /THE\\s\*PERI\[O0D\]\{2,4\}/);
 });

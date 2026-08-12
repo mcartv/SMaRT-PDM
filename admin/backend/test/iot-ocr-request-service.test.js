@@ -240,7 +240,12 @@ test('grade confirmation keeps GWA and restores Academic Year', () => {
     };
     const verified = service.validateConfirmedDocumentFields(
         'student_grade_forms',
-        { ...candidate, student_name: 'JUAN S. DELA CRUZ', gwa: '1.63' },
+        {
+            student_number: candidate.student_number,
+            subjects: candidate.subjects,
+            gwa: '1.63',
+            academic_year: '2nd',
+        },
         candidate
     );
     assert.equal(verified.student_name, undefined);

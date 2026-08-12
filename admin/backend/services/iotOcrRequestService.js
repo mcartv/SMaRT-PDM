@@ -394,7 +394,6 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         ],
         student_grade_forms: [
             'student_number',
-            'academic_year',
             'subjects',
             'gwa',
         ],
@@ -443,7 +442,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     }
     return {
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
-        academic_year: normalizeAcademicYear(fields.academic_year),
+        academic_year: normalizeAcademicYear(candidateFields?.academic_year),
         subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };

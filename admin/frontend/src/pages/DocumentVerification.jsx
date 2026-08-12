@@ -1238,7 +1238,6 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
-  ['academic_year', 'Academic Year'],
 ];
 
 const INDIGENCY_REVIEW_FIELDS = [
@@ -1377,9 +1376,7 @@ export function normalizeReviewFields(candidate) {
     return {
       ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
         key,
-        key === 'academic_year'
-          ? derived[key] || ocrFieldValue(fields[key]) || ''
-          : ocrFieldValue(fields[key]) || derived[key] || '',
+        ocrFieldValue(fields[key]) || derived[key] || '',
       ])),
       gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
       subjects: Array.isArray(fields.subjects) ? fields.subjects : [],

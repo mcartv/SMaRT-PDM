@@ -56,6 +56,24 @@ class CameraFixedLensGateTest(unittest.TestCase):
             self.assertEqual(command[command.index(option) + 1], value)
         self.assertNotIn("--lens-position", command)
 
+    def test_grade_profile_uses_continuous_autofocus_without_birth_tuning(self):
+        controller = CameraController()
+        controller.focus_mode = "continuous"
+        command = controller._continuous_autofocus_command(
+            Path("/tmp/grade.jpg"),
+            width=controller.capture_width,
+            height=controller.capture_height,
+            timeout_ms=controller.autofocus_capture_timeout_ms,
+        )
+
+        self.assertEqual(
+            command[command.index("--autofocus-mode") + 1],
+            "continuous",
+        )
+        self.assertNotIn("--lens-position", command)
+        self.assertEqual(command[command.index("--awb") + 1], "auto")
+        self.assertNotIn("--shutter", command)
+
     def test_default_profile_retains_automatic_white_balance(self):
         controller = CameraController()
         command = controller._manual_command(

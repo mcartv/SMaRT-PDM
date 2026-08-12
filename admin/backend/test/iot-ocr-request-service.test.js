@@ -216,7 +216,7 @@ test('admin cancellation is allowed for every Pi-active lifecycle state', () => 
     }
 });
 
-test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
+test('grade confirmation keeps GWA and restores Academic Year', () => {
     const candidate = {
         student_number: { raw_text: '2023-001234', normalized_value: '2023-001234' },
         student_name: { raw_text: 'JUAN DELA CRUZ', normalized_value: 'JUAN DELA CRUZ' },
@@ -234,8 +234,12 @@ test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
     assert.equal(verified.student_name, undefined);
     assert.equal(verified.course, undefined);
     assert.equal(verified.semester, undefined);
-    assert.equal(verified.academic_year, undefined);
+    assert.equal(verified.academic_year, '2025-2026');
     assert.equal(verified.gwa, '1.63');
+    assert.deepEqual(
+        service.buildVerifiedApplicationPatch('student_grade_forms', verified),
+        { student: { gwa: 1.63, academic_year: '2025-2026' } }
+    );
     assert.throws(
         () => service.validateConfirmedDocumentFields(
             'student_grade_forms',
@@ -257,6 +261,47 @@ test('grade confirmation keeps the immutable Tesseract GWA read-only', () => {
 test('grade confirmation rejects an invalid Tesseract GWA', () => {
     assert.throws(() => service.normalizeGwa('N/A'), /1.00 to 5.00/);
     assert.throws(() => service.normalizeGwa('5.50'), /1.00 to 5.00/);
+});
+
+test('grade confirmation persists GWA and configured Academic Year atomically', async () => {
+    const calls = [];
+    const client = {
+        async query(sql, params) {
+            const normalized = String(sql).replace(/\s+/g, ' ').trim();
+            calls.push({ sql: normalized, params });
+            if (normalized.startsWith('SELECT academic_year_id')) {
+                return { rows: [{ academic_year_id: 'b8468ed8-a85d-49f4-8463-d2fe4b1d9559' }] };
+            }
+            return { rows: [] };
+        },
+    };
+
+    const result = await service.persistVerifiedGradeSummary(
+        client,
+        requestRow().student_id,
+        { gwa: '1.63', academic_year: '2025-2026' }
+    );
+
+    assert.deepEqual(result, { gwa: 1.63, academic_year: '2025-2026' });
+    const update = calls.find((call) => call.sql.startsWith('UPDATE public.students'));
+    assert.ok(update);
+    assert.match(update.sql, /active_academic_year_id = \$3::uuid/);
+    assert.deepEqual(update.params.slice(1), [
+        1.63,
+        'b8468ed8-a85d-49f4-8463-d2fe4b1d9559',
+    ]);
+});
+
+test('grade confirmation rejects an unconfigured Academic Year', async () => {
+    const client = { query: async () => ({ rows: [] }) };
+    await assert.rejects(
+        () => service.persistVerifiedGradeSummary(
+            client,
+            requestRow().student_id,
+            { gwa: '1.63', academic_year: '2099-2100' }
+        ),
+        /is not configured/
+    );
 });
 
 test('birth confirmation normalizes parent components without overwriting child identity', () => {

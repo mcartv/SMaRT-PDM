@@ -1167,6 +1167,7 @@ async function buildApplicationDetails(applicationId) {
             profile_photo_url,
             gwa,
             year_level,
+            active_academic_year_id,
             course_id
         ),
 
@@ -1236,6 +1237,7 @@ async function buildApplicationDetails(applicationId) {
         ocrResult,
         iotOcrRequestsResult,
         iotOcrReviewsResult,
+        activeAcademicYearResult,
     ] = await Promise.all([
         supabase
             .from('student_profiles')
@@ -1366,6 +1368,17 @@ async function buildApplicationDetails(applicationId) {
             .order('reviewed_at', {
                 ascending: false,
             }),
+
+        applicationRecord.students?.active_academic_year_id
+            ? supabase
+                .from('academic_years')
+                .select('label')
+                .eq(
+                    'academic_year_id',
+                    applicationRecord.students.active_academic_year_id
+                )
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
     ]);
 
     const resultErrors = [
@@ -1377,6 +1390,7 @@ async function buildApplicationDetails(applicationId) {
         ocrResult.error,
         iotOcrRequestsResult.error,
         iotOcrReviewsResult.error,
+        activeAcademicYearResult.error,
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
@@ -2055,6 +2069,10 @@ async function buildApplicationDetails(applicationId) {
                         student.year_level
                     )} Year`
                     : 'N/A',
+
+            academic_year:
+                activeAcademicYearResult.data?.label ||
+                'N/A',
 
             gwa:
                 student.gwa ??

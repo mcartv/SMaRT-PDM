@@ -245,7 +245,7 @@ class JobWorkerTest(unittest.TestCase):
         request.update(overrides)
         return request
 
-    def test_grade_form_uses_2_00_lens_without_changing_indigency(self):
+    def test_grade_form_uses_continuous_autofocus_without_changing_indigency(self):
         grade_camera = SimpleNamespace(
             fixed_lens_position=1.50,
             focus_mode="manual",
@@ -281,11 +281,11 @@ class JobWorkerTest(unittest.TestCase):
             "birth_certificate",
         )
 
-        self.assertEqual(grade_camera.fixed_lens_position, 2.00)
+        self.assertEqual(grade_camera.fixed_lens_position, 1.50)
         self.assertEqual(indigency_camera.fixed_lens_position, 1.50)
         self.assertEqual(birth_camera.fixed_lens_position, 1.50)
         self.assertEqual(birth_camera.focus_mode, "continuous")
-        self.assertEqual(grade_camera.focus_mode, "manual")
+        self.assertEqual(grade_camera.focus_mode, "continuous")
         self.assertEqual(indigency_camera.focus_mode, "manual")
         self.assertEqual(grade_camera.capture_profile, "default")
         self.assertEqual(indigency_camera.capture_profile, "default")

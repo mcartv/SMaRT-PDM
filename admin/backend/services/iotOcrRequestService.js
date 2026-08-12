@@ -218,6 +218,40 @@ function normalizeGwa(value) {
     return Number(numeric.toFixed(2));
 }
 
+function normalizeAcademicYear(value) {
+    const raw = String(fieldValue(value) ?? '').trim();
+    const match = raw.match(/^(\d{4})\s*[-–—]\s*(\d{4})$/);
+    if (!match || Number(match[2]) !== Number(match[1]) + 1) {
+        throw buildHttpError(400, 'Academic Year must use the format YYYY-YYYY');
+    }
+    return `${match[1]}-${match[2]}`;
+}
+
+async function persistVerifiedGradeSummary(client, studentId, verifiedFields) {
+    const gwa = normalizeGwa(verifiedFields.gwa);
+    const academicYear = normalizeAcademicYear(verifiedFields.academic_year);
+    const yearResult = await client.query(`
+        SELECT academic_year_id
+        FROM public.academic_years
+        WHERE LOWER(TRIM(label)) = LOWER($1)
+        LIMIT 1
+    `, [academicYear]);
+    const academicYearId = yearResult.rows[0]?.academic_year_id;
+    if (!academicYearId) {
+        throw buildHttpError(
+            409,
+            `Academic Year ${academicYear} is not configured in SMaRT-PDM`
+        );
+    }
+    await client.query(`
+        UPDATE public.students
+        SET gwa = $2,
+            active_academic_year_id = $3::uuid
+        WHERE student_id = $1::uuid
+    `, [studentId, gwa, academicYearId]);
+    return { gwa, academic_year: academicYear };
+}
+
 function birthNameComponents(value, { required = true, label = 'Name' } = {}) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const components = source.components && typeof source.components === 'object'
@@ -270,7 +304,12 @@ async function upsertVerifiedBirthParents(client, studentId, verifiedFields) {
 
 function buildVerifiedApplicationPatch(documentKey, verifiedFields = {}) {
     if (documentKey === 'student_grade_forms') {
-        return { student: { gwa: normalizeGwa(verifiedFields.gwa) } };
+        return {
+            student: {
+                gwa: normalizeGwa(verifiedFields.gwa),
+                academic_year: normalizeAcademicYear(verifiedFields.academic_year),
+            },
+        };
     }
     if (documentKey === 'certificate_of_indigency') {
         return {
@@ -349,6 +388,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         ],
         student_grade_forms: [
             'student_number',
+            'academic_year',
             'subjects',
             'gwa',
         ],
@@ -397,6 +437,7 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     }
     return {
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
+        academic_year: normalizeAcademicYear(fields.academic_year),
         subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };
@@ -762,11 +803,11 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
             verifiedFields
         );
         if (normalizedDocumentKey === 'student_grade_forms') {
-            const gwa = normalizeGwa(verifiedFields.gwa);
-            await client.query(`
-                UPDATE public.students SET gwa = $2
-                WHERE student_id = $1::uuid
-            `, [row.student_id, gwa]);
+            await persistVerifiedGradeSummary(
+                client,
+                row.student_id,
+                verifiedFields
+            );
         }
         if (normalizedDocumentKey === 'birth_certificate') {
             await upsertVerifiedBirthParents(client, row.student_id, verifiedFields);
@@ -841,9 +882,11 @@ module.exports = {
     assertTextOnlyPayload,
     validateConfirmedDocumentFields,
     normalizeGwa,
+    normalizeAcademicYear,
     birthNameComponents,
     upsertVerifiedBirthParents,
     buildVerifiedApplicationPatch,
+    persistVerifiedGradeSummary,
     withDerivedGradeFields,
     withDerivedIndigencyFields,
     IOT_OCR_DISABLED_DOCUMENT_KEYS,

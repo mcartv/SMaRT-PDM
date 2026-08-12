@@ -913,7 +913,7 @@ function ApplicationFormPreview({ application }) {
             <InfoRow label="PDM ID" value={student.pdm_id} />
             <InfoRow label="Program" value={student.program} />
             <InfoRow label="Course" value={student.course} />
-            <InfoRow label="Academic Year" value={student.year} />
+            <InfoRow label="Academic Year" value={student.academic_year} />
             <InfoRow label="GWA" value={student.gwa} mono />
             <InfoRow label="Email Address" value={student.email} />
             <InfoRow label="Phone Number" value={student.phone} />
@@ -1238,6 +1238,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
+  ['academic_year', 'Academic Year'],
 ];
 
 const INDIGENCY_REVIEW_FIELDS = [
@@ -2161,7 +2162,7 @@ function StudentCard({ application, onViewSlip }) {
           <InfoRow label="Email Address" value={application?.student?.email} />
           <InfoRow label="Phone Number" value={application?.student?.phone} />
           <div className="grid grid-cols-2 gap-3.5">
-            <InfoRow label="Academic Year" value={application?.student?.year} />
+            <InfoRow label="Academic Year" value={application?.student?.academic_year} />
             <InfoRow label="GWA Score" value={application?.student?.gwa} mono />
           </div>
           <InfoRow label="Course / Program" value={application?.student?.course} />

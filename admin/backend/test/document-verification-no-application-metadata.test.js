@@ -39,7 +39,8 @@ test('grade review uses the bottom raw snapshot and visible OCR score labels', (
     assert.doesNotMatch(visibleFields, /student_name|Student Name/);
     assert.doesNotMatch(visibleFields, /course|Course/);
     assert.doesNotMatch(visibleFields, /semester|Semester/);
-    assert.doesNotMatch(visibleFields, /academic_year|Academic Year/);
+    assert.match(visibleFields, /\['academic_year', 'Academic Year'\]/);
+    assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, key/);
 });
 
 test('review candidate always stops the running OCR UI', () => {

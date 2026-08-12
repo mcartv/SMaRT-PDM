@@ -37,7 +37,10 @@ class CameraController:
         self.focus_mode = "manual"
         self.autofocus_capture_timeout_ms = max(
             1000,
-            int(os.getenv("BIRTH_CAMERA_AUTOFOCUS_TIMEOUT_MS", "1200")),
+            int(os.getenv(
+                "CAMERA_CONTINUOUS_AUTOFOCUS_TIMEOUT_MS",
+                os.getenv("BIRTH_CAMERA_AUTOFOCUS_TIMEOUT_MS", "1200"),
+            )),
         )
         self.birth_exposure_time_us = max(
             100, int(os.getenv("BIRTH_CAMERA_EXPOSURE_TIME_US", "20000"))

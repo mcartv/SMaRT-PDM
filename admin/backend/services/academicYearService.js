@@ -384,7 +384,7 @@ async function ensurePeriodCycles(client, period) {
             NOW(),
             NOW()
         FROM eligible e
-        ON CONFLICT (student_id, period_id) DO NOTHING
+        ON CONFLICT (student_id, period_id) WHERE period_id IS NOT NULL DO NOTHING
         RETURNING ro_id
         `,
         [

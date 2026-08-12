@@ -31,6 +31,152 @@ function authHeaders() {
     };
 }
 
+
+function ActionModal({
+    open,
+    tone = 'info',
+    title,
+    message,
+    details = [],
+    confirmLabel = 'OK',
+    cancelLabel = 'Cancel',
+    requireText = '',
+    onClose,
+    onConfirm,
+}) {
+    const [typedValue, setTypedValue] = useState('');
+
+    useEffect(() => {
+        if (open) setTypedValue('');
+    }, [open]);
+
+    if (!open) return null;
+
+    const toneClasses = {
+        info: {
+            panel: 'border-blue-200 bg-blue-50',
+            title: 'text-blue-900',
+            text: 'text-blue-700',
+        },
+        warning: {
+            panel: 'border-amber-200 bg-amber-50',
+            title: 'text-amber-900',
+            text: 'text-amber-700',
+        },
+        danger: {
+            panel: 'border-red-200 bg-red-50',
+            title: 'text-red-900',
+            text: 'text-red-700',
+        },
+        success: {
+            panel: 'border-green-200 bg-green-50',
+            title: 'text-green-900',
+            text: 'text-green-700',
+        },
+    };
+
+    const currentTone = toneClasses[tone] || toneClasses.info;
+    const canConfirm = !requireText || typedValue === requireText;
+
+    return (
+        <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md overflow-hidden rounded-xl border-stone-200 shadow-2xl"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-start justify-between gap-3 border-b border-stone-100 bg-white px-4 py-3">
+                    <div>
+                        <h3 className="text-sm font-semibold text-stone-900">
+                            {title}
+                        </h3>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+                        aria-label="Close"
+                    >
+                        <X size={15} />
+                    </button>
+                </div>
+
+                <CardContent className="space-y-3 p-4">
+                    <div className={`rounded-lg border px-3.5 py-3 ${currentTone.panel}`}>
+                        <p className={`text-sm leading-relaxed ${currentTone.text}`}>
+                            {message}
+                        </p>
+
+                        {details.length > 0 ? (
+                            <div className="mt-2 space-y-1 border-t border-current/10 pt-2">
+                                {details.map((detail, index) => (
+                                    <p
+                                        key={`${detail}-${index}`}
+                                        className={`text-xs leading-relaxed ${currentTone.text}`}
+                                    >
+                                        {detail}
+                                    </p>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {requireText ? (
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-stone-600">
+                                Type <span className="font-semibold text-stone-900">{requireText}</span> to confirm
+                            </label>
+                            <Input
+                                value={typedValue}
+                                onChange={(event) => setTypedValue(event.target.value)}
+                                placeholder={requireText}
+                                className="h-9 border-stone-200 text-sm"
+                                autoFocus
+                            />
+                        </div>
+                    ) : null}
+                </CardContent>
+
+                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
+                    {onConfirm ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onClose}
+                            className="h-8 border-stone-200 px-3 text-xs"
+                        >
+                            {cancelLabel}
+                        </Button>
+                    ) : null}
+
+                    <Button
+                        type="button"
+                        disabled={!canConfirm}
+                        onClick={() => {
+                            if (onConfirm) onConfirm();
+                            else onClose();
+                        }}
+                        className={`h-8 border-none px-3 text-xs text-white ${
+                            tone === 'danger'
+                                ? 'bg-red-700 hover:bg-red-800'
+                                : tone === 'warning'
+                                  ? 'bg-amber-700 hover:bg-amber-800'
+                                  : tone === 'success'
+                                    ? 'bg-green-700 hover:bg-green-800'
+                                    : 'bg-stone-900 hover:bg-stone-800'
+                        }`}
+                    >
+                        {confirmLabel}
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
 function AcademicYearModal({
     open,
     mode,
@@ -216,6 +362,24 @@ export default function AcademicYearPanel() {
     const [actionId, setActionId] = useState(null);
     const [search, setSearch] = useState('');
     const [view, setView] = useState('current');
+    const [actionModal, setActionModal] = useState(null);
+
+    const closeActionModal = () => setActionModal(null);
+    const showMessage = ({
+        tone = 'info',
+        title,
+        message,
+        details = [],
+    }) => {
+        setActionModal({
+            tone,
+            title,
+            message,
+            details,
+            confirmLabel: 'OK',
+            onConfirm: null,
+        });
+    };
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -280,10 +444,13 @@ export default function AcademicYearPanel() {
                 'ACADEMIC CYCLE FETCH ERROR:',
                 error
             );
-            alert(
-                error.message ||
-                    'Failed to load academic cycle'
-            );
+            showMessage({
+                tone: 'danger',
+                title: 'Unable to load academic cycle',
+                message:
+                    error.message ||
+                    'Failed to load academic cycle',
+            });
         } finally {
             setLoading(false);
         }
@@ -455,10 +622,13 @@ export default function AcademicYearPanel() {
             resetModal();
             await loadData();
         } catch (error) {
-            alert(
-                error.message ||
-                    'Failed to save academic year'
-            );
+            showMessage({
+                tone: 'danger',
+                title: 'Academic year not saved',
+                message:
+                    error.message ||
+                    'Failed to save academic year',
+            });
         } finally {
             setSaving(false);
         }
@@ -494,27 +664,21 @@ export default function AcademicYearPanel() {
 
             await loadData();
         } catch (error) {
-            alert(error.message);
+            showMessage({
+                tone: 'danger',
+                title: 'Action failed',
+                message: error.message || 'The requested action could not be completed.',
+            });
         } finally {
             setActionId(null);
         }
     };
 
-    const setCurrentPeriod = async (period) => {
+    const executeSetCurrentPeriod = async (period) => {
         const label = `${period.term} · AY ${period.academic_year_label}`;
 
-        if (
-            !window.confirm(
-                `Set ${label} as the current semester?\n\nThe previous semester becomes historical/read-only. Existing records for ${label} are preserved if you reactivate it.`
-            )
-        ) {
-            return;
-        }
-
         try {
-            setActionId(
-                `period-${period.period_id}`
-            );
+            setActionId(`period-${period.period_id}`);
 
             const response = await fetch(
                 buildApiUrl(
@@ -538,54 +702,59 @@ export default function AcademicYearPanel() {
                 );
             }
 
-            const summary =
-                payload?.cycle_summary || {};
+            const summary = payload?.cycle_summary || {};
 
-            alert(
-                [
-                    `${label} is now current.`,
+            showMessage({
+                tone: 'success',
+                title: 'Academic semester updated',
+                message: `${label} is now the current semester.`,
+                details: [
                     `Eligible scholars: ${summary.eligible_scholars ?? 0}`,
                     `New renewals: ${summary.renewals_created ?? 0}`,
                     `New RO cycles: ${summary.ro_cycles_created ?? 0}`,
-                    '',
                     'If this was a historical semester, its previous state was preserved.',
-                ].join('\n')
-            );
+                ],
+            });
 
             await loadData();
         } catch (error) {
-            alert(
-                error.message ||
-                    'Failed to set current semester'
-            );
+            showMessage({
+                tone: 'danger',
+                title: 'Unable to set current semester',
+                message:
+                    error.message ||
+                    'Failed to set current semester',
+            });
         } finally {
             setActionId(null);
         }
     };
 
-    const resetPeriodForTesting = async (
-        period
-    ) => {
+    const setCurrentPeriod = (period) => {
         const label = `${period.term} · AY ${period.academic_year_label}`;
 
-        if (
-            !window.confirm(
-                `RESET ${label} FOR TESTING?\n\nThis permanently deletes this semester's current Renewal and RO cycle records, including renewal uploads, RO logs, proofs, and placements, then creates fresh Pending cycles.\n\nUse this only with test data.`
-            )
-        ) {
-            return;
-        }
+        setActionModal({
+            tone: 'warning',
+            title: 'Set current semester?',
+            message: `Set ${label} as the current academic semester?`,
+            details: [
+                'The previous current semester becomes historical and read-only.',
+                `Existing records for ${label} are preserved if this is a reactivation.`,
+            ],
+            confirmLabel: 'Set Current',
+            cancelLabel: 'Cancel',
+            onConfirm: async () => {
+                closeActionModal();
+                await executeSetCurrentPeriod(period);
+            },
+        });
+    };
 
-        const typed = window.prompt(
-            'Type RESET to confirm the test-cycle reset.'
-        );
-
-        if (typed !== 'RESET') return;
+    const executeResetPeriodForTesting = async (period) => {
+        const label = `${period.term} · AY ${period.academic_year_label}`;
 
         try {
-            setActionId(
-                `reset-${period.period_id}`
-            );
+            setActionId(`reset-${period.period_id}`);
 
             const response = await fetch(
                 buildApiUrl(
@@ -609,25 +778,52 @@ export default function AcademicYearPanel() {
                 );
             }
 
-            alert(
-                [
-                    `${label} was regenerated for testing.`,
+            showMessage({
+                tone: 'success',
+                title: 'Test cycle regenerated',
+                message: `${label} was regenerated for testing.`,
+                details: [
                     `Deleted renewals: ${payload?.deleted?.renewals ?? 0}`,
                     `Deleted RO cycles: ${payload?.deleted?.ro_cycles ?? 0}`,
                     `Fresh renewals: ${payload?.regenerated?.renewals_created ?? 0}`,
                     `Fresh RO cycles: ${payload?.regenerated?.ro_cycles_created ?? 0}`,
-                ].join('\n')
-            );
+                ],
+            });
 
             await loadData();
         } catch (error) {
-            alert(
-                error.message ||
-                    'Failed to reset test cycle'
-            );
+            showMessage({
+                tone: 'danger',
+                title: 'Unable to reset test cycle',
+                message:
+                    error.message ||
+                    'Failed to reset test cycle',
+            });
         } finally {
             setActionId(null);
         }
+    };
+
+    const resetPeriodForTesting = (period) => {
+        const label = `${period.term} · AY ${period.academic_year_label}`;
+
+        setActionModal({
+            tone: 'danger',
+            title: 'Reset test cycle?',
+            message: `Reset ${label} from the beginning for testing?`,
+            details: [
+                'This permanently deletes this semester’s Renewal and RO cycle records.',
+                'Renewal uploads, RO logs, proofs, and placements for this semester are also removed.',
+                'Use this only with test data.',
+            ],
+            requireText: 'RESET',
+            confirmLabel: 'Reset Test Cycle',
+            cancelLabel: 'Cancel',
+            onConfirm: async () => {
+                closeActionModal();
+                await executeResetPeriodForTesting(period);
+            },
+        });
     };
 
     const archiveYear = async (row) => {
@@ -660,7 +856,11 @@ export default function AcademicYearPanel() {
 
             await loadData();
         } catch (error) {
-            alert(error.message);
+            showMessage({
+                tone: 'danger',
+                title: 'Action failed',
+                message: error.message || 'The requested action could not be completed.',
+            });
         } finally {
             setActionId(null);
         }
@@ -697,7 +897,11 @@ export default function AcademicYearPanel() {
             setView('current');
             await loadData();
         } catch (error) {
-            alert(error.message);
+            showMessage({
+                tone: 'danger',
+                title: 'Action failed',
+                message: error.message || 'The requested action could not be completed.',
+            });
         } finally {
             setActionId(null);
         }
@@ -710,7 +914,20 @@ export default function AcademicYearPanel() {
         );
 
     return (
-        <div className="space-y-5 py-1">
+        <div className="space-y-3 py-0.5">
+            <ActionModal
+                open={!!actionModal}
+                tone={actionModal?.tone}
+                title={actionModal?.title}
+                message={actionModal?.message}
+                details={actionModal?.details || []}
+                confirmLabel={actionModal?.confirmLabel}
+                cancelLabel={actionModal?.cancelLabel}
+                requireText={actionModal?.requireText || ''}
+                onClose={closeActionModal}
+                onConfirm={actionModal?.onConfirm}
+            />
+
             <AcademicYearModal
                 open={modalOpen}
                 mode={modalMode}
@@ -724,15 +941,15 @@ export default function AcademicYearPanel() {
                 onSave={saveYear}
             />
 
-            <section className="rounded-xl border border-stone-200 bg-white p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <section className="rounded-xl border border-stone-200 bg-white p-3.5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                             Current Academic Cycle
                         </p>
 
                         {activePeriod ? (
-                            <div className="mt-2">
+                            <div className="mt-1.5">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <p className="text-base font-semibold text-stone-900">
                                         {activePeriod.term}
@@ -760,7 +977,7 @@ export default function AcademicYearPanel() {
                         )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                         <Button
                             size="sm"
                             variant="outline"
@@ -785,15 +1002,15 @@ export default function AcademicYearPanel() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-stone-200 bg-white p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="inline-flex rounded-xl bg-stone-100 p-1">
+            <section className="rounded-xl border border-stone-200 bg-white p-3.5">
+                <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
+                    <div className="inline-flex rounded-lg bg-stone-100 p-0.5">
                         <button
                             type="button"
                             onClick={() =>
                                 setView('current')
                             }
-                            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                                 view === 'current'
                                     ? 'bg-white text-stone-900 shadow-sm'
                                     : 'text-stone-500'
@@ -806,7 +1023,7 @@ export default function AcademicYearPanel() {
                             onClick={() =>
                                 setView('archived')
                             }
-                            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                                 view === 'archived'
                                     ? 'bg-white text-stone-900 shadow-sm'
                                     : 'text-stone-500'
@@ -816,7 +1033,7 @@ export default function AcademicYearPanel() {
                         </button>
                     </div>
 
-                    <div className="relative w-full md:w-80">
+                    <div className="relative w-full md:w-72">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                         <Input
                             value={search}
@@ -824,7 +1041,7 @@ export default function AcademicYearPanel() {
                                 setSearch(e.target.value)
                             }
                             placeholder="Search academic year..."
-                            className="pl-9"
+                            className="h-9 pl-9 text-sm"
                         />
                     </div>
                 </div>
@@ -843,7 +1060,7 @@ export default function AcademicYearPanel() {
                     </p>
                 </div>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                     {filteredYears.map((year) => {
                         const yearPeriods =
                             periodsForYear(
@@ -865,7 +1082,7 @@ export default function AcademicYearPanel() {
                                           : 'border-stone-200 bg-white'
                                 }`}
                             >
-                                <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                                <div className="flex flex-col gap-2.5 border-b border-stone-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
                                     <div>
                                         <div className="flex flex-wrap items-center gap-2">
                                             <h3 className="text-base font-semibold text-stone-900">
@@ -888,7 +1105,7 @@ export default function AcademicYearPanel() {
                                         </p>
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-1.5">
                                         {!archived &&
                                         !year.is_active ? (
                                             <Button
@@ -957,7 +1174,7 @@ export default function AcademicYearPanel() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-2.5 p-3 lg:grid-cols-2">
                                     {yearPeriods.map(
                                         (period) => {
                                             const current =
@@ -974,7 +1191,7 @@ export default function AcademicYearPanel() {
                                                     key={
                                                         period.period_id
                                                     }
-                                                    className={`rounded-xl border p-4 ${
+                                                    className={`rounded-lg border p-3.5 ${
                                                         current
                                                             ? 'border-green-200 bg-green-50'
                                                             : 'border-stone-200 bg-stone-50/70'

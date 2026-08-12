@@ -39,13 +39,13 @@ const TABS = [
   { key: 'ro-settings', label: 'Obligation', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'system', label: 'System', icon: Cpu },
-  { key: 'audit', label: 'System Logs', icon: ClipboardList },
+  { key: 'audit', label: 'Audit', icon: ClipboardList },
 ];
 
 function TopNav({ tabs, active, onChange, accentColor }) {
   return (
     <div className="sticky top-0 z-20 border-b border-stone-200 bg-white">
-      <div className="flex items-center gap-6 overflow-x-auto px-4">
+      <div className="flex items-center justify-between gap-1.5 overflow-x-auto px-2">
         {tabs.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.key;
@@ -55,12 +55,12 @@ function TopNav({ tabs, active, onChange, accentColor }) {
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`relative flex items-center gap-2 whitespace-nowrap py-3 text-sm font-medium transition ${isActive
+              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-1.5 py-2.5 text-[13px] font-medium transition ${isActive
                   ? 'text-stone-900'
                   : 'text-stone-400 hover:text-stone-700'
                 }`}
             >
-              <Icon size={14} />
+              <Icon size={13} />
               {item.label}
 
               {isActive ? (
@@ -188,12 +188,12 @@ export default function Maintenance() {
         accentColor={theme.base}
       />
 
-      <div className="flex-1 p-4">
-        <Card className="flex h-full flex-col overflow-hidden rounded-2xl border-stone-200 shadow-none">
+      <div className="flex-1 p-2.5">
+        <Card className="flex h-full flex-col overflow-hidden rounded-xl border-stone-200 shadow-none">
           <div
             className={`flex-1 overflow-auto ${isRegistry
-                ? 'max-h-[calc(100vh-140px)] p-3'
-                : 'max-h-[calc(100vh-140px)] p-5'
+                ? 'max-h-[calc(100vh-132px)] p-2.5'
+                : 'max-h-[calc(100vh-132px)] p-3'
               }`}
           >
             {renderActiveTab()}

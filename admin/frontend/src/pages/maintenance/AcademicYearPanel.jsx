@@ -1,42 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
-    Plus,
-    Pencil,
-    RefreshCw,
-    Loader2,
-    CalendarRange,
-    CheckCircle2,
-    X,
-    Search,
     Archive,
     ArchiveRestore,
+    CalendarRange,
+    CheckCircle2,
+    FlaskConical,
+    History,
+    Loader2,
+    Pencil,
+    Plus,
+    RefreshCw,
+    Search,
+    X,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 
 const C = {
-    brownMid: '#7c4a2e',
-    bg: '#faf7f2',
+    brown: '#7c4a2e',
 };
 
-function EmptyState({ archived = false }) {
-    return (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
-            <CalendarRange size={36} className="mb-3 text-stone-300" />
-            <p className="text-sm font-semibold text-stone-700">
-                {archived ? 'No archived academic years found' : 'No academic years found'}
-            </p>
-            <p className="mt-1 text-xs text-stone-400">
-                {archived
-                    ? 'Archived school years will appear here.'
-                    : 'Add a school year to start using it across the system.'}
-            </p>
-        </div>
-    );
+function authHeaders() {
+    return {
+        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+        'Content-Type': 'application/json',
+    };
 }
 
 function AcademicYearModal({
@@ -54,19 +46,14 @@ function AcademicYearModal({
     const isEdit = mode === 'edit';
     const start = Number(form.start_year || 0);
     const end = Number(form.end_year || 0);
-
     const computedLabel =
-        start > 0 && end > 0 ? `${start}-${end}` : 'Preview not available';
-
+        start > 0 && end > 0
+            ? `${start}-${end}`
+            : 'Preview not available';
     const canSubmit =
         String(form.start_year || '').length === 4 &&
         String(form.end_year || '').length === 4 &&
         end === start + 1;
-
-    const willReplaceActive =
-        !!form.is_active &&
-        !!activeYearLabel &&
-        activeYearLabel !== computedLabel;
 
     return (
         <div
@@ -80,14 +67,19 @@ function AcademicYearModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">
-                            {isEdit ? 'Update Academic Year' : 'Add Academic Year'}
+                            {isEdit
+                                ? 'Update Academic Year'
+                                : 'Add Academic Year'}
                         </h3>
+                        <p className="mt-1 text-xs text-stone-500">
+                            First and Second Semester records are created automatically for every new academic year.
+                        </p>
                     </div>
 
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                        className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
                     >
                         <X size={16} />
                     </button>
@@ -98,26 +90,16 @@ function AcademicYearModal({
                         <p className="text-xs uppercase tracking-wide text-stone-400">
                             School Year Preview
                         </p>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-stone-800">
-                                {computedLabel}
-                            </p>
-
-                            {form.is_active && (
-                                <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
-                                    Will be Active
-                                </Badge>
-                            )}
-                        </div>
+                        <p className="mt-1 text-sm font-semibold text-stone-900">
+                            {computedLabel}
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <label className="text-xs font-medium uppercase tracking-wide text-stone-500">
                                 Start Year
                             </label>
-
                             <Input
                                 type="number"
                                 min="2000"
@@ -125,37 +107,25 @@ function AcademicYearModal({
                                 value={form.start_year}
                                 onChange={(e) => {
                                     const value = e.target.value;
-
-                                    setForm((prev) => {
-                                        const shouldAutoUpdateEndYear =
-                                            !prev.end_year ||
-                                            Number(prev.end_year) === Number(prev.start_year) + 1;
-
-                                        return {
-                                            ...prev,
-                                            start_year: value,
-                                            end_year:
-                                                value && shouldAutoUpdateEndYear
-                                                    ? String(Number(value) + 1)
-                                                    : prev.end_year,
-                                        };
-                                    });
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        start_year: value,
+                                        end_year: value
+                                            ? String(Number(value) + 1)
+                                            : '',
+                                    }));
                                 }}
-                                placeholder="2025"
-                                className="h-10 rounded-lg border-stone-200 text-sm"
+                                className="h-10 border-stone-200"
                                 disabled={saving}
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <label className="text-xs font-medium uppercase tracking-wide text-stone-500">
                                 End Year
                             </label>
-
                             <Input
                                 type="number"
-                                min="2001"
-                                max="10000"
                                 value={form.end_year}
                                 onChange={(e) =>
                                     setForm((prev) => ({
@@ -163,90 +133,63 @@ function AcademicYearModal({
                                         end_year: e.target.value,
                                     }))
                                 }
-                                placeholder="2026"
-                                className="h-10 rounded-lg border-stone-200 text-sm"
+                                className="h-10 border-stone-200"
                                 disabled={saving}
                             />
                         </div>
                     </div>
 
-                    <div
-                        className={`rounded-xl border px-4 py-4 ${form.is_active
-                            ? 'border-green-200 bg-green-50'
-                            : 'border-stone-200 bg-white'
-                            }`}
-                    >
-                        <label className="flex cursor-pointer items-start gap-3">
-                            <input
-                                type="checkbox"
-                                checked={!!form.is_active}
-                                onChange={(e) =>
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        is_active: e.target.checked,
-                                    }))
-                                }
-                                className="mt-1 h-4 w-4 rounded border-stone-300 accent-[#7c4a2e]"
-                                disabled={saving}
-                            />
-
-                            <div className="min-w-0">
-                                <p className="text-sm font-semibold text-stone-800">
-                                    Set as active academic year
+                    <label className="flex items-start gap-3 rounded-xl border border-stone-200 bg-white px-4 py-4">
+                        <input
+                            type="checkbox"
+                            checked={!!form.is_active}
+                            onChange={(e) =>
+                                setForm((prev) => ({
+                                    ...prev,
+                                    is_active:
+                                        e.target.checked,
+                                }))
+                            }
+                            className="mt-1 h-4 w-4 accent-[#7c4a2e]"
+                            disabled={saving}
+                        />
+                        <div>
+                            <p className="text-sm font-semibold text-stone-800">
+                                Set as active academic year
+                            </p>
+                            <p className="mt-1 text-xs text-stone-500">
+                                This selects the active school year only. The actual working semester is controlled separately below.
+                            </p>
+                            {activeYearLabel &&
+                            activeYearLabel !== computedLabel &&
+                            form.is_active ? (
+                                <p className="mt-2 text-xs text-amber-700">
+                                    Current active year {activeYearLabel} will become inactive.
                                 </p>
+                            ) : null}
+                        </div>
+                    </label>
 
-                                <p className="mt-1 text-xs leading-relaxed text-stone-500">
-                                    Only one academic year can be active. If enabled, the current active academic year will automatically become inactive.
-                                </p>
-
-                                {willReplaceActive && (
-                                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                                        Current active year{' '}
-                                        <span className="font-semibold">{activeYearLabel}</span>{' '}
-                                        will be marked inactive after saving.
-                                    </div>
-                                )}
-
-                                {form.is_active && !willReplaceActive && (
-                                    <div className="mt-3 rounded-lg border border-green-200 bg-white px-3 py-2 text-xs text-green-700">
-                                        This academic year will be active after saving.
-                                    </div>
-                                )}
-
-                                {!form.is_active && activeYearLabel && (
-                                    <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                                        Current active year remains{' '}
-                                        <span className="font-semibold text-stone-700">
-                                            {activeYearLabel}
-                                        </span>.
-                                    </div>
-                                )}
-                            </div>
-                        </label>
-                    </div>
-
-                    {!canSubmit && (
+                    {!canSubmit ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                             End year must be exactly one year after the start year.
                         </div>
-                    )}
+                    ) : null}
                 </CardContent>
 
-                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
+                <div className="flex justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
                     <Button
                         variant="outline"
                         onClick={onClose}
-                        className="h-9 rounded-lg border-stone-200 text-xs"
                         disabled={saving}
                     >
                         Cancel
                     </Button>
-
                     <Button
                         onClick={onSave}
                         disabled={saving || !canSubmit}
-                        className="h-9 rounded-lg border-none text-xs text-white disabled:opacity-50"
-                        style={{ background: C.brownMid }}
+                        className="border-none text-white"
+                        style={{ background: C.brown }}
                     >
                         {saving ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -255,7 +198,9 @@ function AcademicYearModal({
                         ) : (
                             <Plus className="mr-2 h-4 w-4" />
                         )}
-                        {isEdit ? 'Save Changes' : 'Add Academic Year'}
+                        {isEdit
+                            ? 'Save Changes'
+                            : 'Add Academic Year'}
                     </Button>
                 </div>
             </Card>
@@ -263,556 +208,881 @@ function AcademicYearModal({
     );
 }
 
-export default function AcademicYearsPanel() {
-    const [rows, setRows] = useState([]);
+export default function AcademicYearPanel() {
+    const [years, setYears] = useState([]);
+    const [periods, setPeriods] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [actionLoadingId, setActionLoadingId] = useState(null);
-
+    const [actionId, setActionId] = useState(null);
     const [search, setSearch] = useState('');
+    const [view, setView] = useState('current');
+
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
     const [editingId, setEditingId] = useState(null);
-    const [pageTab, setPageTab] = useState('current');
-
-    const emptyForm = {
+    const [form, setForm] = useState({
         start_year: '',
         end_year: '',
         is_active: false,
-    };
+    });
 
-    const [form, setForm] = useState(emptyForm);
-
-    const fetchAcademicYears = useCallback(async () => {
+    const loadData = useCallback(async () => {
         try {
             setLoading(true);
 
-            const res = await fetch(buildApiUrl('/api/academic-years'), {
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const [yearsRes, periodsRes] =
+                await Promise.all([
+                    fetch(
+                        buildApiUrl('/api/academic-years'),
+                        { headers: authHeaders() }
+                    ),
+                    fetch(
+                        buildApiUrl(
+                            '/api/academic-years/periods'
+                        ),
+                        { headers: authHeaders() }
+                    ),
+                ]);
 
-            const data = await res.json().catch(() => []);
+            const yearsPayload =
+                await yearsRes.json().catch(() => []);
+            const periodsPayload =
+                await periodsRes.json().catch(
+                    () => []
+                );
 
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to load academic years');
+            if (!yearsRes.ok) {
+                throw new Error(
+                    yearsPayload?.error ||
+                        'Failed to load academic years'
+                );
             }
 
-            setRows(Array.isArray(data) ? data : []);
-        } catch (err) {
-            console.error('ACADEMIC YEARS FETCH ERROR:', err);
-            alert(err.message || 'Failed to load academic years');
+            if (!periodsRes.ok) {
+                throw new Error(
+                    periodsPayload?.error ||
+                        'Failed to load academic periods'
+                );
+            }
+
+            setYears(
+                Array.isArray(yearsPayload)
+                    ? yearsPayload
+                    : []
+            );
+            setPeriods(
+                Array.isArray(periodsPayload)
+                    ? periodsPayload
+                    : []
+            );
+        } catch (error) {
+            console.error(
+                'ACADEMIC CYCLE FETCH ERROR:',
+                error
+            );
+            alert(
+                error.message ||
+                    'Failed to load academic cycle'
+            );
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchAcademicYears();
-    }, [fetchAcademicYears]);
+        loadData();
+    }, [loadData]);
 
     useSocketEvent(
         'maintenance:updated',
         (payload = {}) => {
-            if (!payload?.module || payload.module === 'academic_years') {
-                fetchAcademicYears();
+            if (
+                !payload?.module ||
+                [
+                    'academic_years',
+                    'academic_periods',
+                ].includes(payload.module)
+            ) {
+                loadData();
             }
         },
-        [fetchAcademicYears]
+        [loadData]
     );
 
-    const activeAcademicYear = useMemo(
-        () => rows.find((row) => row.is_active && row.is_archived !== true),
-        [rows]
+    const activeYear = useMemo(
+        () =>
+            years.find(
+                (row) =>
+                    row.is_active &&
+                    row.is_archived !== true
+            ) || null,
+        [years]
     );
 
-    const currentCount = useMemo(
-        () => rows.filter((row) => row.is_archived !== true).length,
-        [rows]
+    const activePeriod = useMemo(
+        () =>
+            periods.find(
+                (row) => row.is_active === true
+            ) || null,
+        [periods]
     );
 
-    const archivedCount = useMemo(
-        () => rows.filter((row) => row.is_archived === true).length,
-        [rows]
-    );
-
-    const filteredRows = useMemo(() => {
+    const filteredYears = useMemo(() => {
         const q = search.trim().toLowerCase();
 
-        return rows
+        return years
             .filter((row) => {
-                const isArchived = row.is_archived === true;
-
-                if (pageTab === 'current' && isArchived) return false;
-                if (pageTab === 'archived' && !isArchived) return false;
+                const archived =
+                    row.is_archived === true;
+                if (
+                    view === 'current' &&
+                    archived
+                ) {
+                    return false;
+                }
+                if (
+                    view === 'archived' &&
+                    !archived
+                ) {
+                    return false;
+                }
 
                 if (!q) return true;
 
-                return (
-                    String(row.label || '').toLowerCase().includes(q) ||
-                    String(row.start_year || '').toLowerCase().includes(q) ||
-                    String(row.end_year || '').toLowerCase().includes(q)
-                );
+                return String(
+                    row.label ||
+                        `${row.start_year}-${row.end_year}`
+                )
+                    .toLowerCase()
+                    .includes(q);
             })
-            .sort((a, b) => {
-                if ((b.is_active ? 1 : 0) !== (a.is_active ? 1 : 0)) {
-                    return (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0);
-                }
-
-                return Number(b.start_year || 0) - Number(a.start_year || 0);
-            });
-    }, [rows, search, pageTab]);
+            .sort(
+                (a, b) =>
+                    Number(b.start_year || 0) -
+                    Number(a.start_year || 0)
+            );
+    }, [years, search, view]);
 
     const resetModal = () => {
         setModalOpen(false);
         setModalMode('create');
         setEditingId(null);
-        setForm(emptyForm);
+        setForm({
+            start_year: '',
+            end_year: '',
+            is_active: false,
+        });
     };
 
-    const openCreateModal = () => {
-        const currentYear = new Date().getFullYear();
-        const hasActiveYear = rows.some(
-            (row) => row.is_active && row.is_archived !== true
-        );
-
+    const openCreate = () => {
+        const year = new Date().getFullYear();
         setModalMode('create');
         setEditingId(null);
         setForm({
-            start_year: currentYear,
-            end_year: currentYear + 1,
-            is_active: !hasActiveYear,
+            start_year: String(year),
+            end_year: String(year + 1),
+            is_active: !activeYear,
         });
         setModalOpen(true);
     };
 
-    const openEditModal = (row) => {
+    const openEdit = (row) => {
         setModalMode('edit');
         setEditingId(row.academic_year_id);
         setForm({
-            start_year: row.start_year || '',
-            end_year: row.end_year || '',
+            start_year: String(
+                row.start_year || ''
+            ),
+            end_year: String(
+                row.end_year || ''
+            ),
             is_active: !!row.is_active,
         });
         setModalOpen(true);
     };
 
-    const validateForm = () => {
-        const start = Number(form.start_year);
-        const end = Number(form.end_year);
-
-        if (!start || !end) {
-            throw new Error('Start year and end year are required');
-        }
-
-        if (String(start).length !== 4 || String(end).length !== 4) {
-            throw new Error('Start year and end year must be 4 digits');
-        }
-
-        if (end !== start + 1) {
-            throw new Error('End year must be exactly start year + 1');
-        }
-
-        const duplicate = rows.find((row) => {
-            if (modalMode === 'edit' && row.academic_year_id === editingId) {
-                return false;
-            }
-
-            return Number(row.start_year) === start && Number(row.end_year) === end;
-        });
-
-        if (duplicate) {
-            throw new Error('That academic year already exists');
-        }
-    };
-
-    const handleSave = async () => {
+    const saveYear = async () => {
         try {
-            validateForm();
             setSaving(true);
 
-            const payload = {
-                start_year: Number(form.start_year),
-                end_year: Number(form.end_year),
-                is_active: !!form.is_active,
-            };
+            const start = Number(form.start_year);
+            const end = Number(form.end_year);
 
-            const isEdit = modalMode === 'edit' && editingId;
+            if (
+                !Number.isInteger(start) ||
+                !Number.isInteger(end) ||
+                end !== start + 1
+            ) {
+                throw new Error(
+                    'End year must be exactly one year after the start year.'
+                );
+            }
 
+            const isEdit =
+                modalMode === 'edit' &&
+                editingId;
             const url = isEdit
-                ? buildApiUrl(`/api/academic-years/${editingId}`)
-                : buildApiUrl('/api/academic-years');
+                ? buildApiUrl(
+                      `/api/academic-years/${editingId}`
+                  )
+                : buildApiUrl(
+                      '/api/academic-years'
+                  );
 
-            const method = isEdit ? 'PATCH' : 'POST';
-
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
+            const response = await fetch(url, {
+                method: isEdit ? 'PATCH' : 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    start_year: start,
+                    end_year: end,
+                    is_active:
+                        !!form.is_active,
+                }),
             });
 
-            const data = await res.json().catch(() => ({}));
+            const payload =
+                await response
+                    .json()
+                    .catch(() => ({}));
 
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to save academic year');
+            if (!response.ok) {
+                throw new Error(
+                    payload?.error ||
+                        'Failed to save academic year'
+                );
             }
 
             resetModal();
-            await fetchAcademicYears();
-        } catch (err) {
-            console.error('ACADEMIC YEAR SAVE ERROR:', err);
-            alert(err.message || 'Failed to save academic year');
+            await loadData();
+        } catch (error) {
+            alert(
+                error.message ||
+                    'Failed to save academic year'
+            );
         } finally {
             setSaving(false);
         }
     };
 
-    const handleSetActive = async (row) => {
+    const activateYear = async (row) => {
         try {
-            if (row.is_archived) {
-                alert('Restore this academic year first before setting it active.');
-                return;
-            }
+            setActionId(
+                `year-${row.academic_year_id}`
+            );
 
-            setActionLoadingId(row.academic_year_id);
-
-            const res = await fetch(
-                buildApiUrl(`/api/academic-years/${row.academic_year_id}/activate`),
+            const response = await fetch(
+                buildApiUrl(
+                    `/api/academic-years/${row.academic_year_id}/activate`
+                ),
                 {
                     method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: authHeaders(),
                 }
             );
 
-            const data = await res.json().catch(() => ({}));
+            const payload =
+                await response
+                    .json()
+                    .catch(() => ({}));
 
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to activate academic year');
+            if (!response.ok) {
+                throw new Error(
+                    payload?.error ||
+                        'Failed to activate academic year'
+                );
             }
 
-            await fetchAcademicYears();
-        } catch (err) {
-            console.error('ACADEMIC YEAR ACTIVATE ERROR:', err);
-            alert(err.message || 'Failed to activate academic year');
+            await loadData();
+        } catch (error) {
+            alert(error.message);
         } finally {
-            setActionLoadingId(null);
+            setActionId(null);
         }
     };
 
-    const handleArchive = async (row) => {
+    const setCurrentPeriod = async (period) => {
+        const label = `${period.term} · AY ${period.academic_year_label}`;
+
+        if (
+            !window.confirm(
+                `Set ${label} as the current semester?\n\nThe previous semester becomes historical/read-only. Existing records for ${label} are preserved if you reactivate it.`
+            )
+        ) {
+            return;
+        }
+
         try {
-            if (row.is_active) {
-                alert('You cannot archive the active academic year. Set another academic year as active first.');
-                return;
-            }
+            setActionId(
+                `period-${period.period_id}`
+            );
 
-            setActionLoadingId(row.academic_year_id);
-
-            const res = await fetch(
-                buildApiUrl(`/api/academic-years/${row.academic_year_id}/archive`),
+            const response = await fetch(
+                buildApiUrl(
+                    `/api/academic-years/periods/${period.period_id}/activate`
+                ),
                 {
                     method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: authHeaders(),
                 }
             );
 
-            const data = await res.json().catch(() => ({}));
+            const payload =
+                await response
+                    .json()
+                    .catch(() => ({}));
 
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to archive academic year');
+            if (!response.ok) {
+                throw new Error(
+                    payload?.error ||
+                        'Failed to set current semester'
+                );
             }
 
-            await fetchAcademicYears();
-        } catch (err) {
-            console.error('ACADEMIC YEAR ARCHIVE ERROR:', err);
-            alert(err.message || 'Failed to archive academic year');
+            const summary =
+                payload?.cycle_summary || {};
+
+            alert(
+                [
+                    `${label} is now current.`,
+                    `Eligible scholars: ${summary.eligible_scholars ?? 0}`,
+                    `New renewals: ${summary.renewals_created ?? 0}`,
+                    `New RO cycles: ${summary.ro_cycles_created ?? 0}`,
+                    '',
+                    'If this was a historical semester, its previous state was preserved.',
+                ].join('\n')
+            );
+
+            await loadData();
+        } catch (error) {
+            alert(
+                error.message ||
+                    'Failed to set current semester'
+            );
         } finally {
-            setActionLoadingId(null);
+            setActionId(null);
         }
     };
 
-    const handleRestore = async (row) => {
-        try {
-            setActionLoadingId(row.academic_year_id);
+    const resetPeriodForTesting = async (
+        period
+    ) => {
+        const label = `${period.term} · AY ${period.academic_year_label}`;
 
-            const res = await fetch(
-                buildApiUrl(`/api/academic-years/${row.academic_year_id}/restore`),
+        if (
+            !window.confirm(
+                `RESET ${label} FOR TESTING?\n\nThis permanently deletes this semester's current Renewal and RO cycle records, including renewal uploads, RO logs, proofs, and placements, then creates fresh Pending cycles.\n\nUse this only with test data.`
+            )
+        ) {
+            return;
+        }
+
+        const typed = window.prompt(
+            'Type RESET to confirm the test-cycle reset.'
+        );
+
+        if (typed !== 'RESET') return;
+
+        try {
+            setActionId(
+                `reset-${period.period_id}`
+            );
+
+            const response = await fetch(
+                buildApiUrl(
+                    `/api/academic-years/periods/${period.period_id}/reset-test`
+                ),
                 {
-                    method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                        'Content-Type': 'application/json',
-                    },
+                    method: 'POST',
+                    headers: authHeaders(),
                 }
             );
 
-            const data = await res.json().catch(() => ({}));
+            const payload =
+                await response
+                    .json()
+                    .catch(() => ({}));
 
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to restore academic year');
+            if (!response.ok) {
+                throw new Error(
+                    payload?.error ||
+                        'Failed to reset test cycle'
+                );
             }
 
-            await fetchAcademicYears();
-            setPageTab('current');
-        } catch (err) {
-            console.error('ACADEMIC YEAR RESTORE ERROR:', err);
-            alert(err.message || 'Failed to restore academic year');
+            alert(
+                [
+                    `${label} was regenerated for testing.`,
+                    `Deleted renewals: ${payload?.deleted?.renewals ?? 0}`,
+                    `Deleted RO cycles: ${payload?.deleted?.ro_cycles ?? 0}`,
+                    `Fresh renewals: ${payload?.regenerated?.renewals_created ?? 0}`,
+                    `Fresh RO cycles: ${payload?.regenerated?.ro_cycles_created ?? 0}`,
+                ].join('\n')
+            );
+
+            await loadData();
+        } catch (error) {
+            alert(
+                error.message ||
+                    'Failed to reset test cycle'
+            );
         } finally {
-            setActionLoadingId(null);
+            setActionId(null);
         }
     };
+
+    const archiveYear = async (row) => {
+        try {
+            setActionId(
+                `archive-${row.academic_year_id}`
+            );
+
+            const response = await fetch(
+                buildApiUrl(
+                    `/api/academic-years/${row.academic_year_id}/archive`
+                ),
+                {
+                    method: 'PATCH',
+                    headers: authHeaders(),
+                }
+            );
+
+            const payload =
+                await response
+                    .json()
+                    .catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    payload?.error ||
+                        'Failed to archive academic year'
+                );
+            }
+
+            await loadData();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const restoreYear = async (row) => {
+        try {
+            setActionId(
+                `restore-${row.academic_year_id}`
+            );
+
+            const response = await fetch(
+                buildApiUrl(
+                    `/api/academic-years/${row.academic_year_id}/restore`
+                ),
+                {
+                    method: 'PATCH',
+                    headers: authHeaders(),
+                }
+            );
+
+            const payload =
+                await response
+                    .json()
+                    .catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    payload?.error ||
+                        'Failed to restore academic year'
+                );
+            }
+
+            setView('current');
+            await loadData();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const periodsForYear = (yearId) =>
+        periods.filter(
+            (period) =>
+                period.academic_year_id === yearId
+        );
 
     return (
-        <div className="space-y-4 py-1">
+        <div className="space-y-5 py-1">
             <AcademicYearModal
                 open={modalOpen}
                 mode={modalMode}
                 form={form}
                 setForm={setForm}
                 saving={saving}
-                activeYearLabel={activeAcademicYear?.label || ''}
+                activeYearLabel={
+                    activeYear?.label || ''
+                }
                 onClose={resetModal}
-                onSave={handleSave}
+                onSave={saveYear}
             />
 
-            <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Current Active Academic Year
-                            </p>
+            <section className="rounded-xl border border-stone-200 bg-white p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                            Current Academic Cycle
+                        </p>
 
-                            {activeAcademicYear ? (
-                                <div className="mt-1 flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-semibold text-stone-900">
-                                        {activeAcademicYear.label ||
-                                            `${activeAcademicYear.start_year}-${activeAcademicYear.end_year}`}
+                        {activePeriod ? (
+                            <div className="mt-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-base font-semibold text-stone-900">
+                                        {activePeriod.term}
                                     </p>
                                     <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
-                                        Active
+                                        Current
                                     </Badge>
                                 </div>
-                            ) : (
-                                <p className="mt-1 text-sm font-medium text-amber-700">
-                                    No active academic year selected.
+                                <p className="mt-1 text-sm text-stone-500">
+                                    AY{' '}
+                                    {
+                                        activePeriod.academic_year_label
+                                    }
                                 </p>
-                            )}
-                        </div>
-
-                        <div className="relative w-full md:w-[320px]">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                            <Input
-                                placeholder="Search academic year..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
-                            />
-                        </div>
+                            </div>
+                        ) : (
+                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                                <p className="text-sm font-semibold text-amber-800">
+                                    No current semester
+                                </p>
+                                <p className="mt-1 text-xs text-amber-700">
+                                    Select First or Second Semester below. Renewal and RO should not rely on an arbitrary fallback period.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setPageTab('current')}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
-                                    ? 'bg-[#7c4a2e] text-white'
-                                    : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                                    }`}
-                            >
-                                Current ({currentCount})
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setPageTab('archived')}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
-                                    ? 'bg-[#7c4a2e] text-white'
-                                    : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                                    }`}
-                            >
-                                Archived ({archivedCount})
-                            </button>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={fetchAcademicYears}
-                                className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
-                            >
-                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                                Refresh
-                            </Button>
-
-                            <Button
-                                size="sm"
-                                onClick={openCreateModal}
-                                className="h-8 rounded-lg border-none text-xs text-white"
-                                style={{ background: C.brownMid }}
-                            >
-                                <Plus className="mr-1 h-3.5 w-3.5" />
-                                Add
-                            </Button>
-                        </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={loadData}
+                            className="border-stone-200"
+                        >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Refresh
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={openCreate}
+                            className="border-none text-white"
+                            style={{
+                                background: C.brown,
+                            }}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Academic Year
+                        </Button>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div className="rounded-xl border border-stone-200 bg-white p-4">
-                {loading ? (
-                    <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Loading academic years...
+            <section className="rounded-xl border border-stone-200 bg-white p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="inline-flex rounded-xl bg-stone-100 p-1">
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setView('current')
+                            }
+                            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                                view === 'current'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-500'
+                            }`}
+                        >
+                            Academic Years
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setView('archived')
+                            }
+                            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                                view === 'archived'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-500'
+                            }`}
+                        >
+                            Archived
+                        </button>
                     </div>
-                ) : filteredRows.length === 0 ? (
-                    <EmptyState archived={pageTab === 'archived'} />
-                ) : (
-                    <div className="space-y-3">
-                        {filteredRows.map((row) => {
-                            const label = row.label || `${row.start_year}-${row.end_year}`;
-                            const isBusy = actionLoadingId === row.academic_year_id;
-                            const isArchived = row.is_archived === true;
 
-                            return (
-                                <div
-                                    key={row.academic_year_id}
-                                    className={`rounded-xl border bg-white px-4 py-4 transition-colors ${row.is_active
-                                            ? 'border-green-200'
-                                            : isArchived
-                                                ? 'border-stone-200 bg-stone-50'
-                                                : 'border-stone-200 hover:border-stone-300'
-                                        }`}
-                                >
-                                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <h3 className="text-sm font-semibold text-stone-900">
-                                                    {label}
-                                                </h3>
+                    <div className="relative w-full md:w-80">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                        <Input
+                            value={search}
+                            onChange={(e) =>
+                                setSearch(e.target.value)
+                            }
+                            placeholder="Search academic year..."
+                            className="pl-9"
+                        />
+                    </div>
+                </div>
+            </section>
 
-                                                {isArchived ? (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="border-stone-300 bg-white text-stone-600"
-                                                    >
-                                                        Archived
-                                                    </Badge>
-                                                ) : row.is_active ? (
-                                                    <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
-                                                        Active
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="border-stone-200 bg-white text-stone-600"
-                                                    >
-                                                        Inactive
-                                                    </Badge>
-                                                )}
-                                            </div>
+            {loading ? (
+                <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-stone-500">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Loading academic cycles...
+                </div>
+            ) : filteredYears.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-14 text-center">
+                    <CalendarRange className="mx-auto h-9 w-9 text-stone-300" />
+                    <p className="mt-3 text-sm font-semibold text-stone-700">
+                        No academic years found
+                    </p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {filteredYears.map((year) => {
+                        const yearPeriods =
+                            periodsForYear(
+                                year.academic_year_id
+                            );
+                        const archived =
+                            year.is_archived === true;
 
-                                            <p className="mt-1 text-xs text-stone-500">
-                                                Start: {row.start_year} · End: {row.end_year}
-                                            </p>
-
-                                            {row.is_active && !isArchived && (
-                                                <p className="mt-2 text-xs text-green-700">
-                                                    This school year is currently used as the active academic year.
-                                                </p>
-                                            )}
-
-                                            {isArchived && (
-                                                <p className="mt-2 text-xs text-stone-500">
-                                                    This school year is archived and hidden from active selection.
-                                                </p>
-                                            )}
+                        return (
+                            <section
+                                key={
+                                    year.academic_year_id
+                                }
+                                className={`overflow-hidden rounded-2xl border ${
+                                    archived
+                                        ? 'border-stone-200 bg-stone-50 opacity-75'
+                                        : year.is_active
+                                          ? 'border-green-200 bg-white'
+                                          : 'border-stone-200 bg-white'
+                                }`}
+                            >
+                                <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-base font-semibold text-stone-900">
+                                                {year.label ||
+                                                    `${year.start_year}-${year.end_year}`}
+                                            </h3>
+                                            {year.is_active ? (
+                                                <Badge className="border-green-200 bg-green-50 text-green-700">
+                                                    Active Year
+                                                </Badge>
+                                            ) : null}
+                                            {archived ? (
+                                                <Badge variant="outline">
+                                                    Archived
+                                                </Badge>
+                                            ) : null}
                                         </div>
+                                        <p className="mt-1 text-xs text-stone-500">
+                                            Viewing a semester does not change system state. Only “Set Current” changes which cycle is actionable.
+                                        </p>
+                                    </div>
 
-                                        <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                            {isArchived ? (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleRestore(row)}
-                                                    className="rounded-lg border-green-200 text-xs text-green-700 hover:bg-green-50"
-                                                    disabled={isBusy}
-                                                >
-                                                    {isBusy ? (
-                                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                    ) : (
-                                                        <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
-                                                    )}
-                                                    Restore
-                                                </Button>
-                                            ) : (
-                                                <>
-                                                    {!row.is_active && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => handleSetActive(row)}
-                                                            className="rounded-lg border-green-200 text-xs text-green-700 hover:bg-green-50"
-                                                            disabled={isBusy}
-                                                        >
-                                                            {isBusy ? (
-                                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                            ) : (
-                                                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                                                            )}
-                                                            Set Active
-                                                        </Button>
-                                                    )}
+                                    <div className="flex flex-wrap gap-2">
+                                        {!archived &&
+                                        !year.is_active ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={
+                                                    actionId ===
+                                                    `year-${year.academic_year_id}`
+                                                }
+                                                onClick={() =>
+                                                    activateYear(
+                                                        year
+                                                    )
+                                                }
+                                            >
+                                                Set Active Year
+                                            </Button>
+                                        ) : null}
 
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => openEditModal(row)}
-                                                        className="rounded-lg border-stone-200 text-xs"
-                                                        disabled={isBusy}
-                                                    >
-                                                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                                                        Edit
-                                                    </Button>
+                                        {!archived ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    openEdit(
+                                                        year
+                                                    )
+                                                }
+                                            >
+                                                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                                Edit
+                                            </Button>
+                                        ) : null}
 
-                                                    {!row.is_active && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => handleArchive(row)}
-                                                            className="rounded-lg border-red-200 text-xs text-red-700 hover:bg-red-50"
-                                                            disabled={isBusy}
-                                                        >
-                                                            {isBusy ? (
-                                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                            ) : (
-                                                                <Archive className="mr-1.5 h-3.5 w-3.5" />
-                                                            )}
-                                                            Archive
-                                                        </Button>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
+                                        {!archived &&
+                                        !year.is_active ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="text-red-700"
+                                                onClick={() =>
+                                                    archiveYear(
+                                                        year
+                                                    )
+                                                }
+                                            >
+                                                <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                                Archive
+                                            </Button>
+                                        ) : null}
+
+                                        {archived ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    restoreYear(
+                                                        year
+                                                    )
+                                                }
+                                            >
+                                                <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                                Restore
+                                            </Button>
+                                        ) : null}
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
+
+                                <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
+                                    {yearPeriods.map(
+                                        (period) => {
+                                            const current =
+                                                period.is_active ===
+                                                true;
+                                            const busy =
+                                                actionId ===
+                                                    `period-${period.period_id}` ||
+                                                actionId ===
+                                                    `reset-${period.period_id}`;
+
+                                            return (
+                                                <div
+                                                    key={
+                                                        period.period_id
+                                                    }
+                                                    className={`rounded-xl border p-4 ${
+                                                        current
+                                                            ? 'border-green-200 bg-green-50'
+                                                            : 'border-stone-200 bg-stone-50/70'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                {current ? (
+                                                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                                                ) : (
+                                                                    <History className="h-4 w-4 text-stone-400" />
+                                                                )}
+                                                                <p className="text-sm font-semibold text-stone-900">
+                                                                    {
+                                                                        period.term
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                            <p className="mt-1 text-xs text-stone-500">
+                                                                {current
+                                                                    ? 'Current · Renewal and RO are actionable'
+                                                                    : 'Historical / inactive · existing data stays preserved'}
+                                                            </p>
+                                                        </div>
+
+                                                        <Badge
+                                                            className={
+                                                                current
+                                                                    ? 'border-green-200 bg-white text-green-700'
+                                                                    : 'border-stone-200 bg-white text-stone-500'
+                                                            }
+                                                        >
+                                                            {current
+                                                                ? 'Current'
+                                                                : 'Historical'}
+                                                        </Badge>
+                                                    </div>
+
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        {!archived &&
+                                                        !current ? (
+                                                            <Button
+                                                                size="sm"
+                                                                disabled={
+                                                                    busy
+                                                                }
+                                                                onClick={() =>
+                                                                    setCurrentPeriod(
+                                                                        period
+                                                                    )
+                                                                }
+                                                                className="border-none text-white"
+                                                                style={{
+                                                                    background:
+                                                                        C.brown,
+                                                                }}
+                                                            >
+                                                                {busy ? (
+                                                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <CalendarRange className="mr-1.5 h-3.5 w-3.5" />
+                                                                )}
+                                                                Set Current
+                                                            </Button>
+                                                        ) : null}
+
+                                                        {current ? (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                disabled={
+                                                                    busy
+                                                                }
+                                                                className="border-amber-200 text-amber-800 hover:bg-amber-50"
+                                                                onClick={() =>
+                                                                    resetPeriodForTesting(
+                                                                        period
+                                                                    )
+                                                                }
+                                                            >
+                                                                {busy ? (
+                                                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <FlaskConical className="mr-1.5 h-3.5 w-3.5" />
+                                                                )}
+                                                                Reset Test Cycle
+                                                            </Button>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                    )}
+                                </div>
+                            </section>
+                        );
+                    })}
+                </div>
+            )}
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <p className="text-sm font-semibold text-blue-900">
+                    Testing rule
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-blue-800">
+                    Selecting an old semester does not make it editable. Use Set Current to reactivate its exact previous state. Reset Test Cycle is separate and destructive; it creates fresh Renewal and RO records for the current semester and is blocked in production unless explicitly enabled.
+                </p>
             </div>
         </div>
     );

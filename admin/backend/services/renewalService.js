@@ -540,6 +540,8 @@ exports.fetchRenewals = async () => {
 
             semester_label: period.semester_label || 'Current Period',
             school_year_label: period.school_year_label || '',
+            is_current_period: period.is_active === true,
+            period_status: period.is_active === true ? 'Current' : 'Historical',
 
             renewal_status: renewal.status,
             document_status: deriveDocumentStatus(documents, renewal.status),
@@ -661,6 +663,8 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
 
             semester_label: period.semester_label || '',
             school_year_label: period.school_year_label || '',
+            is_current_period: period.is_active === true,
+            period_status: period.is_active === true ? 'Current' : 'Historical',
 
             renewal_status: renewal.status,
             document_status: documentStatus,
@@ -679,6 +683,8 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
 
         renewal_status: renewal.status,
         document_status: documentStatus,
+        is_current_period: period.is_active === true,
+        period_status: period.is_active === true ? 'Current' : 'Historical',
 
         scholar: {
             program_id: program.program_id || null,
@@ -727,6 +733,23 @@ exports.saveRenewalReview = async (renewalId, payload = {}, user = {}) => {
 
     if (!renewal) {
         throw createHttpError(404, 'Renewal record not found.');
+    }
+
+    const { data: renewalPeriod, error: renewalPeriodError } = await supabase
+        .from('academic_period')
+        .select('period_id, term, is_active, academic_year_id')
+        .eq('period_id', renewal.period_id)
+        .maybeSingle();
+
+    if (renewalPeriodError) {
+        throw createHttpError(500, renewalPeriodError.message);
+    }
+
+    if (!renewalPeriod || renewalPeriod.is_active !== true) {
+        throw createHttpError(
+            409,
+            'This renewal belongs to a historical semester and is read-only. Set that semester as Current in Maintenance > Academic Years before editing it.'
+        );
     }
 
     const reviewedAt = new Date().toISOString();

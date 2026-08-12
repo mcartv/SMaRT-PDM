@@ -18,6 +18,34 @@ function createHttpError(statusCode, message) {
   return error;
 }
 
+async function getCurrentAcademicPeriod() {
+  const { data, error } =
+    await supabase
+      .from('academic_period')
+      .select(
+        'period_id, academic_year_id, term, is_active'
+      )
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+  if (error) {
+    throw createHttpError(
+      500,
+      error.message
+    );
+  }
+
+  if (!data) {
+    throw createHttpError(
+      409,
+      'No current academic semester is active. Please wait for OSFA to set the current semester.'
+    );
+  }
+
+  return data;
+}
+
 function normalizeValue(value) {
   return value == null
     ? ''
@@ -577,49 +605,44 @@ function ensureApprovedScholar(student) {
 }
 
 async function getActiveSetting() {
+  const currentPeriod =
+    await getCurrentAcademicPeriod();
+
   const { data, error } =
     await supabase
       .from('ro_settings')
-      .select(`
-        setting_id,
-        required_hours,
-        is_active,
-        allow_carry_over,
-        remarks,
-        created_at,
-        updated_at
-      `)
+      .select('*')
       .eq('is_active', true)
       .order(
         'updated_at',
         { ascending: false }
-      )
-      .limit(1)
-      .maybeSingle();
+      );
 
   if (error) {
-    console.error(
-      'GET ACTIVE RO SETTING ERROR:',
-      error.message
-    );
-
-    return {
-      setting_id: null,
-      required_hours: 20,
-      is_active: true,
-      allow_carry_over: true,
-      remarks: 'Default RO setting',
-    };
+    throw error;
   }
 
+  const rows = data || [];
+
   return (
-    data || {
-      setting_id: null,
-      required_hours: 20,
-      is_active: true,
-      allow_carry_over: true,
-      remarks: 'Default RO setting',
-    }
+    rows.find(
+      (row) =>
+        row.period_id ===
+        currentPeriod.period_id
+    ) ||
+    rows.find(
+      (row) =>
+        !row.period_id &&
+        row.academic_year_id ===
+          currentPeriod.academic_year_id
+    ) ||
+    rows.find(
+      (row) =>
+        !row.period_id &&
+        !row.academic_year_id
+    ) ||
+    rows[0] ||
+    null
   );
 }
 
@@ -629,6 +652,8 @@ const RO_SELECT = `
   application_id,
   opening_id,
   program_id,
+  academic_year_id,
+  period_id,
   ro_status,
   cleared_at,
   cleared_by,
@@ -681,11 +706,18 @@ const LOG_SELECT = `
 `;
 
 async function getRoRowsForStudent(studentId) {
+  const currentPeriod =
+    await getCurrentAcademicPeriod();
+
   const { data, error } =
     await supabase
       .from('return_of_obligations')
       .select(RO_SELECT)
       .eq('student_id', studentId)
+      .eq(
+        'period_id',
+        currentPeriod.period_id
+      )
       .order(
         'created_at',
         { ascending: false }
@@ -699,12 +731,19 @@ async function getRoRowsForStudent(studentId) {
 }
 
 async function getRoRowForStudent(studentId, roId) {
+  const currentPeriod =
+    await getCurrentAcademicPeriod();
+
   const { data, error } =
     await supabase
       .from('return_of_obligations')
       .select(RO_SELECT)
       .eq('ro_id', roId)
       .eq('student_id', studentId)
+      .eq(
+        'period_id',
+        currentPeriod.period_id
+      )
       .maybeSingle();
 
   if (error) {

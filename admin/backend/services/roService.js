@@ -145,6 +145,28 @@ function getUserId(user = {}) {
     return user?.userId || user?.user_id || user?.id || user?.sub || null;
 }
 
+async function getCurrentAcademicPeriod() {
+    const { data, error } = await supabase
+        .from('academic_period')
+        .select('period_id, academic_year_id, term, is_active')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
+
+    if (!data) {
+        throw createHttpError(
+            409,
+            'No current academic semester is active. Set the current semester in Maintenance > Academic Years.'
+        );
+    }
+
+    return data;
+}
+
 async function getApprovedApplicationForStudent(studentId, payload = {}) {
     if (!studentId) {
         throw createHttpError(400, 'Student ID is required.');
@@ -192,12 +214,18 @@ async function getApprovedApplicationForStudent(studentId, payload = {}) {
     return data;
 }
 
-async function getROByApplication(studentId, applicationId) {
+async function getROByApplication(studentId, applicationId, periodId = null) {
+    const currentPeriod =
+        periodId
+            ? { period_id: periodId }
+            : await getCurrentAcademicPeriod();
+
     const { data, error } = await supabase
         .from('return_of_obligations')
         .select('*')
         .eq('student_id', studentId)
         .eq('application_id', applicationId)
+        .eq('period_id', currentPeriod.period_id)
         .maybeSingle();
 
     if (error) {
@@ -920,23 +948,35 @@ async function sendRoClearanceNotification({ studentId, ro }) {
 }
 
 exports.getSummary = async () => {
-    const [{ data: roRows, error: roError }, { data: logs, error: logError }] =
-        await Promise.all([
-            supabase
-                .from('return_of_obligations')
-                .select('ro_status, assignment_status, progress_status'),
-            supabase
-                .from('ro_time_logs')
-                .select('validation_status')
-                .eq('validation_status', 'Pending Validation'),
-        ]);
+    const currentPeriod = await getCurrentAcademicPeriod();
+
+    const { data: roRows, error: roError } = await supabase
+        .from('return_of_obligations')
+        .select('ro_id, ro_status, assignment_status, progress_status')
+        .eq('period_id', currentPeriod.period_id);
 
     if (roError) {
         throw createHttpError(500, roError.message);
     }
 
-    if (logError) {
-        throw createHttpError(500, logError.message);
+    const currentRoIds = (roRows || [])
+        .map((row) => row.ro_id)
+        .filter(Boolean);
+
+    let pendingLogs = [];
+
+    if (currentRoIds.length > 0) {
+        const { data: logs, error: logError } = await supabase
+            .from('ro_time_logs')
+            .select('log_id, validation_status')
+            .in('ro_id', currentRoIds)
+            .eq('validation_status', 'Pending Validation');
+
+        if (logError) {
+            throw createHttpError(500, logError.message);
+        }
+
+        pendingLogs = logs || [];
     }
 
     const summary = {
@@ -946,8 +986,11 @@ exports.getSummary = async () => {
         inProgress: 0,
         forValidation: 0,
         cleared: 0,
-        pendingLogs: logs?.length || 0,
+        pendingLogs: pendingLogs.length,
         total: roRows?.length || 0,
+        periodId: currentPeriod.period_id,
+        academicYearId: currentPeriod.academic_year_id,
+        term: currentPeriod.term,
     };
 
     for (const row of roRows || []) {
@@ -973,6 +1016,8 @@ exports.getSummary = async () => {
 };
 
 exports.getROScholars = async (filters = {}) => {
+    const currentPeriod = await getCurrentAcademicPeriod();
+
     const {
         search = '',
         courseId = 'all',
@@ -1109,6 +1154,8 @@ exports.getROScholars = async (filters = {}) => {
               application_id,
               opening_id,
               program_id,
+              academic_year_id,
+              period_id,
               ro_status,
               cleared_at,
               cleared_by,
@@ -1134,6 +1181,7 @@ exports.getROScholars = async (filters = {}) => {
               coordinator_decided_at
             `)
                     .in('application_id', applicationIds)
+                    .eq('period_id', currentPeriod.period_id)
                 : Promise.resolve({ data: [], error: null }),
         ]);
 
@@ -1407,27 +1455,49 @@ exports.getROScholars = async (filters = {}) => {
     return finalRows;
 };
 
-async function getActiveRoSettingForAssignments() {
+async function getActiveRoSettingForAssignments(currentPeriod = null) {
+    const period = currentPeriod || await getCurrentAcademicPeriod();
+
     const { data, error } = await supabase
         .from('ro_settings')
-        .select('setting_id, required_hours, allow_carry_over, is_active')
+        .select(`
+          setting_id,
+          academic_year_id,
+          period_id,
+          required_hours,
+          allow_carry_over,
+          is_active,
+          updated_at
+        `)
         .eq('is_active', true)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('updated_at', { ascending: false });
 
     if (error) {
         throw createHttpError(500, error.message);
     }
 
-    if (!data) {
+    const settings = data || [];
+    const selected =
+        settings.find((row) => row.period_id === period.period_id) ||
+        settings.find(
+            (row) =>
+                !row.period_id &&
+                row.academic_year_id === period.academic_year_id
+        ) ||
+        settings.find(
+            (row) => !row.period_id && !row.academic_year_id
+        ) ||
+        settings[0] ||
+        null;
+
+    if (!selected) {
         throw createHttpError(
             409,
             'Configure and activate the required hours in Maintenance > Obligation before sending an RO request.'
         );
     }
 
-    const requiredHours = toNumber(data.required_hours);
+    const requiredHours = toNumber(selected.required_hours);
 
     if (requiredHours <= 0) {
         throw createHttpError(
@@ -1437,16 +1507,21 @@ async function getActiveRoSettingForAssignments() {
     }
 
     return {
-        ...data,
+        ...selected,
         required_hours: requiredHours,
     };
 }
 
 exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
+    const currentPeriod = await getCurrentAcademicPeriod();
     const application = await getApprovedApplicationForStudent(studentId, payload);
-    const existingRO = await getROByApplication(studentId, application.application_id);
+    const existingRO = await getROByApplication(
+        studentId,
+        application.application_id,
+        currentPeriod.period_id
+    );
     const student = await getStudentForRoNotice(studentId);
-    const activeRoSetting = await getActiveRoSettingForAssignments();
+    const activeRoSetting = await getActiveRoSettingForAssignments(currentPeriod);
 
     if (existingRO?.ro_status === 'Cleared') {
         throw createHttpError(400, 'This scholar already has a cleared RO record.');
@@ -1484,6 +1559,8 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         application_id: application.application_id,
         opening_id: application.opening_id || payload.openingId || payload.opening_id || null,
         program_id: application.program_id || payload.programId || payload.program_id || null,
+        academic_year_id: currentPeriod.academic_year_id,
+        period_id: currentPeriod.period_id,
 
         required_hours: requiredHours,
 
@@ -1529,6 +1606,8 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
                 coordinator_decided_at: preserveActivePlacement
                     ? existingRO.coordinator_decided_at
                     : null,
+                academic_year_id: currentPeriod.academic_year_id,
+                period_id: currentPeriod.period_id,
                 updated_at: now,
             })
             .eq('ro_id', existingRO.ro_id)
@@ -1804,8 +1883,13 @@ exports.updateScholarRequest = async (requestId, payload = {}, user = {}) => {
 };
 
 exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
+    const currentPeriod = await getCurrentAcademicPeriod();
     const application = await getApprovedApplicationForStudent(studentId, payload);
-    const existingRO = await getROByApplication(studentId, application.application_id);
+    const existingRO = await getROByApplication(
+        studentId,
+        application.application_id,
+        currentPeriod.period_id
+    );
 
     if (!existingRO?.ro_id) {
         throw createHttpError(409, 'Assign and complete the required RO workflow before clearing this scholar.');

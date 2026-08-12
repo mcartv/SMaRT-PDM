@@ -178,6 +178,8 @@ export default function RenewalDocumentVerification() {
   }, [renewal, docStatuses, docComments]);
 
   const activeDoc = documents.find((doc) => doc.id === docKey) || documents[0] || null;
+  const isHistorical = renewal?.is_current_period === false || renewal?.renewal?.is_current_period === false;
+
   useEffect(() => {
     if (activeDoc) {
       setComment(docComments[activeDoc.id] || '');
@@ -185,13 +187,20 @@ export default function RenewalDocumentVerification() {
   }, [activeDoc, docComments]);
 
   const setActiveStatus = (nextStatus) => {
-    if (!activeDoc || !activeDoc.url) return;
+    if (isHistorical || !activeDoc || !activeDoc.url) return;
 
     setDocStatuses((prev) => ({ ...prev, [activeDoc.id]: nextStatus }));
     setDocComments((prev) => ({ ...prev, [activeDoc.id]: comment }));
   };
 
   const handleSubmitReview = async (finalAction) => {
+    if (isHistorical) {
+      alert(
+        'This renewal belongs to a historical semester and is read-only. Reactivate that semester from Maintenance > Academic Years if you need to continue its exact previous state.'
+      );
+      return;
+    }
+
     try {
       setSubmittingAction(finalAction);
       const payload = {
@@ -247,6 +256,19 @@ export default function RenewalDocumentVerification() {
 
   return (
     <div className="space-y-4 py-2 animate-in fade-in duration-300">
+
+      {isHistorical && (
+        <div className="rounded-xl border border-stone-200 bg-stone-100 px-4 py-3">
+          <p className="text-sm font-semibold text-stone-700">
+            Historical semester · Read-only
+          </p>
+          <p className="mt-1 text-xs text-stone-500">
+            This is the exact saved state from {renewal?.renewal?.semester_label || 'this semester'}
+            {renewal?.renewal?.school_year_label ? ` · AY ${renewal.renewal.school_year_label}` : ''}.
+            Set that semester as Current in Maintenance &gt; Academic Years to make this record actionable again.
+          </p>
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="flex items-center gap-3">
@@ -378,15 +400,15 @@ export default function RenewalDocumentVerification() {
               <Textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                disabled={!activeDoc?.url}
-                className="h-20 text-sm"
+                disabled={isHistorical || !activeDoc?.url}
+                className="h-20 text-sm disabled:bg-stone-100 disabled:text-stone-500"
               />
 
               <div className="flex gap-2 mt-3">
                 <Button
                   size="sm"
                   onClick={() => setActiveStatus('verified')}
-                  disabled={!activeDoc?.url}
+                  disabled={isHistorical || !activeDoc?.url}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   Verify
@@ -395,6 +417,7 @@ export default function RenewalDocumentVerification() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={isHistorical || !activeDoc?.url}
                   onClick={() => setActiveStatus('rejected')}
                 >
                   Re-upload
@@ -411,13 +434,15 @@ export default function RenewalDocumentVerification() {
               <Textarea
                 value={finalComment}
                 onChange={(e) => setFinalComment(e.target.value)}
-                className="h-20 text-sm"
+                disabled={isHistorical}
+                className="h-20 text-sm disabled:bg-stone-100 disabled:text-stone-500"
               />
 
               <div className="grid grid-cols-3 gap-2 mt-3">
                 <Button
                   size="sm"
                   className="bg-green-700"
+                  disabled={isHistorical}
                   onClick={() => handleSubmitReview('approve')}
                 >
                   Approve
@@ -426,6 +451,7 @@ export default function RenewalDocumentVerification() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={isHistorical}
                   onClick={() => handleSubmitReview('reupload')}
                 >
                   Re-upload
@@ -435,6 +461,7 @@ export default function RenewalDocumentVerification() {
                   size="sm"
                   variant="outline"
                   className="text-red-600 border-red-200"
+                  disabled={isHistorical}
                   onClick={() => handleSubmitReview('reject')}
                 >
                   Reject

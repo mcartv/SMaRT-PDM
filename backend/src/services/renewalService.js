@@ -350,30 +350,23 @@ async function getLatestApprovedApplication(student) {
 async function getCurrentPeriod() {
     const { data, error } = await supabase
         .from('academic_period')
-        .select('*');
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
 
     if (error) {
         throw createHttpError(500, error.message);
     }
 
-    const periods = data || [];
-
-    if (!periods.length) {
+    if (!data) {
         throw createHttpError(
-            400,
-            'No academic period exists. Please create an academic period first.'
+            409,
+            'No current academic semester is active. Please wait for OSFA to set the current semester.'
         );
     }
 
-    const activePeriod =
-        periods.find((period) => period.is_active === true) ||
-        periods.sort((a, b) => {
-            const aDate = new Date(a.created_at || 0).getTime();
-            const bDate = new Date(b.created_at || 0).getTime();
-            return bDate - aDate;
-        })[0];
-
-    return activePeriod;
+    return data;
 }
 
 async function getAcademicYearLabel(academicYearId) {

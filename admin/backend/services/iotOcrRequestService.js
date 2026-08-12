@@ -168,9 +168,8 @@ function withDerivedGradeFields(documentKey, rawText, storedFields = {}) {
             'SUMMER': 'Summer',
         }[String(periodMatch[1] || '').toUpperCase()];
         if (semester && missing('semester')) fields.semester = gradeField(semester);
-        if (missing('academic_year')) {
-            fields.academic_year = gradeField(periodMatch[2].replace(/\s*[-–]\s*/g, '-'));
-        }
+        const yearLevel = normalizeYearLevel(periodMatch[1]);
+        if (yearLevel) fields.academic_year = gradeField(yearLevel.label);
     }
 
     const gwaMatch = text.match(
@@ -223,37 +222,40 @@ function normalizeGwa(value) {
 }
 
 function normalizeAcademicYear(value) {
-    const raw = String(fieldValue(value) ?? '').trim();
-    const match = raw.match(/^(\d{4})\s*[-–—]\s*(\d{4})$/);
-    if (!match || Number(match[2]) !== Number(match[1]) + 1) {
-        throw buildHttpError(400, 'Academic Year must use the format YYYY-YYYY');
+    const normalized = normalizeYearLevel(value);
+    if (!normalized) {
+        throw buildHttpError(400, 'Academic Year must be a year level such as 1st Year or 2nd Year');
     }
-    return `${match[1]}-${match[2]}`;
+    return normalized.label;
+}
+
+function normalizeYearLevel(value) {
+    const raw = String(fieldValue(value) ?? '').trim();
+    const match = raw.match(/\b(1ST|2ND|3RD|4TH|5TH|6TH|FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH)\b/i);
+    if (!match) return null;
+    const number = {
+        '1ST': 1, FIRST: 1,
+        '2ND': 2, SECOND: 2,
+        '3RD': 3, THIRD: 3,
+        '4TH': 4, FOURTH: 4,
+        '5TH': 5, FIFTH: 5,
+        '6TH': 6, SIXTH: 6,
+    }[match[1].toUpperCase()];
+    const suffix = number === 1 ? 'st' : number === 2 ? 'nd' : number === 3 ? 'rd' : 'th';
+    return { number, label: `${number}${suffix} Year` };
 }
 
 async function persistVerifiedGradeSummary(client, studentId, verifiedFields) {
     const gwa = normalizeGwa(verifiedFields.gwa);
-    const academicYear = normalizeAcademicYear(verifiedFields.academic_year);
-    const yearResult = await client.query(`
-        SELECT academic_year_id
-        FROM public.academic_years
-        WHERE LOWER(TRIM(label)) = LOWER($1)
-        LIMIT 1
-    `, [academicYear]);
-    const academicYearId = yearResult.rows[0]?.academic_year_id;
-    if (!academicYearId) {
-        throw buildHttpError(
-            409,
-            `Academic Year ${academicYear} is not configured in SMaRT-PDM`
-        );
-    }
+    const yearLevel = normalizeYearLevel(verifiedFields.academic_year);
+    if (!yearLevel) throw buildHttpError(400, 'Academic Year must be a valid year level');
     await client.query(`
         UPDATE public.students
         SET gwa = $2,
-            active_academic_year_id = $3::uuid
+            year_level = $3
         WHERE student_id = $1::uuid
-    `, [studentId, gwa, academicYearId]);
-    return { gwa, academic_year: academicYear };
+    `, [studentId, gwa, yearLevel.number]);
+    return { gwa, academic_year: yearLevel.label };
 }
 
 function birthNameComponents(value, { required = true, label = 'Name' } = {}) {

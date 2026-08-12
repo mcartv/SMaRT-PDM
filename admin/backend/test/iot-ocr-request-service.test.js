@@ -144,7 +144,7 @@ test('grade fields recover from immutable raw OCR when Tesseract joins GRADEFOR'
     assert.equal(fields.student_name.normalized_value, 'Petima, Venice Eve');
     assert.equal(fields.course.normalized_value, 'BsiT');
     assert.equal(fields.semester.normalized_value, '1st Semester');
-    assert.equal(fields.academic_year.normalized_value, '2023-2024');
+    assert.equal(fields.academic_year.normalized_value, '1st Year');
     assert.equal(fields.gwa.normalized_value, '1.89');
     assert.deepEqual(fields.subjects, []);
 });
@@ -158,7 +158,7 @@ test('grade Academic Year recovers from THEPERIOO OCR noise', () => {
     );
 
     assert.equal(fields.semester.normalized_value, '1st Semester');
-    assert.equal(fields.academic_year.normalized_value, '2023-2024');
+    assert.equal(fields.academic_year.normalized_value, '1st Year');
 });
 
 test('indigency review fields recover full address without changing immutable raw OCR', () => {
@@ -234,7 +234,7 @@ test('grade confirmation keeps GWA and restores Academic Year', () => {
         student_name: { raw_text: 'JUAN DELA CRUZ', normalized_value: 'JUAN DELA CRUZ' },
         course: { raw_text: 'BSIT', normalized_value: 'BSIT' },
         semester: { raw_text: '1st Semester', normalized_value: '1st Semester' },
-        academic_year: { raw_text: '2025-2026', normalized_value: '2025-2026' },
+        academic_year: { raw_text: '1st', normalized_value: '1st Year' },
         gwa: { raw_text: '1.63', normalized_value: '1.63' },
         subjects: [],
     };
@@ -246,11 +246,11 @@ test('grade confirmation keeps GWA and restores Academic Year', () => {
     assert.equal(verified.student_name, undefined);
     assert.equal(verified.course, undefined);
     assert.equal(verified.semester, undefined);
-    assert.equal(verified.academic_year, '2025-2026');
+    assert.equal(verified.academic_year, '1st Year');
     assert.equal(verified.gwa, '1.63');
     assert.deepEqual(
         service.buildVerifiedApplicationPatch('student_grade_forms', verified),
-        { student: { gwa: 1.63, academic_year: '2025-2026' } }
+        { student: { gwa: 1.63, academic_year: '1st Year' } }
     );
     assert.throws(
         () => service.validateConfirmedDocumentFields(
@@ -275,15 +275,12 @@ test('grade confirmation rejects an invalid Tesseract GWA', () => {
     assert.throws(() => service.normalizeGwa('5.50'), /1.00 to 5.00/);
 });
 
-test('grade confirmation persists GWA and configured Academic Year atomically', async () => {
+test('grade confirmation persists GWA and year level atomically', async () => {
     const calls = [];
     const client = {
         async query(sql, params) {
             const normalized = String(sql).replace(/\s+/g, ' ').trim();
             calls.push({ sql: normalized, params });
-            if (normalized.startsWith('SELECT academic_year_id')) {
-                return { rows: [{ academic_year_id: 'b8468ed8-a85d-49f4-8463-d2fe4b1d9559' }] };
-            }
             return { rows: [] };
         },
     };
@@ -291,28 +288,28 @@ test('grade confirmation persists GWA and configured Academic Year atomically', 
     const result = await service.persistVerifiedGradeSummary(
         client,
         requestRow().student_id,
-        { gwa: '1.63', academic_year: '2025-2026' }
+        { gwa: '1.63', academic_year: '1st Year' }
     );
 
-    assert.deepEqual(result, { gwa: 1.63, academic_year: '2025-2026' });
+    assert.deepEqual(result, { gwa: 1.63, academic_year: '1st Year' });
     const update = calls.find((call) => call.sql.startsWith('UPDATE public.students'));
     assert.ok(update);
-    assert.match(update.sql, /active_academic_year_id = \$3::uuid/);
+    assert.match(update.sql, /year_level = \$3/);
     assert.deepEqual(update.params.slice(1), [
         1.63,
-        'b8468ed8-a85d-49f4-8463-d2fe4b1d9559',
+        1,
     ]);
 });
 
-test('grade confirmation rejects an unconfigured Academic Year', async () => {
+test('grade confirmation rejects a school-year range as Academic Year', async () => {
     const client = { query: async () => ({ rows: [] }) };
     await assert.rejects(
         () => service.persistVerifiedGradeSummary(
             client,
             requestRow().student_id,
-            { gwa: '1.63', academic_year: '2099-2100' }
+            { gwa: '1.63', academic_year: '2025-2026' }
         ),
-        /is not configured/
+        /valid year level/
     );
 });
 

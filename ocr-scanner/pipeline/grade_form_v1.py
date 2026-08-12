@@ -61,14 +61,35 @@ def _normalize_gwa_text(value: str) -> str:
     return match.group(1) + (f".{match.group(2)}" if match.group(2) else "")
 
 
+def _normalize_year_level(value: str) -> str:
+    raw = " ".join(str(value or "").strip().split())
+    match = re.search(
+        r"\b(1ST|2ND|3RD|4TH|5TH|6TH|FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH)\b",
+        raw,
+        re.I,
+    )
+    if not match:
+        return ""
+    number = {
+        "1ST": 1, "FIRST": 1,
+        "2ND": 2, "SECOND": 2,
+        "3RD": 3, "THIRD": 3,
+        "4TH": 4, "FOURTH": 4,
+        "5TH": 5, "FIFTH": 5,
+        "6TH": 6, "SIXTH": 6,
+    }[match.group(1).upper()]
+    suffix = "st" if number == 1 else "nd" if number == 2 else "rd" if number == 3 else "th"
+    return f"{number}{suffix} Year"
+
+
 def _valid_direct_value(field_key: str, value: str) -> bool:
     cleaned = " ".join(str(value or "").strip().split())
     if not cleaned:
         return False
+    if field_key == "academic_year":
+        return bool(_normalize_year_level(cleaned))
     if field_key == "student_number":
         return bool(re.fullmatch(r"(?:PDM-?)?\d{4}-\d{4,7}", cleaned, re.I))
-    if field_key == "academic_year":
-        return bool(re.fullmatch(r"\d{4}\s*[-–]\s*\d{4}", cleaned))
     if field_key == "gwa":
         return bool(re.fullmatch(r"[1-5](?:\.\d{1,2})?", _normalize_gwa_text(cleaned)))
     forbidden_labels = (
@@ -147,11 +168,9 @@ def _extract_layout_fields(
                 "SECOND": "Second Semester",
                 "SUMMER": "Summer",
             }[semester.upper()]
-        extracted["academic_year"] = re.sub(
-            r"\s*[-–]\s*",
-            "-",
-            period_match.group("year"),
-        )
+        # The ordinal is the student's year level; the numeric range is only
+        # the school-year span printed beside it.
+        extracted["academic_year"] = _normalize_year_level(semester)
 
     gwa_match = re.search(
         r"\b(?:G\s*W\s*A|[O0]\s*W\s*A)(?:\s+SCORE)?\b"
@@ -216,6 +235,8 @@ def scan_grade_form(image_path: str) -> GradeFormResult:
             value = match.group(1).strip(" :-")
             if field_key == "gwa":
                 value = _normalize_gwa_text(value)
+            if field_key == "academic_year":
+                value = _normalize_year_level(value)
             if _valid_direct_value(field_key, value):
                 fields[field_key] = {
                     "raw_text": value,

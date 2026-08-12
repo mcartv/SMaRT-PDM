@@ -1301,7 +1301,12 @@ function deriveGradeReviewValues(rawText) {
       'SECOND': 'Second Semester',
       'SUMMER': 'Summer',
     }[String(period[1] || '').toUpperCase()] || '';
-    derived.academic_year = period[2].replace(/\s*[-–]\s*/g, '-');
+    derived.academic_year = {
+      '1ST': '1st Year',
+      '2ND': '2nd Year',
+      'FIRST': '1st Year',
+      'SECOND': '2nd Year',
+    }[String(period[1] || '').toUpperCase()] || '';
   }
 
   const gwa = text.match(
@@ -1372,7 +1377,9 @@ export function normalizeReviewFields(candidate) {
     return {
       ...Object.fromEntries(GRADE_REVIEW_FIELDS.map(([key]) => [
         key,
-        ocrFieldValue(fields[key]) || derived[key] || '',
+        key === 'academic_year'
+          ? derived[key] || ocrFieldValue(fields[key]) || ''
+          : ocrFieldValue(fields[key]) || derived[key] || '',
       ])),
       gwa: ocrFieldValue(fields.gwa) || derived.gwa || '',
       subjects: Array.isArray(fields.subjects) ? fields.subjects : [],

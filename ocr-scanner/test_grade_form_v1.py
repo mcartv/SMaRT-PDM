@@ -39,7 +39,7 @@ class GradeFormPipelineTests(unittest.TestCase):
             [("Name:", 92), ("JUAN", 93), ("DELA", 91), ("CRUZ", 95)],
             [("Course:", 90), ("BSIT", 91)],
             [("Semester:", 95), ("1st", 96), ("Semester", 94)],
-            [("Academic", 97), ("Year:", 96), ("2025-2026", 97)],
+            [("Academic", 97), ("Year:", 96), ("1st", 97), ("Year", 96)],
             [("GWA:", 98), ("1.63", 96)],
         ])
 
@@ -86,7 +86,7 @@ class GradeFormPipelineTests(unittest.TestCase):
         self.assertEqual(result.fields["student_name"]["normalized_value"], "Petima, Venice Eve")
         self.assertEqual(result.fields["course"]["normalized_value"], "BsiT")
         self.assertEqual(result.fields["semester"]["normalized_value"], "1st Semester")
-        self.assertEqual(result.fields["academic_year"]["normalized_value"], "2023-2024")
+        self.assertEqual(result.fields["academic_year"]["normalized_value"], "1st Year")
         self.assertEqual(result.fields["gwa"]["normalized_value"], "1.59")
         self.assertIsNotNone(result.field_confidence["student_name"])
 
@@ -112,7 +112,7 @@ class GradeFormPipelineTests(unittest.TestCase):
         self.assertTrue(result.matched)
         self.assertEqual(
             result.fields["academic_year"]["normalized_value"],
-            "2023-2024",
+            "1st Year",
         )
         self.assertEqual(
             result.fields["semester"]["normalized_value"],
@@ -132,7 +132,7 @@ class GradeFormPipelineTests(unittest.TestCase):
             [("Name:", 92), ("JUAN", 93), ("DELA", 91), ("CRUZ", 95)],
             [("Course:", 90), ("BSIT", 91)],
             [("Semester:", 95), ("1st", 96), ("Semester", 94)],
-            [("Academic", 97), ("Year:", 96), ("2025-2026", 97)],
+            [("Academic", 97), ("Year:", 96), ("1st", 97), ("Year", 96)],
             [("OWA.", 96), ("1,69", 95)],
         ])
 

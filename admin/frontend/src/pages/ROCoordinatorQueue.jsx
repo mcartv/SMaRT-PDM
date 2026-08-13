@@ -109,6 +109,195 @@ function DecisionModal({ request, decision, loading, onClose, onConfirm, theme }
   );
 }
 
+const MANUAL_ADJUSTMENT_REASONS = [
+  'Forgot to Time Out',
+  'Forgot to Time In',
+  'Device/App Issue',
+  'Poor/No Internet Connection',
+  'Coordinator-Verified Attendance',
+  'Other',
+];
+
+function AttendanceDecisionModal({
+  state,
+  loading,
+  onClose,
+  onConfirm,
+  theme,
+}) {
+  const { log, decision } = state || {};
+  const [remarks, setRemarks] = useState('');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
+  const [adjustedMinutes, setAdjustedMinutes] = useState('');
+
+  useEffect(() => {
+    if (log && decision) {
+      setRemarks('');
+      setAdjustmentReason('');
+      setAdjustedMinutes(
+        decision === 'adjust'
+          ? String(Math.max(1, Math.round(Number(log.duration_minutes || 0))))
+          : ''
+      );
+    }
+  }, [log, decision]);
+
+  if (!log || !decision) return null;
+
+  const manual = decision === 'adjust';
+  const returning = decision === 'return';
+  const canSubmit =
+    !loading &&
+    (!returning || remarks.trim().length > 0) &&
+    (!manual ||
+      (adjustmentReason &&
+        Number(adjustedMinutes) > 0 &&
+        remarks.trim().length >= 5));
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onMouseDown={(event) =>
+        event.target === event.currentTarget && !loading && onClose()
+      }
+    >
+      <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+        <header className="flex items-start justify-between gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-900">
+              {manual
+                ? 'Approve with Attendance Adjustment'
+                : returning
+                  ? 'Return Attendance Evidence'
+                  : 'Validate Attendance'}
+            </h2>
+            <p className="mt-1 text-xs text-stone-500">
+              {log.first_name} {log.last_name} · {log.pdm_id}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="space-y-3 p-4">
+          {manual ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+              Use this only when the scholar's service was independently verified
+              but the mobile attendance evidence is incomplete. The original log
+              is preserved and the adjustment is written to the audit trail.
+            </div>
+          ) : null}
+
+          {manual ? (
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Adjustment reason
+                </span>
+                <select
+                  value={adjustmentReason}
+                  onChange={(event) => setAdjustmentReason(event.target.value)}
+                  className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': `${theme.base}22` }}
+                >
+                  <option value="">Select a reason</option>
+                  {MANUAL_ADJUSTMENT_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Verified credited minutes
+                </span>
+                <Input
+                  type="number"
+                  min="1"
+                  max="480"
+                  value={adjustedMinutes}
+                  onChange={(event) => setAdjustedMinutes(event.target.value)}
+                  className="h-10 rounded-xl border-stone-200"
+                />
+                <p className="mt-1 text-[11px] text-stone-400">
+                  Recorded duration: {Math.round(Number(log.duration_minutes || 0))} minute(s).
+                  Maximum manual credit is limited by the backend.
+                </p>
+              </label>
+            </>
+          ) : null}
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-stone-700">
+              {manual
+                ? 'Verification remarks'
+                : returning
+                  ? 'Reason for returning'
+                  : 'Remarks (optional)'}
+            </span>
+            <textarea
+              rows={4}
+              value={remarks}
+              onChange={(event) => setRemarks(event.target.value)}
+              placeholder={
+                manual
+                  ? 'Explain how the service hours were independently verified...'
+                  : returning
+                    ? 'Explain what evidence must be corrected...'
+                    : 'Add an optional validation note...'
+              }
+              className="w-full resize-none rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:ring-2"
+              style={{ '--tw-ring-color': `${theme.base}22` }}
+            />
+          </label>
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+            className="border-stone-200"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() =>
+              onConfirm({
+                remarks: remarks.trim(),
+                adjustmentReason,
+                adjustedMinutes: Number(adjustedMinutes || 0),
+              })
+            }
+            disabled={!canSubmit}
+            className={
+              returning
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'text-white'
+            }
+            style={returning ? undefined : { background: theme.base }}
+          >
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {manual
+              ? 'Approve Adjustment'
+              : returning
+                ? 'Return Evidence'
+                : 'Validate Attendance'}
+          </Button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export default function ROCoordinatorQueue({
   tokenStorageKey = 'roCoordinatorToken',
   portalKey = 'ro_coordinator',
@@ -118,9 +307,6 @@ export default function ROCoordinatorQueue({
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
-  const [courseFilter, setCourseFilter] = useState('all');
-  const [yearFilter, setYearFilter] = useState('all');
-  const [programFilter, setProgramFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -130,34 +316,16 @@ export default function ROCoordinatorQueue({
   const [attendance, setAttendance] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceSavingId, setAttendanceSavingId] = useState('');
+  const [attendanceDecisionState, setAttendanceDecisionState] = useState({
+    log: null,
+    decision: '',
+  });
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ status });
     if (search.trim()) params.set('search', search.trim());
     return `/api/ro-coordinator/requests?${params.toString()}`;
   }, [search, status]);
-
-  const courseOptions = useMemo(
-    () => [...new Set(items.map((item) => item.course_code).filter(Boolean))].sort(),
-    [items]
-  );
-  const yearOptions = useMemo(
-    () => [...new Set(items.map((item) => String(item.year_level || '')).filter(Boolean))]
-      .sort((a, b) => Number(a) - Number(b)),
-    [items]
-  );
-  const programOptions = useMemo(
-    () => [...new Set(items.map((item) => item.program_name).filter(Boolean))].sort(),
-    [items]
-  );
-  const filteredItems = useMemo(
-    () => items.filter((item) =>
-      (courseFilter === 'all' || item.course_code === courseFilter)
-      && (yearFilter === 'all' || String(item.year_level || '') === yearFilter)
-      && (programFilter === 'all' || item.program_name === programFilter)),
-    [courseFilter, items, programFilter, yearFilter]
-  );
-  const hasDetailFilters = courseFilter !== 'all' || yearFilter !== 'all' || programFilter !== 'all';
 
   const loadRequests = useCallback(async ({ soft = false } = {}) => {
     try {
@@ -194,26 +362,54 @@ export default function ROCoordinatorQueue({
     }
   }, [tokenStorageKey]);
 
-  const decideAttendance = async (log, decision) => {
-    const remarks = decision === 'return'
-      ? window.prompt('Reason for returning this attendance evidence:')
-      : window.prompt('Optional validation remarks:') || '';
-    if (decision === 'return' && !remarks?.trim()) return;
+  const decideAttendance = async ({
+    remarks = '',
+    adjustmentReason = '',
+    adjustedMinutes = 0,
+  }) => {
+    const { log, decision } = attendanceDecisionState;
+
+    if (!log?.log_id || !decision) return;
+
     try {
       setAttendanceSavingId(log.log_id);
-      const response = await fetch(buildApiUrl(`/api/ro-coordinator/attendance/${log.log_id}/decision`), {
-        method: 'PATCH',
-        headers: authHeaders(tokenStorageKey),
-        body: JSON.stringify({ decision, remarks: remarks?.trim() || '' }),
-      });
+
+      const response = await fetch(
+        buildApiUrl(`/api/ro-coordinator/attendance/${log.log_id}/decision`),
+        {
+          method: 'PATCH',
+          headers: authHeaders(tokenStorageKey),
+          body: JSON.stringify({
+            decision,
+            remarks,
+            adjustmentReason,
+            adjustedMinutes,
+          }),
+        }
+      );
+
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || 'Failed to validate attendance.');
-      toast.success(decision === 'approve' ? 'Attendance validated' : 'Attendance returned', {
-        description: payload.message,
-      });
+
+      if (!response.ok) {
+        throw new Error(payload.message || 'Failed to validate attendance.');
+      }
+
+      setAttendanceDecisionState({ log: null, decision: '' });
+
+      toast.success(
+        decision === 'adjust'
+          ? 'Attendance adjustment approved'
+          : decision === 'approve'
+            ? 'Attendance validated'
+            : 'Attendance returned',
+        { description: payload.message }
+      );
+
       await Promise.all([loadAttendance(), loadRequests({ soft: true })]);
     } catch (attendanceError) {
-      toast.error('Attendance decision was not saved', { description: attendanceError.message });
+      toast.error('Attendance decision was not saved', {
+        description: attendanceError.message,
+      });
     } finally {
       setAttendanceSavingId('');
     }
@@ -263,6 +459,16 @@ export default function ROCoordinatorQueue({
 
   return (
     <div className="space-y-5">
+      <AttendanceDecisionModal
+        state={attendanceDecisionState}
+        loading={Boolean(attendanceSavingId)}
+        onClose={() =>
+          setAttendanceDecisionState({ log: null, decision: '' })
+        }
+        onConfirm={decideAttendance}
+        theme={theme}
+      />
+
       <DecisionModal
         key={`${decisionState.request?.placement_id || 'none'}-${decisionState.decision || 'none'}`}
         request={decisionState.request}
@@ -317,8 +523,7 @@ export default function ROCoordinatorQueue({
       {viewMode === 'placements' ? (
         <>
       <div className="rounded-2xl border border-stone-200 bg-white p-3">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((filter) => (
               <button
@@ -338,55 +543,6 @@ export default function ROCoordinatorQueue({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search student, PDM ID, or course..." className="h-10 rounded-xl border-stone-200 pl-9" />
           </div>
-          </div>
-          <div className="grid gap-2 border-t border-stone-100 pt-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_140px_minmax(0,1.35fr)_auto]">
-            <select
-              value={courseFilter}
-              onChange={(event) => setCourseFilter(event.target.value)}
-              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
-              style={{ '--tw-ring-color': `${theme.base}22` }}
-              aria-label="Filter RO requests by course"
-            >
-              <option value="all">All Courses</option>
-              {courseOptions.map((course) => <option key={course} value={course}>{course}</option>)}
-            </select>
-            <select
-              value={yearFilter}
-              onChange={(event) => setYearFilter(event.target.value)}
-              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
-              style={{ '--tw-ring-color': `${theme.base}22` }}
-              aria-label="Filter RO requests by year level"
-            >
-              <option value="all">All Years</option>
-              {yearOptions.map((year) => <option key={year} value={year}>Year {year}</option>)}
-            </select>
-            <select
-              value={programFilter}
-              onChange={(event) => setProgramFilter(event.target.value)}
-              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:ring-2"
-              style={{ '--tw-ring-color': `${theme.base}22` }}
-              aria-label="Filter RO requests by scholarship program"
-            >
-              <option value="all">All Scholarship Programs</option>
-              {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
-            </select>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!hasDetailFilters}
-              onClick={() => {
-                setCourseFilter('all');
-                setYearFilter('all');
-                setProgramFilter('all');
-              }}
-              className="h-10 w-10 justify-self-end border-stone-200"
-              title="Clear filters"
-              aria-label="Clear filters"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -399,9 +555,9 @@ export default function ROCoordinatorQueue({
 
       {loading ? (
         <SectionLoadingSkeleton label="Loading coordinator queue" rows={5} />
-      ) : filteredItems.length ? (
+      ) : items.length ? (
         <div className="space-y-3">
-          {filteredItems.map((request) => {
+          {items.map((request) => {
             const pending = request.coordinator_status === 'Pending';
             return (
               <Card key={request.placement_id || request.ro_id} className="overflow-hidden rounded-[22px] border-stone-200 shadow-none">
@@ -479,7 +635,7 @@ export default function ROCoordinatorQueue({
         <div className="rounded-[22px] border border-dashed border-stone-200 bg-white px-6 py-16 text-center">
           {status === 'pending' ? <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" /> : <Clock3 className="mx-auto h-9 w-9 text-stone-300" />}
           <p className="mt-3 text-sm font-semibold text-stone-800">No {FILTERS.find((filter) => filter.key === status)?.label.toLowerCase()} found</p>
-          <p className="mt-1 text-xs text-stone-500">{hasDetailFilters ? 'Try clearing or changing the Course, Year, or Scholarship Program filters.' : status === 'pending' ? 'You are caught up. New requests appear here automatically.' : 'Try another status or clear your search.'}</p>
+          <p className="mt-1 text-xs text-stone-500">{status === 'pending' ? 'You are caught up. New requests appear here automatically.' : 'Try another status or clear your search.'}</p>
         </div>
       )}
         </>
@@ -528,13 +684,68 @@ export default function ROCoordinatorQueue({
                     ))}
                   </div>
                   {!evidenceComplete ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                      Validation is locked until both time-in and time-out photos contain GPS coordinates.
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-800">
+                      Attendance evidence is incomplete. Normal validation requires
+                      both GPS-stamped time-in and time-out photos. If the service
+                      was independently verified, use Approve with Adjustment instead
+                      of forcing the scholar to repeat the entire service period.
                     </div>
                   ) : null}
+
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button variant="outline" disabled={attendanceSavingId === log.log_id} onClick={() => decideAttendance(log, 'return')} className="border-red-200 text-red-700"><RotateCcw className="mr-2 h-4 w-4" />Return Evidence</Button>
-                    <Button disabled={attendanceSavingId === log.log_id || !evidenceComplete} title={evidenceComplete ? 'Validate this attendance record.' : 'Both GPS-stamped time-in and time-out photos are required.'} onClick={() => decideAttendance(log, 'approve')} className="text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ background: theme.base }}>{attendanceSavingId === log.log_id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Validate Attendance</Button>
+                    <Button
+                      variant="outline"
+                      disabled={attendanceSavingId === log.log_id}
+                      onClick={() =>
+                        setAttendanceDecisionState({
+                          log,
+                          decision: 'return',
+                        })
+                      }
+                      className="border-red-200 text-red-700"
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Return Evidence
+                    </Button>
+
+                    {evidenceComplete ? (
+                      <Button
+                        disabled={attendanceSavingId === log.log_id}
+                        onClick={() =>
+                          setAttendanceDecisionState({
+                            log,
+                            decision: 'approve',
+                          })
+                        }
+                        className="text-white"
+                        style={{ background: theme.base }}
+                      >
+                        {attendanceSavingId === log.log_id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="mr-2 h-4 w-4" />
+                        )}
+                        Validate Attendance
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled={attendanceSavingId === log.log_id}
+                        onClick={() =>
+                          setAttendanceDecisionState({
+                            log,
+                            decision: 'adjust',
+                          })
+                        }
+                        className="bg-amber-600 text-white hover:bg-amber-700"
+                      >
+                        {attendanceSavingId === log.log_id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="mr-2 h-4 w-4" />
+                        )}
+                        Approve with Adjustment
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

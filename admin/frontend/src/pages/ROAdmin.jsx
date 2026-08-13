@@ -429,7 +429,7 @@ function EmptyState({ onAssignMode }) {
 
 function ToolbarSegment({ options, value, onChange }) {
   return (
-    <div className="inline-flex items-center rounded-xl border border-stone-200 bg-[#f8f6f2] p-1">
+    <div className="inline-flex shrink-0 items-center rounded-lg border border-stone-200 bg-[#f8f6f2] p-0.5">
       {options.map((option) => {
         const active = value === option.value;
 
@@ -438,9 +438,9 @@ function ToolbarSegment({ options, value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`rounded-[10px] px-4 py-2 text-xs font-medium transition-all ${active
-              ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${active
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-500 hover:text-stone-700'
               }`}
           >
             {option.label}
@@ -1143,6 +1143,7 @@ function RoDetailsModal({
   const name = getScholarName(scholar);
   const hasAssignment = !!scholar.ro_id;
   const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
+  const statusCapsule = getMainStatusCapsule(scholar);
 
   const {
     requiredMinutes,
@@ -1159,29 +1160,35 @@ function RoDetailsModal({
   } = getRoMetrics(scholar);
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-3 backdrop-blur-sm">
+      <div
+        className="absolute inset-0"
+        onClick={loading ? undefined : onClose}
+      />
 
-      <Card className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div>
+      <Card className="relative flex max-h-[calc(100vh-24px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border-stone-200 bg-white shadow-xl">
+        {/* Compact fixed header */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3">
+          <div className="min-w-0">
             <h3 className="text-sm font-semibold text-stone-900">RO Details</h3>
-            <p className="mt-1 text-xs text-stone-500">{name}</p>
+            <p className="mt-0.5 truncate text-xs text-stone-500">{name}</p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5">
-          <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <Avatar className="h-12 w-12 shrink-0 rounded-full border border-stone-200 shadow-sm">
+        {/* Scroll only inside the modal body when the screen is very short. */}
+        <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3">
+          {/* Scholar identity */}
+          <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50/70 px-3 py-2.5">
+            <Avatar className="h-10 w-10 shrink-0 rounded-full border border-stone-200 shadow-sm">
               <AvatarImage
                 src={
                   scholar.profile_photo_url ||
@@ -1197,199 +1204,203 @@ function RoDetailsModal({
             </Avatar>
 
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-black text-stone-900">{name}</p>
-                  <p className="mt-0.5 text-xs text-stone-500">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-stone-900">
+                    {name}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-stone-500">
                     {scholar.pdm_id || 'No PDM ID'}
                   </p>
                 </div>
 
-                <StatusChip tone={getMainStatusCapsule(scholar).tone}>
-                  {getMainStatusCapsule(scholar).label}
+                <StatusChip tone={statusCapsule.tone}>
+                  {statusCapsule.label}
                 </StatusChip>
               </div>
 
-              <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-stone-600 sm:grid-cols-2">
-                <p>
-                  <span className="font-bold text-stone-800">Program:</span>{' '}
+              <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-stone-600 sm:grid-cols-2">
+                <p className="truncate">
+                  <span className="font-semibold text-stone-800">Program:</span>{' '}
                   {scholar.program_name || 'N/A'}
                 </p>
 
-                <p>
-                  <span className="font-bold text-stone-800">Course:</span>{' '}
+                <p className="truncate">
+                  <span className="font-semibold text-stone-800">Course:</span>{' '}
                   {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                RO Areas
-              </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
-                {placements.length || (hasAssignment ? 1 : 0)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Progress
-              </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
-                {hasAssignment ? progressSummary : 'N/A'}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Logs
-              </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
-                {pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending'}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Proofs
-              </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
-                {proofCount || 0}
-              </p>
-            </div>
+          {/* Compact metrics */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              {
+                label: 'RO Areas',
+                value: placements.length || (hasAssignment ? 1 : 0),
+              },
+              {
+                label: 'Progress',
+                value: hasAssignment ? progressSummary : 'N/A',
+              },
+              {
+                label: 'Logs',
+                value: pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending',
+              },
+              {
+                label: 'Proofs',
+                value: proofCount || 0,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg border border-stone-200 bg-white px-3 py-2"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                  {item.label}
+                </p>
+                <p className="mt-0.5 truncate text-xs font-semibold text-stone-900">
+                  {item.value}
+                </p>
+              </div>
+            ))}
           </div>
 
           {scholar.remarks ? (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+            <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
                 Remarks
               </p>
-              <p className="mt-2 text-sm leading-6 text-stone-700">
+              <p className="mt-1 text-xs leading-5 text-stone-600">
                 {scholar.remarks}
               </p>
             </div>
           ) : null}
 
           {hasAssignment ? (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                    Placement Requests
-                  </p>
-                  <p className="mt-1 text-xs text-stone-500">
-                    Service hours may be completed in one or more approved RO Areas.
-                  </p>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {/* Placement Requests */}
+              <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                      Placement Requests
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-stone-500">
+                      Current approved/pending RO area placement.
+                    </p>
+                  </div>
+
+                  <StatusChip tone="blue">
+                    {placements.length} {placements.length === 1 ? 'area' : 'areas'}
+                  </StatusChip>
                 </div>
-                <StatusChip tone="blue">
-                  {placements.length} {placements.length === 1 ? 'area' : 'areas'}
-                </StatusChip>
-              </div>
 
-              {placements.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {placements.map((placement) => {
-                    const status = placement.placement_status || 'Pending';
-                    const statusKey = normalizeStatus(status);
-                    const tone =
-                      statusKey === 'approved'
-                        ? 'green'
-                        : statusKey === 'rejected' || statusKey === 'cancelled'
-                          ? 'red'
-                          : 'amber';
+                {placements.length > 0 ? (
+                  <div className="max-h-36 space-y-1.5 overflow-y-auto pr-0.5">
+                    {placements.map((placement) => {
+                      const status = placement.placement_status || 'Pending';
+                      const statusKey = normalizeStatus(status);
+                      const tone =
+                        statusKey === 'approved'
+                          ? 'green'
+                          : statusKey === 'rejected' || statusKey === 'cancelled'
+                            ? 'red'
+                            : 'amber';
 
-                    return (
-                      <div
-                        key={placement.placement_id}
-                        className="rounded-xl border border-stone-200 bg-stone-50/70 p-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-bold text-stone-900">
-                            {placement.assigned_area || 'RO Area'}
-                          </p>
-                          <StatusChip tone={tone}>{status}</StatusChip>
+                      return (
+                        <div
+                          key={placement.placement_id}
+                          className="rounded-lg border border-stone-200 bg-stone-50/70 px-2.5 py-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="min-w-0 flex-1 truncate text-xs font-semibold text-stone-900">
+                              {placement.assigned_area || 'RO Area'}
+                            </p>
+                            <StatusChip tone={tone}>{status}</StatusChip>
+                          </div>
+
+                          {placement.coordinator_remarks || placement.admin_remarks ? (
+                            <p className="mt-1 line-clamp-2 text-xs leading-4 text-stone-500">
+                              {placement.coordinator_remarks || placement.admin_remarks}
+                            </p>
+                          ) : null}
                         </div>
-                        {placement.coordinator_remarks || placement.admin_remarks ? (
-                          <p className="mt-2 text-xs leading-5 text-stone-500">
-                            {placement.coordinator_remarks || placement.admin_remarks}
-                          </p>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                  This legacy assignment has no separate placement record yet.
-                </p>
-              )}
-            </div>
-          ) : null}
-
-          {hasAssignment ? (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                    Hours
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
+                    This assignment has no separate placement record yet.
                   </p>
-                  <p className="mt-1 text-sm font-black text-stone-900">
-                    {progressSummary}
-                  </p>
-                </div>
-
-                <StatusChip tone={getMainStatusCapsule(scholar).tone}>
-                  {getMainStatusCapsule(scholar).label}
-                </StatusChip>
+                )}
               </div>
 
-              <div className="space-y-4">
-                <ProgressLine
-                  label="Submitted"
-                  value={submittedProgress}
-                  color={C.amber}
-                  caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
-                />
+              {/* Hours */}
+              <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                      Hours
+                    </p>
+                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                      {progressSummary}
+                    </p>
+                  </div>
 
-                <ProgressLine
-                  label="Validated"
-                  value={validatedProgress}
-                  color={C.green}
-                  caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
-                />
+                  <StatusChip tone={statusCapsule.tone}>
+                    {statusCapsule.label}
+                  </StatusChip>
+                </div>
+
+                <div className="space-y-2.5">
+                  <ProgressLine
+                    label="Submitted"
+                    value={submittedProgress}
+                    color={C.amber}
+                    caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
+                  />
+
+                  <ProgressLine
+                    label="Validated"
+                    value={validatedProgress}
+                    color={C.green}
+                    caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
+                  />
+                </div>
               </div>
             </div>
           ) : null}
 
           {scholar.conflict_reason || scholar.conflictReason ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
-              <p className="text-[11px] font-black uppercase tracking-wide text-red-500">
+            <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
                 Conflict Reported
               </p>
-              <p className="mt-1 text-xs leading-5 text-red-600">
+              <p className="mt-1 text-xs leading-4 text-red-600">
                 {scholar.conflict_reason || scholar.conflictReason}
               </p>
             </div>
           ) : null}
+
           {hasAssignment && !isCleared && !canMarkCleared ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
               Mark Cleared is locked: {clearanceBlockedReason}
             </div>
           ) : null}
         </CardContent>
 
-        <div className="flex flex-col gap-2 border-t border-stone-100 bg-stone-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
+        {/* Compact fixed footer */}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-100 bg-stone-50/80 px-3 py-2.5">
           <Button
             type="button"
             variant="outline"
             onClick={onAssign}
             disabled={loading}
-            className="h-9 rounded-xl border-stone-200 text-xs"
+            className="h-8 rounded-lg border-stone-200 px-3 text-xs"
           >
-            <Send className="mr-2 h-3.5 w-3.5" />
+            <Send className="mr-1.5 h-3.5 w-3.5" />
             {hasAssignment ? 'Add Placement' : 'Assign'}
           </Button>
 
@@ -1399,9 +1410,9 @@ function RoDetailsModal({
               variant="outline"
               onClick={onLogs}
               disabled={loading}
-              className="h-9 rounded-xl border-stone-200 text-xs"
+              className="h-8 rounded-lg border-stone-200 px-3 text-xs"
             >
-              <Eye className="mr-2 h-3.5 w-3.5" />
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
               Logs & Proofs
             </Button>
           ) : null}
@@ -1411,11 +1422,14 @@ function RoDetailsModal({
               type="button"
               onClick={onClear}
               disabled={loading || !canMarkCleared}
-              title={clearanceBlockedReason || 'All required hours were validated by the department head.'}
-              className="h-9 rounded-xl border-none text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+              title={
+                clearanceBlockedReason ||
+                'All required hours were validated by the department head.'
+              }
+              className="h-8 rounded-lg border-none px-3 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: C.green }}
             >
-              <ShieldCheck className="mr-2 h-3.5 w-3.5" />
+              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
               Mark Cleared
             </Button>
           ) : null}
@@ -2216,7 +2230,7 @@ export default function ROAdmin() {
   }
 
   return (
-    <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
+    <div className="space-y-3 px-1 py-2" style={{ background: C.bg }}>
       <FilterModal
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
@@ -2296,71 +2310,38 @@ export default function ROAdmin() {
       />
 
       <section
-        className="rounded-2xl border bg-white px-4 py-4"
+        className="rounded-xl border bg-white px-3 py-3"
         style={{ borderColor: C.line }}
       >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
           {topTab !== 'requests' ? (
-            <div className="w-full lg:max-w-xl">
+            <div className="min-w-0 flex-1">
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
 
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by scholar name or PDM ID..."
-                  className="h-11 rounded-2xl border-stone-200 bg-[#f8f6f2] pl-11 pr-4 text-sm shadow-none focus-visible:ring-1"
+                  className="h-9 rounded-lg border-stone-200 bg-[#f8f6f2] pl-9 pr-3 text-sm shadow-none focus-visible:ring-1"
                 />
               </div>
             </div>
           ) : (
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-stone-900">RO Area Requests</p>
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-0.5 text-xs text-stone-500">
                 Review offices requesting scholars for RO service.
               </p>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">
             <ToolbarSegment
               options={TOP_TABS}
               value={topTab}
               onChange={setTopTab}
             />
-
-            {topTab !== 'requests' ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFilterOpen(true)}
-                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
-              >
-                <SlidersHorizontal className="mr-2 h-4 w-4" />
-                Filters
-                {activeFilterCount > 0 ? (
-                  <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-                    {activeFilterCount}
-                  </span>
-                ) : null}
-              </Button>
-            ) : null}
-
-            <Button
-              onClick={() => refreshAll()}
-              variant="outline"
-              size="sm"
-              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
-              disabled={filterLoading}
-            >
-              {filterLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Refresh
-            </Button>
 
             {selectedIds.length > 0 &&
               !['cleared', 'requests'].includes(topTab) ? (
@@ -2371,13 +2352,46 @@ export default function ROAdmin() {
                 }}
                 size="sm"
                 disabled={activeRequiredHours <= 0}
-                className="h-11 rounded-2xl border-none px-4 text-white"
+                className="h-9 shrink-0 rounded-lg border-none px-3 text-xs text-white"
                 style={{ background: C.brownMid }}
               >
-                <Send className="mr-2 h-4 w-4" />
+                <Send className="mr-1.5 h-3.5 w-3.5" />
                 Batch Assign ({selectedIds.length})
               </Button>
             ) : null}
+
+            {topTab !== 'requests' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFilterOpen(true)}
+                className="h-9 shrink-0 rounded-lg border-stone-200 bg-white px-2.5 text-xs text-stone-700"
+              >
+                <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                Filters
+                {activeFilterCount > 0 ? (
+                  <span className="ml-1.5 rounded-full bg-stone-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </Button>
+            ) : null}
+
+            <Button
+              onClick={() => refreshAll()}
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 rounded-lg border-stone-200 bg-white px-2.5 text-xs text-stone-700"
+              disabled={filterLoading}
+            >
+              {filterLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Refresh
+            </Button>
           </div>
         </div>
       </section>
@@ -2635,3 +2649,4 @@ export default function ROAdmin() {
     </div>
   );
 }
+

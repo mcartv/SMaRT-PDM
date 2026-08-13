@@ -18,6 +18,7 @@ import signal
 import shutil
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -44,6 +45,7 @@ from extraction.indigency_core_field_extraction import (
     IndigencyExtractionConfig,
     extract_indigency_core_fields,
 )
+from extraction.gemini_birth_extractor import GeminiBirthResult, extract_with_gemini
 from extraction.psa_birth_row_cropper import (
     crop_psa_birth_name_rows,
     validate_psa_birth_name_topology,
@@ -414,6 +416,71 @@ def _run_birth_diagnostic_ocr(source_image: Any) -> str:
         return ""
 
 
+def _gemini_birth_field_texts(result: GeminiBirthResult) -> Dict[str, Dict[str, Any]]:
+    """Adapt the exact Gemini schema to the existing Birth review contract."""
+
+    source = result.fields
+    rows = {
+        "child_name": (
+            source.get("child_first_name", ""),
+            source.get("child_middle_name", ""),
+            source.get("child_last_name", ""),
+        ),
+        "mother_maiden_name": (
+            source.get("mothers_maiden_first", ""),
+            source.get("mothers_maiden_middle", ""),
+            source.get("mothers_maiden_last", ""),
+        ),
+        "father_name": (
+            source.get("father_first_name", ""),
+            source.get("father_middle_name", ""),
+            source.get("father_last_name", ""),
+        ),
+    }
+    output: Dict[str, Dict[str, Any]] = {}
+    component_names = ("first_name", "middle_name", "last_name")
+    for field_name, values in rows.items():
+        raw_components = {
+            name: str(value or "")
+            for name, value in zip(component_names, values)
+        }
+        not_applicable = (
+            field_name == "father_name"
+            and any(
+                value and "".join(character for character in value.upper() if character.isalpha()) == "NA"
+                for value in raw_components.values()
+            )
+        )
+        components = (
+            {name: "" for name in component_names}
+            if not_applicable
+            else dict(raw_components)
+        )
+        if not_applicable:
+            section_status = "not_applicable"
+            row_text = "N/A"
+        elif field_name == "father_name" and not any(components.values()):
+            section_status = "blank"
+            row_text = ""
+        elif field_name == "father_name" and not (
+            components["first_name"] and components["last_name"]
+        ):
+            section_status = "incomplete"
+            row_text = " ".join(value for value in components.values() if value)
+        else:
+            section_status = "present"
+            row_text = " ".join(value for value in components.values() if value)
+        output[field_name] = {
+            "raw_text": row_text,
+            "components": components,
+            "section_status": section_status,
+            "confidence": None,
+            "component_confidence": {name: None for name in component_names},
+            "component_raw_text": raw_components,
+        }
+    return output
+
+
 def _birth_diagnostic_review_payload(
     request: Dict,
     source_image: Any,
@@ -629,8 +696,26 @@ def _run_birth_certificate_scan(
                 },
             )
 
-        ocr_result = extract_psa_birth_row_text(crop_result.data)
-        ocr_field_texts = {
+        if request_stop and request_stop.is_set():
+            return False, {"status": "cancelled"}
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            tesseract_future = executor.submit(
+                extract_psa_birth_row_text,
+                crop_result.data,
+            )
+            gemini_future = executor.submit(
+                extract_with_gemini,
+                crop_result.data.crops,
+            )
+            try:
+                ocr_result = tesseract_future.result()
+            except Exception:
+                ocr_result = None
+            gemini_result = gemini_future.result()
+        if request_stop and request_stop.is_set():
+            return False, {"status": "cancelled"}
+
+        tesseract_field_texts = {
             field.name: {
                 "raw_text": field.raw_text,
                 "components": dict(field.components),
@@ -639,12 +724,12 @@ def _run_birth_certificate_scan(
                 "component_confidence": dict(field.component_confidence),
                 "component_raw_text": dict(field.component_raw_text),
             }
-            for field in getattr(ocr_result.data, "fields", ())
+            for field in getattr(getattr(ocr_result, "data", None), "fields", ())
         }
         raw_text = "\n".join(
             "\t".join(
                 str(
-                    (ocr_field_texts.get(field_name, {}).get("component_raw_text") or {})
+                    (tesseract_field_texts.get(field_name, {}).get("component_raw_text") or {})
                     .get(component_name, "")
                     or ""
                 )
@@ -652,20 +737,32 @@ def _run_birth_certificate_scan(
             )
             for field_name in ("child_name", "mother_maiden_name", "father_name")
         )
+        gemini_selected = bool(gemini_result.success)
+        ocr_field_texts = (
+            _gemini_birth_field_texts(gemini_result)
+            if gemini_selected
+            else tesseract_field_texts
+        )
+        selected_preprocessing_variant = (
+            "gemini_nine_cell_with_tesseract_raw"
+            if gemini_selected
+            else (
+                ocr_result.data.fields[0].preprocessing_variant
+                if getattr(getattr(ocr_result, "data", None), "fields", ())
+                else preprocessing_variant
+            )
+        )
+        ocr_metrics = dict(getattr(ocr_result, "metrics", {}) or {})
         extracted_fields = build_birth_extracted_fields_from_ocr_result(
             raw_text=raw_text,
             field_texts=ocr_field_texts,
-            ocr_attempts=int(ocr_result.metrics.get("total_ocr_attempts", 27)),
-            preprocessing_variant=(
-                ocr_result.data.fields[0].preprocessing_variant
-                if getattr(ocr_result.data, "fields", ())
-                else preprocessing_variant
-            ),
+            ocr_attempts=int(ocr_metrics.get("total_ocr_attempts", 27)),
+            preprocessing_variant=selected_preprocessing_variant,
         )
         structured_text = extracted_fields["raw_text"]
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
-        structured_ready = ocr_result.success
+        structured_ready = bool(gemini_selected or getattr(ocr_result, "success", False))
         if not structured_ready:
             return _birth_diagnostic_review_payload(
                 request,
@@ -728,21 +825,33 @@ def _run_birth_certificate_scan(
                 "row_identity_issue_codes": _issue_codes(identity_result),
                 "row_identity_rows": identity_result.metrics.get("row_status", {}),
                 "calibration": calibration_metadata,
-                "confidence_source": ocr_result.metrics.get(
-                    "confidence_source",
-                    "tesseract_image_to_data_three_variant_vote",
+                "confidence_source": ocr_metrics.get(
+                    "confidence_source", "tesseract_image_to_data_three_variant_vote"
+                ) if not gemini_selected else "unavailable",
+                "ocr_engine": "gemini" if gemini_selected else "tesseract",
+                "gemini_enabled": gemini_result.enabled,
+                "gemini_status": (
+                    "selected"
+                    if gemini_selected
+                    else ("fallback" if gemini_result.enabled else "disabled")
                 ),
+                "gemini_model": gemini_result.model,
+                "gemini_error_code": gemini_result.error_code,
                 "paddle_enabled": False,
                 "manual_entry_status": "disabled",
-                "structured_value_source": "birth_nine_cell_tesseract_vote",
+                "structured_value_source": (
+                    "birth_nine_cell_gemini"
+                    if gemini_selected
+                    else "birth_nine_cell_tesseract_vote"
+                ),
                 "raw_text_mode": "nine_cell_selected_observations",
-                "variant_observations": ocr_result.metrics.get(
+                "variant_observations": ocr_metrics.get(
                     "variant_observations", {}
                 ),
                 "structured_text_available": bool(structured_text.strip()),
                 "cropper_status": crop_result.status,
                 "cropper_issue_codes": _issue_codes(crop_result),
-                "ocr_status": ocr_result.status,
+                "ocr_status": getattr(ocr_result, "status", "failed"),
                 "ocr_issue_codes": _issue_codes(ocr_result),
                 "manual_review_required": True,
                 "worker_status": status,
@@ -750,13 +859,20 @@ def _run_birth_certificate_scan(
                 "preprocessing_variant": preprocessing_variant,
                 "structured_field_keys": sorted(ocr_field_texts),
             },
-            "validation_issues": [
-                {
-                    "code": str(issue.get("code") or "BIRTH_OCR_REVIEW"),
+            "validation_issues": (
+                [{
+                    "code": "GEMINI_CONFIDENCE_UNAVAILABLE",
                     "message": "Birth certificate OCR requires admin review.",
-                }
-                for issue in getattr(ocr_result, "issues", ())
-            ],
+                }]
+                if gemini_selected
+                else [
+                    {
+                        "code": str(issue.get("code") or "BIRTH_OCR_REVIEW"),
+                        "message": "Birth certificate OCR requires admin review.",
+                    }
+                    for issue in getattr(ocr_result, "issues", ())
+                ]
+            ),
             "error_message": error_message,
         }
         return status == "review_required", payload

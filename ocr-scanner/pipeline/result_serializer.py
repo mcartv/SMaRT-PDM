@@ -91,6 +91,11 @@ def candidate_from_worker_payload(
                 ),
                 "topology_rows": source.get("topology_rows") or {},
                 "confidence_source": str(source.get("confidence_source") or ""),
+                "ocr_engine": str(source.get("ocr_engine") or "tesseract"),
+                "gemini_enabled": bool(source.get("gemini_enabled", False)),
+                "gemini_status": str(source.get("gemini_status") or "disabled"),
+                "gemini_model": str(source.get("gemini_model") or ""),
+                "gemini_error_code": str(source.get("gemini_error_code") or ""),
                 "row_identity_status": str(
                     source.get("row_identity_status") or "unknown"
                 ),

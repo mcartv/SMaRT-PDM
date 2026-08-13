@@ -1,0 +1,3 @@
+# Optional Birth Certificate Items 1, 6, and 13 extraction only.
+# Grade Form and Indigency remain on their existing local Tesseract paths.
+google-genai>=1.33,<2

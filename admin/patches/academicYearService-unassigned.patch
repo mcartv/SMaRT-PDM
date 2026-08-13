@@ -1,0 +1,9 @@
+diff --git a/admin/backend/services/academicYearService.js b/admin/backend/services/academicYearService.js
+--- a/admin/backend/services/academicYearService.js
++++ b/admin/backend/services/academicYearService.js
+@@
+-            'Pending Coordinator Approval',
++            'Unassigned',
+             'Pending',
+             NOW(),
+             NOW()

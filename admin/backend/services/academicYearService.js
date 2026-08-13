@@ -379,7 +379,7 @@ async function ensurePeriodCycles(client, period) {
             'Not Started',
             0,
             0,
-            'Pending Coordinator Approval',
+            'Unassigned',
             'Pending',
             NOW(),
             NOW()

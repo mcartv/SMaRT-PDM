@@ -74,21 +74,13 @@ function hasActiveRoPlacement(scholar) {
     return true;
   }
 
-  // Defensive fallback for legacy/current rows that have an RO assignment
-  // but do not yet expose a separate placement array to the frontend.
-  const assignmentStatus = normalizeStatus(
-    scholar?.assignment_status || scholar?.assignmentStatus
-  );
+  // Legacy fallback: older genuine assignments may have assigned_area set
+  // even when they predate the ro_placements workflow.
+  const assignedArea = String(
+    scholar?.assigned_area || scholar?.assignedArea || ''
+  ).trim();
 
-  const activeAssignmentStatuses = new Set([
-    'pending coordinator approval',
-    'assigned',
-    'acknowledged',
-    'in progress',
-    'for validation',
-  ]);
-
-  return Boolean(scholar?.ro_id) && activeAssignmentStatuses.has(assignmentStatus);
+  return Boolean(assignedArea);
 }
 
 function getScholarName(scholar) {
@@ -289,6 +281,15 @@ function getMainStatusCapsule(scholar) {
     return { label: 'Cleared', tone: 'green' };
   }
 
+  /*
+   * A return_of_obligations row represents the semester RO cycle.
+   * It does NOT mean the scholar has already been assigned to an RO area.
+   * Only an active placement (or legacy assigned_area) makes it assigned.
+   */
+  if (!hasActiveRoPlacement(scholar)) {
+    return { label: 'Unassigned', tone: 'default' };
+  }
+
   if (assignmentStatus === 'conflict reported') {
     return { label: 'Conflict', tone: 'red' };
   }
@@ -321,10 +322,6 @@ function getMainStatusCapsule(scholar) {
 
   if (assignmentStatus === 'assigned') {
     return { label: 'Assigned', tone: 'amber' };
-  }
-
-  if (!scholar.ro_id) {
-    return { label: 'Unassigned', tone: 'default' };
   }
 
   return { label: 'Assigned', tone: 'amber' };
@@ -438,10 +435,11 @@ function ToolbarSegment({ options, value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${active
+            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
+              active
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-500 hover:text-stone-700'
-              }`}
+            }`}
           >
             {option.label}
           </button>
@@ -1610,8 +1608,16 @@ export default function ROAdmin() {
         roStatus === 'cleared' ||
         assignmentStatus === 'cleared';
 
-      if (topTab === 'unassigned' && scholar.ro_id) return false;
-      if (topTab === 'assigned' && (!scholar.ro_id || isCleared)) return false;
+      const hasActivePlacement = hasActiveRoPlacement(scholar);
+
+      if (topTab === 'unassigned' && (hasActivePlacement || isCleared)) {
+        return false;
+      }
+
+      if (topTab === 'assigned' && (!hasActivePlacement || isCleared)) {
+        return false;
+      }
+
       if (topTab === 'cleared' && !isCleared) return false;
 
       if (statusFilter === 'in_progress') {
@@ -2129,9 +2135,9 @@ export default function ROAdmin() {
           details:
             duplicateFailures.length > 0
               ? [
-                'A scholar can only have one active RO placement per semester.',
-                'Cancel or reject the existing placement before assigning another RO area.',
-              ]
+                  'A scholar can only have one active RO placement per semester.',
+                  'Cancel or reject the existing placement before assigning another RO area.',
+                ]
               : [],
         });
       } else if (failedCount > 0) {
@@ -2344,7 +2350,7 @@ export default function ROAdmin() {
             />
 
             {selectedIds.length > 0 &&
-              !['cleared', 'requests'].includes(topTab) ? (
+            !['cleared', 'requests'].includes(topTab) ? (
               <Button
                 onClick={() => {
                   setBatchError('');
@@ -2545,7 +2551,7 @@ export default function ROAdmin() {
                           <td className="px-3 py-4 align-top">
                             {hasAssignment ? (
                               <p className="max-w-[220px] text-xs font-bold text-stone-900">
-                                {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
+                                {scholar.assigned_area || scholar.assignedArea || 'Not assigned'}
                               </p>
                             ) : (
                               <p className="text-xs font-semibold text-stone-400">

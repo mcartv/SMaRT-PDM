@@ -1408,6 +1408,10 @@ class RoAssignment {
     required this.validationRemarks,
     required this.logs,
     required this.placements,
+    required this.checkoutGraceMinutes,
+    required this.activeSessionTargetMinutes,
+    required this.activeSessionTargetAt,
+    required this.activeSessionGraceDeadlineAt,
     this.activeLog,
   });
 
@@ -1430,6 +1434,10 @@ class RoAssignment {
   final String assignmentStatus;
   final String conflictReason;
   final String validationRemarks;
+  final int checkoutGraceMinutes;
+  final int activeSessionTargetMinutes;
+  final DateTime? activeSessionTargetAt;
+  final DateTime? activeSessionGraceDeadlineAt;
 
   final RoTimeLog? activeLog;
   final List<RoTimeLog> logs;
@@ -1486,6 +1494,11 @@ class RoAssignment {
           json['conflict_reason']?.toString() ??
           '',
       validationRemarks: json['validationRemarks']?.toString() ?? '',
+      checkoutGraceMinutes: _toInt(json['checkoutGraceMinutes']),
+      activeSessionTargetMinutes: _toInt(json['activeSessionTargetMinutes']),
+      activeSessionTargetAt: _toDate(json['activeSessionTargetAt']),
+      activeSessionGraceDeadlineAt:
+          _toDate(json['activeSessionGraceDeadlineAt']),
       activeLog: json['activeLog'] is Map<String, dynamic>
           ? RoTimeLog.fromJson(json['activeLog'] as Map<String, dynamic>)
           : null,
@@ -1724,6 +1737,10 @@ class _AssignmentCard extends StatelessWidget {
             if (isTimedIn)
               _ActiveSessionBox(
                 log: activeLog,
+                targetMinutes: item.activeSessionTargetMinutes,
+                targetAt: item.activeSessionTargetAt,
+                graceDeadlineAt: item.activeSessionGraceDeadlineAt,
+                checkoutGraceMinutes: item.checkoutGraceMinutes,
                 formatElapsed: formatElapsed,
                 formatDateTime: formatDateTime,
               ),
@@ -2020,30 +2037,70 @@ class _ProgressLine extends StatelessWidget {
 class _ActiveSessionBox extends StatelessWidget {
   const _ActiveSessionBox({
     required this.log,
+    required this.targetMinutes,
+    required this.targetAt,
+    required this.graceDeadlineAt,
+    required this.checkoutGraceMinutes,
     required this.formatElapsed,
     required this.formatDateTime,
   });
 
   final RoTimeLog log;
+  final int targetMinutes;
+  final DateTime? targetAt;
+  final DateTime? graceDeadlineAt;
+  final int checkoutGraceMinutes;
   final String Function(int seconds) formatElapsed;
   final String Function(DateTime? value) formatDateTime;
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final target = targetAt?.toLocal();
+    final graceDeadline = graceDeadlineAt?.toLocal();
+    final requirementReached = target != null && !now.isBefore(target);
+    final graceExpired =
+        graceDeadline != null && !now.isBefore(graceDeadline);
+
+    final creditedSeconds = targetMinutes <= 0
+        ? 0
+        : log.elapsedSeconds.clamp(0, targetMinutes * 60);
+
+    final secondsUntilTarget = target == null
+        ? 0
+        : target.difference(now).inSeconds.clamp(0, 1 << 31);
+
+    final graceSecondsRemaining = graceDeadline == null
+        ? 0
+        : graceDeadline.difference(now).inSeconds.clamp(0, 1 << 31);
+
+    final boxColor = requirementReached
+        ? const Color(0xFFE8F5E9)
+        : AppColors.gold.withOpacity(0.12);
+
+    final borderColor = requirementReached
+        ? Colors.green.withOpacity(0.45)
+        : AppColors.gold.withOpacity(0.45);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(0.12),
+        color: boxColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Currently Timed In',
-            style: TextStyle(fontWeight: FontWeight.w900),
+          Text(
+            requirementReached
+                ? 'Required Hours Completed'
+                : 'RO Service in Progress',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: requirementReached ? Colors.green.shade800 : null,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -2055,12 +2112,39 @@ class _ActiveSessionBox extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Elapsed: ${formatElapsed(log.elapsedSeconds)}',
+            'Credited: ${formatElapsed(creditedSeconds)}',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
-              color: AppColors.darkBrown,
+              color: requirementReached
+                  ? Colors.green.shade800
+                  : AppColors.darkBrown,
             ),
           ),
+          const SizedBox(height: 6),
+          if (!requirementReached)
+            Text(
+              '${formatElapsed(secondsUntilTarget)} remaining before your required RO time is reached.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.black54,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else if (!graceExpired)
+            Text(
+              'Your credited time has stopped. Please Time Out and submit your proof within ${formatElapsed(graceSecondsRemaining)}. The checkout grace period is $checkoutGraceMinutes minute(s).',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.green.shade800,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            Text(
+              'The checkout grace period has ended. The backend will automatically close this session; refresh if the status has not updated yet.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.orange.shade900,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           if (log.studentNote.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(

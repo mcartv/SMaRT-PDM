@@ -9,6 +9,10 @@ const RO_PROOFS_BUCKET =
 const AUTO_TIMEOUT_INTERVAL_MS = Number(
   process.env.RO_AUTO_TIMEOUT_INTERVAL_MS || 60000
 );
+const RO_CHECKOUT_GRACE_MINUTES = Math.max(
+  0,
+  Number(process.env.RO_CHECKOUT_GRACE_MINUTES || 30)
+);
 
 let autoTimeoutTimer = null;
 
@@ -16,34 +20,6 @@ function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
-}
-
-async function getCurrentAcademicPeriod() {
-  const { data, error } =
-    await supabase
-      .from('academic_period')
-      .select(
-        'period_id, academic_year_id, term, is_active'
-      )
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-
-  if (error) {
-    throw createHttpError(
-      500,
-      error.message
-    );
-  }
-
-  if (!data) {
-    throw createHttpError(
-      409,
-      'No current academic semester is active. Please wait for OSFA to set the current semester.'
-    );
-  }
-
-  return data;
 }
 
 function normalizeValue(value) {
@@ -605,44 +581,49 @@ function ensureApprovedScholar(student) {
 }
 
 async function getActiveSetting() {
-  const currentPeriod =
-    await getCurrentAcademicPeriod();
-
   const { data, error } =
     await supabase
       .from('ro_settings')
-      .select('*')
+      .select(`
+        setting_id,
+        required_hours,
+        is_active,
+        allow_carry_over,
+        remarks,
+        created_at,
+        updated_at
+      `)
       .eq('is_active', true)
       .order(
         'updated_at',
         { ascending: false }
-      );
+      )
+      .limit(1)
+      .maybeSingle();
 
   if (error) {
-    throw error;
+    console.error(
+      'GET ACTIVE RO SETTING ERROR:',
+      error.message
+    );
+
+    return {
+      setting_id: null,
+      required_hours: 20,
+      is_active: true,
+      allow_carry_over: true,
+      remarks: 'Default RO setting',
+    };
   }
 
-  const rows = data || [];
-
   return (
-    rows.find(
-      (row) =>
-        row.period_id ===
-        currentPeriod.period_id
-    ) ||
-    rows.find(
-      (row) =>
-        !row.period_id &&
-        row.academic_year_id ===
-          currentPeriod.academic_year_id
-    ) ||
-    rows.find(
-      (row) =>
-        !row.period_id &&
-        !row.academic_year_id
-    ) ||
-    rows[0] ||
-    null
+    data || {
+      setting_id: null,
+      required_hours: 20,
+      is_active: true,
+      allow_carry_over: true,
+      remarks: 'Default RO setting',
+    }
   );
 }
 
@@ -652,8 +633,6 @@ const RO_SELECT = `
   application_id,
   opening_id,
   program_id,
-  academic_year_id,
-  period_id,
   ro_status,
   cleared_at,
   cleared_by,
@@ -706,18 +685,11 @@ const LOG_SELECT = `
 `;
 
 async function getRoRowsForStudent(studentId) {
-  const currentPeriod =
-    await getCurrentAcademicPeriod();
-
   const { data, error } =
     await supabase
       .from('return_of_obligations')
       .select(RO_SELECT)
       .eq('student_id', studentId)
-      .eq(
-        'period_id',
-        currentPeriod.period_id
-      )
       .order(
         'created_at',
         { ascending: false }
@@ -731,19 +703,12 @@ async function getRoRowsForStudent(studentId) {
 }
 
 async function getRoRowForStudent(studentId, roId) {
-  const currentPeriod =
-    await getCurrentAcademicPeriod();
-
   const { data, error } =
     await supabase
       .from('return_of_obligations')
       .select(RO_SELECT)
       .eq('ro_id', roId)
       .eq('student_id', studentId)
-      .eq(
-        'period_id',
-        currentPeriod.period_id
-      )
       .maybeSingle();
 
   if (error) {
@@ -1115,6 +1080,30 @@ async function mapRO(
         !item.time_out_at
     );
 
+  let activeSessionTargetMinutes = 0;
+  let activeSessionTargetAt = null;
+  let activeSessionGraceDeadlineAt = null;
+
+  if (activeLog?.time_in_at) {
+    activeSessionTargetMinutes =
+      await getRemainingMinutesForRo(
+        row,
+        activeLog.log_id
+      );
+
+    activeSessionTargetAt =
+      addMinutesToDate(
+        activeLog.time_in_at,
+        activeSessionTargetMinutes
+      );
+
+    activeSessionGraceDeadlineAt =
+      addMinutesToDate(
+        activeSessionTargetAt,
+        RO_CHECKOUT_GRACE_MINUTES
+      );
+  }
+
   const submittedProgress =
     row.submitted_progress != null
       ? toNumber(
@@ -1238,6 +1227,21 @@ async function mapRO(
       activeLog
         ? mapLog(activeLog)
         : null,
+
+    checkoutGraceMinutes:
+      RO_CHECKOUT_GRACE_MINUTES,
+
+    activeSessionTargetMinutes,
+
+    activeSessionTargetAt:
+      activeSessionTargetAt
+        ? activeSessionTargetAt.toISOString()
+        : '',
+
+    activeSessionGraceDeadlineAt:
+      activeSessionGraceDeadlineAt
+        ? activeSessionGraceDeadlineAt.toISOString()
+        : '',
 
     logs:
       logs.map(mapLog),
@@ -2182,14 +2186,7 @@ async function timeOutMyRo(
     remainingMinutes <= 0;
 
   const cappedTimeOutAt =
-    cappedDurationMinutes <= 0
-      ? now
-      : wasCapped
-        ? addMinutesToDate(
-          activeLog.time_in_at,
-          cappedDurationMinutes
-        )
-        : now;
+    now;
 
   const note =
     normalizeValue(
@@ -2230,15 +2227,15 @@ async function timeOutMyRo(
       'Pending Validation',
 
     auto_timed_out:
-      wasCapped,
+      false,
 
     auto_timeout_reason:
       wasCapped
-        ? 'Required RO hours reached. Extra elapsed time was not counted.'
+        ? 'Required RO hours reached. Scholar checked out during the grace period; extra elapsed time was not counted.'
         : null,
 
     requires_admin_attention:
-      wasCapped,
+      false,
 
     updated_at:
       new Date().toISOString(),
@@ -2295,19 +2292,6 @@ async function timeOutMyRo(
     ro.ro_id
   );
 
-  if (wasCapped) {
-    await sendAutoTimeoutNotification({
-      studentId:
-        student.student_id,
-
-      roId:
-        ro.ro_id,
-
-      durationMinutes:
-        cappedDurationMinutes,
-    });
-  }
-
   const result =
     await getMyAssignments(
       userId
@@ -2318,7 +2302,7 @@ async function timeOutMyRo(
 
     message:
       wasCapped
-        ? `Timed out successfully. Only ${cappedDurationMinutes} minute(s) were recorded because the required RO time was already reached.`
+        ? `Timed out successfully. Your checkout was accepted, but only ${cappedDurationMinutes} minute(s) were counted because the required RO time had already been reached.`
         : proof
           ? 'Timed out successfully. Photo proof uploaded and your session is pending validation.'
           : 'Timed out successfully. Your session is now pending validation.',
@@ -2564,10 +2548,22 @@ async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
       now
     );
 
+  const autoTimeoutAfterMinutes =
+    Math.max(0, remainingMinutes) +
+    RO_CHECKOUT_GRACE_MINUTES;
+
   if (
     remainingMinutes > 0 &&
     actualElapsedMinutes <
-    remainingMinutes
+    autoTimeoutAfterMinutes
+  ) {
+    return null;
+  }
+
+  if (
+    remainingMinutes <= 0 &&
+    actualElapsedMinutes <
+    RO_CHECKOUT_GRACE_MINUTES
   ) {
     return null;
   }
@@ -2578,12 +2574,7 @@ async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
       : remainingMinutes;
 
   const cappedTimeOutAt =
-    durationMinutes <= 0
-      ? now
-      : addMinutesToDate(
-        activeLog.time_in_at,
-        durationMinutes
-      );
+    now;
 
   const updatePayload = {
     time_out_at:
@@ -2603,8 +2594,8 @@ async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
 
     auto_timeout_reason:
       durationMinutes <= 0
-        ? 'Required RO hours were already submitted. Session auto timed out with no additional counted time.'
-        : 'Required RO hours reached. Session auto timed out.',
+        ? `Required RO hours were already satisfied. The ${RO_CHECKOUT_GRACE_MINUTES}-minute checkout grace period expired, so the session was automatically closed with no additional counted time.`
+        : `Required RO time was reached, then the ${RO_CHECKOUT_GRACE_MINUTES}-minute checkout grace period expired without a manual time-out. Extra elapsed time was not counted.`,
 
     requires_admin_attention:
       true,
@@ -2673,6 +2664,12 @@ async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
 
     actual_elapsed_minutes:
       actualElapsedMinutes,
+
+    checkout_grace_minutes:
+      RO_CHECKOUT_GRACE_MINUTES,
+
+    auto_timeout_after_minutes:
+      autoTimeoutAfterMinutes,
 
     auto_timed_out:
       true,

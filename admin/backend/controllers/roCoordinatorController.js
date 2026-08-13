@@ -95,42 +95,21 @@ async function notify(req, coordinator, request, decision, remarks) {
 exports.getSummary = async (req, res) => {
   try {
     const coordinator = await getCoordinator(req);
-    const [placementResult, attendanceResult, scholarRequestResult] = await Promise.all([
-      db.query(
-        `SELECT
-          COUNT(DISTINCT ro.student_id) FILTER (WHERE rp.placement_status = 'Approved')::int AS assigned_scholars,
-          COUNT(*) FILTER (WHERE rp.placement_status = 'Pending')::int AS pending_placement_requests
-         FROM ro_placements rp
-         JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
-         WHERE rp.coordinator_assignment_id = ANY($1::uuid[])`,
-        [coordinator.assignmentIds]
-      ),
-      db.query(
-        `SELECT COUNT(*)::int AS pending_validation
-         FROM ro_time_logs rtl
-         JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
-         WHERE rp.coordinator_assignment_id = ANY($1::uuid[])
-           AND rp.placement_status = 'Approved'
-           AND rtl.log_status = 'Timed Out'
-           AND COALESCE(rtl.department_validation_status, 'Pending') = 'Pending'`,
-        [coordinator.assignmentIds]
-      ),
-      db.query(
-        `SELECT COUNT(*)::int AS pending_ro_requests
-         FROM ro_scholar_requests rsr
-         WHERE rsr.coordinator_assignment_id = ANY($1::uuid[])
-           AND COALESCE(rsr.request_status, 'Pending') IN ('Pending', 'Acknowledged')`,
-        [coordinator.assignmentIds]
-      ),
-    ]);
-
+    const result = await db.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE rp.placement_status = 'Pending')::int AS pending_count,
+        COUNT(*) FILTER (WHERE rp.placement_status = 'Approved' AND rp.decided_at::date = CURRENT_DATE)::int AS approved_today,
+        COUNT(*) FILTER (WHERE rp.placement_status = 'Rejected' AND rp.decided_at::date = CURRENT_DATE)::int AS rejected_today,
+        COUNT(*) FILTER (WHERE rp.placement_status = 'Approved' AND COALESCE(ro.ro_status, '') <> 'Cleared')::int AS active_count
+       FROM ro_placements rp
+       JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
+       WHERE rp.coordinator_assignment_id = ANY($1::uuid[])`,
+      [coordinator.assignmentIds]
+    );
     return res.json({
       department: coordinator.department,
       departments: coordinator.departments,
-      assigned_scholars: Number(placementResult.rows[0]?.assigned_scholars || 0),
-      pending_validation: Number(attendanceResult.rows[0]?.pending_validation || 0),
-      pending_ro_requests: Number(scholarRequestResult.rows[0]?.pending_ro_requests || 0),
-      pending_count: Number(placementResult.rows[0]?.pending_placement_requests || 0),
+      ...(result.rows[0] || {}),
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to load RO coordinator summary.' });
@@ -165,14 +144,7 @@ exports.getRequests = async (req, res) => {
          AND ($2::text IS NULL OR rp.placement_status = $2)
          AND ($3::text = '' OR CONCAT_WS(' ', s.first_name, s.last_name, s.pdm_id, ac.course_code, sp.program_name, rd.department_name) ILIKE '%' || $3 || '%')
        ORDER BY CASE rp.placement_status WHEN 'Pending' THEN 0 WHEN 'Rejected' THEN 1 ELSE 2 END,
-                CASE
-                  WHEN rp.placement_status = 'Pending'
-                  THEN COALESCE(rp.requested_at, rp.created_at)
-                END ASC,
-                CASE
-                  WHEN rp.placement_status <> 'Pending'
-                  THEN rp.updated_at
-                END DESC`,
+                rp.updated_at DESC`,
       [coordinator.assignmentIds, statusValue, search]
     );
     return res.json({
@@ -598,49 +570,133 @@ exports.validateAttendance = async (req, res) => {
     const coordinator = await getCoordinator(req);
     const decision = String(req.body?.decision || '').trim().toLowerCase();
     const remarks = String(req.body?.remarks || '').trim();
+    const adjustmentReason = String(
+      req.body?.adjustmentReason || req.body?.adjustment_reason || ''
+    ).trim();
+    const adjustedMinutes = Number.parseInt(
+      req.body?.adjustedMinutes ?? req.body?.adjusted_minutes,
+      10
+    );
 
-    if (!['approve', 'return'].includes(decision)) {
-      return res.status(400).json({ message: 'Choose approve or return.' });
+    if (!['approve', 'adjust', 'return'].includes(decision)) {
+      return res.status(400).json({
+        message: 'Choose validate, approve with adjustment, or return evidence.',
+      });
     }
+
     if (decision === 'return' && !remarks) {
-      return res.status(400).json({ message: 'Remarks are required when returning attendance evidence.' });
+      return res.status(400).json({
+        message: 'Remarks are required when returning attendance evidence.',
+      });
     }
 
-    const nextDepartmentStatus = decision === 'approve' ? 'Approved' : 'Returned';
-    const nextValidationStatus = decision === 'approve' ? 'Approved' : 'Rejected';
+    const manualAdjustment = decision === 'adjust';
+
+    if (manualAdjustment && !adjustmentReason) {
+      return res.status(400).json({
+        message: 'Select a reason for the manual attendance adjustment.',
+      });
+    }
+
+    if (manualAdjustment && (!Number.isInteger(adjustedMinutes) || adjustedMinutes <= 0)) {
+      return res.status(400).json({
+        message: 'Enter the verified number of minutes to credit.',
+      });
+    }
+
+    if (manualAdjustment && remarks.length < 5) {
+      return res.status(400).json({
+        message: 'Explain how the attendance was independently verified.',
+      });
+    }
+
+    const nextDepartmentStatus = decision === 'return' ? 'Returned' : 'Approved';
+    const nextValidationStatus = decision === 'return' ? 'Rejected' : 'Approved';
     const client = await db.connect();
     let log;
+    let persistedRemarks = remarks || null;
 
     try {
       await client.query('BEGIN');
 
+      const candidateResult = await client.query(
+        `SELECT
+           rtl.log_id,
+           rtl.ro_id,
+           rtl.student_id,
+           rtl.duration_minutes,
+           rtl.log_status,
+           ro.required_hours
+         FROM ro_time_logs rtl
+         JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
+         JOIN return_of_obligations ro ON ro.ro_id = rtl.ro_id
+         WHERE rtl.log_id = $1
+           AND rp.coordinator_assignment_id = ANY($2::uuid[])
+           AND rp.placement_status = 'Approved'
+           AND rtl.log_status = 'Timed Out'
+         LIMIT 1`,
+        [req.params.logId, coordinator.assignmentIds]
+      );
+
+      const candidate = candidateResult.rows[0];
+
+      if (!candidate) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({
+          message: 'This attendance log is unavailable for your department.',
+        });
+      }
+
       if (decision === 'approve') {
         const proofCheck = await client.query(
           `SELECT COUNT(DISTINCT proof.proof_type)::int AS valid_proof_types
-           FROM ro_time_logs rtl
-           JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
-           LEFT JOIN ro_time_log_proofs proof
-             ON proof.log_id = rtl.log_id
-            AND proof.proof_type IN ('time_in', 'time_out')
-            AND COALESCE(
-              NULLIF(BTRIM(proof.file_url), ''),
-              NULLIF(BTRIM(proof.file_path), '')
-            ) IS NOT NULL
-            AND proof.latitude IS NOT NULL
-            AND proof.longitude IS NOT NULL
-            AND COALESCE(proof.proof_status, 'Pending Review') <> 'Rejected'
-           WHERE rtl.log_id = $1
-             AND rp.coordinator_assignment_id = ANY($2::uuid[])
-             AND rp.placement_status = 'Approved'`,
-          [req.params.logId, coordinator.assignmentIds]
+           FROM ro_time_log_proofs proof
+           WHERE proof.log_id = $1
+             AND proof.proof_type IN ('time_in', 'time_out')
+             AND COALESCE(
+               NULLIF(BTRIM(proof.file_url), ''),
+               NULLIF(BTRIM(proof.file_path), '')
+             ) IS NOT NULL
+             AND proof.latitude IS NOT NULL
+             AND proof.longitude IS NOT NULL
+             AND COALESCE(proof.proof_status, 'Pending Review') <> 'Rejected'`,
+          [req.params.logId]
         );
 
         if (Number(proofCheck.rows[0]?.valid_proof_types || 0) < 2) {
           await client.query('ROLLBACK');
           return res.status(409).json({
-            message: 'Both time-in and time-out photos with GPS coordinates are required before attendance can be validated.',
+            message:
+              'Complete GPS-stamped time-in and time-out evidence is required for normal validation. Use Approve with Adjustment when the service was independently verified but evidence is incomplete.',
           });
         }
+      }
+
+      let minutesToCredit = 0;
+
+      if (decision === 'approve') {
+        minutesToCredit = Math.max(0, Number(candidate.duration_minutes || 0));
+      } else if (manualAdjustment) {
+        const requiredMinutes = Math.max(
+          0,
+          Number(candidate.required_hours || 0) * 60
+        );
+        const maximumManualMinutes = Math.max(
+          1,
+          Math.min(480, requiredMinutes || 480)
+        );
+
+        if (adjustedMinutes > maximumManualMinutes) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            message: `A manual adjustment cannot credit more than ${maximumManualMinutes} minutes for this attendance record.`,
+          });
+        }
+
+        minutesToCredit = adjustedMinutes;
+        persistedRemarks =
+          `[Manual Adjustment: ${adjustmentReason}] ` +
+          `${remarks} Credited ${adjustedMinutes} minute(s) by ${coordinator.department}.`;
       }
 
       const updateResult = await client.query(
@@ -653,34 +709,42 @@ exports.validateAttendance = async (req, res) => {
              validation_remarks = $2,
              validated_by = $3,
              validated_at = now(),
-             validated_minutes = CASE WHEN $1 = 'Approved' THEN duration_minutes ELSE 0 END,
+             validated_minutes = $5,
+             requires_admin_attention = CASE WHEN $6::boolean THEN true ELSE requires_admin_attention END,
              updated_at = now()
          FROM ro_placements rp
-         WHERE rtl.log_id = $5
+         WHERE rtl.log_id = $7
            AND rtl.placement_id = rp.placement_id
-           AND rp.coordinator_assignment_id = ANY($6::uuid[])
+           AND rp.coordinator_assignment_id = ANY($8::uuid[])
            AND rp.placement_status = 'Approved'
            AND rtl.log_status = 'Timed Out'
          RETURNING rtl.*`,
         [
           nextDepartmentStatus,
-          remarks || null,
+          persistedRemarks,
           coordinator.userId,
           nextValidationStatus,
+          decision === 'return' ? 0 : minutesToCredit,
+          manualAdjustment,
           req.params.logId,
           coordinator.assignmentIds,
         ]
       );
+
       log = updateResult.rows[0];
+
       if (!log) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ message: 'This attendance log is unavailable for your department.' });
+        return res.status(404).json({
+          message: 'This attendance log is unavailable for your department.',
+        });
       }
 
       const totals = await client.query(
         `SELECT
            COALESCE(SUM(duration_minutes) FILTER (
-             WHERE log_status = 'Timed Out' AND department_validation_status <> 'Returned'
+             WHERE log_status = 'Timed Out'
+               AND department_validation_status <> 'Returned'
            ), 0)::int AS submitted_minutes,
            COALESCE(SUM(validated_minutes) FILTER (
              WHERE department_validation_status = 'Approved'
@@ -698,19 +762,24 @@ exports.validateAttendance = async (req, res) => {
              progress_status = CASE
                WHEN ro_status = 'Cleared' THEN 'Cleared'
                WHEN $2 >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
-               WHEN $1 > 0 THEN 'In Progress'
+               WHEN $1 > 0 OR $2 > 0 THEN 'In Progress'
                ELSE 'Not Started'
              END,
              assignment_status = CASE
                WHEN ro_status = 'Cleared' THEN 'Cleared'
                WHEN $2 >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
-               WHEN $1 > 0 THEN 'In Progress'
+               WHEN $1 > 0 OR $2 > 0 THEN 'In Progress'
                ELSE assignment_status
              END,
              updated_at = now()
          WHERE ro_id = $3`,
-        [Number(total.submitted_minutes || 0), Number(total.validated_minutes || 0), log.ro_id]
+        [
+          Number(total.submitted_minutes || 0),
+          Number(total.validated_minutes || 0),
+          log.ro_id,
+        ]
       );
+
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -719,25 +788,62 @@ exports.validateAttendance = async (req, res) => {
       client.release();
     }
 
+    await auditLogService.logAudit({
+      req,
+      userId: coordinator.userId,
+      actionTaken: manualAdjustment
+        ? 'RO_ATTENDANCE_MANUAL_ADJUSTMENT'
+        : decision === 'approve'
+          ? 'RO_ATTENDANCE_APPROVED'
+          : 'RO_ATTENDANCE_RETURNED',
+      module: 'RO Coordinator',
+      entityType: 'ro_time_log',
+      entityId: log.log_id,
+      description: manualAdjustment
+        ? `Manually credited ${log.validated_minutes || 0} minute(s) of RO attendance.`
+        : decision === 'approve'
+          ? 'Validated complete RO attendance evidence.'
+          : 'Returned RO attendance evidence for correction.',
+      metadata: {
+        department: coordinator.department,
+        decision,
+        adjustment_reason: manualAdjustment ? adjustmentReason : null,
+        adjusted_minutes: manualAdjustment ? Number(log.validated_minutes || 0) : null,
+        remarks: persistedRemarks,
+        original_duration_minutes: Number(log.duration_minutes || 0),
+      },
+    }).catch((auditError) => {
+      console.error(
+        'RO ATTENDANCE AUDIT ERROR:',
+        auditError.message || auditError
+      );
+    });
+
     const io = req.app.get('io');
     const studentResult = await db.query(
       'SELECT user_id FROM students WHERE student_id = $1 LIMIT 1',
       [log.student_id]
     );
     const studentUserId = studentResult.rows[0]?.user_id;
+
     if (studentUserId) {
       const studentNotification = await notificationService.createUserNotification({
         userId: studentUserId,
         type: 'Return of Obligation',
-        title: decision === 'approve'
-          ? 'RO attendance validated by department'
-          : 'RO attendance evidence returned',
-        message: decision === 'approve'
-          ? `${coordinator.department} validated your completed attendance evidence. OSFA will perform the final clearance review after all required hours are validated.`
-          : `${coordinator.department} returned your attendance evidence${remarks ? `: ${remarks}` : '. Submit corrected evidence or contact OSFA.'}`,
+        title: manualAdjustment
+          ? 'RO attendance manually verified'
+          : decision === 'approve'
+            ? 'RO attendance validated by department'
+            : 'RO attendance evidence returned',
+        message: manualAdjustment
+          ? `${coordinator.department} manually verified your attendance and credited ${log.validated_minutes || 0} minute(s). The adjustment was recorded for audit review.`
+          : decision === 'approve'
+            ? `${coordinator.department} validated your completed attendance evidence. OSFA will perform the final clearance review after all required hours are validated.`
+            : `${coordinator.department} returned your attendance evidence${remarks ? `: ${remarks}` : '. Submit corrected evidence or contact OSFA.'}`,
         referenceId: log.ro_id,
         referenceType: 'return_of_obligation',
       });
+
       socketEvents.notificationCreated(io, studentUserId, {
         ...studentNotification,
         target_user_id: studentUserId,
@@ -747,21 +853,43 @@ exports.validateAttendance = async (req, res) => {
     const adminNotifications = await notificationService.createStaffNotifications({
       roles: ['admin'],
       type: 'Return of Obligation',
-      title: decision === 'approve' ? 'RO attendance validated' : 'RO attendance returned',
-      message: `${coordinator.department} ${decision === 'approve' ? 'validated' : 'returned'} a scholar attendance record${remarks ? `: ${remarks}` : '.'}`,
+      title: manualAdjustment
+        ? 'RO manual attendance adjustment'
+        : decision === 'approve'
+          ? 'RO attendance validated'
+          : 'RO attendance returned',
+      message: manualAdjustment
+        ? `${coordinator.department} manually credited ${log.validated_minutes || 0} minute(s) of scholar attendance.`
+        : `${coordinator.department} ${decision === 'approve' ? 'validated' : 'returned'} a scholar attendance record${remarks ? `: ${remarks}` : '.'}`,
       referenceId: log.ro_id,
       referenceType: 'return_of_obligation',
     });
+
     adminNotifications.forEach((notification) => {
       const targetUserId = notification.target_user_id || notification.user_id;
-      if (targetUserId) socketEvents.notificationCreated(io, targetUserId, { ...notification, target_user_id: targetUserId });
+      if (targetUserId) {
+        socketEvents.notificationCreated(io, targetUserId, {
+          ...notification,
+          target_user_id: targetUserId,
+        });
+      }
     });
 
-    emitUpdate(req, { action: `attendance-${decision}`, ro_id: log.ro_id, log_id: log.log_id });
+    emitUpdate(req, {
+      action: `attendance-${decision}`,
+      ro_id: log.ro_id,
+      log_id: log.log_id,
+      manual_adjustment: manualAdjustment,
+      validated_minutes: Number(log.validated_minutes || 0),
+    });
+
     return res.json({
-      message: decision === 'approve'
-        ? 'Attendance evidence validated. OSFA may clear the scholar after all required hours are validated.'
-        : 'Attendance evidence returned to the scholar for correction.',
+      message: manualAdjustment
+        ? `Attendance manually verified. ${Number(log.validated_minutes || 0)} minute(s) were credited and the adjustment was added to the audit trail.`
+        : decision === 'approve'
+          ? 'Attendance evidence validated. OSFA may clear the scholar after all required hours are validated.'
+          : 'Attendance evidence returned to the scholar for correction.',
+      manual_adjustment: manualAdjustment,
       log,
     });
   } catch (error) {

@@ -16,15 +16,14 @@ export default function GuidanceProfile() {
       positionFallback="Guidance Counselor"
       departmentFallback="Guidance Office"
       roleFallback="Guidance Officer"
-      avatarTone="#1f4e79"
-      bio="Handles moral standing review, counseling holds, and guidance-side endorsement decisions inside the SMaRT-PDM platform."
+      avatarTone={theme.base}
       accountConfig={guidanceMaintenanceConfig}
       palette={palette}
       tokenStorageKey="guidanceToken"
       responsibilities={[
-        'Review applicant moral-standing and counseling records.',
-        'Issue clearances, holds, or rejection decisions with remarks.',
-        'Track endorsement progress after SDO review.',
+        'Review applicants forwarded by SDO for Guidance endorsement.',
+        'Confirm Good Moral Standing with optional office remarks.',
+        'Track endorsed applicants as they proceed to Program Director review.',
       ]}
     />
   );

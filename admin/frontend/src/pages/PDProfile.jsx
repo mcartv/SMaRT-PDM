@@ -16,8 +16,7 @@ export default function PDProfile() {
       positionFallback="Program Director"
       departmentFallback="Program Director Office"
       roleFallback="PD Staff"
-      avatarTone="#5f3d8a"
-      bio="Handles final endorsement review, academic standing confirmation, and program-side approval decisions inside the SMaRT-PDM platform."
+      avatarTone={theme.base}
       accountConfig={pdMaintenanceConfig}
       palette={palette}
       tokenStorageKey="pdToken"

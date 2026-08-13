@@ -17,9 +17,9 @@ test('PD, SDO, and Guidance keep their primary roles and expose RO Requests only
 
   assert.match(departmentLayout, /data\?\.data\?\.has_ro_coordinator_access === true/);
   assert.match(pdLayout, /roQueuePath="\/pd\/ro-requests"/);
-  assert.match(sdoLayout, /buildApiUrl\('\/api\/accounts\/me'\)/);
-  assert.match(sdoLayout, /data\?\.data\?\.has_ro_coordinator_access === true/);
-  assert.match(sdoLayout, /path: '\/sdo\/ro-requests'/);
+  assert.match(departmentLayout, /buildApiUrl\('\/api\/accounts\/me'\)/);
+  assert.match(sdoLayout, /roQueuePath="\/sdo\/ro-requests"/);
+  assert.match(sdoLayout, /<DepartmentPortalLayout/);
   assert.match(guidanceLayout, /roQueuePath="\/guidance\/ro-requests"/);
   assert.match(accountService, /\['pd', 'sdo', 'guidance', 'ro_coordinator'\]\.includes\(account\.role\)/);
 });

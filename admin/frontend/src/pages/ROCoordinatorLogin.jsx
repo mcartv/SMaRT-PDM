@@ -11,17 +11,9 @@ export default function ROCoordinatorLogin() {
       profileStorageKey="roCoordinatorProfile"
       redirectPath="/ro-coordinator/dashboard"
       featureLabels={[
-        'RO requests limited to your assigned area',
-        'Approve assignments or return them to Admin',
+        'Placements limited to your assigned RO area',
+        'Review placement approvals and attendance validation',
       ]}
-      colors={{
-        base: '#155e75',
-        text: '#ecfeff',
-        sub: '#a5f3fc',
-        active: '#0e7490',
-        mainBg: '#f3fafb',
-        accent: '#22d3ee',
-      }}
     />
   );
 }

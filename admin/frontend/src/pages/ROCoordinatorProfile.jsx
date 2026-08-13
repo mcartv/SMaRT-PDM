@@ -30,14 +30,13 @@ export default function ROCoordinatorProfile() {
       departmentFallback="Assigned RO Area"
       roleFallback="RO Coordinator"
       avatarTone={theme.base}
-      bio="Reviews Return of Obligation assignment requests for the assigned department, office, or faculty area."
       accountConfig={roCoordinatorAccountConfig}
       palette={palette}
       tokenStorageKey="roCoordinatorToken"
       responsibilities={[
-        'Review Return of Obligation requests for the assigned area.',
-        'Coordinate assignment availability and scholar placements.',
-        'Monitor acknowledgements, attendance, and completion submissions.',
+        'Review placement approval requests for the assigned RO area.',
+        'Coordinate scholar placement availability with Admin.',
+        'Validate attendance evidence and monitor assigned scholars.',
       ]}
     />
   );

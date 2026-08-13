@@ -69,18 +69,19 @@ export default function DepartmentPortalLayout({
   profilePath = '',
   tokenStorageKey,
   profileStorageKey,
-  colors,
   queuePath = '',
   queueLabel = 'For Endorsement',
   trackerPath = '',
   reportsPath = '',
   maintenancePath = '',
   roQueuePath = '',
+  roQueueLabel = 'RO Requests',
+  extraNavItems = [],
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
-  const { theme } = usePortalTheme(portalKey, colors);
+  const { theme } = usePortalTheme(portalKey);
   const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
 
   const [collapsed, setCollapsed] = useState(false);
@@ -233,7 +234,8 @@ export default function DepartmentPortalLayout({
   };
 
   const profileImage = resolveProfileImage(profile);
-  const displayName = profile?.name || officeName;
+  const profileFullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
+  const displayName = profile?.name || profile?.full_name || profileFullName || officeName;
   const displayPosition = profile?.position || officeName;
   const portalDisplayName = portalKey === 'pd'
     ? 'PD'
@@ -248,8 +250,9 @@ export default function DepartmentPortalLayout({
     ...(queuePath ? [{ path: queuePath, label: queueLabel, icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
+    ...extraNavItems,
     ...(roQueuePath && hasRoCoordinatorAccess
-      ? [{ path: roQueuePath, label: 'RO Requests', icon: ClipboardCheck }]
+      ? [{ path: roQueuePath, label: roQueueLabel, icon: ClipboardCheck }]
       : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Settings', icon: Settings }] : []),
   ];

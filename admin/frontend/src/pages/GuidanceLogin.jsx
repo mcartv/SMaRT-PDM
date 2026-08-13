@@ -10,7 +10,6 @@ export default function GuidanceLogin() {
       tokenStorageKey="guidanceToken"
       profileStorageKey="guidanceProfile"
       redirectPath="/guidance/dashboard"
-      colors={{ base: '#1f4e79', sub: '#93c5fd', accent: '#38bdf8' }}
     />
   );
 }

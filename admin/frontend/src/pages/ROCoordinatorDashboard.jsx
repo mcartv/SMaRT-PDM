@@ -123,23 +123,23 @@ export default function ROCoordinatorDashboard() {
             onClick={() => navigate('/ro-coordinator/queue')}
             className="border border-white/20 bg-white text-stone-900 hover:bg-white/90"
           >
-            Open RO Requests
+            Open RO Management
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard icon={FileClock} label="Pending Validation" value={summary.pending_validation || 0} detail="Attendance records waiting for validation" theme={theme} />
-        <SummaryCard icon={Clock3} label="Pending RO Requests" value={summary.pending_ro_requests || 0} detail="Scholar requests awaiting Admin action" theme={theme} />
+        <SummaryCard icon={FileClock} label="Attendance Validation" value={summary.pending_validation || 0} detail="Attendance records waiting for validation" theme={theme} />
+        <SummaryCard icon={Clock3} label="Scholar Requests" value={summary.pending_ro_requests || 0} detail="Requests awaiting Admin action" theme={theme} />
         <SummaryCard icon={UsersRound} label="Assigned Scholars" value={summary.assigned_scholars || 0} detail="Scholars assigned to your RO area" theme={theme} />
       </div>
 
       <Card className="overflow-hidden rounded-[24px] border-stone-200 shadow-none">
         <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-stone-900">Pending Requests</h2>
-            <p className="mt-1 text-sm text-stone-500">Requests are listed from oldest to newest.</p>
+            <h2 className="text-base font-semibold text-stone-900">Placement Approvals</h2>
+            <p className="mt-1 text-sm text-stone-500">Pending placement approvals are listed from oldest to newest.</p>
           </div>
           <Button variant="outline" onClick={() => loadDashboard({ soft: true })} disabled={refreshing} className="border-stone-200">
             {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
@@ -176,7 +176,7 @@ export default function ROCoordinatorDashboard() {
           ) : (
             <div className="rounded-2xl border border-dashed border-stone-200 px-6 py-12 text-center">
               <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
-              <p className="mt-3 text-sm font-semibold text-stone-800">No approval requests waiting</p>
+              <p className="mt-3 text-sm font-semibold text-stone-800">No placement approvals waiting</p>
               <p className="mt-1 text-xs text-stone-500">New Admin requests will appear here automatically.</p>
             </div>
           )}

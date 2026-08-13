@@ -28,8 +28,8 @@ test('admin and department headers subscribe to immediate profile updates', () =
   assert.match(departmentLayout, /window\.addEventListener\('portal-profile:updated', handleProfileUpdated\)/);
   assert.match(departmentLayout, /event\.detail\?\.profileStorageKey !== profileStorageKey/);
 
-  assert.match(sdoLayout, /window\.addEventListener\('portal-profile:updated', handleProfileUpdated\)/);
-  assert.match(sdoLayout, /event\.detail\?\.profileStorageKey !== 'sdoProfile'/);
+  assert.match(sdoLayout, /<DepartmentPortalLayout/);
+  assert.match(sdoLayout, /profileStorageKey="sdoProfile"/);
 });
 
 test('current report authorization is role-group based and does not contain legacy Admin-only error', () => {

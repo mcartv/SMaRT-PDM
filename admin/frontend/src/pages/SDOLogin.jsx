@@ -10,7 +10,6 @@ export default function SDOLogin() {
       tokenStorageKey="sdoToken"
       profileStorageKey="sdoProfile"
       redirectPath="/sdo/dashboard"
-      colors={{ base: '#2e4b43', sub: '#a7f3d0', accent: '#16a34a' }}
     />
   );
 }

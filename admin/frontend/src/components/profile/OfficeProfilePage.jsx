@@ -43,7 +43,6 @@ export default function OfficeProfilePage({
   roleFallback,
   avatarTone = '#475569',
   responsibilities = [],
-  bio,
   accountConfig,
   palette,
   tokenStorageKey,
@@ -132,8 +131,6 @@ export default function OfficeProfilePage({
                   </div>
                   <p className="mt-2 text-sm font-semibold text-stone-700">{account.position}</p>
                   <p className="mt-1 text-sm text-stone-500">{account.department}</p>
-                  <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">{bio}</p>
-
                   <div className="mt-4 flex flex-wrap gap-2">
                     {account.email ? (
                       <a href={`mailto:${account.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">

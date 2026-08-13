@@ -10,7 +10,8 @@ test('department portals expose Settings instead of Maintenance', () => {
   const genericLayout = read('frontend/src/components/layout/DepartmentPortalLayout.jsx');
   const sdoLayout = read('frontend/src/components/layout/SDOLayout.jsx');
   assert.match(genericLayout, /label: 'Settings'/);
-  assert.match(sdoLayout, /path: '\/sdo\/settings', label: 'Settings'/);
+  assert.match(sdoLayout, /maintenancePath="\/sdo\/settings"/);
+  assert.match(sdoLayout, /<DepartmentPortalLayout/);
 });
 
 test('department settings contain Account, Theme, Security and do not expose RO assignments', () => {

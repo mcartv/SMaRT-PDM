@@ -25,9 +25,9 @@ test('official landing requirements remain unchanged', () => {
 test('department navigation uses For Endorsement and preserves RO Requests', () => {
   const sdoLayout = read('components/layout/SDOLayout.jsx');
   const departmentLayout = read('components/layout/DepartmentPortalLayout.jsx');
-  assert.match(sdoLayout, /label: 'For Endorsement'/);
+  assert.match(sdoLayout, /queuePath="\/sdo\/queue"/);
   assert.match(departmentLayout, /queueLabel = 'For Endorsement'/);
-  assert.match(departmentLayout, /label: 'RO Requests'/);
+  assert.match(departmentLayout, /roQueueLabel = 'RO Requests'/);
 });
 
 test('endorsement queue uses compact review drawer', () => {

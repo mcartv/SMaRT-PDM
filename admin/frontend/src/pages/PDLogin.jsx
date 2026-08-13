@@ -10,7 +10,6 @@ export default function PDLogin() {
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"
       redirectPath="/pd/dashboard"
-      colors={{ base: '#5f3d8a', sub: '#d8b4fe', accent: '#c084fc' }}
     />
   );
 }

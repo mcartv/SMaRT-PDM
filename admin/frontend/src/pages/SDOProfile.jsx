@@ -16,15 +16,14 @@ export default function SDOProfile() {
       positionFallback="Student Disciplinary Officer"
       departmentFallback="Student Disciplinary Office"
       roleFallback="SDO Staff"
-      avatarTone="#2e4b43"
-      bio="Handles disciplinary monitoring, probation-related records, scholar case visibility, and endorsement decisions inside the SMaRT-PDM platform."
+      avatarTone={theme.base}
       accountConfig={sdoMaintenanceConfig}
       palette={palette}
       tokenStorageKey="sdoToken"
       responsibilities={[
-        'Review applicant disciplinary records and endorsement queues.',
-        'Record offense findings, case references, and office remarks.',
-        'Monitor scholar disciplinary standing and flagged cases.',
+        'Review applicant disciplinary standing and endorsement queues.',
+        'Record SDO endorsement findings and office remarks.',
+        'Monitor scholar disciplinary standing and flagged scholar records.',
       ]}
     />
   );

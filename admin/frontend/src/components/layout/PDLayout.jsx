@@ -15,13 +15,6 @@ export default function PDLayout() {
       roQueuePath="/pd/ro-requests"
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"
-      colors={{
-        base: '#5f3d8a',
-        text: '#f3e8ff',
-        sub: '#d8b4fe',
-        active: '#7652a3',
-        mainBg: '#f8f5fb',
-      }}
     />
   );
 }

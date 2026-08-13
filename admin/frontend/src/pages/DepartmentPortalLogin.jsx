@@ -15,14 +15,13 @@ export default function DepartmentPortalLogin({
   tokenStorageKey,
   profileStorageKey,
   redirectPath,
-  colors: fallbackColors,
   featureLabels = [
     'Role-specific endorsement queue',
     'Protected access for assigned staff only',
   ],
 }) {
   const navigate = useNavigate();
-  const { theme: colors } = usePortalTheme(portalKey, fallbackColors, { publicOnly: true });
+  const { theme: colors } = usePortalTheme(portalKey, null, { publicOnly: true });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

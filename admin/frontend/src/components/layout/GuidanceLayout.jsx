@@ -15,13 +15,6 @@ export default function GuidanceLayout() {
       roQueuePath="/guidance/ro-requests"
       tokenStorageKey="guidanceToken"
       profileStorageKey="guidanceProfile"
-      colors={{
-        base: '#1f4e79',
-        text: '#e0f2fe',
-        sub: '#93c5fd',
-        active: '#2f6fa3',
-        mainBg: '#f4f8fb',
-      }}
     />
   );
 }

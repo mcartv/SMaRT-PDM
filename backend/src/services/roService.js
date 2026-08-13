@@ -529,6 +529,34 @@ async function resolveAvatarUrl(value) {
   return data?.signedUrl || rawValue;
 }
 
+
+async function resolveRoProofUrl(proof = {}) {
+  const filePath = normalizeValue(proof.file_path);
+  const fallbackUrl = normalizeValue(proof.file_url);
+
+  if (!filePath) {
+    return fallbackUrl;
+  }
+
+  try {
+    const { data, error } =
+      await supabase.storage
+        .from(RO_PROOFS_BUCKET)
+        .createSignedUrl(
+          filePath,
+          60 * 60
+        );
+
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+  } catch (_error) {
+    // Fall back to the stored URL below.
+  }
+
+  return fallbackUrl || filePath;
+}
+
 async function getStudentByUserId(userId) {
   if (!userId) {
     throw createHttpError(
@@ -867,7 +895,66 @@ async function getLogsForRo(roId, studentId) {
     throw error;
   }
 
-  return data || [];
+  const logs = data || [];
+  const logIds = logs
+    .map((log) => log.log_id)
+    .filter(Boolean);
+
+  if (!logIds.length) {
+    return logs;
+  }
+
+  const { data: proofs, error: proofsError } =
+    await supabase
+      .from('ro_time_log_proofs')
+      .select(`
+        proof_id,
+        log_id,
+        proof_type,
+        file_url,
+        file_path,
+        captured_at_device,
+        captured_at_server,
+        latitude,
+        longitude,
+        accuracy_meters,
+        proof_status,
+        created_at
+      `)
+      .in('log_id', logIds)
+      .in('proof_type', [
+        'time_in',
+        'time_out',
+      ])
+      .order('created_at', { ascending: false });
+
+  if (proofsError) {
+    throw proofsError;
+  }
+
+  const resolvedProofs = await Promise.all(
+    (proofs || []).map(async (proof) => ({
+      ...proof,
+      resolved_file_url:
+        await resolveRoProofUrl(proof),
+    }))
+  );
+
+  const proofsByLog = new Map();
+
+  resolvedProofs.forEach((proof) => {
+    const key = String(proof.log_id || '');
+    if (!proofsByLog.has(key)) {
+      proofsByLog.set(key, []);
+    }
+    proofsByLog.get(key).push(proof);
+  });
+
+  return logs.map((log) => ({
+    ...log,
+    proofs:
+      proofsByLog.get(String(log.log_id || '')) || [],
+  }));
 }
 
 async function getPlacementsForRo(roId) {
@@ -1019,6 +1106,34 @@ function mapLog(row = {}) {
 
     requiresAdminAttention:
       row.requires_admin_attention === true,
+
+    proofs:
+      (Array.isArray(row.proofs) ? row.proofs : [])
+        .map((proof) => ({
+          proofId:
+            proof.proof_id?.toString() || '',
+          proofType:
+            proof.proof_type?.toString() || '',
+          fileUrl:
+            (
+              proof.resolved_file_url ||
+              proof.file_url ||
+              proof.file_path ||
+              ''
+            ).toString(),
+          capturedAtDevice:
+            proof.captured_at_device?.toString() || '',
+          capturedAtServer:
+            proof.captured_at_server?.toString() || '',
+          latitude:
+            cleanNumericOrNull(proof.latitude),
+          longitude:
+            cleanNumericOrNull(proof.longitude),
+          accuracyMeters:
+            cleanNumericOrNull(proof.accuracy_meters),
+          proofStatus:
+            proof.proof_status?.toString() || '',
+        })),
 
     createdAt:
       row.created_at?.toString() ||

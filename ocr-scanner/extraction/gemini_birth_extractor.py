@@ -6,6 +6,7 @@ pipelines. Images are sent inline and are never uploaded through the Files API.
 
 from __future__ import annotations
 
+import logging
 import json
 import os
 import re
@@ -17,6 +18,7 @@ import cv2
 import numpy as np
 
 
+log = logging.getLogger("iot-worker")
 TEMPLATE_ID = "psa_birth_v1"
 MODEL_DEFAULT = "gemini-2.5-flash"
 FIELD_KEYS = (
@@ -185,10 +187,18 @@ def extract_with_gemini(
         str(model or os.getenv("GEMINI_MODEL") or MODEL_DEFAULT).strip()
         or MODEL_DEFAULT
     )
+    log.info(
+        "Birth Gemini request | enabled=%s model=%s cells=%s",
+        use_gemini,
+        selected_model,
+        len(CELL_KEYS),
+    )
     if not use_gemini:
+        log.info("Birth Gemini disabled; using local Birth OCR only")
         return GeminiBirthResult(False, enabled=False, model=selected_model, error_code="DISABLED")
     key = str(api_key or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
+        log.warning("Birth Gemini unavailable: API key missing")
         return GeminiBirthResult(False, enabled=True, model=selected_model, error_code="KEY_MISSING")
     owns_client = False
     try:
@@ -224,6 +234,10 @@ def extract_with_gemini(
         )
         payload = json.loads(str(getattr(response, "text", "") or ""))
         fields = _validate_payload(payload)
+        log.info(
+            "Birth Gemini success | model=%s status=structured_candidate",
+            selected_model,
+        )
         return GeminiBirthResult(
             True,
             fields=fields,
@@ -231,6 +245,11 @@ def extract_with_gemini(
             model=selected_model,
         )
     except Exception as exc:
+        log.warning(
+            "Birth Gemini fallback | model=%s error_code=%s",
+            selected_model,
+            _error_code(exc),
+        )
         return GeminiBirthResult(
             False,
             enabled=True,

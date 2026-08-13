@@ -590,14 +590,31 @@ def _run_birth_certificate_scan(
             "error_message": error_message,
         }
     try:
+        log.info(
+            "Birth OCR pipeline started request=%s mode=psa_birth_v1",
+            _safe_request_ref(request_id),
+        )
         registration_mode = "strict_grid"
         registration_attempts = 1
         registration_result = register_psa_birth_form(source_image)
+        log.info(
+            "Birth registration attempt request=%s mode=%s success=%s status=%s",
+            _safe_request_ref(request_id),
+            registration_mode,
+            registration_result.success,
+            registration_result.status,
+        )
         if not registration_result.success:
             registration_attempts += 1
             relaxed_result = register_psa_birth_form(
                 source_image,
                 config=BIRTH_RELAXED_REGISTRATION_CONFIG,
+            )
+            log.info(
+                "Birth registration retry request=%s mode=relaxed_validated_grid success=%s status=%s",
+                _safe_request_ref(request_id),
+                relaxed_result.success,
+                relaxed_result.status,
             )
             if relaxed_result.success:
                 registration_result = relaxed_result
@@ -607,9 +624,20 @@ def _run_birth_certificate_scan(
             envelope_result = register_psa_birth_form_grid_envelope(source_image)
             registration_result = envelope_result
             registration_mode = "validated_grid_envelope"
+            log.info(
+                "Birth registration retry request=%s mode=validated_grid_envelope success=%s status=%s",
+                _safe_request_ref(request_id),
+                envelope_result.success,
+                envelope_result.status,
+            )
             if envelope_result.success:
                 registration_result = envelope_result
         if not registration_result.success:
+            log.warning(
+                "Birth registration failed request=%s attempts=%s",
+                _safe_request_ref(request_id),
+                registration_attempts,
+            )
             return _birth_diagnostic_review_payload(
                 request,
                 source_image,
@@ -625,9 +653,21 @@ def _run_birth_certificate_scan(
             )
 
         cropper_config, calibration_metadata = load_birth_station_calibration()
+        log.info(
+            "Birth topology validation started request=%s registration_mode=%s",
+            _safe_request_ref(request_id),
+            registration_mode,
+        )
         topology_result = validate_psa_birth_name_topology(
             registration_result.data.registered_image,
             config=cropper_config,
+        )
+        log.info(
+            "Birth topology validation finished request=%s success=%s status=%s rows=%s",
+            _safe_request_ref(request_id),
+            topology_result.success,
+            topology_result.metrics.get("topology_status", topology_result.status),
+            topology_result.metrics.get("validated_row_count", 0),
         )
         if not topology_result.success or topology_result.data is None:
             return _birth_diagnostic_review_payload(
@@ -647,6 +687,12 @@ def _run_birth_certificate_scan(
         identity_result = identify_psa_birth_name_rows(
             registration_result.data.registered_image,
             topology_result.data,
+        )
+        log.info(
+            "Birth row identity check finished request=%s success=%s status=%s",
+            _safe_request_ref(request_id),
+            identity_result.success,
+            identity_result.status,
         )
         if not identity_result.success:
             return _birth_diagnostic_review_payload(
@@ -677,6 +723,13 @@ def _run_birth_certificate_scan(
             registration_result.data.registered_image,
             **crop_kwargs,
         )
+        log.info(
+            "Birth nine-cell crop finished request=%s success=%s status=%s cells=%s",
+            _safe_request_ref(request_id),
+            crop_result.success,
+            crop_result.status,
+            len(getattr(getattr(crop_result, "data", None), "crops", {}) or {}),
+        )
         if not crop_result.success:
             return _birth_diagnostic_review_payload(
                 request,
@@ -698,6 +751,10 @@ def _run_birth_certificate_scan(
 
         if request_stop and request_stop.is_set():
             return False, {"status": "cancelled"}
+        log.info(
+            "Birth OCR engines running in parallel request=%s engines=tesseract+gemini",
+            _safe_request_ref(request_id),
+        )
         with ThreadPoolExecutor(max_workers=2) as executor:
             tesseract_future = executor.submit(
                 extract_psa_birth_row_text,
@@ -714,6 +771,15 @@ def _run_birth_certificate_scan(
             gemini_result = gemini_future.result()
         if request_stop and request_stop.is_set():
             return False, {"status": "cancelled"}
+
+        log.info(
+            "Birth OCR engines finished request=%s tesseract_success=%s gemini_enabled=%s gemini_success=%s gemini_error=%s",
+            _safe_request_ref(request_id),
+            bool(getattr(ocr_result, "success", False)),
+            gemini_result.enabled,
+            gemini_result.success,
+            gemini_result.error_code or "none",
+        )
 
         tesseract_field_texts = {
             field.name: {
@@ -743,11 +809,22 @@ def _run_birth_certificate_scan(
             if gemini_selected
             else tesseract_field_texts
         )
+        log.info(
+            "Birth OCR candidate selected request=%s engine=%s fallback=%s structured_fields=%s",
+            _safe_request_ref(request_id),
+            "gemini" if gemini_selected else "tesseract",
+            not gemini_selected,
+            sorted(ocr_field_texts),
+        )
         selected_preprocessing_variant = (
             "gemini_nine_cell_with_tesseract_raw"
             if gemini_selected
             else (
-                ocr_result.data.fields[0].preprocessing_variant
+                getattr(
+                    next(iter(getattr(getattr(ocr_result, "data", None), "fields", ())), None),
+                    "preprocessing_variant",
+                    preprocessing_variant,
+                )
                 if getattr(getattr(ocr_result, "data", None), "fields", ())
                 else preprocessing_variant
             )
@@ -764,6 +841,10 @@ def _run_birth_certificate_scan(
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
         structured_ready = bool(gemini_selected or getattr(ocr_result, "success", False))
         if not structured_ready:
+            log.warning(
+                "Birth OCR requires diagnostic review request=%s reason=structured_names_missing",
+                _safe_request_ref(request_id),
+            )
             return _birth_diagnostic_review_payload(
                 request,
                 source_image,
@@ -786,6 +867,11 @@ def _run_birth_certificate_scan(
         status = "review_required"
         error_message = None
 
+        log.info(
+            "Birth OCR ready for review request=%s engine=%s raw_snapshot=available",
+            _safe_request_ref(request_id),
+            "gemini" if gemini_selected else "tesseract",
+        )
         payload = {
             "status": status,
             "raw_text": raw_text,
@@ -1379,6 +1465,18 @@ def main():
     removed_workspaces = cleanup_expired_workspaces()
     if removed_workspaces:
         log.info("Expired OCR workspaces removed count=%s", removed_workspaces)
+    gemini_enabled = os.getenv("USE_GEMINI", "false").strip().lower() in {"1", "true", "yes", "on"}
+    gemini_model = (
+        os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    )
+    gemini_key_present = bool(str(os.getenv("GEMINI_API_KEY", "")).strip())
+    log.info(
+        "Birth Gemini config | enabled=%s model=%s key_present=%s timeout_seconds=%s",
+        gemini_enabled,
+        gemini_model,
+        gemini_key_present,
+        os.getenv("GEMINI_TIMEOUT_SECONDS", "20"),
+    )
     log.info(
         "Starting Pi IoT OCR worker | poll=%ss | mode=interactive | device=%s",
         POLL_INTERVAL_SECONDS,

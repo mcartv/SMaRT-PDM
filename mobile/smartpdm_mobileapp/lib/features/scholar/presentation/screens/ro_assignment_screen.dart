@@ -1421,6 +1421,8 @@ class RoAssignment {
     required this.title,
     required this.programName,
     required this.openingTitle,
+    required this.academicYear,
+    required this.semester,
     required this.assignedArea,
     required this.remarks,
     required this.requiredHours,
@@ -1447,6 +1449,8 @@ class RoAssignment {
   final String title;
   final String programName;
   final String openingTitle;
+  final String academicYear;
+  final String semester;
   final String assignedArea;
   final String remarks;
 
@@ -1497,6 +1501,14 @@ class RoAssignment {
       title: json['title']?.toString() ?? 'Return of Obligation Notice',
       programName: json['programName']?.toString() ?? '',
       openingTitle: json['openingTitle']?.toString() ?? '',
+      academicYear:
+          json['academicYear']?.toString() ??
+          json['academic_year']?.toString() ??
+          '',
+      semester:
+          json['semester']?.toString() ??
+          json['term']?.toString() ??
+          '',
       assignedArea:
           json['assignedArea']?.toString() ??
           json['assigned_area']?.toString() ??
@@ -1754,13 +1766,35 @@ class _AssignmentCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  department,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      department,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (item.academicYear.isNotEmpty ||
+                        item.semester.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        [
+                          if (item.academicYear.isNotEmpty)
+                            'AY ${item.academicYear}',
+                          if (item.semester.isNotEmpty) item.semester,
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 10),
@@ -1931,6 +1965,36 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (item.academicYear.isNotEmpty ||
+                        item.semester.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_month_rounded,
+                            size: 16,
+                            color: Colors.black45,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              [
+                                if (item.academicYear.isNotEmpty)
+                                  'AY ${item.academicYear}',
+                                if (item.semester.isNotEmpty) item.semester,
+                              ].join(' · '),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Colors.black54,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 14),
 
                     _NoticeDetails(
@@ -2422,6 +2486,22 @@ class _NoticeDetails extends StatelessWidget {
             value: item.assignedArea.isEmpty ? '—' : item.assignedArea,
           ),
           const SizedBox(height: 10),
+          if (item.academicYear.isNotEmpty) ...[
+            _DetailRow(
+              icon: Icons.calendar_today_rounded,
+              label: 'Academic Year',
+              value: 'AY ${item.academicYear}',
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (item.semester.isNotEmpty) ...[
+            _DetailRow(
+              icon: Icons.event_note_rounded,
+              label: 'Semester',
+              value: item.semester,
+            ),
+            const SizedBox(height: 10),
+          ],
           _DetailRow(
             icon: Icons.timer_rounded,
             label: 'Required Hours',

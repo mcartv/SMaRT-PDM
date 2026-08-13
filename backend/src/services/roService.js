@@ -661,6 +661,7 @@ const RO_SELECT = `
   application_id,
   opening_id,
   program_id,
+  period_id,
   ro_status,
   cleared_at,
   cleared_by,
@@ -744,6 +745,95 @@ async function getRoRowForStudent(studentId, roId) {
   }
 
   return data || null;
+}
+
+async function getAcademicPeriodMap(periodIds) {
+  const ids = [
+    ...new Set(
+      periodIds.filter(Boolean)
+    ),
+  ];
+
+  if (!ids.length) {
+    return new Map();
+  }
+
+  const { data: periods, error: periodsError } =
+    await supabase
+      .from('academic_period')
+      .select(
+        'period_id, academic_year_id, term'
+      )
+      .in('period_id', ids);
+
+  if (periodsError) {
+    throw periodsError;
+  }
+
+  const academicYearIds = [
+    ...new Set(
+      (periods || [])
+        .map((period) => period.academic_year_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  let academicYears = [];
+
+  if (academicYearIds.length) {
+    const { data, error } =
+      await supabase
+        .from('academic_years')
+        .select(
+          'academic_year_id, start_year, end_year'
+        )
+        .in('academic_year_id', academicYearIds);
+
+    if (error) {
+      throw error;
+    }
+
+    academicYears = data || [];
+  }
+
+  const yearMap = new Map(
+    academicYears.map((year) => [
+      String(year.academic_year_id),
+      year,
+    ])
+  );
+
+  return new Map(
+    (periods || []).map((period) => {
+      const year =
+        yearMap.get(String(period.academic_year_id)) || {};
+
+      const startYear =
+        year.start_year != null
+          ? String(year.start_year)
+          : '';
+
+      const endYear =
+        year.end_year != null
+          ? String(year.end_year)
+          : '';
+
+      return [
+        String(period.period_id),
+        {
+          period_id: period.period_id,
+          academic_year_id: period.academic_year_id,
+          term: period.term || '',
+          start_year: startYear,
+          end_year: endYear,
+          academic_year_label:
+            startYear && endYear
+              ? `${startYear}-${endYear}`
+              : startYear || endYear || '',
+        },
+      ];
+    })
+  );
 }
 
 async function getProgramMap(programIds) {
@@ -1150,13 +1240,17 @@ async function mapRO(
   student = {},
   setting = {},
   programMap,
-  openingMap
+  openingMap,
+  periodMap
 ) {
   const program =
     programMap.get(row.program_id) || {};
 
   const opening =
     openingMap.get(row.opening_id) || {};
+
+  const period =
+    periodMap.get(String(row.period_id || '')) || {};
 
   const requiredHours =
     toNumber(
@@ -1265,6 +1359,22 @@ async function mapRO(
 
     programId:
       row.program_id?.toString() ||
+      '',
+
+    periodId:
+      row.period_id?.toString() ||
+      '',
+
+    academicYearId:
+      period.academic_year_id?.toString() ||
+      '',
+
+    academicYear:
+      period.academic_year_label?.toString() ||
+      '',
+
+    semester:
+      period.term?.toString() ||
       '',
 
     title,
@@ -1658,6 +1768,13 @@ async function getMyAssignments(userId) {
       )
     );
 
+  const periodMap =
+    await getAcademicPeriodMap(
+      rows.map(
+        (row) => row.period_id
+      )
+    );
+
   // Do not reveal a proposed RO assignment until a department head approves it.
   const visibleRows = rows.filter((row) =>
     row.coordinator_status === 'Approved' &&
@@ -1672,7 +1789,8 @@ async function getMyAssignments(userId) {
           student,
           setting,
           programMap,
-          openingMap
+          openingMap,
+          periodMap
         )
       )
     );

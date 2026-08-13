@@ -235,6 +235,33 @@ async function getROByApplication(studentId, applicationId, periodId = null) {
     return data || null;
 }
 
+async function getActivePlacementForRO(roId) {
+    if (!roId) return null;
+
+    const { data, error } = await supabase
+        .from('ro_placements')
+        .select(`
+            placement_id,
+            ro_id,
+            ro_area_id,
+            coordinator_assignment_id,
+            placement_status,
+            created_at,
+            updated_at
+        `)
+        .eq('ro_id', roId)
+        .in('placement_status', ['Pending', 'Approved'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
+
+    return data || null;
+}
+
 async function getProofsForLogIds(logIds = []) {
     const ids = [...new Set(logIds.filter(Boolean))];
 
@@ -1514,12 +1541,27 @@ async function getActiveRoSettingForAssignments(currentPeriod = null) {
 
 exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     const currentPeriod = await getCurrentAcademicPeriod();
-    const application = await getApprovedApplicationForStudent(studentId, payload);
+    const application = await getApprovedApplicationForStudent(
+        studentId,
+        payload
+    );
     const existingRO = await getROByApplication(
         studentId,
         application.application_id,
         currentPeriod.period_id
     );
+    if (existingRO?.ro_id) {
+        const activePlacement = await getActivePlacementForRO(
+            existingRO.ro_id
+        );
+
+        if (activePlacement) {
+            throw createHttpError(
+                409,
+                'This scholar is already assigned to an RO area for the current semester. Cancel or reject the existing placement before assigning another one.'
+            );
+        }
+    }
     const student = await getStudentForRoNotice(studentId);
     const activeRoSetting = await getActiveRoSettingForAssignments(currentPeriod);
 

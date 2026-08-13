@@ -55,6 +55,42 @@ function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function getActivePlacements(scholar) {
+  const placements = Array.isArray(scholar?.placements)
+    ? scholar.placements
+    : [];
+
+  return placements.filter((placement) => {
+    const status = normalizeStatus(
+      placement.placement_status || placement.status
+    );
+
+    return status === 'pending' || status === 'approved';
+  });
+}
+
+function hasActiveRoPlacement(scholar) {
+  if (getActivePlacements(scholar).length > 0) {
+    return true;
+  }
+
+  // Defensive fallback for legacy/current rows that have an RO assignment
+  // but do not yet expose a separate placement array to the frontend.
+  const assignmentStatus = normalizeStatus(
+    scholar?.assignment_status || scholar?.assignmentStatus
+  );
+
+  const activeAssignmentStatuses = new Set([
+    'pending coordinator approval',
+    'assigned',
+    'acknowledged',
+    'in progress',
+    'for validation',
+  ]);
+
+  return Boolean(scholar?.ro_id) && activeAssignmentStatuses.has(assignmentStatus);
+}
+
 function getScholarName(scholar) {
   return (
     scholar.name ||
@@ -1389,6 +1425,77 @@ function RoDetailsModal({
   );
 }
 
+function FeedbackModal({
+  open,
+  title,
+  message,
+  details = [],
+  tone = 'info',
+  onClose,
+}) {
+  if (!open) return null;
+
+  const toneClasses = {
+    info: 'border-blue-200 bg-blue-50 text-blue-800',
+    success: 'border-green-200 bg-green-50 text-green-800',
+    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+    error: 'border-red-200 bg-red-50 text-red-800',
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md overflow-hidden rounded-xl border-stone-200 bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-stone-100 px-4 py-3">
+          <h3 className="text-sm font-semibold text-stone-900">
+            {title}
+          </h3>
+        </div>
+
+        <CardContent className="space-y-3 p-4">
+          <div
+            className={`rounded-lg border px-3.5 py-3 ${toneClasses[tone] || toneClasses.info
+              }`}
+          >
+            <p className="text-sm leading-relaxed">
+              {message}
+            </p>
+
+            {details.length > 0 && (
+              <div className="mt-2 space-y-1 border-t border-current/10 pt-2">
+                {details.map((detail, index) => (
+                  <p
+                    key={`${detail}-${index}`}
+                    className="text-xs leading-relaxed"
+                  >
+                    {detail}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+
+        <div className="flex justify-end border-t border-stone-100 bg-stone-50 px-4 py-3">
+          <Button
+            type="button"
+            size="sm"
+            onClick={onClose}
+            className="h-8 bg-stone-900 px-4 text-xs text-white hover:bg-stone-800"
+          >
+            OK
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function ROAdmin() {
   const token = sessionStorage.getItem('adminToken');
 
@@ -1422,6 +1529,7 @@ export default function ROAdmin() {
   const [selectedScholar, setSelectedScholar] = useState(null);
   const [detailsScholar, setDetailsScholar] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [feedbackModal, setFeedbackModal] = useState(null);
 
   const authHeaders = useMemo(
     () => ({
@@ -1462,7 +1570,11 @@ export default function ROAdmin() {
       roStatus === 'cleared' ||
       assignmentStatus === 'cleared';
 
-    return !isCleared;
+    if (isCleared) return false;
+
+    // A scholar may only have one active RO placement in the current semester.
+    // Pending and Approved placements are considered active.
+    return !hasActiveRoPlacement(scholar);
   };
 
   const displayedScholars = useMemo(() => {
@@ -1811,7 +1923,30 @@ export default function ROAdmin() {
       await refreshAll();
     } catch (err) {
       console.error('ASSIGN RO ERROR:', err);
-      setActionError(err.message || 'Failed to assign RO');
+
+      const message = err.message || 'Failed to assign RO';
+      const normalizedMessage = normalizeStatus(message);
+      const isAlreadyAssigned =
+        normalizedMessage.includes('already assigned') ||
+        normalizedMessage.includes('active ro placement') ||
+        normalizedMessage.includes('active placement') ||
+        normalizedMessage.includes('already has');
+
+      if (isAlreadyAssigned) {
+        setAssignModalOpen(false);
+
+        setFeedbackModal({
+          tone: 'warning',
+          title: 'Scholar already assigned',
+          message,
+          details: [
+            'A scholar can only have one active RO placement per semester.',
+            'Cancel or reject the existing placement before assigning another RO area.',
+          ],
+        });
+      } else {
+        setActionError(message);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -1822,16 +1957,75 @@ export default function ROAdmin() {
       setActionLoading(true);
       setBatchError('');
 
+      if (!assignedArea) {
+        throw new Error('Select an RO department.');
+      }
+
+      if (!selectedScholars.length) {
+        throw new Error('Select at least one scholar.');
+      }
+
+      /*
+       * IMPORTANT:
+       * Do not silently reuse an existing RO and create another ro_placements
+       * row for a scholar who already has a Pending/Approved placement.
+       *
+       * We reject the whole batch when at least one selected scholar is
+       * already assigned. This makes the operation predictable and prevents
+       * accidental duplicate placements.
+       */
+      const alreadyAssigned = selectedScholars.filter(hasActiveRoPlacement);
+
+      if (alreadyAssigned.length > 0) {
+        const names = alreadyAssigned.map(getScholarName);
+
+        setBatchModalOpen(false);
+        setSelectedIds([]);
+
+        setFeedbackModal({
+          tone: 'warning',
+          title:
+            alreadyAssigned.length === 1
+              ? 'Scholar already assigned'
+              : 'Some scholars are already assigned',
+          message:
+            alreadyAssigned.length === 1
+              ? `${names[0]} already has an active RO placement for the current semester.`
+              : `${alreadyAssigned.length} selected scholars already have active RO placements for the current semester.`,
+          details: [
+            ...names.slice(0, 5).map(
+              (name) => `${name} — already assigned`
+            ),
+            ...(names.length > 5
+              ? [`+${names.length - 5} more scholar(s)`]
+              : []),
+            'A scholar can only have one active RO placement per semester.',
+            'Cancel or reject the existing placement before assigning the scholar to another RO area.',
+          ],
+        });
+
+        return;
+      }
+
       const assignableIds = selectedScholars
         .filter(isBatchSelectable)
         .map((scholar) => String(scholar.student_id));
 
       if (!assignableIds.length) {
-        throw new Error('Select at least one assignable scholar.');
-      }
+        setBatchModalOpen(false);
+        setSelectedIds([]);
 
-      if (!assignedArea) {
-        throw new Error('Select an RO department.');
+        setFeedbackModal({
+          tone: 'warning',
+          title: 'No assignable scholars',
+          message:
+            'None of the selected scholars can receive a new RO assignment.',
+          details: [
+            'Cleared scholars and scholars with an active Pending or Approved placement cannot be batch assigned again.',
+          ],
+        });
+
+        return;
       }
 
       const res = await fetch(buildApiUrl('/api/ro/scholars/batch-assign'), {
@@ -1847,22 +2041,127 @@ export default function ROAdmin() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to batch assign RO.');
+        throw new Error(
+          data.error ||
+          data.message ||
+          'Failed to batch assign RO.'
+        );
       }
 
-      if (Number(data.failed_count || 0) > 0) {
-        setBatchError(
-          `${data.success_count || 0} requests sent, ${data.failed_count || 0} failed.`
+      const failedRows = Array.isArray(data.failed)
+        ? data.failed
+        : Array.isArray(data.failures)
+          ? data.failures
+          : Array.isArray(data.data?.failed)
+            ? data.data.failed
+            : [];
+
+      const successfulRows = Array.isArray(data.successful)
+        ? data.successful
+        : Array.isArray(data.data?.successful)
+          ? data.data.successful
+          : [];
+
+      const successCount = Number(
+        data.success_count ??
+        data.data?.success_count ??
+        successfulRows.length ??
+        0
+      );
+
+      const failedCount = Number(
+        data.failed_count ??
+        data.data?.failed_count ??
+        failedRows.length ??
+        0
+      );
+
+      const duplicateFailures = failedRows.filter((item) => {
+        const reason = normalizeStatus(
+          item?.error || item?.message || item?.reason
         );
+
+        return (
+          reason.includes('already assigned') ||
+          reason.includes('active ro placement') ||
+          reason.includes('active placement') ||
+          reason.includes('already has')
+        );
+      });
+
+      setBatchModalOpen(false);
+      setSelectedIds([]);
+
+      if (failedCount > 0 && successCount === 0) {
+        const firstDuplicate = duplicateFailures[0];
+        const firstFailure = failedRows[0];
+
+        const serverMessage =
+          firstDuplicate?.error ||
+          firstDuplicate?.message ||
+          firstDuplicate?.reason ||
+          firstFailure?.error ||
+          firstFailure?.message ||
+          firstFailure?.reason ||
+          'The selected scholar could not be assigned.';
+
+        setFeedbackModal({
+          tone: duplicateFailures.length > 0 ? 'warning' : 'error',
+          title:
+            duplicateFailures.length > 0
+              ? 'Scholar already assigned'
+              : 'Batch assignment failed',
+          message: serverMessage,
+          details:
+            duplicateFailures.length > 0
+              ? [
+                'A scholar can only have one active RO placement per semester.',
+                'Cancel or reject the existing placement before assigning another RO area.',
+              ]
+              : [],
+        });
+      } else if (failedCount > 0) {
+        setFeedbackModal({
+          tone: 'warning',
+          title: 'Batch assignment completed with issues',
+          message: `${successCount} scholar(s) were assigned and ${failedCount} scholar(s) were skipped.`,
+          details: failedRows.slice(0, 5).map((item) => {
+            const name =
+              item?.student_name ||
+              item?.name ||
+              item?.student_id ||
+              'Scholar';
+
+            const reason =
+              item?.error ||
+              item?.message ||
+              item?.reason ||
+              'Assignment failed.';
+
+            return `${name}: ${reason}`;
+          }),
+        });
       } else {
-        setBatchModalOpen(false);
-        setSelectedIds([]);
+        setFeedbackModal({
+          tone: 'success',
+          title: 'RO assignment completed',
+          message: `${successCount || assignableIds.length} scholar(s) were successfully assigned to ${assignedArea}.`,
+        });
       }
 
       await refreshAll();
     } catch (err) {
       console.error('BATCH ASSIGN RO ERROR:', err);
-      setBatchError(err.message || 'Failed to batch assign RO.');
+
+      setBatchModalOpen(false);
+
+      setFeedbackModal({
+        tone: 'error',
+        title: 'Batch assignment failed',
+        message:
+          err.message ||
+          'The RO batch assignment could not be completed.',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -1934,6 +2233,15 @@ export default function ROAdmin() {
         onReset={handleResetFilters}
       />
 
+      <FeedbackModal
+        open={Boolean(feedbackModal)}
+        title={feedbackModal?.title}
+        message={feedbackModal?.message}
+        details={feedbackModal?.details || []}
+        tone={feedbackModal?.tone || 'info'}
+        onClose={() => setFeedbackModal(null)}
+      />
+
       <AssignModal
         key={
           assignModalOpen
@@ -1993,18 +2301,18 @@ export default function ROAdmin() {
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           {topTab !== 'requests' ? (
-          <div className="w-full lg:max-w-xl">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+            <div className="w-full lg:max-w-xl">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
 
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by scholar name or PDM ID..."
-                className="h-11 rounded-2xl border-stone-200 bg-[#f8f6f2] pl-11 pr-4 text-sm shadow-none focus-visible:ring-1"
-              />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by scholar name or PDM ID..."
+                  className="h-11 rounded-2xl border-stone-200 bg-[#f8f6f2] pl-11 pr-4 text-sm shadow-none focus-visible:ring-1"
+                />
+              </div>
             </div>
-          </div>
           ) : (
             <div>
               <p className="text-sm font-semibold text-stone-900">RO Area Requests</p>
@@ -2022,21 +2330,21 @@ export default function ROAdmin() {
             />
 
             {topTab !== 'requests' ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setFilterOpen(true)}
-              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
-            >
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Filters
-              {activeFilterCount > 0 ? (
-                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {activeFilterCount}
-                </span>
-              ) : null}
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFilterOpen(true)}
+                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+              >
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 ? (
+                  <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </Button>
             ) : null}
 
             <Button
@@ -2055,7 +2363,7 @@ export default function ROAdmin() {
             </Button>
 
             {selectedIds.length > 0 &&
-            !['cleared', 'requests'].includes(topTab) ? (
+              !['cleared', 'requests'].includes(topTab) ? (
               <Button
                 onClick={() => {
                   setBatchError('');
@@ -2093,238 +2401,237 @@ export default function ROAdmin() {
       {topTab === 'requests' ? (
         <ROScholarRequestsPanel token={token} />
       ) : (
-      <section
-        className="overflow-hidden rounded-2xl border bg-white"
-        style={{ borderColor: C.line }}
-      >
-        <div className="border-b border-stone-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-stone-900">
-            {topTab === 'assigned'
-              ? 'Assigned RO Scholars'
-              : topTab === 'unassigned'
-                ? 'Unassigned RO Scholars'
-                : 'Cleared RO Scholars'}
-          </h2>
+        <section
+          className="overflow-hidden rounded-2xl border bg-white"
+          style={{ borderColor: C.line }}
+        >
+          <div className="border-b border-stone-100 px-5 py-4">
+            <h2 className="text-sm font-semibold text-stone-900">
+              {topTab === 'assigned'
+                ? 'Assigned RO Scholars'
+                : topTab === 'unassigned'
+                  ? 'Unassigned RO Scholars'
+                  : 'Cleared RO Scholars'}
+            </h2>
 
-          <p className="mt-1 text-xs text-stone-400">
-            {displayedScholars.length} result{displayedScholars.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        <CardContent className="p-4">
-          {displayedScholars.length === 0 ? (
-            <EmptyState onAssignMode={() => setTopTab('unassigned')} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-stone-200 bg-stone-50/70">
-                    <th className="w-[44px] px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleSelectAllVisible}
-                      />
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Scholar
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Program
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Department
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Progress
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Status
-                    </th>
-
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-stone-100 bg-white">
-                  {displayedScholars.map((scholar) => {
-                    const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
-                    const name = getScholarName(scholar);
-                    const hasAssignment = !!scholar.ro_id;
-                    const selectable = isBatchSelectable(scholar);
-                    const selected = selectedIds.includes(String(scholar.student_id));
-
-                    const {
-                      requiredMinutes,
-                      submittedMinutes,
-                      validatedMinutes,
-                      submittedProgress,
-                      validatedProgress,
-                      isCleared,
-                    } = getRoMetrics(scholar);
-
-                    const capsule = getMainStatusCapsule(scholar);
-
-                    return (
-                      <tr key={key} className="transition-colors hover:bg-stone-50/70">
-                        <td className="px-3 py-4 align-top">
-                          <input
-                            type="checkbox"
-                            disabled={!selectable}
-                            checked={selected}
-                            onChange={() => toggleSelected(scholar.student_id)}
-                          />
-                        </td>
-
-                        <td className="px-3 py-4 align-top">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="h-9 w-9 shrink-0 rounded-full border border-stone-200 shadow-sm">
-                              <AvatarImage
-                                src={
-                                  scholar.profile_photo_url ||
-                                  scholar.avatarUrl ||
-                                  scholar.avatar_url ||
-                                  undefined
-                                }
-                                alt={name}
-                              />
-                              <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
-                                {getInitials(name)}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            <div className="min-w-0">
-                              <p className="max-w-[220px] truncate text-sm font-semibold text-stone-900">
-                                {name}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-stone-400">
-                                {scholar.pdm_id || 'No PDM ID'}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-3 py-4 align-top">
-                          <p className="max-w-[240px] text-xs font-semibold leading-5 text-stone-900">
-                            {scholar.program_name || 'N/A'}
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-stone-400">
-                            {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
-                          </p>
-                        </td>
-
-                        <td className="px-3 py-4 align-top">
-                          {hasAssignment ? (
-                            <p className="max-w-[220px] text-xs font-bold text-stone-900">
-                              {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
-                            </p>
-                          ) : (
-                            <p className="text-xs font-semibold text-stone-400">
-                              Not assigned
-                            </p>
-                          )}
-                        </td>
-
-                        <td className="px-3 py-4 align-top">
-                          {hasAssignment ? (
-                            <p className="text-xs font-black text-stone-900">
-                              {compactProgressText({
-                                requiredMinutes,
-                                submittedMinutes,
-                                validatedMinutes,
-                                submittedProgress,
-                                validatedProgress,
-                                isCleared,
-                              })}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-stone-400">N/A</p>
-                          )}
-                        </td>
-
-                        <td className="px-3 py-4 align-top">
-                          <StatusChip tone={capsule.tone}>{capsule.label}</StatusChip>
-                        </td>
-
-                        <td className="px-3 py-4 text-right align-top">
-                          <Button
-                            type="button"
-                            onClick={() =>
-                              hasAssignment
-                                ? openDetailsModal(scholar)
-                                : openAssignModal(scholar)
-                            }
-                            variant="outline"
-                            size="sm"
-                            disabled={actionLoading || (!hasAssignment && activeRequiredHours <= 0)}
-                            title={
-                              !hasAssignment && activeRequiredHours <= 0
-                                ? 'Configure required hours in Maintenance > Obligation first.'
-                                : undefined
-                            }
-                            className="h-9 rounded-xl border-stone-200 px-3 text-xs"
-                          >
-                            {hasAssignment ? (
-                              <>
-                                <Eye className="mr-1.5 h-3.5 w-3.5" />
-                                View
-                              </>
-                            ) : (
-                              <>
-                                <Send className="mr-1.5 h-3.5 w-3.5" />
-                                Assign
-                              </>
-                            )}
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-
-        <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
-          <p className="text-xs text-stone-400">
-            Showing {displayedScholars.length ? `1-${displayedScholars.length}` : '0-0'} of {displayedScholars.length}
-          </p>
-
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled
-              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-
-            <span className="text-xs text-stone-500">Page 1 / 1</span>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled
-              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
+            <p className="mt-1 text-xs text-stone-400">
+              {displayedScholars.length} result{displayedScholars.length !== 1 ? 's' : ''}
+            </p>
           </div>
-        </div>
-      </section>
+
+          <CardContent className="p-4">
+            {displayedScholars.length === 0 ? (
+              <EmptyState onAssignMode={() => setTopTab('unassigned')} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-stone-200 bg-stone-50/70">
+                      <th className="w-[44px] px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAllVisible}
+                        />
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        Scholar
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        Program
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        Department
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        Progress
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        Status
+                      </th>
+
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-stone-100 bg-white">
+                    {displayedScholars.map((scholar) => {
+                      const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
+                      const name = getScholarName(scholar);
+                      const hasAssignment = !!scholar.ro_id;
+                      const selectable = isBatchSelectable(scholar);
+                      const selected = selectedIds.includes(String(scholar.student_id));
+
+                      const {
+                        requiredMinutes,
+                        submittedMinutes,
+                        validatedMinutes,
+                        submittedProgress,
+                        validatedProgress,
+                        isCleared,
+                      } = getRoMetrics(scholar);
+
+                      const capsule = getMainStatusCapsule(scholar);
+
+                      return (
+                        <tr key={key} className="transition-colors hover:bg-stone-50/70">
+                          <td className="px-3 py-4 align-top">
+                            <input
+                              type="checkbox"
+                              disabled={!selectable}
+                              checked={selected}
+                              onChange={() => toggleSelected(scholar.student_id)}
+                            />
+                          </td>
+
+                          <td className="px-3 py-4 align-top">
+                            <div className="flex items-start gap-3">
+                              <Avatar className="h-9 w-9 shrink-0 rounded-full border border-stone-200 shadow-sm">
+                                <AvatarImage
+                                  src={
+                                    scholar.profile_photo_url ||
+                                    scholar.avatarUrl ||
+                                    scholar.avatar_url ||
+                                    undefined
+                                  }
+                                  alt={name}
+                                />
+                                <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
+                                  {getInitials(name)}
+                                </AvatarFallback>
+                              </Avatar>
+
+                              <div className="min-w-0">
+                                <p className="max-w-[220px] truncate text-sm font-semibold text-stone-900">
+                                  {name}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-stone-400">
+                                  {scholar.pdm_id || 'No PDM ID'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-3 py-4 align-top">
+                            <p className="max-w-[240px] text-xs font-semibold leading-5 text-stone-900">
+                              {scholar.program_name || 'N/A'}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-stone-400">
+                              {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
+                            </p>
+                          </td>
+
+                          <td className="px-3 py-4 align-top">
+                            {hasAssignment ? (
+                              <p className="max-w-[220px] text-xs font-bold text-stone-900">
+                                {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
+                              </p>
+                            ) : (
+                              <p className="text-xs font-semibold text-stone-400">
+                                Not assigned
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-4 align-top">
+                            {hasAssignment ? (
+                              <p className="text-xs font-black text-stone-900">
+                                {compactProgressText({
+                                  requiredMinutes,
+                                  submittedMinutes,
+                                  validatedMinutes,
+                                  submittedProgress,
+                                  validatedProgress,
+                                  isCleared,
+                                })}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-stone-400">N/A</p>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-4 align-top">
+                            <StatusChip tone={capsule.tone}>{capsule.label}</StatusChip>
+                          </td>
+
+                          <td className="px-3 py-4 text-right align-top">
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                hasAssignment
+                                  ? openDetailsModal(scholar)
+                                  : openAssignModal(scholar)
+                              }
+                              variant="outline"
+                              size="sm"
+                              disabled={actionLoading || (!hasAssignment && activeRequiredHours <= 0)}
+                              title={
+                                !hasAssignment && activeRequiredHours <= 0
+                                  ? 'Configure required hours in Maintenance > Obligation first.'
+                                  : undefined
+                              }
+                              className="h-9 rounded-xl border-stone-200 px-3 text-xs"
+                            >
+                              {hasAssignment ? (
+                                <>
+                                  <Eye className="mr-1.5 h-3.5 w-3.5" />
+                                  View
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                                  Assign
+                                </>
+                              )}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+
+          <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
+            <p className="text-xs text-stone-400">
+              Showing {displayedScholars.length ? `1-${displayedScholars.length}` : '0-0'} of {displayedScholars.length}
+            </p>
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled
+                className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+
+              <span className="text-xs text-stone-500">Page 1 / 1</span>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled
+                className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </section>
       )}
     </div>
   );
 }
-

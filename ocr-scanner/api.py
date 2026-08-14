@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import hashlib
 import socket
 import time
 import uuid
@@ -281,6 +282,7 @@ class ApiClient:
         extracted_fields: Optional[Dict[str, Any]] = None,
         source_payload: Optional[Dict[str, Any]] = None,
         error_message: Optional[str] = None,
+        error_code: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         request_id = str(job_id or "").strip()
         url = (
@@ -295,6 +297,7 @@ class ApiClient:
             "extracted_fields": extracted_fields or {},
             "source_payload": source_payload or {},
             "error_message": error_message,
+            "error_code": error_code,
         }
 
         if payload["status"] == "review_required":
@@ -337,3 +340,113 @@ class ApiClient:
             return {"ok": True}
 
         return result if isinstance(result, dict) else {"ok": True}
+
+    def authorize_birth_v2_uploads(
+        self,
+        request_id: str,
+        artifacts: list[dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/capture-artifacts/authorize"
+        try:
+            response = self.session.post(
+                url,
+                headers=self._headers(),
+                json={"artifacts": artifacts},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return payload.get("data") if isinstance(payload, dict) else None
+        except (requests.RequestException, ValueError) as exc:
+            self._log_transport_error(
+                f"Authorize Birth V2 uploads for {request_id[:8]}",
+                str(exc),
+            )
+            return None
+
+    def upload_signed_artifact(
+        self,
+        authorization: dict[str, Any],
+        content: bytes,
+        mime_type: str,
+    ) -> bool:
+        signed_url = str(authorization.get("signed_url") or "").strip()
+        if not signed_url:
+            return False
+        try:
+            response = self.session.put(
+                signed_url,
+                headers={
+                    "Content-Type": mime_type,
+                    "Cache-Control": "max-age=0",
+                    "x-upsert": "true",
+                },
+                data=content,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            return True
+        except requests.RequestException as exc:
+            self._log_transport_error(
+                "Upload private Birth V2 artifact",
+                f"transport_error={type(exc).__name__}",
+            )
+            return False
+
+    def submit_birth_v2_artifacts(
+        self,
+        request_id: str,
+        artifacts: list[dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        manifest = []
+        by_slot: dict[tuple[str, str], dict[str, Any]] = {}
+        for artifact in artifacts:
+            content = bytes(artifact["content"])
+            item = {
+                "artifact_kind": artifact["artifact_kind"],
+                "cell_key": artifact.get("cell_key"),
+                "mime_type": artifact["mime_type"],
+                "byte_count": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "roi_polygon": artifact.get("roi_polygon"),
+            }
+            manifest.append(item)
+            by_slot[(item["artifact_kind"], item.get("cell_key") or "")] = {
+                **item,
+                "content": content,
+            }
+        authorized = self.authorize_birth_v2_uploads(request_id, manifest)
+        if not authorized:
+            return None
+        upload_items = authorized.get("artifacts") or []
+        if len(upload_items) != len(manifest):
+            return None
+        for authorization in upload_items:
+            slot = (
+                str(authorization.get("artifact_kind") or ""),
+                str(authorization.get("cell_key") or ""),
+            )
+            local = by_slot.get(slot)
+            if not local or not self.upload_signed_artifact(
+                authorization,
+                local["content"],
+                local["mime_type"],
+            ):
+                return None
+        url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/capture-artifacts/complete"
+        try:
+            response = self.session.post(
+                url,
+                headers=self._headers(),
+                json={},
+                timeout=max(self.timeout, 45),
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return payload.get("data") if isinstance(payload, dict) else None
+        except (requests.RequestException, ValueError) as exc:
+            self._log_transport_error(
+                f"Complete Birth V2 extraction for {request_id[:8]}",
+                str(exc),
+            )
+            return None

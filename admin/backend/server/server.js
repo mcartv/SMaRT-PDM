@@ -516,6 +516,9 @@ if (!global._announcementSchedulerRunning) {
 async function startServer() {
   try {
     await ensureCanonicalIotOcrMigration();
+    require('../services/birthOcrV2Service').cleanupPendingArtifacts().catch((error) => {
+      console.warn('IOT_OCR_ARTIFACT_CLEANUP_RETRY_FAILED', { code: error.code || 'CLEANUP_FAILED' });
+    });
     global._applicationStartupReady = true;
 
     server.listen(PORT, '0.0.0.0', () => {

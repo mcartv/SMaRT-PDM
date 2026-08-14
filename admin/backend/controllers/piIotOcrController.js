@@ -69,6 +69,7 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
             application_id: result.application_id,
             document_key: result.document_key,
             status: result.status,
+            ocr_version: result.ocr_version || 'v1',
             expires_at: result.expires_at,
             updated_at: result.updated_at,
         });
@@ -85,6 +86,7 @@ exports.updateIotOcrRequestStatus = async (req, res) => {
                 request_id: stoppedRequest.request_id,
                 application_id: stoppedRequest.application_id,
                 document_key: stoppedRequest.document_key,
+                ocr_version: stoppedRequest.ocr_version || 'v1',
                 status: stoppedRequest.status,
                 expires_at: stoppedRequest.expires_at,
                 updated_at: stoppedRequest.updated_at,
@@ -133,6 +135,7 @@ exports.submitIotOcrRequestResult = async (req, res) => {
             application_id: request.application_id,
             document_key: request.document_key,
             status: request.status,
+            ocr_version: request.ocr_version || 'v1',
             expires_at: request.expires_at,
             updated_at: request.updated_at,
         });
@@ -149,6 +152,7 @@ exports.submitIotOcrRequestResult = async (req, res) => {
                 request_id: stoppedRequest.request_id,
                 application_id: stoppedRequest.application_id,
                 document_key: stoppedRequest.document_key,
+                ocr_version: stoppedRequest.ocr_version || 'v1',
                 status: stoppedRequest.status,
                 expires_at: stoppedRequest.expires_at,
                 updated_at: stoppedRequest.updated_at,
@@ -167,6 +171,51 @@ exports.submitIotOcrRequestResult = async (req, res) => {
             error: err.message || 'Failed to save IoT OCR request result',
             current_status: err.currentStatus || null,
             stop_processing: requestStopped,
+        });
+    }
+};
+
+exports.authorizeBirthV2Uploads = async (req, res) => {
+    try {
+        iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
+        const birthV2 = require('../services/birthOcrV2Service');
+        const data = await birthV2.authorizeUploads({
+            requestId: req.params.requestId,
+            deviceId: req.piAuth?.deviceId,
+            artifacts: req.body?.artifacts,
+        });
+        return res.status(200).json({ message: 'Private artifact uploads authorized', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            code: error.code || null,
+            error: error.message || 'Failed to authorize Birth V2 uploads',
+        });
+    }
+};
+
+exports.completeBirthV2Uploads = async (req, res) => {
+    try {
+        iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
+        const birthV2 = require('../services/birthOcrV2Service');
+        const data = await birthV2.completeUploads({
+            requestId: req.params.requestId,
+            deviceId: req.piAuth?.deviceId,
+        });
+        const request = data.request || data;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            ocr_version: request.ocr_version || 'v2',
+            status: request.status,
+            expires_at: request.expires_at,
+            updated_at: request.updated_at,
+        });
+        return res.status(200).json({ message: 'Birth V2 extraction completed', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            code: error.code || null,
+            error: error.message || 'Failed to complete Birth V2 extraction',
         });
     }
 };

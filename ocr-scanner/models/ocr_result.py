@@ -6,7 +6,8 @@ from typing import Any, Optional
 
 FORBIDDEN_KEYS = {
     "image", "image_url", "capture_url", "capture_path", "processed_image",
-    "processed_image_url", "base64_image",
+    "processed_image_url", "base64_image", "bucket_name", "object_path",
+    "signed_url", "signedurl", "token",
 }
 
 

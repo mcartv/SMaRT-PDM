@@ -2,11 +2,24 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-const MIGRATION_KEY = '20260809000100_canonical_iot_ocr_candidates';
-const MIGRATION_PATH = path.resolve(
-  __dirname,
-  '../../../supabase/migrations/20260809000100_canonical_iot_ocr_candidates.sql'
-);
+const MIGRATIONS = Object.freeze([
+  {
+    key: '20260809000100_canonical_iot_ocr_candidates',
+    path: path.resolve(
+      __dirname,
+      '../../../supabase/migrations/20260809000100_canonical_iot_ocr_candidates.sql'
+    ),
+  },
+  {
+    key: '20260813000100_birth_ocr_v2_review_architecture',
+    path: path.resolve(
+      __dirname,
+      '../../../supabase/migrations/20260813000100_birth_ocr_v2_review_architecture.sql'
+    ),
+  },
+]);
+const MIGRATION_KEY = MIGRATIONS.at(-1).key;
+const MIGRATION_PATH = MIGRATIONS.at(-1).path;
 
 function migrationConnectionString() {
   const dedicated = String(process.env.MIGRATION_DATABASE_URL || '').trim();
@@ -45,6 +58,9 @@ async function verifySchema(client) {
       to_regclass('public.iot_ocr_requests') IS NOT NULL AS has_requests,
       to_regclass('public.iot_ocr_candidates') IS NOT NULL AS has_candidates,
       to_regclass('public.iot_ocr_reviews') IS NOT NULL AS has_reviews,
+      to_regclass('public.iot_ocr_capture_artifacts') IS NOT NULL AS has_artifacts,
+      to_regclass('public.iot_ocr_review_exceptions') IS NOT NULL AS has_exceptions,
+      to_regclass('public.iot_ocr_review_events') IS NOT NULL AS has_review_events,
       EXISTS (
         SELECT 1 FROM pg_trigger t
         JOIN pg_class c ON c.oid = t.tgrelid
@@ -53,10 +69,21 @@ async function verifySchema(client) {
           AND c.relname = 'iot_ocr_candidates'
           AND t.tgname = 'trg_iot_ocr_candidates_immutable'
           AND NOT t.tgisinternal
-      ) AS has_immutability_trigger
+      ) AS has_immutability_trigger,
+      EXISTS (
+        SELECT 1 FROM pg_trigger t
+        JOIN pg_class c ON c.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'iot_ocr_review_events'
+          AND t.tgname = 'trg_iot_ocr_review_events_immutable'
+          AND NOT t.tgisinternal
+      ) AS has_review_event_trigger
   `);
   const row = objects.rows[0] || {};
-  if (!row.has_requests || !row.has_candidates || !row.has_reviews || !row.has_immutability_trigger) {
+  if (!row.has_requests || !row.has_candidates || !row.has_reviews
+      || !row.has_artifacts || !row.has_exceptions || !row.has_review_events
+      || !row.has_immutability_trigger || !row.has_review_event_trigger) {
     throw new Error(`Canonical OCR schema verification failed: ${JSON.stringify(row)}`);
   }
 
@@ -85,31 +112,45 @@ async function ensureRuntimeRolePermissions(client) {
   }
   if (role.rows[0].rolsuper) throw new Error('smart_pdm_runtime must not be a superuser.');
 
-  const owner = await client.query(`
-    SELECT pg_get_userbyid(c.relowner) AS owner_name
+  const owners = await client.query(`
+    SELECT c.relname, pg_get_userbyid(c.relowner) AS owner_name
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relname = 'iot_ocr_candidates'
-      AND c.relkind IN ('r', 'p') LIMIT 1
+    WHERE n.nspname = 'public'
+      AND c.relname IN (
+        'iot_ocr_candidates', 'iot_ocr_capture_artifacts',
+        'iot_ocr_review_exceptions', 'iot_ocr_review_events'
+      )
+      AND c.relkind IN ('r', 'p')
   `);
-  if (owner.rows[0]?.owner_name === 'smart_pdm_runtime') {
-    throw new Error('smart_pdm_runtime must not own public.iot_ocr_candidates.');
+  const runtimeOwned = owners.rows
+    .filter(({ owner_name: ownerName }) => ownerName === 'smart_pdm_runtime')
+    .map(({ relname }) => relname);
+  if (runtimeOwned.length) {
+    throw new Error(`smart_pdm_runtime must not own OCR tables: ${runtimeOwned.join(', ')}`);
   }
+  await client.query('GRANT USAGE ON SCHEMA public TO smart_pdm_runtime');
   await client.query('GRANT SELECT, INSERT ON public.iot_ocr_candidates TO smart_pdm_runtime');
   await client.query('REVOKE UPDATE, DELETE, TRUNCATE ON public.iot_ocr_candidates FROM smart_pdm_runtime');
+  await client.query('GRANT SELECT, INSERT, UPDATE ON public.iot_ocr_capture_artifacts TO smart_pdm_runtime');
+  await client.query('REVOKE DELETE, TRUNCATE ON public.iot_ocr_capture_artifacts FROM smart_pdm_runtime');
+  await client.query('GRANT SELECT, INSERT, UPDATE ON public.iot_ocr_review_exceptions TO smart_pdm_runtime');
+  await client.query('REVOKE DELETE, TRUNCATE ON public.iot_ocr_review_exceptions FROM smart_pdm_runtime');
+  await client.query('GRANT SELECT, INSERT ON public.iot_ocr_review_events TO smart_pdm_runtime');
+  await client.query('REVOKE UPDATE, DELETE, TRUNCATE ON public.iot_ocr_review_events FROM smart_pdm_runtime');
 }
 
 async function ensureCanonicalIotOcrMigration() {
-  if (!fs.existsSync(MIGRATION_PATH)) {
-    throw new Error(`Canonical migration file missing: ${MIGRATION_PATH}`);
+  for (const migration of MIGRATIONS) {
+    if (!fs.existsSync(migration.path)) {
+      throw new Error(`Canonical migration file missing: ${migration.path}`);
+    }
   }
-  const sql = migrationBody(fs.readFileSync(MIGRATION_PATH, 'utf8'));
-  if (!sql) throw new Error('Canonical OCR migration file is empty.');
 
   const pool = createPool();
   const client = await pool.connect();
   let locked = false;
   try {
-    await client.query('SELECT pg_advisory_lock(hashtext($1))', [MIGRATION_KEY]);
+    await client.query('SELECT pg_advisory_lock(hashtext($1))', ['smart_pdm_iot_ocr_migrations']);
     locked = true;
     await client.query('BEGIN');
     await client.query(`
@@ -118,19 +159,23 @@ async function ensureCanonicalIotOcrMigration() {
         applied_at timestamptz NOT NULL DEFAULT NOW()
       )
     `);
-    const existing = await client.query(
-      'SELECT 1 FROM public.smart_pdm_runtime_migrations WHERE migration_key = $1',
-      [MIGRATION_KEY]
-    );
-    if (!existing.rowCount) {
-      await client.query(sql);
-      await client.query(
-        'INSERT INTO public.smart_pdm_runtime_migrations (migration_key) VALUES ($1)',
-        [MIGRATION_KEY]
+    for (const migration of MIGRATIONS) {
+      const existing = await client.query(
+        'SELECT 1 FROM public.smart_pdm_runtime_migrations WHERE migration_key = $1',
+        [migration.key]
       );
-      console.log(`IOT_OCR_LIVE_MIGRATION_APPLIED=${MIGRATION_KEY}`);
-    } else {
-      console.log(`IOT_OCR_LIVE_MIGRATION_ALREADY_APPLIED=${MIGRATION_KEY}`);
+      if (!existing.rowCount) {
+        const sql = migrationBody(fs.readFileSync(migration.path, 'utf8'));
+        if (!sql) throw new Error(`Canonical OCR migration is empty: ${migration.key}`);
+        await client.query(sql);
+        await client.query(
+          'INSERT INTO public.smart_pdm_runtime_migrations (migration_key) VALUES ($1)',
+          [migration.key]
+        );
+        console.log(`IOT_OCR_LIVE_MIGRATION_APPLIED=${migration.key}`);
+      } else {
+        console.log(`IOT_OCR_LIVE_MIGRATION_ALREADY_APPLIED=${migration.key}`);
+      }
     }
     await ensureRuntimeRolePermissions(client);
     await verifySchema(client);
@@ -142,7 +187,7 @@ async function ensureCanonicalIotOcrMigration() {
     throw error;
   } finally {
     if (locked) {
-      try { await client.query('SELECT pg_advisory_unlock(hashtext($1))', [MIGRATION_KEY]); } catch {}
+      try { await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['smart_pdm_iot_ocr_migrations']); } catch {}
     }
     client.release();
     await pool.end();
@@ -155,4 +200,5 @@ module.exports = {
   migrationBody,
   MIGRATION_KEY,
   MIGRATION_PATH,
+  MIGRATIONS,
 };

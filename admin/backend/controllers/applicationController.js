@@ -122,6 +122,7 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
             applicationId: req.params.id,
             documentKey: req.params.documentKey,
             requestedBy: resolveActorUserId(req),
+            ocrVersion: req.body?.ocr_version || null,
         });
 
         const io = req.app.get('io');
@@ -133,6 +134,7 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
             document_name: result?.document_name || payload?.document_type || null,
             request_id: payload?.request_id || payload?.id || null,
             status: payload?.status || 'queued',
+            ocr_version: payload?.ocr_version || 'v1',
             updated_at: new Date().toISOString(),
             source: 'iot_ocr',
         });
@@ -196,6 +198,16 @@ exports.confirmApplicationDocumentIotOcr = async (req, res) => {
             requestId: req.params.requestId,
             correctedFields: req.body?.corrected_fields || req.body?.fields,
             reviewedBy: resolveActorUserId(req),
+            reasonCode: req.body?.reason_code || null,
+        });
+        const request = data.request;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            ocr_version: request.ocr_version || 'v1',
+            status: request.status,
+            updated_at: request.updated_at,
         });
         return res.status(200).json({ message: 'OCR candidate confirmed', data });
     } catch (error) {
@@ -212,6 +224,16 @@ exports.retryApplicationDocumentIotOcr = async (req, res) => {
             documentKey: req.params.documentKey,
             requestId: req.params.requestId,
             requestedBy: resolveActorUserId(req),
+        });
+        const request = data.request;
+        socketEvents.applicationOcrQueued(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            ocr_version: request.ocr_version || 'v1',
+            status: request.status,
+            updated_at: request.updated_at,
+            source: 'iot_ocr_retry',
         });
         return res.status(data.created ? 202 : 200).json({
             message: data.created ? 'OCR retry queued' : 'Active OCR request returned',
@@ -236,6 +258,7 @@ exports.cancelApplicationDocumentIotOcr = async (req, res) => {
             request_id: request.request_id,
             application_id: request.application_id,
             document_key: request.document_key,
+            ocr_version: request.ocr_version || 'v1',
             status: request.status,
             expires_at: request.expires_at,
             updated_at: request.updated_at,
@@ -244,6 +267,107 @@ exports.cancelApplicationDocumentIotOcr = async (req, res) => {
     } catch (error) {
         return res.status(error.statusCode || 500).json({
             error: error.message || 'Failed to cancel OCR request',
+        });
+    }
+};
+
+exports.rejectApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.rejectApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.params.requestId,
+            reviewedBy: resolveActorUserId(req),
+            reasonCode: req.body?.reason_code,
+        });
+        const request = data.request;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: request.request_id,
+            application_id: request.application_id,
+            document_key: request.document_key,
+            ocr_version: request.ocr_version || 'v1',
+            status: request.status,
+            updated_at: request.updated_at,
+        });
+        return res.status(200).json({ message: 'OCR candidate rejected', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to reject OCR candidate',
+        });
+    }
+};
+
+exports.rescanApplicationDocumentIotOcr = async (req, res) => {
+    try {
+        const data = await applicationService.rescanApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestId: req.params.requestId,
+            reviewedBy: resolveActorUserId(req),
+            reasonCode: req.body?.reason_code,
+        });
+        const closed = data.request;
+        const replacement = data.replacement;
+        socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+            request_id: closed.request_id,
+            application_id: closed.application_id,
+            document_key: closed.document_key,
+            ocr_version: closed.ocr_version || 'v1',
+            status: closed.status,
+            updated_at: closed.updated_at,
+        });
+        if (replacement) {
+            socketEvents.applicationOcrQueued(req.app?.get?.('io'), {
+                request_id: replacement.request_id,
+                application_id: replacement.application_id,
+                document_key: replacement.document_key,
+                ocr_version: replacement.ocr_version || 'v1',
+                status: replacement.status,
+                updated_at: replacement.updated_at,
+                source: 'iot_ocr_rescan',
+            });
+        }
+        return res.status(202).json({ message: 'OCR rescan queued', data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to request OCR rescan',
+        });
+    }
+};
+
+exports.streamApplicationBirthOcrImage = async (req, res) => {
+    try {
+        if (!['birth_certificate', 'certificate_of_live_birth'].includes(String(req.params.documentKey || '').toLowerCase())) {
+            return res.status(404).json({ error: 'Birth review image not found' });
+        }
+        const birthV2 = require('../services/birthOcrV2Service');
+        const image = await birthV2.streamOriginal({
+            requestId: req.params.requestId,
+            applicationId: req.params.id,
+        });
+        res.setHeader('Content-Type', image.mime_type);
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.status(200).send(image.bytes);
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to load Birth review image',
+        });
+    }
+};
+
+exports.listIotOcrReviewQueue = async (req, res) => {
+    try {
+        const birthV2 = require('../services/birthOcrV2Service');
+        const data = await birthV2.listReviewQueue({
+            documentKey: req.query?.document_key || null,
+            group: req.query?.group || null,
+            priority: req.query?.priority || null,
+        });
+        return res.status(200).json({ data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to load OCR review queue',
         });
     }
 };

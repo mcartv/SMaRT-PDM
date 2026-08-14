@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import cv2
+import numpy as np
 import pytesseract
 
 try:
@@ -45,7 +46,6 @@ from extraction.indigency_core_field_extraction import (
     IndigencyExtractionConfig,
     extract_indigency_core_fields,
 )
-from extraction.gemini_birth_extractor import GeminiBirthResult, extract_with_gemini
 from extraction.psa_birth_row_cropper import (
     crop_psa_birth_name_rows,
     validate_psa_birth_name_topology,
@@ -416,71 +416,6 @@ def _run_birth_diagnostic_ocr(source_image: Any) -> str:
         return ""
 
 
-def _gemini_birth_field_texts(result: GeminiBirthResult) -> Dict[str, Dict[str, Any]]:
-    """Adapt the exact Gemini schema to the existing Birth review contract."""
-
-    source = result.fields
-    rows = {
-        "child_name": (
-            source.get("child_first_name", ""),
-            source.get("child_middle_name", ""),
-            source.get("child_last_name", ""),
-        ),
-        "mother_maiden_name": (
-            source.get("mothers_maiden_first", ""),
-            source.get("mothers_maiden_middle", ""),
-            source.get("mothers_maiden_last", ""),
-        ),
-        "father_name": (
-            source.get("father_first_name", ""),
-            source.get("father_middle_name", ""),
-            source.get("father_last_name", ""),
-        ),
-    }
-    output: Dict[str, Dict[str, Any]] = {}
-    component_names = ("first_name", "middle_name", "last_name")
-    for field_name, values in rows.items():
-        raw_components = {
-            name: str(value or "")
-            for name, value in zip(component_names, values)
-        }
-        not_applicable = (
-            field_name == "father_name"
-            and any(
-                value and "".join(character for character in value.upper() if character.isalpha()) == "NA"
-                for value in raw_components.values()
-            )
-        )
-        components = (
-            {name: "" for name in component_names}
-            if not_applicable
-            else dict(raw_components)
-        )
-        if not_applicable:
-            section_status = "not_applicable"
-            row_text = "N/A"
-        elif field_name == "father_name" and not any(components.values()):
-            section_status = "blank"
-            row_text = ""
-        elif field_name == "father_name" and not (
-            components["first_name"] and components["last_name"]
-        ):
-            section_status = "incomplete"
-            row_text = " ".join(value for value in components.values() if value)
-        else:
-            section_status = "present"
-            row_text = " ".join(value for value in components.values() if value)
-        output[field_name] = {
-            "raw_text": row_text,
-            "components": components,
-            "section_status": section_status,
-            "confidence": None,
-            "component_confidence": {name: None for name in component_names},
-            "component_raw_text": raw_components,
-        }
-    return output
-
-
 def _birth_diagnostic_review_payload(
     request: Dict,
     source_image: Any,
@@ -531,7 +466,7 @@ def _birth_diagnostic_review_payload(
     }
 
 
-def _run_birth_certificate_scan(
+def _run_birth_certificate_v1_scan(
     request: Dict,
     capture_path: str,
     request_stop=None,
@@ -752,33 +687,20 @@ def _run_birth_certificate_scan(
         if request_stop and request_stop.is_set():
             return False, {"status": "cancelled"}
         log.info(
-            "Birth OCR engines running in parallel request=%s engines=tesseract+gemini",
+            "Birth V1 OCR running request=%s engine=tesseract",
             _safe_request_ref(request_id),
         )
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            tesseract_future = executor.submit(
-                extract_psa_birth_row_text,
-                crop_result.data,
-            )
-            gemini_future = executor.submit(
-                extract_with_gemini,
-                crop_result.data.crops,
-            )
-            try:
-                ocr_result = tesseract_future.result()
-            except Exception:
-                ocr_result = None
-            gemini_result = gemini_future.result()
+        try:
+            ocr_result = extract_psa_birth_row_text(crop_result.data)
+        except Exception:
+            ocr_result = None
         if request_stop and request_stop.is_set():
             return False, {"status": "cancelled"}
 
         log.info(
-            "Birth OCR engines finished request=%s tesseract_success=%s gemini_enabled=%s gemini_success=%s gemini_error=%s",
+            "Birth V1 OCR finished request=%s tesseract_success=%s",
             _safe_request_ref(request_id),
             bool(getattr(ocr_result, "success", False)),
-            gemini_result.enabled,
-            gemini_result.success,
-            gemini_result.error_code or "none",
         )
 
         tesseract_field_texts = {
@@ -803,31 +725,22 @@ def _run_birth_certificate_scan(
             )
             for field_name in ("child_name", "mother_maiden_name", "father_name")
         )
-        gemini_selected = bool(gemini_result.success)
-        ocr_field_texts = (
-            _gemini_birth_field_texts(gemini_result)
-            if gemini_selected
-            else tesseract_field_texts
-        )
+        ocr_field_texts = tesseract_field_texts
         log.info(
             "Birth OCR candidate selected request=%s engine=%s fallback=%s structured_fields=%s",
             _safe_request_ref(request_id),
-            "gemini" if gemini_selected else "tesseract",
-            not gemini_selected,
+            "tesseract",
+            False,
             sorted(ocr_field_texts),
         )
         selected_preprocessing_variant = (
-            "gemini_nine_cell_with_tesseract_raw"
-            if gemini_selected
-            else (
-                getattr(
-                    next(iter(getattr(getattr(ocr_result, "data", None), "fields", ())), None),
-                    "preprocessing_variant",
-                    preprocessing_variant,
-                )
-                if getattr(getattr(ocr_result, "data", None), "fields", ())
-                else preprocessing_variant
+            getattr(
+                next(iter(getattr(getattr(ocr_result, "data", None), "fields", ())), None),
+                "preprocessing_variant",
+                preprocessing_variant,
             )
+            if getattr(getattr(ocr_result, "data", None), "fields", ())
+            else preprocessing_variant
         )
         ocr_metrics = dict(getattr(ocr_result, "metrics", {}) or {})
         extracted_fields = build_birth_extracted_fields_from_ocr_result(
@@ -839,7 +752,7 @@ def _run_birth_certificate_scan(
         structured_text = extracted_fields["raw_text"]
         ocr_attempts = int(extracted_fields["ocr_attempts"])
         preprocessing_variant = str(extracted_fields["preprocessing_variant"])
-        structured_ready = bool(gemini_selected or getattr(ocr_result, "success", False))
+        structured_ready = bool(getattr(ocr_result, "success", False))
         if not structured_ready:
             log.warning(
                 "Birth OCR requires diagnostic review request=%s reason=structured_names_missing",
@@ -870,7 +783,7 @@ def _run_birth_certificate_scan(
         log.info(
             "Birth OCR ready for review request=%s engine=%s raw_snapshot=available",
             _safe_request_ref(request_id),
-            "gemini" if gemini_selected else "tesseract",
+            "tesseract",
         )
         payload = {
             "status": status,
@@ -911,24 +824,17 @@ def _run_birth_certificate_scan(
                 "row_identity_issue_codes": _issue_codes(identity_result),
                 "row_identity_rows": identity_result.metrics.get("row_status", {}),
                 "calibration": calibration_metadata,
+                "ocr_version": "v1",
                 "confidence_source": ocr_metrics.get(
                     "confidence_source", "tesseract_image_to_data_three_variant_vote"
-                ) if not gemini_selected else "unavailable",
-                "ocr_engine": "gemini" if gemini_selected else "tesseract",
-                "gemini_enabled": gemini_result.enabled,
-                "gemini_status": (
-                    "selected"
-                    if gemini_selected
-                    else ("fallback" if gemini_result.enabled else "disabled")
                 ),
-                "gemini_model": gemini_result.model,
-                "gemini_error_code": gemini_result.error_code,
+                "ocr_engine": "tesseract",
+                "gemini_enabled": False,
+                "gemini_status": "not_used_v1",
                 "paddle_enabled": False,
                 "manual_entry_status": "disabled",
                 "structured_value_source": (
-                    "birth_nine_cell_gemini"
-                    if gemini_selected
-                    else "birth_nine_cell_tesseract_vote"
+                    "birth_nine_cell_tesseract_vote"
                 ),
                 "raw_text_mode": "nine_cell_selected_observations",
                 "variant_observations": ocr_metrics.get(
@@ -945,20 +851,21 @@ def _run_birth_certificate_scan(
                 "preprocessing_variant": preprocessing_variant,
                 "structured_field_keys": sorted(ocr_field_texts),
             },
-            "validation_issues": (
-                [{
-                    "code": "GEMINI_CONFIDENCE_UNAVAILABLE",
+            "validation_issues": [
+                {
+                    "code": str(issue.get("code") or "BIRTH_OCR_REVIEW"),
                     "message": "Birth certificate OCR requires admin review.",
-                }]
-                if gemini_selected
-                else [
-                    {
-                        "code": str(issue.get("code") or "BIRTH_OCR_REVIEW"),
-                        "message": "Birth certificate OCR requires admin review.",
-                    }
-                    for issue in getattr(ocr_result, "issues", ())
-                ]
-            ),
+                }
+                for issue in getattr(ocr_result, "issues", ())
+            ] + [
+                {
+                    "code": "BIRTH_FIELD_LOW_CONFIDENCE",
+                    "field": field_name,
+                    "message": "This Birth name needs closer admin review.",
+                }
+                for field_name, value in ocr_field_texts.items()
+                if value.get("confidence") is not None and value["confidence"] < 80.0
+            ],
             "error_message": error_message,
         }
         return status == "review_required", payload
@@ -980,6 +887,184 @@ def _run_birth_certificate_scan(
                 "ocr_issue_codes": ["BIRTH_PIPELINE_FAILED"],
             },
         )
+
+
+def _birth_v2_diagnostic_payload(
+    request: Dict,
+    *,
+    issue_code: str,
+    issue_message: str,
+    source_updates: Dict[str, Any] | None = None,
+) -> Tuple[bool, Dict]:
+    return True, {
+        "status": "review_required",
+        "raw_text": "",
+        "ocr_confidence": None,
+        "field_confidence": {},
+        "document_type": "birth_certificate",
+        "manual_review_required": True,
+        "ocr_attempts": 0,
+        "preprocessing_variant": "birth_v2_capture_only",
+        "extracted_fields": _empty_birth_extracted_fields(),
+        "source_payload": {
+            "source": "pi-worker-iot-ocr-request",
+            "mode": "birth_certificate_v2_capture_upload",
+            "ocr_version": "v2",
+            "registration_status": "mismatch",
+            "ocr_engine": "backend_gemini",
+            "diagnostic_only": True,
+            "worker_status": "review_required",
+            **(source_updates or {}),
+        },
+        "validation_issues": [{"code": issue_code, "message": issue_message}],
+        "error_message": None,
+    }
+
+
+def _birth_v2_roi_polygon(bounds: Any, homography: Any, source_shape: tuple[int, ...]) -> list[list[float]]:
+    height, width = source_shape[:2]
+    registered_points = np.array([[
+        [bounds.x * 1400.0, bounds.y * 1375.0],
+        [(bounds.x + bounds.width) * 1400.0, bounds.y * 1375.0],
+        [(bounds.x + bounds.width) * 1400.0, (bounds.y + bounds.height) * 1375.0],
+        [bounds.x * 1400.0, (bounds.y + bounds.height) * 1375.0],
+    ]], dtype=np.float32)
+    matrix = np.array(homography, dtype=np.float64).reshape(3, 3)
+    source_points = cv2.perspectiveTransform(registered_points, np.linalg.inv(matrix))[0]
+    return [
+        [
+            round(min(1.0, max(0.0, float(x) / float(width))), 6),
+            round(min(1.0, max(0.0, float(y) / float(height))), 6),
+        ]
+        for x, y in source_points
+    ]
+
+
+def _run_birth_certificate_v2_scan(
+    request: Dict,
+    capture_path: str,
+    api: ApiClient | None,
+    request_stop=None,
+) -> Tuple[bool, Dict]:
+    request_id = get_request_id(request)
+    source_image = _load_registered_image(capture_path)
+    if source_image is None:
+        return _birth_v2_diagnostic_payload(
+            request,
+            issue_code="BIRTH_V2_CAPTURE_UNAVAILABLE",
+            issue_message="The fresh Birth capture could not be loaded.",
+        )
+    registration_mode = "strict_grid"
+    registration_result = register_psa_birth_form(source_image)
+    if not registration_result.success:
+        relaxed = register_psa_birth_form(source_image, config=BIRTH_RELAXED_REGISTRATION_CONFIG)
+        if relaxed.success:
+            registration_result = relaxed
+            registration_mode = "relaxed_validated_grid"
+        else:
+            registration_result = register_psa_birth_form_grid_envelope(source_image)
+            registration_mode = "validated_grid_envelope"
+    if not registration_result.success:
+        return _birth_v2_diagnostic_payload(
+            request,
+            issue_code="PSA_BIRTH_V2_TEMPLATE_MISMATCH",
+            issue_message="Approved Birth template registration failed.",
+            source_updates={"registration_mode": registration_mode},
+        )
+    cropper_config, calibration_metadata = load_birth_station_calibration()
+    topology_result = validate_psa_birth_name_topology(
+        registration_result.data.registered_image,
+        config=cropper_config,
+    )
+    if not topology_result.success or topology_result.data is None:
+        return _birth_v2_diagnostic_payload(
+            request,
+            issue_code="PSA_BIRTH_V2_TOPOLOGY_MISMATCH",
+            issue_message="Birth Items 1, 6, and 13 topology could not be validated.",
+            source_updates={"registration_status": registration_result.status},
+        )
+    crop_kwargs = {
+        "registration_metadata": _registration_context(registration_result),
+        "topology": topology_result.data,
+    }
+    if cropper_config:
+        crop_kwargs["config"] = cropper_config
+    crop_result = crop_psa_birth_name_rows(
+        registration_result.data.registered_image,
+        **crop_kwargs,
+    )
+    if not crop_result.success or len(crop_result.data.crops) != 9:
+        return _birth_v2_diagnostic_payload(
+            request,
+            issue_code="PSA_BIRTH_V2_NINE_CELL_CROP_FAILED",
+            issue_message="Exactly nine Birth name cells could not be cropped.",
+            source_updates={"registration_status": registration_result.status},
+        )
+    if request_stop and request_stop.is_set():
+        return False, {"status": "cancelled"}
+    if api is None:
+        return False, {"status": "failed", "error_message": "Birth V2 upload client is unavailable."}
+
+    artifacts: list[dict[str, Any]] = [{
+        "artifact_kind": "original",
+        "cell_key": None,
+        "mime_type": "image/jpeg",
+        "content": Path(capture_path).read_bytes(),
+        "roi_polygon": None,
+    }]
+    field_items = {"child_name": "item1", "mother_maiden_name": "item6", "father_name": "item13"}
+    region_by_name = {region.name: region for region in crop_result.data.regions}
+    homography = registration_result.data.transformation_metadata.homography
+    for field_name, component_name in (
+        (field_name, component_name)
+        for field_name in ("child_name", "mother_maiden_name", "father_name")
+        for component_name in ("first_name", "middle_name", "last_name")
+    ):
+        crop_key = f"{field_name}.{component_name}"
+        encoded, buffer = cv2.imencode(".png", crop_result.data.crops[crop_key])
+        if not encoded:
+            return _birth_v2_diagnostic_payload(
+                request,
+                issue_code="PSA_BIRTH_V2_CELL_ENCODING_FAILED",
+                issue_message="A Birth name cell could not be encoded safely.",
+            )
+        artifacts.append({
+            "artifact_kind": "cell",
+            "cell_key": f"{field_items[field_name]}_{component_name.replace('_name', '')}",
+            "mime_type": "image/png",
+            "content": buffer.tobytes(),
+            "roi_polygon": _birth_v2_roi_polygon(
+                region_by_name[crop_key].bounds,
+                homography,
+                source_image.shape,
+            ),
+        })
+    log.info(
+        "Birth V2 private upload started request=%s artifacts=%s engine=backend_gemini",
+        _safe_request_ref(request_id),
+        len(artifacts),
+    )
+    response = api.submit_birth_v2_artifacts(request_id, artifacts)
+    if not response:
+        return False, {
+            "status": "failed",
+            "error_code": "BIRTH_V2_UPLOAD_FAILED",
+            "error_message": "Private Birth V2 upload or backend extraction failed.",
+        }
+    log.info(
+        "Birth V2 backend extraction finished request=%s status=review_required",
+        _safe_request_ref(request_id),
+    )
+    return True, {
+        "status": "review_required",
+        "_v2_backend_completed": True,
+        "source_payload": {
+            "ocr_version": "v2",
+            "registration_status": registration_result.status,
+            "topology_status": topology_result.status,
+            "calibration": calibration_metadata,
+        },
+    }
 
 
 def _capture_outcome_payload(
@@ -1355,7 +1440,7 @@ def _configure_camera_for_document(camera: CameraController, document_key: str) 
         camera.capture_height = BIRTH_CAMERA_CAPTURE_HEIGHT
 
 
-def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bool, Dict]:
+def run_scan(request: Dict, status_callback=None, request_stop=None, api: ApiClient | None = None) -> Tuple[bool, Dict]:
     request_ref = _safe_request_ref(get_request_id(request))
     document_key = str(request.get("document_key") or "unknown")
     log.info("Starting capture request=%s document=%s", request_ref, document_key)
@@ -1405,11 +1490,26 @@ def run_scan(request: Dict, status_callback=None, request_stop=None) -> Tuple[bo
     )
 
     if _is_birth_certificate_job(request):
-        success, payload = _run_birth_certificate_scan(
-            request,
-            capture_result.capture_path,
-            request_stop=request_stop,
-        )
+        ocr_version = str(request.get("ocr_version") or "v1").strip().lower()
+        if ocr_version == "v1":
+            success, payload = _run_birth_certificate_v1_scan(
+                request,
+                capture_result.capture_path,
+                request_stop=request_stop,
+            )
+        elif ocr_version == "v2":
+            success, payload = _run_birth_certificate_v2_scan(
+                request,
+                capture_result.capture_path,
+                api,
+                request_stop=request_stop,
+            )
+        else:
+            success, payload = False, {
+                "status": "failed",
+                "error_code": "UNSUPPORTED_BIRTH_OCR_VERSION",
+                "error_message": "Birth OCR version is unsupported.",
+            }
     elif document_key == "student_grade_forms":
         success, payload = _run_grade_form_scan(request, capture_result.capture_path)
     else:
@@ -1423,6 +1523,10 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict, request=No
     log.info("Submitting result request=%s status=%s", request_ref, payload.get("status"))
 
     workspace = payload.pop("_workspace", None)
+    if payload.pop("_v2_backend_completed", False):
+        if workspace:
+            shutil.rmtree(workspace, ignore_errors=True)
+        return True
     if payload.get("status") == "review_required":
         candidate = candidate_from_worker_payload(request or {"request_id": request_id}, payload).serialize()
         response = api.submit_result(
@@ -1447,6 +1551,7 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict, request=No
         extracted_fields=payload.get("extracted_fields"),
         source_payload=payload.get("source_payload"),
         error_message=payload.get("error_message"),
+        error_code=payload.get("error_code"),
         )
 
     if not response:
@@ -1465,18 +1570,7 @@ def main():
     removed_workspaces = cleanup_expired_workspaces()
     if removed_workspaces:
         log.info("Expired OCR workspaces removed count=%s", removed_workspaces)
-    gemini_enabled = os.getenv("USE_GEMINI", "false").strip().lower() in {"1", "true", "yes", "on"}
-    gemini_model = (
-        os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-    )
-    gemini_key_present = bool(str(os.getenv("GEMINI_API_KEY", "")).strip())
-    log.info(
-        "Birth Gemini config | enabled=%s model=%s key_present=%s timeout_seconds=%s",
-        gemini_enabled,
-        gemini_model,
-        gemini_key_present,
-        os.getenv("GEMINI_TIMEOUT_SECONDS", "20"),
-    )
+    log.info("Birth OCR routing ready | v1=pi_tesseract | v2=backend_gemini")
     log.info(
         "Starting Pi IoT OCR worker | poll=%ss | mode=interactive | device=%s",
         POLL_INTERVAL_SECONDS,
@@ -1594,6 +1688,7 @@ def main():
                     request,
                     status_callback=report_status,
                     request_stop=request_stop,
+                    api=api,
                 )
                 if not request_stop.is_set():
                     publish_worker_activity(

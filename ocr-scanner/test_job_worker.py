@@ -10,7 +10,6 @@ sys.modules.setdefault("api", SimpleNamespace(ApiClient=MagicMock))
 
 import job_worker
 from capture_session import CANCELLED, CAPTURED, FAILED, CaptureSessionResult
-from extraction.gemini_birth_extractor import GeminiBirthResult
 
 
 CAPTURE_PATH = "/tmp/shared-capture.jpg"
@@ -36,6 +35,7 @@ def _birth_registration_result(status="success"):
         canonical_vertical_landmarks=(0.2, 0.5, 0.8),
         canonical_horizontal_landmarks=(0.1, 0.4, 0.7),
         maximum_canonical_edge_deviation=0.0,
+        homography=tuple(float(value) for value in np.eye(3).reshape(-1)),
     )
     return _stage_result(
         status=status,
@@ -101,7 +101,35 @@ def _birth_crop_result(status="success"):
     )
 
 
-def _birth_ocr_result(status="review_required", success=True, issues=None):
+def _birth_v2_crop_result():
+    field_items = {
+        "child_name": "item1",
+        "mother_maiden_name": "item6",
+        "father_name": "item13",
+    }
+    crops = {}
+    regions = []
+    for row_index, field_name in enumerate(field_items):
+        for column_index, component_name in enumerate(("first_name", "middle_name", "last_name")):
+            key = f"{field_name}.{component_name}"
+            crops[key] = np.full((48, 160, 3), 220 - row_index * 10 - column_index, dtype=np.uint8)
+            regions.append(SimpleNamespace(
+                name=key,
+                bounds=SimpleNamespace(
+                    x=0.05 + column_index * 0.3,
+                    y=0.08 + row_index * 0.3,
+                    width=0.25,
+                    height=0.08,
+                ),
+            ))
+    return _stage_result(
+        status="success",
+        success=True,
+        data=SimpleNamespace(crops=crops, regions=tuple(regions)),
+    )
+
+
+def _birth_ocr_result(status="review_required", success=True, issues=None, confidence=91.0):
     values = {
         "child_name": "Child One" if success else "",
         "mother_maiden_name": "Mother One" if success else "",
@@ -122,11 +150,11 @@ def _birth_ocr_result(status="review_required", success=True, issues=None):
             issue_codes=() if success else ("OCR_EXECUTION_FAILED",),
             preprocessing_variant="registered_whole_row_ocr",
             ocr_attempts=1,
-            confidence=91.0,
+            confidence=confidence,
             component_confidence={
-                "first_name": 91.0,
+                "first_name": confidence,
                 "middle_name": None,
-                "last_name": 91.0,
+                "last_name": confidence,
             },
             component_raw_text={
                 "first_name": value.split()[0] if value else "",
@@ -479,12 +507,37 @@ class JobWorkerTest(unittest.TestCase):
 
         self.assertTrue(success)
         self.assertEqual(payload["status"], "review_required")
+
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_v1_low_confidence_is_a_field_warning_only(self, register, crop, ocr):
+        register.return_value = _birth_registration_result()
+        crop.return_value = _birth_crop_result()
+        ocr.return_value = _birth_ocr_result(confidence=62.5)
+
+        success, payload = job_worker.run_scan(
+            self.request("birth_certificate", ocr_version="v1")
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(
+            payload["extracted_fields"]["fields"]["child_name"]["components"]["first_name"],
+            "Child",
+        )
+        warnings = [
+            issue for issue in payload["validation_issues"]
+            if issue["code"] == "BIRTH_FIELD_LOW_CONFIDENCE"
+        ]
+        self.assertEqual({issue["field"] for issue in warnings}, {
+            "child_name", "mother_maiden_name", "father_name",
+        })
         fields = payload["extracted_fields"]["fields"]
         self.assertEqual(
             fields["mother_maiden_name"]["components"]["first_name"],
             "Mother",
         )
-        self.assertEqual(payload["field_confidence"]["mother_maiden_name"], 91.0)
+        self.assertEqual(payload["field_confidence"]["mother_maiden_name"], 62.5)
         self.assertEqual(payload["source_payload"]["manual_entry_status"], "disabled")
         self.assertNotIn("image", payload)
         self.assertNotIn("capture_path", payload)
@@ -684,103 +737,33 @@ class JobWorkerTest(unittest.TestCase):
         )
         diagnostic_ocr.assert_called_once()
 
-    @patch("job_worker.extract_with_gemini")
+    @patch("job_worker._run_birth_certificate_v2_scan")
+    @patch("job_worker._run_birth_certificate_v1_scan")
+    def test_birth_version_routes_before_extraction(self, v1, v2):
+        v1.return_value = (True, {"status": "review_required"})
+        v2.return_value = (True, {"status": "review_required", "_v2_backend_completed": True})
+        api = MagicMock()
+
+        job_worker.run_scan(self.request("birth_certificate", ocr_version="v1"), api=api)
+        v1.assert_called_once()
+        v2.assert_not_called()
+
+        v1.reset_mock()
+        job_worker.run_scan(self.request("birth_certificate", ocr_version="v2"), api=api)
+        v2.assert_called_once()
+        v1.assert_not_called()
+
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_gemini_structured_fields_keep_tesseract_raw_snapshot(
-        self,
-        register,
-        crop,
-        tesseract,
-        gemini,
-    ):
-        register.return_value = _birth_registration_result()
-        crop.return_value = _birth_crop_result()
-        tesseract.return_value = _birth_ocr_result()
-        gemini.return_value = GeminiBirthResult(
-            success=True,
-            enabled=True,
-            model="gemini-2.5-flash",
-            fields={
-                "child_first_name": "GEMINI CHILD",
-                "child_middle_name": "",
-                "child_last_name": "SURNAME",
-                "mothers_maiden_first": "GEMINI MOTHER",
-                "mothers_maiden_middle": "MIDDLE",
-                "mothers_maiden_last": "MAIDEN",
-                "father_first_name": "",
-                "father_middle_name": "",
-                "father_last_name": "",
-            },
-        )
-
-        success, payload = job_worker.run_scan(self.request("birth_certificate"))
-
-        self.assertTrue(success)
-        self.assertEqual(
-            payload["raw_text"],
-            "Child\t\tOne\nMother\t\tOne\nFather\t\tOne",
-        )
-        child = payload["extracted_fields"]["fields"]["child_name"]
-        self.assertEqual(child["components"]["first_name"], "GEMINI CHILD")
-        self.assertIsNone(child["component_confidence"]["first_name"])
-        self.assertEqual(payload["source_payload"]["ocr_engine"], "gemini")
-        self.assertEqual(payload["source_payload"]["gemini_status"], "selected")
-        candidate = job_worker.candidate_from_worker_payload(
-            self.request("birth_certificate"), payload
-        ).serialize()
-        self.assertEqual(candidate["processing"]["ocr_engine"], "gemini")
-        self.assertEqual(candidate["raw_text"], payload["raw_text"])
-        self.assertNotIn("image", repr(candidate).lower())
-
-    @patch("job_worker.extract_with_gemini")
-    @patch("job_worker.extract_psa_birth_row_text")
-    @patch("job_worker.crop_psa_birth_name_rows")
-    @patch("job_worker.register_psa_birth_form")
-    def test_birth_gemini_failure_uses_existing_tesseract_candidate(
-        self,
-        register,
-        crop,
-        tesseract,
-        gemini,
-    ):
-        register.return_value = _birth_registration_result()
-        crop.return_value = _birth_crop_result()
-        tesseract.return_value = _birth_ocr_result()
-        gemini.return_value = GeminiBirthResult(
-            success=False,
-            enabled=True,
-            model="gemini-2.5-flash",
-            error_code="TIMEOUT",
-        )
-
-        success, payload = job_worker.run_scan(self.request("birth_certificate"))
-
-        self.assertTrue(success)
-        child = payload["extracted_fields"]["fields"]["child_name"]
-        self.assertEqual(child["components"]["first_name"], "Child")
-        self.assertEqual(payload["source_payload"]["ocr_engine"], "tesseract")
-        self.assertEqual(payload["source_payload"]["gemini_error_code"], "TIMEOUT")
-
-    @patch("job_worker.extract_with_gemini")
-    @patch("job_worker.extract_psa_birth_row_text")
-    @patch("job_worker.crop_psa_birth_name_rows")
-    @patch("job_worker.register_psa_birth_form")
-    def test_birth_stop_before_engines_skips_gemini_and_tesseract(
-        self,
-        register,
-        crop,
-        tesseract,
-        gemini,
-    ):
+    def test_birth_v1_stop_before_tesseract(self, register, crop, tesseract):
         register.return_value = _birth_registration_result()
         crop.return_value = _birth_crop_result()
         stop = MagicMock()
         stop.is_set.return_value = True
 
-        success, payload = job_worker._run_birth_certificate_scan(
-            self.request("birth_certificate"),
+        success, payload = job_worker._run_birth_certificate_v1_scan(
+            self.request("birth_certificate", ocr_version="v1"),
             CAPTURE_PATH,
             request_stop=stop,
         )
@@ -788,7 +771,45 @@ class JobWorkerTest(unittest.TestCase):
         self.assertFalse(success)
         self.assertEqual(payload["status"], "cancelled")
         tesseract.assert_not_called()
-        gemini.assert_not_called()
+
+    @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")
+    @patch("job_worker.cv2.imencode")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_v2_uploads_original_and_exactly_nine_cells_without_pi_ocr(
+        self,
+        register,
+        crop,
+        imencode,
+        _read_bytes,
+    ):
+        register.return_value = _birth_registration_result()
+        crop.return_value = _birth_v2_crop_result()
+        imencode.return_value = (True, np.frombuffer(b"\x89PNG\r\n\x1a\ncell", dtype=np.uint8))
+        api = MagicMock()
+        api.submit_birth_v2_artifacts.return_value = {"request": {"status": "review_required"}}
+
+        success, payload = job_worker._run_birth_certificate_v2_scan(
+            self.request("birth_certificate", ocr_version="v2"),
+            CAPTURE_PATH,
+            api,
+        )
+
+        self.assertTrue(success)
+        self.assertTrue(payload["_v2_backend_completed"])
+        api.submit_birth_v2_artifacts.assert_called_once()
+        artifacts = api.submit_birth_v2_artifacts.call_args.args[1]
+        self.assertEqual(len(artifacts), 10)
+        self.assertEqual(artifacts[0]["artifact_kind"], "original")
+        self.assertEqual(
+            [item["cell_key"] for item in artifacts[1:]],
+            [
+                "item1_first", "item1_middle", "item1_last",
+                "item6_first", "item6_middle", "item6_last",
+                "item13_first", "item13_middle", "item13_last",
+            ],
+        )
+        self.generic_ocr.assert_not_called()
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
@@ -980,6 +1001,7 @@ class JobWorkerTest(unittest.TestCase):
                 "preprocessing_variant": "psa_birth_v1",
                 "ocr_engine": "tesseract",
                 "registration_mode": "",
+                "ocr_version": "v1",
                 "topology_status": "unknown",
                 "topology_validated_row_count": 0,
                 "topology_rows": {},

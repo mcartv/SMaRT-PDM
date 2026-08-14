@@ -1400,17 +1400,52 @@ export function normalizeReviewFields(candidate) {
 }
 
 function ocrScoreLabel(candidate, key, displayedValue) {
-  const numeric = Number(candidate?.field_confidence?.[key]);
+  const rawScore = candidate?.field_confidence?.[key];
+  const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
   return String(displayedValue || '').trim() ? 'Detected' : '—';
 }
 
 function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
-  const numeric = Number(
-    candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey]
-  );
+  const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
+  const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
   return String(displayedValue || '').trim() ? 'Detected' : '—';
+}
+
+const BIRTH_REGION_PREFIX = {
+  child_name: 'item1',
+  mother_maiden_name: 'item6',
+  father_name: 'item13',
+};
+
+function BirthV2ReviewImage({ src, regions, activeRegion }) {
+  if (!src) {
+    return (
+      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
+        Loading private Birth review image…
+      </div>
+    );
+  }
+  return (
+    <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-900" aria-label="Private Birth OCR review image">
+      <img src={src} alt="Captured Birth certificate for admin review" className="block h-auto w-full" />
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+        {Object.entries(regions || {}).map(([key, points]) => {
+          if (!Array.isArray(points)) return null;
+          return (
+            <polygon
+              key={key}
+              points={points.map(([x, y]) => `${x},${y}`).join(' ')}
+              fill={key === activeRegion ? 'rgba(250, 204, 21, 0.30)' : 'rgba(59, 130, 246, 0.08)'}
+              stroke={key === activeRegion ? '#facc15' : '#60a5fa'}
+              strokeWidth={key === activeRegion ? 0.006 : 0.002}
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
 }
 
 function OCRPanel({
@@ -1432,7 +1467,15 @@ function OCRPanel({
   onCancelIotOcr,
   cancellingIotOcr,
   cancelSupported,
+  birthOcrVersion,
+  onBirthOcrVersionChange,
+  birthReviewImageUrl,
+  birthReviewReason,
+  onBirthReviewReasonChange,
+  onRejectCandidate,
+  onRescanCandidate,
 }) {
+  const [activeBirthRegion, setActiveBirthRegion] = useState('item1_first');
   const canRunIotOcr = Boolean(
     activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
   );
@@ -1442,8 +1485,13 @@ function OCRPanel({
   const gradeReviewCompleted = isGradeReview && reviewCandidate.status === 'completed';
   const indigencyReviewCompleted = isIndigencyReview && reviewCandidate.status === 'completed';
   const birthReviewCompleted = isBirthReview && reviewCandidate.status === 'completed';
+  const birthReviewClosed = isBirthReview && ['completed', 'failed'].includes(reviewCandidate.status);
   const birthDiagnosticOnly = Boolean(
     isBirthReview && reviewCandidate?.processing?.diagnostic_only
+  );
+  const birthHasCorrections = Boolean(
+    isBirthReview
+    && JSON.stringify(correctedFields || {}) !== JSON.stringify(normalizeReviewFields(reviewCandidate))
   );
 
   return (
@@ -1458,6 +1506,20 @@ function OCRPanel({
         </div>
 
         <div className="flex items-center gap-2">
+          {activeDoc?.id === 'birth_certificate' && !runningIotOcr && !reviewCandidate && (
+            <label className="flex items-center gap-1 text-xs text-stone-600">
+              <span>Mode</span>
+              <select
+                value={birthOcrVersion}
+                onChange={(event) => onBirthOcrVersionChange(event.target.value)}
+                className="h-8 rounded-lg border border-stone-200 bg-white px-2"
+                aria-label="Birth OCR version"
+              >
+                <option value="v2">V2 Gemini review</option>
+                <option value="v1">V1 local Tesseract</option>
+              </select>
+            </label>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -1642,18 +1704,40 @@ function OCRPanel({
                 <p className="text-base font-bold tracking-wide text-stone-900">BIRTH CERTIFICATE OCR</p>
                 <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
               </div>
-              <Badge className={birthReviewCompleted
-                ? 'border-green-200 bg-green-100 text-green-800'
-                : 'border-rose-200 bg-rose-100 text-rose-800'}>
-                {birthReviewCompleted ? 'OCR confirmed' : 'Review required'}
-              </Badge>
+              <div className="flex flex-wrap justify-end gap-1">
+                {(reviewCandidate.review_exceptions || []).map((exception) => (
+                  <Badge key={`${exception.exception_group}-${exception.field_key || 'document'}`} className={
+                    exception.priority === 'compliance_hold'
+                      ? 'border-red-300 bg-red-100 text-red-800'
+                      : 'border-amber-200 bg-amber-100 text-amber-800'
+                  }>
+                    {String(exception.exception_group || '').replaceAll('_', ' ')}
+                  </Badge>
+                ))}
+                <Badge className={birthReviewCompleted
+                  ? 'border-green-200 bg-green-100 text-green-800'
+                  : 'border-rose-200 bg-rose-100 text-rose-800'}>
+                  {birthReviewCompleted ? 'OCR confirmed' : reviewCandidate.status === 'failed' ? 'OCR closed' : 'Review required'}
+                </Badge>
+              </div>
             </div>
 
             {birthDiagnosticOnly && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                The Birth rows were not safely identified. The raw snapshot below is diagnostic
-                full-page OCR only and cannot be confirmed as parent information. Reposition the
-                complete form and retry OCR.
+                {reviewCandidate.ocr_version === 'v2'
+                  ? 'Gemini could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
+                  : 'The Birth rows were not safely identified. The raw snapshot below is diagnostic full-page OCR only and cannot be confirmed as parent information. Reposition the complete form and retry OCR.'}
+              </div>
+            )}
+
+            {reviewCandidate.ocr_version === 'v2' && reviewCandidate.status === 'review_required' && (
+              <div className="lg:float-left lg:mr-4 lg:w-[48%]">
+                <BirthV2ReviewImage
+                  src={birthReviewImageUrl}
+                  regions={reviewCandidate?.processing?.source_regions}
+                  activeRegion={activeBirthRegion}
+                />
+                <p className="mt-1 text-xs text-stone-500">Focus a field to highlight its source cell.</p>
               </div>
             )}
 
@@ -1681,6 +1765,8 @@ function OCRPanel({
                     <Input
                       value={correctedFields?.child_name?.[part] || ''}
                       readOnly
+                      data-birth-ocr-field
+                      onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX.child_name}_${part.replace('_name', '')}`)}
                       aria-label={`Child ${label}`}
                       className="bg-stone-100"
                     />
@@ -1713,7 +1799,9 @@ function OCRPanel({
                       </span>
                       <Input
                         value={correctedFields?.[fieldKey]?.[part] || ''}
-                        readOnly={birthReviewCompleted}
+                        readOnly={birthReviewClosed}
+                        data-birth-ocr-field
+                        onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX[fieldKey]}_${part.replace('_name', '')}`)}
                         aria-label={`${heading} ${label}`}
                         onChange={(event) => onCorrectedFieldsChange({
                           ...correctedFields,
@@ -1722,7 +1810,7 @@ function OCRPanel({
                             [part]: event.target.value,
                           },
                         })}
-                        className={birthReviewCompleted ? 'bg-stone-100' : 'bg-white'}
+                        className={birthReviewClosed ? 'bg-stone-100' : 'bg-white'}
                       />
                     </label>
                   ))}
@@ -1730,13 +1818,45 @@ function OCRPanel({
               </div>
             ))}
 
-            {!birthReviewCompleted && (
-              <div className="flex justify-between gap-2">
-                <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
-                {!birthDiagnosticOnly && <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
-                  {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Confirm Parents
-                </Button>}
+            {!birthReviewClosed && (
+              <div className="clear-both space-y-3">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Review reason
+                  <select
+                    value={birthReviewReason}
+                    onChange={(event) => onBirthReviewReasonChange(event.target.value)}
+                    className="mt-1 h-9 w-full rounded-lg border border-stone-200 bg-white px-2 text-sm"
+                    aria-label="Birth OCR review reason"
+                  >
+                    <option value="">Select when correcting, rejecting, or rescanning</option>
+                    <option value="OCR_CORRECTED">OCR correction</option>
+                    <option value="UNREADABLE_CAPTURE">Unreadable capture</option>
+                    <option value="WRONG_DOCUMENT">Wrong document</option>
+                    <option value="FIELDS_MISSING">Required fields missing</option>
+                    <option value="DUPLICATE_SUSPECTED">Duplicate suspected</option>
+                  </select>
+                </label>
+                <div className="flex flex-wrap justify-between gap-2">
+                  {reviewCandidate.ocr_version === 'v2' ? (
+                    <Button variant="outline" onClick={onRescanCandidate} disabled={reviewingCandidate || !birthReviewReason}>
+                      Request Rescan
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={onRejectCandidate} disabled={reviewingCandidate || !birthReviewReason} className="text-red-700">
+                      Reject
+                    </Button>
+                    {!birthDiagnosticOnly && <Button
+                      onClick={onConfirmCandidate}
+                      disabled={reviewingCandidate || (birthHasCorrections && !birthReviewReason)}
+                    >
+                      {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {birthHasCorrections ? 'Correct & Confirm' : 'Confirm Parents'}
+                    </Button>}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2727,6 +2847,9 @@ export default function DocumentVerification() {
   const [reviewCandidate, setReviewCandidate] = useState(null);
   const [correctedFields, setCorrectedFields] = useState({});
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
+  const [birthOcrVersion, setBirthOcrVersion] = useState('v2');
+  const [birthReviewImageUrl, setBirthReviewImageUrl] = useState('');
+  const [birthReviewReason, setBirthReviewReason] = useState('');
   const [piOnline, setPiOnline] = useState(false);
   const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
   const [cancellingIotOcr, setCancellingIotOcr] = useState(false);
@@ -3196,6 +3319,41 @@ export default function DocumentVerification() {
     }
   }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
 
+  useEffect(() => {
+    setBirthReviewImageUrl('');
+    if (
+      activeDoc?.id !== 'birth_certificate'
+      || reviewCandidate?.ocr_version !== 'v2'
+      || reviewCandidate?.status !== 'review_required'
+      || !reviewCandidate?.request_id
+    ) return undefined;
+    let cancelled = false;
+    let objectUrl = '';
+    fetch(
+      `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/review-image`,
+      {
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
+        cache: 'no-store',
+      }
+    )
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Private Birth review image is unavailable');
+        return response.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBirthReviewImageUrl(objectUrl);
+      })
+      .catch((loadError) => {
+        if (!cancelled) setIotOcrError(loadError.message);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status]);
+
   const updateActiveDocStatus = (nextStatus, nextComment = null) => {
     if (!activeDoc || !hasUploadedDocument) return;
 
@@ -3268,6 +3426,11 @@ export default function DocumentVerification() {
             Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify(
+            targetDocumentId === 'birth_certificate'
+              ? { ocr_version: birthOcrVersion }
+              : {}
+          ),
           cache: 'no-store',
         }
       );
@@ -3459,7 +3622,10 @@ export default function DocumentVerification() {
             Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ corrected_fields: correctedFields }),
+          body: JSON.stringify({
+            corrected_fields: correctedFields,
+            reason_code: birthReviewReason || null,
+          }),
         }
       );
       const payload = await response.json().catch(() => ({}));
@@ -3485,8 +3651,43 @@ export default function DocumentVerification() {
         }));
       }
       await fetchApplicationDocuments({ soft: true });
+      setBirthReviewReason('');
     } catch (error) {
       setIotOcrError(error.message || 'Failed to confirm OCR candidate');
+    } finally {
+      setReviewingCandidate(false);
+    }
+  };
+
+  const handleBirthReviewAction = async (action) => {
+    if (!activeDoc || !reviewCandidate || !birthReviewReason) return;
+    try {
+      setReviewingCandidate(true);
+      setIotOcrError('');
+      const response = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/${action}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ reason_code: birthReviewReason }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Failed to ${action} OCR candidate`);
+      setBirthReviewReason('');
+      if (action === 'rescan') {
+        setReviewCandidate(null);
+        setCorrectedFields({});
+        setRunningIotOcr(true);
+      } else {
+        setReviewCandidate((current) => current ? { ...current, status: 'failed' } : current);
+      }
+      await fetchApplicationDocuments({ soft: true });
+    } catch (error) {
+      setIotOcrError(error.message || `Failed to ${action} OCR candidate`);
     } finally {
       setReviewingCandidate(false);
     }
@@ -3661,6 +3862,41 @@ export default function DocumentVerification() {
       alert(err.message || 'Failed to download endorsement slip PDF');
     }
   };
+
+  useEffect(() => {
+    if (activeDoc?.id !== 'birth_certificate' || !reviewCandidate || reviewCandidate.status !== 'review_required') {
+      return undefined;
+    }
+    const onKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        if (!reviewCandidate?.processing?.diagnostic_only) handleConfirmCandidate();
+      } else if (event.altKey && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        if (reviewCandidate.ocr_version === 'v2') handleBirthReviewAction('rescan');
+        else handleRetryCandidate();
+      } else if (event.altKey && event.key.toLowerCase() === 'x') {
+        event.preventDefault();
+        handleBirthReviewAction('reject');
+      } else if (event.key === 'Escape') {
+        setBirthReviewReason('');
+      } else if (
+        (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+        && event.target?.matches?.('[data-birth-ocr-field]')
+      ) {
+        const fields = Array.from(document.querySelectorAll('[data-birth-ocr-field]'));
+        const currentIndex = fields.indexOf(event.target);
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        const next = fields[currentIndex + direction];
+        if (next) {
+          event.preventDefault();
+          next.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeDoc?.id, birthReviewReason, correctedFields, reviewCandidate]);
 
   if (loading) {
     return <PageLoadingSkeleton label="Loading application documents" variant="cards" />;
@@ -3861,6 +4097,13 @@ export default function DocumentVerification() {
                   onCancelIotOcr={handleCancelIotOcr}
                   cancellingIotOcr={cancellingIotOcr}
                   cancelSupported={iotOcrCapabilities.admin_cancel === true}
+                  birthOcrVersion={birthOcrVersion}
+                  onBirthOcrVersionChange={setBirthOcrVersion}
+                  birthReviewImageUrl={birthReviewImageUrl}
+                  birthReviewReason={birthReviewReason}
+                  onBirthReviewReasonChange={setBirthReviewReason}
+                  onRejectCandidate={() => handleBirthReviewAction('reject')}
+                  onRescanCandidate={() => handleBirthReviewAction('rescan')}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -3884,6 +4127,13 @@ export default function DocumentVerification() {
                     onCancelIotOcr={handleCancelIotOcr}
                     cancellingIotOcr={cancellingIotOcr}
                     cancelSupported={iotOcrCapabilities.admin_cancel === true}
+                    birthOcrVersion={birthOcrVersion}
+                    onBirthOcrVersionChange={setBirthOcrVersion}
+                    birthReviewImageUrl={birthReviewImageUrl}
+                    birthReviewReason={birthReviewReason}
+                    onBirthReviewReasonChange={setBirthReviewReason}
+                    onRejectCandidate={() => handleBirthReviewAction('reject')}
+                    onRescanCandidate={() => handleBirthReviewAction('rescan')}
                   />
                 </div>
               )}

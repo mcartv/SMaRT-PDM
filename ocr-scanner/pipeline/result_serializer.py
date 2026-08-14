@@ -85,6 +85,9 @@ def candidate_from_worker_payload(
         processing_metadata=(
             {
                 "registration_mode": str(source.get("registration_mode") or ""),
+                "ocr_version": str(
+                    source.get("ocr_version") or request.get("ocr_version") or "v1"
+                ),
                 "topology_status": str(source.get("topology_status") or "unknown"),
                 "topology_validated_row_count": int(
                     source.get("topology_validated_row_count") or 0

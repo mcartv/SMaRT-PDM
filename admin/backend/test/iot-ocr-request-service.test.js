@@ -71,11 +71,12 @@ function makeCandidateClient(row = requestRow()) {
                     request_id: REQUEST_UUID,
                     document_key: row.document_key,
                     template_id: params[2],
-                    raw_text: params[3],
-                    fields: JSON.parse(params[4]),
-                    field_confidence: JSON.parse(params[5]),
-                    validation_issues: JSON.parse(params[6]),
-                    processing: JSON.parse(params[7]),
+                    ocr_version: params[3],
+                    raw_text: params[4],
+                    fields: JSON.parse(params[5]),
+                    field_confidence: JSON.parse(params[6]),
+                    validation_issues: JSON.parse(params[7]),
+                    processing: JSON.parse(params[8]),
                 }] };
             }
             if (normalized.includes("status = 'review_required'")) {
@@ -138,9 +139,24 @@ test('IoT OCR is disabled only for registration, request letter, and application
     assert.equal(service.isIotOcrDocumentEnabled('birth_certificate'), true);
 });
 
-test('review_required is not Pi-active and can complete or expire', () => {
+test('review_required is not Pi-active and can complete, fail, or expire', () => {
     assert.equal(service.PI_ACTIVE_STATUSES.includes('review_required'), false);
-    assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'expired']);
+    assert.deepEqual(service.ALLOWED_TRANSITIONS.review_required, ['completed', 'failed', 'expired']);
+});
+
+test('Birth OCR defaults to V2 while non-Birth documents remain V1', () => {
+    assert.equal(service.normalizeOcrVersion('birth_certificate', null), 'v2');
+    assert.equal(service.normalizeOcrVersion('birth_certificate', 'v1'), 'v1');
+    assert.equal(service.normalizeOcrVersion('student_grade_forms', 'v2'), 'v1');
+});
+
+test('review actions accept only structured reason codes', () => {
+    assert.equal(service.normalizeReviewReason('ocr_corrected', { required: true }), 'OCR_CORRECTED');
+    assert.equal(service.normalizeReviewReason('', { required: false }), null);
+    assert.throws(
+        () => service.normalizeReviewReason('free-form sensitive value', { required: true }),
+        /valid OCR review reason code/
+    );
 });
 
 test('fixed-lens worker can transition directly from previewing to capturing', () => {

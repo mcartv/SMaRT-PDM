@@ -16,6 +16,7 @@ const upload = multer({
 
 router.get('/', ...adminOnly, applicationController.getApplications);
 router.get('/iot-ocr/availability', ...adminOnly, applicationController.getIotOcrAvailability);
+router.get('/iot-ocr/review-queue', ...adminOnly, applicationController.listIotOcrReviewQueue);
 router.get('/:id', ...adminOnly, applicationController.getApplicationDetails);
 router.get('/:id/documents', ...adminOnly, applicationController.getApplicationDocuments);
 router.post('/:id/documents/upload', ...adminOnly, upload.single('file'), applicationController.uploadStudentDocument);
@@ -24,6 +25,9 @@ router.get('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationContr
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/confirm', ...adminOnly, applicationController.confirmApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/retry', ...adminOnly, applicationController.retryApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/cancel', ...adminOnly, applicationController.cancelApplicationDocumentIotOcr);
+router.post('/:id/documents/:documentKey/iot-ocr/:requestId/reject', ...adminOnly, applicationController.rejectApplicationDocumentIotOcr);
+router.post('/:id/documents/:documentKey/iot-ocr/:requestId/rescan', ...adminOnly, applicationController.rescanApplicationDocumentIotOcr);
+router.get('/:id/documents/:documentKey/iot-ocr/:requestId/review-image', ...adminOnly, applicationController.streamApplicationBirthOcrImage);
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
 router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.saveApplicationDocumentOcrSnapshot);
 router.post(

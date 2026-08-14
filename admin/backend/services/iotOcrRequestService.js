@@ -20,12 +20,20 @@ const ALLOWED_TRANSITIONS = Object.freeze({
     focusing: Object.freeze(['capturing', 'cancelled', 'failed', 'expired']),
     capturing: Object.freeze(['processing', 'cancelled', 'failed', 'expired']),
     processing: Object.freeze(['review_required', 'cancelled', 'failed', 'expired']),
-    review_required: Object.freeze(['completed', 'expired']),
+    review_required: Object.freeze(['completed', 'failed', 'expired']),
 });
 const ACTIVE_STATUS_SQL = PI_ACTIVE_STATUSES.map((status) => `'${status}'`).join(', ');
 const FORBIDDEN_PAYLOAD_KEYS = new Set([
     'image', 'image_url', 'capture_url', 'capture_path', 'processed_image',
-    'processed_image_url', 'base64_image',
+    'processed_image_url', 'base64_image', 'bucket_name', 'object_path',
+    'signed_url', 'signedurl', 'token',
+]);
+const REVIEW_REASON_CODES = new Set([
+    'OCR_CORRECTED',
+    'UNREADABLE_CAPTURE',
+    'WRONG_DOCUMENT',
+    'FIELDS_MISSING',
+    'DUPLICATE_SUSPECTED',
 ]);
 
 function buildHttpError(statusCode, message) {
@@ -66,6 +74,7 @@ function mapRequestRow(row) {
         document_key: row.document_key,
         document_type: row.document_type,
         template_id: row.template_id || null,
+        ocr_version: row.ocr_version || 'v1',
         status: row.status || 'pending',
         requested_by: row.requested_by || null,
         claimed_by: row.claimed_by || null,
@@ -87,12 +96,16 @@ function mapRequestRow(row) {
 function mapCandidateRow(row) {
     if (!row) return null;
     const storedFields = row.verified_fields || row.fields || {};
+    const candidateStatus = ['completed', 'failed'].includes(row.status)
+        ? row.status
+        : 'review_required';
     return {
         candidate_id: row.candidate_id,
         request_id: row.request_id,
-        status: row.status === 'completed' ? 'completed' : 'review_required',
+        status: candidateStatus,
         document_key: row.document_key,
         template_id: row.template_id,
+        ocr_version: row.ocr_version || 'v1',
         raw_text: row.raw_text || '',
         fields: withDerivedIndigencyFields(
             row.document_key,
@@ -101,7 +114,7 @@ function mapCandidateRow(row) {
         ),
         field_confidence: row.field_confidence || {},
         validation_issues: row.validation_issues || [],
-        review_required: true,
+        review_required: candidateStatus === 'review_required',
         processing: row.processing || {},
         created_at: row.created_at || null,
     };
@@ -109,6 +122,23 @@ function mapCandidateRow(row) {
 
 function transitionAllowed(from, to) {
     return (ALLOWED_TRANSITIONS[from] || []).includes(to);
+}
+
+function normalizeReviewReason(value, { required = false } = {}) {
+    const reason = String(value || '').trim().toUpperCase();
+    if (!reason && !required) return null;
+    if (!REVIEW_REASON_CODES.has(reason)) {
+        throw buildHttpError(400, 'A valid OCR review reason code is required');
+    }
+    return reason;
+}
+
+function normalizeOcrVersion(documentKey, value, defaultBirthVersion = 'v2') {
+    const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
+    if (!['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)) return 'v1';
+    const normalized = String(value || defaultBirthVersion).trim().toLowerCase();
+    if (!['v1', 'v2'].includes(normalized)) throw buildHttpError(400, 'ocr_version must be v1 or v2');
+    return normalized;
 }
 
 function fieldValue(value) {
@@ -356,6 +386,7 @@ function normalizeCandidate(input, requestRow) {
         status: 'review_required',
         document_key: requestRow.document_key,
         template_id: templateId,
+        ocr_version: requestRow.ocr_version || 'v1',
         raw_text: String(source.rawText ?? source.raw_text ?? ''),
         fields: fields && typeof fields === 'object' && !Array.isArray(fields) ? fields : {},
         field_confidence: fieldConfidence && typeof fieldConfidence === 'object' && !Array.isArray(fieldConfidence)
@@ -377,6 +408,37 @@ function normalizeCandidate(input, requestRow) {
     );
     assertTextOnlyPayload(candidate);
     return candidate;
+}
+
+async function insertCandidateExceptions(client, requestRow, candidateRow, candidate) {
+    if (!['birth_certificate', 'certificate_of_live_birth'].includes(requestRow.document_key)) return;
+    const exceptions = [];
+    const issueCodes = candidate.validation_issues
+        .map((issue) => String(issue?.code || ''))
+        .filter(Boolean);
+    if (candidate.processing?.diagnostic_only) {
+        exceptions.push(['diagnostic_only', 'customer_facing', issueCodes[0] || 'BIRTH_DIAGNOSTIC_ONLY', null]);
+    } else {
+        for (const fieldKey of ['child_name', 'mother_maiden_name']) {
+            const components = candidate.fields?.[fieldKey]?.components || {};
+            if (!String(components.first_name || '').trim() || !String(components.last_name || '').trim()) {
+                exceptions.push(['missing_field', 'customer_facing', 'BIRTH_REQUIRED_NAME_MISSING', fieldKey]);
+            }
+        }
+        for (const issue of candidate.validation_issues) {
+            if (String(issue?.code || '') === 'BIRTH_FIELD_LOW_CONFIDENCE') {
+                exceptions.push(['low_confidence', 'customer_facing', 'BIRTH_FIELD_LOW_CONFIDENCE', issue.field || null]);
+            }
+        }
+        if (!exceptions.length) exceptions.push(['ready_to_confirm', 'standard', 'BIRTH_READY', null]);
+    }
+    for (const [group, priority, ruleCode, fieldKey] of exceptions) {
+        await client.query(`
+            INSERT INTO public.iot_ocr_review_exceptions
+                (request_id, candidate_id, field_key, exception_group, priority, rule_code)
+            VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)
+        `, [requestRow.request_id, candidateRow.candidate_id, fieldKey, group, priority, ruleCode]);
+    }
 }
 
 function validateConfirmedDocumentFields(documentKey, fields, candidateFields = null) {
@@ -496,6 +558,10 @@ exports.createRequest = async (input = {}) => {
             input.applicationId || input.application_id,
             input.documentKey || input.document_key
         );
+        const ocrVersion = normalizeOcrVersion(
+            context.document_key,
+            input.ocrVersion || input.ocr_version
+        );
         const active = await client.query(`
             SELECT * FROM public.iot_ocr_requests
             WHERE application_id = $1::uuid AND document_key = $2
@@ -508,11 +574,12 @@ exports.createRequest = async (input = {}) => {
         }
         const inserted = await client.query(`
             INSERT INTO public.iot_ocr_requests
-                (application_id, student_id, student_name, document_key, document_type, status, requested_by)
-            VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'pending', $6::uuid)
+                (application_id, student_id, student_name, document_key, document_type,
+                 ocr_version, status, requested_by)
+            VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, 'pending', $7::uuid)
             RETURNING *
         `, [context.application_id, context.student_id, context.student_name || null,
-            context.document_key, context.document_type, requestedBy]);
+            context.document_key, context.document_type, ocrVersion, requestedBy]);
         await client.query('COMMIT');
         return { created: true, request: mapRequestRow(inserted.rows[0]) };
     } catch (error) {
@@ -639,13 +706,14 @@ exports.completeRequest = async (input = {}) => {
             const candidate = normalizeCandidate(input, row);
             const inserted = await client.query(`
                 INSERT INTO public.iot_ocr_candidates
-                    (request_id, document_key, template_id, raw_text, fields,
+                    (request_id, document_key, template_id, ocr_version, raw_text, fields,
                      field_confidence, validation_issues, processing, device_id)
-                VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::uuid)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::uuid)
                 RETURNING *
-            `, [requestId, row.document_key, candidate.template_id, candidate.raw_text,
+            `, [requestId, row.document_key, candidate.template_id, row.ocr_version || 'v1', candidate.raw_text,
                 JSON.stringify(candidate.fields), JSON.stringify(candidate.field_confidence),
                 JSON.stringify(candidate.validation_issues), JSON.stringify(candidate.processing), deviceId]);
+            await insertCandidateExceptions(client, row, inserted.rows[0], candidate);
             const updated = await client.query(`
                 UPDATE public.iot_ocr_requests SET status = 'review_required', template_id = $2,
                     processing_heartbeat_at = NOW(), error_code = NULL, error_message = NULL,
@@ -709,7 +777,8 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
         const requestFilter = requestId ? 'AND r.request_id = $3::uuid' : '';
         if (requestId) params.push(requestId);
         const result = await client.query(`
-            SELECT r.*, c.candidate_id, c.raw_text, c.fields, c.field_confidence,
+            SELECT r.*, c.candidate_id, c.ocr_version AS candidate_ocr_version,
+                   c.raw_text, c.fields, c.field_confidence,
                    c.validation_issues, c.processing, c.created_at AS candidate_created_at,
                    v.verified_fields
             FROM public.iot_ocr_requests r
@@ -722,8 +791,18 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
         const row = result.rows[0];
         const candidate = row.candidate_id ? mapCandidateRow({
             ...row,
+            ocr_version: row.candidate_ocr_version || row.ocr_version,
             created_at: row.candidate_created_at,
         }) : null;
+        if (candidate) {
+            const exceptions = await client.query(`
+                SELECT field_key, exception_group, priority, rule_code, created_at
+                FROM public.iot_ocr_review_exceptions
+                WHERE request_id = $1::uuid AND resolved_at IS NULL
+                ORDER BY created_at ASC
+            `, [row.request_id]);
+            candidate.review_exceptions = exceptions.rows;
+        }
         return { request: mapRequestRow(row), candidate };
     } finally { client.release(); }
 };
@@ -745,6 +824,9 @@ exports.cancelRequest = async ({ applicationId, documentKey, requestId }) => {
         if (!row) throw buildHttpError(404, 'IoT OCR request not found');
         if (row.status === 'cancelled') {
             await client.query('COMMIT');
+            if ((row.ocr_version || 'v1') === 'v2') {
+                require('./birthOcrV2Service').cleanupArtifacts(requestId).catch(() => {});
+            }
             return { request: mapRequestRow(row), idempotent: true };
         }
         if (!PI_ACTIVE_STATUSES.includes(row.status) || !transitionAllowed(row.status, 'cancelled')) {
@@ -757,7 +839,19 @@ exports.cancelRequest = async ({ applicationId, documentKey, requestId }) => {
                 completed_at = NOW(), updated_at = NOW()
             WHERE request_id = $1::uuid RETURNING *
         `, [requestId]);
+        if ((row.ocr_version || 'v1') === 'v2') {
+            await client.query(`
+                UPDATE public.iot_ocr_capture_artifacts
+                SET upload_status = 'deletion_pending',
+                    deletion_pending_at = COALESCE(deletion_pending_at, NOW()), updated_at = NOW()
+                WHERE request_id = $1::uuid
+                  AND upload_status IN ('pending', 'available', 'failed')
+            `, [requestId]);
+        }
         await client.query('COMMIT');
+        if ((row.ocr_version || 'v1') === 'v2') {
+            require('./birthOcrV2Service').cleanupArtifacts(requestId).catch(() => {});
+        }
         return { request: mapRequestRow(updated.rows[0]), idempotent: false };
     } catch (error) {
         await client.query('ROLLBACK');
@@ -765,7 +859,7 @@ exports.cancelRequest = async ({ applicationId, documentKey, requestId }) => {
     } finally { client.release(); }
 };
 
-exports.confirmCandidate = async ({ applicationId, documentKey, requestId, correctedFields, reviewedBy }) => {
+exports.confirmCandidate = async ({ applicationId, documentKey, requestId, correctedFields, reviewedBy, reasonCode = null }) => {
     await ensureIotOcrSchema();
     const reviewerId = normalizeUserId(reviewedBy);
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
@@ -775,7 +869,8 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
         await client.query('BEGIN');
         const selected = await client.query(`
             SELECT r.*, c.candidate_id, c.fields AS candidate_fields,
-                   c.raw_text AS candidate_raw_text
+                   c.raw_text AS candidate_raw_text, c.processing AS candidate_processing,
+                   c.validation_issues AS candidate_validation_issues
             FROM public.iot_ocr_requests r
             JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
             WHERE r.request_id = $1::uuid AND r.application_id = $2::uuid AND r.document_key = $3
@@ -801,6 +896,21 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
             };
         }
         if (!transitionAllowed(row.status, 'completed')) throw buildHttpError(409, `OCR request cannot be confirmed from ${row.status}`);
+        const complianceHold = await client.query(`
+            SELECT 1 FROM public.iot_ocr_review_exceptions
+            WHERE request_id = $1::uuid AND resolved_at IS NULL
+              AND priority = 'compliance_hold' LIMIT 1
+        `, [requestId]);
+        if (complianceHold.rowCount) {
+            throw buildHttpError(409, 'OCR candidate is on compliance hold and cannot be confirmed');
+        }
+        const activeRules = await client.query(`
+            SELECT rule_code FROM public.iot_ocr_review_exceptions
+            WHERE request_id = $1::uuid AND resolved_at IS NULL
+        `, [requestId]);
+        if (row.candidate_processing?.diagnostic_only) {
+            throw buildHttpError(409, 'Diagnostic-only Birth OCR candidates cannot be confirmed');
+        }
         const verifiedFields = validateConfirmedDocumentFields(
             normalizedDocumentKey,
             correctedFields,
@@ -814,6 +924,23 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
                 )
             )
         );
+        const predictedForDiff = ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
+            ? {
+                child_name: birthNameComponents(row.candidate_fields?.child_name, { label: 'Detected child name' }),
+                mother_maiden_name: birthNameComponents(row.candidate_fields?.mother_maiden_name, { label: "Detected mother's maiden name" }),
+                father_name: birthNameComponents(row.candidate_fields?.father_name, { required: false, label: "Detected father's name" }),
+            }
+            : row.candidate_fields;
+        if (
+            ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
+            && JSON.stringify(verifiedFields.child_name) !== JSON.stringify(predictedForDiff.child_name)
+        ) {
+            throw buildHttpError(400, 'The detected child name is reference-only and cannot be changed');
+        }
+        const changedFields = Object.keys(verifiedFields).filter((key) => (
+            JSON.stringify(verifiedFields[key] ?? null) !== JSON.stringify(predictedForDiff?.[key] ?? null)
+        ));
+        const normalizedReason = normalizeReviewReason(reasonCode, { required: changedFields.length > 0 });
         await client.query(`
             INSERT INTO public.iot_ocr_reviews
                 (request_id, application_id, document_key, verified_fields, reviewed_by)
@@ -834,12 +961,44 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
         if (normalizedDocumentKey === 'birth_certificate') {
             await upsertVerifiedBirthParents(client, row.student_id, verifiedFields);
         }
+        await client.query(`
+            INSERT INTO public.iot_ocr_review_events
+                (request_id, candidate_id, application_id, event_type, predicted_fields,
+                 submitted_fields, changed_fields, reason_code, triggered_rules, reviewed_by)
+            VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, $6::jsonb,
+                    $7::jsonb, $8, $9::jsonb, $10::uuid)
+        `, [requestId, row.candidate_id, applicationId,
+            changedFields.length ? 'corrected' : 'confirmed',
+            JSON.stringify(row.candidate_fields || {}), JSON.stringify(verifiedFields),
+            JSON.stringify(changedFields), normalizedReason,
+            JSON.stringify([...new Set([
+                ...(row.candidate_validation_issues || []).map((issue) => issue.code).filter(Boolean),
+                ...activeRules.rows.map(({ rule_code: ruleCode }) => ruleCode).filter(Boolean),
+            ])]),
+            reviewerId]);
+        await client.query(`
+            UPDATE public.iot_ocr_review_exceptions
+            SET resolved_at = NOW(), resolved_by = $2::uuid
+            WHERE request_id = $1::uuid AND resolved_at IS NULL
+        `, [requestId, reviewerId]);
+        if ((row.ocr_version || 'v1') === 'v2') {
+            await client.query(`
+                UPDATE public.iot_ocr_capture_artifacts
+                SET upload_status = 'deletion_pending',
+                    deletion_pending_at = COALESCE(deletion_pending_at, NOW()), updated_at = NOW()
+                WHERE request_id = $1::uuid AND upload_status = 'available'
+            `, [requestId]);
+        }
         const updated = await client.query(`
             UPDATE public.iot_ocr_requests SET status = 'completed', reviewed_by = $2::uuid,
                 reviewed_at = NOW(), completed_at = NOW(), updated_at = NOW()
             WHERE request_id = $1::uuid RETURNING *
         `, [requestId, reviewerId]);
         await client.query('COMMIT');
+        if ((row.ocr_version || 'v1') === 'v2') {
+            const artifacts = require('./birthOcrV2Service');
+            artifacts.cleanupArtifacts(requestId).catch(() => {});
+        }
         return {
             request: mapRequestRow(updated.rows[0]),
             verified_fields: verifiedFields,
@@ -883,11 +1042,12 @@ exports.retryRequest = async ({ applicationId, documentKey, requestId, requested
         const inserted = await client.query(`
             INSERT INTO public.iot_ocr_requests
                 (application_id, student_id, student_name, document_key, document_type,
-                 status, requested_by, retry_of_request_id)
-            VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'pending', $6::uuid, $7::uuid)
+                 ocr_version, status, requested_by, retry_of_request_id)
+            VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)
             RETURNING *
         `, [previous.application_id, previous.student_id, previous.student_name,
-            previous.document_key, previous.document_type, requesterId, previous.request_id]);
+            previous.document_key, previous.document_type, previous.ocr_version || 'v1',
+            requesterId, previous.request_id]);
         await client.query('COMMIT');
         return { request: mapRequestRow(inserted.rows[0]), created: true };
     } catch (error) {
@@ -895,6 +1055,150 @@ exports.retryRequest = async ({ applicationId, documentKey, requestId, requested
         throw error;
     } finally { client.release(); }
 };
+
+async function closeReviewRequest({
+    applicationId,
+    documentKey,
+    requestId,
+    reviewedBy,
+    reasonCode,
+    eventType,
+    errorCode,
+    createReplacement = false,
+}) {
+    const reviewerId = normalizeUserId(reviewedBy);
+    const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
+    const normalizedReason = normalizeReviewReason(reasonCode, { required: true });
+    if (!reviewerId || !isUuid(requestId)) {
+        throw buildHttpError(400, 'Valid reviewer, request, and reason code are required');
+    }
+    const client = await pool.connect();
+    let previous;
+    let replacement = null;
+    try {
+        await client.query('BEGIN');
+        const selected = await client.query(`
+            SELECT r.*, c.candidate_id, c.fields AS candidate_fields,
+                   c.validation_issues AS candidate_validation_issues
+            FROM public.iot_ocr_requests r
+            JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
+            WHERE r.request_id = $1::uuid AND r.application_id = $2::uuid
+              AND r.document_key = $3
+            FOR UPDATE OF r
+        `, [requestId, applicationId, normalizedDocumentKey]);
+        previous = selected.rows[0];
+        if (!previous) throw buildHttpError(404, 'IoT OCR candidate not found');
+        if (previous.status === 'failed' && previous.error_code === errorCode) {
+            if (createReplacement) {
+                const existingReplacement = await client.query(`
+                    SELECT * FROM public.iot_ocr_requests
+                    WHERE (retry_of_request_id = $1::uuid)
+                       OR (application_id = $2::uuid AND document_key = $3
+                           AND status IN (${ACTIVE_STATUS_SQL}))
+                    ORDER BY (retry_of_request_id = $1::uuid) DESC, created_at DESC
+                    LIMIT 1
+                `, [requestId, previous.application_id, previous.document_key]);
+                replacement = existingReplacement.rows[0] || null;
+            }
+            await client.query('COMMIT');
+            return {
+                request: mapRequestRow(previous),
+                replacement: mapRequestRow(replacement),
+                idempotent: true,
+            };
+        }
+        if (!transitionAllowed(previous.status, 'failed')) {
+            throw buildHttpError(409, `OCR request cannot be closed from ${previous.status}`);
+        }
+        const activeRules = await client.query(`
+            SELECT rule_code FROM public.iot_ocr_review_exceptions
+            WHERE request_id = $1::uuid AND resolved_at IS NULL
+        `, [requestId]);
+        await client.query(`
+            INSERT INTO public.iot_ocr_review_events
+                (request_id, candidate_id, application_id, event_type, predicted_fields,
+                 submitted_fields, changed_fields, reason_code, triggered_rules, reviewed_by)
+            VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, '{}'::jsonb,
+                    '[]'::jsonb, $6, $7::jsonb, $8::uuid)
+        `, [requestId, previous.candidate_id, applicationId, eventType,
+            JSON.stringify(previous.candidate_fields || {}), normalizedReason,
+            JSON.stringify([...new Set([
+                ...(previous.candidate_validation_issues || []).map((issue) => issue.code).filter(Boolean),
+                ...activeRules.rows.map(({ rule_code: ruleCode }) => ruleCode).filter(Boolean),
+            ])]),
+            reviewerId]);
+        await client.query(`
+            UPDATE public.iot_ocr_review_exceptions
+            SET resolved_at = NOW(), resolved_by = $2::uuid
+            WHERE request_id = $1::uuid AND resolved_at IS NULL
+        `, [requestId, reviewerId]);
+        const failed = await client.query(`
+            UPDATE public.iot_ocr_requests
+            SET status = 'failed', error_code = $2, error_message = $3,
+                reviewed_by = $4::uuid, reviewed_at = NOW(), completed_at = NOW(), updated_at = NOW()
+            WHERE request_id = $1::uuid RETURNING *
+        `, [requestId, errorCode, normalizedReason, reviewerId]);
+        previous = failed.rows[0];
+        if ((previous.ocr_version || 'v1') === 'v2') {
+            await client.query(`
+                UPDATE public.iot_ocr_capture_artifacts
+                SET upload_status = 'deletion_pending',
+                    deletion_pending_at = COALESCE(deletion_pending_at, NOW()), updated_at = NOW()
+                WHERE request_id = $1::uuid AND upload_status = 'available'
+            `, [requestId]);
+        }
+        if (createReplacement) {
+            const existingActive = await client.query(`
+                SELECT * FROM public.iot_ocr_requests
+                WHERE application_id = $1::uuid AND document_key = $2
+                  AND status IN (${ACTIVE_STATUS_SQL})
+                ORDER BY created_at DESC LIMIT 1
+                FOR UPDATE
+            `, [previous.application_id, previous.document_key]);
+            replacement = existingActive.rows[0] || null;
+            if (!replacement) {
+                const inserted = await client.query(`
+                    INSERT INTO public.iot_ocr_requests
+                        (application_id, student_id, student_name, document_key, document_type,
+                         ocr_version, status, requested_by, retry_of_request_id)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)
+                    RETURNING *
+                `, [previous.application_id, previous.student_id, previous.student_name,
+                    previous.document_key, previous.document_type, previous.ocr_version || 'v1',
+                    reviewerId, previous.request_id]);
+                replacement = inserted.rows[0];
+            }
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+    if ((previous.ocr_version || 'v1') === 'v2') {
+        const artifacts = require('./birthOcrV2Service');
+        artifacts.cleanupArtifacts(requestId).catch(() => {});
+    }
+    return {
+        request: mapRequestRow(previous),
+        replacement: mapRequestRow(replacement),
+        idempotent: false,
+    };
+}
+
+exports.rejectCandidate = async (input = {}) => closeReviewRequest({
+    ...input,
+    eventType: 'rejected',
+    errorCode: 'ADMIN_REJECTED',
+});
+
+exports.requestRescan = async (input = {}) => closeReviewRequest({
+    ...input,
+    eventType: 'rescan_requested',
+    errorCode: 'ADMIN_RESCAN_REQUESTED',
+    createReplacement: true,
+});
 
 module.exports = {
     ...exports,
@@ -913,4 +1217,6 @@ module.exports = {
     withDerivedIndigencyFields,
     IOT_OCR_DISABLED_DOCUMENT_KEYS,
     isIotOcrDocumentEnabled,
+    normalizeOcrVersion,
+    normalizeReviewReason,
 };

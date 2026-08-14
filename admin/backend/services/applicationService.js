@@ -2322,6 +2322,7 @@ exports.runApplicationDocumentIotOcr = async ({
     applicationId,
     documentKey,
     requestedBy = null,
+    ocrVersion = null,
 }) => {
     if (!applicationId) {
         throw new Error('applicationId is required');
@@ -2396,6 +2397,7 @@ exports.runApplicationDocumentIotOcr = async ({
         application_id: applicationId,
         document_key: normalizedDocumentKey,
         requested_by: requestedBy,
+        ocr_version: ocrVersion,
     });
 
     const request = result.request || result.data || result;
@@ -2422,12 +2424,14 @@ exports.confirmApplicationDocumentIotOcr = async ({
     requestId,
     correctedFields,
     reviewedBy,
+    reasonCode = null,
 }) => iotOcrRequestService.confirmCandidate({
     applicationId,
     documentKey,
     requestId,
     correctedFields,
     reviewedBy,
+    reasonCode,
 });
 
 exports.retryApplicationDocumentIotOcr = async ({
@@ -2447,6 +2451,12 @@ exports.cancelApplicationDocumentIotOcr = async ({
     documentKey,
     requestId,
 }) => iotOcrRequestService.cancelRequest({ applicationId, documentKey, requestId });
+
+exports.rejectApplicationDocumentIotOcr = async (input) =>
+    iotOcrRequestService.rejectCandidate(input);
+
+exports.rescanApplicationDocumentIotOcr = async (input) =>
+    iotOcrRequestService.requestRescan(input);
 
 exports.fetchApplicationDocumentOcrSnapshot = async ({
     applicationId,
@@ -3586,6 +3596,8 @@ module.exports = {
     confirmApplicationDocumentIotOcr: exports.confirmApplicationDocumentIotOcr,
     retryApplicationDocumentIotOcr: exports.retryApplicationDocumentIotOcr,
     cancelApplicationDocumentIotOcr: exports.cancelApplicationDocumentIotOcr,
+    rejectApplicationDocumentIotOcr: exports.rejectApplicationDocumentIotOcr,
+    rescanApplicationDocumentIotOcr: exports.rescanApplicationDocumentIotOcr,
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,

@@ -21,7 +21,6 @@ if (!supabaseServiceRoleKey) {
 console.log('[Supabase Admin Client]', {
     url: supabaseUrl,
     hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
-    keyPrefix: supabaseServiceRoleKey.slice(0, 12),
 });
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {

@@ -380,7 +380,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                               : _saveProfile,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: accentColor,
-                            foregroundColor: Colors.white,
+                            foregroundColor: AppColors.darkBrown,
                             disabledBackgroundColor: Colors.grey.shade300,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(borderRadius),
@@ -391,7 +391,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
-                                    color: Colors.white,
+                                    color: AppColors.darkBrown,
                                     strokeWidth: 2.2,
                                   ),
                                 )

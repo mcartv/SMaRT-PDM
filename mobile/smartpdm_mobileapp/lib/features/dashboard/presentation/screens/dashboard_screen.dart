@@ -10,7 +10,6 @@ import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_do
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_controller.dart';
-import 'package:smartpdm_mobileapp/features/dashboard/presentation/models/applicant_home_presentation.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
@@ -137,6 +136,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   ApplicantDocumentsPackage? _requirementsPackage;
   List<ProgramOpening> _latestOpenings = const [];
 
+  String? _identityError;
   String? _statusError;
   String? _requirementsError;
   bool _needsBaseApplication = false;
@@ -173,7 +173,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _loadDashboardData(refreshNotifications: false);
-      if (!mounted) return;
+      if (!mounted || _identityError != null) return;
       await _showFirstTimeGuideIfNeeded();
     });
   }
@@ -187,7 +187,13 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     if (_hasScholarAccess) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final session = await widget.sessionService.getCurrentUser();
+    SessionUser session;
+    try {
+      session = await widget.sessionService.getCurrentUser();
+    } catch (error) {
+      debugPrint('ONBOARDING SESSION READ ERROR: $error');
+      return;
+    }
     final accountKey = session.userId.trim().isNotEmpty
         ? session.userId.trim()
         : session.studentId.trim();
@@ -313,8 +319,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
         await _notificationProvider?.refresh(silent: true);
       }
 
+      await _loadIdentity();
+      if (_identityError != null) {
+        if (mounted) {
+          setState(() {
+            _isLoadingStatus = false;
+            _isLoadingRequirements = false;
+            _isLoadingOpenings = false;
+          });
+        }
+        return;
+      }
+
       await Future.wait([
-        _loadIdentity(),
         _loadApplicationStatus(),
         _loadRequirements(),
         _loadOpenings(),
@@ -325,21 +342,31 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   Future<void> _loadIdentity() async {
-    final session = await widget.sessionService.getCurrentUser();
-    final fullName = [
-      session.firstName.trim(),
-      session.lastName.trim(),
-    ].where((part) => part.isNotEmpty).join(' ');
+    try {
+      final session = await widget.sessionService.getCurrentUser();
+      final fullName = [
+        session.firstName.trim(),
+        session.lastName.trim(),
+      ].where((part) => part.isNotEmpty).join(' ');
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _userName = fullName.isEmpty ? 'Student' : fullName;
-      _studentId = session.studentId.trim().isEmpty
-          ? 'Student Account'
-          : session.studentId.trim();
-      _cachedScholarAccess = session.hasScholarAccess;
-    });
+      setState(() {
+        _userName = fullName.isEmpty ? 'Student' : fullName;
+        _studentId = session.studentId.trim().isEmpty
+            ? 'Student Account'
+            : session.studentId.trim();
+        _cachedScholarAccess = session.hasScholarAccess;
+        _identityError = null;
+      });
+    } catch (error) {
+      debugPrint('DASHBOARD SESSION READ ERROR: $error');
+      if (!mounted) return;
+      setState(() {
+        _identityError =
+            'Your account session could not be loaded. Please try again.';
+      });
+    }
   }
 
   Future<void> _loadApplicationStatus() async {
@@ -1116,6 +1143,27 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
     final announcements = _latestAnnouncements(provider);
+
+    if (_identityError != null) {
+      return ColoredBox(
+        color: _background,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(14, 24, 14, 104),
+            child: _StateCard(
+              isDark: _isDark,
+              icon: Icons.account_circle_outlined,
+              title: 'We could not load Home right now.',
+              message: _identityError!,
+              buttonLabel: 'Try again',
+              onPressed: () =>
+                  _loadDashboardData(refreshNotifications: false),
+            ),
+          ),
+        ),
+      );
+    }
 
     return ColoredBox(
       color: _background,

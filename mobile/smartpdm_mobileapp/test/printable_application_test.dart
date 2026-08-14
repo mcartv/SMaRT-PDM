@@ -108,8 +108,8 @@ void main() {
     expect(model.scholarshipDetails, 'Barangay Scholarship');
     expect(model.hasDisciplinaryRecord, isTrue);
     expect(model.disciplinaryDetails, 'Late Clearance');
-    expect(model.selfDescription, 'Hardworking Student');
-    expect(model.aimsAndAmbitions, 'Finish College');
+    expect(model.selfDescription, 'Hardworking student');
+    expect(model.aimsAndAmbitions, 'Finish college');
   });
 
   testWidgets('success screen generates PDF from local submission payload', (

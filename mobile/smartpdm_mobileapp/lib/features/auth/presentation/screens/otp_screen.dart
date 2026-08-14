@@ -376,7 +376,7 @@ class _OtpScreenState extends State<OtpScreen> {
                                 : _verifyOtp,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: accentColor,
-                              foregroundColor: Colors.white,
+                              foregroundColor: AppColors.darkBrown,
                               disabledBackgroundColor: Colors.grey.shade300,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
@@ -389,7 +389,7 @@ class _OtpScreenState extends State<OtpScreen> {
                                     height: 20,
                                     width: 20,
                                     child: CircularProgressIndicator(
-                                      color: Colors.white,
+                                      color: AppColors.darkBrown,
                                       strokeWidth: 2.2,
                                     ),
                                   )

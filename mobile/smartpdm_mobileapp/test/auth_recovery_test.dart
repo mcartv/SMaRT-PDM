@@ -59,12 +59,12 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byType(TextFormField), 'invalid-id');
-      await tester.tap(find.text('Send Instructions'));
+      await tester.enterText(find.byType(TextFormField), '2026123');
+      await tester.tap(find.text('Send Verification Code'));
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Please enter a valid Student ID (e.g., PDM-2024-000123)'),
+        find.text('Student ID must contain 10 digits.'),
         findsOneWidget,
       );
     });
@@ -84,7 +84,7 @@ void main() {
       );
 
       await tester.enterText(find.byType(TextFormField), 'PDM-2024-000123');
-      await tester.tap(find.text('Send Instructions'));
+      await tester.tap(find.text('Send Verification Code'));
       await tester.pumpAndSettle();
 
       expect(fakeService.lastStudentId, 'PDM-2024-000123');

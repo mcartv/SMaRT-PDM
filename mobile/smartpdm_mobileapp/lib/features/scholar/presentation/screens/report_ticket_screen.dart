@@ -326,7 +326,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
+                                      AppColors.darkBrown,
                                     ),
                                   ),
                                 )
@@ -336,7 +336,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
+                            foregroundColor: AppColors.darkBrown,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                         ),

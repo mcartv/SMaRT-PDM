@@ -26,6 +26,24 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   bool _hasScholarAccess = false;
   bool _isRefreshing = false;
 
+  static const List<String> _scholarResponsibilities = [
+    'Must carry the required academic load per semester as required by the course;',
+    'Must not shift to any other course nor transfer to another school;',
+    'Must pass all subjects and maintain a general weighted average of at least 2.00 (preferably 1.00-1.99);',
+    'Must submit copy of registration form for recording and monitoring purposes;',
+    'Must submit copy of grades or any valid proof of grades obtained in the previous semester for renewal of grant;',
+    'Must agree to render not less than ten (10) hours per semester of “return obligation” (RO) to PDM as student assistant;',
+    'Must render the RO within the semester. If not, inform the coordinator as soon as possible;',
+    'Must possess Good Moral Character and Right Conduct. Be honest, courteous and polite especially to the faculty and staff;',
+    'Must finish the course within the prescribed curriculum period;',
+    'Must submit a copy of diploma or certificate of graduation upon completion of the degree;',
+    'Must inform the Scholarship Coordinator of other scholarship grant/s from any other institution or agency and must furnish proof of such grant;',
+    'Must not engage in illegal or immoral activities detrimental to the good name and reputation of PDM, the municipality of Marilao and the benefactor;',
+    'Must not be cited for commission of any major academic or school offense throughout the duration of the grant;',
+    'Must update the Scholarship Coordinator of any change in contact information (such as mobile number, landline number, address, email address, parent/s’ contact number, facebook/messenger account, etc.); and',
+    'Must agree to abide by the policies set by the Scholarship Committee and other reasonable conditions as requested/required by the benefactor.',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +126,16 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     Navigator.of(context).pushNamed(route);
   }
 
+  void _openScholarResponsibilities() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const _ScholarResponsibilitiesScreen(
+          responsibilities: _scholarResponsibilities,
+        ),
+      ),
+    );
+  }
+
   Widget _buildAvatar() {
     final avatar = _avatarUrl;
 
@@ -156,16 +184,24 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(14, 16, 14, 118),
           children: [
-            _ProfileSummaryCard(
-              displayName: _displayName,
-              studentId: _studentId,
-              hasScholarAccess: _hasScholarAccess,
-              isRefreshing: _isRefreshing,
-              avatar: _buildAvatar(),
+            Semantics(
+              button: true,
+              label: 'Open Profile and Account',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _openRoute(AppRoutes.profile),
+                child: _ProfileSummaryCard(
+                  displayName: _displayName,
+                  studentId: _studentId,
+                  hasScholarAccess: _hasScholarAccess,
+                  isRefreshing: _isRefreshing,
+                  avatar: _buildAvatar(),
+                ),
+              ),
             ),
             const SizedBox(height: 22),
             Text(
-              'Account',
+              'Account Settings',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: titleColor,
                 fontWeight: FontWeight.w900,
@@ -173,50 +209,44 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             ),
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: surface,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: isDark
                       ? Colors.white.withValues(alpha: 0.08)
                       : AppColors.brown.withValues(alpha: 0.09),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
-              child: GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.96,
+              child: Column(
                 children: [
-                  _MenuActionCard(
-                    icon: Icons.person_rounded,
-                    title: 'Profile and Account',
-                    subtitle: 'Personal and academic details',
-                    onTap: () => _openRoute(AppRoutes.profile),
-                  ),
-                  _MenuActionCard(
+                  _MenuListTile(
                     icon: Icons.lock_reset_rounded,
                     title: 'Change Password',
                     subtitle: 'Update account security',
                     onTap: () => _openRoute(AppRoutes.forgotPassword),
                   ),
-                  _MenuActionCard(
+                  Divider(
+                    height: 1,
+                    indent: 72,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : AppColors.brown.withValues(alpha: 0.08),
+                  ),
+                  _MenuListTile(
                     icon: Icons.alternate_email_rounded,
                     title: 'Registered Email',
                     subtitle: 'Update your account email',
                     onTap: () => _openRoute(AppRoutes.changeEmail),
                   ),
-                  _MenuActionCard(
+                  Divider(
+                    height: 1,
+                    indent: 72,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : AppColors.brown.withValues(alpha: 0.08),
+                  ),
+                  _MenuListTile(
                     icon: Icons.palette_rounded,
                     title: 'Theme',
                     subtitle: 'Light and dark appearance',
@@ -252,6 +282,21 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     subtitle: 'Answers about applications and scholarships',
                     onTap: () => _openRoute(AppRoutes.faqs),
                   ),
+                  if (_hasScholarAccess) ...[
+                    Divider(
+                      height: 1,
+                      indent: 72,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.07)
+                          : AppColors.brown.withValues(alpha: 0.08),
+                    ),
+                    _MenuListTile(
+                      icon: Icons.rule_rounded,
+                      title: 'Scholar Responsibilities',
+                      subtitle: 'Scholar obligations and conduct requirements',
+                      onTap: _openScholarResponsibilities,
+                    ),
+                  ],
                   Divider(
                     height: 1,
                     indent: 72,
@@ -407,77 +452,145 @@ class _ProfileSummaryCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: Colors.white70,
+            size: 28,
+          ),
         ],
       ),
     );
   }
 }
 
-class _MenuActionCard extends StatelessWidget {
-  const _MenuActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+class _ScholarResponsibilitiesScreen extends StatelessWidget {
+  const _ScholarResponsibilitiesScreen({required this.responsibilities});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final List<String> responsibilities;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark
+        ? const Color(0xFF17110B)
+        : const Color(0xFFF6F1EA);
+    final surface = isDark ? const Color(0xFF2B1D13) : Colors.white;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final bodyColor = isDark ? Colors.white70 : AppColors.brown;
 
-    return Material(
-      color: isDark
-          ? AppColors.gold.withValues(alpha: 0.10)
-          : const Color(0xFFFFFAEC),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.16),
-                  borderRadius: BorderRadius.circular(14),
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        title: const Text('Scholar Responsibilities'),
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: titleColor,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: isDark ? 0.14 : 0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.rule_rounded, color: AppColors.gold),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Scholar's Obligations",
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: titleColor,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Office for Scholarship and Financial Assistance',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: bodyColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Icon(icon, color: AppColors.gold, size: 23),
-              ),
-              const SizedBox(height: 11),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                  height: 1.12,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.62),
-                  height: 1.25,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 14),
+          Container(
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : AppColors.brown.withValues(alpha: 0.09),
+              ),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: responsibilities.length,
+              separatorBuilder: (_, _) => Divider(
+                height: 1,
+                indent: 54,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : AppColors.brown.withValues(alpha: 0.08),
+              ),
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(
+                            alpha: isDark ? 0.18 : 0.14,
+                          ),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(
+                          '${index + 1}',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: isDark ? AppColors.gold : AppColors.darkBrown,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          responsibilities[index],
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: bodyColor,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

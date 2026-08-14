@@ -156,7 +156,7 @@ void main() {
       onRetryLatestUpdate: () => updateRetries += 1,
     );
 
-    expect(find.text('Genmart Scholarship Opening 1'), findsOneWidget);
+    expect(find.text('Genmart Scholarship Program 1'), findsOneWidget);
     expect(
       find.text(
         'Showing saved information. We could not refresh scholarship openings.',

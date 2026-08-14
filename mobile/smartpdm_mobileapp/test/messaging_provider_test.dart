@@ -222,6 +222,7 @@ void main() {
 
     expect(service.fetchRoomThreadCalls, greaterThanOrEqualTo(1));
     expect(service.markRoomThreadReadCalls, 1);
+    expect(provider.errorMessage, isNull);
   });
 
   test('MessagingProvider sends a room message', () async {
@@ -242,6 +243,7 @@ void main() {
     expect(sentMessage.senderId, 'user-1');
     expect(sentMessage.roomId, 'room-1');
     expect(sentMessage.messageBody, 'Test group reply');
+    expect(provider.errorMessage, isNull);
   });
 
   test('MessagingProvider loads available chat rooms', () async {

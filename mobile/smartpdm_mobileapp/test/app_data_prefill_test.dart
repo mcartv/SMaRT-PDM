@@ -129,7 +129,8 @@ void main() {
       expect(data.scholarshipElementary, isTrue);
       expect(data.scholarshipCollege, isTrue);
       expect(data.scholarshipOthers, isTrue);
-      expect(data.scholarshipOthersSpecify, 'Aunt');
+      expect(data.financialSupportOtherSpecify, 'Aunt');
+      expect(data.scholarshipOthersSpecify, isEmpty);
       expect(data.disciplinaryAction, isTrue);
       expect(data.disciplinaryExplanation, 'Minor case resolved');
       expect(data.describeYourselfEssay, 'Hardworking student');

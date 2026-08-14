@@ -201,7 +201,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                 ),
               if (widget.showTopBar) const SizedBox(height: 20),
               Text(
-                'Payment Schedule',
+                'Payout Schedule',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: titleColor,

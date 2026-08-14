@@ -188,7 +188,7 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     try {
-      _rooms = await _messageService.fetchGroups();
+      _rooms = List<ChatRoom>.of(await _messageService.fetchGroups());
       _syncTotalUnreadCount();
       _errorMessage = null;
     } catch (error) {
@@ -298,7 +298,9 @@ class MessagingProvider extends ChangeNotifier {
 
     try {
       if (_activeGroupId != null) {
-        _messages = await _messageService.fetchRoomThread(_activeGroupId!);
+        _messages = List<ChatMessage>.of(
+          await _messageService.fetchRoomThread(_activeGroupId!),
+        );
         _setGroupUnreadCount(_activeGroupId!, 0);
         await refreshUnreadCount(notify: false);
       } else {

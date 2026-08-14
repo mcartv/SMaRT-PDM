@@ -140,3 +140,22 @@ test('nine Birth V2 cell polygons remain JSON arrays while original remains SQL 
     assert.equal(signedUploadCalls.length, 10);
     assert.equal(result.artifacts.length, 10);
 });
+
+test('diagnostic expected regions accept only the nine normalized Birth cell keys', () => {
+    const polygon = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.2], [0.1, 0.2]];
+    const normalized = service.normalizeDiagnostic({
+        code: 'PSA_BIRTH_V2_TOPOLOGY_MISMATCH',
+        registration_status: 'matched',
+        topology_status: 'mismatch',
+        registration_mode: 'manual_station_quad',
+        region_mode: 'expected_calibration',
+        source_regions: Object.fromEntries(service.CELL_KEYS.map((key) => [key, polygon])),
+    });
+    assert.equal(normalized.registration_mode, 'manual_station_quad');
+    assert.equal(normalized.region_mode, 'expected_calibration');
+    assert.deepEqual(Object.keys(normalized.source_regions), [...service.CELL_KEYS]);
+    assert.throws(() => service.normalizeDiagnostic({
+        code: 'PSA_BIRTH_V2_TOPOLOGY_MISMATCH',
+        source_regions: { image_url: polygon },
+    }), /Invalid diagnostic source region key/);
+});

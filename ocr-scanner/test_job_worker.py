@@ -10,6 +10,7 @@ sys.modules.setdefault("api", SimpleNamespace(ApiClient=MagicMock))
 
 import job_worker
 from capture_session import CANCELLED, CAPTURED, FAILED, CaptureSessionResult
+from extraction.psa_birth_row_cropper import PSABirthRowCropperConfig
 
 
 CAPTURE_PATH = "/tmp/shared-capture.jpg"
@@ -862,6 +863,48 @@ class JobWorkerTest(unittest.TestCase):
         self.generic_ocr.assert_not_called()
 
     @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")
+    @patch("job_worker.cv2.imencode", return_value=(True, np.frombuffer(b"\x89PNG\r\n\x1a\ncell", dtype=np.uint8)))
+    @patch("job_worker.crop_psa_birth_name_rows", return_value=_birth_v2_crop_result())
+    @patch("job_worker.warp_birth_station_capture")
+    @patch("job_worker.register_psa_birth_form_grid_envelope")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_v2_uses_saved_manual_quad_after_all_automatic_modes_fail(
+        self, register, grid_envelope, manual_warp, _crop, _encode, _read_bytes,
+    ):
+        register.return_value = _birth_registration_result("failed")
+        grid_envelope.return_value = _birth_registration_result("failed")
+        manual_warp.return_value = (
+            np.full((1375, 1400, 3), 240, dtype=np.uint8),
+            tuple(float(value) for value in np.eye(3).reshape(-1)),
+        )
+        rows = PSABirthRowCropperConfig().row_geometries
+        self.birth_calibration_patcher.stop()
+        self.birth_calibration_patcher = patch(
+            "job_worker.load_birth_station_calibration",
+            return_value=(
+                {"row_geometries": rows},
+                {
+                    "status": "loaded",
+                    "version": 2,
+                    "normalized_corners": ((0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)),
+                    "source_size": {"width": 1400, "height": 1375},
+                },
+            ),
+        )
+        self.birth_calibration = self.birth_calibration_patcher.start()
+        api = MagicMock()
+        api.submit_birth_v2_artifacts.return_value = {"request": {"status": "review_required"}}
+
+        success, payload = job_worker._run_birth_certificate_v2_scan(
+            self.request("birth_certificate", ocr_version="v2"), CAPTURE_PATH, api,
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["source_payload"]["registration_mode"], "manual_station_quad")
+        manual_warp.assert_called_once()
+        self.assertEqual(len(api.submit_birth_v2_artifacts.call_args.args[1]), 10)
+
+    @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")
     @patch(
         "job_worker.load_birth_station_calibration",
         return_value=({}, {"status": "repository_default", "version": 1}),
@@ -904,6 +947,15 @@ class JobWorkerTest(unittest.TestCase):
         _read_bytes,
     ):
         register.return_value = _birth_registration_result()
+        self.birth_calibration_patcher.stop()
+        self.birth_calibration_patcher = patch(
+            "job_worker.load_birth_station_calibration",
+            return_value=(
+                {"row_geometries": PSABirthRowCropperConfig().row_geometries},
+                {"status": "loaded", "version": 2},
+            ),
+        )
+        self.birth_calibration = self.birth_calibration_patcher.start()
         self.birth_topology.return_value = _stage_result(
             status="failed",
             success=False,
@@ -929,6 +981,8 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(len(artifacts), 1)
         self.assertEqual(artifacts[0]["artifact_kind"], "original")
         self.assertEqual(diagnostic["code"], "PSA_BIRTH_V2_TOPOLOGY_MISMATCH")
+        self.assertEqual(diagnostic["region_mode"], "expected_calibration")
+        self.assertEqual(len(diagnostic["source_regions"]), 9)
         crop.assert_not_called()
 
     def test_worker_stops_heartbeat_before_terminal_result_submission(self):

@@ -31,11 +31,21 @@ test('Birth V2 uses private signed uploads and backend schema-constrained Gemini
     );
 });
 
-test('Birth V2 preserves incomplete Gemini observations but never authorizes fields', () => {
+test('Birth V2 routes incomplete structured Gemini output to literal full-page diagnostics', () => {
     assert.match(service, /GEMINI_REQUIRED_NAME_MISSING/);
-    assert.match(service, /gemini\.value \? buildRawSnapshot\(gemini\.value\) : ''/);
+    assert.match(service, /callGeminiFullPage\(original\)/);
+    assert.match(service, /diagnosticTranscription\?\.ok \? diagnosticTranscription\.value : ''/);
+    assert.match(service, /responseJsonSchema:\s*FULL_PAGE_RESPONSE_SCHEMA/);
+    assert.match(service, /Do not summarize, infer, correct, normalize/);
     assert.match(requestService, /candidate_processing\?\.diagnostic_only/);
     assert.match(requestService, /reference-only and cannot be changed/);
+});
+
+test('Birth V2 diagnostic metadata keeps only normalized scan polygons', () => {
+    assert.match(service, /region_mode/);
+    assert.match(service, /expected_calibration/);
+    assert.match(service, /source_regions/);
+    assert.match(service, /normalizePolygon\(polygon\)/);
 });
 
 test('Birth V2 keeps the private original available when registration prevents nine-cell extraction', () => {

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
+
+import cv2
+import numpy as np
 
 from extraction.psa_birth_row_cropper import (
     FIELD_NAMES,
@@ -15,7 +19,9 @@ from extraction.psa_birth_row_cropper import (
 )
 
 
-CALIBRATION_VERSION = 1
+CALIBRATION_VERSION = 2
+MANUAL_REGISTRATION_MODE = "manual_station_quad"
+_MINIMUM_QUAD_AREA = 0.08
 
 
 def calibration_path() -> Path:
@@ -50,6 +56,81 @@ def _validated_rows(value: Any) -> tuple[tuple[Any, ...], ...]:
     return PSABirthRowCropperConfig(row_geometries=tuple(rows)).row_geometries
 
 
+def validate_normalized_corners(value: Any) -> tuple[tuple[float, float], ...]:
+    """Validate clockwise TL/TR/BR/BL source corners without guessing order."""
+
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        raise ValueError("manual registration requires four source corners")
+    points = np.asarray(value, dtype=np.float64)
+    if points.shape != (4, 2) or not np.isfinite(points).all():
+        raise ValueError("manual source corners must be finite coordinate pairs")
+    if np.any(points < 0.0) or np.any(points > 1.0):
+        raise ValueError("manual source corners must stay inside the capture")
+    cross_products = []
+    for index in range(4):
+        current = points[index]
+        following = points[(index + 1) % 4]
+        after = points[(index + 2) % 4]
+        first = following - current
+        second = after - following
+        cross_products.append(float(first[0] * second[1] - first[1] * second[0]))
+    if not (all(value > 0 for value in cross_products) or all(value < 0 for value in cross_products)):
+        raise ValueError("manual source corners are crossed or non-convex")
+    area = abs(float(cv2.contourArea(points.astype(np.float32))))
+    if area < _MINIMUM_QUAD_AREA:
+        raise ValueError("manual source quadrilateral is too small")
+    return tuple((float(x), float(y)) for x, y in points)
+
+
+def warp_birth_station_capture(
+    image: np.ndarray,
+    normalized_corners: Any,
+) -> tuple[np.ndarray, tuple[float, ...]]:
+    if image is None or image.size == 0:
+        raise ValueError("manual registration source image is empty")
+    corners = validate_normalized_corners(normalized_corners)
+    height, width = image.shape[:2]
+    source = np.asarray(
+        [[x * width, y * height] for x, y in corners],
+        dtype=np.float32,
+    )
+    destination = np.asarray(
+        [[0, 0], [REGISTERED_WIDTH - 1, 0],
+         [REGISTERED_WIDTH - 1, REGISTERED_HEIGHT - 1],
+         [0, REGISTERED_HEIGHT - 1]],
+        dtype=np.float32,
+    )
+    homography = cv2.getPerspectiveTransform(source, destination)
+    if not np.isfinite(homography).all() or abs(float(np.linalg.det(homography))) < 1e-12:
+        raise ValueError("manual source corners do not produce a valid perspective transform")
+    registered = cv2.warpPerspective(
+        image,
+        homography,
+        (REGISTERED_WIDTH, REGISTERED_HEIGHT),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(255, 255, 255),
+    )
+    return registered, tuple(float(value) for value in homography.reshape(-1))
+
+
+def normalized_corners_from_homography(
+    homography: Any,
+    source_shape: tuple[int, ...],
+) -> tuple[tuple[float, float], ...]:
+    height, width = source_shape[:2]
+    destination = np.asarray([[0, 0], [REGISTERED_WIDTH - 1, 0],
+                              [REGISTERED_WIDTH - 1, REGISTERED_HEIGHT - 1],
+                              [0, REGISTERED_HEIGHT - 1]], dtype=np.float32).reshape(1, 4, 2)
+    matrix = np.asarray(homography, dtype=np.float64).reshape(3, 3)
+    source = cv2.perspectiveTransform(destination, np.linalg.inv(matrix))[0]
+    return validate_normalized_corners([
+        [min(1.0, max(0.0, float(x) / width)),
+         min(1.0, max(0.0, float(y) / height))]
+        for x, y in source
+    ])
+
+
 def load_birth_station_calibration(
     path: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -58,7 +139,8 @@ def load_birth_station_calibration(
         return {}, {"status": "repository_default", "version": CALIBRATION_VERSION}
     try:
         payload = json.loads(target.read_text(encoding="utf-8"))
-        if int(payload.get("version")) != CALIBRATION_VERSION:
+        version = int(payload.get("version"))
+        if version != CALIBRATION_VERSION:
             raise ValueError("unsupported calibration version")
         if payload.get("canvas") != {
             "width": REGISTERED_WIDTH,
@@ -66,6 +148,18 @@ def load_birth_station_calibration(
         }:
             raise ValueError("calibration canvas does not match PSA canvas")
         rows = _validated_rows(payload.get("rows"))
+        registration = payload.get("manual_registration")
+        if not isinstance(registration, Mapping):
+            raise ValueError("manual source registration is missing")
+        corners = validate_normalized_corners(registration.get("normalized_corners"))
+        source_size = registration.get("source_size")
+        if (not isinstance(source_size, Mapping)
+                or int(source_size.get("width", 0)) < 1
+                or int(source_size.get("height", 0)) < 1):
+            raise ValueError("manual registration source size is invalid")
+        verified_at = str(registration.get("verified_at") or "").strip()
+        if not verified_at:
+            raise ValueError("manual registration verification timestamp is missing")
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
         return {}, {"status": "invalid", "version": CALIBRATION_VERSION}
     return (
@@ -74,6 +168,13 @@ def load_birth_station_calibration(
             "status": "loaded",
             "version": CALIBRATION_VERSION,
             "row_count": len(rows),
+            "registration_mode": str(registration.get("mode") or MANUAL_REGISTRATION_MODE),
+            "normalized_corners": corners,
+            "source_size": {
+                "width": int(source_size["width"]),
+                "height": int(source_size["height"]),
+            },
+            "verified_at": verified_at,
         },
     )
 
@@ -81,12 +182,26 @@ def load_birth_station_calibration(
 def save_birth_station_calibration(
     rows: list[Mapping[str, Any]],
     path: Path | None = None,
+    *,
+    normalized_corners: Any,
+    source_shape: tuple[int, ...],
+    registration_mode: str = MANUAL_REGISTRATION_MODE,
 ) -> Path:
     target = path or calibration_path()
     validated = _validated_rows(rows)
+    corners = validate_normalized_corners(normalized_corners)
+    source_height, source_width = source_shape[:2]
+    if source_width < 1 or source_height < 1:
+        raise ValueError("manual registration source size is invalid")
     payload = {
         "version": CALIBRATION_VERSION,
         "canvas": {"width": REGISTERED_WIDTH, "height": REGISTERED_HEIGHT},
+        "manual_registration": {
+            "mode": str(registration_mode or MANUAL_REGISTRATION_MODE),
+            "normalized_corners": [[x, y] for x, y in corners],
+            "source_size": {"width": int(source_width), "height": int(source_height)},
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        },
         "rows": [
             {
                 "field_name": row[0],
@@ -115,5 +230,8 @@ __all__ = [
     "CALIBRATION_VERSION",
     "calibration_path",
     "load_birth_station_calibration",
+    "normalized_corners_from_homography",
     "save_birth_station_calibration",
+    "validate_normalized_corners",
+    "warp_birth_station_capture",
 ]

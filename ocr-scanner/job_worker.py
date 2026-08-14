@@ -33,7 +33,10 @@ except ImportError:  # pragma: no cover - test/runtime fallback
         return False
 
 from api import ApiClient
-from birth_station_calibration import load_birth_station_calibration
+from birth_station_calibration import (
+    load_birth_station_calibration,
+    warp_birth_station_capture,
+)
 from capture_session import CANCELLED, CAPTURED, CaptureSessionResult, run_capture_session
 from camera import CameraController
 from document_contracts import (
@@ -929,6 +932,9 @@ def _submit_birth_v2_diagnostic_capture(
     issue_code: str,
     registration_status: str,
     topology_status: str = "unknown",
+    registration_mode: str = "unknown",
+    source_regions: Dict[str, Any] | None = None,
+    region_mode: str = "expected_calibration",
     request_stop=None,
 ) -> Tuple[bool, Dict]:
     request_id = get_request_id(request)
@@ -966,6 +972,9 @@ def _submit_birth_v2_diagnostic_capture(
             "code": issue_code,
             "registration_status": registration_status,
             "topology_status": topology_status,
+            "registration_mode": registration_mode,
+            "region_mode": region_mode,
+            "source_regions": source_regions or {},
         },
     )
     if not response:
@@ -1010,6 +1019,35 @@ def _birth_v2_roi_polygon(bounds: Any, homography: Any, source_shape: tuple[int,
     ]
 
 
+def _birth_v2_expected_regions(
+    cropper_config: Dict[str, Any],
+    homography: Any,
+    source_shape: tuple[int, ...],
+) -> Dict[str, list[list[float]]]:
+    rows = cropper_config.get("row_geometries") or ()
+    item_names = {
+        "child_name": "item1",
+        "mother_maiden_name": "item6",
+        "father_name": "item13",
+    }
+    regions: Dict[str, list[list[float]]] = {}
+    for row in rows:
+        field_name, left, first_right, middle_right, right, top, bottom = row
+        boundaries = (left, first_right, middle_right, right)
+        for index, component in enumerate(("first", "middle", "last")):
+            class Bounds:
+                pass
+            bounds = Bounds()
+            bounds.x = boundaries[index] / 1400.0
+            bounds.y = top / 1375.0
+            bounds.width = (boundaries[index + 1] - boundaries[index]) / 1400.0
+            bounds.height = (bottom - top) / 1375.0
+            regions[f"{item_names[field_name]}_{component}"] = _birth_v2_roi_polygon(
+                bounds, homography, source_shape,
+            )
+    return regions
+
+
 def _retain_latest_birth_calibration_capture(capture_path: str) -> None:
     """Keep one Pi-local image so station geometry can be corrected visually."""
 
@@ -1050,6 +1088,7 @@ def _run_birth_certificate_v2_scan(
             issue_message="The fresh Birth capture could not be loaded.",
         )
     _retain_latest_birth_calibration_capture(capture_path)
+    cropper_config, calibration_metadata = load_birth_station_calibration()
     registration_mode = "strict_grid"
     registration_result = register_psa_birth_form(source_image)
     if not registration_result.success:
@@ -1060,7 +1099,38 @@ def _run_birth_certificate_v2_scan(
         else:
             registration_result = register_psa_birth_form_grid_envelope(source_image)
             registration_mode = "validated_grid_envelope"
-    if not registration_result.success:
+    registered_image = None
+    registration_homography = None
+    registration_status = "mismatch"
+    registration_context: Dict[str, Any] = {}
+    if registration_result.success and registration_result.data is not None:
+        registered_image = registration_result.data.registered_image
+        registration_homography = registration_result.data.transformation_metadata.homography
+        registration_status = registration_result.status
+        registration_context = _registration_context(registration_result)
+    elif calibration_metadata.get("status") == "loaded":
+        expected_size = calibration_metadata.get("source_size") or {}
+        source_height, source_width = source_image.shape[:2]
+        if (int(expected_size.get("width", 0)) == source_width
+                and int(expected_size.get("height", 0)) == source_height):
+            try:
+                registered_image, registration_homography = warp_birth_station_capture(
+                    source_image,
+                    calibration_metadata.get("normalized_corners"),
+                )
+                registration_mode = "manual_station_quad"
+                registration_status = "matched"
+                registration_context = {
+                    "status": "matched",
+                    "issues": [],
+                    "transformation_metadata": {
+                        "registration_mode": registration_mode,
+                        "homography": registration_homography,
+                    },
+                }
+            except (ValueError, TypeError, np.linalg.LinAlgError):
+                registered_image = None
+    if registered_image is None or registration_homography is None:
         return _submit_birth_v2_diagnostic_capture(
             request,
             capture_path,
@@ -1068,17 +1138,18 @@ def _run_birth_certificate_v2_scan(
             issue_code="PSA_BIRTH_V2_TEMPLATE_MISMATCH",
             registration_status="mismatch",
             topology_status="unknown",
+            registration_mode=registration_mode,
             request_stop=request_stop,
         )
-    cropper_config, calibration_metadata = load_birth_station_calibration()
     if calibration_metadata.get("status") != "loaded":
         return _submit_birth_v2_diagnostic_capture(
             request,
             capture_path,
             api,
             issue_code="PSA_BIRTH_V2_CALIBRATION_REQUIRED",
-            registration_status=registration_result.status,
+            registration_status=registration_status,
             topology_status="mismatch",
+            registration_mode=registration_mode,
             request_stop=request_stop,
         )
     # Calibration supplies bounded search anchors only. V2 must observe the
@@ -1089,8 +1160,13 @@ def _run_birth_certificate_v2_scan(
         "allow_calibrated_topology_fallback": False,
     }
     topology_result = validate_psa_birth_name_topology(
-        registration_result.data.registered_image,
+        registered_image,
         config=strict_cropper_config,
+    )
+    expected_regions = _birth_v2_expected_regions(
+        strict_cropper_config,
+        registration_homography,
+        source_image.shape,
     )
     if not topology_result.success or topology_result.data is None:
         return _submit_birth_v2_diagnostic_capture(
@@ -1098,17 +1174,19 @@ def _run_birth_certificate_v2_scan(
             capture_path,
             api,
             issue_code="PSA_BIRTH_V2_TOPOLOGY_MISMATCH",
-            registration_status=registration_result.status,
+            registration_status=registration_status,
             topology_status="mismatch",
+            registration_mode=registration_mode,
+            source_regions=expected_regions,
             request_stop=request_stop,
         )
     crop_kwargs = {
-        "registration_metadata": _registration_context(registration_result),
+        "registration_metadata": registration_context,
         "topology": topology_result.data,
     }
     crop_kwargs["config"] = strict_cropper_config
     crop_result = crop_psa_birth_name_rows(
-        registration_result.data.registered_image,
+        registered_image,
         **crop_kwargs,
     )
     if not crop_result.success or len(crop_result.data.crops) != 9:
@@ -1117,8 +1195,10 @@ def _run_birth_certificate_v2_scan(
             capture_path,
             api,
             issue_code="PSA_BIRTH_V2_NINE_CELL_CROP_FAILED",
-            registration_status=registration_result.status,
+            registration_status=registration_status,
             topology_status=topology_result.status,
+            registration_mode=registration_mode,
+            source_regions=expected_regions,
             request_stop=request_stop,
         )
     if request_stop and request_stop.is_set():
@@ -1135,7 +1215,7 @@ def _run_birth_certificate_v2_scan(
     }]
     field_items = {"child_name": "item1", "mother_maiden_name": "item6", "father_name": "item13"}
     region_by_name = {region.name: region for region in crop_result.data.regions}
-    homography = registration_result.data.transformation_metadata.homography
+    homography = registration_homography
     for field_name, component_name in (
         (field_name, component_name)
         for field_name in ("child_name", "mother_maiden_name", "father_name")
@@ -1149,8 +1229,10 @@ def _run_birth_certificate_v2_scan(
                 capture_path,
                 api,
                 issue_code="PSA_BIRTH_V2_CELL_ENCODING_FAILED",
-                registration_status=registration_result.status,
+                registration_status=registration_status,
                 topology_status=topology_result.status,
+                registration_mode=registration_mode,
+                source_regions=expected_regions,
                 request_stop=request_stop,
             )
         artifacts.append({
@@ -1185,7 +1267,8 @@ def _run_birth_certificate_v2_scan(
         "_v2_backend_completed": True,
         "source_payload": {
             "ocr_version": "v2",
-            "registration_status": registration_result.status,
+            "registration_status": registration_status,
+            "registration_mode": registration_mode,
             "topology_status": topology_result.status,
             "calibration": calibration_metadata,
         },

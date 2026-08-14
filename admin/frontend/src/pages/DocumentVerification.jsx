@@ -1419,7 +1419,13 @@ const BIRTH_REGION_PREFIX = {
   father_name: 'item13',
 };
 
-function BirthV2ReviewImage({ src, regions, activeRegion, status, error }) {
+const BIRTH_REGION_STYLE = {
+  item1: { color: '#ef4444', label: 'Item 1 / Child' },
+  item6: { color: '#f59e0b', label: 'Item 6 / Mother' },
+  item13: { color: '#2563eb', label: 'Item 13 / Father' },
+};
+
+function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, error }) {
   if (status === 'error') {
     return (
       <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-rose-300 bg-rose-50 px-4 text-center text-sm text-rose-700" role="alert">
@@ -1434,23 +1440,49 @@ function BirthV2ReviewImage({ src, regions, activeRegion, status, error }) {
       </div>
     );
   }
+  const entries = Object.entries(regions || {}).filter(([, points]) => Array.isArray(points));
+  const expected = regionMode === 'expected_calibration';
   return (
-    <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-900" aria-label="Private Birth OCR review image">
-      <img src={src} alt="Captured Birth certificate for admin review" className="block h-auto w-full" />
-      <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+    <div className="space-y-2">
+      <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-900" aria-label="Private Birth OCR review image with scan regions">
+        <img src={src} alt="Captured Birth certificate for admin review" className="block h-auto w-full" />
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
         {Object.entries(regions || {}).map(([key, points]) => {
           if (!Array.isArray(points)) return null;
+          const prefix = key.startsWith('item13') ? 'item13' : key.startsWith('item6') ? 'item6' : 'item1';
+          const style = BIRTH_REGION_STYLE[prefix];
+          const component = key.split('_').at(-1);
+          const anchorX = Math.min(...points.map(([x]) => Number(x))) + 0.004;
+          const anchorY = Math.min(...points.map(([, y]) => Number(y))) + 0.014;
           return (
-            <polygon
-              key={key}
-              points={points.map(([x, y]) => `${x},${y}`).join(' ')}
-              fill={key === activeRegion ? 'rgba(250, 204, 21, 0.30)' : 'rgba(59, 130, 246, 0.08)'}
-              stroke={key === activeRegion ? '#facc15' : '#60a5fa'}
-              strokeWidth={key === activeRegion ? 0.006 : 0.002}
-            />
+            <g key={key}>
+              <polygon
+                points={points.map(([x, y]) => `${x},${y}`).join(' ')}
+                fill={key === activeRegion ? `${style.color}55` : `${style.color}20`}
+                stroke={style.color}
+                strokeWidth={key === activeRegion ? 0.006 : 0.003}
+                strokeDasharray={expected ? '0.012 0.008' : undefined}
+              />
+              <text x={anchorX} y={anchorY} fill={style.color} fontSize="0.018" fontWeight="700">
+                {component?.[0]?.toUpperCase() + component?.slice(1)}
+              </text>
+            </g>
           );
         })}
-      </svg>
+        </svg>
+      </div>
+      {entries.length > 0 ? (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-stone-600" aria-label="Birth scan-region legend">
+          {Object.entries(BIRTH_REGION_STYLE).map(([key, style]) => (
+            <span key={key} className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: style.color }} />{style.label}
+            </span>
+          ))}
+          <span>{expected ? 'Dashed = expected calibrated cells' : 'Solid = exact uploaded cells'}</span>
+        </div>
+      ) : (
+        <p className="text-xs text-amber-700">No calibrated scan regions were available for this attempt. Calibrate the Pi and request a rescan.</p>
+      )}
     </div>
   );
 }
@@ -1746,11 +1778,12 @@ function OCRPanel({
                 <BirthV2ReviewImage
                   src={birthReviewImageUrl}
                   regions={reviewCandidate?.processing?.source_regions}
+                  regionMode={reviewCandidate?.processing?.region_mode}
                   activeRegion={activeBirthRegion}
                   status={birthReviewImageStatus}
                   error={birthReviewImageError}
                 />
-                <p className="mt-1 text-xs text-stone-500">Focus a field to highlight its source cell.</p>
+                <p className="mt-1 text-xs text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
               </div>
             )}
 
@@ -2113,12 +2146,21 @@ function OCRPanel({
         <div className="rounded-lg border border-stone-200 bg-white p-3">
           <p className="mb-2 text-xs uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
 
-          <Textarea
-            value={rawOcrSnapshot}
-            readOnly
-            aria-label="Immutable raw OCR snapshot"
-            className="min-h-[220px] cursor-default resize-y rounded-lg border border-stone-100 bg-stone-50 p-3 font-mono text-sm leading-relaxed text-stone-600 whitespace-pre-wrap"
-          />
+          {birthDiagnosticOnly && !String(rawOcrSnapshot || '').trim() ? (
+            <div className="min-h-[120px] rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
+              Full-page diagnostic transcription is unavailable
+              {reviewCandidate?.processing?.diagnostic_raw_error_code
+                ? ` (${reviewCandidate.processing.diagnostic_raw_error_code})`
+                : ''}. Request a rescan; no OCR text was fabricated.
+            </div>
+          ) : (
+            <Textarea
+              value={rawOcrSnapshot}
+              readOnly
+              aria-label="Immutable raw OCR snapshot"
+              className="min-h-[220px] cursor-default resize-y rounded-lg border border-stone-100 bg-stone-50 p-3 font-mono text-sm leading-relaxed text-stone-600 whitespace-pre-wrap"
+            />
+          )}
         </div>
       </div>
     </div>

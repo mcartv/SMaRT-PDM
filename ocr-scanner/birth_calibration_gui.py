@@ -17,7 +17,10 @@ import numpy as np
 
 from birth_station_calibration import (
     load_birth_station_calibration,
+    normalized_corners_from_homography,
     save_birth_station_calibration,
+    validate_normalized_corners,
+    warp_birth_station_capture,
 )
 from extraction.psa_birth_row_cropper import (
     PSABirthRowCropperConfig,
@@ -50,6 +53,113 @@ BIRTH_RELAXED_REGISTRATION_CONFIG = {
 }
 
 
+class ManualCornerApp:
+    """Manual source-document registration used when automatic modes fail."""
+
+    COLORS = ("#ef4444", "#22c55e", "#3b82f6", "#f59e0b")
+    LABELS = ("Top left", "Top right", "Bottom right", "Bottom left")
+
+    def __init__(self, root, original, *, initial_corners=None,
+                 initial_config=None, calibration_status="repository_default"):
+        self.root = root
+        self.original = original
+        self.initial_config = initial_config
+        self.calibration_status = calibration_status
+        self.corners = [list(point) for point in (initial_corners or (
+            (0.12, 0.06), (0.88, 0.06), (0.88, 0.94), (0.12, 0.94),
+        ))]
+        height, width = original.shape[:2]
+        self.scale = min(1100 / width, 760 / height, 1.0)
+        self.shown_width = int(width * self.scale)
+        self.shown_height = int(height * self.scale)
+        self.drag_index = None
+        self.photo = _photo(original, (self.shown_width, self.shown_height))
+        self._build()
+        self._redraw()
+
+    def _build(self):
+        self.root.title("SMaRT-PDM PSA Birth Manual Registration - Pi local only")
+        toolbar = ttk.Frame(self.root, padding=8)
+        toolbar.pack(fill="x")
+        ttk.Label(toolbar, text=(
+            "Drag the four markers onto the outer corners of the PSA form, "
+            "then preview the corrected canvas."
+        )).pack(side="left")
+        ttk.Button(toolbar, text="Preview registered canvas", command=self._apply).pack(side="right")
+        self.canvas = tk.Canvas(self.root, width=self.shown_width,
+                                height=self.shown_height, cursor="crosshair")
+        self.canvas.pack(fill="both", expand=True)
+        self.canvas.bind("<Button-1>", self._press)
+        self.canvas.bind("<B1-Motion>", self._drag)
+
+    def _point_pixels(self, point):
+        return point[0] * self.shown_width, point[1] * self.shown_height
+
+    def _redraw(self):
+        self.canvas.delete("all")
+        self.canvas.create_image(0, 0, image=self.photo, anchor="nw")
+        pixels = [self._point_pixels(point) for point in self.corners]
+        self.canvas.create_polygon(
+            *(coordinate for point in pixels for coordinate in point),
+            outline="#f43f5e", fill="", width=3,
+        )
+        for (x, y), color, label in zip(pixels, self.COLORS, self.LABELS):
+            self.canvas.create_oval(x - 10, y - 10, x + 10, y + 10,
+                                    fill=color, outline="white", width=2)
+            self.canvas.create_text(x + 14, y - 12, text=label, fill=color,
+                                    anchor="w", font=("TkDefaultFont", 10, "bold"))
+
+    def _press(self, event):
+        distances = []
+        for index, point in enumerate(self.corners):
+            x, y = self._point_pixels(point)
+            distances.append(((event.x - x) ** 2 + (event.y - y) ** 2, index))
+        distance, index = min(distances)
+        self.drag_index = index if distance <= 28 ** 2 else None
+
+    def _drag(self, event):
+        if self.drag_index is None:
+            return
+        self.corners[self.drag_index] = [
+            min(1.0, max(0.0, event.x / self.shown_width)),
+            min(1.0, max(0.0, event.y / self.shown_height)),
+        ]
+        self._redraw()
+
+    def _apply(self):
+        try:
+            corners = validate_normalized_corners(self.corners)
+            registered, _homography = warp_birth_station_capture(self.original, corners)
+        except ValueError as exc:
+            messagebox.showerror("Invalid document corners", str(exc))
+            return
+        preview = tk.Toplevel(self.root)
+        preview.title("Perspective-corrected PSA canvas preview")
+        photo = _photo(registered, (900, 760))
+        label = ttk.Label(preview, image=photo)
+        label.image = photo
+        label.pack(fill="both", expand=True, padx=8, pady=8)
+        actions = ttk.Frame(preview, padding=8)
+        actions.pack(fill="x")
+        ttk.Button(actions, text="Adjust corners", command=preview.destroy).pack(side="left")
+        ttk.Button(
+            actions,
+            text="Use this warp and align nine cells",
+            command=lambda: (preview.destroy(), self._continue_to_rows(registered, corners)),
+        ).pack(side="right")
+
+    def _continue_to_rows(self, registered, corners):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        BirthCalibrationApp(
+            self.root, self.original, registered,
+            initial_config=self.initial_config,
+            calibration_status=self.calibration_status,
+            registration_mode="manual_station_quad",
+            normalized_corners=corners,
+        )
+
+
 def _photo(image: np.ndarray, maximum: tuple[int, int]) -> tk.PhotoImage:
     source = image
     if source.ndim == 2:
@@ -73,6 +183,7 @@ class BirthCalibrationApp:
         initial_config: PSABirthRowCropperConfig | None = None,
         calibration_status: str = "repository_default",
         registration_mode: str = "strict_grid",
+        normalized_corners=None,
     ):
         self.root = root
         self.original = original
@@ -80,6 +191,7 @@ class BirthCalibrationApp:
         self.config = initial_config or PSABirthRowCropperConfig()
         self.calibration_status = calibration_status
         self.registration_mode = registration_mode
+        self.normalized_corners = validate_normalized_corners(normalized_corners)
         self.rows = [
             {
                 "field_name": row[0],
@@ -385,7 +497,12 @@ class BirthCalibrationApp:
                 "their printed First/Middle/Last cells.",
             ):
                 return
-            path = save_birth_station_calibration(self.rows)
+            path = save_birth_station_calibration(
+                self.rows,
+                normalized_corners=self.normalized_corners,
+                source_shape=self.original.shape,
+                registration_mode=self.registration_mode,
+            )
         except Exception as exc:
             messagebox.showerror("Invalid calibration", str(exc))
             return
@@ -401,6 +518,12 @@ def main() -> int:
     original = cv2.imread(str(args.image), cv2.IMREAD_COLOR)
     if original is None:
         raise SystemExit(f"Unable to read {args.image}")
+    calibration_config, calibration_metadata = load_birth_station_calibration()
+    try:
+        initial_config = PSABirthRowCropperConfig(**calibration_config)
+    except (TypeError, ValueError):
+        initial_config = PSABirthRowCropperConfig()
+    saved_corners = calibration_metadata.get("normalized_corners")
     registration_mode = "strict_grid"
     registration = register_psa_birth_form(original)
     if not registration.success:
@@ -412,14 +535,33 @@ def main() -> int:
     if not registration.success:
         registration = register_psa_birth_form_grid_envelope(original)
         registration_mode = "validated_grid_envelope"
-    if not registration.success or registration.data is None:
-        raise SystemExit("Birth grid registration failed; recapture the complete document first")
-    calibration_config, calibration_metadata = load_birth_station_calibration()
-    try:
-        initial_config = PSABirthRowCropperConfig(**calibration_config)
-    except (TypeError, ValueError):
-        initial_config = PSABirthRowCropperConfig()
     root = tk.Tk()
+    if not registration.success or registration.data is None:
+        ManualCornerApp(
+            root,
+            original,
+            initial_corners=saved_corners,
+            initial_config=initial_config,
+            calibration_status=str(calibration_metadata.get("status") or "unknown"),
+        )
+        root.mainloop()
+        return 0
+    try:
+        automatic_corners = normalized_corners_from_homography(
+            registration.data.transformation_metadata.homography,
+            original.shape,
+        )
+    except (ValueError, TypeError, np.linalg.LinAlgError):
+        automatic_corners = saved_corners
+    if automatic_corners is None:
+        ManualCornerApp(
+            root,
+            original,
+            initial_config=initial_config,
+            calibration_status=str(calibration_metadata.get("status") or "unknown"),
+        )
+        root.mainloop()
+        return 0
     BirthCalibrationApp(
         root,
         original,
@@ -427,6 +569,7 @@ def main() -> int:
         initial_config=initial_config,
         calibration_status=str(calibration_metadata.get("status") or "unknown"),
         registration_mode=registration_mode,
+        normalized_corners=automatic_corners,
     )
     root.mainloop()
     return 0

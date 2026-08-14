@@ -25,9 +25,16 @@ const RESPONSE_KEYS = Object.freeze([
 ]);
 const DIAGNOSTIC_MESSAGES = Object.freeze({
     PSA_BIRTH_V2_TEMPLATE_MISMATCH: 'Approved Birth template registration failed.',
+    PSA_BIRTH_V2_CALIBRATION_REQUIRED: 'Birth station calibration is required.',
     PSA_BIRTH_V2_TOPOLOGY_MISMATCH: 'Birth Items 1, 6, and 13 topology could not be validated.',
     PSA_BIRTH_V2_NINE_CELL_CROP_FAILED: 'Exactly nine Birth name cells could not be cropped.',
     PSA_BIRTH_V2_CELL_ENCODING_FAILED: 'A Birth name cell could not be encoded safely.',
+});
+const FULL_PAGE_RESPONSE_SCHEMA = Object.freeze({
+    type: 'object',
+    properties: { raw_text: { type: 'string' } },
+    required: ['raw_text'],
+    additionalProperties: false,
 });
 const RESPONSE_SCHEMA = Object.freeze({
     type: 'object',
@@ -136,6 +143,17 @@ function normalizeDiagnostic(value) {
     }
     const registrationStatus = String(value.registration_status || 'mismatch').trim().toLowerCase();
     const topologyStatus = String(value.topology_status || 'unknown').trim().toLowerCase();
+    const registrationMode = String(value.registration_mode || 'unknown').trim().toLowerCase();
+    const regionMode = String(value.region_mode || 'expected_calibration').trim().toLowerCase();
+    const suppliedRegions = value.source_regions == null ? {} : value.source_regions;
+    if (!suppliedRegions || typeof suppliedRegions !== 'object' || Array.isArray(suppliedRegions)) {
+        throw httpError(400, 'Invalid diagnostic source regions');
+    }
+    const sourceRegions = {};
+    for (const [key, polygon] of Object.entries(suppliedRegions)) {
+        if (!CELL_KEYS.includes(key)) throw httpError(400, 'Invalid diagnostic source region key');
+        sourceRegions[key] = normalizePolygon(polygon);
+    }
     return {
         code,
         message: DIAGNOSTIC_MESSAGES[code],
@@ -145,6 +163,12 @@ function normalizeDiagnostic(value) {
         topology_status: ['matched', 'mismatch', 'failed', 'unknown'].includes(topologyStatus)
             ? topologyStatus
             : 'unknown',
+        registration_mode: [
+            'strict_grid', 'relaxed_validated_grid', 'validated_grid_envelope',
+            'manual_station_quad', 'unknown',
+        ].includes(registrationMode) ? registrationMode : 'unknown',
+        region_mode: regionMode === 'exact_cells' ? 'exact_cells' : 'expected_calibration',
+        source_regions: sourceRegions,
     };
 }
 
@@ -371,6 +395,65 @@ async function callGemini(cells) {
     }
 }
 
+async function callGeminiFullPage(original) {
+    const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+    if (!apiKey) return { ok: false, code: 'GEMINI_KEY_MISSING' };
+    let GoogleGenAI;
+    try {
+        ({ GoogleGenAI } = require('@google/genai'));
+    } catch {
+        return { ok: false, code: 'GEMINI_DEPENDENCY_MISSING' };
+    }
+    const client = new GoogleGenAI({ apiKey });
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(
+            () => reject(Object.assign(new Error('timeout'), { code: 'GEMINI_TIMEOUT' })),
+            GEMINI_TIMEOUT_MS
+        );
+    });
+    try {
+        const response = await Promise.race([
+            client.models.generateContent({
+                model: GEMINI_MODEL,
+                contents: [{ role: 'user', parts: [
+                    { text: [
+                        'Transcribe every legible printed or typed character from this certificate literally.',
+                        'Preserve reading order and line breaks. Do not summarize, infer, correct, normalize,',
+                        'or convert the text into person-name fields. Return only the required JSON object.',
+                    ].join(' ') },
+                    { inlineData: {
+                        mimeType: original.mime_type,
+                        data: original.bytes.toString('base64'),
+                    } },
+                ] }],
+                config: {
+                    responseMimeType: 'application/json',
+                    responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
+                },
+            }),
+            timeout,
+        ]);
+        const raw = typeof response.text === 'function' ? response.text() : response.text;
+        const parsed = JSON.parse(String(raw || ''));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+            || Object.keys(parsed).length !== 1 || typeof parsed.raw_text !== 'string'
+            || !parsed.raw_text.trim()) {
+            return { ok: false, code: 'GEMINI_DIAGNOSTIC_EMPTY' };
+        }
+        return { ok: true, value: parsed.raw_text };
+    } catch (error) {
+        return {
+            ok: false,
+            code: error.code === 'GEMINI_TIMEOUT'
+                ? 'GEMINI_DIAGNOSTIC_TIMEOUT'
+                : 'GEMINI_DIAGNOSTIC_REQUEST_FAILED',
+        };
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 function field(raw, first, middle, last, status = 'detected') {
     return {
         raw_text: raw,
@@ -496,10 +579,37 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
             error_code: diagnosticResult.code,
         });
     }
+    let diagnosticTranscription = null;
+    if (!gemini.ok) {
+        const original = artifacts.find(({ artifact_kind: kind }) => kind === 'original');
+        console.info('BIRTH_V2_DIAGNOSTIC_GEMINI_STARTED', {
+            request_id: String(requestId).slice(0, 8),
+            model: GEMINI_MODEL,
+        });
+        diagnosticTranscription = await callGeminiFullPage(original);
+        console.info('BIRTH_V2_DIAGNOSTIC_GEMINI_FINISHED', {
+            request_id: String(requestId).slice(0, 8),
+            status: diagnosticTranscription.ok ? 'transcribed' : 'unavailable',
+            error_code: diagnosticTranscription.ok ? null : diagnosticTranscription.code,
+        });
+    }
     await assertRequestStillProcessing(requestId, deviceId);
     const structured = gemini.ok
         ? buildCandidate(gemini.value)
-        : { raw_text: gemini.value ? buildRawSnapshot(gemini.value) : '', fields: {} };
+        : { raw_text: diagnosticTranscription?.ok ? diagnosticTranscription.value : '', fields: {} };
+    const sourceRegions = cells.length === 9
+        ? Object.fromEntries(cells.map(({ cell_key, roi_polygon }) => [cell_key, roi_polygon]))
+        : diagnosticResult.source_regions;
+    const validationIssues = gemini.ok ? [] : [{
+        code: gemini.code,
+        message: diagnosticResult?.message || 'Birth OCR requires a rescan or admin rejection.',
+    }];
+    if (!gemini.ok && !diagnosticTranscription?.ok) {
+        validationIssues.push({
+            code: diagnosticTranscription?.code || 'GEMINI_DIAGNOSTIC_UNAVAILABLE',
+            message: 'Full-page diagnostic transcription is unavailable. Request a rescan.',
+        });
+    }
     const result = await iotOcrRequestService.completeRequest({
         requestId,
         status: 'review_required',
@@ -507,10 +617,7 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
         templateId: 'psa_birth_v1',
         fields: structured.fields,
         fieldConfidence: { child_name: null, mother_maiden_name: null, father_name: null },
-        validationIssues: gemini.ok ? [] : [{
-            code: gemini.code,
-            message: diagnosticResult?.message || 'Birth OCR requires a rescan or admin rejection.',
-        }],
+        validationIssues,
         processing: {
             ocr_version: 'v2',
             registration_status: diagnosticResult?.registration_status || 'matched',
@@ -518,10 +625,18 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
             ocr_engine: 'gemini',
             model: GEMINI_MODEL,
             diagnostic_only: !gemini.ok,
+            diagnostic_raw_status: gemini.ok
+                ? 'not_required'
+                : diagnosticTranscription?.ok ? 'available' : 'unavailable',
+            diagnostic_raw_error_code: (!gemini.ok && !diagnosticTranscription?.ok)
+                ? diagnosticTranscription?.code || 'GEMINI_DIAGNOSTIC_UNAVAILABLE'
+                : null,
             private_capture_available: true,
-            source_regions: Object.fromEntries(artifacts
-                .filter(({ artifact_kind }) => artifact_kind === 'cell')
-                .map(({ cell_key, roi_polygon }) => [cell_key, roi_polygon])),
+            source_regions: sourceRegions,
+            region_mode: cells.length === 9
+                ? 'exact_cells'
+                : diagnosticResult.region_mode,
+            registration_mode: diagnosticResult?.registration_mode || 'automatic',
         },
         claimedBy: deviceId,
     });
@@ -617,6 +732,7 @@ exports.listReviewQueue = async ({ documentKey = null, group = null, priority = 
 exports.CELL_KEYS = CELL_KEYS;
 exports.RESPONSE_KEYS = RESPONSE_KEYS;
 exports.validateManifest = validateManifest;
+exports.normalizeDiagnostic = normalizeDiagnostic;
 exports.validateGeminiPayload = validateGeminiPayload;
 exports.hasRequiredNames = hasRequiredNames;
 exports.buildRawSnapshot = buildRawSnapshot;

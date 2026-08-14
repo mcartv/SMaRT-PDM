@@ -35,6 +35,15 @@ void main() {
         isNull,
       );
       expect(
+        AppFieldValidators.name(
+          '',
+          label: 'Middle name',
+          required: false,
+          minLength: 1,
+        ),
+        isNull,
+      );
+      expect(
         AppFieldValidators.name('Name123', label: 'Name'),
         'Enter a valid Name.',
       );

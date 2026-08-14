@@ -1,10 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/constants/legal_documents.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/legal_document_sheet.dart';
 
 class StepSubmit extends StatefulWidget {
   const StepSubmit({
@@ -25,30 +26,38 @@ class StepSubmit extends StatefulWidget {
 }
 
 class _StepSubmitState extends State<StepSubmit> {
-  static final Uri _termsUri = Uri.parse('https://smart-pdm.vercel.app/terms');
-  static final Uri _privacyUri = Uri.parse(
-    'https://smart-pdm.vercel.app/privacy',
-  );
   static const ApplicationSubmissionValidator _validator =
       ApplicationSubmissionValidator();
 
   late bool certRead;
   late bool agreeTerms;
+  late final TapGestureRecognizer _termsRecognizer;
+  late final TapGestureRecognizer _privacyRecognizer;
 
   @override
   void initState() {
     super.initState();
     certRead = widget.data.certificationRead;
     agreeTerms = widget.data.agree;
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () => showLegalDocumentSheet(
+        context,
+        title: LegalDocuments.termsOfServiceTitle,
+        content: LegalDocuments.termsOfService,
+      );
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () => showLegalDocumentSheet(
+        context,
+        title: LegalDocuments.privacyStatementTitle,
+        content: LegalDocuments.privacyStatement,
+      );
   }
 
-  Future<void> _openLink(Uri uri) async {
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open ${uri.toString()}')),
-      );
-    }
+  @override
+  void dispose() {
+    _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
+    super.dispose();
   }
 
   String _clean(String value) {
@@ -234,8 +243,7 @@ class _StepSubmitState extends State<StepSubmit> {
                     fontWeight: FontWeight.w700,
                     decoration: TextDecoration.underline,
                   ),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = () => _openLink(_termsUri),
+                  recognizer: _termsRecognizer,
                 ),
                 const TextSpan(text: ' and the '),
                 TextSpan(
@@ -245,8 +253,7 @@ class _StepSubmitState extends State<StepSubmit> {
                     fontWeight: FontWeight.w700,
                     decoration: TextDecoration.underline,
                   ),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = () => _openLink(_privacyUri),
+                  recognizer: _privacyRecognizer,
                 ),
                 const TextSpan(
                   text:

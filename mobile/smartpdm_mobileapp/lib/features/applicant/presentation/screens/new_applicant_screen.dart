@@ -511,62 +511,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     String? validateAcademic() {
-      if (_data.currentCourse.trim().isEmpty) {
-        return 'Course is required.';
-      }
-      if (_data.currentYearLevel.trim().isEmpty) {
-        return 'Year level is required.';
-      }
-
-      final yearLevel = int.tryParse(_data.currentYearLevel.trim());
-      if (yearLevel == null) {
-        return 'Year level must be a valid number.';
-      }
-      if (yearLevel < 1 || yearLevel > 4) {
-        return 'Year level must be 1, 2, 3, or 4.';
-      }
-
-      if (_data.studentNumber.trim().isEmpty) {
-        return 'Student number is required.';
-      }
-      if (_data.accountStudentId.isNotEmpty &&
-          _data.studentNumber.trim() != _data.accountStudentId.trim()) {
-        return 'Student number must match your logged-in account.';
-      }
-      if (_data.financialSupport.trim().isEmpty) {
-        return 'Financial support is required.';
-      }
-      if (_data.financialSupport
-              .split(',')
-              .map((v) => v.trim())
-              .contains('Other') &&
-          _data.financialSupportOtherSpecify.trim().isEmpty) {
-        return 'Please specify the other financial support.';
-      }
-      if (!_data.scholarshipHistoryAnswered) {
-        return 'Answer the scholarship history question.';
-      }
-      if (_data.scholarshipHistory &&
-          !(_data.scholarshipElementary ||
-              _data.scholarshipHighSchool ||
-              _data.scholarshipCollege ||
-              _data.scholarshipOthers)) {
-        return 'Select at least one scholarship history level.';
-      }
-      if (_data.scholarshipHistory &&
-          _data.scholarshipOthers &&
-          _data.scholarshipOthersSpecify.trim().isEmpty) {
-        return 'Please specify the other scholarship history.';
-      }
-      if (!_data.disciplinaryActionAnswered) {
-        return 'Answer the disciplinary action question.';
-      }
-      if (_data.disciplinaryAction &&
-          _data.disciplinaryExplanation.trim().isEmpty) {
-        return 'Please explain the disciplinary action.';
-      }
-
-      return null;
+      return _submissionValidator.validateAcademicProgression(_data).firstMessage;
     }
 
     String? validateEssay() {
@@ -602,6 +547,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         }
       } else if (_data.parentMarilaoResidencyDuration.trim().isEmpty) {
         return 'Marilao residency duration is required.';
+      } else if (!RegExp(r'^\d+$').hasMatch(
+        _data.parentMarilaoResidencyDuration.trim(),
+      )) {
+        return 'Enter the number of years as a Marilao resident using digits only.';
       }
 
       return null;

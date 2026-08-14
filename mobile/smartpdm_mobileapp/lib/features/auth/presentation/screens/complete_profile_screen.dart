@@ -341,7 +341,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         validator: (v) => AppFieldValidators.name(v, label: 'First name'),
                       ),
                       _buildTextField(
-                        label: 'Middle Name',
+                        label: 'Middle Name (Optional)',
                         controller: _middleNameController,
                         validator: (v) => AppFieldValidators.name(
                           v,

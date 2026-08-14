@@ -456,6 +456,15 @@ class _StepFamilyState extends State<StepFamily> {
         : null;
   }
 
+  String? _parentResidencyDurationError() {
+    if (!widget.showErrors || selectedParentNative == 'No') return null;
+    final value = parentMarilaoResidencyDurationController.text.trim();
+    if (value.isEmpty) return 'Years as resident is required.';
+    return RegExp(r'^\d+$').hasMatch(value)
+        ? null
+        : 'Enter the number of years using digits only.';
+  }
+
   String? _primaryCarerError() {
     if (!widget.showErrors) return null;
     final hasFatherName =
@@ -707,11 +716,11 @@ class _StepFamilyState extends State<StepFamily> {
           const SizedBox(height: 16),
           _row([
             _field(
-              'Middle Name',
+              'Middle Name (Optional)',
               TextFormField(
                 controller: middleNameController,
                 decoration: _dec(
-                  'Middle Name',
+                  'Middle Name (Optional)',
                   errorText: _familyNameError(
                     middleNameController.text,
                     'Middle name',
@@ -991,11 +1000,11 @@ class _StepFamilyState extends State<StepFamily> {
               const SizedBox(height: 16),
               _row([
                 _field(
-                  'Middle Name',
+                  'Middle Name (Optional)',
                   TextFormField(
                     controller: siblingMiddleNameController,
                     decoration: _dec(
-                      'Middle Name',
+                      'Middle Name (Optional)',
                       errorText: _familyNameError(
                         siblingMiddleNameController.text,
                         'Middle name',
@@ -1121,10 +1130,18 @@ class _StepFamilyState extends State<StepFamily> {
                 ),
                 if (selectedParentNative != 'No')
                   _field(
-                    'If YES, how long have they been residents of Marilao?',
+                    'If YES, how long have they been residents of Marilao? *',
                     TextFormField(
                       controller: parentMarilaoResidencyDurationController,
-                      decoration: _dec('e.g., 20 years'),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: _dec(
+                        'Enter number of years',
+                        errorText: _parentResidencyDurationError(),
+                        suffixIcon: intakeCompletionIcon(
+                          parentMarilaoResidencyDurationController.text,
+                        ),
+                      ),
                     ),
                   ),
                 if (selectedParentNative == 'No') ...[

@@ -88,6 +88,7 @@ class _StepPersonalState extends State<StepPersonal> {
         'Abangan Sur',
         'Ibayo',
         'Lias',
+        'Lambakin',
         'Loma de Gato',
         'Nagbalon',
         'Patubig',
@@ -925,7 +926,7 @@ class _StepPersonalState extends State<StepPersonal> {
             _row([
               _textField(
                 controller: middleNameController,
-                label: 'Middle Name',
+                label: 'Middle Name (Optional)',
                 hint: 'Gutierrez',
                 errorText: _nameError(
                   middleNameController.text,

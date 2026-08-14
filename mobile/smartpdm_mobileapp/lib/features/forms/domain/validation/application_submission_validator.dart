@@ -55,6 +55,12 @@ class ApplicationSubmissionValidator {
   static const int essayMinWords = 200;
   static const int essayMaxWords = 300;
 
+  ApplicationSubmissionValidationResult validateAcademicProgression(
+    ApplicationData data,
+  ) {
+    return ApplicationSubmissionValidationResult(_validateAcademicFields(data));
+  }
+
   ApplicationSubmissionValidationResult validateEssayProgression(
     ApplicationData data,
   ) {
@@ -510,6 +516,19 @@ class ApplicationSubmissionValidator {
           ),
         );
       }
+      else if (!RegExp(r'^\d+$').hasMatch(
+        data.parentMarilaoResidencyDuration.trim(),
+      )) {
+        issues.add(
+          const ApplicationSubmissionIssue(
+            code: 'family.residency.invalid',
+            section: ApplicationSubmissionSection.family,
+            field: 'parentMarilaoResidencyDuration',
+            message: 'Years as resident must contain digits only.',
+            repairAction: 'Enter the number of years as a whole number.',
+          ),
+        );
+      }
     } else if (parentNativeStatus == 'No') {
       if (_isBlank(data.parentPreviousTownMunicipality)) {
         issues.add(
@@ -556,6 +575,47 @@ class ApplicationSubmissionValidator {
             field: field,
             message: '$label is required.',
             repairAction: 'Enter your $label.',
+          ),
+        );
+      }
+    }
+
+    requireText(field: 'collegeSchool', label: 'College school');
+    requireText(field: 'collegeAddress', label: 'College address');
+    requireText(
+      field: 'collegeYearGraduated',
+      label: 'College year graduated or status',
+    );
+    requireText(field: 'highSchoolSchool', label: 'Junior high school');
+    requireText(field: 'highSchoolAddress', label: 'Junior high school address');
+    requireText(
+      field: 'highSchoolYearGraduated',
+      label: 'Junior high school year graduated',
+    );
+    requireText(field: 'seniorHighSchool', label: 'Senior high school');
+    requireText(field: 'seniorHighAddress', label: 'Senior high school address');
+    requireText(
+      field: 'seniorHighYearGraduated',
+      label: 'Senior high school year graduated',
+    );
+    requireText(field: 'elementarySchool', label: 'Elementary school');
+    requireText(field: 'elementaryAddress', label: 'Elementary school address');
+    requireText(
+      field: 'elementaryYearGraduated',
+      label: 'Elementary year graduated',
+    );
+
+    final collegeYear = data.collegeYearGraduated.trim();
+    if (collegeYear.isNotEmpty && collegeYear != 'On Going') {
+      final parsedCollegeYear = int.tryParse(collegeYear);
+      if (parsedCollegeYear == null || parsedCollegeYear < 2026) {
+        issues.add(
+          const ApplicationSubmissionIssue(
+            code: 'academic.college_year.invalid',
+            section: ApplicationSubmissionSection.academic,
+            field: 'collegeYearGraduated',
+            message: 'Select On Going or a college graduation year of 2026 or later.',
+            repairAction: 'Choose On Going or select a college graduation year from 2026 onward.',
           ),
         );
       }
@@ -787,6 +847,30 @@ class ApplicationSubmissionValidator {
         return data.civilStatus;
       case 'religion':
         return data.religion;
+      case 'collegeSchool':
+        return data.collegeSchool;
+      case 'collegeAddress':
+        return data.collegeAddress;
+      case 'collegeYearGraduated':
+        return data.collegeYearGraduated;
+      case 'highSchoolSchool':
+        return data.highSchoolSchool;
+      case 'highSchoolAddress':
+        return data.highSchoolAddress;
+      case 'highSchoolYearGraduated':
+        return data.highSchoolYearGraduated;
+      case 'seniorHighSchool':
+        return data.seniorHighSchool;
+      case 'seniorHighAddress':
+        return data.seniorHighAddress;
+      case 'seniorHighYearGraduated':
+        return data.seniorHighYearGraduated;
+      case 'elementarySchool':
+        return data.elementarySchool;
+      case 'elementaryAddress':
+        return data.elementaryAddress;
+      case 'elementaryYearGraduated':
+        return data.elementaryYearGraduated;
       case 'currentCourse':
         return data.currentCourse;
       case 'currentYearLevel':

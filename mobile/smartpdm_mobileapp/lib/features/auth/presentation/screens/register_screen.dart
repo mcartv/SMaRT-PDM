@@ -5,8 +5,10 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
+import 'package:smartpdm_mobileapp/core/constants/legal_documents.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/legal_document_sheet.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -17,44 +19,6 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  static const String _termsOfServiceText = '''
-Welcome to SMaRT-PDM.
-
-By creating and using a SMaRT-PDM account, you agree to provide truthful, complete, and updated information for scholarship-related purposes. You are responsible for protecting your login credentials and for all activity performed under your account.
-
-You agree not to:
-• create, access, or use an account that does not belong to you
-• submit false, altered, or misleading information
-• impersonate another student or user
-• upload fraudulent, incomplete, or unrelated documents
-• misuse the platform for purposes outside legitimate scholarship application, tracking, communication, and account management
-• attempt unauthorized access to other accounts, records, or restricted system functions
-
-SMaRT-PDM may restrict, suspend, or terminate access if submitted information is found to be fraudulent, abusive, misleading, or in violation of school, scholarship, or system-use policies.
-
-If you create, access, or use an account that is not yours, any scholarship application or scholarship grant connected to that misuse may be declared invalid, disqualified, or removed.
-
-Using SMaRT-PDM does not guarantee scholarship approval. All scholarship decisions remain subject to verification, screening, availability of slots, compliance with requirements, and official approval by the proper offices or benefactors.
-
-By continuing, you acknowledge that SMaRT-PDM is a student support and scholarship management platform, and that your use of the service must remain lawful, accurate, and consistent with institutional policies.
-''';
-
-  static const String _privacyStatementText = '''
-SMaRT-PDM collects and processes information such as your student ID, email address, mobile number, profile details, uploaded records, and scholarship-related data to support account creation, identity verification, application processing, status tracking, communication, and scholarship administration.
-
-Your information may be used for:
-• registration and account authentication
-• OTP and security verification
-• applicant profile creation and maintenance
-• scholarship application review and document verification
-• notifications, updates, and system communications
-• reporting and student support operations related to scholarship management
-
-Your data is used only for legitimate school and scholarship administration purposes. Reasonable safeguards are applied to help protect stored information, but users are also responsible for maintaining account confidentiality and ensuring submitted information is accurate.
-
-By creating an account, you acknowledge that your information may be stored, reviewed, and processed for these purposes within the SMaRT-PDM system.
-''';
-
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
@@ -119,103 +83,6 @@ By creating an account, you acknowledge that your information may be stored, rev
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
-  }
-
-  void _showPolicyModal({required String title, required String content}) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final sheetColor = isDark
-            ? AppColors.applicantDarkSurface
-            : Colors.white;
-        final sheetText = isDark
-            ? AppColors.applicantDarkText
-            : AppColors.darkBrown;
-        final sheetMuted = isDark
-            ? AppColors.applicantDarkTextMuted
-            : Colors.grey.shade800;
-
-        return Container(
-          decoration: BoxDecoration(
-            color: sheetColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.78,
-              minChildSize: 0.55,
-              maxChildSize: 0.95,
-              builder: (context, controller) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 46,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade400,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: sheetText,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          controller: controller,
-                          child: Text(
-                            content,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: sheetMuted,
-                                  height: 1.6,
-                                ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accentColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(borderRadius),
-                            ),
-                          ),
-                          child: const Text(
-                            'CLOSE',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _handleRegister() async {
@@ -405,9 +272,10 @@ By creating an account, you acknowledge that your information may be stored, rev
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => _showPolicyModal(
-                          title: 'Terms of Service',
-                          content: _termsOfServiceText,
+                        onTap: () => showLegalDocumentSheet(
+                          context,
+                          title: LegalDocuments.termsOfServiceTitle,
+                          content: LegalDocuments.termsOfService,
                         ),
                         child: const Text(
                           'Terms of Service',
@@ -425,9 +293,10 @@ By creating an account, you acknowledge that your information may be stored, rev
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => _showPolicyModal(
-                          title: 'SMaRT-PDM Privacy Statement',
-                          content: _privacyStatementText,
+                        onTap: () => showLegalDocumentSheet(
+                          context,
+                          title: LegalDocuments.privacyStatementTitle,
+                          content: LegalDocuments.privacyStatement,
                         ),
                         child: const Text(
                           'SMaRT-PDM Privacy Statement',

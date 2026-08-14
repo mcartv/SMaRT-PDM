@@ -56,6 +56,11 @@ class _StepAcademicState extends State<StepAcademic> {
   ];
   static const List<String> _defaultSectionOptions = ['A', 'B', 'C', 'D'];
   static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
+  static const int _collegeMinimumGraduationYear = 2026;
+  static const String _defaultCollegeSchool =
+      'Pambayang Dalubhasaan ng Marilao';
+  static const String _defaultCollegeAddress =
+      'Abangan, Norte, Marilao, Bulacan';
 
   final Set<String> selectedFinancialSupports = <String>{};
   String? selectedCourse;
@@ -73,21 +78,49 @@ class _StepAcademicState extends State<StepAcademic> {
   void initState() {
     super.initState();
 
+    final initialCollegeSchool = widget.data.collegeSchool.trim();
+    final initialCollegeAddress = widget.data.collegeAddress.trim();
+    final shouldDefaultCollegeSchool = initialCollegeSchool.isEmpty;
+    final shouldDefaultCollegeAddress = initialCollegeAddress.isEmpty;
+
     collegeSchoolController = TextEditingController(
-      text: widget.data.collegeSchool,
+      text: shouldDefaultCollegeSchool
+          ? _defaultCollegeSchool
+          : widget.data.collegeSchool,
     );
     collegeAddressController = TextEditingController(
-      text: widget.data.collegeAddress,
+      text: shouldDefaultCollegeAddress
+          ? _defaultCollegeAddress
+          : widget.data.collegeAddress,
     );
+    if (shouldDefaultCollegeSchool) {
+      widget.data.collegeSchool = _defaultCollegeSchool;
+    }
+    if (shouldDefaultCollegeAddress) {
+      widget.data.collegeAddress = _defaultCollegeAddress;
+    }
+
     collegeHonorsController = TextEditingController(
       text: widget.data.collegeHonors,
     );
     collegeClubController = TextEditingController(
       text: widget.data.collegeClub,
     );
+    final initialCollegeYear = widget.data.collegeYearGraduated.trim();
     collegeYearController = TextEditingController(
-      text: widget.data.collegeYearGraduated,
+      text: initialCollegeYear.isEmpty ? 'On Going' : initialCollegeYear,
     );
+    if (initialCollegeYear.isEmpty) {
+      widget.data.collegeYearGraduated = 'On Going';
+    }
+    if (shouldDefaultCollegeSchool ||
+        shouldDefaultCollegeAddress ||
+        initialCollegeYear.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.onChanged();
+      });
+    }
     highSchoolSchoolController = TextEditingController(
       text: widget.data.highSchoolSchool,
     );
@@ -356,6 +389,50 @@ class _StepAcademicState extends State<StepAcademic> {
     return (selectedCourse ?? '').trim().isEmpty ? 'Course is required.' : null;
   }
 
+  String? _academicTextError(TextEditingController controller, String label) {
+    if (!widget.showErrors || controller.text.trim().isNotEmpty) return null;
+    return '$label is required.';
+  }
+
+  List<String> _academicYearOptions(String title) {
+    if (title == 'College') {
+      final lastYear = DateTime.now().year + 10;
+      return <String>[
+        'On Going',
+        for (int year = _collegeMinimumGraduationYear; year <= lastYear; year++)
+          year.toString(),
+      ];
+    }
+
+    return List<String>.generate(
+      DateTime.now().year - 1949,
+      (index) => (DateTime.now().year - index).toString(),
+    );
+  }
+
+  bool _isValidAcademicYear(String title, String value) {
+    final normalized = value.trim();
+    if (normalized.isEmpty) return false;
+    if (title != 'College') return _academicYearOptions(title).contains(normalized);
+    if (normalized == 'On Going') return true;
+    final year = int.tryParse(normalized);
+    return year != null && year >= _collegeMinimumGraduationYear;
+  }
+
+  String? _academicYearError(String title, TextEditingController controller) {
+    if (!widget.showErrors) return null;
+    final value = controller.text.trim();
+    if (value.isEmpty) {
+      return title == 'College'
+          ? 'College year graduated or status is required.'
+          : 'Year graduated is required.';
+    }
+    if (title == 'College' && !_isValidAcademicYear(title, value)) {
+      return 'Select On Going or a graduation year of 2026 or later.';
+    }
+    return null;
+  }
+
   String? _yearLevelError() {
     if (!widget.showErrors) return null;
     final value = (selectedYearLevel ?? '').trim();
@@ -419,7 +496,7 @@ class _StepAcademicState extends State<StepAcademic> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
+            '$title *',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
@@ -427,22 +504,24 @@ class _StepAcademicState extends State<StepAcademic> {
           ),
           const SizedBox(height: 16),
           _field(
-            'School',
+            'School *',
             TextFormField(
               controller: school,
               decoration: _dec(
                 'School',
+                errorText: _academicTextError(school, 'School'),
                 suffixIcon: intakeCompletionIcon(school.text),
               ),
             ),
           ),
           const SizedBox(height: 16),
           _field(
-            'Address',
+            'Address *',
             TextFormField(
               controller: address,
               decoration: _dec(
                 'Address',
+                errorText: _academicTextError(address, 'Address'),
                 suffixIcon: intakeCompletionIcon(address.text),
               ),
             ),
@@ -472,35 +551,36 @@ class _StepAcademicState extends State<StepAcademic> {
               ),
               _field(
                 title == 'College'
-                    ? 'Year Graduated (if completed)'
-                    : 'Year Graduated',
+                    ? 'Year Graduated / Status *'
+                    : 'Year Graduated *',
                 DropdownButtonFormField<String>(
                   isExpanded: true,
-                  initialValue: year.text.trim().isEmpty
-                      ? null
-                      : year.text.trim(),
+                  initialValue: _academicYearOptions(title).contains(
+                    year.text.trim(),
+                  )
+                      ? year.text.trim()
+                      : null,
                   decoration: _dec(
-                    title == 'College' ? 'Optional' : 'Select year',
-                    suffixIcon: intakeCompletionIcon(year.text),
+                    title == 'College'
+                        ? 'Select On Going or year'
+                        : 'Select year',
+                    errorText: _academicYearError(title, year),
+                    suffixIcon: intakeCompletionIcon(
+                      _isValidAcademicYear(title, year.text) ? year.text : '',
+                    ),
                   ),
-                  items:
-                      <String>{
-                            if (year.text.trim().isNotEmpty) year.text.trim(),
-                            ...List<String>.generate(
-                              DateTime.now().year - 1949,
-                              (index) =>
-                                  (DateTime.now().year - index).toString(),
-                            ),
-                          }
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
+                  items: _academicYearOptions(title)
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(value),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (value) {
-                    year.text = value ?? '';
+                    setState(() {
+                      year.text = value ?? '';
+                    });
                     widget.onChanged();
                   },
                 ),

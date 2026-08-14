@@ -90,11 +90,16 @@ class ManualCornerApp:
         except tk.TclError:
             pass
         self.root.bind("<Escape>", lambda _event: self.root.destroy())
+        self.root.bind("<Return>", self._preview_from_keyboard)
+        self.root.bind("<KP_Enter>", self._preview_from_keyboard)
         toolbar = ttk.Frame(self.root, padding=5)
         toolbar.pack(fill="x")
         ttk.Button(toolbar, text="Exit", command=self.root.destroy).pack(side="left")
-        ttk.Label(toolbar, text="Drag all four dots onto the document corners.").pack(side="left", padx=6)
-        ttk.Button(toolbar, text="Preview", command=self._apply).pack(side="right")
+        ttk.Button(toolbar, text="Preview (Enter)", command=self._apply).pack(side="right")
+        ttk.Label(
+            toolbar,
+            text="Step 1/2: outline the complete printed grid (Items 1-13), then press Enter.",
+        ).pack(side="left", padx=6)
         canvas_frame = ttk.Frame(self.root)
         canvas_frame.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(
@@ -107,6 +112,12 @@ class ManualCornerApp:
         self.canvas.pack(anchor="center")
         self.canvas.bind("<Button-1>", self._press)
         self.canvas.bind("<B1-Motion>", self._drag)
+
+    def _preview_from_keyboard(self, event):
+        if event.widget.winfo_class() in {"Button", "TButton"}:
+            return None
+        self._apply()
+        return "break"
 
     def _point_pixels(self, point):
         return (
@@ -159,24 +170,53 @@ class ManualCornerApp:
             return
         preview = tk.Toplevel(self.root)
         preview.title("Perspective-corrected PSA canvas preview")
+        preview.geometry(f"{self.screen_width}x{self.screen_height}+0+0")
+        try:
+            preview.attributes("-fullscreen", True)
+        except tk.TclError:
+            pass
         preview_width, preview_height, _ = fit_capture_to_display(
             registered.shape,
             self.screen_width,
             self.screen_height,
-            reserved_height=88,
+            reserved_height=72,
         )
+        accepted = {"value": False}
+
+        def accept_warp():
+            if accepted["value"]:
+                return
+            accepted["value"] = True
+            preview.destroy()
+            self._continue_to_rows(registered, corners)
+
+        def accept_from_keyboard(event):
+            if event.widget.winfo_class() in {"Button", "TButton"}:
+                return None
+            accept_warp()
+            return "break"
+
+        preview.bind("<Return>", accept_from_keyboard)
+        preview.bind("<KP_Enter>", accept_from_keyboard)
+        preview.bind("<Escape>", lambda _event: preview.destroy())
+        actions = ttk.Frame(preview, padding=5)
+        actions.pack(fill="x")
+        ttk.Button(
+            actions, text="Back: adjust corners (Esc)", command=preview.destroy,
+        ).pack(side="left")
+        ttk.Button(
+            actions,
+            text="Use grid and align nine cells (Enter)",
+            command=accept_warp,
+        ).pack(side="right")
+        ttk.Label(
+            actions,
+            text="Preview must contain Items 1, 6 and 13.",
+        ).pack(side="left", padx=8)
         photo = _photo(registered, (preview_width, preview_height))
         label = ttk.Label(preview, image=photo)
         label.image = photo
         label.pack(fill="both", expand=True, padx=8, pady=8)
-        actions = ttk.Frame(preview, padding=8)
-        actions.pack(fill="x")
-        ttk.Button(actions, text="Adjust corners", command=preview.destroy).pack(side="left")
-        ttk.Button(
-            actions,
-            text="Use this warp and align nine cells",
-            command=lambda: (preview.destroy(), self._continue_to_rows(registered, corners)),
-        ).pack(side="right")
 
     def _continue_to_rows(self, registered, corners):
         for widget in self.root.winfo_children():
@@ -261,23 +301,34 @@ class BirthCalibrationApp:
         except tk.TclError:
             pass
         self.root.bind("<Escape>", lambda _event: self.root.destroy())
-        toolbar = ttk.Frame(self.root, padding=6)
-        toolbar.pack(fill="x")
-        ttk.Button(toolbar, text="Exit", command=self.root.destroy).pack(side="left")
-        ttk.Button(toolbar, text="Inspect original color", command=self._show_original).pack(side="left")
-        ttk.Button(toolbar, text="Save calibration", command=self._save).pack(side="right")
+        self.root.bind("<Return>", self._save_from_keyboard)
+        self.root.bind("<KP_Enter>", self._save_from_keyboard)
+        actions = ttk.Frame(self.root, padding=(5, 4))
+        actions.pack(fill="x")
+        ttk.Button(actions, text="Exit (Esc)", command=self.root.destroy).pack(side="left")
+        ttk.Button(actions, text="Inspect original", command=self._show_original).pack(side="left", padx=4)
+        ttk.Button(
+            actions, text="SAVE CALIBRATION (Enter)", command=self._save,
+        ).pack(side="right")
         ttk.Label(
-            toolbar,
-            text="Drag colored borders. Click a cell to inspect original + 3 OCR variants.",
-        ).pack(side="left", padx=12)
+            actions,
+            text="Step 2/2: inspect all 9 cells, then Enter saves.",
+        ).pack(side="right", padx=8)
+
+        info = ttk.Frame(self.root, padding=(5, 0, 5, 4))
+        info.pack(fill="x")
+        ttk.Label(
+            info,
+            text="Drag borders; each crop must contain only its printed name cell.",
+        ).pack(side="left")
         self.status_label = ttk.Label(
-            toolbar,
+            info,
             text=(
                 f"Calibration: {self.calibration_status} | "
                 f"Registration: {self.registration_mode}"
             ),
         )
-        self.status_label.pack(side="left", padx=12)
+        self.status_label.pack(side="right", padx=6)
 
         body = ttk.Panedwindow(self.root, orient="horizontal")
         body.pack(fill="both", expand=True)
@@ -316,6 +367,12 @@ class BirthCalibrationApp:
         self.preview_title.pack(anchor="w")
         self.preview_frame = ttk.Frame(right)
         self.preview_frame.pack(fill="both", expand=True)
+
+    def _save_from_keyboard(self, event):
+        if event.widget.winfo_class() in {"Button", "TButton"}:
+            return None
+        self._save()
+        return "break"
 
     def _registered_photo(self) -> tk.PhotoImage:
         return _photo(

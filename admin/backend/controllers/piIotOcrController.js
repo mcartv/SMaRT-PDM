@@ -186,6 +186,12 @@ exports.authorizeBirthV2Uploads = async (req, res) => {
         });
         return res.status(200).json({ message: 'Private artifact uploads authorized', data });
     } catch (error) {
+        console.error('BIRTH_V2_UPLOAD_AUTHORIZATION_ERROR', {
+            request_id: String(req.params?.requestId || '').slice(0, 8),
+            code: error.code || null,
+            constraint: error.constraint || null,
+            status_code: error.statusCode || 500,
+        });
         return res.status(error.statusCode || 500).json({
             code: error.code || null,
             error: error.message || 'Failed to authorize Birth V2 uploads',
@@ -214,6 +220,12 @@ exports.completeBirthV2Uploads = async (req, res) => {
         });
         return res.status(200).json({ message: 'Birth V2 extraction completed', data });
     } catch (error) {
+        console.error('BIRTH_V2_UPLOAD_COMPLETION_ERROR', {
+            request_id: String(req.params?.requestId || '').slice(0, 8),
+            code: error.code || null,
+            constraint: error.constraint || null,
+            status_code: error.statusCode || 500,
+        });
         return res.status(error.statusCode || 500).json({
             code: error.code || null,
             error: error.message || 'Failed to complete Birth V2 extraction',

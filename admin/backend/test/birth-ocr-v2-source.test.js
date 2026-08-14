@@ -22,6 +22,13 @@ test('Birth V2 uses private signed uploads and backend schema-constrained Gemini
     assert.doesNotMatch(supabaseConfig, /keyPrefix/);
     assert.match(service, /bytesMatchMime/);
     assert.match(service, /assertRequestStillProcessing/);
+    assert.match(service, /artifact\.roi_polygon == null\s*\? null/);
+    assert.match(piController, /BIRTH_V2_UPLOAD_AUTHORIZATION_ERROR/);
+    assert.match(piController, /BIRTH_V2_UPLOAD_COMPLETION_ERROR/);
+    assert.doesNotMatch(
+        piController,
+        /console\.error\('BIRTH_V2_UPLOAD_(?:AUTHORIZATION|COMPLETION)_ERROR',\s*\{[^}]*message:/
+    );
 });
 
 test('Birth V2 preserves incomplete Gemini observations but never authorizes fields', () => {

@@ -846,6 +846,14 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(diagnostic["topology_status"], "unknown")
         self.generic_ocr.assert_not_called()
 
+    def test_worker_stops_heartbeat_before_terminal_result_submission(self):
+        source = inspect.getsource(job_worker.main)
+        stop_index = source.index("stop_heartbeat_before_result()")
+        submit_index = source.index("submitted = submit_and_verify")
+
+        self.assertLess(stop_index, submit_index)
+        self.assertIn("with status_update_lock", source)
+
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")

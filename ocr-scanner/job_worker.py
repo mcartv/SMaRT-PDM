@@ -1765,6 +1765,15 @@ def main():
                 daemon=True,
             )
             heartbeat_thread.start()
+
+            def stop_heartbeat_before_result() -> None:
+                heartbeat_stop.set()
+                # Wait for any in-flight status request to leave the shared
+                # lifecycle lock before the terminal result changes state.
+                with status_update_lock:
+                    pass
+                heartbeat_thread.join(timeout=1.0)
+
             try:
                 # Capture still starts directly after claim: run_scan(request).
                 _success, payload = run_scan(
@@ -1774,6 +1783,7 @@ def main():
                     api=api,
                 )
                 if not request_stop.is_set():
+                    stop_heartbeat_before_result()
                     publish_worker_activity(
                         "submitting_result",
                         request=request,
@@ -1792,8 +1802,7 @@ def main():
                             camera_status="captured",
                         )
             finally:
-                heartbeat_stop.set()
-                heartbeat_thread.join(timeout=1.0)
+                stop_heartbeat_before_result()
                 if request_stop.is_set() and not _shutdown_requested.is_set():
                     publish_worker_activity(
                         "request_stopped",

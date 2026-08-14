@@ -192,6 +192,9 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
             const artifactId = crypto.randomUUID();
             const extension = artifact.mime_type === 'image/png' ? 'png' : 'jpg';
             const objectPath = `${requestId}/${artifactId}.${extension}`;
+            const roiPolygonJson = artifact.roi_polygon == null
+                ? null
+                : JSON.stringify(artifact.roi_polygon);
             const inserted = await client.query(`
                 INSERT INTO public.iot_ocr_capture_artifacts
                     (artifact_id, request_id, artifact_kind, cell_key, bucket_name,
@@ -207,7 +210,7 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
                 RETURNING artifact_id, object_path
             `, [artifactId, requestId, artifact.artifact_kind, artifact.cell_key, BUCKET,
                 objectPath, artifact.mime_type, artifact.byte_count, artifact.sha256,
-                JSON.stringify(artifact.roi_polygon), deviceId]);
+                roiPolygonJson, deviceId]);
             const row = inserted.rows[0];
             const signed = await supabase.storage.from(BUCKET).createSignedUploadUrl(row.object_path, { upsert: true });
             if (signed.error) throw signed.error;

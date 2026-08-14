@@ -507,7 +507,10 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         };
     }
     if (documentKey === 'certificate_of_indigency') {
-        return Object.fromEntries(required.map((key) => [key, fields[key]]));
+        return Object.fromEntries(required.map((key) => [
+            key,
+            String(fieldValue(fields[key]) ?? '').trim(),
+        ]));
     }
     if (documentKey === 'student_grade_forms' && !Array.isArray(fields.subjects)) {
         throw buildHttpError(400, 'subjects must be an array');
@@ -525,6 +528,42 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
         subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };
+}
+
+function candidateFieldsForReviewDiff(documentKey, candidateFields = {}) {
+    if (['birth_certificate', 'certificate_of_live_birth'].includes(documentKey)) {
+        return {
+            child_name: birthNameComponents(candidateFields?.child_name, {
+                label: 'Detected child name',
+            }),
+            mother_maiden_name: birthNameComponents(candidateFields?.mother_maiden_name, {
+                label: "Detected mother's maiden name",
+            }),
+            father_name: birthNameComponents(candidateFields?.father_name, {
+                required: false,
+                label: "Detected father's name",
+            }),
+        };
+    }
+    if (documentKey === 'certificate_of_indigency') {
+        return {
+            certificate_subject_name: String(
+                fieldValue(candidateFields?.certificate_subject_name) ?? ''
+            ).trim(),
+            residency_address: String(
+                fieldValue(candidateFields?.residency_address) ?? ''
+            ).trim(),
+        };
+    }
+    if (documentKey === 'student_grade_forms') {
+        return {
+            student_number: String(fieldValue(candidateFields?.student_number) ?? '').trim(),
+            academic_year: normalizeAcademicYear(candidateFields?.academic_year),
+            subjects: Array.isArray(candidateFields?.subjects) ? candidateFields.subjects : [],
+            gwa: normalizeGwa(candidateFields?.gwa).toFixed(2),
+        };
+    }
+    return candidateFields;
 }
 
 async function resolveRequestContext(client, applicationId, documentKey) {
@@ -924,13 +963,18 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
                 )
             )
         );
-        const predictedForDiff = ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
-            ? {
-                child_name: birthNameComponents(row.candidate_fields?.child_name, { label: 'Detected child name' }),
-                mother_maiden_name: birthNameComponents(row.candidate_fields?.mother_maiden_name, { label: "Detected mother's maiden name" }),
-                father_name: birthNameComponents(row.candidate_fields?.father_name, { required: false, label: "Detected father's name" }),
-            }
-            : row.candidate_fields;
+        const predictedForDiff = candidateFieldsForReviewDiff(
+            normalizedDocumentKey,
+            withDerivedIndigencyFields(
+                normalizedDocumentKey,
+                row.candidate_raw_text,
+                withDerivedGradeFields(
+                    normalizedDocumentKey,
+                    row.candidate_raw_text,
+                    row.candidate_fields
+                )
+            )
+        );
         if (
             ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
             && JSON.stringify(verifiedFields.child_name) !== JSON.stringify(predictedForDiff.child_name)
@@ -1219,4 +1263,5 @@ module.exports = {
     isIotOcrDocumentEnabled,
     normalizeOcrVersion,
     normalizeReviewReason,
+    candidateFieldsForReviewDiff,
 };

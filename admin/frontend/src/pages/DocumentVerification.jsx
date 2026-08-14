@@ -3668,6 +3668,13 @@ export default function DocumentVerification() {
     try {
       setReviewingCandidate(true);
       setIotOcrError('');
+      const candidateReviewFields = normalizeReviewFields(reviewCandidate);
+      const hasCorrections = (
+        JSON.stringify(correctedFields || {}) !== JSON.stringify(candidateReviewFields)
+      );
+      const confirmationReason = BIRTH_OCR_DOCUMENT_KEYS.has(activeDoc.id)
+        ? (birthReviewReason || null)
+        : (hasCorrections ? 'OCR_CORRECTED' : null);
       const response = await fetch(
         `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/confirm`,
         {
@@ -3678,7 +3685,7 @@ export default function DocumentVerification() {
           },
           body: JSON.stringify({
             corrected_fields: correctedFields,
-            reason_code: birthReviewReason || null,
+            reason_code: confirmationReason,
           }),
         }
       );

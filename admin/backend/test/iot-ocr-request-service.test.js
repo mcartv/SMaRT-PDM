@@ -250,6 +250,35 @@ test('indigency confirmation requires and preserves the verified full address', 
     );
 });
 
+test('unchanged indigency candidate wrappers compare as verified scalar values', () => {
+    const predicted = service.candidateFieldsForReviewDiff(
+        'certificate_of_indigency',
+        {
+            certificate_subject_name: {
+                raw_text: 'MS. VENICE EVE PELIMA,',
+                normalized_value: 'MS. VENICE EVE PELIMA,',
+            },
+            residency_address: {
+                raw_text: '#12 De Vera Compound Lias, Marilao, Bulacan.',
+                normalized_value: '#12 De Vera Compound Lias, Marilao, Bulacan.',
+            },
+        }
+    );
+    const verified = service.validateConfirmedDocumentFields(
+        'certificate_of_indigency',
+        predicted
+    );
+
+    assert.deepEqual(predicted, verified);
+    assert.deepEqual(
+        Object.keys(verified).filter((key) => (
+            JSON.stringify(verified[key]) !== JSON.stringify(predicted[key])
+        )),
+        []
+    );
+    assert.equal(service.normalizeReviewReason(null, { required: false }), null);
+});
+
 test('admin cancellation is allowed for every Pi-active lifecycle state', () => {
     for (const status of service.PI_ACTIVE_STATUSES) {
         assert.ok(

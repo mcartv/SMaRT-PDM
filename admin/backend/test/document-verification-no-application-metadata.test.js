@@ -79,6 +79,7 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.doesNotMatch(source, /\['issue_date', 'Issue Date'\]/);
     assert.doesNotMatch(source, /\['issuing_barangay', 'Issuing Barangay'\]/);
     assert.match(source, /aria-label="Verified full residence address"/);
+    assert.match(source, /hasCorrections \? 'OCR_CORRECTED' : null/);
     assert.match(
         source,
         /\['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'\]\.includes\(activeDoc\?\.id\)[\s\S]*?requestStatus === 'completed'/

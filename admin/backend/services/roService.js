@@ -948,6 +948,441 @@ async function sendRoTimeLogValidationNotification({
     }
 }
 
+async function getScholarObligationHistory(studentId) {
+    if (!studentId) {
+        throw createHttpError(400, 'Student ID is required.');
+    }
+
+    const { data: student, error: studentError } = await supabase
+        .from('students')
+        .select(`
+            student_id,
+            pdm_id,
+            first_name,
+            middle_name,
+            last_name,
+            profile_photo_url
+        `)
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (studentError) {
+        throw createHttpError(500, studentError.message);
+    }
+
+    if (!student) {
+        throw createHttpError(404, 'Scholar not found.');
+    }
+
+    const { data: roRows, error: roError } = await supabase
+        .from('return_of_obligations')
+        .select(`
+            ro_id,
+            student_id,
+            application_id,
+            opening_id,
+            program_id,
+            academic_year_id,
+            period_id,
+            ro_status,
+            cleared_at,
+            cleared_by,
+            remarks,
+            created_at,
+            updated_at,
+            setting_id,
+            required_hours,
+            progress_status,
+            submitted_progress,
+            ro_progress,
+            submitted_minutes,
+            validated_minutes,
+            assigned_area,
+            assignment_status,
+            assignment_acknowledged_at,
+            conflict_reason,
+            assigned_by,
+            assigned_at,
+            coordinator_status,
+            coordinator_remarks,
+            coordinator_user_id,
+            coordinator_decided_at
+        `)
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
+
+    if (roError) {
+        throw createHttpError(500, roError.message);
+    }
+
+    const obligations = roRows || [];
+
+    const studentPayload = {
+        student_id: student.student_id,
+        pdm_id: student.pdm_id || '',
+        name: fullName(student),
+        avatar_url: await resolveAvatarUrl(student.profile_photo_url),
+    };
+
+    if (!obligations.length) {
+        return {
+            student: studentPayload,
+            history: [],
+        };
+    }
+
+    const periodIds = [
+        ...new Set(
+            obligations
+                .map((row) => row.period_id)
+                .filter(Boolean)
+        ),
+    ];
+
+    let periods = [];
+
+    if (periodIds.length) {
+        const { data, error } = await supabase
+            .from('academic_period')
+            .select(`
+                period_id,
+                academic_year_id,
+                term,
+                is_active,
+                activated_at,
+                created_at,
+                updated_at
+            `)
+            .in('period_id', periodIds);
+
+        if (error) {
+            throw createHttpError(500, error.message);
+        }
+
+        periods = data || [];
+    }
+
+    const periodMap = new Map(
+        periods.map((period) => [
+            String(period.period_id),
+            period,
+        ])
+    );
+
+    const academicYearIds = [
+        ...new Set(
+            [
+                ...periods.map((period) => period.academic_year_id),
+                ...obligations.map((row) => row.academic_year_id),
+            ].filter(Boolean)
+        ),
+    ];
+
+    let academicYears = [];
+
+    if (academicYearIds.length) {
+        const { data, error } = await supabase
+            .from('academic_years')
+            .select(`
+                academic_year_id,
+                start_year,
+                end_year,
+                label
+            `)
+            .in('academic_year_id', academicYearIds);
+
+        if (error) {
+            throw createHttpError(500, error.message);
+        }
+
+        academicYears = data || [];
+    }
+
+    const academicYearMap = new Map(
+        academicYears.map((year) => [
+            String(year.academic_year_id),
+            year,
+        ])
+    );
+
+    const roIds = obligations
+        .map((row) => row.ro_id)
+        .filter(Boolean);
+
+    const [logsByRo, placementsByRo] = await Promise.all([
+        getLogsForROIds(roIds),
+        getPlacementsForROIds(roIds),
+    ]);
+
+    const semesterRank = (value) => {
+        const normalized = normalizeText(value);
+
+        if (normalized.includes('second')) return 2;
+        if (normalized.includes('first')) return 1;
+        if (normalized.includes('summer')) return 3;
+
+        return 0;
+    };
+
+    const history = obligations.map((ro) => {
+        const period =
+            periodMap.get(String(ro.period_id || '')) || {};
+
+        const academicYearId =
+            period.academic_year_id ||
+            ro.academic_year_id ||
+            null;
+
+        const academicYear =
+            academicYearMap.get(String(academicYearId || '')) || {};
+
+        const academicYearLabel =
+            cleanText(academicYear.label) ||
+            (
+                academicYear.start_year && academicYear.end_year
+                    ? `${academicYear.start_year}-${academicYear.end_year}`
+                    : ''
+            );
+
+        const placements =
+            placementsByRo.get(ro.ro_id) || [];
+
+        const approvedPlacement = placements.find(
+            (placement) =>
+                normalizeText(placement.placement_status) === 'approved'
+        );
+
+        const activePlacement =
+            approvedPlacement ||
+            placements.find((placement) => {
+                const status = normalizeText(
+                    placement.placement_status
+                );
+
+                return (
+                    status === 'pending' ||
+                    status === 'approved'
+                );
+            });
+
+        const logs = (logsByRo.get(ro.ro_id) || []).map(
+            serializeLog
+        );
+
+        const requiredMinutes =
+            Math.max(0, toNumber(ro.required_hours) * 60);
+
+        const submittedMinutes =
+            Math.max(0, toNumber(ro.submitted_minutes));
+
+        const validatedMinutes =
+            Math.max(0, toNumber(ro.validated_minutes));
+
+        const submittedProgress =
+            ro.submitted_progress != null
+                ? Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        toNumber(ro.submitted_progress)
+                    )
+                )
+                : percentFromMinutes(
+                    submittedMinutes,
+                    requiredMinutes
+                );
+
+        const validatedProgress =
+            ro.ro_progress != null
+                ? Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        toNumber(ro.ro_progress)
+                    )
+                )
+                : percentFromMinutes(
+                    validatedMinutes,
+                    requiredMinutes
+                );
+
+        const isCleared =
+            isClearedStatus(ro.ro_status) ||
+            isClearedStatus(ro.assignment_status);
+
+        const assignedArea =
+            activePlacement?.assigned_area ||
+            cleanText(ro.assigned_area) ||
+            '';
+
+        const proofCount = logs.reduce(
+            (total, log) =>
+                total +
+                (
+                    Array.isArray(log.proofs)
+                        ? log.proofs.length
+                        : 0
+                ),
+            0
+        );
+
+        return {
+            ro_id: ro.ro_id,
+            roId: ro.ro_id,
+
+            student_id: ro.student_id,
+            studentId: ro.student_id,
+
+            application_id: ro.application_id,
+            applicationId: ro.application_id,
+
+            opening_id: ro.opening_id,
+            openingId: ro.opening_id,
+
+            program_id: ro.program_id,
+            programId: ro.program_id,
+
+            academic_year_id: academicYearId,
+            academicYearId: academicYearId,
+
+            period_id: ro.period_id,
+            periodId: ro.period_id,
+
+            academic_year: academicYearLabel,
+            academicYear: academicYearLabel,
+
+            semester: cleanText(period.term),
+
+            is_current_period: period.is_active === true,
+            isCurrentPeriod: period.is_active === true,
+
+            required_hours: toNumber(ro.required_hours),
+            requiredHours: toNumber(ro.required_hours),
+
+            required_minutes: requiredMinutes,
+            requiredMinutes,
+
+            submitted_minutes: submittedMinutes,
+            submittedMinutes,
+
+            validated_minutes: validatedMinutes,
+            validatedMinutes,
+
+            submitted_progress: submittedProgress,
+            submittedProgress,
+
+            validated_progress: validatedProgress,
+            validatedProgress,
+
+            ro_progress: validatedProgress,
+
+            ro_status: ro.ro_status || 'Pending',
+            roStatus: ro.ro_status || 'Pending',
+
+            progress_status:
+                ro.progress_status || 'Not Started',
+            progressStatus:
+                ro.progress_status || 'Not Started',
+
+            assignment_status:
+                ro.assignment_status || 'Unassigned',
+            assignmentStatus:
+                ro.assignment_status || 'Unassigned',
+
+            assigned_area: assignedArea,
+            assignedArea,
+
+            remarks: cleanText(ro.remarks),
+
+            conflict_reason:
+                cleanText(ro.conflict_reason),
+            conflictReason:
+                cleanText(ro.conflict_reason),
+
+            cleared_at: ro.cleared_at || null,
+            clearedAt: ro.cleared_at || null,
+
+            cleared_by: ro.cleared_by || null,
+            clearedBy: ro.cleared_by || null,
+
+            assigned_at: ro.assigned_at || null,
+            assignedAt: ro.assigned_at || null,
+
+            assignment_acknowledged_at:
+                ro.assignment_acknowledged_at || null,
+            assignmentAcknowledgedAt:
+                ro.assignment_acknowledged_at || null,
+
+            created_at: ro.created_at || null,
+            createdAt: ro.created_at || null,
+
+            updated_at: ro.updated_at || null,
+            updatedAt: ro.updated_at || null,
+
+            is_cleared: isCleared,
+            isCleared,
+
+            placements,
+
+            logs,
+
+            log_count: logs.length,
+            logCount: logs.length,
+
+            proof_count: proofCount,
+            proofCount,
+        };
+    });
+
+    history.sort((a, b) => {
+        if (a.is_current_period !== b.is_current_period) {
+            return a.is_current_period ? -1 : 1;
+        }
+
+        const aStartYear =
+            Number(
+                String(
+                    a.academic_year || ''
+                ).split('-')[0]
+            ) || 0;
+
+        const bStartYear =
+            Number(
+                String(
+                    b.academic_year || ''
+                ).split('-')[0]
+            ) || 0;
+
+        if (aStartYear !== bStartYear) {
+            return bStartYear - aStartYear;
+        }
+
+        const semesterDifference =
+            semesterRank(b.semester) -
+            semesterRank(a.semester);
+
+        if (semesterDifference !== 0) {
+            return semesterDifference;
+        }
+
+        const aCreated =
+            Date.parse(a.created_at || '') || 0;
+
+        const bCreated =
+            Date.parse(b.created_at || '') || 0;
+
+        return bCreated - aCreated;
+    });
+
+    return {
+        student: studentPayload,
+        history,
+    };
+}
+
+exports.getScholarObligationHistory =
+    getScholarObligationHistory;
+
 async function sendRoClearanceNotification({ studentId, ro }) {
     try {
         if (typeof notificationService?.createUserNotification !== 'function') {

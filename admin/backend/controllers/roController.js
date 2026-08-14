@@ -178,6 +178,25 @@ exports.updateScholarRequest = async (req, res) => {
   }
 };
 
+exports.getScholarObligationHistory = async (req, res) => {
+  try {
+    const data = await roService.getScholarObligationHistory(
+      req.params.studentId
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error(
+      'GET SCHOLAR RO HISTORY ERROR:',
+      err.message
+    );
+
+    return res
+      .status(getSafeStatusCode(err))
+      .json({ error: err.message });
+  }
+};
+
 exports.assignScholarRO = async (req, res) => {
   try {
     const data = await roService.assignScholarRO(

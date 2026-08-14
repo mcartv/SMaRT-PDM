@@ -9,7 +9,19 @@ const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get('/summary', adminOnly, roController.getSummary);
 router.get('/scholars', adminOnly, roController.getROScholars);
-router.get('/scholar-requests', adminOnly, roController.getScholarRequests);
+
+router.get(
+    '/scholars/:studentId/history',
+    adminOnly,
+    roController.getScholarObligationHistory
+);
+
+router.get(
+    '/scholar-requests',
+    adminOnly,
+    roController.getScholarRequests
+);
+
 router.patch(
     '/scholar-requests/:requestId',
     adminOnly,

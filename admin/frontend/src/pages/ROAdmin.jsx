@@ -23,6 +23,12 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  History,
+  ChevronDown,
+  ChevronUp,
+  CalendarDays,
+  Clock3,
+  CheckCircle2,
 } from 'lucide-react';
 
 const C = {
@@ -435,11 +441,10 @@ function ToolbarSegment({ options, value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
-              active
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-500 hover:text-stone-700'
-            }`}
+            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${active
+              ? 'bg-white text-stone-900 shadow-sm'
+              : 'text-stone-500 hover:text-stone-700'
+              }`}
           >
             {option.label}
           </button>
@@ -1387,6 +1392,17 @@ function RoDetailsModal({
               Mark Cleared is locked: {clearanceBlockedReason}
             </div>
           ) : null}
+
+          <ObligationHistory
+            studentId={
+              scholar.student_id ||
+              scholar.studentId
+            }
+            currentRoId={
+              scholar.ro_id ||
+              scholar.roId
+            }
+          />
         </CardContent>
 
         {/* Compact fixed footer */}
@@ -1505,6 +1521,572 @@ function FeedbackModal({
         </div>
       </Card>
     </div>
+  );
+}
+
+function ObligationHistory({
+  studentId,
+  currentRoId,
+}) {
+  const token = sessionStorage.getItem('adminToken');
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] =
+    useState(false);
+  const [error, setError] =
+    useState('');
+  const [expandedRoId, setExpandedRoId] =
+    useState(null);
+
+  useEffect(() => {
+    if (!studentId) {
+      setHistory([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await fetch(
+          buildApiUrl(
+            `/api/ro/scholars/${studentId}/history`
+          ),
+          {
+            headers: token
+              ? {
+                  Authorization: `Bearer ${token}`,
+                }
+              : {},
+          }
+        );
+
+        const payload =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error ||
+            'Unable to load obligation history.'
+          );
+        }
+
+        if (cancelled) return;
+
+        setHistory(
+          Array.isArray(payload?.history)
+            ? payload.history
+            : []
+        );
+      } catch (err) {
+        if (cancelled) return;
+
+        setError(
+          err?.message ||
+          'Unable to load obligation history.'
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId, token]);
+
+  if (!studentId) {
+    return null;
+  }
+
+  return (
+    <div className="mt-6 border-t border-stone-200 pt-5">
+      <div className="mb-4 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-100">
+          <History className="h-4 w-4 text-stone-600" />
+        </div>
+
+        <div>
+          <h3 className="text-sm font-black text-stone-900">
+            Obligation History
+          </h3>
+
+          <p className="text-[11px] text-stone-500">
+            Semester-by-semester Return of
+            Obligation records
+          </p>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center rounded-xl border border-stone-200 bg-stone-50 py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
+
+          <span className="ml-2 text-xs font-medium text-stone-500">
+            Loading history...
+          </span>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!loading &&
+        !error &&
+        history.length === 0 && (
+          <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center">
+            <History className="mx-auto mb-2 h-5 w-5 text-stone-300" />
+
+            <p className="text-xs font-semibold text-stone-500">
+              No previous obligation records.
+            </p>
+          </div>
+        )}
+
+      {!loading &&
+        !error &&
+        history.length > 0 && (
+          <div className="space-y-2">
+            {history.map((item) => {
+              const isCurrent =
+                String(item.ro_id) ===
+                String(currentRoId);
+
+              const expanded =
+                expandedRoId ===
+                item.ro_id;
+
+              const percent =
+                item.is_cleared
+                  ? 100
+                  : Math.max(
+                    Number(
+                      item.validated_progress ||
+                      0
+                    ),
+                    Number(
+                      item.submitted_progress ||
+                      0
+                    )
+                  );
+
+              const status =
+                item.is_cleared
+                  ? {
+                    label: 'Cleared',
+                    tone: 'green',
+                  }
+                  : getMainStatusCapsule({
+                    ro_status:
+                      item.ro_status,
+                    assignment_status:
+                      item.assignment_status,
+                    progress_status:
+                      item.progress_status,
+                    assigned_area:
+                      item.assigned_area,
+                    placements:
+                      item.placements,
+                  });
+
+              const required =
+                Number(
+                  item.required_minutes ||
+                  0
+                );
+
+              const completed =
+                Number(
+                  item.validated_minutes ||
+                  0
+                );
+
+              return (
+                <div
+                  key={item.ro_id}
+                  className={`overflow-hidden rounded-xl border ${isCurrent
+                    ? 'border-amber-300 bg-amber-50/40'
+                    : 'border-stone-200 bg-white'
+                    }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedRoId(
+                        expanded
+                          ? null
+                          : item.ro_id
+                      )
+                    }
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-stone-50"
+                  >
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.is_cleared
+                        ? 'bg-green-50'
+                        : 'bg-stone-100'
+                        }`}
+                    >
+                      {item.is_cleared ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Clock3 className="h-4 w-4 text-stone-500" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-black text-stone-900">
+                          {item.semester ||
+                            'Semester'}
+                        </p>
+
+                        <span className="text-[11px] font-medium text-stone-400">
+                          AY{' '}
+                          {item.academic_year ||
+                            'N/A'}
+                        </span>
+
+                        {isCurrent && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-700">
+                            Current
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-1 truncate text-[11px] font-medium text-stone-500">
+                        {item.assigned_area ||
+                          'Not assigned'}
+                      </p>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <StatusChip
+                        tone={
+                          status.tone ||
+                          'default'
+                        }
+                      >
+                        {status.label}
+                      </StatusChip>
+
+                      <p className="mt-1.5 text-[10px] font-bold text-stone-500">
+                        {clampPercent(
+                          percent
+                        )}
+                        % (
+                        {formatMinutes(
+                          completed
+                        )}{' '}
+                        /{' '}
+                        {formatMinutes(
+                          required
+                        )}
+                        )
+                      </p>
+                    </div>
+
+                    {expanded ? (
+                      <ChevronUp className="h-4 w-4 shrink-0 text-stone-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-stone-400" />
+                    )}
+                  </button>
+
+                  {expanded && (
+                    <div className="border-t border-stone-100 bg-stone-50/60 px-4 py-4">
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                        <HistoryInfo
+                          label="Academic Year"
+                          value={`AY ${item.academic_year ||
+                            'N/A'
+                            }`}
+                        />
+
+                        <HistoryInfo
+                          label="Semester"
+                          value={
+                            item.semester ||
+                            'N/A'
+                          }
+                        />
+
+                        <HistoryInfo
+                          label="Department"
+                          value={
+                            item.assigned_area ||
+                            'Not assigned'
+                          }
+                        />
+
+                        <HistoryInfo
+                          label="Required"
+                          value={formatMinutes(
+                            required
+                          )}
+                        />
+
+                        <HistoryInfo
+                          label="Submitted"
+                          value={formatMinutes(
+                            item.submitted_minutes
+                          )}
+                        />
+
+                        <HistoryInfo
+                          label="Validated"
+                          value={formatMinutes(
+                            completed
+                          )}
+                        />
+
+                        <HistoryInfo
+                          label="Progress"
+                          value={`${clampPercent(
+                            percent
+                          )}%`}
+                        />
+
+                        <HistoryInfo
+                          label="Status"
+                          value={status.label}
+                        />
+                      </div>
+
+                      {item.cleared_at && (
+                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-green-100 bg-green-50 px-3 py-2">
+                          <CalendarDays className="h-3.5 w-3.5 text-green-600" />
+
+                          <p className="text-[10px] font-semibold text-green-700">
+                            Cleared{' '}
+                            {formatDateTime(
+                              item.cleared_at
+                            )}
+                          </p>
+                        </div>
+                      )}
+
+                      <HistoryAttendance
+                        logs={
+                          Array.isArray(
+                            item.logs
+                          )
+                            ? item.logs
+                            : []
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+    </div>
+  );
+}
+
+function HistoryInfo({
+  label,
+  value,
+}) {
+  return (
+    <div className="rounded-lg border border-stone-200 bg-white px-3 py-2.5">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-stone-400">
+        {label}
+      </p>
+
+      <p className="mt-1 truncate text-xs font-black text-stone-800">
+        {value || 'N/A'}
+      </p>
+    </div>
+  );
+}
+
+function HistoryAttendance({
+  logs = [],
+}) {
+  if (!logs.length) {
+    return (
+      <div className="mt-4 rounded-lg border border-dashed border-stone-200 bg-white px-3 py-4 text-center text-[11px] font-medium text-stone-400">
+        No attendance logs for this
+        semester.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-stone-500">
+        Attendance Records
+      </p>
+
+      <div className="space-y-2">
+        {logs.map((log) => {
+          const proofs =
+            Array.isArray(log.proofs)
+              ? log.proofs
+              : [];
+
+          const timeInProof =
+            proofs.find(
+              (proof) =>
+                normalizeStatus(
+                  proof.proof_type ||
+                  proof.proofType
+                ) === 'time_in'
+            );
+
+          const timeOutProof =
+            proofs.find(
+              (proof) =>
+                normalizeStatus(
+                  proof.proof_type ||
+                  proof.proofType
+                ) === 'time_out'
+            );
+
+          return (
+            <div
+              key={
+                log.log_id ||
+                log.logId
+              }
+              className="rounded-lg border border-stone-200 bg-white p-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-black text-stone-800">
+                    {formatDateTime(
+                      log.time_in_at ||
+                      log.timeInAt
+                    )}
+                  </p>
+
+                  <p className="mt-0.5 text-[10px] text-stone-400">
+                    Time Out:{' '}
+                    {formatDateTime(
+                      log.time_out_at ||
+                      log.timeOutAt
+                    )}
+                  </p>
+                </div>
+
+                <StatusChip
+                  tone={
+                    normalizeStatus(
+                      log.validation_status ||
+                      log.validationStatus
+                    ) === 'approved'
+                      ? 'green'
+                      : 'default'
+                  }
+                >
+                  {log.validation_status ||
+                    log.validationStatus ||
+                    'Pending'}
+                </StatusChip>
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-semibold text-stone-500">
+                <span>
+                  Rendered:{' '}
+                  {formatMinutes(
+                    log.duration_minutes ||
+                    log.durationMinutes
+                  )}
+                </span>
+
+                <span>
+                  Validated:{' '}
+                  {formatMinutes(
+                    log.validated_minutes ||
+                    log.validatedMinutes
+                  )}
+                </span>
+
+                {log.auto_timed_out ===
+                  true && (
+                    <span className="text-amber-600">
+                      Auto timed out
+                    </span>
+                  )}
+              </div>
+
+              {(timeInProof ||
+                timeOutProof) && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <HistoryProof
+                      title="Time In"
+                      proof={
+                        timeInProof
+                      }
+                    />
+
+                    <HistoryProof
+                      title="Time Out"
+                      proof={
+                        timeOutProof
+                      }
+                    />
+                  </div>
+                )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HistoryProof({
+  title,
+  proof,
+}) {
+  const imageUrl =
+    proof?.file_url ||
+    proof?.fileUrl ||
+    '';
+
+  if (!imageUrl) {
+    return (
+      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-stone-200 bg-stone-50">
+        <span className="text-[10px] font-semibold text-stone-400">
+          No {title} proof
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={imageUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="group overflow-hidden rounded-lg border border-stone-200 bg-white"
+    >
+      <div className="h-24 overflow-hidden bg-stone-100">
+        <img
+          src={imageUrl}
+          alt={`${title} proof`}
+          className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+        />
+      </div>
+
+      <div className="px-2 py-1.5">
+        <p className="text-[10px] font-bold text-stone-600">
+          {title} Proof
+        </p>
+      </div>
+    </a>
   );
 }
 
@@ -2135,9 +2717,9 @@ export default function ROAdmin() {
           details:
             duplicateFailures.length > 0
               ? [
-                  'A scholar can only have one active RO placement per semester.',
-                  'Cancel or reject the existing placement before assigning another RO area.',
-                ]
+                'A scholar can only have one active RO placement per semester.',
+                'Cancel or reject the existing placement before assigning another RO area.',
+              ]
               : [],
         });
       } else if (failedCount > 0) {
@@ -2350,7 +2932,7 @@ export default function ROAdmin() {
             />
 
             {selectedIds.length > 0 &&
-            !['cleared', 'requests'].includes(topTab) ? (
+              !['cleared', 'requests'].includes(topTab) ? (
               <Button
                 onClick={() => {
                   setBatchError('');

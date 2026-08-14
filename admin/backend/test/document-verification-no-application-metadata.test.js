@@ -123,6 +123,19 @@ test('non-OCR documents show only the document preview and hide the OCR hub', ()
     assert.match(source, /!activeDocumentSupportsOcr \? \([\s\S]*?<DocumentPreviewPanel/);
 });
 
+test('document selector groups OCR scanning separately from manual review documents', () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
+        'utf8'
+    );
+
+    assert.match(source, /label: 'OCR Scanning'/);
+    assert.match(source, /label: 'Manual Review · No OCR'/);
+    assert.match(source, /documents: docs\.filter\(\(document\) => !IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(document\.id\)\)/);
+    assert.match(source, /documents: docs\.filter\(\(document\) => IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(document\.id\)\)/);
+    assert.match(source, /documentGroups\.map/);
+});
+
 test('student summary displays tri-state confirmed Marilao residency', () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),

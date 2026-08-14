@@ -3128,6 +3128,18 @@ export default function DocumentVerification() {
   const activeDocumentSupportsOcr = Boolean(
     activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
   );
+  const documentGroups = useMemo(() => [
+    {
+      key: 'ocr',
+      label: 'OCR Scanning',
+      documents: docs.filter((document) => !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
+    },
+    {
+      key: 'manual',
+      label: 'Manual Review · No OCR',
+      documents: docs.filter((document) => IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
+    },
+  ], [docs]);
   const persistedIotRequest = getActiveIotRequest(activeDoc);
   const persistedIotOcrRunning = isActiveIotRequest(persistedIotRequest);
   const persistedIotRequestId = getIotOcrRequestId(persistedIotRequest);
@@ -4062,19 +4074,42 @@ export default function DocumentVerification() {
 
         <div className="lg:col-span-3 space-y-4">
           <Card className="border-stone-200 shadow-none bg-white overflow-hidden">
-            <div className="flex border-b border-stone-100 bg-stone-50/50 overflow-x-auto">
-              {docs.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => setActiveDocId(d.id)}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeDocId === d.id
-                    ? 'border-blue-800 text-blue-900 bg-white'
-                    : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
-                    }`}
-                >
-                  {d.name}
-                </button>
-              ))}
+            <div className="overflow-x-auto border-b border-stone-100 bg-stone-50/50">
+              <div className="flex min-w-max items-stretch divide-x divide-stone-200">
+                {documentGroups.map((group) => (
+                  <section
+                    key={group.key}
+                    className="px-3 py-2"
+                    aria-label={group.label}
+                  >
+                    <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-400">
+                      {group.label}
+                    </p>
+                    <div className="flex items-center gap-1" role="tablist" aria-label={`${group.label} documents`}>
+                      {group.documents.map((document) => {
+                        const isActive = activeDocId === document.id;
+                        return (
+                          <button
+                            key={document.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            onClick={() => setActiveDocId(document.id)}
+                            className={`shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-all ${isActive
+                              ? group.key === 'ocr'
+                                ? 'bg-blue-800 text-white shadow-sm'
+                                : 'bg-stone-700 text-white shadow-sm'
+                              : 'bg-white text-stone-500 hover:bg-stone-100 hover:text-stone-700'
+                              }`}
+                          >
+                            {document.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
             </div>
 
             {activeDocumentSupportsOcr && <div className="px-5 py-3 border-b border-stone-100 bg-white">

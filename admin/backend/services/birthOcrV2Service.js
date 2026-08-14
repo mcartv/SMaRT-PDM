@@ -27,6 +27,7 @@ const RESPONSE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
         template_id: { type: 'string', enum: ['psa_birth_v1'] },
+        raw_text: { type: 'string' },
         fields: {
             type: 'object',
             properties: Object.fromEntries(RESPONSE_KEYS.map((key) => [key, { type: 'string' }])),
@@ -34,7 +35,7 @@ const RESPONSE_SCHEMA = Object.freeze({
             additionalProperties: false,
         },
     },
-    required: ['template_id', 'fields'],
+    required: ['template_id', 'raw_text', 'fields'],
     additionalProperties: false,
 });
 
@@ -244,7 +245,8 @@ async function assertRequestStillProcessing(requestId, deviceId) {
 
 function validateGeminiPayload(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)
-        || Object.keys(value).length !== 2 || value.template_id !== 'psa_birth_v1'
+        || Object.keys(value).length !== 3 || value.template_id !== 'psa_birth_v1'
+        || typeof value.raw_text !== 'string'
         || !value.fields || typeof value.fields !== 'object' || Array.isArray(value.fields)) return null;
     const keys = Object.keys(value.fields).sort();
     if (keys.length !== RESPONSE_KEYS.length || RESPONSE_KEYS.some((key) => !keys.includes(key))) return null;
@@ -266,6 +268,9 @@ function hasRequiredNames(value) {
 }
 
 function buildRawSnapshot(result) {
+    if (String(result?.raw_text || '').trim()) {
+        return String(result.raw_text).trim();
+    }
     return [
         [result.child_first_name, result.child_middle_name, result.child_last_name],
         [result.mothers_maiden_first, result.mothers_maiden_middle, result.mothers_maiden_last],
@@ -287,6 +292,8 @@ async function callGemini(cells) {
         'Extract text only from the nine PSA birth certificate name cells.',
         'The images follow Item 1, Item 6, Item 13 and First, Middle, Last order.',
         'Keep compound names inside their printed cell. Return empty string for blank cells.',
+        'Also include raw_text as a best-effort transcription of the nine cells in physical order,',
+        'using tabs between first, middle, and last, and newlines between rows.',
         'Return only the required JSON schema.',
     ].join(' ') }];
     for (const key of CELL_KEYS) {

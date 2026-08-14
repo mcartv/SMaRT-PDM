@@ -7,7 +7,6 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'smart_pdm_bottom_nav.dart';
-import 'smart_pdm_drawer.dart';
 
 class SmartPdmPageScaffold extends StatefulWidget {
   final Widget child;
@@ -15,7 +14,6 @@ class SmartPdmPageScaffold extends StatefulWidget {
   final PreferredSizeWidget? appBar;
   final bool applyPadding;
   final bool applyTopSafeArea;
-  final bool showDrawer;
   final bool showBottomNav;
   final int unreadNotifications;
 
@@ -26,7 +24,6 @@ class SmartPdmPageScaffold extends StatefulWidget {
     this.appBar,
     this.applyPadding = true,
     this.applyTopSafeArea = true,
-    this.showDrawer = false,
     this.showBottomNav = true,
     this.unreadNotifications = 0,
   });
@@ -42,8 +39,6 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   final SessionService _sessionService = const SessionService();
 
   bool _isScholar = false;
-  String _userName = 'Scholar';
-  String? _avatarUrl;
 
   Timer? _idleTimer;
   DateTime? _backgroundedAt;
@@ -105,8 +100,6 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
 
     setState(() {
       _isScholar = prefs.getBool('user_has_scholar_access') ?? false;
-      _userName = prefs.getString('user_student_id') ?? 'Scholar';
-      _avatarUrl = prefs.getString('user_profile_image');
     });
   }
 
@@ -162,13 +155,6 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
       child: Scaffold(
         appBar: widget.appBar,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        drawer: widget.showDrawer
-            ? SmartPdmDrawer(
-                isScholar: hasScholarAccess,
-                userName: _userName,
-                avatarUrl: _avatarUrl,
-              )
-            : null,
         bottomNavigationBar: widget.showBottomNav
             ? SmartPdmBottomNav(
                 selectedIndex: widget.selectedIndex,

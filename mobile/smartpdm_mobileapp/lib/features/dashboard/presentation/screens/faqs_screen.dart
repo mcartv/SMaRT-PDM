@@ -86,7 +86,6 @@ class _FaqsScreenState extends State<FaqsScreen> {
         elevation: 0,
       ),
       selectedIndex: 0,
-      showDrawer: false,
       showBottomNav: false,
       child: RefreshIndicator(
         onRefresh: _loadFaqs,

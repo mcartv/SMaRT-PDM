@@ -162,7 +162,6 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
               hasScholarAccess: _hasScholarAccess,
               isRefreshing: _isRefreshing,
               avatar: _buildAvatar(),
-              onTap: () => _openRoute(AppRoutes.profile),
             ),
             const SizedBox(height: 22),
             Text(
@@ -310,7 +309,6 @@ class _ProfileSummaryCard extends StatelessWidget {
     required this.hasScholarAccess,
     required this.isRefreshing,
     required this.avatar,
-    required this.onTap,
   });
 
   final String displayName;
@@ -318,110 +316,98 @@ class _ProfileSummaryCard extends StatelessWidget {
   final bool hasScholarAccess;
   final bool isRefreshing;
   final Widget avatar;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.darkBrown,
-      borderRadius: BorderRadius.circular(26),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2E1600), Color(0xFF4A2600)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.darkBrown.withValues(alpha: 0.22),
-                blurRadius: 22,
-                offset: const Offset(0, 10),
-              ),
-            ],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2E1600), Color(0xFF4A2600)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 68,
-                height: 68,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.gold, width: 2),
-                ),
-                child: avatar,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.gold, width: 2),
+            ),
+            child: avatar,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ),
-                        if (isRefreshing)
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.gold,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      studentId.isEmpty ? 'Student Account' : studentId,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 9),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+                    Expanded(
                       child: Text(
-                        hasScholarAccess ? 'SCHOLAR' : 'APPLICANT',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.darkBrown,
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 0.7,
                         ),
                       ),
                     ),
+                    if (isRefreshing)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.gold,
+                        ),
+                      ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, color: Colors.white70),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  studentId.isEmpty ? 'Student Account' : studentId,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 9),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    hasScholarAccess ? 'SCHOLAR' : 'APPLICANT',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

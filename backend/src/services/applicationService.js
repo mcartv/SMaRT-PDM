@@ -109,6 +109,32 @@ function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+const FINANCIAL_SUPPORT_TYPES = Object.freeze([
+    'Parents',
+    'Scholarship',
+    'Loan',
+    'Other',
+]);
+
+function financialSupportChoices(support = {}) {
+    const rawChoices = Array.isArray(support.financial_support_choices)
+        ? support.financial_support_choices
+        : safeText(
+            support.financial_support ||
+            support.financial_support_type
+        ).split(',');
+
+    const selected = new Set(
+        rawChoices
+            .map((value) => safeText(value).toLowerCase())
+            .filter(Boolean)
+    );
+
+    return FINANCIAL_SUPPORT_TYPES.filter((type) =>
+        selected.has(type.toLowerCase())
+    );
+}
+
 async function createApplicationDocumentSignedUrl(filePath) {
     const normalizedPath = safeText(filePath);
     if (!normalizedPath) return null;
@@ -564,6 +590,11 @@ async function getStudentProfile(studentId) {
       financial_support_other,
       has_prior_scholarship,
       prior_scholarship_details,
+      scholarship_elementary,
+      scholarship_high_school,
+      scholarship_college,
+      scholarship_others,
+      scholarship_others_specify,
       has_disciplinary_record,
       disciplinary_details,
       self_description,
@@ -993,14 +1024,11 @@ async function getMyFormData(userId) {
                 master?.has_been_scholar === true,
             scholarship_details: safeText(profile?.prior_scholarship_details),
             prior_scholarship_details: safeText(profile?.prior_scholarship_details),
-            scholarship_others_specify: safeText(profile?.financial_support_other),
-            scholarship_elementary:
-                draftPayload.support?.scholarship_elementary === true,
-            scholarship_high_school:
-                draftPayload.support?.scholarship_high_school === true,
-            scholarship_college:
-                draftPayload.support?.scholarship_college === true,
-            scholarship_others: master?.financial_support_other === true,
+            scholarship_others_specify: safeText(profile?.scholarship_others_specify),
+            scholarship_elementary: profile?.scholarship_elementary === true,
+            scholarship_high_school: profile?.scholarship_high_school === true,
+            scholarship_college: profile?.scholarship_college === true,
+            scholarship_others: profile?.scholarship_others === true,
         },
 
         discipline: {
@@ -2867,6 +2895,14 @@ async function submitMyApplicationForm(userId, payload = {}) {
     const discipline = payload.discipline || {};
     const essays = payload.essays || {};
 
+    const selectedFinancialSupport = financialSupportChoices(support);
+    const primaryFinancialSupport = selectedFinancialSupport[0] || null;
+    const hasOtherFinancialSupport = selectedFinancialSupport.includes('Other');
+    const financialSupportOther = firstNonEmpty(
+        support.financial_support_other,
+        hasOtherFinancialSupport ? support.scholarship_others_specify : ''
+    );
+
     const submittedGwa = parseOptionalGwa(academic.gwa);
 
     // ---------------------------------------------------------
@@ -2969,16 +3005,11 @@ async function submitMyApplicationForm(userId, payload = {}) {
             family.guardian_only
         ),
 
-        financial_support_type:
-            safeText(
-                support.financial_support_type ||
-                support.financial_support
-            ) || null,
+        financial_support_type: primaryFinancialSupport,
 
-        financial_support_other: safeText(
-            support.financial_support_other ||
-            support.scholarship_others_specify
-        ),
+        financial_support_other: hasOtherFinancialSupport
+            ? financialSupportOther
+            : '',
 
         has_prior_scholarship: boolValue(
             support.has_prior_scholarship ||

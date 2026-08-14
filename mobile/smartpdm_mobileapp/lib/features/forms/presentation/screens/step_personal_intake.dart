@@ -316,9 +316,13 @@ class _StepPersonalState extends State<StepPersonal> {
   String selectedSex = 'Male';
   String selectedCivilStatus = 'Single';
   String? selectedReligion;
+  static const String _manualLocationOption = '__manual_location__';
+
   String? selectedProvince;
   String? selectedCity;
   String? selectedBarangay;
+  bool _manualCityEntry = false;
+  bool _manualBarangayEntry = false;
 
   bool get _showOtherReligionField => selectedReligion == 'Other';
 
@@ -400,25 +404,35 @@ class _StepPersonalState extends State<StepPersonal> {
     selectedProvince = province.isNotEmpty ? province : null;
     provinceController = TextEditingController(text: selectedProvince ?? '');
 
+    final savedCity = widget.data.city.trim();
     if (selectedProvince != null) {
-      final city = widget.data.city;
-      if (city.trim().isNotEmpty &&
-          !(locationData[selectedProvince!]?.containsKey(city) ?? false)) {
-        locationData[selectedProvince!]![city] = <String>[];
+      final cities =
+          locationData[selectedProvince!] ?? const <String, List<String>>{};
+      if (cities.isEmpty) {
+        _manualCityEntry = true;
+      } else if (savedCity.isNotEmpty && cities.containsKey(savedCity)) {
+        selectedCity = savedCity;
+      } else if (savedCity.isNotEmpty) {
+        _manualCityEntry = true;
       }
-      selectedCity = city.trim().isNotEmpty ? city : null;
     }
-    cityController = TextEditingController(text: selectedCity ?? '');
+    cityController = TextEditingController(text: savedCity);
 
-    if (selectedProvince != null && selectedCity != null) {
-      final barangay = widget.data.barangay;
-      final barangays = locationData[selectedProvince!]![selectedCity!]!;
-      if (barangay.trim().isNotEmpty && !barangays.contains(barangay)) {
-        barangays.add(barangay);
+    final savedBarangay = widget.data.barangay.trim();
+    if (_manualCityEntry || selectedCity == null) {
+      _manualBarangayEntry = selectedProvince != null;
+    } else {
+      final barangays =
+          locationData[selectedProvince!]?[selectedCity!] ?? const <String>[];
+      if (barangays.isEmpty) {
+        _manualBarangayEntry = true;
+      } else if (savedBarangay.isNotEmpty && barangays.contains(savedBarangay)) {
+        selectedBarangay = savedBarangay;
+      } else if (savedBarangay.isNotEmpty) {
+        _manualBarangayEntry = true;
       }
-      selectedBarangay = barangay.trim().isNotEmpty ? barangay : null;
     }
-    barangayController = TextEditingController(text: selectedBarangay ?? '');
+    barangayController = TextEditingController(text: savedBarangay);
   }
 
   void _bind(TextEditingController controller, void Function(String) setter) {
@@ -618,7 +632,10 @@ class _StepPersonalState extends State<StepPersonal> {
             .map(
               (item) => DropdownMenuItem(
                 value: item,
-                child: Text(item, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  item == _manualLocationOption ? 'Other / Not Listed' : item,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             )
             .toList(),
@@ -668,6 +685,174 @@ class _StepPersonalState extends State<StepPersonal> {
     dobController.text = formatted;
     widget.data.dateOfBirth = formatted;
     _updateAgeFromDob(formatted);
+  }
+
+  Widget _cityLocationField() {
+    if (selectedProvince == null) {
+      return _dropdownField(
+        label: 'City / Municipality',
+        hint: 'Select province first',
+        currentValue: '',
+        items: const <String>[],
+        onChanged: (_) {},
+        errorText: _requiredError(widget.data.city, 'City / Municipality'),
+      );
+    }
+
+    final cities = locationData[selectedProvince!]!.keys.toList();
+    if (cities.isEmpty) {
+      return _textField(
+        controller: cityController,
+        label: 'City / Municipality',
+        hint: 'Enter city / municipality',
+        errorText: _requiredError(widget.data.city, 'City / Municipality'),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _dropdownField(
+          label: 'City / Municipality',
+          hint: 'Select city / municipality',
+          currentValue: _manualCityEntry
+              ? _manualLocationOption
+              : selectedCity ?? '',
+          items: [...cities, _manualLocationOption],
+          onChanged: (value) {
+            setState(() {
+              if (value == _manualLocationOption) {
+                _manualCityEntry = true;
+                selectedCity = null;
+                cityController.clear();
+                widget.data.city = '';
+                _manualBarangayEntry = true;
+                selectedBarangay = null;
+                barangayController.clear();
+                widget.data.barangay = '';
+                zipCodeController.clear();
+                widget.data.zipCode = '';
+                return;
+              }
+
+              _manualCityEntry = false;
+              selectedCity = value;
+              cityController.text = value;
+              widget.data.city = value;
+              selectedBarangay = null;
+              barangayController.clear();
+              widget.data.barangay = '';
+              final barangays =
+                  locationData[selectedProvince!]?[value] ?? const <String>[];
+              _manualBarangayEntry = barangays.isEmpty;
+              final zip = cityZipMapping[value] ?? '';
+              zipCodeController.text = zip;
+              widget.data.zipCode = zip;
+            });
+            widget.onChanged();
+          },
+          errorText: _manualCityEntry
+              ? null
+              : _requiredError(widget.data.city, 'City / Municipality'),
+        ),
+        if (_manualCityEntry) ...[
+          const SizedBox(height: 10),
+          _textField(
+            controller: cityController,
+            label: 'Enter City / Municipality',
+            hint: 'Enter city / municipality',
+            errorText: _requiredError(widget.data.city, 'City / Municipality'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _barangayLocationField() {
+    if (selectedProvince == null) {
+      return _dropdownField(
+        label: 'Barangay',
+        hint: 'Select province first',
+        currentValue: '',
+        items: const <String>[],
+        onChanged: (_) {},
+        errorText: _requiredError(widget.data.barangay, 'Barangay'),
+      );
+    }
+
+    if (_manualCityEntry) {
+      return _textField(
+        controller: barangayController,
+        label: 'Barangay',
+        hint: 'Enter barangay',
+        errorText: _requiredError(widget.data.barangay, 'Barangay'),
+      );
+    }
+
+    if (selectedCity == null) {
+      return _dropdownField(
+        label: 'Barangay',
+        hint: 'Select city / municipality first',
+        currentValue: '',
+        items: const <String>[],
+        onChanged: (_) {},
+        errorText: _requiredError(widget.data.barangay, 'Barangay'),
+      );
+    }
+
+    final barangays =
+        locationData[selectedProvince!]?[selectedCity!] ?? const <String>[];
+    if (barangays.isEmpty) {
+      return _textField(
+        controller: barangayController,
+        label: 'Barangay',
+        hint: 'Enter barangay',
+        errorText: _requiredError(widget.data.barangay, 'Barangay'),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _dropdownField(
+          label: 'Barangay',
+          hint: 'Select barangay',
+          currentValue: _manualBarangayEntry
+              ? _manualLocationOption
+              : selectedBarangay ?? '',
+          items: [...barangays, _manualLocationOption],
+          onChanged: (value) {
+            setState(() {
+              if (value == _manualLocationOption) {
+                _manualBarangayEntry = true;
+                selectedBarangay = null;
+                barangayController.clear();
+                widget.data.barangay = '';
+                return;
+              }
+
+              _manualBarangayEntry = false;
+              selectedBarangay = value;
+              barangayController.text = value;
+              widget.data.barangay = value;
+            });
+            widget.onChanged();
+          },
+          errorText: _manualBarangayEntry
+              ? null
+              : _requiredError(widget.data.barangay, 'Barangay'),
+        ),
+        if (_manualBarangayEntry) ...[
+          const SizedBox(height: 10),
+          _textField(
+            controller: barangayController,
+            label: 'Enter Barangay',
+            hint: 'Enter barangay',
+            errorText: _requiredError(widget.data.barangay, 'Barangay'),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -882,9 +1067,11 @@ class _StepPersonalState extends State<StepPersonal> {
                     provinceController.text = value;
                     widget.data.province = value;
                     selectedCity = null;
+                    _manualCityEntry = locationData[value]!.isEmpty;
                     cityController.clear();
                     widget.data.city = '';
                     selectedBarangay = null;
+                    _manualBarangayEntry = true;
                     barangayController.clear();
                     widget.data.barangay = '';
                     zipCodeController.clear();
@@ -892,54 +1079,19 @@ class _StepPersonalState extends State<StepPersonal> {
                   });
                   widget.onChanged();
                 },
+                errorText: _requiredError(widget.data.province, 'Province'),
               ),
-              _dropdownField(
-                label: 'City / Municipality',
-                hint: 'Select city / municipality',
-                currentValue: selectedCity ?? '',
-                items: selectedProvince != null
-                    ? locationData[selectedProvince!]!.keys.toList()
-                    : const <String>[],
-                onChanged: (value) {
-                  setState(() {
-                    selectedCity = value;
-                    cityController.text = value;
-                    widget.data.city = value;
-                    selectedBarangay = null;
-                    barangayController.clear();
-                    widget.data.barangay = '';
-                    final zip = cityZipMapping[value] ?? '';
-                    zipCodeController.text = zip;
-                    widget.data.zipCode = zip;
-                  });
-                  widget.onChanged();
-                },
-              ),
+              _cityLocationField(),
             ]),
             const SizedBox(height: 16),
             _row([
-              _dropdownField(
-                label: 'Barangay',
-                hint: 'Select barangay',
-                currentValue: selectedBarangay ?? '',
-                items: selectedProvince != null && selectedCity != null
-                    ? locationData[selectedProvince!]![selectedCity!] ??
-                          const <String>[]
-                    : const <String>[],
-                onChanged: (value) {
-                  setState(() {
-                    selectedBarangay = value;
-                    barangayController.text = value;
-                    widget.data.barangay = value;
-                  });
-                  widget.onChanged();
-                },
-              ),
+              _barangayLocationField(),
               _textField(
                 controller: zipCodeController,
                 label: 'ZIP Code',
                 hint: '3019',
                 keyboardType: TextInputType.number,
+                errorText: _requiredError(widget.data.zipCode, 'ZIP code'),
               ),
             ]),
           ],

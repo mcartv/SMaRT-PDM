@@ -14,6 +14,7 @@ const studentRoutes = require('./studentRoutes');
 const payoutRoutes = require('./payoutRoutes');
 const roRoutes = require('./roRoutes');
 const internalRealtimeRoutes = require('./internalRealtimeRoutes');
+const faqRoutes = require('./faqRoutes');
 
 const router = express.Router();
 
@@ -39,6 +40,7 @@ router.use('/api/students', studentRoutes);
 router.use('/api/payouts', payoutRoutes);
 router.use('/api/ro', roRoutes);
 router.use('/api/internal/realtime', internalRealtimeRoutes);
+router.use('/api/faqs', faqRoutes);
 
 router.get('/api/health', (_req, res) => {
     res.status(200).json({

@@ -167,7 +167,6 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
           : null,
       selectedIndex: 1,
       showBottomNav: widget.showBottomNav,
-      showDrawer: false,
       child: RefreshIndicator(
         onRefresh: _loadPayouts,
         child: SingleChildScrollView(

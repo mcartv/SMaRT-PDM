@@ -28,7 +28,6 @@ class AboutPdmScreen extends StatelessWidget {
       ),
       selectedIndex: 4,
       showBottomNav: false,
-      showDrawer: false,
       applyPadding: false,
       child: ColoredBox(
         color: background,

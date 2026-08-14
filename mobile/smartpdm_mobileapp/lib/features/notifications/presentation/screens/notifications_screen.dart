@@ -742,7 +742,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       selectedIndex: 0,
-      showDrawer: false,
       showBottomNav: widget.showBottomNav,
       applyPadding: false,
       appBar: AppBar(

@@ -71,7 +71,6 @@ class DashboardScreen extends StatelessWidget {
             )
           : null,
       selectedIndex: 0,
-      showDrawer: false,
       showBottomNav: showBottomNav,
       applyPadding: false,
       child: DashboardContent(),
@@ -171,16 +170,21 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      _loadDashboardData(refreshNotifications: false);
-      _showFirstTimeGuideIfNeeded();
+      await _loadDashboardData(refreshNotifications: false);
+      if (!mounted) return;
+      await _showFirstTimeGuideIfNeeded();
     });
   }
 
   Future<void> _showFirstTimeGuideIfNeeded() async {
     if (_guideChecked) return;
     _guideChecked = true;
+
+    // The getting-started guide is only for applicants. Scholars should not
+    // receive applicant onboarding after login.
+    if (_hasScholarAccess) return;
 
     final prefs = await SharedPreferences.getInstance();
     final session = await widget.sessionService.getCurrentUser();
@@ -190,26 +194,36 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final guideKey = accountKey.isEmpty
         ? 'mobile_dashboard_guide_seen_v2'
         : 'mobile_dashboard_guide_seen_v2_$accountKey';
+
+    // Local state is authoritative for this device. A false/unavailable server
+    // preference must never overwrite a guide that was already shown locally.
     var hasSeenGuide = prefs.getBool(guideKey) ?? false;
-    try {
-      hasSeenGuide = await _profileService.hasSeenOnboarding();
-      if (hasSeenGuide) await prefs.setBool(guideKey, true);
-    } catch (error) {
-      debugPrint('ONBOARDING PREFERENCE FETCH ERROR: $error');
+    if (!hasSeenGuide) {
+      try {
+        final seenOnServer = await _profileService.hasSeenOnboarding();
+        hasSeenGuide = seenOnServer;
+        if (seenOnServer) await prefs.setBool(guideKey, true);
+      } catch (error) {
+        debugPrint('ONBOARDING PREFERENCE FETCH ERROR: $error');
+      }
     }
     if (hasSeenGuide || !mounted) return;
+
+    // Mark it before opening so a login/app restart cannot repeatedly trigger
+    // the automatic popup. The guide remains manually accessible on Dashboard.
+    await prefs.setBool(guideKey, true);
+    try {
+      await _profileService.markOnboardingSeen();
+    } catch (error) {
+      debugPrint('ONBOARDING PREFERENCE UPDATE ERROR: $error');
+    }
+    if (!mounted) return;
 
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _FirstTimeGuideDialog(
         onFinish: () async {
-          await prefs.setBool(guideKey, true);
-          try {
-            await _profileService.markOnboardingSeen();
-          } catch (error) {
-            debugPrint('ONBOARDING PREFERENCE UPDATE ERROR: $error');
-          }
           if (dialogContext.mounted) Navigator.of(dialogContext).pop();
         },
       ),
@@ -1117,15 +1131,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               children: [
                 _buildHero(),
                 const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _openGuide,
-                    icon: const Icon(Icons.help_outline_rounded, size: 18),
-                    label: const Text('How to use SMaRT-PDM'),
+                if (!_hasScholarAccess) ...[
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _openGuide,
+                      icon: const Icon(Icons.help_outline_rounded, size: 18),
+                      label: const Text('How to use SMaRT-PDM'),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                ],
                 const _SectionHeader(
                   title: 'Current Status',
                   subtitle: 'Your latest scholarship or application standing',

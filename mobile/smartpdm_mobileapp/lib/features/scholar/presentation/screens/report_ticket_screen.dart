@@ -222,7 +222,6 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 0,
-      showDrawer: false,
       child: RefreshIndicator(
         onRefresh: _loadTickets,
         child: ListView(

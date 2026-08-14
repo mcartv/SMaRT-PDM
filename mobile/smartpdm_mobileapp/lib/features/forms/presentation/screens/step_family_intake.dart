@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -597,6 +598,31 @@ class _StepFamilyState extends State<StepFamily> {
 
   bool get _showGuardianFields => guardianOnly || (!hasFather && !hasMother);
 
+  bool _isValidFamilyMobile(String value) {
+    return RegExp(r'^09\d{9}$').hasMatch(value.trim());
+  }
+
+  String? _familyMobileError(String value) {
+    final mobile = value.trim();
+    if (mobile.isEmpty) return null;
+    if (!_isValidFamilyMobile(mobile)) {
+      return 'Mobile number must be exactly 11 digits and start with 09.';
+    }
+    return null;
+  }
+
+  List<TextInputFormatter> get _familyMobileInputFormatters => [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(11),
+    TextInputFormatter.withFunction((oldValue, newValue) {
+      final value = newValue.text;
+      if (value.isEmpty || value == '0' || value.startsWith('09')) {
+        return newValue;
+      }
+      return oldValue;
+    }),
+  ];
+
   Widget _personSection({
     required String title,
     required TextEditingController lastNameController,
@@ -666,9 +692,17 @@ class _StepFamilyState extends State<StepFamily> {
               TextFormField(
                 controller: mobileController,
                 keyboardType: TextInputType.phone,
+                inputFormatters: _familyMobileInputFormatters,
                 decoration: _dec(
                   '09171234567',
-                  suffixIcon: intakeCompletionIcon(mobileController.text),
+                  errorText: widget.showErrors
+                      ? _familyMobileError(mobileController.text)
+                      : null,
+                  suffixIcon: intakeCompletionIcon(
+                    _isValidFamilyMobile(mobileController.text)
+                        ? mobileController.text
+                        : '',
+                  ),
                 ),
               ),
             ),
@@ -922,7 +956,18 @@ class _StepFamilyState extends State<StepFamily> {
                   TextFormField(
                     controller: siblingMobileController,
                     keyboardType: TextInputType.phone,
-                    decoration: _dec('09171234567'),
+                    inputFormatters: _familyMobileInputFormatters,
+                    decoration: _dec(
+                      '09171234567',
+                      errorText: widget.showErrors
+                          ? _familyMobileError(siblingMobileController.text)
+                          : null,
+                      suffixIcon: intakeCompletionIcon(
+                        _isValidFamilyMobile(siblingMobileController.text)
+                            ? siblingMobileController.text
+                            : '',
+                      ),
+                    ),
                   ),
                 ),
               ]),

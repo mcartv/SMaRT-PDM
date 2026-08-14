@@ -7,11 +7,13 @@ class StepAcademic extends StatefulWidget {
     super.key,
     required this.data,
     required this.onChanged,
+    this.onRepairCourse,
     this.showErrors = false,
   });
 
   final ApplicationData data;
   final VoidCallback onChanged;
+  final Future<void> Function()? onRepairCourse;
   final bool showErrors;
 
   @override
@@ -41,6 +43,7 @@ class _StepAcademicState extends State<StepAcademic> {
   late final TextEditingController elementaryYearController;
   late final TextEditingController studentNumberController;
   late final TextEditingController scholarshipDetailsController;
+  late final TextEditingController financialSupportOtherController;
   late final TextEditingController scholarshipOthersSpecifyController;
   late final TextEditingController disciplinaryExplanationController;
 
@@ -136,6 +139,9 @@ class _StepAcademicState extends State<StepAcademic> {
     );
     scholarshipDetailsController = TextEditingController(
       text: widget.data.scholarshipDetails,
+    );
+    financialSupportOtherController = TextEditingController(
+      text: widget.data.financialSupportOtherSpecify,
     );
     scholarshipOthersSpecifyController = TextEditingController(
       text: widget.data.scholarshipOthersSpecify,
@@ -261,6 +267,10 @@ class _StepAcademicState extends State<StepAcademic> {
       (value) => widget.data.scholarshipDetails = value,
     );
     _bind(
+      financialSupportOtherController,
+      (value) => widget.data.financialSupportOtherSpecify = value,
+    );
+    _bind(
       scholarshipOthersSpecifyController,
       (value) => widget.data.scholarshipOthersSpecify = value,
     );
@@ -275,6 +285,13 @@ class _StepAcademicState extends State<StepAcademic> {
       setter(controller.text);
       widget.onChanged();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant StepAcademic oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final normalizedCourse = widget.data.currentCourse.trim();
+    selectedCourse = normalizedCourse.isEmpty ? null : normalizedCourse;
   }
 
   InputDecoration _dec(String hint, {String? errorText, Widget? suffixIcon}) {
@@ -360,8 +377,17 @@ class _StepAcademicState extends State<StepAcademic> {
   String? _otherSupportError() {
     if (!widget.showErrors || !selectedFinancialSupports.contains('Other'))
       return null;
-    return scholarshipOthersSpecifyController.text.trim().isEmpty
+    return financialSupportOtherController.text.trim().isEmpty
         ? 'Please specify the other financial support.'
+        : null;
+  }
+
+  String? _scholarshipOtherError() {
+    if (!widget.showErrors || !scholarshipHistory || !scholarshipOthers) {
+      return null;
+    }
+    return scholarshipOthersSpecifyController.text.trim().isEmpty
+        ? 'Please specify the other scholarship history.'
         : null;
   }
 
@@ -507,8 +533,8 @@ class _StepAcademicState extends State<StepAcademic> {
           }
           widget.data.financialSupport = selectedFinancialSupports.join(', ');
           if (!selectedFinancialSupports.contains('Other')) {
-            scholarshipOthersSpecifyController.clear();
-            widget.data.scholarshipOthersSpecify = '';
+            financialSupportOtherController.clear();
+            widget.data.financialSupportOtherSpecify = '';
           }
         });
         widget.onChanged();
@@ -572,6 +598,7 @@ class _StepAcademicState extends State<StepAcademic> {
     elementaryYearController.dispose();
     studentNumberController.dispose();
     scholarshipDetailsController.dispose();
+    financialSupportOtherController.dispose();
     scholarshipOthersSpecifyController.dispose();
     disciplinaryExplanationController.dispose();
     super.dispose();
@@ -636,11 +663,54 @@ class _StepAcademicState extends State<StepAcademic> {
               _field(
                 'Course *',
                 TextFormField(
+                  key: ValueKey(selectedCourse ?? ''),
                   initialValue: selectedCourse ?? '',
                   readOnly: true,
                   decoration: _dec('Course', errorText: _courseError()),
                 ),
               ),
+              if ((selectedCourse ?? '').trim().isEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF6E5),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE6C978)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: IntakePalette.text,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Your course comes from your account profile. Update your profile before continuing.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: IntakePalette.text,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (widget.onRepairCourse != null) ...[
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: () async {
+                            await widget.onRepairCourse!();
+                          },
+                          child: const Text('Update Profile'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               _flexRow(
                 [
@@ -726,7 +796,7 @@ class _StepAcademicState extends State<StepAcademic> {
                 _field(
                   'Specify',
                   TextFormField(
-                    controller: scholarshipOthersSpecifyController,
+                    controller: financialSupportOtherController,
                     decoration: _dec(
                       'Specify other financial support',
                       errorText: _otherSupportError(),
@@ -764,6 +834,10 @@ class _StepAcademicState extends State<StepAcademic> {
                       scholarshipHighSchool = false;
                       scholarshipCollege = false;
                       scholarshipOthers = false;
+                      widget.data.scholarshipElementary = false;
+                      widget.data.scholarshipHighSchool = false;
+                      widget.data.scholarshipCollege = false;
+                      widget.data.scholarshipOthers = false;
                       scholarshipDetailsController.clear();
                       scholarshipOthersSpecifyController.clear();
                     }
@@ -831,7 +905,10 @@ class _StepAcademicState extends State<StepAcademic> {
                     'If Other, specify',
                     TextFormField(
                       controller: scholarshipOthersSpecifyController,
-                      decoration: _dec('Specify'),
+                      decoration: _dec(
+                        'Specify',
+                        errorText: _scholarshipOtherError(),
+                      ),
                     ),
                   ),
                 ],

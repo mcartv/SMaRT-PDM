@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_academic_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essay_intake.dart';
@@ -37,6 +38,7 @@ class NewApplicantScreen extends StatefulWidget {
 
 class _NewApplicantScreenState extends State<NewApplicantScreen> {
   final ApplicationService _applicationService = ApplicationService();
+  final ProfileService _profileService = ProfileService();
   final SessionService _sessionService = const SessionService();
   int _step = 0;
   final _data = ApplicationData();
@@ -239,10 +241,76 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  void _scrollToFormTop() {
+    FocusScope.of(context).unfocus();
+    if (!_scrollCtrl.hasClients) return;
+    _scrollCtrl.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  int _stepForSection(ApplicationSubmissionSection section) {
+    switch (section) {
+      case ApplicationSubmissionSection.personal:
+      case ApplicationSubmissionSection.account:
+        return 0;
+      case ApplicationSubmissionSection.family:
+        return 1;
+      case ApplicationSubmissionSection.academic:
+        return 2;
+      case ApplicationSubmissionSection.essay:
+        return 3;
+      case ApplicationSubmissionSection.certification:
+        return 4;
+    }
+  }
+
+  Future<void> _repairMissingCourse() async {
+    await _saveDraft();
+    if (!mounted) return;
+
+    await Navigator.pushNamed(context, AppRoutes.profile);
+    if (!mounted) return;
+
+    try {
+      final profile = await _profileService.fetchMyProfile();
+      if (!mounted) return;
+
+      final refreshedCourse = (profile['course_code']?.toString() ?? '').trim();
+      setState(() {
+        _data.currentCourse = refreshedCourse;
+      });
+
+      if (refreshedCourse.isNotEmpty) {
+        _queueAutosave(immediate: true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Course updated from your profile.')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Course is still missing. Update your profile to continue.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to refresh your course: $error')),
+      );
+    }
+  }
+
   void _next() {
     final validationError = _validateCurrentForm();
     if (validationError != null) {
       setState(() => _showValidationErrors = true);
+      _scrollToFormTop();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(validationError)));
@@ -250,25 +318,23 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     if (_step < 4) {
-      setState(() => _step++);
+      setState(() {
+        _step++;
+        _showValidationErrors = false;
+      });
       _queueAutosave();
-      _scrollCtrl.animateTo(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      _scrollToFormTop();
     }
   }
 
   void _back() {
     if (_step > 0) {
-      setState(() => _step--);
+      setState(() {
+        _step--;
+        _showValidationErrors = false;
+      });
       _queueAutosave();
-      _scrollCtrl.animateTo(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      _scrollToFormTop();
     }
   }
 
@@ -286,14 +352,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       _data,
     );
     if (!validationResult.isValid) {
-      setState(() => _showValidationErrors = true);
+      final firstIssue = validationResult.issues.first;
+      setState(() {
+        _step = _stepForSection(firstIssue.section);
+        _showValidationErrors = true;
+      });
+      _scrollToFormTop();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            validationResult.firstMessage ??
-                'Review the form before submitting.',
-          ),
-        ),
+        SnackBar(content: Text(firstIssue.message)),
       );
       return;
     }
@@ -474,7 +540,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               .split(',')
               .map((v) => v.trim())
               .contains('Other') &&
-          _data.scholarshipOthersSpecify.trim().isEmpty) {
+          _data.financialSupportOtherSpecify.trim().isEmpty) {
         return 'Please specify the other financial support.';
       }
       if (!_data.scholarshipHistoryAnswered) {
@@ -486,6 +552,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               _data.scholarshipCollege ||
               _data.scholarshipOthers)) {
         return 'Select at least one scholarship history level.';
+      }
+      if (_data.scholarshipHistory &&
+          _data.scholarshipOthers &&
+          _data.scholarshipOthersSpecify.trim().isEmpty) {
+        return 'Please specify the other scholarship history.';
       }
       if (!_data.disciplinaryActionAnswered) {
         return 'Answer the disciplinary action question.';
@@ -577,6 +648,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case 2:
         return StepAcademic(
           data: _data,
+          onRepairCourse: _repairMissingCourse,
           onChanged: () {
             setState(() {});
             _queueAutosave();
@@ -600,13 +672,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             _queueAutosave();
           },
           onEditStep: (step) {
-            setState(() => _step = step);
+            setState(() {
+              _step = step;
+              _showValidationErrors = false;
+            });
             _queueAutosave();
-            _scrollCtrl.animateTo(
-              0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
+            _scrollToFormTop();
           },
           showErrors: _showValidationErrors,
         );
@@ -841,13 +912,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildFooter(NewScholarProvider provider) {
-    final submissionReady = _submissionValidator
-        .validateSubmissionPreflight(_data)
-        .isValid;
-    final submitEnabled =
-        _hasSelectedOpening && submissionReady && !provider.isLoading;
-    final currentStepReady = _validateCurrentForm() == null;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       decoration: const BoxDecoration(
@@ -867,10 +931,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: !_hasSelectedOpening
                 ? const SizedBox.shrink()
                 : _step < 4
-                ? NavyButton(
-                    label: 'Next',
-                    onTap: currentStepReady ? _next : null,
-                  )
+                ? NavyButton(label: 'Next', onTap: _next)
                 : provider.isLoading
                 ? const Center(
                     child: SizedBox(
@@ -880,7 +941,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                     ),
                   )
                 : ElevatedButton(
-                    onPressed: submitEnabled ? _submitApplication : null,
+                    onPressed: _hasSelectedOpening ? _submitApplication : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.darkBrown,

@@ -422,6 +422,48 @@ class ApplicationSubmissionValidator {
       );
     }
 
+    void validateFamilyMobile({
+      required String field,
+      required String label,
+      required String value,
+    }) {
+      final mobile = value.trim();
+      if (mobile.isEmpty) return;
+
+      if (!RegExp(r'^09\d{9}$').hasMatch(mobile)) {
+        issues.add(
+          ApplicationSubmissionIssue(
+            code: 'family.$field.format',
+            section: ApplicationSubmissionSection.family,
+            field: field,
+            message: '$label must be exactly 11 digits and start with 09.',
+            repairAction: 'Enter a Philippine mobile number in 09XXXXXXXXX format.',
+          ),
+        );
+      }
+    }
+
+    validateFamilyMobile(
+      field: 'fatherMobile',
+      label: 'Father mobile number',
+      value: data.fatherMobile,
+    );
+    validateFamilyMobile(
+      field: 'motherMobile',
+      label: 'Mother mobile number',
+      value: data.motherMobile,
+    );
+    validateFamilyMobile(
+      field: 'siblingMobile',
+      label: 'Sibling mobile number',
+      value: data.siblingMobile,
+    );
+    validateFamilyMobile(
+      field: 'guardianMobile',
+      label: 'Guardian mobile number',
+      value: data.guardianMobile,
+    );
+
     final parentNativeStatus = data.parentNativeStatus.trim();
     if (parentNativeStatus == 'Yes, father only' ||
         parentNativeStatus == 'Yes, mother only' ||
@@ -527,12 +569,12 @@ class ApplicationSubmissionValidator {
             .split(',')
             .map((v) => v.trim())
             .contains('Other') &&
-        _isBlank(data.scholarshipOthersSpecify)) {
+        _isBlank(data.financialSupportOtherSpecify)) {
       issues.add(
         const ApplicationSubmissionIssue(
           code: 'academic.financial_support.other.required',
           section: ApplicationSubmissionSection.academic,
-          field: 'scholarshipOthersSpecify',
+          field: 'financialSupportOtherSpecify',
           message: 'Please specify the other financial support.',
           repairAction: 'Describe the other source of financial support.',
         ),
@@ -562,6 +604,20 @@ class ApplicationSubmissionValidator {
           message: 'Select at least one scholarship history level.',
           repairAction:
               'Choose Elementary, Junior High School, College, or Others.',
+        ),
+      );
+    }
+
+    if (data.scholarshipHistory &&
+        data.scholarshipOthers &&
+        _isBlank(data.scholarshipOthersSpecify)) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.scholarship_history.other.required',
+          section: ApplicationSubmissionSection.academic,
+          field: 'scholarshipOthersSpecify',
+          message: 'Please specify the other scholarship history.',
+          repairAction: 'Describe the other scholarship history option.',
         ),
       );
     }

@@ -546,7 +546,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         foregroundColor: Colors.white,
       ),
       selectedIndex: 0,
-      showDrawer: false,
       child: RefreshIndicator(
         onRefresh: () => _loadPackage(silent: true),
         child: ListView(

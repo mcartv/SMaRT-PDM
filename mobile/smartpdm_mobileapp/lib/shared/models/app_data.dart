@@ -110,6 +110,7 @@ class ApplicationData {
   String gwa = '';
 
   String financialSupport = '';
+  String financialSupportOtherSpecify = '';
   bool scholarshipHistoryAnswered = false;
   bool disciplinaryActionAnswered = false;
   bool scholarshipHistory = false;
@@ -703,12 +704,29 @@ class ApplicationData {
       (value) => scholarshipOthers = value,
       support['scholarship_others'],
     );
+    final savedFinancialSupportOther = _savedString(
+      support['financial_support_other'],
+    );
+    final savedScholarshipOther = _savedString(
+      support['scholarship_others_specify'],
+    );
+
+    final hasLegacyOtherFinancialSupport = financialSupport
+        .split(',')
+        .map((value) => value.trim())
+        .contains('Other');
+    var effectiveFinancialSupportOther = savedFinancialSupportOther;
+    if (effectiveFinancialSupportOther.isEmpty &&
+        hasLegacyOtherFinancialSupport) {
+      effectiveFinancialSupportOther = savedScholarshipOther;
+    }
+    _setIfPresent(
+      (value) => financialSupportOtherSpecify = value,
+      effectiveFinancialSupportOther,
+    );
     _setIfPresent(
       (value) => scholarshipOthersSpecify = value,
-      _firstSavedString(support, [
-        'scholarship_others_specify',
-        'financial_support_other',
-      ]),
+      savedScholarshipOther,
     );
     _setIfPresent(
       (value) => scholarshipDetails = value,
@@ -925,6 +943,7 @@ class ApplicationData {
       },
       'support': {
         'financial_support': financialSupport.trim(),
+        'financial_support_other': financialSupportOtherSpecify.trim(),
         'financial_support_choices': financialSupport
             .split(',')
             .map((value) => value.trim())
@@ -936,7 +955,7 @@ class ApplicationData {
         'scholarship_high_school': scholarshipHighSchool,
         'scholarship_college': scholarshipCollege,
         'scholarship_others': scholarshipOthers,
-        'scholarship_others_specify': _title(scholarshipOthersSpecify),
+        'scholarship_others_specify': scholarshipOthersSpecify.trim(),
         'scholarship_details': _title(scholarshipDetails),
       },
       'discipline': {
@@ -945,8 +964,8 @@ class ApplicationData {
         'disciplinary_explanation': _title(disciplinaryExplanation),
       },
       'essays': {
-        'describe_yourself_essay': _title(describeYourselfEssay),
-        'aims_and_ambition_essay': _title(aimsAndAmbitionEssay),
+        'describe_yourself_essay': describeYourselfEssay.trim(),
+        'aims_and_ambition_essay': aimsAndAmbitionEssay.trim(),
       },
       'certification': {
         'certification_read': certificationRead,

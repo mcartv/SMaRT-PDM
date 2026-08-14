@@ -71,7 +71,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
       ),
       selectedIndex: 0,
       showBottomNav: false,
-      showDrawer: false,
       applyPadding: false,
       child: ColoredBox(
         color: background,
@@ -82,10 +81,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
             children: [
-              _MessagesHeader(
-                isConnected: provider.isConnected,
-                totalUnread: provider.unreadCount,
-              ),
+              _MessagesHeader(totalUnread: provider.unreadCount),
               const SizedBox(height: 20),
               Text(
                 'OSFA Support',
@@ -105,7 +101,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               const SizedBox(height: 12),
               _ConversationTile(
                 icon: Icons.support_agent_rounded,
-                title: 'OSFA Support Admin',
+                title: 'OSFA Administrator',
                 subtitle: provider.privateUnreadCount > 0
                     ? '${provider.privateUnreadCount} unread message${provider.privateUnreadCount == 1 ? '' : 's'}'
                     : 'Direct support conversation',
@@ -170,18 +166,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 }
 
 class _MessagesHeader extends StatelessWidget {
-  const _MessagesHeader({required this.isConnected, required this.totalUnread});
+  const _MessagesHeader({required this.totalUnread});
 
-  final bool isConnected;
   final int totalUnread;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusColor = isConnected
-        ? const Color(0xFF2E9B61)
-        : const Color(0xFFB7791F);
-
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -234,35 +224,6 @@ class _MessagesHeader extends StatelessWidget {
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: isDark ? 0.25 : 0.18),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: statusColor.withValues(alpha: 0.45)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  isConnected ? 'Live' : 'Syncing',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
                 ),
               ],
             ),

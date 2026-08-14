@@ -19,7 +19,6 @@ class AppRoutes {
 
   // Dashboard detail routes
   static const newApplicant = '/new_applicant';
-  static const application = '/application';
   static const documents = '/documents';
   static const renewalDocuments = '/renewal-documents';
   static const status = '/status';
@@ -33,7 +32,6 @@ class AppRoutes {
 
   // Return of Obligation
   static const roAssignment = '/ro-assignment';
-  static const roCompletion = '/ro-completion';
 
   static const success = '/success';
   static const scholarshipOpenings = '/scholarship-openings';

@@ -27,15 +27,6 @@ class ROAssignmentScreen extends StatefulWidget {
   State<ROAssignmentScreen> createState() => _ROAssignmentScreenState();
 }
 
-class ObligationsScreen extends StatelessWidget {
-  const ObligationsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const ROAssignmentScreen();
-  }
-}
-
 class RoPickedPhoto {
   const RoPickedPhoto({
     required this.file,
@@ -1216,7 +1207,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return SmartPdmPageScaffold(
       selectedIndex: 2,
       showBottomNav: widget.showBottomNav,
-      showDrawer: false,
       appBar: widget.showTopBar
           ? AppBar(
               backgroundColor: AppColors.darkBrown,
@@ -1342,41 +1332,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
-  Future<void> _showObligationDetails(RoAssignment item) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return _ObligationDetailsSheet(
-          item: item,
-          isSubmitting: _isSubmitting,
-          hasAnyActiveSession: _hasAnyActiveSession,
-          formatMinutes: _formatMinutes,
-          formatElapsed: _formatElapsed,
-          formatDateTime: _formatDateTime,
-          onAcknowledge: () async {
-            Navigator.of(sheetContext).pop();
-            await _acknowledge(item);
-          },
-          onReportConcern: () async {
-            Navigator.of(sheetContext).pop();
-            await _reportConcern(item);
-          },
-          onTimeIn: () async {
-            Navigator.of(sheetContext).pop();
-            await _timeIn(item);
-          },
-          onTimeOut: () async {
-            Navigator.of(sheetContext).pop();
-            await _timeOut(item);
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildAssignmentList(
     List<RoAssignment> items, {
     required bool completed,
@@ -1407,8 +1362,15 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
         return _AssignmentCard(
           item: item,
+          isSubmitting: _isSubmitting,
+          hasAnyActiveSession: _hasAnyActiveSession,
           formatMinutes: _formatMinutes,
-          onTap: () => _showObligationDetails(item),
+          formatElapsed: _formatElapsed,
+          formatDateTime: _formatDateTime,
+          onAcknowledge: () => _acknowledge(item),
+          onReportConcern: () => _reportConcern(item),
+          onTimeIn: () => _timeIn(item),
+          onTimeOut: () => _timeOut(item),
         );
       },
     );
@@ -1421,8 +1383,6 @@ class RoAssignment {
     required this.title,
     required this.programName,
     required this.openingTitle,
-    required this.academicYear,
-    required this.semester,
     required this.assignedArea,
     required this.remarks,
     required this.requiredHours,
@@ -1438,10 +1398,6 @@ class RoAssignment {
     required this.validationRemarks,
     required this.logs,
     required this.placements,
-    required this.checkoutGraceMinutes,
-    required this.activeSessionTargetMinutes,
-    required this.activeSessionTargetAt,
-    required this.activeSessionGraceDeadlineAt,
     this.activeLog,
   });
 
@@ -1449,8 +1405,6 @@ class RoAssignment {
   final String title;
   final String programName;
   final String openingTitle;
-  final String academicYear;
-  final String semester;
   final String assignedArea;
   final String remarks;
 
@@ -1466,10 +1420,6 @@ class RoAssignment {
   final String assignmentStatus;
   final String conflictReason;
   final String validationRemarks;
-  final int checkoutGraceMinutes;
-  final int activeSessionTargetMinutes;
-  final DateTime? activeSessionTargetAt;
-  final DateTime? activeSessionGraceDeadlineAt;
 
   final RoTimeLog? activeLog;
   final List<RoTimeLog> logs;
@@ -1501,14 +1451,6 @@ class RoAssignment {
       title: json['title']?.toString() ?? 'Return of Obligation Notice',
       programName: json['programName']?.toString() ?? '',
       openingTitle: json['openingTitle']?.toString() ?? '',
-      academicYear:
-          json['academicYear']?.toString() ??
-          json['academic_year']?.toString() ??
-          '',
-      semester:
-          json['semester']?.toString() ??
-          json['term']?.toString() ??
-          '',
       assignedArea:
           json['assignedArea']?.toString() ??
           json['assigned_area']?.toString() ??
@@ -1534,11 +1476,6 @@ class RoAssignment {
           json['conflict_reason']?.toString() ??
           '',
       validationRemarks: json['validationRemarks']?.toString() ?? '',
-      checkoutGraceMinutes: _toInt(json['checkoutGraceMinutes']),
-      activeSessionTargetMinutes: _toInt(json['activeSessionTargetMinutes']),
-      activeSessionTargetAt: _toDate(json['activeSessionTargetAt']),
-      activeSessionGraceDeadlineAt:
-          _toDate(json['activeSessionGraceDeadlineAt']),
       activeLog: json['activeLog'] is Map<String, dynamic>
           ? RoTimeLog.fromJson(json['activeLog'] as Map<String, dynamic>)
           : null,
@@ -1590,9 +1527,6 @@ class RoTimeLog {
     required this.validatedMinutes,
     required this.validationRemarks,
     required this.studentNote,
-    required this.proofs,
-    required this.autoTimedOut,
-    required this.autoTimeoutReason,
   });
 
   final String logId;
@@ -1604,9 +1538,6 @@ class RoTimeLog {
   final int validatedMinutes;
   final String validationRemarks;
   final String studentNote;
-  final List<RoProof> proofs;
-  final bool autoTimedOut;
-  final String autoTimeoutReason;
 
   bool get isActive => timeOutAt == null && logStatus == 'Timed In';
 
@@ -1629,200 +1560,12 @@ class RoTimeLog {
       validatedMinutes: _toInt(json['validatedMinutes']),
       validationRemarks: json['validationRemarks']?.toString() ?? '',
       studentNote: json['studentNote']?.toString() ?? '',
-      proofs: (json['proofs'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .map(RoProof.fromJson)
-          .toList(),
-      autoTimedOut:
-          json['autoTimedOut'] == true || json['auto_timed_out'] == true,
-      autoTimeoutReason:
-          json['autoTimeoutReason']?.toString() ??
-          json['auto_timeout_reason']?.toString() ??
-          '',
-    );
-  }
-}
-
-class RoProof {
-  const RoProof({
-    required this.proofId,
-    required this.proofType,
-    required this.fileUrl,
-    required this.capturedAtDevice,
-    required this.capturedAtServer,
-    required this.latitude,
-    required this.longitude,
-    required this.accuracyMeters,
-    required this.proofStatus,
-  });
-
-  final String proofId;
-  final String proofType;
-  final String fileUrl;
-  final DateTime? capturedAtDevice;
-  final DateTime? capturedAtServer;
-  final double? latitude;
-  final double? longitude;
-  final double? accuracyMeters;
-  final String proofStatus;
-
-  bool get isTimeIn => proofType.toLowerCase() == 'time_in';
-  bool get isTimeOut => proofType.toLowerCase() == 'time_out';
-
-  String get label => isTimeIn
-      ? 'Time In'
-      : isTimeOut
-      ? 'Time Out'
-      : proofType;
-
-  factory RoProof.fromJson(Map<String, dynamic> json) {
-    return RoProof(
-      proofId:
-          json['proofId']?.toString() ??
-          json['proof_id']?.toString() ??
-          '',
-      proofType:
-          json['proofType']?.toString() ??
-          json['proof_type']?.toString() ??
-          '',
-      fileUrl:
-          json['fileUrl']?.toString() ??
-          json['file_url']?.toString() ??
-          '',
-      capturedAtDevice: _toDate(
-        json['capturedAtDevice'] ?? json['captured_at_device'],
-      ),
-      capturedAtServer: _toDate(
-        json['capturedAtServer'] ?? json['captured_at_server'],
-      ),
-      latitude: _toDouble(json['latitude']),
-      longitude: _toDouble(json['longitude']),
-      accuracyMeters: _toDouble(
-        json['accuracyMeters'] ?? json['accuracy_meters'],
-      ),
-      proofStatus:
-          json['proofStatus']?.toString() ??
-          json['proof_status']?.toString() ??
-          '',
     );
   }
 }
 
 class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard({
-    required this.item,
-    required this.formatMinutes,
-    required this.onTap,
-  });
-
-  final RoAssignment item;
-  final String Function(int minutes) formatMinutes;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = item.validatedProgress.clamp(0, 100);
-    final department = item.assignedArea.trim().isEmpty
-        ? 'RO Department'
-        : item.assignedArea.trim();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: AppColors.gold.withOpacity(0.24),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D000000),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  item.isCleared
-                      ? Icons.verified_rounded
-                      : Icons.apartment_rounded,
-                  color: AppColors.darkBrown,
-                  size: 21,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      department,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    if (item.academicYear.isNotEmpty ||
-                        item.semester.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        [
-                          if (item.academicYear.isNotEmpty)
-                            'AY ${item.academicYear}',
-                          if (item.semester.isNotEmpty) item.semester,
-                        ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: progress >= 100
-                      ? Colors.green.shade700
-                      : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.black38,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ObligationDetailsSheet extends StatefulWidget {
-  const _ObligationDetailsSheet({
     required this.item,
     required this.isSubmitting,
     required this.hasAnyActiveSession,
@@ -1841,47 +1584,23 @@ class _ObligationDetailsSheet extends StatefulWidget {
   final String Function(int minutes) formatMinutes;
   final String Function(int seconds) formatElapsed;
   final String Function(DateTime? value) formatDateTime;
-  final Future<void> Function() onAcknowledge;
-  final Future<void> Function() onReportConcern;
-  final Future<void> Function() onTimeIn;
-  final Future<void> Function() onTimeOut;
-
-  @override
-  State<_ObligationDetailsSheet> createState() =>
-      _ObligationDetailsSheetState();
-}
-
-class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
-  Timer? _timer;
-
-  RoAssignment get item => widget.item;
-
-  @override
-  void initState() {
-    super.initState();
-    if (item.activeLog != null) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+  final VoidCallback onAcknowledge;
+  final VoidCallback onReportConcern;
+  final VoidCallback onTimeIn;
+  final VoidCallback onTimeOut;
 
   @override
   Widget build(BuildContext context) {
     final activeLog = item.activeLog;
     final isTimedIn = activeLog != null;
+    final submittedProgress = item.submittedProgress.clamp(0, 100) / 100;
+    final validatedProgress = item.validatedProgress.clamp(0, 100) / 100;
 
     final canAcknowledge =
-        !item.isCleared && item.isAssignedOnly && !widget.isSubmitting;
+        !item.isCleared && item.isAssignedOnly && !isSubmitting;
 
     final canReportConcern =
-        !item.isCleared && !item.hasConflict && !widget.isSubmitting;
+        !item.isCleared && !item.hasConflict && !isSubmitting;
 
     final canTimeIn =
         !item.isCleared &&
@@ -1889,505 +1608,182 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
         item.placements.any((placement) => placement.isApproved) &&
         !item.hasConflict &&
         !isTimedIn &&
-        !widget.hasAnyActiveSession &&
-        !widget.isSubmitting;
+        !hasAnyActiveSession &&
+        !isSubmitting;
 
-    final canTimeOut =
-        !item.isCleared && isTimedIn && !widget.isSubmitting;
+    final canTimeOut = !item.isCleared && isTimedIn && !isSubmitting;
 
-    final proofEntries = item.logs
-        .expand(
-          (log) => log.proofs.map(
-            (proof) => _ProofEntry(log: log, proof: proof),
-          ),
-        )
-        .where(
-          (entry) => entry.proof.isTimeIn || entry.proof.isTimeOut,
-        )
-        .take(8)
-        .toList();
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.92,
-      minChildSize: 0.58,
-      maxChildSize: 0.96,
-      expand: false,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFFBF6),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 12, 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.black12,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
+    return Card(
+      elevation: 1,
+      shadowColor: const Color(0x12000000),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _NoticeHeader(item: item),
+            const SizedBox(height: 16),
+            _NoticeDetails(item: item, formatMinutes: formatMinutes),
+            if (!item.isCleared) ...[
+              const SizedBox(height: 12),
+              const _InfoBox(
+                icon: Icons.gavel_rounded,
+                title: 'Required Scholarship Obligation',
+                message:
+                    'This assignment is mandatory. You cannot reject it directly. A legitimate conflict may be reported to OSFA, but failure to acknowledge, attend, or complete the required hours may be flagged for review and may affect your scholarship standing.',
+                color: Color(0xFF8A4B08),
               ),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-                  children: [
-                    Text(
-                      item.assignedArea.trim().isEmpty
-                          ? 'Return of Obligation'
-                          : item.assignedArea,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.darkBrown,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.programName.isNotEmpty
-                          ? item.programName
-                          : item.title,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (item.academicYear.isNotEmpty ||
-                        item.semester.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.calendar_month_rounded,
-                            size: 16,
-                            color: Colors.black45,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              [
-                                if (item.academicYear.isNotEmpty)
-                                  'AY ${item.academicYear}',
-                                if (item.semester.isNotEmpty) item.semester,
-                              ].join(' · '),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Colors.black54,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-
-                    _NoticeDetails(
-                      item: item,
-                      formatMinutes: widget.formatMinutes,
-                    ),
-
-                    if (!item.isCleared) ...[
-                      const SizedBox(height: 12),
-                      const _InfoBox(
-                        icon: Icons.gavel_rounded,
-                        title: 'Required Scholarship Obligation',
-                        message:
-                            'This assignment is mandatory. A legitimate conflict may be reported to OSFA. Complete attendance evidence is still required unless the RO Coordinator verifies an exception.',
-                        color: Color(0xFF8A4B08),
-                      ),
-                    ],
-
-                    if (item.placements.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: item.placements
-                            .map(
-                              (placement) => Chip(
-                                avatar: Icon(
-                                  placement.isApproved
-                                      ? Icons.check_circle_rounded
-                                      : Icons.schedule_rounded,
-                                  size: 16,
-                                  color: placement.isApproved
-                                      ? Colors.green.shade700
-                                      : Colors.orange.shade700,
-                                ),
-                                label: Text(
-                                  '${placement.areaName} - ${placement.status}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                backgroundColor: placement.isApproved
-                                    ? Colors.green.shade50
-                                    : Colors.orange.shade50,
-                                side: BorderSide(
-                                  color: placement.isApproved
-                                      ? Colors.green.shade200
-                                      : Colors.orange.shade200,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-
-                    const SizedBox(height: 18),
-                    _ProgressLine(
-                      label: 'Submitted',
-                      value:
-                          item.submittedProgress.clamp(0, 100).toDouble() / 100,
-                      percent: item.submittedProgress,
-                      caption:
-                          '${widget.formatMinutes(item.submittedMinutes)} submitted of ${widget.formatMinutes(item.requiredMinutes)}',
-                      color: AppColors.gold,
-                    ),
-                    const SizedBox(height: 14),
-                    _ProgressLine(
-                      label: 'Validated',
-                      value:
-                          item.validatedProgress.clamp(0, 100).toDouble() / 100,
-                      percent: item.validatedProgress,
-                      caption:
-                          '${widget.formatMinutes(item.validatedMinutes)} validated of ${widget.formatMinutes(item.requiredMinutes)}',
-                      color: Colors.green,
-                    ),
-
-                    if (item.validationRemarks.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _InfoBox(
-                        icon: Icons.fact_check_outlined,
-                        title: 'Validation Remarks',
-                        message: item.validationRemarks,
-                        color: Colors.blue.shade700,
-                      ),
-                    ],
-
-                    if (item.hasConflict && item.conflictReason.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _InfoBox(
-                        icon: Icons.report_problem_rounded,
-                        title: 'Concern Reported',
-                        message: item.conflictReason,
-                        color: const Color(0xFFB3261E),
-                      ),
-                    ],
-
-                    if (isTimedIn) ...[
-                      const SizedBox(height: 16),
-                      _ActiveSessionBox(
-                        log: activeLog,
-                        targetMinutes: item.activeSessionTargetMinutes,
-                        targetAt: item.activeSessionTargetAt,
-                        graceDeadlineAt: item.activeSessionGraceDeadlineAt,
-                        checkoutGraceMinutes: item.checkoutGraceMinutes,
-                        formatElapsed: widget.formatElapsed,
-                        formatDateTime: widget.formatDateTime,
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    Text(
-                      'Attendance Proofs',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      proofEntries.isEmpty
-                          ? 'No time-in or time-out images have been recorded yet.'
-                          : 'Tap an image to preview the recorded attendance proof.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    if (proofEntries.isNotEmpty)
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: proofEntries.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio: 0.82,
-                            ),
-                        itemBuilder: (context, index) {
-                          final entry = proofEntries[index];
-                          return _ProofPreviewCard(
-                            entry: entry,
-                            formatDateTime: widget.formatDateTime,
-                          );
-                        },
-                      ),
-
-                    const SizedBox(height: 20),
-                    _LogsSection(
-                      logs: item.logs,
-                      formatMinutes: widget.formatMinutes,
-                      formatDateTime: widget.formatDateTime,
-                      initiallyExpanded: true,
-                    ),
-
-                    if (!item.isCleared) ...[
-                      const SizedBox(height: 18),
-                      if (item.isAssignedOnly)
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed:
-                                canAcknowledge ? widget.onAcknowledge : null,
-                            icon: const Icon(Icons.check_circle_rounded),
-                            label: const Text('Acknowledge Notice'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.darkBrown,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                            ),
+            ],
+            if (item.placements.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: item.placements
+                    .map(
+                      (placement) => Chip(
+                        avatar: Icon(
+                          placement.isApproved
+                              ? Icons.check_circle_rounded
+                              : Icons.schedule_rounded,
+                          size: 16,
+                          color: placement.isApproved
+                              ? Colors.green.shade700
+                              : Colors.orange.shade700,
+                        ),
+                        label: Text(
+                          '${placement.areaName} - ${placement.status}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                      if (item.isAssignedOnly) const SizedBox(height: 10),
-
-                      if (!item.hasConflict)
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: canReportConcern
-                                ? widget.onReportConcern
-                                : null,
-                            icon: const Icon(Icons.feedback_rounded),
-                            label: const Text('Report Concern'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                            ),
-                          ),
+                        backgroundColor: placement.isApproved
+                            ? Colors.green.shade50
+                            : Colors.orange.shade50,
+                        side: BorderSide(
+                          color: placement.isApproved
+                              ? Colors.green.shade200
+                              : Colors.orange.shade200,
                         ),
-                      if (!item.hasConflict) const SizedBox(height: 10),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: canTimeIn ? widget.onTimeIn : null,
-                              icon: const Icon(Icons.login_rounded),
-                              label: const Text('Time In'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.darkBrown,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: canTimeOut ? widget.onTimeOut : null,
-                              icon: const Icon(Icons.logout_rounded),
-                              label: const Text('Time Out'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFFB3261E),
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
-                    ],
-                  ],
+                    )
+                    .toList(),
+              ),
+            ],
+            const SizedBox(height: 16),
+            _ProgressLine(
+              label: 'Submitted',
+              value: submittedProgress.toDouble(),
+              percent: item.submittedProgress,
+              caption:
+                  '${formatMinutes(item.submittedMinutes)} submitted of ${formatMinutes(item.requiredMinutes)}',
+              color: AppColors.gold,
+            ),
+            const SizedBox(height: 14),
+            _ProgressLine(
+              label: 'Validated',
+              value: validatedProgress.toDouble(),
+              percent: item.validatedProgress,
+              caption:
+                  '${formatMinutes(item.validatedMinutes)} validated of ${formatMinutes(item.requiredMinutes)}',
+              color: Colors.green,
+            ),
+            if (item.validationRemarks.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                item.validationRemarks,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ProofEntry {
-  const _ProofEntry({
-    required this.log,
-    required this.proof,
-  });
-
-  final RoTimeLog log;
-  final RoProof proof;
-}
-
-class _ProofPreviewCard extends StatelessWidget {
-  const _ProofPreviewCard({
-    required this.entry,
-    required this.formatDateTime,
-  });
-
-  final _ProofEntry entry;
-  final String Function(DateTime? value) formatDateTime;
-
-  void _openPreview(BuildContext context) {
-    if (entry.proof.fileUrl.trim().isEmpty) return;
-
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.black,
-          insetPadding: const EdgeInsets.all(12),
-          child: Stack(
-            children: [
-              InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 5,
-                child: Image.network(
-                  entry.proof.fileUrl,
+            if (item.hasConflict && item.conflictReason.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _InfoBox(
+                icon: Icons.report_problem_rounded,
+                title: 'Concern Reported',
+                message: item.conflictReason,
+                color: const Color(0xFFB3261E),
+              ),
+            ],
+            const SizedBox(height: 16),
+            if (isTimedIn)
+              _ActiveSessionBox(
+                log: activeLog,
+                formatElapsed: formatElapsed,
+                formatDateTime: formatDateTime,
+              ),
+            if (isTimedIn) const SizedBox(height: 14),
+            if (!item.isCleared) ...[
+              if (item.isAssignedOnly) ...[
+                SizedBox(
                   width: double.infinity,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox(
-                    height: 320,
-                    child: Center(
-                      child: Text(
-                        'Unable to load proof image.',
-                        style: TextStyle(color: Colors.white70),
-                      ),
+                  child: FilledButton.icon(
+                    onPressed: canAcknowledge ? onAcknowledge : null,
+                    icon: const Icon(Icons.check_circle_rounded),
+                    label: const Text('Acknowledge Notice'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.darkBrown,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                right: 6,
-                top: 6,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white,
+                const SizedBox(height: 10),
+              ],
+              if (!item.hasConflict && !item.isCleared) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: canReportConcern ? onReportConcern : null,
+                    icon: const Icon(Icons.feedback_rounded),
+                    label: const Text('Report Concern'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
                   ),
                 ),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: canTimeIn ? onTimeIn : null,
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text('Time In'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.darkBrown,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: canTimeOut ? onTimeOut : null,
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Time Out'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFB3261E),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final proof = entry.proof;
-    final capturedAt =
-        proof.capturedAtDevice ?? proof.capturedAtServer ?? entry.log.timeInAt;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: proof.fileUrl.trim().isEmpty
-            ? null
-            : () => _openPreview(context),
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE8DDD0)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(15),
-                  ),
-                  child: proof.fileUrl.trim().isEmpty
-                      ? const ColoredBox(
-                          color: Color(0xFFF4EEE7),
-                          child: Center(
-                            child: Icon(
-                              Icons.image_not_supported_outlined,
-                              color: Colors.black38,
-                            ),
-                          ),
-                        )
-                      : Image.network(
-                          proof.fileUrl,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const ColoredBox(
-                            color: Color(0xFFF4EEE7),
-                            child: Center(
-                              child: Icon(
-                                Icons.broken_image_outlined,
-                                color: Colors.black38,
-                              ),
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      proof.label,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      formatDateTime(capturedAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (proof.latitude != null &&
-                        proof.longitude != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '${proof.latitude!.toStringAsFixed(5)}, ${proof.longitude!.toStringAsFixed(5)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: Colors.black45,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
+            const SizedBox(height: 16),
+            _LogsSection(
+              logs: item.logs,
+              formatMinutes: formatMinutes,
+              formatDateTime: formatDateTime,
+            ),
+          ],
         ),
       ),
     );
@@ -2486,22 +1882,6 @@ class _NoticeDetails extends StatelessWidget {
             value: item.assignedArea.isEmpty ? '—' : item.assignedArea,
           ),
           const SizedBox(height: 10),
-          if (item.academicYear.isNotEmpty) ...[
-            _DetailRow(
-              icon: Icons.calendar_today_rounded,
-              label: 'Academic Year',
-              value: 'AY ${item.academicYear}',
-            ),
-            const SizedBox(height: 10),
-          ],
-          if (item.semester.isNotEmpty) ...[
-            _DetailRow(
-              icon: Icons.event_note_rounded,
-              label: 'Semester',
-              value: item.semester,
-            ),
-            const SizedBox(height: 10),
-          ],
           _DetailRow(
             icon: Icons.timer_rounded,
             label: 'Required Hours',
@@ -2630,70 +2010,30 @@ class _ProgressLine extends StatelessWidget {
 class _ActiveSessionBox extends StatelessWidget {
   const _ActiveSessionBox({
     required this.log,
-    required this.targetMinutes,
-    required this.targetAt,
-    required this.graceDeadlineAt,
-    required this.checkoutGraceMinutes,
     required this.formatElapsed,
     required this.formatDateTime,
   });
 
   final RoTimeLog log;
-  final int targetMinutes;
-  final DateTime? targetAt;
-  final DateTime? graceDeadlineAt;
-  final int checkoutGraceMinutes;
   final String Function(int seconds) formatElapsed;
   final String Function(DateTime? value) formatDateTime;
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final target = targetAt?.toLocal();
-    final graceDeadline = graceDeadlineAt?.toLocal();
-    final requirementReached = target != null && !now.isBefore(target);
-    final graceExpired =
-        graceDeadline != null && !now.isBefore(graceDeadline);
-
-    final creditedSeconds = targetMinutes <= 0
-        ? 0
-        : log.elapsedSeconds.clamp(0, targetMinutes * 60);
-
-    final secondsUntilTarget = target == null
-        ? 0
-        : target.difference(now).inSeconds.clamp(0, 1 << 31);
-
-    final graceSecondsRemaining = graceDeadline == null
-        ? 0
-        : graceDeadline.difference(now).inSeconds.clamp(0, 1 << 31);
-
-    final boxColor = requirementReached
-        ? const Color(0xFFE8F5E9)
-        : AppColors.gold.withOpacity(0.12);
-
-    final borderColor = requirementReached
-        ? Colors.green.withOpacity(0.45)
-        : AppColors.gold.withOpacity(0.45);
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: boxColor,
+        color: AppColors.gold.withOpacity(0.12),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.gold.withOpacity(0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            requirementReached
-                ? 'Required Hours Completed'
-                : 'RO Service in Progress',
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: requirementReached ? Colors.green.shade800 : null,
-            ),
+          const Text(
+            'Currently Timed In',
+            style: TextStyle(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           Text(
@@ -2705,39 +2045,12 @@ class _ActiveSessionBox extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Credited: ${formatElapsed(creditedSeconds)}',
+            'Elapsed: ${formatElapsed(log.elapsedSeconds)}',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
-              color: requirementReached
-                  ? Colors.green.shade800
-                  : AppColors.darkBrown,
+              color: AppColors.darkBrown,
             ),
           ),
-          const SizedBox(height: 6),
-          if (!requirementReached)
-            Text(
-              '${formatElapsed(secondsUntilTarget)} remaining before your required RO time is reached.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.black54,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-          else if (!graceExpired)
-            Text(
-              'Your credited time has stopped. Please Time Out and submit your proof within ${formatElapsed(graceSecondsRemaining)}. The checkout grace period is $checkoutGraceMinutes minute(s).',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.green.shade800,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-          else
-            Text(
-              'The checkout grace period has ended. The backend will automatically close this session; refresh if the status has not updated yet.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.orange.shade900,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
           if (log.studentNote.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -2759,13 +2072,11 @@ class _LogsSection extends StatelessWidget {
     required this.logs,
     required this.formatMinutes,
     required this.formatDateTime,
-    this.initiallyExpanded = false,
   });
 
   final List<RoTimeLog> logs;
   final String Function(int minutes) formatMinutes;
   final String Function(DateTime? value) formatDateTime;
-  final bool initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -2774,7 +2085,6 @@ class _LogsSection extends StatelessWidget {
     }
 
     return ExpansionTile(
-      initiallyExpanded: initiallyExpanded,
       tilePadding: EdgeInsets.zero,
       childrenPadding: EdgeInsets.zero,
       title: const Text(
@@ -2967,13 +2277,6 @@ class _StateCard extends StatelessWidget {
       ),
     );
   }
-}
-
-double? _toDouble(dynamic value) {
-  if (value == null) return null;
-  if (value is double) return value;
-  if (value is num) return value.toDouble();
-  return double.tryParse(value.toString());
 }
 
 int _toInt(dynamic value) {

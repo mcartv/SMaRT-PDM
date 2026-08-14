@@ -158,7 +158,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
         : const Color(0xFFF4EFE8);
     final conversationTitle = widget.title?.trim().isNotEmpty == true
         ? widget.title!.trim()
-        : 'OSFA Support Admin';
+        : 'OSFA Administrator';
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -179,20 +179,16 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              provider.isConnected
-                  ? (_isGroupChat
-                        ? 'Group conversation · Live'
-                        : 'OSFA support · Live')
-                  : 'Reconnecting...',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: provider.isConnected
-                    ? const Color(0xFF2E9B61)
-                    : const Color(0xFFB7791F),
-                fontWeight: FontWeight.w800,
+            if (!provider.isConnected) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Reconnecting...',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: const Color(0xFFB7791F),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
+            ],
           ],
         ),
         actions: [
@@ -216,7 +212,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
       ),
       selectedIndex: 0,
       showBottomNav: false,
-      showDrawer: false,
       applyPadding: false,
       child: ColoredBox(
         color: background,
@@ -283,7 +278,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
             Text(
               _isGroupChat
                   ? 'Send a message to start this scholarship group conversation.'
-                  : 'Send a message to contact the OSFA support admin.',
+                  : 'Send a message to contact the OSFA Administrator.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: isDark

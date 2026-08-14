@@ -102,15 +102,6 @@ class AppRouter {
           ),
         );
 
-      case AppRoutes.application:
-        return _buildProtectedRoute(
-          settings,
-          (context) => ApplicantAccessGate(
-            routeName: AppRoutes.application,
-            child: _buildNewApplicantScreen(context, settings),
-          ),
-        );
-
       case AppRoutes.documents:
         return _buildProtectedRoute(
           settings,

@@ -31,7 +31,6 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Office Update'), centerTitle: false),
       selectedIndex: 2,
       showBottomNav: showBottomNav,
-      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: Column(

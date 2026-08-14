@@ -329,7 +329,6 @@ class _ScholarRenewalRequirementsScreenState
           : null,
       selectedIndex: 3,
       showBottomNav: widget.showBottomNav,
-      showDrawer: false,
       child: RefreshIndicator(
         onRefresh: _loadRenewal,
         child: ListView(

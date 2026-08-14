@@ -145,7 +145,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         foregroundColor: Colors.white,
       ),
       selectedIndex: selectedTabIndex,
-      showDrawer: false,
       child: RefreshIndicator(
         onRefresh: _loadAnnouncements,
         child: SingleChildScrollView(

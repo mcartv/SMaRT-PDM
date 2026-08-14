@@ -296,7 +296,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return SmartPdmPageScaffold(
       appBar: AppBar(title: Text('Available Scholarships')),
       selectedIndex: 0,
-      showDrawer: false,
       child: RefreshIndicator(
         onRefresh: _loadOpenings,
         child: ListView(

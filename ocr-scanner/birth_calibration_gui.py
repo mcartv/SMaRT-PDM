@@ -610,7 +610,13 @@ class BirthCalibrationApp:
             return
         self.calibration_status = "loaded"
         self._update_status()
-        messagebox.showinfo("Calibration saved", f"Saved locally to:\n{path}")
+        # The launch command keeps the OCR worker stopped while this GUI is
+        # open. Exit automatically after a successful durable save so its
+        # shell trap can restart the worker without another touchscreen step.
+        print(f"BIRTH_CALIBRATION_SAVED={path}", flush=True)
+        self.status_label.configure(text="Calibration saved - restarting scanner...")
+        self.root.update_idletasks()
+        self.root.after(250, self.root.destroy)
 
 
 def main() -> int:

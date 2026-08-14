@@ -37,6 +37,14 @@ class BirthCalibrationGuiContractTest(unittest.TestCase):
         self.assertNotIn("len(self.verified_cells) != 9", save_source)
         self.assertIn("len(exact.data.crops) != 9", save_source)
 
+    def test_successful_save_exits_so_worker_restart_trap_runs(self):
+        save_source = self.source.split("    def _save(self) -> None:", 1)[1].split(
+            "\n\ndef main()", 1
+        )[0]
+        self.assertIn("BIRTH_CALIBRATION_SAVED=", save_source)
+        self.assertIn("self.root.after(250, self.root.destroy)", save_source)
+        self.assertNotIn('messagebox.showinfo("Calibration saved"', save_source)
+
 
 if __name__ == "__main__":
     unittest.main()

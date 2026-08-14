@@ -41,6 +41,15 @@ test('Birth V2 routes incomplete structured Gemini output to literal full-page d
     assert.match(requestService, /reference-only and cannot be changed/);
 });
 
+test('Birth V2 recovers required cells before a separately bounded diagnostic call', () => {
+    assert.match(service, /GEMINI_DIAGNOSTIC_TIMEOUT_MS/);
+    assert.match(service, /recoverRequiredNames\(client, cells, parsed\)/);
+    assert.match(service, /REQUIRED_RECOVERY_CELLS/);
+    assert.match(service, /httpOptions:\s*\{ timeout: timeoutMs \}/);
+    assert.match(service, /abortSignal:\s*controller\.signal/);
+    assert.match(service, /gemini-2\.5-flash/);
+});
+
 test('Birth V2 diagnostic metadata keeps only normalized scan polygons', () => {
     assert.match(service, /region_mode/);
     assert.match(service, /expected_calibration/);

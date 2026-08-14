@@ -119,6 +119,10 @@ class ApiClient:
             10,
             int(os.getenv("HTTP_TIMEOUT_SECONDS", "45")),
         )
+        self.birth_v2_completion_timeout = max(
+            self.timeout,
+            int(os.getenv("BIRTH_V2_COMPLETION_TIMEOUT_SECONDS", "180")),
+        )
         self.session = requests.Session()
         self.session.trust_env = False
         self._last_transport_error_log = 0.0
@@ -441,7 +445,7 @@ class ApiClient:
                 url,
                 headers=self._headers(),
                 json={"diagnostic": diagnostic} if diagnostic else {},
-                timeout=max(self.timeout, 45),
+                timeout=self.birth_v2_completion_timeout,
             )
             response.raise_for_status()
             payload = response.json()

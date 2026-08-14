@@ -10,9 +10,16 @@ The Pi must not contain `GEMINI_API_KEY`. Configure these only on the backend:
 
 ```text
 GEMINI_API_KEY=<new backend-only key>
-GEMINI_MODEL=gemini-3.6-flash
-GEMINI_TIMEOUT_MS=30000
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_TIMEOUT_MS=45000
+GEMINI_DIAGNOSTIC_TIMEOUT_MS=90000
 IOT_OCR_CAPTURE_BUCKET=iot-ocr-captures
+```
+
+The Pi completion request must outlive both bounded backend Gemini stages:
+
+```text
+BIRTH_V2_COMPLETION_TIMEOUT_SECONDS=180
 ```
 
 The backend service-role client creates signed upload authorizations scoped to an

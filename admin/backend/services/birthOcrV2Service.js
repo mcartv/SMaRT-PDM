@@ -4,9 +4,19 @@ const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const iotOcrRequestService = require('./iotOcrRequestService');
 
+function configuredTimeout(name, fallback, minimum) {
+    const parsed = Number(process.env[name]);
+    const value = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    return Math.min(300000, Math.max(minimum, Math.round(value)));
+}
+
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
-const GEMINI_MODEL = String(process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
-const GEMINI_TIMEOUT_MS = Math.max(5000, Number(process.env.GEMINI_TIMEOUT_MS || 30000));
+const GEMINI_MODEL = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+const GEMINI_TIMEOUT_MS = configuredTimeout('GEMINI_TIMEOUT_MS', 45000, 15000);
+const GEMINI_DIAGNOSTIC_TIMEOUT_MS = Math.max(
+    GEMINI_TIMEOUT_MS,
+    configuredTimeout('GEMINI_DIAGNOSTIC_TIMEOUT_MS', 90000, 30000)
+);
 const MAX_ARTIFACT_BYTES = 15 * 1024 * 1024;
 const REVIEW_GROUPS = new Set([
     'ready_to_confirm', 'low_confidence', 'missing_field',
@@ -49,6 +59,24 @@ const RESPONSE_SCHEMA = Object.freeze({
         },
     },
     required: ['template_id', 'raw_text', 'fields'],
+    additionalProperties: false,
+});
+const REQUIRED_RECOVERY_KEYS = Object.freeze([
+    'child_first_name', 'child_last_name',
+    'mothers_maiden_first', 'mothers_maiden_last',
+]);
+const REQUIRED_RECOVERY_CELLS = Object.freeze({
+    child_first_name: 'item1_first',
+    child_last_name: 'item1_last',
+    mothers_maiden_first: 'item6_first',
+    mothers_maiden_last: 'item6_last',
+});
+const REQUIRED_RECOVERY_SCHEMA = Object.freeze({
+    type: 'object',
+    properties: Object.fromEntries(
+        REQUIRED_RECOVERY_KEYS.map((key) => [key, { type: 'string' }])
+    ),
+    required: REQUIRED_RECOVERY_KEYS,
     additionalProperties: false,
 });
 
@@ -342,6 +370,84 @@ function buildRawSnapshot(result) {
     ].map((row) => row.join('\t')).join('\n');
 }
 
+function isGeminiTimeout(error, controller) {
+    if (controller.signal.aborted) return true;
+    const code = String(error?.code || '').toUpperCase();
+    const name = String(error?.name || '').toUpperCase();
+    const message = String(error?.message || '').toUpperCase();
+    return code.includes('TIMEOUT') || name.includes('TIMEOUT')
+        || name === 'ABORTERROR' || message.includes('TIMEOUT')
+        || message.includes('DEADLINE');
+}
+
+async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await client.models.generateContent({
+            ...request,
+            config: {
+                ...(request.config || {}),
+                abortSignal: controller.signal,
+                httpOptions: { timeout: timeoutMs },
+            },
+        });
+    } catch (error) {
+        if (isGeminiTimeout(error, controller)) {
+            throw Object.assign(new Error('Gemini request timed out'), { code: timeoutCode });
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function recoverRequiredNames(client, cells, existing) {
+    const parts = [{ text: [
+        'Read only the four supplied PSA Certificate of Live Birth name cells.',
+        'Each image is explicitly labelled. Transcribe the visible person name literally.',
+        'Do not copy printed labels such as NAME, First, Middle, Last, MAIDEN, or item numbers.',
+        'Keep compound names in the same cell. Return an empty string only when truly blank.',
+        'Return only the required JSON schema.',
+    ].join(' ') }];
+    for (const key of REQUIRED_RECOVERY_KEYS) {
+        const cellKey = REQUIRED_RECOVERY_CELLS[key];
+        const artifact = cells.find((entry) => entry.cell_key === cellKey);
+        if (!artifact) return null;
+        parts.push({ text: `Output field ${key}; source cell ${cellKey}` });
+        parts.push({ inlineData: {
+            mimeType: artifact.mime_type,
+            data: artifact.bytes.toString('base64'),
+        } });
+    }
+    try {
+        const response = await generateGeminiContent(client, {
+            model: GEMINI_MODEL,
+            contents: [{ role: 'user', parts }],
+            config: {
+                responseMimeType: 'application/json',
+                responseJsonSchema: REQUIRED_RECOVERY_SCHEMA,
+                temperature: 0,
+                maxOutputTokens: 512,
+            },
+        }, GEMINI_TIMEOUT_MS, 'GEMINI_RECOVERY_TIMEOUT');
+        const raw = typeof response.text === 'function' ? response.text() : response.text;
+        const parsed = JSON.parse(String(raw || ''));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+            || Object.keys(parsed).length !== REQUIRED_RECOVERY_KEYS.length
+            || REQUIRED_RECOVERY_KEYS.some((key) => typeof parsed[key] !== 'string')) {
+            return null;
+        }
+        const merged = { ...existing };
+        for (const key of REQUIRED_RECOVERY_KEYS) {
+            if (!String(merged[key] || '').trim()) merged[key] = parsed[key];
+        }
+        return hasRequiredNames(merged) ? merged : null;
+    } catch {
+        return null;
+    }
+}
+
 async function callGemini(cells) {
     const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) return { ok: false, code: 'GEMINI_KEY_MISSING' };
@@ -353,9 +459,12 @@ async function callGemini(cells) {
     }
     const client = new GoogleGenAI({ apiKey });
     const parts = [{ text: [
-        'Extract text only from the nine PSA birth certificate name cells.',
-        'The images follow Item 1, Item 6, Item 13 and First, Middle, Last order.',
-        'Keep compound names inside their printed cell. Return empty string for blank cells.',
+        'Read the actual typed or printed name value from each of nine separately labelled',
+        'PSA Certificate of Live Birth cells. The images follow Item 1 (Child), Item 6',
+        '(Mother maiden name), Item 13 (Father), each in First, Middle, Last order.',
+        'Ignore form labels, headings, grid lines, stamps, and neighboring text.',
+        'Keep compound names inside their supplied cell. Do not move words between cells.',
+        'Return an empty string only when that supplied cell is genuinely blank or N/A.',
         'Also include raw_text as a best-effort transcription of the nine cells in physical order,',
         'using tabs between first, middle, and last, and newlines between rows.',
         'Return only the required JSON schema.',
@@ -365,33 +474,30 @@ async function callGemini(cells) {
         parts.push({ text: `Cell ${key}` });
         parts.push({ inlineData: { mimeType: artifact.mime_type, data: artifact.bytes.toString('base64') } });
     }
-    let timeoutId;
-    const timeout = new Promise((_, reject) => {
-        timeoutId = setTimeout(
-            () => reject(Object.assign(new Error('timeout'), { code: 'GEMINI_TIMEOUT' })),
-            GEMINI_TIMEOUT_MS
-        );
-    });
     try {
-        const response = await Promise.race([
-            client.models.generateContent({
-                model: GEMINI_MODEL,
-                contents: [{ role: 'user', parts }],
-                config: { responseMimeType: 'application/json', responseJsonSchema: RESPONSE_SCHEMA },
-            }),
-            timeout,
-        ]);
+        const response = await generateGeminiContent(client, {
+            model: GEMINI_MODEL,
+            contents: [{ role: 'user', parts }],
+            config: {
+                responseMimeType: 'application/json',
+                responseJsonSchema: RESPONSE_SCHEMA,
+                temperature: 0,
+                maxOutputTokens: 1536,
+            },
+        }, GEMINI_TIMEOUT_MS, 'GEMINI_TIMEOUT');
         const raw = typeof response.text === 'function' ? response.text() : response.text;
         const parsed = validateGeminiPayload(JSON.parse(String(raw || '')));
         if (!parsed) return { ok: false, code: 'GEMINI_INVALID_RESULT' };
         if (!hasRequiredNames(parsed)) {
-            return { ok: false, code: 'GEMINI_REQUIRED_NAME_MISSING', value: parsed };
+            const recovered = await recoverRequiredNames(client, cells, parsed);
+            if (!recovered) {
+                return { ok: false, code: 'GEMINI_REQUIRED_NAME_MISSING', value: parsed };
+            }
+            return { ok: true, value: recovered, recovered: true };
         }
         return { ok: true, value: parsed };
     } catch (error) {
         return { ok: false, code: error.code === 'GEMINI_TIMEOUT' ? 'GEMINI_TIMEOUT' : 'GEMINI_REQUEST_FAILED' };
-    } finally {
-        clearTimeout(timeoutId);
     }
 }
 
@@ -405,35 +511,27 @@ async function callGeminiFullPage(original) {
         return { ok: false, code: 'GEMINI_DEPENDENCY_MISSING' };
     }
     const client = new GoogleGenAI({ apiKey });
-    let timeoutId;
-    const timeout = new Promise((_, reject) => {
-        timeoutId = setTimeout(
-            () => reject(Object.assign(new Error('timeout'), { code: 'GEMINI_TIMEOUT' })),
-            GEMINI_TIMEOUT_MS
-        );
-    });
     try {
-        const response = await Promise.race([
-            client.models.generateContent({
-                model: GEMINI_MODEL,
-                contents: [{ role: 'user', parts: [
-                    { text: [
-                        'Transcribe every legible printed or typed character from this certificate literally.',
-                        'Preserve reading order and line breaks. Do not summarize, infer, correct, normalize,',
-                        'or convert the text into person-name fields. Return only the required JSON object.',
-                    ].join(' ') },
-                    { inlineData: {
-                        mimeType: original.mime_type,
-                        data: original.bytes.toString('base64'),
-                    } },
-                ] }],
-                config: {
-                    responseMimeType: 'application/json',
-                    responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
-                },
-            }),
-            timeout,
-        ]);
+        const response = await generateGeminiContent(client, {
+            model: GEMINI_MODEL,
+            contents: [{ role: 'user', parts: [
+                { text: [
+                    'Transcribe every legible printed or typed character from this certificate literally.',
+                    'Preserve reading order and line breaks. Do not summarize, infer, correct, normalize,',
+                    'or convert the text into person-name fields. Return only the required JSON object.',
+                ].join(' ') },
+                { inlineData: {
+                    mimeType: original.mime_type,
+                    data: original.bytes.toString('base64'),
+                } },
+            ] }],
+            config: {
+                responseMimeType: 'application/json',
+                responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
+                temperature: 0,
+                maxOutputTokens: 4096,
+            },
+        }, GEMINI_DIAGNOSTIC_TIMEOUT_MS, 'GEMINI_DIAGNOSTIC_TIMEOUT');
         const raw = typeof response.text === 'function' ? response.text() : response.text;
         const parsed = JSON.parse(String(raw || ''));
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
@@ -445,12 +543,10 @@ async function callGeminiFullPage(original) {
     } catch (error) {
         return {
             ok: false,
-            code: error.code === 'GEMINI_TIMEOUT'
+            code: error.code === 'GEMINI_DIAGNOSTIC_TIMEOUT'
                 ? 'GEMINI_DIAGNOSTIC_TIMEOUT'
                 : 'GEMINI_DIAGNOSTIC_REQUEST_FAILED',
         };
-    } finally {
-        clearTimeout(timeoutId);
     }
 }
 

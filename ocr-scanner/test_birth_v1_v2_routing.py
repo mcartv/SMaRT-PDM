@@ -30,6 +30,11 @@ class BirthVersionRoutingContractTest(unittest.TestCase):
         self.assertIn("sha256", source)
         self.assertIn("capture-artifacts/complete", source)
 
+    def test_v2_completion_waits_for_bounded_backend_gemini_stages(self):
+        module_source = Path(__file__).with_name("api.py").read_text(encoding="utf-8")
+        self.assertIn("BIRTH_V2_COMPLETION_TIMEOUT_SECONDS", module_source)
+        self.assertIn("timeout=self.birth_v2_completion_timeout", module_source)
+
 
 if __name__ == "__main__":
     unittest.main()

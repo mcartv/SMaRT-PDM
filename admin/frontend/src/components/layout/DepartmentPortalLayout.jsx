@@ -239,6 +239,8 @@ export default function DepartmentPortalLayout({
   const displayPosition = profile?.position || officeName;
   const portalDisplayName = portalKey === 'pd'
     ? 'PD'
+    : portalKey === 'sdo'
+      ? 'SDO'
     : portalKey
       .split('_')
       .map((part) => part.toLowerCase() === 'ro'

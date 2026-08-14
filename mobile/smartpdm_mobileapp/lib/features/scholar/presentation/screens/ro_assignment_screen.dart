@@ -1737,7 +1737,9 @@ class _AssignmentCard extends StatelessWidget {
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: AppColors.gold.withOpacity(0.24),
+              color: item.activeLog != null
+                  ? Colors.green.withOpacity(0.32)
+                  : AppColors.gold.withOpacity(0.24),
             ),
             boxShadow: const [
               BoxShadow(
@@ -1798,15 +1800,58 @@ class _AssignmentCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: progress >= 100
-                      ? Colors.green.shade700
-                      : AppColors.darkBrown,
-                  fontWeight: FontWeight.w900,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (item.activeLog != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.green.withOpacity(0.22),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Ongoing',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                  Text(
+                    '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: progress >= 100
+                          ? Colors.green.shade700
+                          : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 6),
               const Icon(
@@ -1944,7 +1989,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
               Expanded(
                 child: ListView(
                   controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                   children: [
                     Text(
                       item.assignedArea.trim().isEmpty
@@ -2153,76 +2198,202 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       initiallyExpanded: true,
                     ),
 
-                    if (!item.isCleared) ...[
+                    if (!item.isCleared && item.isAssignedOnly) ...[
                       const SizedBox(height: 18),
-                      if (item.isAssignedOnly)
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed:
-                                canAcknowledge ? widget.onAcknowledge : null,
-                            icon: const Icon(Icons.check_circle_rounded),
-                            label: const Text('Acknowledge Notice'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.darkBrown,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed:
+                              canAcknowledge ? widget.onAcknowledge : null,
+                          icon: const Icon(Icons.check_circle_rounded),
+                          label: const Text('Acknowledge Notice'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.darkBrown,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         ),
-                      if (item.isAssignedOnly) const SizedBox(height: 10),
-
-                      if (!item.hasConflict)
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: canReportConcern
-                                ? widget.onReportConcern
-                                : null,
-                            icon: const Icon(Icons.feedback_rounded),
-                            label: const Text('Report Concern'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                            ),
-                          ),
-                        ),
-                      if (!item.hasConflict) const SizedBox(height: 10),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: canTimeIn ? widget.onTimeIn : null,
-                              icon: const Icon(Icons.login_rounded),
-                              label: const Text('Time In'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.darkBrown,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: canTimeOut ? widget.onTimeOut : null,
-                              icon: const Icon(Icons.logout_rounded),
-                              label: const Text('Time Out'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFFB3261E),
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ],
                 ),
               ),
+
+              if (!item.isCleared)
+                _ObligationActionFooter(
+                  isSubmitting: widget.isSubmitting,
+                  canTimeIn: canTimeIn,
+                  canTimeOut: canTimeOut,
+                  canReportConcern: canReportConcern,
+                  isTimedIn: isTimedIn,
+                  onTimeIn: widget.onTimeIn,
+                  onTimeOut: widget.onTimeOut,
+                  onReportConcern: widget.onReportConcern,
+                ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+
+class _ObligationActionFooter extends StatelessWidget {
+  const _ObligationActionFooter({
+    required this.isSubmitting,
+    required this.canTimeIn,
+    required this.canTimeOut,
+    required this.canReportConcern,
+    required this.isTimedIn,
+    required this.onTimeIn,
+    required this.onTimeOut,
+    required this.onReportConcern,
+  });
+
+  final bool isSubmitting;
+  final bool canTimeIn;
+  final bool canTimeOut;
+  final bool canReportConcern;
+  final bool isTimedIn;
+  final Future<void> Function() onTimeIn;
+  final Future<void> Function() onTimeOut;
+  final Future<void> Function() onReportConcern;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        18,
+        12,
+        18,
+        10 + bottomInset,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF6),
+        border: Border(
+          top: BorderSide(
+            color: Colors.black.withOpacity(0.08),
+          ),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 14,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed:
+                        !isSubmitting && canTimeIn ? onTimeIn : null,
+                    icon: const Icon(
+                      Icons.login_rounded,
+                      size: 19,
+                    ),
+                    label: const Text(
+                      'Time In',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.darkBrown,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          AppColors.darkBrown.withOpacity(0.18),
+                      disabledForegroundColor:
+                          AppColors.darkBrown.withOpacity(0.45),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed:
+                        !isSubmitting && canTimeOut ? onTimeOut : null,
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      size: 19,
+                    ),
+                    label: const Text(
+                      'Time Out',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFB3261E),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          const Color(0xFFB3261E).withOpacity(0.14),
+                      disabledForegroundColor:
+                          const Color(0xFFB3261E).withOpacity(0.42),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (!isTimedIn || canReportConcern) ...[
+            const SizedBox(height: 9),
+            Semantics(
+              button: true,
+              label: 'Report a concern about this RO assignment',
+              child: InkWell(
+                onTap:
+                    !isSubmitting && canReportConcern
+                        ? onReportConcern
+                        : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    'Report a concern',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                      decorationThickness: 1.2,
+                      color: canReportConcern
+                          ? AppColors.darkBrown
+                          : Colors.black26,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

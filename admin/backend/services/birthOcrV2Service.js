@@ -40,12 +40,6 @@ const DIAGNOSTIC_MESSAGES = Object.freeze({
     PSA_BIRTH_V2_NINE_CELL_CROP_FAILED: 'Exactly nine Birth name cells could not be cropped.',
     PSA_BIRTH_V2_CELL_ENCODING_FAILED: 'A Birth name cell could not be encoded safely.',
 });
-const FULL_PAGE_RESPONSE_SCHEMA = Object.freeze({
-    type: 'object',
-    properties: { raw_text: { type: 'string' } },
-    required: ['raw_text'],
-    additionalProperties: false,
-});
 const RESPONSE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
@@ -61,22 +55,14 @@ const RESPONSE_SCHEMA = Object.freeze({
     required: ['template_id', 'raw_text', 'fields'],
     additionalProperties: false,
 });
-const REQUIRED_RECOVERY_KEYS = Object.freeze([
-    'child_first_name', 'child_last_name',
-    'mothers_maiden_first', 'mothers_maiden_last',
-]);
-const REQUIRED_RECOVERY_CELLS = Object.freeze({
-    child_first_name: 'item1_first',
-    child_last_name: 'item1_last',
-    mothers_maiden_first: 'item6_first',
-    mothers_maiden_last: 'item6_last',
-});
-const REQUIRED_RECOVERY_SCHEMA = Object.freeze({
+const ROW_RECOVERY_SCHEMA = Object.freeze({
     type: 'object',
-    properties: Object.fromEntries(
-        REQUIRED_RECOVERY_KEYS.map((key) => [key, { type: 'string' }])
-    ),
-    required: REQUIRED_RECOVERY_KEYS,
+    properties: {
+        first_name: { type: 'string' },
+        middle_name: { type: 'string' },
+        last_name: { type: 'string' },
+    },
+    required: ['first_name', 'middle_name', 'last_name'],
     additionalProperties: false,
 });
 
@@ -380,6 +366,19 @@ function isGeminiTimeout(error, controller) {
         || message.includes('DEADLINE');
 }
 
+function geminiFailureCode(error, prefix) {
+    const status = Number(error?.status || error?.statusCode || error?.code);
+    const signal = [error?.code, error?.status, error?.name]
+        .map((value) => String(value || '').toUpperCase()).join(' ');
+    if (status === 400 || signal.includes('INVALID_ARGUMENT')) return `${prefix}_INVALID_REQUEST`;
+    if ([401, 403].includes(status) || signal.includes('PERMISSION_DENIED')
+        || signal.includes('UNAUTHENTICATED')) return `${prefix}_AUTH_FAILED`;
+    if (status === 404 || signal.includes('NOT_FOUND')) return `${prefix}_MODEL_UNAVAILABLE`;
+    if (status === 429 || signal.includes('RESOURCE_EXHAUSTED')) return `${prefix}_RATE_LIMITED`;
+    if (status >= 500 || signal.includes('UNAVAILABLE')) return `${prefix}_SERVICE_UNAVAILABLE`;
+    return `${prefix}_REQUEST_FAILED`;
+}
+
 async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -402,19 +401,20 @@ async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
     }
 }
 
-async function recoverRequiredNames(client, cells, existing) {
+async function readRequiredNameRow(client, cells, { item, person }) {
     const parts = [{ text: [
-        'Read only the four supplied PSA Certificate of Live Birth name cells.',
-        'Each image is explicitly labelled. Transcribe the visible person name literally.',
+        `Read only PSA Certificate of Live Birth Item ${item}, the ${person} name row.`,
+        'Three images follow in First, Middle, Last physical-column order.',
+        'Transcribe the visible person name literally from each supplied image.',
         'Do not copy printed labels such as NAME, First, Middle, Last, MAIDEN, or item numbers.',
-        'Keep compound names in the same cell. Return an empty string only when truly blank.',
+        'Keep compound names in their original cell. Return an empty string only when truly blank.',
         'Return only the required JSON schema.',
     ].join(' ') }];
-    for (const key of REQUIRED_RECOVERY_KEYS) {
-        const cellKey = REQUIRED_RECOVERY_CELLS[key];
+    for (const component of ['first', 'middle', 'last']) {
+        const cellKey = `item${item}_${component}`;
         const artifact = cells.find((entry) => entry.cell_key === cellKey);
         if (!artifact) return null;
-        parts.push({ text: `Output field ${key}; source cell ${cellKey}` });
+        parts.push({ text: `${component}_name source cell` });
         parts.push({ inlineData: {
             mimeType: artifact.mime_type,
             data: artifact.bytes.toString('base64'),
@@ -426,7 +426,7 @@ async function recoverRequiredNames(client, cells, existing) {
             contents: [{ role: 'user', parts }],
             config: {
                 responseMimeType: 'application/json',
-                responseJsonSchema: REQUIRED_RECOVERY_SCHEMA,
+                responseJsonSchema: ROW_RECOVERY_SCHEMA,
                 temperature: 0,
                 maxOutputTokens: 512,
             },
@@ -434,18 +434,36 @@ async function recoverRequiredNames(client, cells, existing) {
         const raw = typeof response.text === 'function' ? response.text() : response.text;
         const parsed = JSON.parse(String(raw || ''));
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
-            || Object.keys(parsed).length !== REQUIRED_RECOVERY_KEYS.length
-            || REQUIRED_RECOVERY_KEYS.some((key) => typeof parsed[key] !== 'string')) {
+            || Object.keys(parsed).length !== 3
+            || ['first_name', 'middle_name', 'last_name']
+                .some((key) => typeof parsed[key] !== 'string')) {
             return null;
         }
-        const merged = { ...existing };
-        for (const key of REQUIRED_RECOVERY_KEYS) {
-            if (!String(merged[key] || '').trim()) merged[key] = parsed[key];
-        }
-        return hasRequiredNames(merged) ? merged : null;
+        return parsed;
     } catch {
         return null;
     }
+}
+
+async function recoverRequiredNames(client, cells, existing = {}) {
+    const [child, mother] = await Promise.all([
+        readRequiredNameRow(client, cells, { item: '1', person: 'Child' }),
+        readRequiredNameRow(client, cells, { item: '6', person: "Mother's maiden" }),
+    ]);
+    const merged = Object.fromEntries(
+        RESPONSE_KEYS.map((key) => [key, String(existing?.[key] || '')])
+    );
+    for (const [target, source] of [
+        ['child_first_name', child?.first_name],
+        ['child_middle_name', child?.middle_name],
+        ['child_last_name', child?.last_name],
+        ['mothers_maiden_first', mother?.first_name],
+        ['mothers_maiden_middle', mother?.middle_name],
+        ['mothers_maiden_last', mother?.last_name],
+    ]) {
+        if (!merged[target].trim() && String(source || '').trim()) merged[target] = source;
+    }
+    return hasRequiredNames(merged) ? merged : null;
 }
 
 async function callGemini(cells) {
@@ -487,7 +505,12 @@ async function callGemini(cells) {
         }, GEMINI_TIMEOUT_MS, 'GEMINI_TIMEOUT');
         const raw = typeof response.text === 'function' ? response.text() : response.text;
         const parsed = validateGeminiPayload(JSON.parse(String(raw || '')));
-        if (!parsed) return { ok: false, code: 'GEMINI_INVALID_RESULT' };
+        if (!parsed) {
+            const recovered = await recoverRequiredNames(client, cells);
+            return recovered
+                ? { ok: true, value: recovered, recovered: true }
+                : { ok: false, code: 'GEMINI_INVALID_RESULT' };
+        }
         if (!hasRequiredNames(parsed)) {
             const recovered = await recoverRequiredNames(client, cells, parsed);
             if (!recovered) {
@@ -497,7 +520,15 @@ async function callGemini(cells) {
         }
         return { ok: true, value: parsed };
     } catch (error) {
-        return { ok: false, code: error.code === 'GEMINI_TIMEOUT' ? 'GEMINI_TIMEOUT' : 'GEMINI_REQUEST_FAILED' };
+        const code = error.code === 'GEMINI_TIMEOUT'
+            ? 'GEMINI_TIMEOUT'
+            : geminiFailureCode(error, 'GEMINI');
+        if (!['GEMINI_AUTH_FAILED', 'GEMINI_MODEL_UNAVAILABLE', 'GEMINI_RATE_LIMITED']
+            .includes(code)) {
+            const recovered = await recoverRequiredNames(client, cells);
+            if (recovered) return { ok: true, value: recovered, recovered: true };
+        }
+        return { ok: false, code };
     }
 }
 
@@ -518,7 +549,8 @@ async function callGeminiFullPage(original) {
                 { text: [
                     'Transcribe every legible printed or typed character from this certificate literally.',
                     'Preserve reading order and line breaks. Do not summarize, infer, correct, normalize,',
-                    'or convert the text into person-name fields. Return only the required JSON object.',
+                    'or convert the text into person-name fields. Return only plain transcription text,',
+                    'without JSON, Markdown fences, commentary, or a preface.',
                 ].join(' ') },
                 { inlineData: {
                     mimeType: original.mime_type,
@@ -526,26 +558,21 @@ async function callGeminiFullPage(original) {
                 } },
             ] }],
             config: {
-                responseMimeType: 'application/json',
-                responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
                 temperature: 0,
                 maxOutputTokens: 4096,
             },
         }, GEMINI_DIAGNOSTIC_TIMEOUT_MS, 'GEMINI_DIAGNOSTIC_TIMEOUT');
         const raw = typeof response.text === 'function' ? response.text() : response.text;
-        const parsed = JSON.parse(String(raw || ''));
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
-            || Object.keys(parsed).length !== 1 || typeof parsed.raw_text !== 'string'
-            || !parsed.raw_text.trim()) {
+        if (!String(raw || '').trim()) {
             return { ok: false, code: 'GEMINI_DIAGNOSTIC_EMPTY' };
         }
-        return { ok: true, value: parsed.raw_text };
+        return { ok: true, value: String(raw) };
     } catch (error) {
         return {
             ok: false,
             code: error.code === 'GEMINI_DIAGNOSTIC_TIMEOUT'
                 ? 'GEMINI_DIAGNOSTIC_TIMEOUT'
-                : 'GEMINI_DIAGNOSTIC_REQUEST_FAILED',
+                : geminiFailureCode(error, 'GEMINI_DIAGNOSTIC'),
         };
     }
 }
@@ -665,6 +692,7 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
         console.info('BIRTH_V2_GEMINI_FINISHED', {
             request_id: String(requestId).slice(0, 8),
             status: gemini.ok ? 'structured_candidate' : 'diagnostic_only',
+            recovered_required_rows: Boolean(gemini.recovered),
             error_code: gemini.ok ? null : gemini.code,
         });
     } else {
@@ -833,3 +861,5 @@ exports.validateGeminiPayload = validateGeminiPayload;
 exports.hasRequiredNames = hasRequiredNames;
 exports.buildRawSnapshot = buildRawSnapshot;
 exports.buildCandidate = buildCandidate;
+exports.callGemini = callGemini;
+exports.callGeminiFullPage = callGeminiFullPage;

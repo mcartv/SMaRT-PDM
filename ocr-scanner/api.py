@@ -397,6 +397,8 @@ class ApiClient:
         self,
         request_id: str,
         artifacts: list[dict[str, Any]],
+        *,
+        diagnostic: dict[str, Any] | None = None,
     ) -> Optional[Dict[str, Any]]:
         manifest = []
         by_slot: dict[tuple[str, str], dict[str, Any]] = {}
@@ -438,7 +440,7 @@ class ApiClient:
             response = self.session.post(
                 url,
                 headers=self._headers(),
-                json={},
+                json={"diagnostic": diagnostic} if diagnostic else {},
                 timeout=max(self.timeout, 45),
             )
             response.raise_for_status()

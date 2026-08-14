@@ -23,6 +23,12 @@ const RESPONSE_KEYS = Object.freeze([
     'mothers_maiden_first', 'mothers_maiden_middle', 'mothers_maiden_last',
     'father_first_name', 'father_middle_name', 'father_last_name',
 ]);
+const DIAGNOSTIC_MESSAGES = Object.freeze({
+    PSA_BIRTH_V2_TEMPLATE_MISMATCH: 'Approved Birth template registration failed.',
+    PSA_BIRTH_V2_TOPOLOGY_MISMATCH: 'Birth Items 1, 6, and 13 topology could not be validated.',
+    PSA_BIRTH_V2_NINE_CELL_CROP_FAILED: 'Exactly nine Birth name cells could not be cropped.',
+    PSA_BIRTH_V2_CELL_ENCODING_FAILED: 'A Birth name cell could not be encoded safely.',
+});
 const RESPONSE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
@@ -84,8 +90,8 @@ function normalizePolygon(value) {
 }
 
 function validateManifest(artifacts) {
-    if (!Array.isArray(artifacts) || artifacts.length !== 10) {
-        throw httpError(400, 'Birth V2 requires one original and exactly nine cell artifacts');
+    if (!Array.isArray(artifacts) || ![1, 10].includes(artifacts.length)) {
+        throw httpError(400, 'Birth V2 requires one original, optionally followed by exactly nine cell artifacts');
     }
     const normalized = artifacts.map((artifact) => {
         const kind = String(artifact?.artifact_kind || '').trim();
@@ -113,10 +119,33 @@ function validateManifest(artifacts) {
         throw httpError(400, 'Birth V2 requires exactly one original artifact');
     }
     const cells = normalized.filter(({ artifact_kind }) => artifact_kind === 'cell').map(({ cell_key }) => cell_key);
-    if (new Set(cells).size !== CELL_KEYS.length || CELL_KEYS.some((key) => !cells.includes(key))) {
+    if (cells.length && (
+        new Set(cells).size !== CELL_KEYS.length
+        || CELL_KEYS.some((key) => !cells.includes(key))
+    )) {
         throw httpError(400, 'Birth V2 artifact manifest is incomplete');
     }
     return normalized;
+}
+
+function normalizeDiagnostic(value) {
+    if (!value || typeof value !== 'object') return null;
+    const code = String(value.code || '').trim().toUpperCase();
+    if (!Object.prototype.hasOwnProperty.call(DIAGNOSTIC_MESSAGES, code)) {
+        throw httpError(400, 'Invalid Birth V2 diagnostic code');
+    }
+    const registrationStatus = String(value.registration_status || 'mismatch').trim().toLowerCase();
+    const topologyStatus = String(value.topology_status || 'unknown').trim().toLowerCase();
+    return {
+        code,
+        message: DIAGNOSTIC_MESSAGES[code],
+        registration_status: ['matched', 'mismatch', 'failed'].includes(registrationStatus)
+            ? registrationStatus
+            : 'mismatch',
+        topology_status: ['matched', 'mismatch', 'failed', 'unknown'].includes(topologyStatus)
+            ? topologyStatus
+            : 'unknown',
+    };
 }
 
 async function ensurePrivateBucket() {
@@ -200,12 +229,19 @@ exports.authorizeUploads = async ({ requestId, deviceId, artifacts }) => {
     }
 };
 
-async function downloadAndVerifyArtifacts(requestId) {
+async function downloadAndVerifyArtifacts(requestId, { originalOnly = false } = {}) {
     const result = await pool.query(`
         SELECT * FROM public.iot_ocr_capture_artifacts
-        WHERE request_id = $1::uuid ORDER BY artifact_kind, cell_key
-    `, [requestId]);
-    if (result.rows.length !== 10) throw httpError(409, 'Birth V2 artifacts are incomplete');
+        WHERE request_id = $1::uuid
+          AND ($2::boolean = false OR artifact_kind = 'original')
+        ORDER BY artifact_kind, cell_key
+    `, [requestId, originalOnly]);
+    if (![1, 10].includes(result.rows.length)) throw httpError(409, 'Birth V2 artifacts are incomplete');
+    const originals = result.rows.filter(({ artifact_kind: kind }) => kind === 'original');
+    const cells = result.rows.filter(({ artifact_kind: kind }) => kind === 'cell');
+    if (originals.length !== 1 || ![0, 9].includes(cells.length)) {
+        throw httpError(409, 'Birth V2 artifacts are incomplete');
+    }
     const verified = [];
     for (const row of result.rows) {
         const downloaded = await supabase.storage.from(row.bucket_name).download(row.object_path);
@@ -222,7 +258,8 @@ async function downloadAndVerifyArtifacts(requestId) {
         UPDATE public.iot_ocr_capture_artifacts
         SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
         WHERE request_id = $1::uuid
-    `, [requestId]);
+          AND ($2::boolean = false OR artifact_kind = 'original')
+    `, [requestId, originalOnly]);
     return verified;
 }
 
@@ -405,7 +442,7 @@ async function hasDuplicateCapture(request) {
     return Boolean(duplicate.rowCount);
 }
 
-exports.completeUploads = async ({ requestId, deviceId }) => {
+exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => {
     const request = await iotOcrRequestService.getRequestById({ requestId });
     if (!request || request.ocr_version !== 'v2' || request.document_key !== 'birth_certificate') {
         throw httpError(409, 'Birth V2 request is not available');
@@ -423,19 +460,39 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         return existing;
     }
     if (request.status !== 'processing') throw httpError(409, `Cannot complete uploads from ${request.status}`);
-    const artifacts = await downloadAndVerifyArtifacts(requestId);
+    const diagnosticResult = normalizeDiagnostic(diagnostic);
+    const artifacts = await downloadAndVerifyArtifacts(requestId, {
+        originalOnly: Boolean(diagnosticResult),
+    });
     await assertRequestStillProcessing(requestId, deviceId);
     const duplicate = await hasDuplicateCapture(request);
-    console.info('BIRTH_V2_GEMINI_STARTED', {
-        request_id: String(requestId).slice(0, 8),
-        model: GEMINI_MODEL,
-    });
-    const gemini = await callGemini(artifacts.filter(({ artifact_kind }) => artifact_kind === 'cell'));
-    console.info('BIRTH_V2_GEMINI_FINISHED', {
-        request_id: String(requestId).slice(0, 8),
-        status: gemini.ok ? 'structured_candidate' : 'diagnostic_only',
-        error_code: gemini.ok ? null : gemini.code,
-    });
+    const cells = artifacts.filter(({ artifact_kind }) => artifact_kind === 'cell');
+    if (cells.length === 0 && !diagnosticResult) {
+        throw httpError(400, 'Birth V2 original-only upload requires diagnostic metadata');
+    }
+    if (cells.length === 9 && diagnosticResult) {
+        throw httpError(400, 'Birth V2 diagnostic metadata is only valid for original-only uploads');
+    }
+    let gemini;
+    if (cells.length === 9) {
+        console.info('BIRTH_V2_GEMINI_STARTED', {
+            request_id: String(requestId).slice(0, 8),
+            model: GEMINI_MODEL,
+        });
+        gemini = await callGemini(cells);
+        console.info('BIRTH_V2_GEMINI_FINISHED', {
+            request_id: String(requestId).slice(0, 8),
+            status: gemini.ok ? 'structured_candidate' : 'diagnostic_only',
+            error_code: gemini.ok ? null : gemini.code,
+        });
+    } else {
+        gemini = { ok: false, code: diagnosticResult.code, value: null };
+        console.info('BIRTH_V2_PRIVATE_CAPTURE_READY', {
+            request_id: String(requestId).slice(0, 8),
+            status: 'diagnostic_only',
+            error_code: diagnosticResult.code,
+        });
+    }
     await assertRequestStillProcessing(requestId, deviceId);
     const structured = gemini.ok
         ? buildCandidate(gemini.value)
@@ -447,13 +504,18 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
         templateId: 'psa_birth_v1',
         fields: structured.fields,
         fieldConfidence: { child_name: null, mother_maiden_name: null, father_name: null },
-        validationIssues: gemini.ok ? [] : [{ code: gemini.code, message: 'Birth OCR requires a rescan or admin rejection.' }],
+        validationIssues: gemini.ok ? [] : [{
+            code: gemini.code,
+            message: diagnosticResult?.message || 'Birth OCR requires a rescan or admin rejection.',
+        }],
         processing: {
             ocr_version: 'v2',
-            registration_status: 'matched',
+            registration_status: diagnosticResult?.registration_status || 'matched',
+            topology_status: diagnosticResult?.topology_status || 'matched',
             ocr_engine: 'gemini',
             model: GEMINI_MODEL,
             diagnostic_only: !gemini.ok,
+            private_capture_available: true,
             source_regions: Object.fromEntries(artifacts
                 .filter(({ artifact_kind }) => artifact_kind === 'cell')
                 .map(({ cell_key, roi_polygon }) => [cell_key, roi_polygon])),

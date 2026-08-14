@@ -1419,7 +1419,14 @@ const BIRTH_REGION_PREFIX = {
   father_name: 'item13',
 };
 
-function BirthV2ReviewImage({ src, regions, activeRegion }) {
+function BirthV2ReviewImage({ src, regions, activeRegion, status, error }) {
+  if (status === 'error') {
+    return (
+      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-rose-300 bg-rose-50 px-4 text-center text-sm text-rose-700" role="alert">
+        {error || 'The private Birth review image is unavailable. Request a rescan to capture it again.'}
+      </div>
+    );
+  }
   if (!src) {
     return (
       <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
@@ -1470,6 +1477,8 @@ function OCRPanel({
   birthOcrVersion,
   onBirthOcrVersionChange,
   birthReviewImageUrl,
+  birthReviewImageStatus,
+  birthReviewImageError,
   birthReviewReason,
   onBirthReviewReasonChange,
   onRejectCandidate,
@@ -1725,7 +1734,9 @@ function OCRPanel({
             {birthDiagnosticOnly && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 {reviewCandidate.ocr_version === 'v2'
-                  ? 'Gemini could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
+                  ? reviewCandidate?.processing?.private_capture_available
+                    ? 'Gemini could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
+                    : 'This earlier Birth V2 attempt did not upload its private capture. The candidate cannot be confirmed; request a rescan to capture and display a review image.'
                   : 'The Birth rows were not safely identified. The raw snapshot below is diagnostic full-page OCR only and cannot be confirmed as parent information. Reposition the complete form and retry OCR.'}
               </div>
             )}
@@ -1736,6 +1747,8 @@ function OCRPanel({
                   src={birthReviewImageUrl}
                   regions={reviewCandidate?.processing?.source_regions}
                   activeRegion={activeBirthRegion}
+                  status={birthReviewImageStatus}
+                  error={birthReviewImageError}
                 />
                 <p className="mt-1 text-xs text-stone-500">Focus a field to highlight its source cell.</p>
               </div>
@@ -2849,6 +2862,8 @@ export default function DocumentVerification() {
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
   const [birthOcrVersion, setBirthOcrVersion] = useState('v2');
   const [birthReviewImageUrl, setBirthReviewImageUrl] = useState('');
+  const [birthReviewImageStatus, setBirthReviewImageStatus] = useState('idle');
+  const [birthReviewImageError, setBirthReviewImageError] = useState('');
   const [birthReviewReason, setBirthReviewReason] = useState('');
   const [piOnline, setPiOnline] = useState(false);
   const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
@@ -3321,6 +3336,8 @@ export default function DocumentVerification() {
 
   useEffect(() => {
     setBirthReviewImageUrl('');
+    setBirthReviewImageStatus('idle');
+    setBirthReviewImageError('');
     if (
       activeDoc?.id !== 'birth_certificate'
       || reviewCandidate?.ocr_version !== 'v2'
@@ -3329,27 +3346,49 @@ export default function DocumentVerification() {
     ) return undefined;
     let cancelled = false;
     let objectUrl = '';
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+    setBirthReviewImageStatus('loading');
     fetch(
       `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr/${reviewCandidate.request_id}/review-image`,
       {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
         cache: 'no-store',
+        signal: controller.signal,
       }
     )
       .then(async (response) => {
-        if (!response.ok) throw new Error('Private Birth review image is unavailable');
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error || 'Private Birth review image is unavailable');
+        }
+        const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+        if (!contentType.startsWith('image/')) {
+          throw new Error('Private Birth review image returned an unsupported file type');
+        }
         return response.blob();
       })
       .then((blob) => {
         if (cancelled) return;
+        if (!blob.size) throw new Error('Private Birth review image is empty');
         objectUrl = URL.createObjectURL(blob);
         setBirthReviewImageUrl(objectUrl);
+        setBirthReviewImageStatus('loaded');
       })
       .catch((loadError) => {
-        if (!cancelled) setIotOcrError(loadError.message);
+        if (!cancelled) {
+          const message = loadError?.name === 'AbortError'
+            ? 'Private Birth review image timed out. Request a rescan if the image remains unavailable.'
+            : loadError.message;
+          setBirthReviewImageStatus('error');
+          setBirthReviewImageError(message);
+          setIotOcrError(message);
+        }
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status]);
@@ -4100,6 +4139,8 @@ export default function DocumentVerification() {
                   birthOcrVersion={birthOcrVersion}
                   onBirthOcrVersionChange={setBirthOcrVersion}
                   birthReviewImageUrl={birthReviewImageUrl}
+                  birthReviewImageStatus={birthReviewImageStatus}
+                  birthReviewImageError={birthReviewImageError}
                   birthReviewReason={birthReviewReason}
                   onBirthReviewReasonChange={setBirthReviewReason}
                   onRejectCandidate={() => handleBirthReviewAction('reject')}
@@ -4130,6 +4171,8 @@ export default function DocumentVerification() {
                     birthOcrVersion={birthOcrVersion}
                     onBirthOcrVersionChange={setBirthOcrVersion}
                     birthReviewImageUrl={birthReviewImageUrl}
+                    birthReviewImageStatus={birthReviewImageStatus}
+                    birthReviewImageError={birthReviewImageError}
                     birthReviewReason={birthReviewReason}
                     onBirthReviewReasonChange={setBirthReviewReason}
                     onRejectCandidate={() => handleBirthReviewAction('reject')}

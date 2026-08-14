@@ -6,6 +6,7 @@ const path = require('node:path');
 const backendRoot = path.resolve(__dirname, '..');
 const service = fs.readFileSync(path.join(backendRoot, 'services/birthOcrV2Service.js'), 'utf8');
 const requestService = fs.readFileSync(path.join(backendRoot, 'services/iotOcrRequestService.js'), 'utf8');
+const piController = fs.readFileSync(path.join(backendRoot, 'controllers/piIotOcrController.js'), 'utf8');
 const supabaseConfig = fs.readFileSync(path.join(backendRoot, 'config/supabase.js'), 'utf8');
 const migration = fs.readFileSync(
     path.resolve(backendRoot, '../../supabase/migrations/20260813000100_birth_ocr_v2_review_architecture.sql'),
@@ -28,6 +29,14 @@ test('Birth V2 preserves incomplete Gemini observations but never authorizes fie
     assert.match(service, /gemini\.value \? buildRawSnapshot\(gemini\.value\) : ''/);
     assert.match(requestService, /candidate_processing\?\.diagnostic_only/);
     assert.match(requestService, /reference-only and cannot be changed/);
+});
+
+test('Birth V2 keeps the private original available when registration prevents nine-cell extraction', () => {
+    assert.match(service, /\[1, 10\]\.includes\(artifacts\.length\)/);
+    assert.match(service, /cells\.length === 0/);
+    assert.match(service, /original-only upload requires diagnostic metadata/);
+    assert.match(service, /private_capture_available:\s*true/);
+    assert.match(piController, /diagnostic:\s*req\.body\?\.diagnostic \|\| null/);
 });
 
 test('Birth V2 duplicate suspicion uses capture hashes across applications', () => {

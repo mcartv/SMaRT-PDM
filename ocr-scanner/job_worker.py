@@ -921,6 +921,76 @@ def _birth_v2_diagnostic_payload(
     }
 
 
+def _submit_birth_v2_diagnostic_capture(
+    request: Dict,
+    capture_path: str,
+    api: ApiClient | None,
+    *,
+    issue_code: str,
+    registration_status: str,
+    topology_status: str = "unknown",
+    request_stop=None,
+) -> Tuple[bool, Dict]:
+    request_id = get_request_id(request)
+    if request_stop and request_stop.is_set():
+        return False, {"status": "cancelled"}
+    if api is None:
+        return False, {
+            "status": "failed",
+            "error_code": "BIRTH_V2_UPLOAD_CLIENT_UNAVAILABLE",
+            "error_message": "Birth V2 private capture upload client is unavailable.",
+        }
+    try:
+        capture_bytes = Path(capture_path).read_bytes()
+    except OSError:
+        return False, {
+            "status": "failed",
+            "error_code": "BIRTH_V2_CAPTURE_UNAVAILABLE",
+            "error_message": "The fresh Birth capture could not be loaded for private review.",
+        }
+    artifacts = [{
+        "artifact_kind": "original",
+        "cell_key": None,
+        "mime_type": "image/jpeg",
+        "content": capture_bytes,
+        "roi_polygon": None,
+    }]
+    log.info(
+        "Birth V2 diagnostic private capture upload started request=%s artifacts=1",
+        _safe_request_ref(request_id),
+    )
+    response = api.submit_birth_v2_artifacts(
+        request_id,
+        artifacts,
+        diagnostic={
+            "code": issue_code,
+            "registration_status": registration_status,
+            "topology_status": topology_status,
+        },
+    )
+    if not response:
+        return False, {
+            "status": "failed",
+            "error_code": "BIRTH_V2_UPLOAD_FAILED",
+            "error_message": "Private Birth V2 capture upload failed.",
+        }
+    log.info(
+        "Birth V2 diagnostic private capture ready request=%s status=review_required",
+        _safe_request_ref(request_id),
+    )
+    return True, {
+        "status": "review_required",
+        "_v2_backend_completed": True,
+        "source_payload": {
+            "ocr_version": "v2",
+            "registration_status": registration_status,
+            "topology_status": topology_status,
+            "diagnostic_only": True,
+            "private_capture_available": True,
+        },
+    }
+
+
 def _birth_v2_roi_polygon(bounds: Any, homography: Any, source_shape: tuple[int, ...]) -> list[list[float]]:
     height, width = source_shape[:2]
     registered_points = np.array([[
@@ -965,11 +1035,14 @@ def _run_birth_certificate_v2_scan(
             registration_result = register_psa_birth_form_grid_envelope(source_image)
             registration_mode = "validated_grid_envelope"
     if not registration_result.success:
-        return _birth_v2_diagnostic_payload(
+        return _submit_birth_v2_diagnostic_capture(
             request,
+            capture_path,
+            api,
             issue_code="PSA_BIRTH_V2_TEMPLATE_MISMATCH",
-            issue_message="Approved Birth template registration failed.",
-            source_updates={"registration_mode": registration_mode},
+            registration_status="mismatch",
+            topology_status="unknown",
+            request_stop=request_stop,
         )
     cropper_config, calibration_metadata = load_birth_station_calibration()
     topology_result = validate_psa_birth_name_topology(
@@ -977,11 +1050,14 @@ def _run_birth_certificate_v2_scan(
         config=cropper_config,
     )
     if not topology_result.success or topology_result.data is None:
-        return _birth_v2_diagnostic_payload(
+        return _submit_birth_v2_diagnostic_capture(
             request,
+            capture_path,
+            api,
             issue_code="PSA_BIRTH_V2_TOPOLOGY_MISMATCH",
-            issue_message="Birth Items 1, 6, and 13 topology could not be validated.",
-            source_updates={"registration_status": registration_result.status},
+            registration_status=registration_result.status,
+            topology_status="mismatch",
+            request_stop=request_stop,
         )
     crop_kwargs = {
         "registration_metadata": _registration_context(registration_result),
@@ -994,11 +1070,14 @@ def _run_birth_certificate_v2_scan(
         **crop_kwargs,
     )
     if not crop_result.success or len(crop_result.data.crops) != 9:
-        return _birth_v2_diagnostic_payload(
+        return _submit_birth_v2_diagnostic_capture(
             request,
+            capture_path,
+            api,
             issue_code="PSA_BIRTH_V2_NINE_CELL_CROP_FAILED",
-            issue_message="Exactly nine Birth name cells could not be cropped.",
-            source_updates={"registration_status": registration_result.status},
+            registration_status=registration_result.status,
+            topology_status=topology_result.status,
+            request_stop=request_stop,
         )
     if request_stop and request_stop.is_set():
         return False, {"status": "cancelled"}
@@ -1023,10 +1102,14 @@ def _run_birth_certificate_v2_scan(
         crop_key = f"{field_name}.{component_name}"
         encoded, buffer = cv2.imencode(".png", crop_result.data.crops[crop_key])
         if not encoded:
-            return _birth_v2_diagnostic_payload(
+            return _submit_birth_v2_diagnostic_capture(
                 request,
+                capture_path,
+                api,
                 issue_code="PSA_BIRTH_V2_CELL_ENCODING_FAILED",
-                issue_message="A Birth name cell could not be encoded safely.",
+                registration_status=registration_result.status,
+                topology_status=topology_result.status,
+                request_stop=request_stop,
             )
         artifacts.append({
             "artifact_kind": "cell",

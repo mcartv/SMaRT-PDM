@@ -200,6 +200,7 @@ exports.completeBirthV2Uploads = async (req, res) => {
         const data = await birthV2.completeUploads({
             requestId: req.params.requestId,
             deviceId: req.piAuth?.deviceId,
+            diagnostic: req.body?.diagnostic || null,
         });
         const request = data.request || data;
         socketEvents.applicationOcrStatus(req.app?.get?.('io'), {

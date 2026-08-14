@@ -811,6 +811,41 @@ class JobWorkerTest(unittest.TestCase):
         )
         self.generic_ocr.assert_not_called()
 
+    @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")
+    @patch("job_worker.register_psa_birth_form_grid_envelope")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_v2_registration_failure_uploads_private_original_for_review(
+        self,
+        register,
+        grid_envelope,
+        _read_bytes,
+    ):
+        register.return_value = _birth_registration_result("failed")
+        grid_envelope.return_value = _birth_registration_result("failed")
+        api = MagicMock()
+        api.submit_birth_v2_artifacts.return_value = {
+            "request": {"status": "review_required"},
+        }
+
+        success, payload = job_worker._run_birth_certificate_v2_scan(
+            self.request("birth_certificate", ocr_version="v2"),
+            CAPTURE_PATH,
+            api,
+        )
+
+        self.assertTrue(success)
+        self.assertTrue(payload["_v2_backend_completed"])
+        api.submit_birth_v2_artifacts.assert_called_once()
+        request_id, artifacts = api.submit_birth_v2_artifacts.call_args.args
+        diagnostic = api.submit_birth_v2_artifacts.call_args.kwargs["diagnostic"]
+        self.assertEqual(request_id, "request-123456789")
+        self.assertEqual(len(artifacts), 1)
+        self.assertEqual(artifacts[0]["artifact_kind"], "original")
+        self.assertEqual(diagnostic["code"], "PSA_BIRTH_V2_TEMPLATE_MISMATCH")
+        self.assertEqual(diagnostic["registration_status"], "mismatch")
+        self.assertEqual(diagnostic["topology_status"], "unknown")
+        self.generic_ocr.assert_not_called()
+
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")

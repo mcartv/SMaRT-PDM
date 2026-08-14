@@ -14,6 +14,9 @@ test('Birth review defaults to V2 and supports private image-assisted review', (
     assert.match(source, /review-image/);
     assert.match(source, /BirthV2ReviewImage/);
     assert.match(source, /source_regions/);
+    assert.match(source, /birthReviewImageStatus/);
+    assert.match(source, /Private Birth review image timed out/);
+    assert.match(source, /private_capture_available/);
 });
 
 test('Birth review keeps Child locked and exposes reject and rescan actions', () => {

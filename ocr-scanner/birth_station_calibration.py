@@ -24,6 +24,33 @@ MANUAL_REGISTRATION_MODE = "manual_station_quad"
 _MINIMUM_QUAD_AREA = 0.08
 
 
+def fit_capture_to_display(
+    source_shape: tuple[int, ...],
+    screen_width: int,
+    screen_height: int,
+    *,
+    reserved_height: int = 96,
+    horizontal_padding: int = 32,
+) -> tuple[int, int, float]:
+    """Fit the complete capture inside a small Pi display without clipping."""
+
+    source_height, source_width = source_shape[:2]
+    if source_width < 1 or source_height < 1:
+        raise ValueError("capture dimensions must be positive")
+    available_width = max(160, int(screen_width) - int(horizontal_padding))
+    available_height = max(120, int(screen_height) - int(reserved_height))
+    scale = min(
+        available_width / float(source_width),
+        available_height / float(source_height),
+        1.0,
+    )
+    return (
+        max(1, int(round(source_width * scale))),
+        max(1, int(round(source_height * scale))),
+        scale,
+    )
+
+
 def calibration_path() -> Path:
     configured = os.getenv("BIRTH_STATION_CALIBRATION_PATH", "").strip()
     if configured:
@@ -229,6 +256,7 @@ def save_birth_station_calibration(
 __all__ = [
     "CALIBRATION_VERSION",
     "calibration_path",
+    "fit_capture_to_display",
     "load_birth_station_calibration",
     "normalized_corners_from_homography",
     "save_birth_station_calibration",

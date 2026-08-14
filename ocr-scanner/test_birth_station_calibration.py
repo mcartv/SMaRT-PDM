@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from birth_station_calibration import (
+    fit_capture_to_display,
     load_birth_station_calibration,
     save_birth_station_calibration,
     validate_normalized_corners,
@@ -54,6 +55,15 @@ class BirthStationCalibrationTest(unittest.TestCase):
         registered, homography = warp_birth_station_capture(source, self.corners)
         self.assertEqual(registered.shape[:2], (1375, 1400))
         self.assertEqual(len(homography), 9)
+
+    def test_small_pi_display_keeps_the_complete_capture_visible(self):
+        width, height, scale = fit_capture_to_display(
+            (2592, 4608, 3), 800, 480,
+        )
+        self.assertLessEqual(width + 32, 800)
+        self.assertLessEqual(height + 96, 480)
+        self.assertAlmostEqual(width / height, 4608 / 2592, places=2)
+        self.assertGreater(scale, 0)
 
     def test_crossed_and_undersized_corners_fail_safely(self):
         with self.assertRaises(ValueError):

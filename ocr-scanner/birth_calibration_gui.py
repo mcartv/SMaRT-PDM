@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 
 from birth_station_calibration import (
+    fit_capture_to_display,
     load_birth_station_calibration,
     normalized_corners_from_homography,
     save_birth_station_calibration,
@@ -68,10 +69,14 @@ class ManualCornerApp:
         self.corners = [list(point) for point in (initial_corners or (
             (0.12, 0.06), (0.88, 0.06), (0.88, 0.94), (0.12, 0.94),
         ))]
-        height, width = original.shape[:2]
-        self.scale = min(1100 / width, 760 / height, 1.0)
-        self.shown_width = int(width * self.scale)
-        self.shown_height = int(height * self.scale)
+        self.screen_width = max(320, int(root.winfo_screenwidth()))
+        self.screen_height = max(240, int(root.winfo_screenheight()))
+        self.shown_width, self.shown_height, self.scale = fit_capture_to_display(
+            original.shape,
+            self.screen_width,
+            self.screen_height,
+        )
+        self.image_offset = 14
         self.drag_index = None
         self.photo = _photo(original, (self.shown_width, self.shown_height))
         self._build()
@@ -79,25 +84,41 @@ class ManualCornerApp:
 
     def _build(self):
         self.root.title("SMaRT-PDM PSA Birth Manual Registration - Pi local only")
-        toolbar = ttk.Frame(self.root, padding=8)
+        self.root.geometry(f"{self.screen_width}x{self.screen_height}+0+0")
+        try:
+            self.root.attributes("-fullscreen", True)
+        except tk.TclError:
+            pass
+        self.root.bind("<Escape>", lambda _event: self.root.destroy())
+        toolbar = ttk.Frame(self.root, padding=5)
         toolbar.pack(fill="x")
-        ttk.Label(toolbar, text=(
-            "Drag the four markers onto the outer corners of the PSA form, "
-            "then preview the corrected canvas."
-        )).pack(side="left")
-        ttk.Button(toolbar, text="Preview registered canvas", command=self._apply).pack(side="right")
-        self.canvas = tk.Canvas(self.root, width=self.shown_width,
-                                height=self.shown_height, cursor="crosshair")
-        self.canvas.pack(fill="both", expand=True)
+        ttk.Button(toolbar, text="Exit", command=self.root.destroy).pack(side="left")
+        ttk.Label(toolbar, text="Drag all four dots onto the document corners.").pack(side="left", padx=6)
+        ttk.Button(toolbar, text="Preview", command=self._apply).pack(side="right")
+        canvas_frame = ttk.Frame(self.root)
+        canvas_frame.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(
+            canvas_frame,
+            width=self.shown_width + self.image_offset * 2,
+            height=self.shown_height + self.image_offset * 2,
+            cursor="crosshair",
+            highlightthickness=0,
+        )
+        self.canvas.pack(anchor="center")
         self.canvas.bind("<Button-1>", self._press)
         self.canvas.bind("<B1-Motion>", self._drag)
 
     def _point_pixels(self, point):
-        return point[0] * self.shown_width, point[1] * self.shown_height
+        return (
+            self.image_offset + point[0] * self.shown_width,
+            self.image_offset + point[1] * self.shown_height,
+        )
 
     def _redraw(self):
         self.canvas.delete("all")
-        self.canvas.create_image(0, 0, image=self.photo, anchor="nw")
+        self.canvas.create_image(
+            self.image_offset, self.image_offset, image=self.photo, anchor="nw"
+        )
         pixels = [self._point_pixels(point) for point in self.corners]
         self.canvas.create_polygon(
             *(coordinate for point in pixels for coordinate in point),
@@ -106,8 +127,11 @@ class ManualCornerApp:
         for (x, y), color, label in zip(pixels, self.COLORS, self.LABELS):
             self.canvas.create_oval(x - 10, y - 10, x + 10, y + 10,
                                     fill=color, outline="white", width=2)
-            self.canvas.create_text(x + 14, y - 12, text=label, fill=color,
-                                    anchor="w", font=("TkDefaultFont", 10, "bold"))
+            label_x = x - 14 if x > self.canvas.winfo_reqwidth() * 0.65 else x + 14
+            label_y = y + 14 if y < 28 else y - 12
+            anchor = "e" if label_x < x else "w"
+            self.canvas.create_text(label_x, label_y, text=label, fill=color,
+                                    anchor=anchor, font=("TkDefaultFont", 9, "bold"))
 
     def _press(self, event):
         distances = []
@@ -121,8 +145,8 @@ class ManualCornerApp:
         if self.drag_index is None:
             return
         self.corners[self.drag_index] = [
-            min(1.0, max(0.0, event.x / self.shown_width)),
-            min(1.0, max(0.0, event.y / self.shown_height)),
+            min(1.0, max(0.0, (event.x - self.image_offset) / self.shown_width)),
+            min(1.0, max(0.0, (event.y - self.image_offset) / self.shown_height)),
         ]
         self._redraw()
 
@@ -135,7 +159,13 @@ class ManualCornerApp:
             return
         preview = tk.Toplevel(self.root)
         preview.title("Perspective-corrected PSA canvas preview")
-        photo = _photo(registered, (900, 760))
+        preview_width, preview_height, _ = fit_capture_to_display(
+            registered.shape,
+            self.screen_width,
+            self.screen_height,
+            reserved_height=88,
+        )
+        photo = _photo(registered, (preview_width, preview_height))
         label = ttk.Label(preview, image=photo)
         label.image = photo
         label.pack(fill="both", expand=True, padx=8, pady=8)
@@ -204,7 +234,15 @@ class BirthCalibrationApp:
             }
             for row in self.config.row_geometries
         ]
-        self.scale = min(850 / registered.shape[1], 700 / registered.shape[0])
+        screen_width = max(320, int(root.winfo_screenwidth()))
+        screen_height = max(240, int(root.winfo_screenheight()))
+        available_canvas_width = max(220, int(screen_width * 0.56))
+        available_canvas_height = max(180, screen_height - 100)
+        self.scale = min(
+            available_canvas_width / registered.shape[1],
+            available_canvas_height / registered.shape[0],
+            1.0,
+        )
         self.drag_target: tuple[int, str] | None = None
         self.selected = (1, "last")
         self.verified_cells: set[tuple[int, str]] = set()
@@ -215,8 +253,17 @@ class BirthCalibrationApp:
 
     def _build(self) -> None:
         self.root.title("SMaRT-PDM PSA Birth Calibration — Pi local only")
+        screen_width = max(320, int(self.root.winfo_screenwidth()))
+        screen_height = max(240, int(self.root.winfo_screenheight()))
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+        try:
+            self.root.attributes("-fullscreen", True)
+        except tk.TclError:
+            pass
+        self.root.bind("<Escape>", lambda _event: self.root.destroy())
         toolbar = ttk.Frame(self.root, padding=6)
         toolbar.pack(fill="x")
+        ttk.Button(toolbar, text="Exit", command=self.root.destroy).pack(side="left")
         ttk.Button(toolbar, text="Inspect original color", command=self._show_original).pack(side="left")
         ttk.Button(toolbar, text="Save calibration", command=self._save).pack(side="right")
         ttk.Label(

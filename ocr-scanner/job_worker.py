@@ -1152,12 +1152,14 @@ def _run_birth_certificate_v2_scan(
             registration_mode=registration_mode,
             request_stop=request_stop,
         )
-    # Calibration supplies bounded search anchors only. V2 must observe the
-    # real borders in the fresh image; guessed fallback rectangles are not
-    # allowed to leave the Pi as source cells.
+    # Automatic registration must still prove the printed topology. A saved
+    # manual-station warp is different: an operator explicitly aligned and
+    # confirmed all nine rectangles, so those exact calibrated rectangles are
+    # the authorized cells even when a degraded copy has weak printed lines.
+    operator_calibrated_cells = registration_mode == "manual_station_quad"
     strict_cropper_config = {
         **cropper_config,
-        "allow_calibrated_topology_fallback": False,
+        "allow_calibrated_topology_fallback": operator_calibrated_cells,
     }
     topology_result = validate_psa_birth_name_topology(
         registered_image,

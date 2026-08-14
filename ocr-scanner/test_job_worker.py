@@ -902,6 +902,10 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(payload["source_payload"]["registration_mode"], "manual_station_quad")
         manual_warp.assert_called_once()
+        self.assertIs(
+            self.birth_topology.call_args.kwargs["config"]["allow_calibrated_topology_fallback"],
+            True,
+        )
         self.assertEqual(len(api.submit_birth_v2_artifacts.call_args.args[1]), 10)
 
     @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")

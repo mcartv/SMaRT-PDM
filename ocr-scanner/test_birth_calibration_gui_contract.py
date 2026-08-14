@@ -30,6 +30,13 @@ class BirthCalibrationGuiContractTest(unittest.TestCase):
     def test_manual_corner_copy_targets_complete_printed_grid(self):
         self.assertIn("complete printed grid (Items 1-13)", self.source)
 
+    def test_save_does_not_require_nine_button_clicks(self):
+        save_source = self.source.split("    def _save(self) -> None:", 1)[1].split(
+            "\n\ndef main()", 1
+        )[0]
+        self.assertNotIn("len(self.verified_cells) != 9", save_source)
+        self.assertIn("len(exact.data.crops) != 9", save_source)
+
 
 if __name__ == "__main__":
     unittest.main()

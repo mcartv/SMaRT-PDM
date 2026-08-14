@@ -312,7 +312,7 @@ class BirthCalibrationApp:
         ).pack(side="right")
         ttk.Label(
             actions,
-            text="Step 2/2: inspect all 9 cells, then Enter saves.",
+            text="Step 2/2: align the 9 cells, then Enter saves.",
         ).pack(side="right", padx=8)
 
         info = ttk.Frame(self.root, padding=(5, 0, 5, 4))
@@ -461,7 +461,10 @@ class BirthCalibrationApp:
                 )
                 for row in self.rows
             ),
-            allow_calibrated_topology_fallback=False,
+            # This GUI is the explicit human authorization boundary. When a
+            # degraded PSA copy has weak/missing printed lines, the saved
+            # operator-aligned rectangles remain the exact runtime cells.
+            allow_calibrated_topology_fallback=True,
         )
 
     def _cell(self, row_index: int, component: str) -> np.ndarray:
@@ -565,11 +568,6 @@ class BirthCalibrationApp:
 
     def _save(self) -> None:
         try:
-            if len(self.verified_cells) != 9:
-                raise ValueError(
-                    "Inspect First, Middle, and Last for Items 1, 6, and 13 "
-                    "after the final boundary adjustment before saving."
-                )
             strict_config = self._current_config()
             topology = validate_psa_birth_name_topology(
                 self.registered,
@@ -597,8 +595,8 @@ class BirthCalibrationApp:
             if not messagebox.askyesno(
                 "Confirm PSA row identity",
                 "I verified that the three colored rows are exactly Item 1, "
-                "Item 6, and Item 13, and that all nine previews contain only "
-                "their printed First/Middle/Last cells.",
+                "Item 6, and Item 13, and that the nine colored rectangles "
+                "contain only their printed First/Middle/Last cells.",
             ):
                 return
             path = save_birth_station_calibration(

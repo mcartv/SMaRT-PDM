@@ -252,12 +252,18 @@ class JobWorkerTest(unittest.TestCase):
             "job_worker.validate_psa_birth_name_topology",
             return_value=_birth_topology_result(),
         )
+        self.birth_calibration_patcher = patch(
+            "job_worker.load_birth_station_calibration",
+            return_value=({}, {"status": "loaded", "version": 1}),
+        )
         self.capture = self.capture_patcher.start()
         self.generic_ocr = self.generic_ocr_patcher.start()
         self.load_image = self.load_image_patcher.start()
         self.birth_topology = self.birth_topology_patcher.start()
+        self.birth_calibration = self.birth_calibration_patcher.start()
 
     def tearDown(self):
+        self.birth_calibration_patcher.stop()
         self.birth_topology_patcher.stop()
         self.load_image_patcher.stop()
         self.generic_ocr_patcher.stop()
@@ -801,6 +807,15 @@ class JobWorkerTest(unittest.TestCase):
         artifacts = api.submit_birth_v2_artifacts.call_args.args[1]
         self.assertEqual(len(artifacts), 10)
         self.assertEqual(artifacts[0]["artifact_kind"], "original")
+        topology_config = self.birth_topology.call_args.kwargs["config"]
+        self.assertIs(
+            topology_config["allow_calibrated_topology_fallback"],
+            False,
+        )
+        self.assertIs(
+            crop.call_args.kwargs["config"]["allow_calibrated_topology_fallback"],
+            False,
+        )
         self.assertEqual(
             [item["cell_key"] for item in artifacts[1:]],
             [
@@ -845,6 +860,76 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(diagnostic["registration_status"], "mismatch")
         self.assertEqual(diagnostic["topology_status"], "unknown")
         self.generic_ocr.assert_not_called()
+
+    @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")
+    @patch(
+        "job_worker.load_birth_station_calibration",
+        return_value=({}, {"status": "repository_default", "version": 1}),
+    )
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_v2_missing_station_calibration_uploads_only_diagnostic_original(
+        self,
+        register,
+        _calibration,
+        _read_bytes,
+    ):
+        register.return_value = _birth_registration_result()
+        api = MagicMock()
+        api.submit_birth_v2_artifacts.return_value = {
+            "request": {"status": "review_required"},
+        }
+
+        success, payload = job_worker._run_birth_certificate_v2_scan(
+            self.request("birth_certificate", ocr_version="v2"),
+            CAPTURE_PATH,
+            api,
+        )
+
+        self.assertTrue(success)
+        self.assertTrue(payload["_v2_backend_completed"])
+        _request_id, artifacts = api.submit_birth_v2_artifacts.call_args.args
+        diagnostic = api.submit_birth_v2_artifacts.call_args.kwargs["diagnostic"]
+        self.assertEqual(len(artifacts), 1)
+        self.assertEqual(artifacts[0]["artifact_kind"], "original")
+        self.assertEqual(diagnostic["code"], "PSA_BIRTH_V2_CALIBRATION_REQUIRED")
+        self.birth_topology.assert_not_called()
+
+    @patch("job_worker.Path.read_bytes", return_value=b"\xff\xd8\xffcapture")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    def test_birth_v2_topology_mismatch_never_uploads_guessed_cells(
+        self,
+        register,
+        crop,
+        _read_bytes,
+    ):
+        register.return_value = _birth_registration_result()
+        self.birth_topology.return_value = _stage_result(
+            status="failed",
+            success=False,
+            data=None,
+            issues=[{"code": "BIRTH_NAME_ROW_TOPOLOGY_INVALID"}],
+            metrics={"topology_status": "mismatch"},
+        )
+        api = MagicMock()
+        api.submit_birth_v2_artifacts.return_value = {
+            "request": {"status": "review_required"},
+        }
+
+        success, payload = job_worker._run_birth_certificate_v2_scan(
+            self.request("birth_certificate", ocr_version="v2"),
+            CAPTURE_PATH,
+            api,
+        )
+
+        self.assertTrue(success)
+        self.assertTrue(payload["_v2_backend_completed"])
+        _request_id, artifacts = api.submit_birth_v2_artifacts.call_args.args
+        diagnostic = api.submit_birth_v2_artifacts.call_args.kwargs["diagnostic"]
+        self.assertEqual(len(artifacts), 1)
+        self.assertEqual(artifacts[0]["artifact_kind"], "original")
+        self.assertEqual(diagnostic["code"], "PSA_BIRTH_V2_TOPOLOGY_MISMATCH")
+        crop.assert_not_called()
 
     def test_worker_stops_heartbeat_before_terminal_result_submission(self):
         source = inspect.getsource(job_worker.main)

@@ -982,6 +982,17 @@ def crop_psa_birth_name_rows(
         for name in FIELD_NAMES
     ):
         return _failure("BIRTH_NAME_TOPOLOGY_REQUIRED")
+    fallback_rows = [
+        name
+        for name, item in resolved_topology.items()
+        if item.evidence_status != "matched"
+    ]
+    if fallback_rows and not resolved.allow_calibrated_topology_fallback:
+        return _failure(
+            "BIRTH_NAME_TOPOLOGY_REQUIRED",
+            topology_status="mismatch",
+            fallback_rows=tuple(fallback_rows),
+        )
 
     regions: list[RegionResult] = []
     crops: dict[str, np.ndarray] = {}
@@ -1185,8 +1196,12 @@ def crop_psa_birth_name_rows(
         "registration_review_propagated": registration_review,
         "full_row_crop_used": True,
         "dynamic_geometry_repositioning_used": True,
-        "topology_status": "matched",
-        "validated_row_count": len(resolved_topology),
+        "topology_status": (
+            "calibrated_fallback" if fallback_rows else "matched"
+        ),
+        "validated_row_count": len(resolved_topology) - len(fallback_rows),
+        "calibrated_fallback_row_count": len(fallback_rows),
+        "calibrated_fallback_rows": tuple(fallback_rows),
         "validated_intersection_count": sum(
             item.intersection_count for item in resolved_topology.values()
         ),

@@ -15,8 +15,15 @@ from tkinter import messagebox, ttk
 import cv2
 import numpy as np
 
-from birth_station_calibration import save_birth_station_calibration
-from extraction.psa_birth_row_cropper import PSABirthRowCropperConfig
+from birth_station_calibration import (
+    load_birth_station_calibration,
+    save_birth_station_calibration,
+)
+from extraction.psa_birth_row_cropper import (
+    PSABirthRowCropperConfig,
+    crop_psa_birth_name_rows,
+    validate_psa_birth_name_topology,
+)
 from extraction.psa_birth_row_ocr import build_birth_cell_previews
 from extraction.psa_form_registration import (
     register_psa_birth_form,
@@ -30,6 +37,17 @@ ROW_LABELS = {
     "father_name": "Item 13 / Father",
 }
 COMPONENTS = ("first", "middle", "last")
+BIRTH_RELAXED_REGISTRATION_CONFIG = {
+    "review_horizontal_lines": 5,
+    "review_vertical_lines": 2,
+    "boundary_search_distance": 0.14,
+    "line_cluster_distance": 0.009,
+    "review_corner_deviation": 0.09,
+    "maximum_extended_corner_deviation": 0.13,
+    "review_opposite_edge_ratio": 1.35,
+    "review_canonical_edge_deviation": 0.03,
+    "registered_line_minimum_coverage": 0.16,
+}
 
 
 def _photo(image: np.ndarray, maximum: tuple[int, int]) -> tk.PhotoImage:
@@ -46,11 +64,22 @@ def _photo(image: np.ndarray, maximum: tuple[int, int]) -> tk.PhotoImage:
 
 
 class BirthCalibrationApp:
-    def __init__(self, root: tk.Tk, original: np.ndarray, registered: np.ndarray):
+    def __init__(
+        self,
+        root: tk.Tk,
+        original: np.ndarray,
+        registered: np.ndarray,
+        *,
+        initial_config: PSABirthRowCropperConfig | None = None,
+        calibration_status: str = "repository_default",
+        registration_mode: str = "strict_grid",
+    ):
         self.root = root
         self.original = original
         self.registered = registered
-        self.config = PSABirthRowCropperConfig()
+        self.config = initial_config or PSABirthRowCropperConfig()
+        self.calibration_status = calibration_status
+        self.registration_mode = registration_mode
         self.rows = [
             {
                 "field_name": row[0],
@@ -66,8 +95,10 @@ class BirthCalibrationApp:
         self.scale = min(850 / registered.shape[1], 700 / registered.shape[0])
         self.drag_target: tuple[int, str] | None = None
         self.selected = (1, "last")
+        self.verified_cells: set[tuple[int, str]] = set()
         self.images: list[tk.PhotoImage] = []
         self._build()
+        self._update_status()
         self._redraw()
 
     def _build(self) -> None:
@@ -80,6 +111,14 @@ class BirthCalibrationApp:
             toolbar,
             text="Drag colored borders. Click a cell to inspect original + 3 OCR variants.",
         ).pack(side="left", padx=12)
+        self.status_label = ttk.Label(
+            toolbar,
+            text=(
+                f"Calibration: {self.calibration_status} | "
+                f"Registration: {self.registration_mode}"
+            ),
+        )
+        self.status_label.pack(side="left", padx=12)
 
         body = ttk.Panedwindow(self.root, orient="horizontal")
         body.pack(fill="both", expand=True)
@@ -179,10 +218,52 @@ class BirthCalibrationApp:
             row[key] = max(0, min(self.registered.shape[0], value))
         else:
             row[key] = max(0, min(self.registered.shape[1], value))
+        self.verified_cells.clear()
+        self._update_status()
         self._redraw()
+
+    def _update_status(self) -> None:
+        self.status_label.configure(
+            text=(
+                f"Calibration: {self.calibration_status} | "
+                f"Registration: {self.registration_mode} | "
+                f"Exact cells inspected: {len(self.verified_cells)}/9"
+            )
+        )
+
+    def _current_config(self) -> PSABirthRowCropperConfig:
+        return PSABirthRowCropperConfig(
+            row_geometries=tuple(
+                (
+                    row["field_name"],
+                    int(row["left"]),
+                    int(row["first_right"]),
+                    int(row["middle_right"]),
+                    int(row["right"]),
+                    int(row["top"]),
+                    int(row["bottom"]),
+                )
+                for row in self.rows
+            ),
+            allow_calibrated_topology_fallback=False,
+        )
 
     def _cell(self, row_index: int, component: str) -> np.ndarray:
         row = self.rows[row_index]
+        strict_config = self._current_config()
+        topology = validate_psa_birth_name_topology(
+            self.registered,
+            config=strict_config,
+        )
+        if topology.success and topology.data is not None:
+            exact = crop_psa_birth_name_rows(
+                self.registered,
+                config=strict_config,
+                topology=topology.data,
+            )
+            key = f"{row['field_name']}.{component}_name"
+            if exact.success and exact.data is not None and key in exact.data.crops:
+                return exact.data.crops[key].copy()
         boundaries = [row["left"], row["first_right"], row["middle_right"], row["right"]]
         column = COMPONENTS.index(component)
         return self.registered[
@@ -192,6 +273,8 @@ class BirthCalibrationApp:
 
     def _select(self, row_index: int, component: str) -> None:
         self.selected = (row_index, component)
+        self.verified_cells.add((row_index, component))
+        self._update_status()
         self._refresh_previews()
 
     def _refresh_previews(self) -> None:
@@ -266,10 +349,48 @@ class BirthCalibrationApp:
 
     def _save(self) -> None:
         try:
+            if len(self.verified_cells) != 9:
+                raise ValueError(
+                    "Inspect First, Middle, and Last for Items 1, 6, and 13 "
+                    "after the final boundary adjustment before saving."
+                )
+            strict_config = self._current_config()
+            topology = validate_psa_birth_name_topology(
+                self.registered,
+                config=strict_config,
+            )
+            if not topology.success or topology.data is None:
+                raise ValueError(
+                    "Items 1, 6, and 13 are not aligned to complete printed "
+                    "cell borders. Adjust the colored boundaries before saving."
+                )
+            exact = crop_psa_birth_name_rows(
+                self.registered,
+                config=strict_config,
+                topology=topology.data,
+            )
+            if (
+                not exact.success
+                or exact.data is None
+                or len(exact.data.crops) != 9
+                or any(image.size == 0 for image in exact.data.crops.values())
+            ):
+                raise ValueError(
+                    "Calibration must produce exactly nine non-empty runtime cells."
+                )
+            if not messagebox.askyesno(
+                "Confirm PSA row identity",
+                "I verified that the three colored rows are exactly Item 1, "
+                "Item 6, and Item 13, and that all nine previews contain only "
+                "their printed First/Middle/Last cells.",
+            ):
+                return
             path = save_birth_station_calibration(self.rows)
         except Exception as exc:
             messagebox.showerror("Invalid calibration", str(exc))
             return
+        self.calibration_status = "loaded"
+        self._update_status()
         messagebox.showinfo("Calibration saved", f"Saved locally to:\n{path}")
 
 
@@ -280,13 +401,33 @@ def main() -> int:
     original = cv2.imread(str(args.image), cv2.IMREAD_COLOR)
     if original is None:
         raise SystemExit(f"Unable to read {args.image}")
+    registration_mode = "strict_grid"
     registration = register_psa_birth_form(original)
     if not registration.success:
+        registration = register_psa_birth_form(
+            original,
+            config=BIRTH_RELAXED_REGISTRATION_CONFIG,
+        )
+        registration_mode = "relaxed_validated_grid"
+    if not registration.success:
         registration = register_psa_birth_form_grid_envelope(original)
+        registration_mode = "validated_grid_envelope"
     if not registration.success or registration.data is None:
         raise SystemExit("Birth grid registration failed; recapture the complete document first")
+    calibration_config, calibration_metadata = load_birth_station_calibration()
+    try:
+        initial_config = PSABirthRowCropperConfig(**calibration_config)
+    except (TypeError, ValueError):
+        initial_config = PSABirthRowCropperConfig()
     root = tk.Tk()
-    BirthCalibrationApp(root, original, registration.data.registered_image)
+    BirthCalibrationApp(
+        root,
+        original,
+        registration.data.registered_image,
+        initial_config=initial_config,
+        calibration_status=str(calibration_metadata.get("status") or "unknown"),
+        registration_mode=registration_mode,
+    )
     root.mainloop()
     return 0
 

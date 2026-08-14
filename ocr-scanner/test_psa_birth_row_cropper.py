@@ -711,7 +711,31 @@ class PSABirthRowCropperTest(unittest.TestCase):
             {"BIRTH_NAME_ROW_TOPOLOGY_WEAK"},
         )
         self.assertTrue(result.success)
-        self.assertEqual(result.metrics["topology_status"], "matched")
+        self.assertEqual(
+            result.metrics["topology_status"],
+            "calibrated_fallback",
+        )
+        self.assertEqual(result.metrics["calibrated_fallback_row_count"], 1)
+
+    def test_strict_topology_never_authorizes_a_calibrated_fallback(self):
+        source = form_image()
+        cv2.rectangle(
+            source,
+            (923 - 8, 685 - 32),
+            (923 + 8, 732 + 32),
+            (255, 255, 255),
+            -1,
+        )
+        strict = PSABirthRowCropperConfig(
+            allow_calibrated_topology_fallback=False,
+        )
+
+        topology = validate_psa_birth_name_topology(source, config=strict)
+        result = crop_psa_birth_name_rows(source, config=strict)
+
+        self.assertFalse(topology.success)
+        self.assertFalse(result.success)
+        self.assertEqual(result.metrics["topology_status"], "mismatch")
 
     def test_validated_topology_refines_shifted_component_boundaries(self):
         shifted_rows = tuple(

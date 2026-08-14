@@ -1010,6 +1010,31 @@ def _birth_v2_roi_polygon(bounds: Any, homography: Any, source_shape: tuple[int,
     ]
 
 
+def _retain_latest_birth_calibration_capture(capture_path: str) -> None:
+    """Keep one Pi-local image so station geometry can be corrected visually."""
+
+    target = Path(
+        os.getenv(
+            "BIRTH_CALIBRATION_CAPTURE_PATH",
+            str(
+                Path.home()
+                / ".local"
+                / "share"
+                / "smart-pdm"
+                / "latest_birth_capture.jpg"
+            ),
+        )
+    ).expanduser()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        shutil.copyfile(capture_path, target)
+        os.chmod(target, 0o600)
+    except OSError:
+        # Calibration retention must never prevent request processing. No path
+        # or captured document data is written to logs.
+        return
+
+
 def _run_birth_certificate_v2_scan(
     request: Dict,
     capture_path: str,
@@ -1024,6 +1049,7 @@ def _run_birth_certificate_v2_scan(
             issue_code="BIRTH_V2_CAPTURE_UNAVAILABLE",
             issue_message="The fresh Birth capture could not be loaded.",
         )
+    _retain_latest_birth_calibration_capture(capture_path)
     registration_mode = "strict_grid"
     registration_result = register_psa_birth_form(source_image)
     if not registration_result.success:
@@ -1045,9 +1071,26 @@ def _run_birth_certificate_v2_scan(
             request_stop=request_stop,
         )
     cropper_config, calibration_metadata = load_birth_station_calibration()
+    if calibration_metadata.get("status") != "loaded":
+        return _submit_birth_v2_diagnostic_capture(
+            request,
+            capture_path,
+            api,
+            issue_code="PSA_BIRTH_V2_CALIBRATION_REQUIRED",
+            registration_status=registration_result.status,
+            topology_status="mismatch",
+            request_stop=request_stop,
+        )
+    # Calibration supplies bounded search anchors only. V2 must observe the
+    # real borders in the fresh image; guessed fallback rectangles are not
+    # allowed to leave the Pi as source cells.
+    strict_cropper_config = {
+        **cropper_config,
+        "allow_calibrated_topology_fallback": False,
+    }
     topology_result = validate_psa_birth_name_topology(
         registration_result.data.registered_image,
-        config=cropper_config,
+        config=strict_cropper_config,
     )
     if not topology_result.success or topology_result.data is None:
         return _submit_birth_v2_diagnostic_capture(
@@ -1063,8 +1106,7 @@ def _run_birth_certificate_v2_scan(
         "registration_metadata": _registration_context(registration_result),
         "topology": topology_result.data,
     }
-    if cropper_config:
-        crop_kwargs["config"] = cropper_config
+    crop_kwargs["config"] = strict_cropper_config
     crop_result = crop_psa_birth_name_rows(
         registration_result.data.registered_image,
         **crop_kwargs,

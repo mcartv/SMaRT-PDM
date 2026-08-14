@@ -2,6 +2,7 @@ import ast
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -147,6 +148,41 @@ def rotate_corners(corners, degrees):
 
 
 class PSAFormRegistrationTest(unittest.TestCase):
+    def test_metadata_homography_includes_the_canonical_second_warp(self):
+        source = synthetic_grid()
+        vertical = (0.1, 0.25, 0.5, 0.75, 0.9)
+        horizontal = (
+            0.05, 0.14, 0.22, 0.30, 0.408, 0.493, 0.58,
+            0.66, 0.72, 0.794, 0.863, 0.91, 0.96,
+        )
+        inset = (0.03, 0.97, 0.03, 0.97, vertical, horizontal, 0.03)
+        aligned = (0.0, 1.0, 0.0, 1.0, vertical, horizontal, 0.0)
+
+        with patch(
+            "extraction.psa_form_registration._canonical_landmarks",
+            side_effect=(inset, aligned),
+        ):
+            result = register_psa_birth_form(source)
+
+        self.assertTrue(result.success, result.issues)
+        effective = np.asarray(
+            result.data.transformation_metadata.homography,
+            dtype=np.float64,
+        ).reshape(3, 3)
+        direct = cv2.warpPerspective(
+            source,
+            effective,
+            (1400, 1375),
+            flags=cv2.INTER_CUBIC,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+        difference = np.abs(
+            direct.astype(np.float64)
+            - result.data.registered_image.astype(np.float64)
+        )
+        self.assertLess(float(np.mean(difference)), 1.0)
+        self.assertLessEqual(float(np.quantile(difference, 0.95)), 4.0)
+
 
     def test_hough_segments_accept_opencv_array_layouts(self):
         expected = np.asarray(

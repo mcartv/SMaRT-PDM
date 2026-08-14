@@ -1690,6 +1690,12 @@ def register_psa_birth_form(
         homography = cv2.getPerspectiveTransform(selected.corners.astype(np.float32), destination)
         if homography.shape != (3, 3) or not np.isfinite(homography).all():
             return _failure("PERSPECTIVE_TRANSFORM_FAILED")
+        # ``homography`` is part of the artifact contract used to project the
+        # registered cell polygons back onto the private original capture.  A
+        # later canonical re-warp must therefore be composed into this matrix;
+        # retaining only the first transform shifts the admin overlay away
+        # from the cells that were actually uploaded.
+        effective_homography = np.asarray(homography, dtype=np.float64)
         registered = cv2.warpPerspective(
             source,
             homography,
@@ -1807,6 +1813,10 @@ def register_psa_birth_form(
                 (resolved.output_width, resolved.output_height),
                 flags=cv2.INTER_CUBIC,
                 borderMode=cv2.BORDER_REPLICATE,
+            )
+            effective_homography = (
+                np.asarray(canonical_homography, dtype=np.float64)
+                @ effective_homography
             )
         except cv2.error:
             return _failure(
@@ -1933,7 +1943,9 @@ def register_psa_birth_form(
         source_dimensions=(width, height),
         output_dimensions=(resolved.output_width, resolved.output_height),
         normalized_registration_corners=normalized_corners,
-        homography=tuple(float(value) for value in homography.reshape(-1)),
+        homography=tuple(
+            float(value) for value in effective_homography.reshape(-1)
+        ),
         horizontal_line_count=horizontal_count,
         vertical_line_count=vertical_count,
         intersection_count=4,

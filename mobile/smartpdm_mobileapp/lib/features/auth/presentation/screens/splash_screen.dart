@@ -45,8 +45,11 @@ class _SplashScreenState extends State<SplashScreen> {
       _studentIdController.text,
     );
 
-    if (!RegExp(r'^PDM-\d{4}-\d{6}$').hasMatch(studentId)) {
-      setState(() => _error = 'Use the format PDM-0000-000000.');
+    final validationError = StudentIdInputFormatter.validationMessage(
+      _studentIdController.text,
+    );
+    if (validationError != null) {
+      setState(() => _error = validationError);
       return null;
     }
 

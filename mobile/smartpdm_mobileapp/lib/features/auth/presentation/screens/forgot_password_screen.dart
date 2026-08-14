@@ -146,10 +146,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.28)),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.28)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 26,
                       offset: const Offset(0, 14),
                     ),
@@ -196,7 +196,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.08),
+                            color: Colors.red.withValues(alpha: 0.08),
                             border: Border.all(color: Colors.red.shade300),
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -220,7 +220,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           StudentIdInputFormatter(),
                         ],
                         decoration: InputDecoration(
-                          labelText: 'Student ID',
+                          labelText: 'Student ID *',
                           hintText: '2024-000123',
                           prefixIcon: const Padding(
                             padding: EdgeInsets.only(left: 14, right: 8),
@@ -236,15 +236,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        validator: (_) {
-                          if (_studentIdController.text.trim().isEmpty) {
-                            return 'Student ID is required.';
-                          }
-                          if (_fullStudentId.isEmpty) {
-                            return 'Use the format PDM-0000-000000.';
-                          }
-                          return null;
-                        },
+                        validator: (_) => StudentIdInputFormatter.validationMessage(
+                          _studentIdController.text,
+                        ),
                         onFieldSubmitted: (_) => _submit(),
                       ),
                       const SizedBox(height: 20),

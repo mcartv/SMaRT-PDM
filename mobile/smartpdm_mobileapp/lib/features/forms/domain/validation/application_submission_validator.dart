@@ -1,4 +1,6 @@
+import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 enum ApplicationSubmissionSection {
   account,
@@ -174,6 +176,38 @@ class ApplicationSubmissionValidator {
 
     requireText(field: 'lastName', label: 'Last name');
     requireText(field: 'firstName', label: 'First name');
+
+    for (final entry in <String, String>{
+      'lastName': data.lastName,
+      'firstName': data.firstName,
+      'middleName': data.middleName,
+      'maidenName': data.maidenName,
+    }.entries) {
+      if (_isBlank(entry.value)) continue;
+      final label = switch (entry.key) {
+        'lastName' => 'Last name',
+        'firstName' => 'First name',
+        'middleName' => 'Middle name',
+        _ => 'Maiden name',
+      };
+      final error = AppFieldValidators.name(
+        entry.value,
+        label: label,
+        required: false,
+        minLength: entry.key == 'middleName' ? 1 : 2,
+      );
+      if (error != null) {
+        issues.add(
+          ApplicationSubmissionIssue(
+            code: 'personal.${entry.key}.invalid',
+            section: ApplicationSubmissionSection.personal,
+            field: entry.key,
+            message: error,
+            repairAction: 'Use letters and standard name punctuation only.',
+          ),
+        );
+      }
+    }
     requireText(field: 'age', label: 'Age');
     requireText(field: 'dateOfBirth', label: 'Date of birth');
     requireText(field: 'sex', label: 'Sex');
@@ -247,59 +281,17 @@ class ApplicationSubmissionValidator {
       }
     }
 
-    final rawMobile = data.mobileNumber.trim();
-    final normalizedMobile = ApplicationData.normalizeMobileNumber(rawMobile);
-    if (normalizedMobile.isEmpty) {
+    final mobileError = AppFieldValidators.philippineMobile(
+      data.mobileNumber,
+    );
+    if (mobileError != null) {
       issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'contact.mobile.required',
+        ApplicationSubmissionIssue(
+          code: 'contact.mobile.invalid',
           section: ApplicationSubmissionSection.personal,
           field: 'mobileNumber',
-          message: 'Mobile number is required.',
-          repairAction: 'Enter a mobile number.',
-        ),
-      );
-    } else if (!RegExp(
-      r'^\+?\d+$',
-    ).hasMatch(rawMobile.replaceAll(RegExp(r'[\s-]+'), ''))) {
-      issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'contact.mobile.format',
-          section: ApplicationSubmissionSection.personal,
-          field: 'mobileNumber',
-          message: 'Mobile number must contain digits only.',
-          repairAction: 'Use digits only in the mobile number.',
-        ),
-      );
-    } else if (!normalizedMobile.startsWith('09')) {
-      issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'contact.mobile.prefix',
-          section: ApplicationSubmissionSection.personal,
-          field: 'mobileNumber',
-          message: 'Mobile number must start with 09 or +639.',
-          repairAction:
-              'Use a Philippine mobile number that starts with 09 or +639.',
-        ),
-      );
-    } else if (normalizedMobile.length < 11) {
-      issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'contact.mobile.short',
-          section: ApplicationSubmissionSection.personal,
-          field: 'mobileNumber',
-          message: 'Mobile number is too short.',
-          repairAction: 'Add the missing digits to the mobile number.',
-        ),
-      );
-    } else if (normalizedMobile.length > 11) {
-      issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'contact.mobile.long',
-          section: ApplicationSubmissionSection.personal,
-          field: 'mobileNumber',
-          message: 'Mobile number is too long.',
-          repairAction: 'Remove any extra digits from the mobile number.',
+          message: mobileError,
+          repairAction: 'Enter a Philippine mobile number in 09XXXXXXXXX format.',
         ),
       );
     }
@@ -308,13 +300,10 @@ class ApplicationSubmissionValidator {
       'barangay': data.barangay,
       'city': data.city,
       'province': data.province,
-      'zipCode': data.zipCode,
     };
     for (final entry in requiredAddressFields.entries) {
       if (_isBlank(entry.value)) {
-        final label = entry.key == 'zipCode'
-            ? 'ZIP code'
-            : '${entry.key[0].toUpperCase()}${entry.key.substring(1)}';
+        final label = '${entry.key[0].toUpperCase()}${entry.key.substring(1)}';
         issues.add(
           ApplicationSubmissionIssue(
             code: 'personal.address.${entry.key}.required',
@@ -325,6 +314,19 @@ class ApplicationSubmissionValidator {
           ),
         );
       }
+    }
+
+    final zipError = AppFieldValidators.zipCode(data.zipCode);
+    if (zipError != null) {
+      issues.add(
+        ApplicationSubmissionIssue(
+          code: 'personal.address.zip_code.invalid',
+          section: ApplicationSubmissionSection.personal,
+          field: 'zipCode',
+          message: zipError,
+          repairAction: 'Enter the 4-digit Philippine ZIP code.',
+        ),
+      );
     }
     final hasStreetAddress =
         data.houseLotBlockNo.trim().isNotEmpty ||
@@ -343,24 +345,14 @@ class ApplicationSubmissionValidator {
       );
     }
 
-    final email = data.email.trim();
-    if (email.isEmpty) {
+    final emailError = AppFieldValidators.email(data.email);
+    if (emailError != null) {
       issues.add(
-        const ApplicationSubmissionIssue(
-          code: 'contact.email.required',
-          section: ApplicationSubmissionSection.personal,
-          field: 'email',
-          message: 'Email address is required.',
-          repairAction: 'Enter a valid email address.',
-        ),
-      );
-    } else if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      issues.add(
-        const ApplicationSubmissionIssue(
+        ApplicationSubmissionIssue(
           code: 'contact.email.invalid',
           section: ApplicationSubmissionSection.personal,
           field: 'email',
-          message: 'Please enter a valid email address.',
+          message: emailError,
           repairAction: 'Correct the email address format.',
         ),
       );
@@ -371,6 +363,41 @@ class ApplicationSubmissionValidator {
 
   List<ApplicationSubmissionIssue> _validateFamilyFields(ApplicationData data) {
     final issues = <ApplicationSubmissionIssue>[];
+
+    final familyNames = <String, String>{
+      'fatherLastName': data.fatherLastName,
+      'fatherFirstName': data.fatherFirstName,
+      'fatherMiddleName': data.fatherMiddleName,
+      'motherLastName': data.motherLastName,
+      'motherFirstName': data.motherFirstName,
+      'motherMiddleName': data.motherMiddleName,
+      'siblingLastName': data.siblingLastName,
+      'siblingFirstName': data.siblingFirstName,
+      'siblingMiddleName': data.siblingMiddleName,
+      'guardianLastName': data.guardianLastName,
+      'guardianFirstName': data.guardianFirstName,
+      'guardianMiddleName': data.guardianMiddleName,
+    };
+    for (final entry in familyNames.entries) {
+      if (_isBlank(entry.value)) continue;
+      final error = AppFieldValidators.name(
+        entry.value,
+        label: 'Name',
+        required: false,
+        minLength: entry.key.endsWith('MiddleName') ? 1 : 2,
+      );
+      if (error != null) {
+        issues.add(
+          ApplicationSubmissionIssue(
+            code: 'family.${entry.key}.invalid',
+            section: ApplicationSubmissionSection.family,
+            field: entry.key,
+            message: error,
+            repairAction: 'Use letters and standard name punctuation only.',
+          ),
+        );
+      }
+    }
 
     if (!data.sameAddressAsApplicant && _isBlank(data.parentGuardianAddress)) {
       issues.add(
@@ -427,16 +454,18 @@ class ApplicationSubmissionValidator {
       required String label,
       required String value,
     }) {
-      final mobile = value.trim();
-      if (mobile.isEmpty) return;
-
-      if (!RegExp(r'^09\d{9}$').hasMatch(mobile)) {
+      final error = AppFieldValidators.philippineMobile(
+        value,
+        label: label,
+        required: false,
+      );
+      if (error != null) {
         issues.add(
           ApplicationSubmissionIssue(
             code: 'family.$field.format',
             section: ApplicationSubmissionSection.family,
             field: field,
-            message: '$label must be exactly 11 digits and start with 09.',
+            message: error,
             repairAction: 'Enter a Philippine mobile number in 09XXXXXXXXX format.',
           ),
         );
@@ -537,23 +566,48 @@ class ApplicationSubmissionValidator {
     requireText(field: 'studentNumber', label: 'Student number');
     requireText(field: 'financialSupport', label: 'Financial support');
 
-    final yearLevel = int.tryParse(data.currentYearLevel.trim());
-    if (!_isBlank(data.currentYearLevel) &&
-        (yearLevel == null || yearLevel < 1 || yearLevel > 4)) {
+    final yearLevelError = AppFieldValidators.yearLevel(
+      data.currentYearLevel,
+      required: false,
+    );
+    if (yearLevelError != null) {
       issues.add(
-        const ApplicationSubmissionIssue(
+        ApplicationSubmissionIssue(
           code: 'academic.year_level.range',
           section: ApplicationSubmissionSection.academic,
           field: 'currentYearLevel',
-          message: 'Year level must be 1, 2, 3, or 4.',
+          message: yearLevelError,
           repairAction: 'Choose a year level between 1 and 4.',
         ),
       );
     }
 
-    if (_hasText(data.studentNumber) &&
-        _hasText(data.accountStudentId) &&
-        data.studentNumber.trim() != data.accountStudentId.trim()) {
+    if (_hasText(data.studentNumber)) {
+      final studentIdError = StudentIdInputFormatter.validationMessage(
+        data.studentNumber,
+      );
+      if (studentIdError != null) {
+        issues.add(
+          ApplicationSubmissionIssue(
+            code: 'academic.student_number.invalid',
+            section: ApplicationSubmissionSection.academic,
+            field: 'studentNumber',
+            message: studentIdError,
+            repairAction: 'Use the official PDM student ID format.',
+          ),
+        );
+      }
+    }
+
+    final submittedStudentId = StudentIdInputFormatter.toFullStudentId(
+      data.studentNumber,
+    );
+    final accountStudentId = StudentIdInputFormatter.toFullStudentId(
+      data.accountStudentId,
+    );
+    if (submittedStudentId.isNotEmpty &&
+        accountStudentId.isNotEmpty &&
+        submittedStudentId != accountStudentId) {
       issues.add(
         const ApplicationSubmissionIssue(
           code: 'academic.student_number.account_mismatch',

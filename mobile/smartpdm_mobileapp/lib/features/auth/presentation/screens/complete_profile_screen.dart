@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/philippine_mobile_input_formatter.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -28,7 +30,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   CourseOption? _selectedCourse;
   int? _selectedYearLevel;
 
-  static const List<int> _yearLevels = [1, 2, 3, 4, 5];
+  static const List<int> _yearLevels = [1, 2, 3, 4];
 
   @override
   void initState() {
@@ -86,43 +88,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
-  String? _requiredValidator(String? value, String field) {
-    if (value == null || value.trim().isEmpty) {
-      return '$field is required';
-    }
-    return null;
-  }
-
-  String? _nameValidator(String? value, String field) {
-    if (value == null || value.trim().isEmpty) {
-      return '$field is required';
-    }
-
-    final text = value.trim();
-    if (text.length < 2) {
-      return '$field is too short';
-    }
-
-    if (!RegExp(r"^[a-zA-ZñÑ\s.'-]+$").hasMatch(text)) {
-      return 'Enter a valid $field';
-    }
-
-    return null;
-  }
-
-  String? _phoneValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Phone number is required';
-    }
-
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.length < 10 || digits.length > 13) {
-      return 'Enter a valid phone number';
-    }
-
-    return null;
-  }
-
   Future<void> _saveProfile() async {
     FocusScope.of(context).unfocus();
 
@@ -153,7 +118,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         courseCode: _selectedCourse!.courseCode,
         yearLevel: _selectedYearLevel!,
         barangay: _barangayController.text.trim(),
-        phoneNumber: _phoneNumberController.text.trim(),
+        phoneNumber: AppFieldValidators.normalizePhilippineMobile(
+          _phoneNumberController.text,
+        ),
       );
 
       if (!mounted) return;
@@ -175,18 +142,32 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   }
 
   InputDecoration _inputDecoration(String label, {String? hintText}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fillColor = isDark
+        ? AppColors.applicantDarkSurfaceMuted
+        : Colors.white;
+    final borderColor = isDark
+        ? AppColors.applicantDarkOutline
+        : Colors.grey.shade300;
+
     return InputDecoration(
       labelText: label,
       hintText: hintText,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: fillColor,
+      labelStyle: TextStyle(
+        color: isDark ? AppColors.applicantDarkTextMuted : AppColors.brown,
+      ),
+      hintStyle: TextStyle(
+        color: isDark ? AppColors.applicantDarkTextMuted : Colors.grey.shade500,
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(borderRadius),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderSide: BorderSide(color: borderColor),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(borderRadius),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderSide: BorderSide(color: borderColor),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -199,6 +180,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(borderRadius),
         borderSide: const BorderSide(color: Colors.red, width: 1.4),
+      ),
+      errorStyle: TextStyle(
+        color: isDark ? Colors.red.shade300 : Colors.red.shade700,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
@@ -232,7 +217,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         initialValue: _selectedCourse,
         isExpanded: true,
         decoration: _inputDecoration(
-          'Course',
+          'Course *',
           hintText: _isLoadingCourses
               ? 'Loading courses...'
               : (_courses.isEmpty
@@ -265,7 +250,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       child: DropdownButtonFormField<int>(
         initialValue: _selectedYearLevel,
         decoration: _inputDecoration(
-          'Year Level',
+          'Year Level *',
           hintText: 'Select your year level',
         ),
         items: _yearLevels
@@ -305,11 +290,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark
+                      ? AppColors.applicantDarkSurface
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(borderRadius * 1.4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
                       blurRadius: 18,
                       offset: const Offset(0, 8),
                     ),
@@ -322,7 +309,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: accentColor.withOpacity(0.12),
+                        backgroundColor: accentColor.withValues(alpha: 0.12),
                         child: Icon(
                           Icons.person_rounded,
                           color: accentColor,
@@ -341,46 +328,48 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         'Set up your basic profile before continuing to the applicant dashboard.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade600,
+                          color: isDark
+                              ? AppColors.applicantDarkTextMuted
+                              : Colors.grey.shade600,
                           height: 1.4,
                         ),
                       ),
                       const SizedBox(height: 28),
                       _buildTextField(
-                        label: 'First Name',
+                        label: 'First Name *',
                         controller: _firstNameController,
-                        validator: (v) => _nameValidator(v, 'First name'),
+                        validator: (v) => AppFieldValidators.name(v, label: 'First name'),
                       ),
                       _buildTextField(
                         label: 'Middle Name',
                         controller: _middleNameController,
-                        validator: (_) => null,
+                        validator: (v) => AppFieldValidators.name(
+                          v,
+                          label: 'Middle name',
+                          required: false,
+                          minLength: 1,
+                        ),
                         hintText: 'Optional',
                       ),
                       _buildTextField(
-                        label: 'Last Name',
+                        label: 'Last Name *',
                         controller: _lastNameController,
-                        validator: (v) => _nameValidator(v, 'Last name'),
+                        validator: (v) => AppFieldValidators.name(v, label: 'Last name'),
                       ),
                       _buildCourseDropdown(),
                       _buildYearLevelDropdown(),
                       _buildTextField(
-                        label: 'Barangay',
+                        label: 'Barangay *',
                         controller: _barangayController,
-                        validator: (v) => _requiredValidator(v, 'Barangay'),
+                        validator: (v) => AppFieldValidators.requiredText(v, label: 'Barangay'),
                       ),
                       _buildTextField(
-                        label: 'Phone Number',
+                        label: 'Phone Number *',
                         controller: _phoneNumberController,
-                        validator: _phoneValidator,
+                        validator: (v) => AppFieldValidators.philippineMobile(v),
                         keyboardType: TextInputType.phone,
                         textCapitalization: TextCapitalization.none,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'[0-9+\- ]'),
-                          ),
-                          LengthLimitingTextInputFormatter(16),
-                        ],
+                        inputFormatters: const [PhilippineMobileInputFormatter()],
                       ),
                       const SizedBox(height: 8),
                       SizedBox(

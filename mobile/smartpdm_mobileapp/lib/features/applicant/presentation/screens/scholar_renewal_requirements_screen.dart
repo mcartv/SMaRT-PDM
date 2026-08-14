@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/models/scholar_renewal.dart';
-import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
-import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/renewal_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
@@ -392,10 +390,10 @@ class _ScholarRenewalRequirementsScreenState
                   child: Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.08),
+                      color: Colors.orange.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: Colors.orange.withOpacity(0.18),
+                        color: Colors.orange.withValues(alpha: 0.18),
                       ),
                     ),
                     child: Text(
@@ -464,9 +462,9 @@ class _ScholarRenewalRequirementsScreenState
       decoration: BoxDecoration(
         color: isDark
             ? const Color(0xFF2D1E12)
-            : primaryColor.withOpacity(0.08),
+            : primaryColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: primaryColor.withOpacity(0.12)),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -564,7 +562,7 @@ class _ScholarRenewalRequirementsScreenState
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF332216) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: primaryColor.withOpacity(0.10)),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.10)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,7 +573,7 @@ class _ScholarRenewalRequirementsScreenState
             decoration: BoxDecoration(
               color: isDark
                   ? const Color(0xFF3A2718)
-                  : primaryColor.withOpacity(0.08),
+                  : primaryColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -670,11 +668,11 @@ class _ScholarRenewalRequirementsScreenState
                         style: OutlinedButton.styleFrom(
                           foregroundColor: accentColor,
                           side: BorderSide(
-                            color: accentColor.withOpacity(0.35),
+                            color: accentColor.withValues(alpha: 0.35),
                           ),
                           backgroundColor: isDark
                               ? const Color(0xFF3A2718)
-                              : primaryColor.withOpacity(0.04),
+                              : primaryColor.withValues(alpha: 0.04),
                         ),
                       ),
                       if (document.hasFile)
@@ -698,7 +696,7 @@ class _ScholarRenewalRequirementsScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.12),
+              color: statusColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
@@ -726,7 +724,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.75),
+        color: Colors.white.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -760,9 +758,9 @@ class _RenewalErrorCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.08),
+        color: Colors.red.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.red.withOpacity(0.18)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

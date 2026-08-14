@@ -90,7 +90,7 @@ class _StepEssayState extends State<StepEssay> {
                   '$number',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: IntakePalette.text,
+                    color: intakeTextColor(context),
                   ),
                 ),
               ),
@@ -99,7 +99,7 @@ class _StepEssayState extends State<StepEssay> {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: IntakePalette.text,
+                    color: intakeTextColor(context),
                     fontWeight: FontWeight.w800,
                     height: 1.35,
                   ),
@@ -113,7 +113,7 @@ class _StepEssayState extends State<StepEssay> {
             child: Text(
               '$count / 300 words',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: IntakePalette.subtext.withValues(alpha: 0.75),
+                color: intakeSubtextColor(context).withValues(alpha: 0.75),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -123,6 +123,7 @@ class _StepEssayState extends State<StepEssay> {
             controller: controller,
             maxLines: 7,
             decoration: intakeInputDecoration(
+              context,
               hint: hint,
               errorText: _essayError(field),
             ),

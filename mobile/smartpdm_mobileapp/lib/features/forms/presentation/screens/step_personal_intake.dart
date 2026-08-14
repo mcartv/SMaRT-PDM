@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/philippine_mobile_input_formatter.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 class StepPersonal extends StatefulWidget {
   const StepPersonal({
@@ -117,8 +120,8 @@ class _StepPersonalState extends State<StepPersonal> {
         'Bagumbayan',
         'Bambang',
         'Batia',
-        'BiÃ±ang 1st',
-        'BiÃ±ang 2nd',
+        'Biñang 1st',
+        'Biñang 2nd',
         'Bolacan',
         'Bundukan',
         'Bunlo',
@@ -180,7 +183,7 @@ class _StepPersonalState extends State<StepPersonal> {
         'San Rafael',
         'San Roque',
         'Santo Cristo',
-        'Santo NiÃ±o',
+        'Santo Niño',
         'Tungkong Mangga',
       ],
     },
@@ -330,6 +333,7 @@ class _StepPersonalState extends State<StepPersonal> {
   void initState() {
     super.initState();
     _initControllers();
+    widget.data.mobileNumber = mobileController.text;
 
     _bind(firstNameController, (value) => widget.data.firstName = value);
     _bind(middleNameController, (value) => widget.data.middleName = value);
@@ -380,7 +384,11 @@ class _StepPersonalState extends State<StepPersonal> {
     );
     zipCodeController = TextEditingController(text: widget.data.zipCode);
     landlineController = TextEditingController(text: widget.data.landline);
-    mobileController = TextEditingController(text: widget.data.mobileNumber);
+    mobileController = TextEditingController(
+      text: AppFieldValidators.normalizePhilippineMobile(
+        widget.data.mobileNumber,
+      ),
+    );
     emailController = TextEditingController(text: widget.data.email);
 
     selectedSex = widget.data.sex.isNotEmpty
@@ -495,30 +503,34 @@ class _StepPersonalState extends State<StepPersonal> {
     return null;
   }
 
+  String? _nameError(
+    String value,
+    String label, {
+    bool required = true,
+    int minLength = 2,
+  }) {
+    if (!widget.showErrors) return null;
+    return AppFieldValidators.name(
+      value,
+      label: label,
+      required: required,
+      minLength: minLength,
+    );
+  }
+
+  String? _zipCodeError() {
+    if (!widget.showErrors) return null;
+    return AppFieldValidators.zipCode(zipCodeController.text);
+  }
+
   String? _mobileError() {
     if (!widget.showErrors) return null;
-    final rawMobile = mobileController.text.trim();
-    final normalizedMobile = ApplicationData.normalizeMobileNumber(rawMobile);
-    if (normalizedMobile.isEmpty) return 'Mobile number is required.';
-    if (!RegExp(
-      r'^\+?\d+$',
-    ).hasMatch(rawMobile.replaceAll(RegExp(r'[\s-]+'), ''))) {
-      return 'Mobile number must contain digits only.';
-    }
-    if (!normalizedMobile.startsWith('09')) {
-      return 'Mobile number must start with 09 or +639.';
-    }
-    if (normalizedMobile.length < 11) return 'Mobile number is too short.';
-    if (normalizedMobile.length > 11) return 'Mobile number is too long.';
-    return null;
+    return AppFieldValidators.philippineMobile(mobileController.text);
   }
 
   String? _emailError() {
     if (!widget.showErrors) return null;
-    final email = emailController.text.trim();
-    if (email.isEmpty) return 'Email address is required.';
-    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    return emailRegex.hasMatch(email) ? null : 'Please enter a valid email.';
+    return AppFieldValidators.email(emailController.text);
   }
 
   InputDecoration _dec(
@@ -527,6 +539,7 @@ class _StepPersonalState extends State<StepPersonal> {
     Widget? suffixIcon,
     bool hasValue = false,
   }) => intakeInputDecoration(
+      context,
     hint: hint,
     errorText: errorText,
     suffixIcon: suffixIcon,
@@ -589,6 +602,7 @@ class _StepPersonalState extends State<StepPersonal> {
     String? errorText,
     bool readOnly = false,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     VoidCallback? onTap,
     Widget? suffixIcon,
   }) {
@@ -598,6 +612,7 @@ class _StepPersonalState extends State<StepPersonal> {
         controller: controller,
         readOnly: readOnly,
         keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         onTap: onTap,
         decoration: _dec(
           hint,
@@ -656,7 +671,7 @@ class _StepPersonalState extends State<StepPersonal> {
           Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: IntakePalette.text,
+              color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -690,7 +705,7 @@ class _StepPersonalState extends State<StepPersonal> {
   Widget _cityLocationField() {
     if (selectedProvince == null) {
       return _dropdownField(
-        label: 'City / Municipality',
+        label: 'City / Municipality *',
         hint: 'Select province first',
         currentValue: '',
         items: const <String>[],
@@ -703,7 +718,7 @@ class _StepPersonalState extends State<StepPersonal> {
     if (cities.isEmpty) {
       return _textField(
         controller: cityController,
-        label: 'City / Municipality',
+        label: 'City / Municipality *',
         hint: 'Enter city / municipality',
         errorText: _requiredError(widget.data.city, 'City / Municipality'),
       );
@@ -713,7 +728,7 @@ class _StepPersonalState extends State<StepPersonal> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _dropdownField(
-          label: 'City / Municipality',
+          label: 'City / Municipality *',
           hint: 'Select city / municipality',
           currentValue: _manualCityEntry
               ? _manualLocationOption
@@ -759,7 +774,7 @@ class _StepPersonalState extends State<StepPersonal> {
           const SizedBox(height: 10),
           _textField(
             controller: cityController,
-            label: 'Enter City / Municipality',
+            label: 'Enter City / Municipality *',
             hint: 'Enter city / municipality',
             errorText: _requiredError(widget.data.city, 'City / Municipality'),
           ),
@@ -771,7 +786,7 @@ class _StepPersonalState extends State<StepPersonal> {
   Widget _barangayLocationField() {
     if (selectedProvince == null) {
       return _dropdownField(
-        label: 'Barangay',
+        label: 'Barangay *',
         hint: 'Select province first',
         currentValue: '',
         items: const <String>[],
@@ -783,7 +798,7 @@ class _StepPersonalState extends State<StepPersonal> {
     if (_manualCityEntry) {
       return _textField(
         controller: barangayController,
-        label: 'Barangay',
+        label: 'Barangay *',
         hint: 'Enter barangay',
         errorText: _requiredError(widget.data.barangay, 'Barangay'),
       );
@@ -791,7 +806,7 @@ class _StepPersonalState extends State<StepPersonal> {
 
     if (selectedCity == null) {
       return _dropdownField(
-        label: 'Barangay',
+        label: 'Barangay *',
         hint: 'Select city / municipality first',
         currentValue: '',
         items: const <String>[],
@@ -805,7 +820,7 @@ class _StepPersonalState extends State<StepPersonal> {
     if (barangays.isEmpty) {
       return _textField(
         controller: barangayController,
-        label: 'Barangay',
+        label: 'Barangay *',
         hint: 'Enter barangay',
         errorText: _requiredError(widget.data.barangay, 'Barangay'),
       );
@@ -815,7 +830,7 @@ class _StepPersonalState extends State<StepPersonal> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _dropdownField(
-          label: 'Barangay',
+          label: 'Barangay *',
           hint: 'Select barangay',
           currentValue: _manualBarangayEntry
               ? _manualLocationOption
@@ -846,7 +861,7 @@ class _StepPersonalState extends State<StepPersonal> {
           const SizedBox(height: 10),
           _textField(
             controller: barangayController,
-            label: 'Enter Barangay',
+            label: 'Enter Barangay *',
             hint: 'Enter barangay',
             errorText: _requiredError(widget.data.barangay, 'Barangay'),
           ),
@@ -897,16 +912,13 @@ class _StepPersonalState extends State<StepPersonal> {
                 controller: lastNameController,
                 label: 'Last Name *',
                 hint: 'Pascual',
-                errorText: _requiredError(lastNameController.text, 'Last name'),
+                errorText: _nameError(lastNameController.text, 'Last name'),
               ),
               _textField(
                 controller: firstNameController,
                 label: 'First Name *',
                 hint: 'Jomar Paul',
-                errorText: _requiredError(
-                  firstNameController.text,
-                  'First name',
-                ),
+                errorText: _nameError(firstNameController.text, 'First name'),
               ),
             ]),
             const SizedBox(height: 16),
@@ -915,11 +927,22 @@ class _StepPersonalState extends State<StepPersonal> {
                 controller: middleNameController,
                 label: 'Middle Name',
                 hint: 'Gutierrez',
+                errorText: _nameError(
+                  middleNameController.text,
+                  'Middle name',
+                  required: false,
+                  minLength: 1,
+                ),
               ),
               _textField(
                 controller: maidenNameController,
                 label: 'Maiden Name (if married)',
                 hint: 'Enter maiden name if applicable',
+                errorText: _nameError(
+                  maidenNameController.text,
+                  'Maiden name',
+                  required: false,
+                ),
               ),
             ]),
             const SizedBox(height: 16),
@@ -1057,7 +1080,7 @@ class _StepPersonalState extends State<StepPersonal> {
             const SizedBox(height: 16),
             _row([
               _dropdownField(
-                label: 'Province',
+                label: 'Province *',
                 hint: 'Select province',
                 currentValue: selectedProvince ?? '',
                 items: locationData.keys.toList(),
@@ -1088,10 +1111,14 @@ class _StepPersonalState extends State<StepPersonal> {
               _barangayLocationField(),
               _textField(
                 controller: zipCodeController,
-                label: 'ZIP Code',
+                label: 'ZIP Code *',
                 hint: '3019',
                 keyboardType: TextInputType.number,
-                errorText: _requiredError(widget.data.zipCode, 'ZIP code'),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                errorText: _zipCodeError(),
               ),
             ]),
           ],
@@ -1112,6 +1139,7 @@ class _StepPersonalState extends State<StepPersonal> {
               label: 'Mobile Number *',
               hint: '09123456789',
               keyboardType: TextInputType.phone,
+              inputFormatters: const [PhilippineMobileInputFormatter()],
               errorText: _mobileError(),
             ),
             const SizedBox(height: 16),

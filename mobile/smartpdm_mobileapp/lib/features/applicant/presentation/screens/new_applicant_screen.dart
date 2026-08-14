@@ -696,16 +696,35 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NewScholarProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark
+        ? AppColors.applicantDarkSurface
+        : const Color(0xFFFDFCF8);
+    final borderColor = isDark
+        ? AppColors.applicantDarkOutline
+        : const Color(0xFFF0D59A);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F1E8),
+      backgroundColor: isDark
+          ? AppColors.applicantDarkBackground
+          : const Color(0xFFF7F1E8),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFFBF5EA), Color(0xFFF7F1E5), Color(0xFFFDFCF8)],
-            stops: [0.0, 0.55, 1.0],
+            colors: isDark
+                ? const [
+                    AppColors.applicantDarkBackground,
+                    Color(0xFF24180F),
+                    AppColors.applicantDarkBackground,
+                  ]
+                : const [
+                    Color(0xFFFBF5EA),
+                    Color(0xFFF7F1E5),
+                    Color(0xFFFDFCF8),
+                  ],
+            stops: const [0.0, 0.55, 1.0],
           ),
         ),
         child: SafeArea(
@@ -713,13 +732,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Card(
+                color: cardColor,
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
-                  side: const BorderSide(color: Color(0xFFF0D59A), width: 1.2),
+                  side: BorderSide(color: borderColor, width: 1.2),
                 ),
-                elevation: 10,
-                shadowColor: Colors.black26,
+                elevation: isDark ? 2 : 10,
+                shadowColor: Colors.black.withValues(alpha: isDark ? 0.28 : 0.26),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
@@ -776,13 +796,28 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildOpeningReminder(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : AppColors.brown;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFF0D59A), width: 1.2),
+        color: isDark
+            ? AppColors.applicantDarkSurfaceMuted
+            : Colors.white,
+        border: Border.all(
+          color: isDark
+              ? AppColors.applicantDarkOutline
+              : const Color(0xFFF0D59A),
+          width: 1.2,
+        ),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -792,7 +827,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             'Choose an opening first',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.darkBrown,
+              color: textColor,
             ),
           ),
           const SizedBox(height: 8),
@@ -800,7 +835,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             'This application form is tied to one scholarship opening. Select the opening you want to apply for before continuing.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               height: 1.45,
-              color: AppColors.brown,
+              color: mutedColor,
             ),
           ),
           const SizedBox(height: 16),
@@ -820,14 +855,29 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildSelectedOpeningCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : AppColors.brown;
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark
+            ? AppColors.applicantDarkSurfaceMuted
+            : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF0D59A), width: 1.2),
+        border: Border.all(
+          color: isDark
+              ? AppColors.applicantDarkOutline
+              : const Color(0xFFF0D59A),
+          width: 1.2,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,14 +890,16 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1C9),
+                  color: isDark
+                      ? AppColors.applicantDarkSurface
+                      : const Color(0xFFFFF1C9),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   'Selected Opening',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.brown,
+                    color: mutedColor,
                   ),
                 ),
               ),
@@ -860,7 +912,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 : 'Scholarship Opening',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.darkBrown,
+              color: textColor,
               height: 1.15,
             ),
           ),
@@ -870,7 +922,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               _data.openingProgramName,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: AppColors.brown,
+                color: mutedColor,
               ),
             ),
           ],
@@ -879,7 +931,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF9EE),
+              color: isDark
+                  ? AppColors.applicantDarkSurface
+                  : const Color(0xFFFFF9EE),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
@@ -887,7 +941,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 Icon(
                   _isAutosaving ? Icons.sync : Icons.save_outlined,
                   size: 18,
-                  color: AppColors.brown,
+                  color: mutedColor,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -898,7 +952,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                         ? 'Draft autosaves as you complete the form.'
                         : _autosaveError!,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.brown,
+                      color: mutedColor,
                       height: 1.35,
                     ),
                   ),
@@ -912,11 +966,20 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildFooter(NewScholarProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDFCF8),
-        border: Border(top: BorderSide(color: Color(0xFFE9DED2))),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.applicantDarkSurface
+            : const Color(0xFFFDFCF8),
+        border: Border(
+          top: BorderSide(
+            color: isDark
+                ? AppColors.applicantDarkOutline
+                : const Color(0xFFE9DED2),
+          ),
+        ),
       ),
       child: Row(
         children: [

@@ -177,8 +177,8 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   }
 
   Widget _buildOtpBox(int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      width: 46,
       height: 58,
       child: TextFormField(
         controller: _controllers[index],
@@ -196,15 +196,25 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: Colors.white,
+          fillColor: isDark
+              ? AppColors.applicantDarkSurfaceMuted
+              : Colors.white,
           contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(
+              color: isDark
+                  ? AppColors.applicantDarkOutline
+                  : Colors.grey.shade300,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(
+              color: isDark
+                  ? AppColors.applicantDarkOutline
+                  : Colors.grey.shade300,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(borderRadius),
@@ -249,6 +259,9 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   Widget build(BuildContext context) {
     final studentId = _getStudentId();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mutedText = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.grey.shade700;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF24180F) : Colors.grey.shade50,
@@ -271,7 +284,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                   borderRadius: BorderRadius.circular(borderRadius * 1.4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
                       blurRadius: 18,
                       offset: const Offset(0, 8),
                     ),
@@ -284,7 +297,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: accentColor.withOpacity(0.12),
+                        backgroundColor: accentColor.withValues(alpha: 0.12),
                         child: Icon(
                           Icons.lock_reset_rounded,
                           color: accentColor,
@@ -305,21 +318,29 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                             : 'Enter the 6-digit code sent for $studentId.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade600,
+                          color: mutedText,
                           height: 1.4,
                         ),
                       ),
                       const SizedBox(height: 28),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(6, _buildOtpBox),
+                        children: List.generate(11, (index) {
+                          if (index.isOdd) {
+                            return const SizedBox(width: 8);
+                          }
+                          return Expanded(child: _buildOtpBox(index ~/ 2));
+                        }),
                       ),
                       const SizedBox(height: 14),
                       Text(
                         'The code must be exactly 6 digits.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: Colors.grey.shade600),
+                            ?.copyWith(
+                                color: isDark
+                                    ? AppColors.applicantDarkTextMuted
+                                    : Colors.grey.shade600,
+                              ),
                       ),
                       const SizedBox(height: 24),
                       SizedBox(
@@ -360,7 +381,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                         children: [
                           Text(
                             "Didn't receive the code?",
-                            style: TextStyle(color: Colors.grey.shade700),
+                            style: TextStyle(color: mutedText),
                           ),
                           TextButton(
                             onPressed: _resendCooldown > 0 || _isLoading

@@ -6,6 +6,7 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/email_change_service.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 class ChangeEmailScreen extends StatefulWidget {
   const ChangeEmailScreen({super.key});
@@ -186,10 +187,10 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.28)),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.28)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 26,
                       offset: const Offset(0, 14),
                     ),
@@ -264,26 +265,17 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                           textInputAction: TextInputAction.done,
                           autocorrect: false,
                           decoration: InputDecoration(
-                            labelText: 'New Email Address',
+                            labelText: 'New Email Address *',
                             hintText: 'name@example.com',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          validator: (value) {
-                            final email = (value ?? '').trim().toLowerCase();
-                            if (email.isEmpty) return 'Email is required.';
-                            if (!RegExp(
-                              r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                            ).hasMatch(email)) {
-                              return 'Enter a valid email address.';
-                            }
-                            if (email == _currentEmail.trim().toLowerCase()) {
-                              return 'Enter an email different from your current email.';
-                            }
-                            return null;
-                          },
+                          validator: (value) => AppFieldValidators.differentEmail(
+                            value,
+                            currentEmail: _currentEmail,
+                          ),
                           onFieldSubmitted: (_) => _requestCode(),
                         ),
                         const SizedBox(height: 20),
@@ -330,7 +322,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                             letterSpacing: 8,
                           ),
                           decoration: InputDecoration(
-                            labelText: 'Verification Code',
+                            labelText: 'Verification Code *',
                             hintText: '000000',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -402,18 +394,22 @@ class _StatusBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = isError ? Colors.red : Colors.green;
+    final textColor = isError
+        ? (isDark ? Colors.red.shade200 : Colors.red.shade800)
+        : (isDark ? Colors.green.shade200 : Colors.green.shade800);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        border: Border.all(color: color.withOpacity(0.5)),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         message,
         style: TextStyle(
-          color: isError ? Colors.red.shade800 : Colors.green.shade800,
+          color: textColor,
           fontWeight: FontWeight.w600,
         ),
       ),

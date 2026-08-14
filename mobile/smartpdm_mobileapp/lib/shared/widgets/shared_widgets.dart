@@ -9,6 +9,14 @@ class AppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final backSurface = isDark
+        ? AppColors.applicantDarkSurfaceMuted
+        : const Color(0xFFF8F2E7);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
       child: Row(
@@ -20,7 +28,7 @@ class AppHeader extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFF8F2E7),
+                color: backSurface,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
@@ -32,7 +40,7 @@ class AppHeader extends StatelessWidget {
               subtitle,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
-                color: AppColors.darkBrown,
+                color: textColor,
               ),
               textAlign: TextAlign.center,
             ),
@@ -56,6 +64,17 @@ class StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveColor = isDark
+        ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.46)
+        : AppColors.lightGray;
+    final inactiveSurface = isDark
+        ? AppColors.applicantDarkSurfaceMuted
+        : Colors.white;
+    final currentTextColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return Row(
@@ -77,7 +96,7 @@ class StepIndicator extends StatelessWidget {
                             height: 2,
                             color: isActive
                                 ? const Color(0xFFF0C86B)
-                                : AppColors.lightGray,
+                                : inactiveColor,
                           ),
                         ),
                       Container(
@@ -85,11 +104,11 @@ class StepIndicator extends StatelessWidget {
                         height: 36,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isActive ? AppColors.gold : Colors.white,
+                          color: isActive ? AppColors.gold : inactiveSurface,
                           border: Border.all(
                             color: isCurrent
                                 ? AppColors.gold
-                                : AppColors.lightGray,
+                                : inactiveColor,
                             width: 1.5,
                           ),
                           boxShadow: isCurrent
@@ -111,7 +130,7 @@ class StepIndicator extends StatelessWidget {
                                 ?.copyWith(
                                   color: isActive
                                       ? AppColors.darkBrown
-                                      : AppColors.lightGray,
+                                      : inactiveColor,
                                   fontWeight: FontWeight.w800,
                                 ),
                           ),
@@ -125,8 +144,8 @@ class StepIndicator extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: isCurrent
-                          ? AppColors.darkBrown
-                          : AppColors.lightGray,
+                          ? currentTextColor
+                          : inactiveColor,
                       fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -154,10 +173,11 @@ class GhostButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.darkBrown,
+        foregroundColor: isDark ? AppColors.applicantDarkText : AppColors.darkBrown,
         side: const BorderSide(color: AppColors.gold, width: 1.4),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),

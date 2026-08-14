@@ -96,7 +96,9 @@ class _StepSubmitState extends State<StepSubmit> {
 
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
-      backgroundColor: const Color(0xFFFFF2EE),
+      backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFFF2EE),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -139,14 +141,16 @@ class _StepSubmitState extends State<StepSubmit> {
         const SizedBox(height: 16),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
-          backgroundColor: const Color(0xFFFFF8EA),
+          backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFFF8EA),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Documentary Requirements',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -158,7 +162,7 @@ class _StepSubmitState extends State<StepSubmit> {
                 '• Photocopy of recent Certificate of Registration (COR)\n'
                 '• Grade report for the current semester',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: IntakePalette.subtext,
+                  color: intakeSubtextColor(context),
                   height: 1.5,
                 ),
               ),
@@ -167,11 +171,13 @@ class _StepSubmitState extends State<StepSubmit> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
-          backgroundColor: const Color(0xFFFFEFE4),
+          backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFFEFE4),
           child: Text(
             'Certification: I certify that all answers given above are true and correct to the best of my knowledge. I understand that any false information will disqualify my application.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: IntakePalette.text,
+              color: intakeTextColor(context),
               fontWeight: FontWeight.w700,
               height: 1.5,
             ),
@@ -216,7 +222,7 @@ class _StepSubmitState extends State<StepSubmit> {
           title: RichText(
             text: TextSpan(
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: IntakePalette.subtext,
+                color: intakeSubtextColor(context),
                 height: 1.45,
               ),
               children: [

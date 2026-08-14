@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -296,6 +297,7 @@ class _StepAcademicState extends State<StepAcademic> {
 
   InputDecoration _dec(String hint, {String? errorText, Widget? suffixIcon}) {
     return intakeInputDecoration(
+      context,
       hint: hint,
       errorText: errorText,
       suffixIcon: suffixIcon,
@@ -419,7 +421,7 @@ class _StepAcademicState extends State<StepAcademic> {
           Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: IntakePalette.text,
+              color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -519,7 +521,7 @@ class _StepAcademicState extends State<StepAcademic> {
       title: Text(
         option,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: IntakePalette.text,
+          color: intakeTextColor(context),
           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
@@ -554,7 +556,7 @@ class _StepAcademicState extends State<StepAcademic> {
         Text(
           title,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: IntakePalette.text,
+            color: intakeTextColor(context),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -655,7 +657,7 @@ class _StepAcademicState extends State<StepAcademic> {
               Text(
                 'Current Enrollment',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -675,24 +677,30 @@ class _StepAcademicState extends State<StepAcademic> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF6E5),
+                    color: intakeIsDark(context)
+                        ? AppColors.applicantDarkSurfaceMuted
+                        : const Color(0xFFFFF6E5),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE6C978)),
+                    border: Border.all(
+                      color: intakeIsDark(context)
+                          ? AppColors.applicantDarkOutline
+                          : const Color(0xFFE6C978),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
                         size: 20,
-                        color: IntakePalette.text,
+                        color: intakeTextColor(context),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'Your course comes from your account profile. Update your profile before continuing.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: IntakePalette.text,
+                            color: intakeTextColor(context),
                             height: 1.35,
                             fontWeight: FontWeight.w600,
                           ),
@@ -785,7 +793,7 @@ class _StepAcademicState extends State<StepAcademic> {
               Text(
                 'Financial Support *',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -815,7 +823,7 @@ class _StepAcademicState extends State<StepAcademic> {
               Text(
                 'Scholarship History *',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -943,7 +951,7 @@ class _StepAcademicState extends State<StepAcademic> {
               Text(
                 'Disciplinary Action *',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),

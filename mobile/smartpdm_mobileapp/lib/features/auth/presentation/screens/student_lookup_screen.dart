@@ -160,6 +160,16 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isDark
+        ? AppColors.applicantDarkSurface
+        : Colors.white;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.grey.shade700;
     final title = _isExisting
         ? 'Find your account'
         : 'Verify your student record';
@@ -168,7 +178,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
         : 'Account registration starts with a registry check. Only verified PDM students can continue.';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: isDark
+          ? AppColors.applicantDarkBackground
+          : const Color(0xFFF8F5F0),
       body: SafeArea(
         child: Stack(
           children: [
@@ -177,7 +189,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
               right: -70,
               child: _DecorativeCircle(
                 size: 220,
-                color: AppColors.gold.withOpacity(0.20),
+                color: AppColors.gold.withValues(alpha: 0.20),
               ),
             ),
             Positioned(
@@ -185,7 +197,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
               left: -80,
               child: _DecorativeCircle(
                 size: 260,
-                color: AppColors.brown.withOpacity(0.08),
+                color: AppColors.brown.withValues(alpha: 0.08),
               ),
             ),
             Center(
@@ -202,8 +214,8 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                           onPressed: () => Navigator.maybePop(context),
                           icon: const Icon(Icons.arrow_back_rounded),
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: AppColors.darkBrown,
+                            backgroundColor: cardColor,
+                            foregroundColor: textColor,
                           ),
                         ),
                       ),
@@ -215,7 +227,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                           borderRadius: BorderRadius.circular(28),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.darkBrown.withOpacity(0.18),
+                              color: AppColors.darkBrown.withValues(alpha: 0.18),
                               blurRadius: 30,
                               offset: const Offset(0, 16),
                             ),
@@ -255,7 +267,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                                         ? 'Secure account access'
                                         : 'Verified student registration',
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.72),
+                                      color: Colors.white.withValues(alpha: 0.72),
                                       fontSize: 13,
                                     ),
                                   ),
@@ -269,14 +281,16 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       Container(
                         padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardColor,
                           borderRadius: BorderRadius.circular(28),
                           border: Border.all(
-                            color: AppColors.gold.withOpacity(0.24),
+                            color: isDark
+                                        ? AppColors.applicantDarkOutline
+                                        : AppColors.gold.withValues(alpha: 0.24),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
+                              color: Colors.black.withValues(alpha: 0.06),
                               blurRadius: 28,
                               offset: const Offset(0, 14),
                             ),
@@ -288,7 +302,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                             Text(
                               title,
                               style: theme.textTheme.headlineMedium?.copyWith(
-                                color: AppColors.darkBrown,
+                                color: textColor,
                                 fontWeight: FontWeight.w800,
                                 height: 1.08,
                               ),
@@ -297,7 +311,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                             Text(
                               subtitle,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey.shade700,
+                                color: mutedColor,
                                 height: 1.5,
                               ),
                             ),
@@ -312,13 +326,15 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                               textInputAction: TextInputAction.done,
                               onSubmitted: (_) => _checkStudent(),
                               decoration: InputDecoration(
-                                labelText: 'Student ID',
+                                labelText: 'Student ID *',
                                 prefixText: 'PDM-',
                                 hintText: '0000-000000',
                                 errorText: _error,
                                 prefixIcon: const Icon(Icons.school_rounded),
                                 filled: true,
-                                fillColor: const Color(0xFFFAF8F4),
+                                fillColor: isDark
+                                    ? AppColors.applicantDarkSurfaceMuted
+                                    : const Color(0xFFFAF8F4),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
                                   borderSide: BorderSide.none,
@@ -326,13 +342,15 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
                                   borderSide: BorderSide(
-                                    color: AppColors.gold.withOpacity(0.24),
+                                    color: isDark
+                                        ? AppColors.applicantDarkOutline
+                                        : AppColors.gold.withValues(alpha: 0.24),
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.brown,
+                                  borderSide: BorderSide(
+                                    color: isDark ? AppColors.gold : AppColors.brown,
                                     width: 1.6,
                                   ),
                                 ),

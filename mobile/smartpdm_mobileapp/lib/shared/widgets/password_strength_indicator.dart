@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 enum PasswordStrength { weak, fair, good, strong }
 
@@ -10,6 +11,7 @@ class PasswordStrengthResult {
     required this.hasUppercase,
     required this.hasLowercase,
     required this.hasNumber,
+    required this.isNotCommon,
   });
 
   final PasswordStrength strength;
@@ -17,6 +19,7 @@ class PasswordStrengthResult {
   final bool hasUppercase;
   final bool hasLowercase;
   final bool hasNumber;
+  final bool isNotCommon;
 
   double get score {
     var points = 0;
@@ -24,7 +27,8 @@ class PasswordStrengthResult {
     if (hasUppercase) points++;
     if (hasLowercase) points++;
     if (hasNumber) points++;
-    return points / 4;
+    if (isNotCommon) points++;
+    return points / 5;
   }
 
   static PasswordStrengthResult evaluate(String password) {
@@ -32,12 +36,16 @@ class PasswordStrengthResult {
     final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
     final hasLowercase = RegExp(r'[a-z]').hasMatch(password);
     final hasNumber = RegExp(r'\d').hasMatch(password);
+    final isNotCommon =
+        password.isNotEmpty &&
+        !AppFieldValidators.commonPasswords.contains(password.toLowerCase());
 
     final points = [
       hasMinLength,
       hasUppercase,
       hasLowercase,
       hasNumber,
+      isNotCommon,
     ].where((value) => value).length;
 
     PasswordStrength strength;
@@ -48,6 +56,7 @@ class PasswordStrengthResult {
       case 2:
         strength = PasswordStrength.fair;
       case 3:
+      case 4:
         strength = PasswordStrength.good;
       default:
         strength = PasswordStrength.strong;
@@ -59,6 +68,7 @@ class PasswordStrengthResult {
       hasUppercase: hasUppercase,
       hasLowercase: hasLowercase,
       hasNumber: hasNumber,
+      isNotCommon: isNotCommon,
     );
   }
 }
@@ -139,6 +149,10 @@ class PasswordStrengthIndicator extends StatelessWidget {
           met: result.hasLowercase,
         ),
         _RequirementRow(label: 'One number', met: result.hasNumber),
+        _RequirementRow(
+          label: 'Not a commonly used password',
+          met: result.isNotCommon,
+        ),
       ],
     );
   }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/philippine_mobile_input_formatter.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 class StepFamily extends StatefulWidget {
   const StepFamily({
@@ -189,7 +191,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.fatherMiddleName,
     );
     fatherMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.fatherMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(widget.data.fatherMobile),
     );
     fatherOccupationController = TextEditingController(
       text: widget.data.fatherOccupation,
@@ -207,7 +209,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.motherMiddleName,
     );
     motherMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.motherMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(widget.data.motherMobile),
     );
     motherOccupationController = TextEditingController(
       text: widget.data.motherOccupation,
@@ -225,7 +227,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.siblingMiddleName,
     );
     siblingMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.siblingMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(widget.data.siblingMobile),
     );
     siblingOccupationController = TextEditingController(
       text: widget.data.siblingOccupation,
@@ -246,8 +248,12 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.guardianMiddleName,
     );
     guardianMobileController = TextEditingController(
-      text: ApplicationData.normalizeMobileNumber(widget.data.guardianMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(widget.data.guardianMobile),
     );
+    widget.data.fatherMobile = fatherMobileController.text;
+    widget.data.motherMobile = motherMobileController.text;
+    widget.data.siblingMobile = siblingMobileController.text;
+    widget.data.guardianMobile = guardianMobileController.text;
     guardianOccupationController = TextEditingController(
       text: widget.data.guardianOccupation,
     );
@@ -432,6 +438,7 @@ class _StepFamilyState extends State<StepFamily> {
 
   InputDecoration _dec(String hint, {String? errorText, Widget? suffixIcon}) =>
       intakeInputDecoration(
+      context,
         hint: hint,
         errorText: errorText,
         suffixIcon: suffixIcon,
@@ -599,28 +606,38 @@ class _StepFamilyState extends State<StepFamily> {
   bool get _showGuardianFields => guardianOnly || (!hasFather && !hasMother);
 
   bool _isValidFamilyMobile(String value) {
-    return RegExp(r'^09\d{9}$').hasMatch(value.trim());
+    return AppFieldValidators.philippineMobile(
+          value,
+          required: false,
+        ) ==
+        null &&
+        value.trim().isNotEmpty;
   }
 
   String? _familyMobileError(String value) {
-    final mobile = value.trim();
-    if (mobile.isEmpty) return null;
-    if (!_isValidFamilyMobile(mobile)) {
-      return 'Mobile number must be exactly 11 digits and start with 09.';
-    }
-    return null;
+    if (!widget.showErrors) return null;
+    return AppFieldValidators.philippineMobile(
+      value,
+      required: false,
+    );
   }
 
-  List<TextInputFormatter> get _familyMobileInputFormatters => [
-    FilteringTextInputFormatter.digitsOnly,
-    LengthLimitingTextInputFormatter(11),
-    TextInputFormatter.withFunction((oldValue, newValue) {
-      final value = newValue.text;
-      if (value.isEmpty || value == '0' || value.startsWith('09')) {
-        return newValue;
-      }
-      return oldValue;
-    }),
+  String? _familyNameError(
+    String value,
+    String label, {
+    int minLength = 2,
+  }) {
+    if (!widget.showErrors) return null;
+    return AppFieldValidators.name(
+      value,
+      label: label,
+      required: false,
+      minLength: minLength,
+    );
+  }
+
+  List<TextInputFormatter> get _familyMobileInputFormatters => const [
+    PhilippineMobileInputFormatter(),
   ];
 
   Widget _personSection({
@@ -642,7 +659,7 @@ class _StepFamilyState extends State<StepFamily> {
           Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: IntakePalette.text,
+              color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -654,8 +671,14 @@ class _StepFamilyState extends State<StepFamily> {
                 controller: lastNameController,
                 decoration: _dec(
                   'Last Name',
-                  errorText: widget.showErrors && _primaryCarerError() != null
-                      ? _requiredError(lastNameController.text, 'Last name')
+                  errorText: widget.showErrors
+                      ? (_familyNameError(lastNameController.text, 'Last name') ??
+                            (_primaryCarerError() != null
+                                ? _requiredError(
+                                    lastNameController.text,
+                                    'Last name',
+                                  )
+                                : null))
                       : null,
                   suffixIcon: intakeCompletionIcon(lastNameController.text),
                 ),
@@ -667,8 +690,14 @@ class _StepFamilyState extends State<StepFamily> {
                 controller: firstNameController,
                 decoration: _dec(
                   'First Name',
-                  errorText: widget.showErrors && _primaryCarerError() != null
-                      ? _requiredError(firstNameController.text, 'First name')
+                  errorText: widget.showErrors
+                      ? (_familyNameError(firstNameController.text, 'First name') ??
+                            (_primaryCarerError() != null
+                                ? _requiredError(
+                                    firstNameController.text,
+                                    'First name',
+                                  )
+                                : null))
                       : null,
                   suffixIcon: intakeCompletionIcon(firstNameController.text),
                 ),
@@ -683,6 +712,11 @@ class _StepFamilyState extends State<StepFamily> {
                 controller: middleNameController,
                 decoration: _dec(
                   'Middle Name',
+                  errorText: _familyNameError(
+                    middleNameController.text,
+                    'Middle name',
+                    minLength: 1,
+                  ),
                   suffixIcon: intakeCompletionIcon(middleNameController.text),
                 ),
               ),
@@ -815,7 +849,7 @@ class _StepFamilyState extends State<StepFamily> {
               Text(
                 'Address of Parents / Guardian',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -851,7 +885,7 @@ class _StepFamilyState extends State<StepFamily> {
               Text(
                 'Family Setup',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -921,7 +955,7 @@ class _StepFamilyState extends State<StepFamily> {
               Text(
                 'Sibling Contact',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: IntakePalette.text,
+                  color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -931,14 +965,26 @@ class _StepFamilyState extends State<StepFamily> {
                   'Last Name',
                   TextFormField(
                     controller: siblingLastNameController,
-                    decoration: _dec('Last Name'),
+                    decoration: _dec(
+                      'Last Name',
+                      errorText: _familyNameError(
+                        siblingLastNameController.text,
+                        'Last name',
+                      ),
+                    ),
                   ),
                 ),
                 _field(
                   'First Name',
                   TextFormField(
                     controller: siblingFirstNameController,
-                    decoration: _dec('First Name'),
+                    decoration: _dec(
+                      'First Name',
+                      errorText: _familyNameError(
+                        siblingFirstNameController.text,
+                        'First name',
+                      ),
+                    ),
                   ),
                 ),
               ]),
@@ -948,7 +994,14 @@ class _StepFamilyState extends State<StepFamily> {
                   'Middle Name',
                   TextFormField(
                     controller: siblingMiddleNameController,
-                    decoration: _dec('Middle Name'),
+                    decoration: _dec(
+                      'Middle Name',
+                      errorText: _familyNameError(
+                        siblingMiddleNameController.text,
+                        'Middle name',
+                        minLength: 1,
+                      ),
+                    ),
                   ),
                 ),
                 _field(
@@ -1032,7 +1085,7 @@ class _StepFamilyState extends State<StepFamily> {
                 Text(
                   'Are your parents native of Marilao?',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: IntakePalette.text,
+                    color: intakeTextColor(context),
                     fontWeight: FontWeight.w900,
                   ),
                 ),

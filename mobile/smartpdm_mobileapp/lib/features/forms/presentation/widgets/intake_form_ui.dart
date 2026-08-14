@@ -15,6 +15,41 @@ class IntakePalette {
   static const Color subtext = AppColors.brown;
 }
 
+bool intakeIsDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
+Color intakePageColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkBackground
+    : IntakePalette.page;
+
+Color intakeSurfaceColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkSurface
+    : IntakePalette.surface;
+
+Color intakeSurfaceTintColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkSurfaceMuted
+    : IntakePalette.surfaceTint;
+
+Color intakeBorderColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkOutline
+    : IntakePalette.border;
+
+Color intakeMutedBorderColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkOutline.withValues(alpha: 0.78)
+    : IntakePalette.mutedBorder;
+
+Color intakeTextColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkText
+    : IntakePalette.text;
+
+Color intakeSubtextColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkTextMuted
+    : IntakePalette.subtext;
+
+Color intakeWarningColor(BuildContext context) => intakeIsDark(context)
+    ? AppColors.applicantDarkSurfaceMuted
+    : IntakePalette.warning;
+
 class IntakeSectionHeader extends StatelessWidget {
   const IntakeSectionHeader({
     super.key,
@@ -40,11 +75,13 @@ class IntakeSectionHeader extends StatelessWidget {
                 Container(
                   width: 38,
                   height: 38,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFF1C9),
+                  decoration: BoxDecoration(
+                    color: intakeIsDark(context)
+                        ? AppColors.applicantDarkSurfaceMuted
+                        : const Color(0xFFFFF1C9),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: IntakePalette.text, size: 18),
+                  child: Icon(icon, color: intakeTextColor(context), size: 18),
                 ),
                 const SizedBox(width: 12),
               ],
@@ -53,7 +90,7 @@ class IntakeSectionHeader extends StatelessWidget {
                   title,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: IntakePalette.text,
+                    color: intakeTextColor(context),
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -81,13 +118,13 @@ class IntakeCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.margin = EdgeInsets.zero,
-    this.backgroundColor = IntakePalette.surface,
+    this.backgroundColor,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry margin;
-  final Color backgroundColor;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -96,9 +133,9 @@ class IntakeCard extends StatelessWidget {
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: backgroundColor ?? intakeSurfaceColor(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: IntakePalette.border, width: 1.15),
+        border: Border.all(color: intakeBorderColor(context), width: 1.15),
         boxShadow: const [
           BoxShadow(
             color: Color(0x12000000),
@@ -128,15 +165,17 @@ class IntakeInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return IntakeCard(
       padding: const EdgeInsets.all(16),
-      backgroundColor: IntakePalette.warning,
+      backgroundColor: intakeWarningColor(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 36,
             height: 36,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFEDB3),
+            decoration: BoxDecoration(
+              color: intakeIsDark(context)
+                  ? AppColors.applicantDarkSurface
+                  : const Color(0xFFFFEDB3),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: IntakePalette.warningIcon, size: 18),
@@ -149,7 +188,7 @@ class IntakeInfoCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: IntakePalette.text,
+                    color: intakeTextColor(context),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -157,7 +196,7 @@ class IntakeInfoCard extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: IntakePalette.subtext,
+                    color: intakeSubtextColor(context),
                     height: 1.4,
                   ),
                 ),
@@ -194,10 +233,14 @@ class IntakeChoiceCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFFFF8E9) : IntakePalette.surface,
+          color: selected
+              ? (intakeIsDark(context)
+                    ? AppColors.applicantDarkSurfaceMuted
+                    : const Color(0xFFFFF8E9))
+              : intakeSurfaceColor(context),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? AppColors.gold : IntakePalette.mutedBorder,
+            color: selected ? AppColors.gold : intakeMutedBorderColor(context),
             width: selected ? 1.4 : 1,
           ),
         ),
@@ -232,7 +275,7 @@ class IntakeChoiceCard extends StatelessWidget {
                   Text(
                     title,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: IntakePalette.text,
+                      color: intakeTextColor(context),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -240,7 +283,7 @@ class IntakeChoiceCard extends StatelessWidget {
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: IntakePalette.subtext.withValues(alpha: 0.85),
+                      color: intakeSubtextColor(context).withValues(alpha: 0.85),
                       height: 1.35,
                     ),
                   ),
@@ -254,7 +297,8 @@ class IntakeChoiceCard extends StatelessWidget {
   }
 }
 
-InputDecoration intakeInputDecoration({
+InputDecoration intakeInputDecoration(
+  BuildContext context, {
   required String hint,
   String? errorText,
   Widget? suffixIcon,
@@ -262,7 +306,7 @@ InputDecoration intakeInputDecoration({
 }) {
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(16),
-    borderSide: const BorderSide(color: IntakePalette.mutedBorder),
+    borderSide: BorderSide(color: intakeMutedBorderColor(context)),
   );
 
   return InputDecoration(
@@ -270,7 +314,7 @@ InputDecoration intakeInputDecoration({
     errorText: errorText,
     suffixIcon: suffixIcon,
     filled: true,
-    fillColor: IntakePalette.surfaceTint,
+    fillColor: intakeSurfaceTintColor(context),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     enabledBorder: border,
     border: border,
@@ -285,8 +329,12 @@ InputDecoration intakeInputDecoration({
       borderSide: const BorderSide(color: Colors.redAccent, width: 1.4),
     ),
     hintStyle: TextStyle(
-      color: IntakePalette.subtext.withValues(alpha: 0.45),
+      color: intakeSubtextColor(context).withValues(alpha: 0.60),
       fontWeight: FontWeight.w500,
+    ),
+    errorStyle: TextStyle(
+      color: intakeIsDark(context) ? Colors.red.shade300 : Colors.red.shade700,
+      fontWeight: FontWeight.w600,
     ),
   );
 }
@@ -297,7 +345,7 @@ Widget intakeFieldLabel(BuildContext context, String label) {
     child: Text(
       label,
       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: IntakePalette.text,
+        color: intakeTextColor(context),
         fontWeight: FontWeight.w700,
       ),
     ),
@@ -346,7 +394,7 @@ class IntakeReviewCard extends StatelessWidget {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: IntakePalette.text,
+                    color: intakeTextColor(context),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -389,8 +437,13 @@ class IntakeReviewRow extends StatelessWidget {
     final missing = required && value.trim().isEmpty;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFF2E9DF), width: 1)),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: intakeMutedBorderColor(context),
+            width: 1,
+          ),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +453,7 @@ class IntakeReviewRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: IntakePalette.subtext.withValues(alpha: 0.85),
+                color: intakeSubtextColor(context).withValues(alpha: 0.85),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -411,7 +464,7 @@ class IntakeReviewRow extends StatelessWidget {
             child: Text(
               missing ? 'Missing' : value,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: missing ? Colors.redAccent : IntakePalette.text,
+                color: missing ? Colors.redAccent : intakeTextColor(context),
                 fontWeight: missing ? FontWeight.w800 : FontWeight.w600,
               ),
             ),

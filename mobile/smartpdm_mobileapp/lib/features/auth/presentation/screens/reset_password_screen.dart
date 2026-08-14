@@ -4,6 +4,7 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/password_reset_service.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/password_strength_indicator.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
@@ -20,22 +21,6 @@ class ResetPasswordScreen extends StatefulWidget {
 }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
-  static const Set<String> _commonPasswords = {
-    '12345678',
-    '123456789',
-    '1234567890',
-    'password',
-    'password1',
-    'password123',
-    'qwerty123',
-    'admin123',
-    'welcome123',
-    'iloveyou',
-    'abc12345',
-    'letmein123',
-    'p@ssw0rd',
-  };
-
   late final PasswordResetService _passwordResetService =
       widget._passwordResetService ?? PasswordResetService();
 
@@ -79,35 +64,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return otp;
   }
 
-  bool _meetsPasswordPolicy(String password) {
-    if (password.length < 8) return false;
-    if (!RegExp(r'[a-z]').hasMatch(password)) return false;
-    if (!RegExp(r'[A-Z]').hasMatch(password)) return false;
-    if (!RegExp(r'\d').hasMatch(password)) return false;
-    if (_commonPasswords.contains(password.toLowerCase())) return false;
-    return true;
-  }
-
   String? _validatePassword(String? value) {
-    final password = value ?? '';
-    if (password.isEmpty) {
-      return 'Password is required.';
-    }
-    if (!_meetsPasswordPolicy(password)) {
-      return 'Password must be at least 8 characters with uppercase, lowercase, and a number.';
-    }
-    return null;
+    return AppFieldValidators.password(value);
   }
 
   String? _validateConfirmPassword(String? value) {
-    final confirm = value ?? '';
-    if (confirm.isEmpty) {
-      return 'Please confirm your password.';
-    }
-    if (confirm != _passwordController.text) {
-      return 'Passwords do not match.';
-    }
-    return null;
+    return AppFieldValidators.confirmPassword(
+      value,
+      password: _passwordController.text,
+    );
   }
 
   Future<void> _submit() async {
@@ -164,6 +129,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mutedText = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.grey.shade700;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF24180F) : backgroundColor,
@@ -188,14 +156,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
+                          color: Colors.red.withValues(alpha: 0.08),
                           border: Border.all(color: Colors.red.shade300),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           _error!,
                           style: TextStyle(
-                            color: Colors.red.shade900,
+                            color: isDark ? Colors.red.shade200 : Colors.red.shade900,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -213,7 +181,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       'Choose a strong password that meets all requirements below.',
                       style: Theme.of(
                         context,
-                      ).textTheme.bodyMedium?.copyWith(color: mutedColor),
+                      ).textTheme.bodyMedium?.copyWith(color: mutedText),
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -221,7 +189,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
-                        labelText: 'New Password',
+                        labelText: 'New Password *',
                         prefixIcon: const Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(borderRadius),
@@ -252,7 +220,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       obscureText: _obscureConfirmPassword,
                       textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
-                        labelText: 'Confirm Password',
+                        labelText: 'Confirm Password *',
                         prefixIcon: const Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(borderRadius),

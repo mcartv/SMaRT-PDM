@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,7 +11,10 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/philippine_mobile_input_formatter.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -24,6 +28,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
+  final AuthService _authService = AuthService();
   final SessionService _sessionService = const SessionService();
 
   late final TextEditingController _firstNameController;
@@ -36,6 +41,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _studentIdController;
 
   bool _isLoading = true;
+  bool _isLoadingCourses = true;
+  List<CourseOption> _courses = const [];
   bool _isEditing = false;
   bool _isSaving = false;
   bool _isUploading = false;
@@ -60,7 +67,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _addressController = TextEditingController();
     _studentIdController = TextEditingController();
 
+    _loadCourses();
     _loadProfile();
+  }
+
+  Future<void> _loadCourses() async {
+    try {
+      final courses = await _authService.fetchCourses();
+      if (!mounted) return;
+      setState(() {
+        _courses = courses;
+        _isLoadingCourses = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _courses = const [];
+        _isLoadingCourses = false;
+      });
+    }
   }
 
   Future<void> _loadProfile({bool refreshRemote = true}) async {
@@ -138,11 +163,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       lastName.trim(),
     ].where((part) => part.isNotEmpty).join(' ');
 
+    final normalizedPhone = AppFieldValidators.normalizePhilippineMobile(phone);
     final incomplete =
-        firstName.trim().isEmpty ||
-        lastName.trim().isEmpty ||
-        email.trim().isEmpty ||
-        course.trim().isEmpty;
+        AppFieldValidators.name(firstName, label: 'First name') != null ||
+        AppFieldValidators.name(lastName, label: 'Last name') != null ||
+        AppFieldValidators.email(email) != null ||
+        course.trim().isEmpty ||
+        AppFieldValidators.philippineMobile(normalizedPhone) != null;
 
     setState(() {
       _firstNameController.text = firstName;
@@ -150,7 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _emailController.text = email;
       _courseController.text = course;
       _sectionController.text = section;
-      _phoneController.text = phone;
+      _phoneController.text = normalizedPhone;
       _addressController.text = address;
       _studentIdController.text = studentId;
 
@@ -240,21 +267,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
     final course = _courseController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phone = AppFieldValidators.normalizePhilippineMobile(
+      _phoneController.text,
+    );
     final address = _addressController.text.trim();
 
-    if (firstName.isEmpty || lastName.isEmpty) {
-      _showMessage('First name and last name are required.');
+    final firstNameError = AppFieldValidators.name(
+      firstName,
+      label: 'First name',
+    );
+    if (firstNameError != null) {
+      _showMessage(firstNameError);
       return;
     }
 
-    if (!_isValidEmail(email)) {
-      _showMessage('Enter a valid email address.');
+    final lastNameError = AppFieldValidators.name(
+      lastName,
+      label: 'Last name',
+    );
+    if (lastNameError != null) {
+      _showMessage(lastNameError);
+      return;
+    }
+
+    final emailError = AppFieldValidators.email(email);
+    if (emailError != null) {
+      _showMessage(emailError);
       return;
     }
 
     if (course.isEmpty) {
       _showMessage('Course is required.');
+      return;
+    }
+    if (_courses.isNotEmpty &&
+        !_courses.any((item) => item.courseCode == course)) {
+      _showMessage('Select a valid course from the PDM course list.');
+      return;
+    }
+
+    final phoneError = AppFieldValidators.philippineMobile(phone);
+    if (phoneError != null) {
+      _showMessage(phoneError);
       return;
     }
 
@@ -312,10 +366,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isSaving = false);
       }
     }
-  }
-
-  bool _isValidEmail(String value) {
-    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
   }
 
   void _showMessage(String value) {
@@ -691,6 +741,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildCourseField() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final current = _courseController.text.trim();
+    final courseCodes = _courses.map((course) => course.courseCode).toSet();
+    final selected = courseCodes.contains(current) ? current : null;
+
+    if (_isLoadingCourses || _courses.isEmpty) {
+      return _ProfileField(
+        label: 'Course',
+        icon: Icons.school_outlined,
+        controller: _courseController,
+        enabled: false,
+        helperText: _isLoadingCourses
+            ? 'Loading official PDM courses...'
+            : 'Course list is unavailable. Refresh before changing course.',
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        key: ValueKey('profile-course-$selected-${_courses.length}'),
+        initialValue: selected,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: 'Course',
+          prefixIcon: const Icon(Icons.school_outlined),
+          filled: true,
+          fillColor: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : const Color(0xFFFAF7F2),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : AppColors.brown.withValues(alpha: 0.09),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+          ),
+        ),
+        items: _courses
+            .map(
+              (course) => DropdownMenuItem<String>(
+                value: course.courseCode,
+                child: Text(course.label, overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value == null) return;
+          setState(() => _courseController.text = value);
+        },
+      ),
+    );
+  }
+
   Widget _buildEditForm() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -739,11 +853,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             enabled: false,
             helperText: 'Use Update Registered Email from Menu to change this.',
           ),
-          _ProfileField(
-            label: 'Course',
-            icon: Icons.school_outlined,
-            controller: _courseController,
-          ),
+          _buildCourseField(),
           _ProfileField(
             label: 'Section',
             icon: Icons.groups_outlined,
@@ -754,6 +864,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.phone_outlined,
             controller: _phoneController,
             keyboardType: TextInputType.phone,
+            inputFormatters: const [PhilippineMobileInputFormatter()],
           ),
           _ProfileField(
             label: 'Address',
@@ -904,6 +1015,7 @@ class _ProfileField extends StatelessWidget {
     this.keyboardType,
     this.maxLines = 1,
     this.helperText,
+    this.inputFormatters,
   });
 
   final String label;
@@ -913,6 +1025,7 @@ class _ProfileField extends StatelessWidget {
   final TextInputType? keyboardType;
   final int maxLines;
   final String? helperText;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -924,6 +1037,7 @@ class _ProfileField extends StatelessWidget {
         controller: controller,
         enabled: enabled,
         keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         maxLines: maxLines,
         textCapitalization: TextCapitalization.words,
         decoration: InputDecoration(

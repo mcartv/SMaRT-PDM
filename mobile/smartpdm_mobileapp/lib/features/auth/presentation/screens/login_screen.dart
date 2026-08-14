@@ -105,9 +105,21 @@ class _LoginScreenState extends State<LoginScreen> {
     final visibleId = StudentIdInputFormatter.toFullStudentId(
       _studentIdController.text,
     );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark
+        ? AppColors.applicantDarkSurface
+        : Colors.white;
+    final textColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.grey.shade700;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: isDark
+          ? AppColors.applicantDarkBackground
+          : const Color(0xFFF8F5F0),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -127,8 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       icon: const Icon(Icons.arrow_back_rounded),
                       style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.darkBrown,
+                        backgroundColor: cardColor,
+                        foregroundColor: textColor,
                       ),
                     ),
                   ),
@@ -136,14 +148,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
-                        color: AppColors.gold.withOpacity(0.24),
+                        color: AppColors.gold.withValues(alpha: 0.24),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.07),
+                          color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.07),
                           blurRadius: 30,
                           offset: const Offset(0, 16),
                         ),
@@ -175,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : 'Welcome back, $_studentName',
                             style: Theme.of(context).textTheme.headlineMedium
                                 ?.copyWith(
-                                  color: AppColors.darkBrown,
+                                  color: textColor,
                                   fontWeight: FontWeight.w800,
                                 ),
                           ),
@@ -186,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : 'Enter your Student ID and password to continue.',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: Colors.grey.shade700,
+                                  color: mutedColor,
                                   height: 1.45,
                                 ),
                           ),
@@ -198,10 +210,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 vertical: 14,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.gold.withOpacity(0.10),
+                                color: AppColors.gold.withValues(alpha: isDark ? 0.16 : 0.10),
                                 borderRadius: BorderRadius.circular(17),
                                 border: Border.all(
-                                  color: AppColors.gold.withOpacity(0.30),
+                                  color: AppColors.gold.withValues(alpha: isDark ? 0.42 : 0.30),
                                 ),
                               ),
                               child: Row(
@@ -214,8 +226,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Expanded(
                                     child: Text(
                                       visibleId,
-                                      style: const TextStyle(
-                                        color: AppColors.darkBrown,
+                                      style: TextStyle(
+                                        color: textColor,
                                         fontWeight: FontWeight.w800,
                                         letterSpacing: 0.3,
                                       ),
@@ -241,7 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 StudentIdInputFormatter(),
                               ],
                               decoration: _inputDecoration(
-                                label: 'Student ID',
+                                label: 'Student ID *',
                                 hint: '0000-000000',
                                 prefixText: 'PDM-',
                                 icon: Icons.badge_outlined,
@@ -258,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onFieldSubmitted: (_) => _handleLogin(),
                             decoration:
                                 _inputDecoration(
-                                  label: 'Password',
+                                  label: 'Password *',
                                   hint: 'Enter your password',
                                   icon: Icons.lock_outline_rounded,
                                 ).copyWith(
@@ -286,10 +298,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 context,
                                 AppRoutes.forgotPassword,
                               ),
-                              child: const Text(
+                              child: Text(
                                 'Forgot password?',
                                 style: TextStyle(
-                                  color: AppColors.brown,
+                                  color: isDark ? AppColors.gold : AppColors.brown,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -344,24 +356,34 @@ class _LoginScreenState extends State<LoginScreen> {
     required IconData icon,
     String? prefixText,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
       labelText: label,
       hintText: hint,
       prefixText: prefixText,
       prefixIcon: Icon(icon),
       filled: true,
-      fillColor: const Color(0xFFFAF8F4),
+      fillColor: isDark
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFAF8F4),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: AppColors.gold.withOpacity(0.24)),
+        borderSide: BorderSide(
+          color: isDark
+              ? AppColors.applicantDarkOutline
+              : AppColors.gold.withValues(alpha: 0.24),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: AppColors.brown, width: 1.6),
+        borderSide: BorderSide(
+          color: isDark ? AppColors.gold : AppColors.brown,
+          width: 1.6,
+        ),
       ),
     );
   }

@@ -108,17 +108,19 @@ test('birth certificate has a dedicated parent review card and immutable raw sna
     );
 });
 
-test('registration and request letter cannot run IoT OCR', () => {
+test('non-OCR documents show only the document preview and hide the OCR hub', () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
         'utf8'
     );
 
     assert.match(source, /IOT_OCR_DISABLED_DOCUMENT_KEYS/);
+    assert.match(source, /'application_form'/);
     assert.match(source, /'certificate_of_registration'/);
     assert.match(source, /'letter_of_request'/);
     assert.match(source, /!IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(activeDoc\.id\)/);
-    assert.match(source, /IoT OCR unavailable/);
+    assert.match(source, /activeDocumentSupportsOcr && <div/);
+    assert.match(source, /!activeDocumentSupportsOcr \? \([\s\S]*?<DocumentPreviewPanel/);
 });
 
 test('student summary displays tri-state confirmed Marilao residency', () => {

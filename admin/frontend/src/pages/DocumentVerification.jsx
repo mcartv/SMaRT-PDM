@@ -3125,6 +3125,9 @@ export default function DocumentVerification() {
     () => docs.find((d) => d.id === activeDocId) || docs[0] || null,
     [docs, activeDocId]
   );
+  const activeDocumentSupportsOcr = Boolean(
+    activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
+  );
   const persistedIotRequest = getActiveIotRequest(activeDoc);
   const persistedIotOcrRunning = isActiveIotRequest(persistedIotRequest);
   const persistedIotRequestId = getIotOcrRequestId(persistedIotRequest);
@@ -4074,7 +4077,7 @@ export default function DocumentVerification() {
               ))}
             </div>
 
-            <div className="px-5 py-3 border-b border-stone-100 bg-white">
+            {activeDocumentSupportsOcr && <div className="px-5 py-3 border-b border-stone-100 bg-white">
               <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
                 <button
                   onClick={() => setViewMode('preview')}
@@ -4109,11 +4112,13 @@ export default function DocumentVerification() {
                   </span>
                 </button>
               </div>
-            </div>
+            </div>}
 
             <div className="p-5 bg-stone-50/30">
               {!activeDoc ? (
                 <p className="text-[15px] text-stone-400">No document selected.</p>
+              ) : !activeDocumentSupportsOcr ? (
+                <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
               ) : viewMode === 'preview' ? (
                 <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
               ) : viewMode === 'ocr' ? (

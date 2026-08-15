@@ -6,22 +6,23 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
 import {
-  Loader2,
-  Plus,
-  Wallet,
-  CheckCircle2,
-  Clock3,
-  XCircle,
-  CircleSlash,
-  Search,
-  Eye,
-  Users,
-  Building2,
+  AlertTriangle,
   Archive,
-  ArchiveRestore,
-  Megaphone,
+  Building2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleSlash,
+  Clock3,
+  Eye,
+  Loader2,
+  Megaphone,
+  Plus,
+  Search,
+  Users,
+  Wallet,
+  X,
+  XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import PayoutProofReviewPanel from '@/components/payout/PayoutProofReviewPanel';
@@ -75,10 +76,18 @@ function normalizeId(value) {
 function normalizeReleaseStatus(value) {
   const raw = String(value || 'Pending').trim().toLowerCase();
 
-  if (raw === 'released' || raw === 'release' || raw === 'got payout') return 'Released';
-  if (raw === 'absent' || raw === 'still absent') return 'Absent';
-  if (raw === 'on hold' || raw === 'hold' || raw === 'held') return 'On Hold';
-  if (raw === 'cancelled' || raw === 'canceled') return 'Cancelled';
+  if (raw === 'released' || raw === 'release' || raw === 'got payout') {
+    return 'Released';
+  }
+  if (raw === 'absent' || raw === 'still absent') {
+    return 'Absent';
+  }
+  if (raw === 'on hold' || raw === 'hold' || raw === 'held') {
+    return 'On Hold';
+  }
+  if (raw === 'cancelled' || raw === 'canceled') {
+    return 'Cancelled';
+  }
 
   return 'Pending';
 }
@@ -113,28 +122,43 @@ function getBatchScholars(batch) {
 }
 
 function isTerminalPayoutStatus(status) {
-  const normalized = normalizeReleaseStatus(status);
-  return ['Released', 'Absent', 'Cancelled'].includes(normalized);
+  return ['Released', 'Absent', 'Cancelled'].includes(
+    normalizeReleaseStatus(status)
+  );
 }
 
 function isBatchFinished(batch) {
   const scholars = getBatchScholars(batch);
-  if (!scholars.length) return false;
-
-  return scholars.every((s) => isTerminalPayoutStatus(s.release_status));
+  return scholars.length > 0 &&
+    scholars.every((scholar) => isTerminalPayoutStatus(scholar.release_status));
 }
 
 function hasManageablePayoutEntries(batch) {
-  const scholars = getBatchScholars(batch);
-
-  return scholars.some((s) => {
-    const status = normalizeReleaseStatus(s.release_status);
+  return getBatchScholars(batch).some((scholar) => {
+    const status = normalizeReleaseStatus(scholar.release_status);
     return status === 'Pending' || status === 'On Hold';
   });
 }
 
 function formatMoney(value) {
-  return `₱${Number(value || 0).toLocaleString()}`;
+  return Number(value || 0).toLocaleString('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function getEntryId(entry) {
@@ -152,18 +176,53 @@ function getPayoutCounts(batch) {
 
   return {
     total: scholars.length,
-    released: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Released').length,
-    pending: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Pending').length,
-    absent: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Absent').length,
-    onHold: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'On Hold').length,
-    cancelled: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Cancelled').length,
+    released: scholars.filter(
+      (s) => normalizeReleaseStatus(s.release_status) === 'Released'
+    ).length,
+    pending: scholars.filter(
+      (s) => normalizeReleaseStatus(s.release_status) === 'Pending'
+    ).length,
+    absent: scholars.filter(
+      (s) => normalizeReleaseStatus(s.release_status) === 'Absent'
+    ).length,
+    onHold: scholars.filter(
+      (s) => normalizeReleaseStatus(s.release_status) === 'On Hold'
+    ).length,
+    cancelled: scholars.filter(
+      (s) => normalizeReleaseStatus(s.release_status) === 'Cancelled'
+    ).length,
   };
+}
+
+function getBatchDisplayStatus(batch) {
+  if (batch?.is_archived) return 'Archived';
+  if (isBatchFinished(batch)) return 'Completed';
+  if (hasManageablePayoutEntries(batch)) return 'Active';
+
+  const raw = String(batch?.batch_status || '').trim();
+  return raw || 'Active';
+}
+
+function getBatchStatusStyles(status) {
+  const normalized = String(status || '').toLowerCase();
+
+  if (normalized === 'archived') {
+    return { background: C.slateSoft, color: C.slate };
+  }
+  if (normalized === 'completed') {
+    return { background: C.greenSoft, color: C.green };
+  }
+  if (normalized === 'draft') {
+    return { background: C.blueSoft, color: C.blue };
+  }
+
+  return { background: C.orangeSoft, color: C.orange };
 }
 
 function SmallMetric({ label, value }) {
   return (
-    <div className="rounded-lg bg-stone-50 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-stone-500">
+    <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2.5">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">
         {label}
       </p>
       <p className="mt-0.5 text-sm font-semibold text-stone-900">{value}</p>
@@ -173,9 +232,23 @@ function SmallMetric({ label, value }) {
 
 function ReadOnlyField({ label, value }) {
   return (
-    <div className="rounded-xl border bg-stone-50 p-3">
+    <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
       <p className="text-[11px] text-stone-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value || '—'}</p>
+      <p className="mt-1 text-sm font-semibold text-stone-900">{value || '—'}</p>
+    </div>
+  );
+}
+
+function EmptyState({ title, message }) {
+  return (
+    <div className="flex min-h-[260px] flex-col items-center justify-center px-6 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-stone-100">
+        <Wallet className="h-5 w-5 text-stone-400" />
+      </div>
+      <h3 className="mt-4 text-sm font-semibold text-stone-800">{title}</h3>
+      <p className="mt-1 max-w-md text-xs leading-5 text-stone-500">
+        {message}
+      </p>
     </div>
   );
 }
@@ -196,17 +269,18 @@ function PaginationFooter({
       className="overflow-hidden rounded-2xl border bg-white"
       style={{ borderColor: C.line }}
     >
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-stone-400">
           Showing {start}-{end} of {total}
         </p>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
           <button
             type="button"
             disabled={page <= 1}
             onClick={onPrev}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-200 text-stone-500 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Previous page"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -220,12 +294,135 @@ function PaginationFooter({
             disabled={page >= totalPages}
             onClick={onNext}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-200 text-stone-500 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Next page"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
     </section>
+  );
+}
+
+function ArchiveBatchModal({
+  batch,
+  working,
+  onCancel,
+  onConfirm,
+}) {
+  if (!batch) return null;
+
+  const counts = getPayoutCounts(batch);
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={working ? undefined : onCancel}
+    >
+      <Card
+        className="w-full max-w-lg overflow-hidden border-stone-200 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50 px-5 py-4">
+          <div className="flex min-w-0 gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <Archive className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-stone-900">
+                Archive payout batch?
+              </h3>
+              <p className="mt-0.5 truncate text-xs text-stone-500">
+                {batch.payout_title || 'Payout Batch'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={working}
+            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600 disabled:opacity-50"
+            aria-label="Close archive confirmation"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <CardContent className="space-y-4 p-5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  This does not delete payout records.
+                </p>
+                <p className="mt-1 text-xs leading-5 text-amber-800">
+                  The batch will disappear from Active/Completed payout lists and
+                  remain available under Archived for audit and historical review.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <ReadOnlyField
+              label="Program / Benefactor"
+              value={[
+                batch.program_name,
+                batch.benefactor_name,
+              ].filter(Boolean).join(' • ') || '—'}
+            />
+            <ReadOnlyField
+              label="Academic Period"
+              value={[
+                batch.academic_year || batch.school_year,
+                batch.semester,
+              ].filter(Boolean).join(' • ') || '—'}
+            />
+            <ReadOnlyField
+              label="Scholars"
+              value={`${counts.total}`}
+            />
+            <ReadOnlyField
+              label="Total Amount"
+              value={formatMoney(batch.total_amount)}
+            />
+          </div>
+
+          <p className="text-xs leading-5 text-stone-500">
+            Archiving is allowed only after all scholars in the batch are in a
+            terminal payout state: Released, Absent, or Cancelled.
+          </p>
+        </CardContent>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={working}
+            className="h-10 rounded-xl border-stone-200"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            type="button"
+            onClick={onConfirm}
+            disabled={working}
+            className="h-10 rounded-xl border-none bg-amber-700 text-white hover:bg-amber-800"
+          >
+            {working ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Archive className="mr-2 h-4 w-4" />
+            )}
+            Archive Batch
+          </Button>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -244,7 +441,7 @@ function PostPayoutCreatePrompt({
     >
       <Card
         className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
           <h3 className="text-base font-semibold text-stone-900">
@@ -261,23 +458,7 @@ function PostPayoutCreatePrompt({
               Create an announcement for the scholars in this scholarship opening?
             </p>
             <p className="mt-1 text-xs leading-relaxed text-stone-500">
-              This will open the Announcements module with the payout details already filled in.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-stone-200 bg-white px-4 py-3">
-            <p className="text-xs font-semibold text-stone-700">
-              {payout.opening_title || payout.payout_title || 'Scholarship Payout'}
-            </p>
-            <p className="mt-1 text-xs text-stone-500">
-              {payout.program_name || 'No Program'}
-              {payout.benefactor_name ? ` • ${payout.benefactor_name}` : ''}
-            </p>
-            <p className="mt-1 text-xs text-stone-500">
-              {payout.scholar_count || 0} scholar(s) selected
-              {payout.amount_per_scholar
-                ? ` • ${formatMoney(payout.amount_per_scholar)} per scholar`
-                : ''}
+              This opens the Announcements module with payout details prefilled.
             </p>
           </div>
 
@@ -310,6 +491,7 @@ export default function PayoutManagement() {
 
   const [batches, setBatches] = useState([]);
   const [openings, setOpenings] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
   const [eligiblePayload, setEligiblePayload] = useState({
     opening: null,
     scholars: [],
@@ -319,65 +501,18 @@ export default function PayoutManagement() {
   const [creating, setCreating] = useState(false);
   const [workingEntryId, setWorkingEntryId] = useState(null);
   const [archivingBatchId, setArchivingBatchId] = useState(null);
-  const [restoringBatchId, setRestoringBatchId] = useState(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState('batches');
   const [selectedBatch, setSelectedBatch] = useState(null);
+  const [archiveCandidate, setArchiveCandidate] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [academicYears, setAcademicYears] = useState([]);
 
   const [postCreateOpen, setPostCreateOpen] = useState(false);
   const [newPayoutForPrompt, setNewPayoutForPrompt] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
-
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  useSocketEvent('payout:created', () => {
-    loadAll();
-  }, []);
-
-  useSocketEvent('payout:updated', () => {
-    loadAll();
-  }, []);
-
-  useSocketEvent('payout:archived', () => {
-    loadAll();
-  }, []);
-
-  useSocketEvent('payout:restored', () => {
-    loadAll();
-  }, []);
-
-  useSocketEvent('scholar:released', () => {
-    loadAll();
-  }, []);
-
-  useEffect(() => {
-    setPage(1);
-  }, [activeSection, search]);
-
-  useEffect(() => {
-    if (!form.opening_id) {
-      setEligiblePayload({ opening: null, scholars: [] });
-      setForm((prev) => ({
-        ...prev,
-        semester: '',
-        academic_year_id: '',
-        school_year: '',
-        payout_title: '',
-        amount_per_scholar: '',
-        scholar_ids: [],
-      }));
-      return;
-    }
-
-    loadOpeningEligibility(form.opening_id);
-  }, [form.opening_id]);
 
   const loadAll = async () => {
     try {
@@ -385,67 +520,87 @@ export default function PayoutManagement() {
 
       const [batchRes, openingRes, academicYearRes] = await Promise.all([
         fetch(`${API_BASE}/payouts`, { headers: getAuthHeaders(false) }),
-        fetch(`${API_BASE}/payouts/openings`, { headers: getAuthHeaders(false) }),
-        fetch(`${API_BASE}/academic-years`, { headers: getAuthHeaders(false) }),
+        fetch(`${API_BASE}/payouts/openings`, {
+          headers: getAuthHeaders(false),
+        }),
+        fetch(`${API_BASE}/academic-years`, {
+          headers: getAuthHeaders(false),
+        }),
       ]);
 
       if (!batchRes.ok) throw new Error('Failed to load payout batches');
       if (!openingRes.ok) throw new Error('Failed to load openings');
       if (!academicYearRes.ok) throw new Error('Failed to load academic years');
 
-      const batchData = await batchRes.json();
-      const openingData = await openingRes.json();
-      const academicYearData = await academicYearRes.json();
+      const [batchData, openingData, academicYearData] = await Promise.all([
+        batchRes.json(),
+        openingRes.json(),
+        academicYearRes.json(),
+      ]);
 
       setBatches(Array.isArray(batchData) ? batchData : []);
-
       setOpenings(
         (Array.isArray(openingData) ? openingData : []).filter(
-          (o) =>
-            !o.is_archived &&
-            String(o.status || o.posting_status || '').toLowerCase() !== 'archived'
+          (opening) =>
+            opening?.is_archived !== true &&
+            String(
+              opening?.status || opening?.posting_status || ''
+            ).toLowerCase() !== 'archived'
         )
       );
-
       setAcademicYears(
         (Array.isArray(academicYearData) ? academicYearData : []).filter(
-          (ay) =>
-            ay?.is_archived !== true &&
-            String(ay?.status || '').toLowerCase() !== 'archived'
+          (year) =>
+            year?.is_archived !== true &&
+            String(year?.status || '').toLowerCase() !== 'archived'
         )
       );
-    } catch (err) {
-      console.error('PAYOUT MANAGEMENT LOAD ERROR:', err);
-      alert(err.message || 'Failed to load payout module');
+    } catch (error) {
+      console.error('PAYOUT MANAGEMENT LOAD ERROR:', error);
+      alert(error.message || 'Failed to load payout module');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  useSocketEvent('payout:created', loadAll, []);
+  useSocketEvent('payout:updated', loadAll, []);
+  useSocketEvent('payout:archived', loadAll, []);
+  useSocketEvent('payout:restored', loadAll, []);
+  useSocketEvent('scholar:released', loadAll, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeSection, search]);
+
   const loadOpeningEligibility = async (openingId) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/payouts/eligible-scholars?opening_id=${encodeURIComponent(openingId)}`,
+      const response = await fetch(
+        `${API_BASE}/payouts/eligible-scholars?opening_id=${encodeURIComponent(
+          openingId
+        )}`,
         { headers: getAuthHeaders(false) }
       );
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error('Failed to load eligible scholars for opening');
       }
 
-      const data = await res.json();
-      const scholars = Array.isArray(data?.scholars) ? data.scholars : [];
+      const data = await response.json();
       const opening = data?.opening || null;
-
-      const filteredScholars = filterScholarsByOpening(
-        scholars,
+      const scholars = filterScholarsByOpening(
+        Array.isArray(data?.scholars) ? data.scholars : [],
         openingId || opening?.opening_id
       );
 
-      setEligiblePayload({ opening, scholars: filteredScholars });
+      setEligiblePayload({ opening, scholars });
 
-      setForm((prev) => ({
-        ...prev,
+      setForm((previous) => ({
+        ...previous,
         semester: opening?.semester || '',
         academic_year_id: opening?.academic_year_id || '',
         school_year: opening?.academic_year || '',
@@ -454,26 +609,37 @@ export default function PayoutManagement() {
           opening?.amount_per_scholar ??
           opening?.per_scholar_amount ??
           '',
-        scholar_ids: filteredScholars.map((s) => s.scholar_id),
+        scholar_ids: scholars.map(
+          (scholar) => scholar.scholar_id || scholar.student_id
+        ),
       }));
-    } catch (err) {
-      console.error('OPENING ELIGIBILITY LOAD ERROR:', err);
+    } catch (error) {
+      console.error('OPENING ELIGIBILITY LOAD ERROR:', error);
       setEligiblePayload({ opening: null, scholars: [] });
     }
   };
 
+  useEffect(() => {
+    if (!form.opening_id) {
+      setEligiblePayload({ opening: null, scholars: [] });
+      return;
+    }
+
+    loadOpeningEligibility(form.opening_id);
+  }, [form.opening_id]);
+
   const activeBatches = useMemo(
-    () => batches.filter((b) => !b.is_archived),
+    () => batches.filter((batch) => batch?.is_archived !== true),
     [batches]
   );
 
   const archivedBatches = useMemo(
-    () => batches.filter((b) => b.is_archived),
+    () => batches.filter((batch) => batch?.is_archived === true),
     [batches]
   );
 
   const inProgressBatches = useMemo(
-    () => activeBatches.filter((b) => !isBatchFinished(b)),
+    () => activeBatches.filter((batch) => !isBatchFinished(batch)),
     [activeBatches]
   );
 
@@ -492,112 +658,118 @@ export default function PayoutManagement() {
     if (activeSection === 'status') return statusManagerBatches;
     if (activeSection === 'completed') return completedBatches;
     if (activeSection === 'archived') return archivedBatches;
-
     return [];
   }, [
     activeSection,
+    archivedBatches,
+    completedBatches,
     inProgressBatches,
     statusManagerBatches,
-    completedBatches,
-    archivedBatches,
   ]);
 
   const filteredDisplayedBatches = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
+    if (!query) return displayedBatches;
 
-    if (!q) return displayedBatches;
-
-    return displayedBatches.filter((b) => {
-      return [
-        b.payout_title,
-        b.program_name,
-        b.benefactor_name,
-        b.semester,
-        b.school_year,
-        b.academic_year,
-        b.payout_date,
+    return displayedBatches.filter((batch) =>
+      [
+        batch.payout_title,
+        batch.program_name,
+        batch.benefactor_name,
+        batch.semester,
+        batch.school_year,
+        batch.academic_year,
+        batch.payout_date,
+        batch.batch_status,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(q));
-    });
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
   }, [displayedBatches, search]);
 
-  const pageData = useMemo(() => {
-    return filteredDisplayedBatches.slice(
-      (page - 1) * PAGE_SIZE,
-      page * PAGE_SIZE
-    );
-  }, [filteredDisplayedBatches, page]);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredDisplayedBatches.length / PAGE_SIZE)
+  );
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredDisplayedBatches.length / PAGE_SIZE));
-  }, [filteredDisplayedBatches.length]);
+  const pageData = useMemo(
+    () =>
+      filteredDisplayedBatches.slice(
+        (page - 1) * PAGE_SIZE,
+        page * PAGE_SIZE
+      ),
+    [filteredDisplayedBatches, page]
+  );
 
-  const selectedOpeningDetails = useMemo(() => {
-    return (
-      openings.find((o) => o.opening_id === form.opening_id) ||
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const selectedOpeningDetails = useMemo(
+    () =>
+      openings.find((opening) => opening.opening_id === form.opening_id) ||
       eligiblePayload.opening ||
-      null
-    );
-  }, [openings, form.opening_id, eligiblePayload.opening]);
+      null,
+    [eligiblePayload.opening, form.opening_id, openings]
+  );
 
-  const filteredEligibleScholars = useMemo(() => {
-    return filterScholarsByOpening(
-      eligiblePayload.scholars,
-      form.opening_id || selectedOpeningDetails?.opening_id
-    );
-  }, [eligiblePayload.scholars, form.opening_id, selectedOpeningDetails]);
-
-  const filteredSelectedBatchScholars = useMemo(() => {
-    if (!selectedBatch) return [];
-    return selectedBatch.scholars || [];
-  }, [selectedBatch]);
+  const filteredEligibleScholars = useMemo(
+    () =>
+      filterScholarsByOpening(
+        eligiblePayload.scholars,
+        form.opening_id || selectedOpeningDetails?.opening_id
+      ),
+    [eligiblePayload.scholars, form.opening_id, selectedOpeningDetails]
+  );
 
   const sectionMeta = useMemo(() => {
     const map = {
       batches: {
         title: 'Active Payout Batches',
-        subtitle: `${inProgressBatches.length} active batch${inProgressBatches.length !== 1 ? 'es' : ''} still being processed`,
-        empty: 'No active payout batches found.',
+        subtitle: `${inProgressBatches.length} active batch${
+          inProgressBatches.length === 1 ? '' : 'es'
+        } currently being processed`,
+        emptyTitle: 'No active payout batches',
+        empty:
+          'Create a payout batch when active scholars are ready for payout scheduling.',
       },
       status: {
         title: 'Payout Status Manager',
-        subtitle: `${statusManagerBatches.length} batch${statusManagerBatches.length !== 1 ? 'es' : ''} with Pending or On Hold scholars`,
-        empty: 'No payout batches currently need status updates.',
+        subtitle: `${statusManagerBatches.length} batch${
+          statusManagerBatches.length === 1 ? '' : 'es'
+        } with Pending or On Hold scholars`,
+        emptyTitle: 'No payout statuses need attention',
+        empty:
+          'All active payout entries are already in terminal states.',
       },
       completed: {
         title: 'Completed Payouts',
-        subtitle: `${completedBatches.length} completed payout batch${completedBatches.length !== 1 ? 'es' : ''}`,
-        empty: 'No completed payout batches yet.',
+        subtitle: `${completedBatches.length} completed payout batch${
+          completedBatches.length === 1 ? '' : 'es'
+        } ready for archival`,
+        emptyTitle: 'No completed payout batches',
+        empty:
+          'Completed batches appear here after all scholars are Released, Absent, or Cancelled.',
       },
       archived: {
         title: 'Archived Payout Batches',
-        subtitle: `${archivedBatches.length} archived payout batch${archivedBatches.length !== 1 ? 'es' : ''}`,
-        empty: 'No archived payout batches found.',
+        subtitle: `${archivedBatches.length} archived payout batch${
+          archivedBatches.length === 1 ? '' : 'es'
+        } retained for historical access`,
+        emptyTitle: 'No archived payout batches',
+        empty:
+          'Archived payout records remain available here and are never deleted by the archive action.',
       },
     };
 
     return map[activeSection] || map.batches;
   }, [
     activeSection,
+    archivedBatches.length,
+    completedBatches.length,
     inProgressBatches.length,
     statusManagerBatches.length,
-    completedBatches.length,
-    archivedBatches.length,
   ]);
-
-  const toggleScholar = (scholarId) => {
-    setForm((prev) => {
-      const exists = prev.scholar_ids.includes(scholarId);
-
-      return {
-        ...prev,
-        scholar_ids: exists
-          ? prev.scholar_ids.filter((id) => id !== scholarId)
-          : [...prev.scholar_ids, scholarId],
-      };
-    });
-  };
 
   const resetCreateForm = () => {
     setForm({
@@ -607,114 +779,61 @@ export default function PayoutManagement() {
     setEligiblePayload({ opening: null, scholars: [] });
   };
 
-  const handleCreatePayoutAnnouncementRedirect = () => {
-    if (!newPayoutForPrompt) return;
-
-    const amountPerScholar = Number(newPayoutForPrompt.amount_per_scholar || 0);
-    const payoutDate =
-      newPayoutForPrompt.payout_date || new Date().toISOString().slice(0, 10);
-
-    const openingTitle =
-      newPayoutForPrompt.opening_title ||
-      newPayoutForPrompt.payout_title ||
-      'your scholarship opening';
-
-    const title = `${newPayoutForPrompt.payout_title || 'Scholarship Payout'} Announcement`;
-
-    const content = [
-      'Good day, scholars.',
-      '',
-      `Please be informed that the payout batch for ${openingTitle} has been created.`,
-      '',
-      `Payout Date: ${payoutDate}`,
-      `Payment Mode: ${newPayoutForPrompt.payment_mode || 'Cash'}`,
-      amountPerScholar > 0
-        ? `Amount per Scholar: ${formatMoney(amountPerScholar)}`
-        : '',
-      newPayoutForPrompt.scholar_count
-        ? `Number of Scholars Included: ${newPayoutForPrompt.scholar_count}`
-        : '',
-      '',
-      'Please wait for further instructions from OSFA regarding the release process.',
-    ]
-      .filter((line) => line !== '')
-      .join('\n');
-
-    const params = new URLSearchParams({
-      prefill: 'payout',
-      title,
-      subject: title,
-      content,
-      audience: 'scholars',
-      target_audience: 'scholars',
-      opening_id: newPayoutForPrompt.opening_id || '',
-      payout_batch_id: newPayoutForPrompt.payout_batch_id || '',
-      program_id: newPayoutForPrompt.program_id || '',
-      academic_year_id: newPayoutForPrompt.academic_year_id || '',
-      academic_year: newPayoutForPrompt.academic_year || '',
-      semester: newPayoutForPrompt.semester || '',
-    });
-
-    navigate(`/admin/announcements?${params.toString()}`);
+  const toggleScholar = (scholarId) => {
+    setForm((previous) => ({
+      ...previous,
+      scholar_ids: previous.scholar_ids.includes(scholarId)
+        ? previous.scholar_ids.filter((id) => id !== scholarId)
+        : [...previous.scholar_ids, scholarId],
+    }));
   };
 
   const handleCreateBatch = async () => {
+    if (!form.opening_id) {
+      alert('Please select an opening first.');
+      return;
+    }
+    if (!form.semester) {
+      alert('Please select a semester.');
+      return;
+    }
+    if (!form.scholar_ids.length) {
+      alert('No scholars selected.');
+      return;
+    }
+
     try {
-      if (!form.opening_id) {
-        alert('Please select an opening first.');
-        return;
-      }
-
-      if (!form.semester) {
-        alert('Please select a semester.');
-        return;
-      }
-
-      if (!form.scholar_ids.length) {
-        alert('No scholars selected.');
-        return;
-      }
-
       setCreating(true);
 
-      const payload = {
-        opening_id: form.opening_id,
-        semester: form.semester,
-        academic_year_id: form.academic_year_id,
-        payout_title: form.payout_title,
-        payout_date: form.payout_date,
-        payment_mode: form.payment_mode,
-        remarks: form.remarks,
-        scholar_ids: form.scholar_ids,
-      };
-
-      const res = await fetch(`${API_BASE}/payouts`, {
+      const response = await fetch(`${API_BASE}/payouts`, {
         method: 'POST',
         headers: getAuthHeaders(true),
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          opening_id: form.opening_id,
+          semester: form.semester,
+          academic_year_id: form.academic_year_id,
+          payout_title: form.payout_title,
+          payout_date: form.payout_date,
+          payment_mode: form.payment_mode,
+          remarks: form.remarks,
+          scholar_ids: form.scholar_ids,
+        }),
       });
 
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data?.message || data?.error || 'Failed to create payout batch');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || 'Failed to create payout batch'
+        );
       }
 
       const createdBatch = data?.data || data || {};
-
-      const payoutForPrompt = {
+      setNewPayoutForPrompt({
         ...createdBatch,
-        payout_batch_id:
-          createdBatch.payout_batch_id ||
-          createdBatch.batch_id ||
-          createdBatch.id ||
-          '',
         opening_id: form.opening_id,
         opening_title:
           selectedOpeningDetails?.opening_title ||
-          selectedOpeningDetails?.title ||
           form.payout_title,
-        program_id: selectedOpeningDetails?.program_id || createdBatch.program_id || '',
         program_name:
           selectedOpeningDetails?.program_name ||
           createdBatch.program_name ||
@@ -723,15 +842,9 @@ export default function PayoutManagement() {
           selectedOpeningDetails?.benefactor_name ||
           createdBatch.benefactor_name ||
           '',
-        academic_year_id:
-          form.academic_year_id ||
-          selectedOpeningDetails?.academic_year_id ||
-          createdBatch.academic_year_id ||
-          '',
         academic_year:
           form.school_year ||
           selectedOpeningDetails?.academic_year ||
-          createdBatch.academic_year ||
           '',
         semester: form.semester,
         payout_title: form.payout_title,
@@ -739,150 +852,175 @@ export default function PayoutManagement() {
         payment_mode: form.payment_mode,
         amount_per_scholar: form.amount_per_scholar,
         scholar_count: form.scholar_ids.length,
-      };
-
-      setShowCreateModal(false);
-      setNewPayoutForPrompt(payoutForPrompt);
+      });
       setPostCreateOpen(true);
-
+      setShowCreateModal(false);
       resetCreateForm();
-
       await loadAll();
       setActiveSection('batches');
-    } catch (err) {
-      console.error('CREATE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to create payout batch');
+    } catch (error) {
+      console.error('CREATE PAYOUT BATCH ERROR:', error);
+      alert(error.message || 'Failed to create payout batch');
     } finally {
       setCreating(false);
     }
   };
 
+  const handleCreatePayoutAnnouncementRedirect = () => {
+    if (!newPayoutForPrompt) return;
+
+    const payoutDate = formatDate(newPayoutForPrompt.payout_date);
+    const amount = formatMoney(newPayoutForPrompt.amount_per_scholar);
+
+    const title = `${
+      newPayoutForPrompt.payout_title || 'Scholarship Payout'
+    } Announcement`;
+
+    const params = new URLSearchParams({
+      prefill: 'payout',
+      title,
+      subject: title,
+      content: [
+        'Good day, scholars.',
+        '',
+        `Please be informed that the payout batch for ${
+          newPayoutForPrompt.opening_title ||
+          newPayoutForPrompt.payout_title ||
+          'your scholarship opening'
+        } has been created.`,
+        '',
+        `Payout Date: ${payoutDate}`,
+        `Payment Mode: ${newPayoutForPrompt.payment_mode || 'Cash'}`,
+        `Amount per Scholar: ${amount}`,
+        `Number of Scholars Included: ${
+          newPayoutForPrompt.scholar_count || 0
+        }`,
+        '',
+        'Please wait for further instructions from OSFA regarding the release process.',
+      ].join('\n'),
+      audience: 'scholars',
+      target_audience: 'scholars',
+      opening_id: newPayoutForPrompt.opening_id || '',
+      payout_batch_id: newPayoutForPrompt.payout_batch_id || '',
+      program_id: newPayoutForPrompt.program_id || '',
+      academic_year: newPayoutForPrompt.academic_year || '',
+      semester: newPayoutForPrompt.semester || '',
+    });
+
+    navigate(`/admin/announcements?${params.toString()}`);
+  };
+
   const handleStatusUpdate = async (entry, nextStatus) => {
     const entryId = getEntryId(entry);
-
     if (!entryId) {
       alert('Missing payout entry ID.');
       return;
     }
 
-    const finalStatus = normalizeReleaseStatus(nextStatus);
-
     try {
       setWorkingEntryId(entryId);
+      const finalStatus = normalizeReleaseStatus(nextStatus);
 
-      const res = await fetch(`${API_BASE}/payouts/entries/${entryId}/status`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(true),
-        body: JSON.stringify({
-          release_status: finalStatus,
-          status: finalStatus,
-        }),
-      });
+      const response = await fetch(
+        `${API_BASE}/payouts/entries/${entryId}/status`,
+        {
+          method: 'PATCH',
+          headers: getAuthHeaders(true),
+          body: JSON.stringify({
+            release_status: finalStatus,
+            status: finalStatus,
+          }),
+        }
+      );
 
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
         throw new Error(
-          data?.message ||
-          data?.error ||
-          'Failed to update payout status'
+          data?.message || data?.error || 'Failed to update payout status'
         );
       }
 
-      setSelectedBatch((prev) => {
-        if (!prev) return prev;
+      setSelectedBatch((previous) => {
+        if (!previous) return previous;
 
         return {
-          ...prev,
-          scholars: (prev.scholars || []).map((scholar) => {
-            const scholarEntryId = getEntryId(scholar);
-
-            return String(scholarEntryId) === String(entryId)
+          ...previous,
+          scholars: (previous.scholars || []).map((scholar) =>
+            String(getEntryId(scholar)) === String(entryId)
               ? { ...scholar, release_status: finalStatus }
-              : scholar;
-          }),
+              : scholar
+          ),
         };
       });
 
       await loadAll();
-    } catch (err) {
-      console.error('UPDATE PAYOUT STATUS ERROR:', err);
-      alert(err.message || 'Failed to update payout status');
+    } catch (error) {
+      console.error('UPDATE PAYOUT STATUS ERROR:', error);
+      alert(error.message || 'Failed to update payout status');
     } finally {
       setWorkingEntryId(null);
     }
   };
 
-  const handleArchiveBatch = async (batch) => {
-    try {
-      if (!batch?.payout_batch_id) return;
+  const requestArchiveBatch = (batch) => {
+    if (!batch?.payout_batch_id) return;
 
-      if (!isBatchFinished(batch)) {
-        alert(
-          'This payout batch cannot be archived yet. All scholars must be marked Released, Absent, or Cancelled first.'
-        );
-        return;
-      }
-
-      const confirmed = window.confirm(
-        `Archive “${batch.payout_title || 'this payout batch'}”? This hides it from active payout records but preserves its audit history.`
+    if (!isBatchFinished(batch)) {
+      alert(
+        'This payout batch cannot be archived yet. All scholars must be marked Released, Absent, or Cancelled first.'
       );
-      if (!confirmed) return;
-
-      setArchivingBatchId(batch.payout_batch_id);
-
-      const res = await fetch(`${API_BASE}/payouts/${batch.payout_batch_id}/archive`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(true),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data?.message || data?.error || 'Failed to archive payout batch');
-      }
-
-      await loadAll();
-      setSelectedBatch(null);
-      setActiveSection('archived');
-    } catch (err) {
-      console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to archive payout batch');
-    } finally {
-      setArchivingBatchId(null);
+      return;
     }
+
+    setArchiveCandidate(batch);
   };
 
-  const handleRestoreBatch = async (batch) => {
+  const confirmArchiveBatch = async () => {
+    const batch = archiveCandidate;
+    if (!batch?.payout_batch_id) return;
+
     try {
-      if (!batch?.payout_batch_id) return;
+      setArchivingBatchId(batch.payout_batch_id);
 
-      const confirmed = window.confirm(
-        `Restore “${batch.payout_title || 'this payout batch'}” to active payout records?`
+      const response = await fetch(
+        `${API_BASE}/payouts/${batch.payout_batch_id}/archive`,
+        {
+          method: 'PATCH',
+          headers: getAuthHeaders(true),
+        }
       );
-      if (!confirmed) return;
 
-      setRestoringBatchId(batch.payout_batch_id);
-
-      const res = await fetch(`${API_BASE}/payouts/${batch.payout_batch_id}/restore`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(true),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data?.message || data?.error || 'Failed to restore payout batch');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || 'Failed to archive payout batch'
+        );
       }
 
-      await loadAll();
+      setArchiveCandidate(null);
       setSelectedBatch(null);
-      setActiveSection('batches');
-    } catch (err) {
-      console.error('RESTORE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to restore payout batch');
+
+      // Optimistic removal from all active lists; realtime/loadAll remains the
+      // source of truth and keeps other open admin sessions synchronized.
+      setBatches((previous) =>
+        previous.map((item) =>
+          String(item.payout_batch_id) === String(batch.payout_batch_id)
+            ? {
+                ...item,
+                is_archived: true,
+                batch_status: 'Archived',
+              }
+            : item
+        )
+      );
+
+      setActiveSection('archived');
+      await loadAll();
+    } catch (error) {
+      console.error('ARCHIVE PAYOUT BATCH ERROR:', error);
+      alert(error.message || 'Failed to archive payout batch');
     } finally {
-      setRestoringBatchId(null);
+      setArchivingBatchId(null);
     }
   };
 
@@ -891,27 +1029,27 @@ export default function PayoutManagement() {
 
     const styles = {
       Released: {
-        bg: C.greenSoft,
+        background: C.greenSoft,
         color: C.green,
         icon: <CheckCircle2 className="mr-1 h-3 w-3" />,
       },
       Pending: {
-        bg: C.orangeSoft,
+        background: C.orangeSoft,
         color: C.orange,
         icon: <Clock3 className="mr-1 h-3 w-3" />,
       },
       Absent: {
-        bg: C.redSoft,
+        background: C.redSoft,
         color: C.red,
         icon: <XCircle className="mr-1 h-3 w-3" />,
       },
       'On Hold': {
-        bg: C.blueSoft,
+        background: C.blueSoft,
         color: C.blue,
         icon: <CircleSlash className="mr-1 h-3 w-3" />,
       },
       Cancelled: {
-        bg: C.slateSoft,
+        background: C.slateSoft,
         color: C.slate,
         icon: <XCircle className="mr-1 h-3 w-3" />,
       },
@@ -922,7 +1060,7 @@ export default function PayoutManagement() {
     return (
       <Badge
         className="inline-flex items-center rounded-full border-none text-[10px]"
-        style={{ background: current.bg, color: current.color }}
+        style={current}
       >
         {current.icon}
         {value}
@@ -933,9 +1071,7 @@ export default function PayoutManagement() {
   const getStatusActions = (status) => {
     const value = normalizeReleaseStatus(status);
 
-    if (value === 'Released') {
-      return [];
-    }
+    if (value === 'Released' || value === 'Cancelled') return [];
 
     if (value === 'On Hold') {
       return [
@@ -951,10 +1087,6 @@ export default function PayoutManagement() {
       ];
     }
 
-    if (value === 'Cancelled') {
-      return [];
-    }
-
     return [
       { label: 'Release', status: 'Released', tone: 'green' },
       { label: 'Absent', status: 'Absent', tone: 'red' },
@@ -967,107 +1099,96 @@ export default function PayoutManagement() {
       green: 'border-green-200 text-green-700 hover:bg-green-50',
       red: 'border-red-200 text-red-700 hover:bg-red-50',
       blue: 'border-blue-200 text-blue-700 hover:bg-blue-50',
-      amber: 'border-orange-200 text-orange-700 hover:bg-orange-50',
-      slate: 'border-slate-200 text-slate-700 hover:bg-slate-50',
     };
-
     return map[tone] || 'border-stone-200 text-stone-700 hover:bg-stone-50';
   };
 
-  const renderBatchCard = (b) => {
-    const counts = getPayoutCounts(b);
-    const finished = isBatchFinished(b);
-    const manageable = hasManageablePayoutEntries(b);
+  const renderBatchCard = (batch) => {
+    const counts = getPayoutCounts(batch);
+    const displayStatus = getBatchDisplayStatus(batch);
+    const statusStyle = getBatchStatusStyles(displayStatus);
+    const period = [
+      batch.academic_year || batch.school_year,
+      batch.semester,
+    ]
+      .filter(Boolean)
+      .join(' • ');
 
     return (
       <Card
-        key={b.payout_batch_id}
-        className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300"
+        key={batch.payout_batch_id}
+        className="h-full rounded-2xl border-stone-200 bg-white shadow-none transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-sm"
       >
-        <CardContent className="p-4">
-          <div className="flex h-full flex-col gap-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="truncate text-base font-semibold text-stone-900">
-                  {b.payout_title || 'Untitled Payout Batch'}
-                </h3>
-
-                <p className="mt-1 text-sm text-stone-500">
-                  {b.program_name || 'No Program'}
-                  {b.benefactor_name ? ` • ${b.benefactor_name}` : ''}
-                </p>
-
-                <p className="mt-1 text-xs text-stone-400">
-                  {b.school_year || b.academic_year || '—'} • {b.payout_date || '—'}
-                </p>
-              </div>
-
-              <div className="flex flex-col items-end gap-2">
-                <Badge
-                  className="rounded-full border-none text-[10px]"
-                  style={{
-                    background: b.payment_mode === 'Cash' ? C.greenSoft : C.blueSoft,
-                    color: b.payment_mode === 'Cash' ? C.green : C.blue,
-                  }}
-                >
-                  {b.payment_mode || '—'}
-                </Badge>
-
-                {b.is_archived ? (
-                  <Badge
-                    className="rounded-full border-none text-[10px]"
-                    style={{ background: C.slateSoft, color: C.slate }}
-                  >
-                    Archived
-                  </Badge>
-                ) : finished ? (
-                  <Badge
-                    className="rounded-full border-none text-[10px]"
-                    style={{ background: C.greenSoft, color: C.green }}
-                  >
-                    Completed
-                  </Badge>
-                ) : manageable ? (
-                  <Badge
-                    className="rounded-full border-none text-[10px]"
-                    style={{ background: C.orangeSoft, color: C.orange }}
-                  >
-                    Needs Update
-                  </Badge>
-                ) : null}
-              </div>
+        <CardContent className="flex h-full flex-col p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold text-stone-900">
+                {batch.payout_title || 'Untitled Payout Batch'}
+              </h3>
+              <p className="mt-1 line-clamp-2 text-sm text-stone-600">
+                {batch.program_name || 'No Program'}
+                {batch.benefactor_name
+                  ? ` • ${batch.benefactor_name}`
+                  : ''}
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <SmallMetric label="Released" value={counts.released} />
-              <SmallMetric label="Pending" value={counts.pending} />
-              <SmallMetric label="Absent" value={counts.absent} />
-              <SmallMetric label="On Hold" value={counts.onHold} />
+            <Badge
+              className="shrink-0 rounded-full border-none text-[10px]"
+              style={statusStyle}
+            >
+              {displayStatus}
+            </Badge>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <SmallMetric
+              label="Academic Period"
+              value={period || '—'}
+            />
+            <SmallMetric
+              label="Payout Date"
+              value={formatDate(batch.payout_date)}
+            />
+            <SmallMetric
+              label="Scholars"
+              value={counts.total}
+            />
+            <SmallMetric
+              label="Amount / Scholar"
+              value={formatMoney(batch.amount_per_scholar)}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <SmallMetric label="Released" value={counts.released} />
+            <SmallMetric label="Pending" value={counts.pending} />
+            <SmallMetric label="Absent" value={counts.absent} />
+            <SmallMetric label="On Hold" value={counts.onHold} />
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                Payout Amount Summary
+              </p>
+              <p className="mt-1 text-lg font-semibold text-stone-900">
+                {formatMoney(batch.total_amount)}
+              </p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                {batch.payment_mode || 'Payment mode not set'}
+              </p>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-600">
-              <span>Total scholars</span>
-              <span className="font-semibold text-stone-900">{counts.total}</span>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-stone-100 pt-3">
-              <div>
-                <p className="text-xs text-stone-500">Total Amount</p>
-                <p className="text-base font-semibold text-stone-900">
-                  {formatMoney(b.total_amount)}
-                </p>
-              </div>
-
-              <Button
-                size="sm"
-                className="h-8 rounded-lg px-3 text-xs"
-                style={{ background: C.brownMid, color: '#fff' }}
-                onClick={() => setSelectedBatch(b)}
-              >
-                <Eye className="mr-1.5 h-3.5 w-3.5" />
-                View Batch
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              className="h-9 w-full rounded-xl px-3 text-xs text-white sm:w-auto"
+              style={{ background: C.brownMid }}
+              onClick={() => setSelectedBatch(batch)}
+            >
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
+              Open Batch
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1080,6 +1201,18 @@ export default function PayoutManagement() {
 
   return (
     <div className="space-y-4 py-3" style={{ background: C.bg }}>
+      <ArchiveBatchModal
+        batch={archiveCandidate}
+        working={
+          !!archiveCandidate &&
+          archivingBatchId === archiveCandidate.payout_batch_id
+        }
+        onCancel={() => {
+          if (!archivingBatchId) setArchiveCandidate(null);
+        }}
+        onConfirm={confirmArchiveBatch}
+      />
+
       <PostPayoutCreatePrompt
         open={postCreateOpen}
         payout={newPayoutForPrompt}
@@ -1097,68 +1230,41 @@ export default function PayoutManagement() {
         style={{ borderColor: C.line }}
       >
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="inline-flex w-full flex-wrap rounded-xl bg-stone-100 p-1 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setActiveSection('batches')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'batches'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:flex sm:w-auto">
+            {[
+              ['batches', 'Active', inProgressBatches.length],
+              ['status', 'Status Manager', statusManagerBatches.length],
+              ['completed', 'Completed', completedBatches.length],
+              ['archived', 'Archived', archivedBatches.length],
+            ].map(([key, label, count]) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => setActiveSection(key)}
+                className={`rounded-lg px-3 py-2 text-xs font-medium transition sm:px-4 sm:text-sm ${
+                  activeSection === key
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-600'
                 }`}
-            >
-              Active
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('status')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'status'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
-                }`}
-            >
-              Status Manager
-              {statusManagerBatches.length ? (
-                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {statusManagerBatches.length}
-                </span>
-              ) : null}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('completed')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'completed'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
-                }`}
-            >
-              Completed
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('archived')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'archived'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
-                }`}
-            >
-              Archived
-            </button>
+              >
+                {label}
+                {Number(count) > 0 ? (
+                  <span className="ml-2 rounded-full bg-stone-900 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                    {count}
+                  </span>
+                ) : null}
+              </button>
+            ))}
           </div>
 
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="relative w-full lg:w-[320px]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:min-w-[300px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <Input
                 className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
-                placeholder="Search payout title, benefactor, program..."
+                placeholder="Search payout title, program, benefactor..."
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(event) => setSearch(event.target.value)}
               />
             </div>
 
@@ -1178,7 +1284,7 @@ export default function PayoutManagement() {
         className="overflow-hidden rounded-2xl border bg-white"
         style={{ borderColor: C.line }}
       >
-        <div className="border-b border-stone-100 px-5 py-4">
+        <div className="border-b border-stone-100 px-4 py-4 sm:px-5">
           <h2 className="text-sm font-semibold text-stone-800">
             {sectionMeta.title}
           </h2>
@@ -1187,13 +1293,14 @@ export default function PayoutManagement() {
           </p>
         </div>
 
-        <CardContent className="p-4">
+        <CardContent className="p-3 sm:p-4">
           {pageData.length === 0 ? (
-            <div className="py-16 text-center text-sm text-stone-400">
-              {sectionMeta.empty}
-            </div>
+            <EmptyState
+              title={sectionMeta.emptyTitle}
+              message={sectionMeta.empty}
+            />
           ) : (
-            <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <section className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {pageData.map(renderBatchCard)}
             </section>
           )}
@@ -1205,20 +1312,22 @@ export default function PayoutManagement() {
         page={page}
         totalPages={totalPages}
         pageSize={PAGE_SIZE}
-        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
-        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+        onPrev={() => setPage((previous) => Math.max(1, previous - 1))}
+        onNext={() =>
+          setPage((previous) => Math.min(totalPages, previous + 1))
+        }
       />
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4">
+          <div className="max-h-[94vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white px-4 py-4 sm:px-6">
               <div>
-                <h2 className="text-xl font-semibold text-stone-900">
+                <h2 className="text-lg font-semibold text-stone-900 sm:text-xl">
                   Create Payout Batch
                 </h2>
-                <p className="text-sm text-stone-500">
-                  Select an opening. The system will auto-fill amount and eligible scholars.
+                <p className="mt-0.5 text-xs text-stone-500 sm:text-sm">
+                  Select an opening. Eligible active scholars are loaded automatically.
                 </p>
               </div>
 
@@ -1234,8 +1343,8 @@ export default function PayoutManagement() {
               </Button>
             </div>
 
-            <div className="space-y-6 p-6">
-              <div className="grid gap-6 lg:grid-cols-2">
+            <div className="space-y-5 p-4 sm:p-6">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-stone-200 shadow-none">
                   <CardContent className="space-y-4 p-4">
                     <div className="flex items-center gap-2">
@@ -1250,37 +1359,40 @@ export default function PayoutManagement() {
                       <select
                         className="h-11 w-full rounded-md border px-3"
                         value={form.opening_id}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            opening_id: e.target.value,
+                        onChange={(event) =>
+                          setForm((previous) => ({
+                            ...previous,
+                            opening_id: event.target.value,
                           }))
                         }
                       >
                         <option value="">Select opening</option>
-                        {openings.map((o) => (
-                          <option key={o.opening_id} value={o.opening_id}>
-                            {o.opening_title} — {o.benefactor_name || 'No Benefactor'}
+                        {openings.map((opening) => (
+                          <option
+                            key={opening.opening_id}
+                            value={opening.opening_id}
+                          >
+                            {opening.opening_title} —{' '}
+                            {opening.benefactor_name || 'No Benefactor'}
                           </option>
                         ))}
                       </select>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <ReadOnlyField
                         label="Program"
-                        value={selectedOpeningDetails?.program_name || '—'}
+                        value={selectedOpeningDetails?.program_name}
                       />
                       <ReadOnlyField
                         label="Benefactor"
-                        value={selectedOpeningDetails?.benefactor_name || '—'}
+                        value={selectedOpeningDetails?.benefactor_name}
                       />
                       <ReadOnlyField
                         label="Opening Status"
                         value={
                           selectedOpeningDetails?.status ||
-                          selectedOpeningDetails?.posting_status ||
-                          '—'
+                          selectedOpeningDetails?.posting_status
                         }
                       />
                       <ReadOnlyField
@@ -1304,16 +1416,16 @@ export default function PayoutManagement() {
                       </h3>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
                         <label className="text-sm font-medium">Semester</label>
                         <select
                           className="h-11 w-full rounded-md border px-3"
                           value={form.semester}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              semester: e.target.value,
+                          onChange={(event) =>
+                            setForm((previous) => ({
+                              ...previous,
+                              semester: event.target.value,
                             }))
                           }
                         >
@@ -1324,73 +1436,82 @@ export default function PayoutManagement() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-sm font-medium">School Year</label>
+                        <label className="text-sm font-medium">
+                          Academic Year
+                        </label>
                         <select
                           className="h-11 w-full rounded-md border px-3"
                           value={form.academic_year_id}
-                          onChange={(e) => {
-                            const selectedId = e.target.value;
+                          onChange={(event) => {
+                            const selectedId = event.target.value;
                             const selectedYear = academicYears.find(
-                              (ay) => ay.academic_year_id === selectedId
+                              (year) =>
+                                String(year.academic_year_id) ===
+                                String(selectedId)
                             );
 
-                            setForm((prev) => ({
-                              ...prev,
+                            setForm((previous) => ({
+                              ...previous,
                               academic_year_id: selectedId,
                               school_year: selectedYear?.label || '',
                             }));
                           }}
                         >
-                          <option value="">Select school year</option>
-                          {academicYears.map((ay) => (
+                          <option value="">Select academic year</option>
+                          {academicYears.map((year) => (
                             <option
-                              key={ay.academic_year_id}
-                              value={ay.academic_year_id}
+                              key={year.academic_year_id}
+                              value={year.academic_year_id}
                             >
-                              {ay.label}
-                              {ay.is_active ? ' (Active)' : ''}
+                              {year.label}
+                              {year.is_active ? ' (Active)' : ''}
                             </option>
                           ))}
                         </select>
                       </div>
 
-                      <div className="space-y-1 md:col-span-2">
-                        <label className="text-sm font-medium">Payout Title</label>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-sm font-medium">
+                          Payout Title
+                        </label>
                         <Input
                           value={form.payout_title}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payout_title: e.target.value,
+                          onChange={(event) =>
+                            setForm((previous) => ({
+                              ...previous,
+                              payout_title: event.target.value,
                             }))
                           }
-                          placeholder="Example: Kaizen First Semester Payout"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-sm font-medium">Payout Date</label>
+                        <label className="text-sm font-medium">
+                          Payout Date
+                        </label>
                         <Input
                           type="date"
                           value={form.payout_date}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payout_date: e.target.value,
+                          onChange={(event) =>
+                            setForm((previous) => ({
+                              ...previous,
+                              payout_date: event.target.value,
                             }))
                           }
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-sm font-medium">Payment Mode</label>
+                        <label className="text-sm font-medium">
+                          Payment Mode
+                        </label>
                         <select
                           className="h-11 w-full rounded-md border px-3"
                           value={form.payment_mode}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              payment_mode: e.target.value,
+                          onChange={(event) =>
+                            setForm((previous) => ({
+                              ...previous,
+                              payment_mode: event.target.value,
                             }))
                           }
                         >
@@ -1405,13 +1526,12 @@ export default function PayoutManagement() {
                       <textarea
                         className="min-h-[90px] w-full rounded-md border p-3 text-sm"
                         value={form.remarks}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            remarks: e.target.value,
+                        onChange={(event) =>
+                          setForm((previous) => ({
+                            ...previous,
+                            remarks: event.target.value,
                           }))
                         }
-                        placeholder="Optional notes for the payout batch"
                       />
                     </div>
                   </CardContent>
@@ -1420,20 +1540,21 @@ export default function PayoutManagement() {
 
               <Card className="border-stone-200 shadow-none">
                 <CardContent className="space-y-4 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-stone-500" />
                       <div>
                         <h3 className="font-semibold text-stone-900">
                           Eligible Scholars
                         </h3>
-                        <p className="text-sm text-stone-500">
-                          Auto-loaded from the selected opening. All are preselected by default.
+                        <p className="text-xs text-stone-500 sm:text-sm">
+                          Loaded from the selected scholarship opening.
                         </p>
                       </div>
                     </div>
-
-                    <Badge variant="outline">{form.scholar_ids.length} selected</Badge>
+                    <Badge variant="outline">
+                      {form.scholar_ids.length} selected
+                    </Badge>
                   </div>
 
                   <div className="max-h-[320px] overflow-auto rounded-xl border">
@@ -1442,31 +1563,33 @@ export default function PayoutManagement() {
                         Select an opening to load eligible scholars.
                       </div>
                     ) : (
-                      filteredEligibleScholars.map((s) => {
-                        const checked = form.scholar_ids.includes(s.scholar_id);
+                      filteredEligibleScholars.map((scholar) => {
+                        const scholarId =
+                          scholar.scholar_id || scholar.student_id;
+                        const checked =
+                          form.scholar_ids.includes(scholarId);
 
                         return (
                           <label
-                            key={s.scholar_id}
+                            key={scholarId}
                             className="flex cursor-pointer items-center justify-between gap-3 border-b p-4 hover:bg-stone-50"
                           >
                             <div className="flex min-w-0 items-center gap-3">
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => toggleScholar(s.scholar_id)}
+                                onChange={() => toggleScholar(scholarId)}
                               />
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium text-stone-900">
-                                  {s.student_name}
+                                  {scholar.student_name}
                                 </p>
                                 <p className="text-xs text-stone-500">
-                                  {s.pdm_id || '—'} • Batch {s.batch_year || '—'}
+                                  {scholar.pdm_id || '—'}
                                 </p>
                               </div>
                             </div>
-
-                            <Badge variant="outline">{s.status}</Badge>
+                            <Badge variant="outline">{scholar.status}</Badge>
                           </label>
                         );
                       })
@@ -1475,7 +1598,7 @@ export default function PayoutManagement() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-3">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -1505,53 +1628,39 @@ export default function PayoutManagement() {
       )}
 
       {selectedBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
-              <div>
-                <h2 className="text-xl font-semibold text-stone-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-3 sm:p-4">
+          <div className="max-h-[94vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex flex-col gap-3 border-b bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-semibold text-stone-900 sm:text-xl">
                   {selectedBatch.payout_title || 'Payout Batch'}
                 </h2>
-                <p className="text-sm text-stone-500">
-                  {selectedBatch.program_name || 'No Program'} •{' '}
-                  {selectedBatch.benefactor_name || 'No Benefactor'} •{' '}
-                  {selectedBatch.payout_date || '—'}
+                <p className="mt-1 text-xs text-stone-500 sm:text-sm">
+                  {[
+                    selectedBatch.program_name,
+                    selectedBatch.benefactor_name,
+                    selectedBatch.academic_year ||
+                      selectedBatch.school_year,
+                    selectedBatch.semester,
+                    formatDate(selectedBatch.payout_date),
+                  ]
+                    .filter(Boolean)
+                    .join(' • ')}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {!selectedBatch.is_archived ? (
                   <Button
                     variant="outline"
                     className="rounded-xl border-stone-300"
-                    disabled={
-                      !isBatchFinished(selectedBatch) ||
-                      archivingBatchId === selectedBatch.payout_batch_id
-                    }
-                    onClick={() => handleArchiveBatch(selectedBatch)}
+                    disabled={!isBatchFinished(selectedBatch)}
+                    onClick={() => requestArchiveBatch(selectedBatch)}
                   >
-                    {archivingBatchId === selectedBatch.payout_batch_id ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Archive className="mr-2 h-4 w-4" />
-                    )}
+                    <Archive className="mr-2 h-4 w-4" />
                     Archive Batch
                   </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="rounded-xl border-stone-300"
-                    disabled={restoringBatchId === selectedBatch.payout_batch_id}
-                    onClick={() => handleRestoreBatch(selectedBatch)}
-                  >
-                    {restoringBatchId === selectedBatch.payout_batch_id ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <ArchiveRestore className="mr-2 h-4 w-4" />
-                    )}
-                    Unarchive Batch
-                  </Button>
-                )}
+                ) : null}
 
                 <Button
                   variant="outline"
@@ -1563,40 +1672,50 @@ export default function PayoutManagement() {
               </div>
             </div>
 
-            <div className="space-y-4 p-6">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="space-y-4 p-4 sm:p-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {(() => {
                   const counts = getPayoutCounts(selectedBatch);
-
                   return (
                     <>
+                      <SmallMetric label="Scholars" value={counts.total} />
                       <SmallMetric label="Released" value={counts.released} />
                       <SmallMetric label="Pending" value={counts.pending} />
                       <SmallMetric label="Absent" value={counts.absent} />
                       <SmallMetric label="On Hold" value={counts.onHold} />
-                      <SmallMetric label="Cancelled" value={counts.cancelled} />
+                      <SmallMetric
+                        label="Total"
+                        value={formatMoney(selectedBatch.total_amount)}
+                      />
                     </>
                   );
                 })()}
               </div>
 
-              {filteredSelectedBatchScholars.length === 0 ? (
+              {getBatchScholars(selectedBatch).length === 0 ? (
                 <Card className="border-stone-200 shadow-none">
                   <CardContent className="p-6 text-sm text-stone-400">
-                    No scholars found in this payout batch for the selected opening.
+                    No scholars found in this payout batch.
                   </CardContent>
                 </Card>
               ) : (
-                filteredSelectedBatchScholars.map((entry) => {
+                getBatchScholars(selectedBatch).map((entry) => {
                   const entryId = getEntryId(entry);
-                  const status = normalizeReleaseStatus(entry.release_status);
+                  const status = normalizeReleaseStatus(
+                    entry.release_status
+                  );
                   const actions = getStatusActions(status);
-                  const isWorking = String(workingEntryId) === String(entryId);
-                  const isLocked = selectedBatch?.is_archived === true;
+                  const isWorking =
+                    String(workingEntryId) === String(entryId);
+                  const locked = selectedBatch.is_archived === true;
 
                   return (
                     <Card
-                      key={entryId || entry.scholar_id || entry.student_id}
+                      key={
+                        entryId ||
+                        entry.scholar_id ||
+                        entry.student_id
+                      }
                       className="border-stone-200 shadow-none"
                     >
                       <CardContent className="flex flex-col gap-4 p-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1607,35 +1726,20 @@ export default function PayoutManagement() {
                             </h3>
                             {renderStatusBadge(status)}
                           </div>
-
                           <p className="mt-1 text-xs text-stone-500">
-                            {entry.pdm_id || '—'} • {formatMoney(entry.amount_received)}
+                            {entry.pdm_id || '—'} •{' '}
+                            {formatMoney(entry.amount_received)}
                           </p>
-
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {entry.payment_mode ? (
-                              <Badge variant="outline">{entry.payment_mode}</Badge>
-                            ) : null}
-                            {entry.check_number ? (
-                              <Badge variant="outline">
-                                Check #{entry.check_number}
-                              </Badge>
-                            ) : null}
-                          </div>
                         </div>
 
-                        <div className="flex flex-wrap justify-end gap-2">
-                          {status === 'Released' ? (
+                        <div className="flex flex-wrap gap-2 xl:justify-end">
+                          {locked ? (
                             <span className="text-xs font-medium text-stone-500">
-                              Status already marked as Released
+                              Archived batch is read-only
                             </span>
-                          ) : status === 'Cancelled' ? (
+                          ) : actions.length === 0 ? (
                             <span className="text-xs font-medium text-stone-500">
-                              Status already marked as Cancelled
-                            </span>
-                          ) : isLocked ? (
-                            <span className="text-xs font-medium text-stone-500">
-                              Archived batch cannot be edited
+                              No further action required
                             </span>
                           ) : (
                             actions.map((action) => (
@@ -1643,9 +1747,13 @@ export default function PayoutManagement() {
                                 key={`${entryId}-${action.status}`}
                                 size="sm"
                                 variant="outline"
-                                className={`h-8 rounded-lg text-xs ${getActionButtonClass(action.tone)}`}
+                                className={`h-8 rounded-lg text-xs ${getActionButtonClass(
+                                  action.tone
+                                )}`}
                                 disabled={isWorking}
-                                onClick={() => handleStatusUpdate(entry, action.status)}
+                                onClick={() =>
+                                  handleStatusUpdate(entry, action.status)
+                                }
                               >
                                 {isWorking ? (
                                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

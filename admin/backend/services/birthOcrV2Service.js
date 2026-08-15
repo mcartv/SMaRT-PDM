@@ -11,7 +11,12 @@ function configuredTimeout(name, fallback, minimum) {
 }
 
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
-const GEMINI_MODEL = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+const GEMINI_MODEL = String(process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
+const GEMINI_MODELS = Object.freeze(Array.from(new Set([
+    GEMINI_MODEL,
+    ...String(process.env.GEMINI_FALLBACK_MODELS || 'gemini-3.6-flash,gemini-3.5-flash')
+        .split(',').map((value) => value.trim()).filter(Boolean),
+])));
 const GEMINI_TIMEOUT_MS = configuredTimeout('GEMINI_TIMEOUT_MS', 45000, 15000);
 const GEMINI_DIAGNOSTIC_TIMEOUT_MS = Math.max(
     GEMINI_TIMEOUT_MS,
@@ -379,26 +384,51 @@ function geminiFailureCode(error, prefix) {
     return `${prefix}_REQUEST_FAILED`;
 }
 
+function isGeminiModelUnavailable(error) {
+    const status = Number(error?.status || error?.statusCode || error?.code);
+    const signal = [error?.code, error?.status, error?.name]
+        .map((value) => String(value || '').toUpperCase()).join(' ');
+    return status === 404 || signal.includes('NOT_FOUND');
+}
+
 async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        return await client.models.generateContent({
-            ...request,
-            config: {
-                ...(request.config || {}),
-                abortSignal: controller.signal,
-                httpOptions: { timeout: timeoutMs },
-            },
-        });
-    } catch (error) {
-        if (isGeminiTimeout(error, controller)) {
-            throw Object.assign(new Error('Gemini request timed out'), { code: timeoutCode });
+    let unavailableError = null;
+    for (const model of GEMINI_MODELS) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await client.models.generateContent({
+                ...request,
+                model,
+                config: {
+                    ...(request.config || {}),
+                    abortSignal: controller.signal,
+                    httpOptions: { timeout: timeoutMs },
+                },
+            });
+            if (model !== GEMINI_MODEL) {
+                console.info('BIRTH_V2_GEMINI_MODEL_FALLBACK', {
+                    configured_model: GEMINI_MODEL,
+                    selected_model: model,
+                });
+            }
+            return response;
+        } catch (error) {
+            if (isGeminiTimeout(error, controller)) {
+                throw Object.assign(new Error('Gemini request timed out'), { code: timeoutCode });
+            }
+            if (isGeminiModelUnavailable(error)) {
+                unavailableError = error;
+                continue;
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
-        throw error;
-    } finally {
-        clearTimeout(timeoutId);
     }
+    throw unavailableError || Object.assign(new Error('No Gemini model is available'), {
+        status: 404,
+    });
 }
 
 async function readRequiredNameRow(client, cells, { item, person }) {
@@ -427,7 +457,6 @@ async function readRequiredNameRow(client, cells, { item, person }) {
             config: {
                 responseMimeType: 'application/json',
                 responseJsonSchema: ROW_RECOVERY_SCHEMA,
-                temperature: 0,
                 maxOutputTokens: 512,
             },
         }, GEMINI_TIMEOUT_MS, 'GEMINI_RECOVERY_TIMEOUT');
@@ -499,7 +528,6 @@ async function callGemini(cells) {
             config: {
                 responseMimeType: 'application/json',
                 responseJsonSchema: RESPONSE_SCHEMA,
-                temperature: 0,
                 maxOutputTokens: 1536,
             },
         }, GEMINI_TIMEOUT_MS, 'GEMINI_TIMEOUT');
@@ -558,7 +586,6 @@ async function callGeminiFullPage(original) {
                 } },
             ] }],
             config: {
-                temperature: 0,
                 maxOutputTokens: 4096,
             },
         }, GEMINI_DIAGNOSTIC_TIMEOUT_MS, 'GEMINI_DIAGNOSTIC_TIMEOUT');
@@ -718,9 +745,15 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
         });
     }
     await assertRequestStillProcessing(requestId, deviceId);
+    const partialCellSnapshot = !gemini.ok && gemini.value
+        ? buildRawSnapshot(gemini.value)
+        : '';
+    const diagnosticRawText = diagnosticTranscription?.ok
+        ? diagnosticTranscription.value
+        : partialCellSnapshot;
     const structured = gemini.ok
         ? buildCandidate(gemini.value)
-        : { raw_text: diagnosticTranscription?.ok ? diagnosticTranscription.value : '', fields: {} };
+        : { raw_text: diagnosticRawText, fields: {} };
     const sourceRegions = cells.length === 9
         ? Object.fromEntries(cells.map(({ cell_key, roi_polygon }) => [cell_key, roi_polygon]))
         : diagnosticResult.source_regions;
@@ -751,7 +784,9 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
             diagnostic_only: !gemini.ok,
             diagnostic_raw_status: gemini.ok
                 ? 'not_required'
-                : diagnosticTranscription?.ok ? 'available' : 'unavailable',
+                : diagnosticTranscription?.ok
+                    ? 'available'
+                    : partialCellSnapshot ? 'partial_cells' : 'unavailable',
             diagnostic_raw_error_code: (!gemini.ok && !diagnosticTranscription?.ok)
                 ? diagnosticTranscription?.code || 'GEMINI_DIAGNOSTIC_UNAVAILABLE'
                 : null,

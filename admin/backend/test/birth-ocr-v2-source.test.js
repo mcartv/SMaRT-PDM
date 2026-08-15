@@ -34,7 +34,9 @@ test('Birth V2 uses private signed uploads and backend schema-constrained Gemini
 test('Birth V2 routes incomplete structured Gemini output to literal full-page diagnostics', () => {
     assert.match(service, /GEMINI_REQUIRED_NAME_MISSING/);
     assert.match(service, /callGeminiFullPage\(original\)/);
-    assert.match(service, /diagnosticTranscription\?\.ok \? diagnosticTranscription\.value : ''/);
+    assert.match(service, /partialCellSnapshot/);
+    assert.match(service, /buildRawSnapshot\(gemini\.value\)/);
+    assert.match(service, /GEMINI_FALLBACK_MODELS/);
     assert.match(service, /Return only plain transcription text/);
     assert.doesNotMatch(service, /FULL_PAGE_RESPONSE_SCHEMA/);
     assert.match(service, /Do not summarize, infer, correct, normalize/);
@@ -50,7 +52,8 @@ test('Birth V2 recovers required cells before a separately bounded diagnostic ca
     assert.match(service, /ROW_RECOVERY_SCHEMA/);
     assert.match(service, /httpOptions:\s*\{ timeout: timeoutMs \}/);
     assert.match(service, /abortSignal:\s*controller\.signal/);
-    assert.match(service, /gemini-2\.5-flash/);
+    assert.match(service, /gemini-3\.6-flash/);
+    assert.match(service, /gemini-3\.5-flash/);
     assert.match(service, /geminiFailureCode\(error, 'GEMINI_DIAGNOSTIC'\)/);
     assert.match(service, /RATE_LIMITED/);
 });

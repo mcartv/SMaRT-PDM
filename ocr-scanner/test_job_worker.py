@@ -868,10 +868,10 @@ class JobWorkerTest(unittest.TestCase):
     @patch("job_worker.warp_birth_station_capture")
     @patch("job_worker.register_psa_birth_form_grid_envelope")
     @patch("job_worker.register_psa_birth_form")
-    def test_birth_v2_uses_saved_manual_quad_after_all_automatic_modes_fail(
+    def test_birth_v2_prefers_saved_manual_quad_over_unrelated_automatic_warp(
         self, register, grid_envelope, manual_warp, _crop, _encode, _read_bytes,
     ):
-        register.return_value = _birth_registration_result("failed")
+        register.return_value = _birth_registration_result()
         grid_envelope.return_value = _birth_registration_result("failed")
         manual_warp.return_value = (
             np.full((1375, 1400, 3), 240, dtype=np.uint8),
@@ -902,6 +902,8 @@ class JobWorkerTest(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(payload["source_payload"]["registration_mode"], "manual_station_quad")
         manual_warp.assert_called_once()
+        register.assert_not_called()
+        grid_envelope.assert_not_called()
         self.assertIs(
             self.birth_topology.call_args.kwargs["config"]["allow_calibrated_topology_fallback"],
             True,

@@ -1089,26 +1089,12 @@ def _run_birth_certificate_v2_scan(
         )
     _retain_latest_birth_calibration_capture(capture_path)
     cropper_config, calibration_metadata = load_birth_station_calibration()
-    registration_mode = "strict_grid"
-    registration_result = register_psa_birth_form(source_image)
-    if not registration_result.success:
-        relaxed = register_psa_birth_form(source_image, config=BIRTH_RELAXED_REGISTRATION_CONFIG)
-        if relaxed.success:
-            registration_result = relaxed
-            registration_mode = "relaxed_validated_grid"
-        else:
-            registration_result = register_psa_birth_form_grid_envelope(source_image)
-            registration_mode = "validated_grid_envelope"
     registered_image = None
     registration_homography = None
     registration_status = "mismatch"
     registration_context: Dict[str, Any] = {}
-    if registration_result.success and registration_result.data is not None:
-        registered_image = registration_result.data.registered_image
-        registration_homography = registration_result.data.transformation_metadata.homography
-        registration_status = registration_result.status
-        registration_context = _registration_context(registration_result)
-    elif calibration_metadata.get("status") == "loaded":
+    registration_mode = "manual_station_quad"
+    if calibration_metadata.get("status") == "loaded":
         expected_size = calibration_metadata.get("source_size") or {}
         source_height, source_width = source_image.shape[:2]
         if (int(expected_size.get("width", 0)) == source_width
@@ -1130,6 +1116,29 @@ def _run_birth_certificate_v2_scan(
                 }
             except (ValueError, TypeError, np.linalg.LinAlgError):
                 registered_image = None
+    # Saved row coordinates were aligned on the manual station canvas. Use
+    # that same transform first; applying them to an unrelated automatic warp
+    # shifts the exact cells even when automatic registration appears valid.
+    if registered_image is None:
+        registration_mode = "strict_grid"
+        registration_result = register_psa_birth_form(source_image)
+        if not registration_result.success:
+            relaxed = register_psa_birth_form(
+                source_image, config=BIRTH_RELAXED_REGISTRATION_CONFIG
+            )
+            if relaxed.success:
+                registration_result = relaxed
+                registration_mode = "relaxed_validated_grid"
+            else:
+                registration_result = register_psa_birth_form_grid_envelope(source_image)
+                registration_mode = "validated_grid_envelope"
+        if registration_result.success and registration_result.data is not None:
+            registered_image = registration_result.data.registered_image
+            registration_homography = (
+                registration_result.data.transformation_metadata.homography
+            )
+            registration_status = registration_result.status
+            registration_context = _registration_context(registration_result)
     if registered_image is None or registration_homography is None:
         return _submit_birth_v2_diagnostic_capture(
             request,

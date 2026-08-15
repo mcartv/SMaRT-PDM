@@ -111,3 +111,27 @@ test('diagnostic rate limits produce an actionable sanitized code', async () => 
 
     assert.deepEqual(result, { ok: false, code: 'GEMINI_DIAGNOSTIC_RATE_LIMITED' });
 });
+
+test('unavailable configured model falls back to the current stable model', async () => {
+    const requestedModels = [];
+    handler = async (request) => {
+        requestedModels.push(request.model);
+        if (request.model === 'gemini-test-model') {
+            const error = new Error('model unavailable');
+            error.status = 404;
+            throw error;
+        }
+        return { text: 'literal full-page transcription' };
+    };
+
+    const result = await service.callGeminiFullPage({
+        mime_type: 'image/jpeg',
+        bytes: Buffer.from('private-original'),
+    });
+
+    assert.deepEqual(result, { ok: true, value: 'literal full-page transcription' });
+    assert.deepEqual(requestedModels.slice(0, 2), [
+        'gemini-test-model',
+        'gemini-3.6-flash',
+    ]);
+});

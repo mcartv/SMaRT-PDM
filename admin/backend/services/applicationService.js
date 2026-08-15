@@ -12,6 +12,100 @@ const {
     isRequestBoundSnapshotFresh,
 } = require('../utils/iotOcrSnapshotFreshness');
 
+const MINOR_DOCUMENT_REVIEW_STATUS = 'reupload_required';
+const MAJOR_DOCUMENT_REVIEW_STATUS = 'rejected';
+
+function normalizeDocumentReviewStatus(value = 'pending') {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+
+    if (['verified', 'approved', 'accepted'].includes(normalized)) {
+        return 'verified';
+    }
+
+    if (
+        [
+            'reupload_required',
+            'requires_reupload',
+            'needs_reupload',
+            'needs_re_upload',
+            'reupload',
+            're_upload',
+            'flagged',
+        ].includes(normalized)
+    ) {
+        return MINOR_DOCUMENT_REVIEW_STATUS;
+    }
+
+    if (['rejected', 'denied', 'declined'].includes(normalized)) {
+        return MAJOR_DOCUMENT_REVIEW_STATUS;
+    }
+
+    if (['uploaded', 'under_review', 'review'].includes(normalized)) {
+        return 'uploaded';
+    }
+
+    return 'pending';
+}
+
+function normalizeIssueSeverity(value, reviewStatus) {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (normalized === 'minor' || normalized === 'major') {
+        return normalized;
+    }
+
+    if (reviewStatus === MINOR_DOCUMENT_REVIEW_STATUS) return 'minor';
+    if (reviewStatus === MAJOR_DOCUMENT_REVIEW_STATUS) return 'major';
+
+    return null;
+}
+
+function normalizeReasonCode(value) {
+    const normalized = String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return normalized || null;
+}
+
+function deriveVerificationOutcome(reviews = []) {
+    const hasMajorViolation = reviews.some(
+        (review) =>
+            review.reviewStatus === MAJOR_DOCUMENT_REVIEW_STATUS &&
+            review.issueSeverity === 'major'
+    );
+
+    if (hasMajorViolation) return 'rejected';
+
+    const hasMinorIssue = reviews.some(
+        (review) => review.reviewStatus === MINOR_DOCUMENT_REVIEW_STATUS
+    );
+
+    if (hasMinorIssue) return 'requires_reupload';
+
+    const allVerified =
+        reviews.length > 0 &&
+        reviews.every((review) => review.reviewStatus === 'verified');
+
+    return allVerified ? 'verified' : 'pending';
+}
+
+function buildReplacementNotification(applicationId) {
+    return {
+        type: 'Application',
+        title: 'Document Replacement Required',
+        message:
+            'One or more scholarship documents need to be replaced. Open Required Documents to review the administrator remarks and upload corrected files.',
+        referenceType: 'application',
+        referenceId: applicationId,
+    };
+}
+
 function normalizeStorageBucketName(value, fallback = 'documents') {
     const normalized = String(value || fallback)
         .trim()
@@ -513,6 +607,10 @@ function buildVerificationOutcomeNotification({
         };
     }
 
+    if (outcome === 'reupload_required') {
+        return buildReplacementNotification(applicationId);
+    }
+
     return null;
 }
 
@@ -697,13 +795,37 @@ function getDocumentKey(document = {}) {
 }
 
 function deriveReviewStatus(document = {}, review = null) {
-    const preferredStatus = normalizeLookupValue(review?.review_status);
+    const preferredStatus = normalizeLookupValue(
+        review?.review_status || document?.review_status
+    );
 
     if (preferredStatus === 'verified') return 'verified';
-    if (preferredStatus === 'rejected' || preferredStatus === 're upload') return 'rejected';
-    if (preferredStatus === 'uploaded' || preferredStatus === 'under review') return 'uploaded';
 
-    return document.is_submitted || document.file_path || document.file_url ? 'uploaded' : 'pending';
+    if (
+        preferredStatus === 'reupload required' ||
+        preferredStatus === 'requires reupload' ||
+        preferredStatus === 'needs reupload' ||
+        preferredStatus === 're upload' ||
+        preferredStatus === 'flagged'
+    ) {
+        return 'reupload_required';
+    }
+
+    if (preferredStatus === 'rejected') return 'rejected';
+
+    if (
+        preferredStatus === 'uploaded' ||
+        preferredStatus === 'under review' ||
+        preferredStatus === 'pending'
+    ) {
+        return document.is_submitted || document.file_path || document.file_url
+            ? 'uploaded'
+            : 'pending';
+    }
+
+    return document.is_submitted || document.file_path || document.file_url
+        ? 'uploaded'
+        : 'pending';
 }
 
 function deriveAggregateDocumentStatus(summary = {}) {
@@ -1659,8 +1781,17 @@ async function buildApplicationDetails(applicationId) {
 
                         admin_comment:
                             review?.admin_comment ||
+                            document.remarks ||
                             document.notes ||
                             '',
+
+                        issue_severity:
+                            review?.issue_severity ||
+                            null,
+
+                        reason_code:
+                            review?.reason_code ||
+                            null,
 
                         notes:
                             document.notes ||
@@ -2892,7 +3023,7 @@ exports.uploadStudentApplicationDocument = async ({
 
     const { data: applicationRecord, error: applicationError } = await supabase
         .from('applications')
-        .select('application_id, student_id')
+        .select('application_id, student_id, application_status, verification_status, document_status')
         .eq('application_id', applicationId)
         .single();
 
@@ -2994,6 +3125,54 @@ exports.uploadStudentApplicationDocument = async ({
 
     const signedUrl = await getSignedFileUrl(storagePath);
 
+    // A replacement upload resolves the previous minor-review request for this
+    // document only. The replacement must be reviewed again by OSFA.
+    const replacementUploadedAt = new Date().toISOString();
+
+    const { error: resetDocumentReviewError } = await supabase
+        .from('application_documents')
+        .update({
+            review_status: 'pending',
+            remarks: null,
+            notes: null,
+            reviewed_by: null,
+            reviewed_at: null,
+            updated_at: replacementUploadedAt,
+        })
+        .eq('application_id', applicationId)
+        .eq('document_type', documentName);
+
+    if (resetDocumentReviewError) {
+        console.error(
+            'SUPABASE REPLACEMENT DOCUMENT REVIEW RESET ERROR:',
+            resetDocumentReviewError
+        );
+        throw new Error(resetDocumentReviewError.message);
+    }
+
+    const { error: resetReviewRowError } = await supabase
+        .from('application_document_reviews')
+        .update({
+            review_status: 'pending',
+            admin_comment: '',
+            issue_severity: null,
+            reason_code: null,
+            reviewed_by: null,
+            reviewed_at: null,
+            updated_at: replacementUploadedAt,
+        })
+        .eq('application_id', applicationId)
+        .eq('document_key', normalizedDocumentType);
+
+    if (resetReviewRowError) {
+        console.error(
+            'SUPABASE REPLACEMENT REVIEW ROW RESET ERROR:',
+            resetReviewRowError
+        );
+        throw new Error(resetReviewRowError.message);
+    }
+
+
     const { data: existingDocuments, error: docsError } = await supabase
         .from('application_documents')
         .select('document_type, file_path, is_submitted')
@@ -3017,11 +3196,26 @@ exports.uploadStudentApplicationDocument = async ({
     const allUploaded = requiredDocumentNames.every((name) => uploadedNames.has(name));
     const nextDocumentStatus = allUploaded ? 'Under Review' : 'Missing Docs';
 
+    const applicationUploadStatusPatch = {
+        document_status: nextDocumentStatus,
+    };
+
+    const wasWaitingForReplacement =
+        normalizeLookupValue(applicationRecord.application_status) === 'requires reupload' ||
+        normalizeLookupValue(applicationRecord.verification_status) === 'requires reupload';
+
+    if (wasWaitingForReplacement) {
+        applicationUploadStatusPatch.application_status = 'Pending Review';
+        applicationUploadStatusPatch.verification_status = 'pending';
+        applicationUploadStatusPatch.document_status = 'Under Review';
+        applicationUploadStatusPatch.is_disqualified = false;
+        applicationUploadStatusPatch.rejection_reason = null;
+        applicationUploadStatusPatch.requirements_verified_at = null;
+    }
+
     const { error: applicationUpdateError } = await supabase
         .from('applications')
-        .update({
-            document_status: nextDocumentStatus,
-        })
+        .update(applicationUploadStatusPatch)
         .eq('application_id', applicationId);
 
     if (applicationUpdateError) {
@@ -3078,46 +3272,14 @@ exports.attemptScholarActivationIfReady = async (applicationId) => {
     };
 };
 
-function normalizeReviewDecision(value = 'pending') {
-    const normalized = String(value || '')
-        .trim()
-        .toLowerCase()
-        .replace(/[\s-]+/g, '_');
-
-    switch (normalized) {
-        case 'verified':
-        case 'approved':
-        case 'accepted':
-            return 'verified';
-
-        case 'rejected':
-        case 'flagged':
-        case 'needs_reupload':
-        case 'reupload_required':
-            return 'rejected';
-
-        case 'uploaded':
-        case 'under_review':
-        case 'review':
-            return 'uploaded';
-
-        case 'pending':
-        case '':
-        default:
-            return 'pending';
-    }
-}
-
 exports.saveApplicationVerification = async (applicationId, payload, user) => {
     const {
         document_reviews = [],
-        summary = {},
         final_comment = '',
-        verification_status = null,
     } = payload || {};
 
     if (!Array.isArray(document_reviews)) {
-        throw new Error('document_reviews must be an array');
+        throw buildHttpError(400, 'document_reviews must be an array');
     }
 
     let reviewedBy = user?.admin_id || null;
@@ -3137,68 +3299,152 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
         reviewedBy = adminProfile?.admin_id || null;
     }
+
     const reviewedAt = new Date().toISOString();
 
-    const reviewRows = document_reviews
-        .map((doc) => ({
-            application_id: applicationId,
-            document_key: doc.document_key || doc.document_id || doc.id,
-            document_name: doc.name,
-            review_status: doc.status || 'pending',
-            admin_comment: doc.comment || '',
-            file_url: doc.url || null,
-            reviewed_by: reviewedBy,
-            reviewed_at: reviewedAt,
-            updated_at: reviewedAt,
-        }));
-
-    if (reviewRows.length > 0) {
-        const { error: reviewError } = await supabase
-            .from('application_document_reviews')
-            .upsert(reviewRows, {
-                onConflict: 'application_id,document_key',
-            });
-
-        if (reviewError) {
-            console.error('Supabase Review Upsert Error:', reviewError);
-            throw new Error(reviewError.message);
-        }
-    }
-
-    for (const doc of document_reviews) {
-        const normalizedDocumentType = normalizeDocumentType(
-            doc.document_key || doc.document_type || doc.id || doc.name
+    const normalizedReviews = document_reviews.map((doc) => {
+        const documentKey = normalizeDocumentType(
+            doc.document_key ||
+            doc.document_type ||
+            doc.document_id ||
+            doc.id ||
+            doc.name
         );
 
-        if (normalizedDocumentType === 'application_form') {
-            continue;
+        const reviewStatus = normalizeDocumentReviewStatus(
+            doc.status || 'pending'
+        );
+
+        const issueSeverity = normalizeIssueSeverity(
+            doc.issue_severity,
+            reviewStatus
+        );
+
+        const reasonCode = normalizeReasonCode(doc.reason_code);
+
+        if (!documentKey || !REQUIRED_REVIEW_DOCUMENT_KEYS.includes(documentKey)) {
+            throw buildHttpError(
+                400,
+                `Unsupported review document: ${
+                    doc.name || doc.document_key || 'unknown'
+                }`
+            );
         }
 
-        const documentTypeName =
-            DOCUMENT_TYPE_TO_NAME[normalizedDocumentType] || doc.document_type || doc.name;
-
-        if (!documentTypeName) continue;
-
-        const normalizedReviewStatus =
-            normalizeReviewDecision(
-                doc.status || 'pending'
+        if (reviewStatus === 'rejected' && issueSeverity !== 'major') {
+            throw buildHttpError(
+                400,
+                `Major severity is required before rejecting the entire application for ${
+                    doc.name || documentKey
+                }.`
             );
+        }
+
+        return {
+            source: doc,
+            documentKey,
+            documentName:
+                DOCUMENT_TYPE_TO_NAME[documentKey] ||
+                doc.document_type ||
+                doc.name ||
+                documentKey,
+            reviewStatus,
+            issueSeverity,
+            reasonCode,
+            comment: String(doc.comment || '').trim(),
+            url: doc.url || null,
+        };
+    });
+
+    const reviewByKey = new Map(
+        normalizedReviews.map((review) => [
+            review.documentKey,
+            review,
+        ])
+    );
+
+    const missingReviewKeys = REQUIRED_REVIEW_DOCUMENT_KEYS.filter(
+        (documentKey) => !reviewByKey.has(documentKey)
+    );
+
+    if (missingReviewKeys.length > 0) {
+        throw buildHttpError(
+            400,
+            `Review all required items before saving: ${missingReviewKeys.join(', ')}`
+        );
+    }
+
+    const requiredReviews = REQUIRED_REVIEW_DOCUMENT_KEYS.map(
+        (documentKey) => reviewByKey.get(documentKey)
+    );
+
+    const incompleteReviews = requiredReviews.filter(
+        (review) =>
+            review.reviewStatus === 'pending' ||
+            review.reviewStatus === 'uploaded'
+    );
+
+    if (incompleteReviews.length > 0) {
+        throw buildHttpError(
+            400,
+            'Review every required item before saving the requirements review.'
+        );
+    }
+
+    const derivedVerificationStatus =
+        deriveVerificationOutcome(requiredReviews);
+
+    if (derivedVerificationStatus === 'pending') {
+        throw buildHttpError(
+            400,
+            'The requirements review is incomplete.'
+        );
+    }
+
+    const reviewRows = normalizedReviews.map((review) => ({
+        application_id: applicationId,
+        document_key: review.documentKey,
+        document_name: review.documentName,
+        review_status: review.reviewStatus,
+        issue_severity: review.issueSeverity,
+        reason_code: review.reasonCode,
+        admin_comment: review.comment,
+        file_url: review.url,
+        reviewed_by: reviewedBy,
+        reviewed_at: reviewedAt,
+        updated_at: reviewedAt,
+    }));
+
+    const { error: reviewError } = await supabase
+        .from('application_document_reviews')
+        .upsert(reviewRows, {
+            onConflict: 'application_id,document_key',
+        });
+
+    if (reviewError) {
+        console.error('Supabase Review Upsert Error:', reviewError);
+        throw new Error(reviewError.message);
+    }
+
+    for (const review of normalizedReviews) {
+        if (review.documentKey === 'application_form') {
+            continue;
+        }
 
         const { error: submittedDocumentError } = await supabase
             .from('application_documents')
             .update({
-                is_submitted: !!doc.url,
-                file_url: doc.url || null,
-
-                review_status: normalizedReviewStatus,
-
-                notes: doc.comment || null,
-                remarks: doc.comment || null,
-
+                is_submitted: !!review.url,
+                file_url: review.url,
+                review_status: review.reviewStatus,
+                notes: review.comment || null,
+                remarks: review.comment || null,
+                reviewed_by: reviewedBy,
+                reviewed_at: reviewedAt,
                 updated_at: reviewedAt,
             })
             .eq('application_id', applicationId)
-            .eq('document_type', documentTypeName);
+            .eq('document_type', review.documentName);
 
         if (submittedDocumentError) {
             console.error(
@@ -3209,86 +3455,138 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         }
     }
 
-    const nextDocumentStatus = deriveAggregateDocumentStatus(summary);
+    const majorReviews = requiredReviews.filter(
+        (review) =>
+            review.reviewStatus === 'rejected' &&
+            review.issueSeverity === 'major'
+    );
+
+    const minorReviews = requiredReviews.filter(
+        (review) => review.reviewStatus === 'reupload_required'
+    );
+
+    const verifiedCount = requiredReviews.filter(
+        (review) => review.reviewStatus === 'verified'
+    ).length;
 
     const applicationUpdatePayload = {
-        document_status: nextDocumentStatus,
+        verification_status: derivedVerificationStatus,
     };
 
-    if (verification_status) {
-        applicationUpdatePayload.verification_status = verification_status;
-    }
+    if (derivedVerificationStatus === 'verified') {
+        applicationUpdatePayload.application_status = 'Pending Review';
+        applicationUpdatePayload.document_status = 'Documents Ready';
+        applicationUpdatePayload.is_disqualified = false;
+        applicationUpdatePayload.rejection_reason = null;
+    } else if (derivedVerificationStatus === 'requires_reupload') {
+        applicationUpdatePayload.application_status = 'Requires Reupload';
+        applicationUpdatePayload.document_status = 'Requires Reupload';
+        applicationUpdatePayload.is_disqualified = false;
+        applicationUpdatePayload.rejection_reason = null;
+        applicationUpdatePayload.requirements_verified_at = null;
+    } else if (derivedVerificationStatus === 'rejected') {
+        const majorReason =
+            String(final_comment || '').trim() ||
+            majorReviews
+                .map((review) => review.comment)
+                .filter(Boolean)
+                .join(' | ') ||
+            'Major document violation';
 
-    if (verification_status === 'rejected') {
         applicationUpdatePayload.application_status = 'Rejected';
+        applicationUpdatePayload.document_status = 'Under Review';
         applicationUpdatePayload.is_disqualified = true;
-        applicationUpdatePayload.rejection_reason = final_comment || null;
+        applicationUpdatePayload.rejection_reason = majorReason;
+        applicationUpdatePayload.requirements_verified_at = null;
     }
 
-    const { data: updatedApplication, error: applicationUpdateError } = await supabase
-        .from('applications')
-        .update(applicationUpdatePayload)
-        .eq('application_id', applicationId)
-        .select()
-        .single();
-
-    if (applicationUpdateError) {
-        console.error('Supabase Application Update Error:', applicationUpdateError);
-        throw new Error(applicationUpdateError.message);
-    }
-
-    let finalOutcome = verification_status;
-    let finalizedApplication = updatedApplication;
-    let scholar = null;
-    let notification = null;
-    let activation = null;
-
-    if (verification_status === 'verified') {
-        const requirementsCompletedAt = await resolveRequirementsCompletedAt(applicationId);
-
-        const { data: qualifiedApplication, error: qualifiedUpdateError } = await supabase
+    const { data: updatedApplication, error: applicationUpdateError } =
+        await supabase
             .from('applications')
-            .update({
-                requirements_completed_at:
-                    requirementsCompletedAt || updatedApplication?.submission_date || reviewedAt,
-                requirements_verified_at: reviewedAt,
-                selection_status: 'Requirements Verified',
-                queue_position: null,
-                waitlist_position: null,
-                activation_status: 'Not Activated',
-            })
+            .update(applicationUpdatePayload)
             .eq('application_id', applicationId)
             .select()
             .single();
 
+    if (applicationUpdateError) {
+        console.error(
+            'Supabase Application Update Error:',
+            applicationUpdateError
+        );
+        throw new Error(applicationUpdateError.message);
+    }
+
+    let finalOutcome = derivedVerificationStatus;
+    let finalizedApplication = updatedApplication;
+    let notification = null;
+
+    if (derivedVerificationStatus === 'verified') {
+        const requirementsCompletedAt =
+            await resolveRequirementsCompletedAt(applicationId);
+
+        const { data: qualifiedApplication, error: qualifiedUpdateError } =
+            await supabase
+                .from('applications')
+                .update({
+                    requirements_completed_at:
+                        requirementsCompletedAt ||
+                        updatedApplication?.submission_date ||
+                        reviewedAt,
+                    requirements_verified_at: reviewedAt,
+                    selection_status: 'Requirements Verified',
+                    queue_position: null,
+                    waitlist_position: null,
+                    activation_status: 'Not Activated',
+                })
+                .eq('application_id', applicationId)
+                .select()
+                .single();
+
         if (qualifiedUpdateError) {
-            console.error('SUPABASE QUALIFIED APPLICATION UPDATE ERROR:', qualifiedUpdateError);
+            console.error(
+                'SUPABASE QUALIFIED APPLICATION UPDATE ERROR:',
+                qualifiedUpdateError
+            );
             throw new Error(qualifiedUpdateError.message);
         }
 
         finalizedApplication = qualifiedApplication;
         finalOutcome = 'requirements_complete';
-    } else if (verification_status === 'rejected') {
-        if (updatedApplication?.student_id) {
-            const { data: studentRow } = await supabase
-                .from('students')
-                .select('user_id')
-                .eq('student_id', updatedApplication.student_id)
-                .maybeSingle();
 
-            if (studentRow?.user_id) {
-                notification = await deliverVerificationOutcomeNotification({
-                    outcome: 'rejected',
-                    applicationId,
-                    userId: studentRow.user_id,
-                    scholarId: null,
-                });
-            }
-        }
+        await readinessQueueService.syncApplicationReadiness(applicationId);
     }
 
-    if (verification_status === 'verified') {
-        await readinessQueueService.syncApplicationReadiness(applicationId);
+    if (
+        (
+            derivedVerificationStatus === 'rejected' ||
+            derivedVerificationStatus === 'requires_reupload'
+        ) &&
+        updatedApplication?.student_id
+    ) {
+        const { data: studentRow, error: studentError } = await supabase
+            .from('students')
+            .select('user_id')
+            .eq('student_id', updatedApplication.student_id)
+            .maybeSingle();
+
+        if (studentError) {
+            console.error(
+                'SUPABASE VERIFICATION STUDENT LOOKUP ERROR:',
+                studentError
+            );
+        }
+
+        if (studentRow?.user_id) {
+            notification = await deliverVerificationOutcomeNotification({
+                outcome:
+                    derivedVerificationStatus === 'requires_reupload'
+                        ? 'reupload_required'
+                        : 'rejected',
+                applicationId,
+                userId: studentRow.user_id,
+                scholarId: null,
+            });
+        }
     }
 
     const readiness = await fetchApplicationReadiness(applicationId);
@@ -3298,17 +3596,35 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         application: finalizedApplication,
         application_detail: detailedApplication,
         readiness,
-        activation,
-        verification_status,
+        activation: null,
+        verification_status: derivedVerificationStatus,
         final_outcome: finalOutcome,
-        scholar,
+        scholar: null,
         notification,
         summary: {
-            verified: Number(summary?.verified || 0),
-            uploaded: Number(summary?.uploaded || 0),
-            rejected: Number(summary?.rejected || summary?.reupload || 0),
-            pending: Number(summary?.pending || 0),
-            progress: Number(summary?.progress || 0),
+            verified: verifiedCount,
+            uploaded: requiredReviews.filter(
+                (review) =>
+                    !!review.url ||
+                    review.documentKey === 'application_form'
+            ).length,
+            rejected: majorReviews.length,
+            reupload: minorReviews.length,
+            pending: incompleteReviews.length,
+            progress:
+                requiredReviews.length === 0
+                    ? 0
+                    : Math.round(
+                        (
+                            (
+                                verifiedCount +
+                                majorReviews.length +
+                                minorReviews.length
+                            ) /
+                            requiredReviews.length
+                        ) *
+                        100
+                    ),
         },
         final_comment,
     };

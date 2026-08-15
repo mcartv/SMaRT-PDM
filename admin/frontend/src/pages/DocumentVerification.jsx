@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
@@ -60,6 +60,12 @@ const DOC_STATUS_META = {
     color: C.red,
     bg: C.redSoft,
     label: 'Rejected',
+  },
+  reupload_required: {
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    color: C.orange,
+    bg: C.orangeSoft,
+    label: 'Needs Re-upload',
   },
   uploaded: {
     icon: <Clock className="w-3.5 h-3.5" />,
@@ -173,15 +179,67 @@ export const REVIEW_ONLY_MESSAGES = Object.freeze([
 // eslint-disable-next-line react-refresh/only-export-components
 export const APPLICANT_IDENTITY_UNCONFIRMED = 'APPLICANT_IDENTITY_UNCONFIRMED';
 
-const REJECTION_OPTIONS = [
-  'Wrong document uploaded',
-  'Blurred or unreadable image',
-  'Incomplete document',
-  'Mismatched student information',
-  'Suspected edited or doctored file',
-  'Invalid file content',
-  'Other',
+const MINOR_REUPLOAD_OPTIONS = [
+  { code: 'BLURRY_UNREADABLE', label: 'Blurred or unreadable image' },
+  { code: 'INCOMPLETE_DOCUMENT', label: 'Incomplete document or missing page' },
+  { code: 'WRONG_DOCUMENT', label: 'Wrong document uploaded by mistake' },
+  { code: 'MISSING_SIGNATURE', label: 'Missing signature or required detail' },
+  { code: 'OUTDATED_DOCUMENT', label: 'Outdated document that can be replaced' },
+  {
+    code: 'MISMATCH_NEEDS_CORRECTION',
+    label: 'Information mismatch that can be corrected',
+  },
+  { code: 'OTHER_MINOR', label: 'Other minor issue' },
 ];
+
+const MAJOR_REJECTION_OPTIONS = [
+  {
+    code: 'DOCUMENT_TAMPERING',
+    label: 'Suspected edited or manipulated document',
+  },
+  { code: 'FORGED_DOCUMENT', label: 'Fraudulent or fake document' },
+  {
+    code: 'FALSIFIED_INFORMATION',
+    label: 'Deliberately falsified information',
+  },
+  {
+    code: 'IDENTITY_FRAUD',
+    label: 'Document appears to belong to another person',
+  },
+  {
+    code: 'OTHER_MAJOR',
+    label: 'Other serious or disqualifying violation',
+  },
+];
+
+function deriveRequirementsOutcome(documents = []) {
+  if (
+    documents.some(
+      (document) =>
+        document.status === 'rejected' &&
+        document.issue_severity === 'major'
+    )
+  ) {
+    return 'rejected';
+  }
+
+  if (
+    documents.some(
+      (document) => document.status === 'reupload_required'
+    )
+  ) {
+    return 'requires_reupload';
+  }
+
+  if (
+    documents.length > 0 &&
+    documents.every((document) => document.status === 'verified')
+  ) {
+    return 'verified';
+  }
+
+  return 'pending';
+}
 
 function normalizeKey(value = '') {
   return String(value)
@@ -334,6 +392,14 @@ function normalizeRequiredDocuments(rawDocs = []) {
       url: resolvedUrl,
       status: normalizedStatus || 'pending',
       admin_comment: rawDoc.admin_comment || rawDoc.comment || rawDoc.remarks || rawDoc.notes || '',
+      issue_severity:
+        rawDoc.issue_severity ||
+        (normalizedStatus === 'reupload_required'
+          ? 'minor'
+          : normalizedStatus === 'rejected'
+            ? 'major'
+            : null),
+      reason_code: rawDoc.reason_code || null,
       ocr: rawDoc.ocr || {},
       ocr_confidence: rawDoc.ocr_confidence ?? rawDoc.ocr?.confidence ?? null,
       file_name: rawDoc.file_name || '',
@@ -370,6 +436,8 @@ function normalizeRequiredDocuments(rawDocs = []) {
       url: '',
       status: 'pending',
       admin_comment: '',
+      issue_severity: null,
+      reason_code: null,
       ocr: {},
       ocr_confidence: null,
       file_name: '',
@@ -1406,7 +1474,6 @@ function ocrScoreLabel(candidate, key, displayedValue) {
   return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
 }
 
-<<<<<<< HEAD
 function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
@@ -1414,8 +1481,6 @@ function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedVa
   return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
 }
 
-=======
->>>>>>> refs/remotes/origin/main
 const BIRTH_REGION_PREFIX = {
   child_name: 'item1',
   mother_maiden_name: 'item6',
@@ -2213,26 +2278,40 @@ function OCRPanel({
   );
 }
 
-function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
-  const [selectedReason, setSelectedReason] = useState('');
-  const [otherReason, setOtherReason] = useState('');
+function ReviewIssueModal({
+  mode,
+  onClose,
+  onConfirm,
+  activeDocName,
+}) {
+  const isMajor = mode === 'major';
+  const options = isMajor
+    ? MAJOR_REJECTION_OPTIONS
+    : MINOR_REUPLOAD_OPTIONS;
+
+  const [selectedCode, setSelectedCode] = useState('');
   const [remarks, setRemarks] = useState('');
 
-  const isOther = selectedReason === 'Other';
-  const finalReason = isOther ? otherReason.trim() : selectedReason.trim();
-  const canSubmit = !!selectedReason && (!!finalReason || !isOther);
+  const selectedReason = options.find(
+    (option) => option.code === selectedCode
+  );
 
   const handleSubmit = () => {
-    if (!canSubmit) return;
+    if (!selectedReason) return;
 
     const finalComment = [
-      `Reason: ${isOther ? otherReason.trim() : selectedReason}`,
+      `Reason: ${selectedReason.label}`,
       remarks.trim() ? `Remarks: ${remarks.trim()}` : '',
     ]
       .filter(Boolean)
       .join('\n');
 
-    onConfirm(finalComment);
+    onConfirm({
+      status: isMajor ? 'rejected' : 'reupload_required',
+      issueSeverity: isMajor ? 'major' : 'minor',
+      reasonCode: selectedReason.code,
+      comment: finalComment,
+    });
   };
 
   return (
@@ -2242,17 +2321,22 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
     >
       <Card
         className="w-full max-w-lg border-stone-200 shadow-xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">Reject Document</h3>
+            <h3 className="text-base font-semibold text-stone-800">
+              {isMajor
+                ? 'Reject Application'
+                : 'Request Document Re-upload'}
+            </h3>
             <p className="text-sm text-stone-500 mt-0.5">
               {activeDocName || 'Selected document'}
             </p>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
             className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
           >
@@ -2261,44 +2345,48 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
         </div>
 
         <CardContent className="p-5 space-y-4">
+          <div
+            className={`rounded-xl border px-3 py-3 text-sm leading-relaxed ${
+              isMajor
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}
+          >
+            {isMajor
+              ? 'Major action: saving this review will reject the entire scholarship application. Use this only for fraud, document tampering, deliberate falsification, or another serious disqualifying violation.'
+              : 'Minor issue: the application stays active. The applicant will be asked to replace this document and can continue after the corrected file is reviewed.'}
+          </div>
+
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-stone-400 mb-2">
-              Rejection Reason
+              {isMajor ? 'Major violation' : 'Reason for re-upload'}
             </p>
 
             <div className="space-y-2">
-              {REJECTION_OPTIONS.map((option) => (
+              {options.map((option) => (
                 <label
-                  key={option}
+                  key={option.code}
                   className="flex items-start gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 cursor-pointer"
                 >
                   <input
                     type="radio"
-                    name="rejection_reason"
-                    value={option}
-                    checked={selectedReason === option}
-                    onChange={() => setSelectedReason(option)}
+                    name={
+                      isMajor
+                        ? 'major_rejection_reason'
+                        : 'minor_reupload_reason'
+                    }
+                    value={option.code}
+                    checked={selectedCode === option.code}
+                    onChange={() => setSelectedCode(option.code)}
                     className="mt-1 h-4 w-4"
                   />
-                  <span className="text-[15px] text-stone-700">{option}</span>
+                  <span className="text-[15px] text-stone-700">
+                    {option.label}
+                  </span>
                 </label>
               ))}
             </div>
           </div>
-
-          {selectedReason === 'Other' && (
-            <div>
-              <label className="text-xs font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
-                Other Reason
-              </label>
-              <Textarea
-                value={otherReason}
-                onChange={(e) => setOtherReason(e.target.value)}
-                placeholder="Type the specific rejection reason..."
-                className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px]"
-              />
-            </div>
-          )}
 
           <div>
             <label className="text-xs font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
@@ -2306,19 +2394,16 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
             </label>
             <Textarea
               value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Optional remarks for review..."
+              onChange={(event) => setRemarks(event.target.value)}
+              placeholder="Optional additional remarks..."
               className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-[15px]"
             />
           </div>
-
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Note: Do not type the action taken. Select the reason for rejection and add remarks only when needed.
-          </p>
         </CardContent>
 
         <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
           <Button
+            type="button"
             variant="outline"
             onClick={onClose}
             className="h-9 rounded-lg border-stone-200 text-sm"
@@ -2327,17 +2412,26 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
           </Button>
 
           <Button
+            type="button"
             onClick={handleSubmit}
-            disabled={!canSubmit || saving}
-            className="h-9 rounded-lg text-white text-sm border-none disabled:opacity-50"
-            style={{ background: C.red }}
+            disabled={!selectedReason}
+            className={`h-9 rounded-lg text-white text-sm border-none disabled:opacity-50 ${
+              isMajor
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-amber-600 hover:bg-amber-700'
+            }`}
           >
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            {isMajor ? (
+              <>
+                <XCircle className="w-4 h-4 mr-2" />
+                Confirm Major Rejection
+              </>
             ) : (
-              <XCircle className="w-4 h-4 mr-2" />
+              <>
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                Request Re-upload
+              </>
             )}
-            Confirm Rejection
           </Button>
         </div>
       </Card>
@@ -2429,6 +2523,7 @@ function ChecklistCard({
   availableCount,
   verifiedCount,
   rejectedCount,
+  reuploadCount,
   progress,
   requiredDocCount,
 }) {
@@ -2514,14 +2609,18 @@ function ChecklistCard({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
               <p className="text-xs uppercase tracking-wide text-stone-400">Verified</p>
               <p className="text-[15px] font-semibold text-green-700">{verifiedCount}</p>
             </div>
             <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-              <p className="text-xs uppercase tracking-wide text-stone-400">Rejected</p>
-              <p className="text-[15px] font-semibold text-orange-700">{rejectedCount}</p>
+              <p className="text-xs uppercase tracking-wide text-stone-400">Re-upload</p>
+              <p className="text-[15px] font-semibold text-amber-700">{reuploadCount}</p>
+            </div>
+            <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
+              <p className="text-xs uppercase tracking-wide text-stone-400">Major</p>
+              <p className="text-[15px] font-semibold text-red-700">{rejectedCount}</p>
             </div>
           </div>
 
@@ -2544,9 +2643,15 @@ function ChecklistCard({
               <p className="text-sm font-semibold mt-1 text-green-700">
                 All {requiredDocCount} required items are verified.
               </p>
+            ) : requiredDocs.some(
+              (document) => document.status === 'reupload_required'
+            ) ? (
+              <p className="text-sm font-semibold mt-1 text-amber-700">
+                Review is complete. One or more documents need replacement.
+              </p>
             ) : (
-              <p className="text-sm font-semibold mt-1 text-orange-700">
-                Review is complete, but one or more required items were rejected.
+              <p className="text-sm font-semibold mt-1 text-red-700">
+                Review contains a major violation that can reject the application.
               </p>
             )}
           </div>
@@ -2559,7 +2664,8 @@ function ChecklistCard({
 function VerificationActions({
   activeDoc,
   onVerify,
-  onReject,
+  onRequestReupload,
+  onRejectApplication,
   onComplete,
   hasUploadedDocument,
   hasAnyUpload,
@@ -2573,139 +2679,112 @@ function VerificationActions({
 }) {
   const isSaved = requirementsReviewAlreadySaved === true;
 
-  const waitingForUploads =
-    !isSaved &&
-    (!hasAnyUpload || !hasCompleteRequirements);
-
-  const waitingForReview =
-    !isSaved &&
-    hasCompleteRequirements &&
-    !allRequiredDocsReviewed;
-
-  const hasRejectedRequirement =
-    !isSaved &&
-    hasCompleteRequirements &&
-    allRequiredDocsReviewed &&
-    finalVerificationStatus !== 'verified';
-
-  const readyToSave =
-    !isSaved &&
-    canCompleteVerification &&
-    finalVerificationStatus === 'verified';
-
   const canReviewActiveDocument =
     hasUploadedDocument &&
     !isSaved &&
     !submitting;
+
+  const canRequestReupload =
+    canReviewActiveDocument &&
+    activeDoc?.id !== 'application_form';
 
   let statusConfig;
 
   if (isSaved) {
     statusConfig = {
       icon: ShieldCheck,
-      title: 'Requirements review completed',
+      title:
+        finalVerificationStatus === 'requires_reupload'
+          ? 'Waiting for replacement document'
+          : 'Requirements review completed',
       description:
-        'Application has already been finalized.',
-      container:
-        'border-emerald-200 bg-emerald-50/80',
-      iconContainer:
-        'bg-emerald-100 text-emerald-700',
-      titleColor:
-        'text-emerald-900',
-      descriptionColor:
-        'text-emerald-700',
+        finalVerificationStatus === 'requires_reupload'
+          ? 'The applicant has been asked to replace one or more documents. Review can continue after a replacement is uploaded.'
+          : 'The requirements review has already been saved.',
+      container: 'border-emerald-200 bg-emerald-50/80',
+      iconContainer: 'bg-emerald-100 text-emerald-700',
+      titleColor: 'text-emerald-900',
+      descriptionColor: 'text-emerald-700',
     };
-  } else if (waitingForUploads) {
+  } else if (!hasAnyUpload || !hasCompleteRequirements) {
     statusConfig = {
       icon: Clock,
       title: 'Waiting for complete requirements',
       description: !hasAnyUpload
         ? 'The student has not submitted the required documents yet.'
-        : `All ${requiredDocCount} required items must be available before the requirements review can be finalized.`,
-      container:
-        'border-stone-200 bg-stone-50',
-      iconContainer:
-        'bg-stone-200 text-stone-600',
-      titleColor:
-        'text-stone-800',
-      descriptionColor:
-        'text-stone-500',
+        : `All ${requiredDocCount} required items must be available before the requirements review can be saved.`,
+      container: 'border-stone-200 bg-stone-50',
+      iconContainer: 'bg-stone-200 text-stone-600',
+      titleColor: 'text-stone-800',
+      descriptionColor: 'text-stone-500',
     };
-  } else if (waitingForReview) {
+  } else if (!allRequiredDocsReviewed) {
     statusConfig = {
       icon: AlertTriangle,
       title: 'Review remaining requirements',
       description:
-        `All ${requiredDocCount} required items are available. Verify or reject each item before saving the requirements review.`,
-      container:
-        'border-amber-200 bg-amber-50/80',
-      iconContainer:
-        'bg-amber-100 text-amber-700',
-      titleColor:
-        'text-amber-900',
-      descriptionColor:
-        'text-amber-700',
+        'Verify each requirement, request a re-upload for a correctable minor issue, or reject the application only for a serious major violation.',
+      container: 'border-amber-200 bg-amber-50/80',
+      iconContainer: 'bg-amber-100 text-amber-700',
+      titleColor: 'text-amber-900',
+      descriptionColor: 'text-amber-700',
     };
-  } else if (hasRejectedRequirement) {
+  } else if (finalVerificationStatus === 'rejected') {
     statusConfig = {
       icon: XCircle,
-      title: 'Review contains rejected requirements',
+      title: 'Major violation selected',
       description:
-        'One or more requirements were rejected. Saving will finalize the requirements review as rejected.',
-      container:
-        'border-red-200 bg-red-50/80',
-      iconContainer:
-        'bg-red-100 text-red-700',
-      titleColor:
-        'text-red-900',
-      descriptionColor:
-        'text-red-700',
+        'Saving will reject the entire scholarship application. Confirm that the selected issue is serious and disqualifying.',
+      container: 'border-red-200 bg-red-50/80',
+      iconContainer: 'bg-red-100 text-red-700',
+      titleColor: 'text-red-900',
+      descriptionColor: 'text-red-700',
+    };
+  } else if (finalVerificationStatus === 'requires_reupload') {
+    statusConfig = {
+      icon: AlertTriangle,
+      title: 'Replacement document required',
+      description:
+        'Saving will keep the application active and notify the applicant to replace the affected document.',
+      container: 'border-amber-200 bg-amber-50/80',
+      iconContainer: 'bg-amber-100 text-amber-700',
+      titleColor: 'text-amber-900',
+      descriptionColor: 'text-amber-700',
     };
   } else {
     statusConfig = {
       icon: CheckCircle,
       title: 'Ready to save',
       description:
-        `All ${requiredDocCount} required items have been verified. Save the requirements review to continue the application workflow.`,
-      container:
-        'border-emerald-200 bg-emerald-50/80',
-      iconContainer:
-        'bg-emerald-100 text-emerald-700',
-      titleColor:
-        'text-emerald-900',
-      descriptionColor:
-        'text-emerald-700',
+        `All ${requiredDocCount} required items are verified. Save the requirements review to continue the application workflow.`,
+      container: 'border-emerald-200 bg-emerald-50/80',
+      iconContainer: 'bg-emerald-100 text-emerald-700',
+      titleColor: 'text-emerald-900',
+      descriptionColor: 'text-emerald-700',
     };
   }
 
   const StatusIcon = statusConfig.icon;
 
   const saveButtonLabel = (() => {
-    if (submitting) {
-      return 'Saving Requirements Review...';
-    }
-
+    if (submitting) return 'Saving Requirements Review...';
     if (isSaved) {
-      return 'Requirements Review Saved';
+      return finalVerificationStatus === 'requires_reupload'
+        ? 'Replacement Requested'
+        : 'Requirements Review Saved';
     }
-
-    if (!hasAnyUpload) {
-      return 'Waiting for Requirements';
-    }
-
+    if (!hasAnyUpload) return 'Waiting for Requirements';
     if (!hasCompleteRequirements) {
       return `Waiting for All ${requiredDocCount} Items`;
     }
-
-    if (!allRequiredDocsReviewed) {
-      return 'Review All Items First';
+    if (!allRequiredDocsReviewed) return 'Review All Items First';
+    if (finalVerificationStatus === 'rejected') {
+      return 'Reject Application';
     }
-
-    if (finalVerificationStatus === 'verified') {
-      return 'Save Requirements Review';
+    if (finalVerificationStatus === 'requires_reupload') {
+      return 'Save Re-upload Request';
     }
-
-    return 'Save Rejected Requirements Review';
+    return 'Save Requirements Review';
   })();
 
   const saveDisabled =
@@ -2717,18 +2796,7 @@ function VerificationActions({
     const base =
       'h-11 w-full rounded-xl border-none text-sm font-semibold shadow-none transition-all duration-200';
 
-    if (isSaved) {
-      return `${base}
-        bg-stone-200
-        text-stone-500
-        hover:bg-stone-200
-        disabled:bg-stone-200
-        disabled:text-stone-500
-        disabled:opacity-100
-        disabled:cursor-not-allowed`;
-    }
-
-    if (!canCompleteVerification) {
+    if (saveDisabled) {
       return `${base}
         bg-stone-200
         text-stone-500
@@ -2743,32 +2811,31 @@ function VerificationActions({
       return `${base}
         bg-red-600
         text-white
-        hover:bg-red-700
-        disabled:bg-stone-200
-        disabled:text-stone-500
-        disabled:opacity-100`;
+        hover:bg-red-700`;
+    }
+
+    if (finalVerificationStatus === 'requires_reupload') {
+      return `${base}
+        bg-amber-600
+        text-white
+        hover:bg-amber-700`;
     }
 
     return `${base}
       bg-blue-900
       text-white
-      hover:bg-blue-800
-      disabled:bg-stone-200
-      disabled:text-stone-500
-      disabled:opacity-100`;
+      hover:bg-blue-800`;
   })();
 
   return (
     <Card className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-none">
       <div className="p-4 sm:p-5">
-        {/* Current document review actions */}
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-stone-800">
                 Review selected document
               </p>
-
               <p className="mt-0.5 text-xs text-stone-500">
                 {activeDoc?.name || 'No document selected'}
               </p>
@@ -2787,30 +2854,13 @@ function VerificationActions({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Button
               type="button"
               variant="outline"
               onClick={onVerify}
               disabled={!canReviewActiveDocument}
-              className="
-                h-10
-                rounded-xl
-                border-stone-200
-                bg-white
-                text-sm
-                font-medium
-                text-stone-700
-                shadow-none
-                hover:border-emerald-300
-                hover:bg-emerald-50
-                hover:text-emerald-700
-                disabled:border-stone-200
-                disabled:bg-stone-50
-                disabled:text-stone-400
-                disabled:opacity-100
-                disabled:cursor-not-allowed
-              "
+              className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:bg-stone-50 disabled:text-stone-400"
             >
               <CheckCircle className="mr-2 h-4 w-4" />
               Verify
@@ -2819,37 +2869,37 @@ function VerificationActions({
             <Button
               type="button"
               variant="outline"
-              onClick={onReject}
+              onClick={onRequestReupload}
+              disabled={!canRequestReupload}
+              className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:bg-stone-50 disabled:text-stone-400"
+            >
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Request Re-upload
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onRejectApplication}
               disabled={!canReviewActiveDocument}
-              className="
-                h-10
-                rounded-xl
-                border-stone-200
-                bg-white
-                text-sm
-                font-medium
-                text-stone-700
-                shadow-none
-                hover:border-red-300
-                hover:bg-red-50
-                hover:text-red-700
-                disabled:border-stone-200
-                disabled:bg-stone-50
-                disabled:text-stone-400
-                disabled:opacity-100
-                disabled:cursor-not-allowed
-              "
+              className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:bg-stone-50 disabled:text-stone-400"
             >
               <XCircle className="mr-2 h-4 w-4" />
-              Reject
+              Reject Application
             </Button>
           </div>
+
+          {activeDoc?.id === 'application_form' && (
+            <p className="mt-2 text-xs text-stone-500">
+              The application form is digital and cannot be re-uploaded.
+              Use Reject Application only for a serious disqualifying issue.
+            </p>
+          )}
 
           {!hasUploadedDocument &&
             activeDoc?.id !== 'application_form' && (
               <div className="mt-3 flex items-start gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
                 <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-
                 <p>
                   This document must be uploaded before it can be reviewed.
                 </p>
@@ -2857,18 +2907,15 @@ function VerificationActions({
             )}
         </div>
 
-        {/* Divider */}
         <div className="my-4 h-px bg-stone-100" />
 
-        {/* Overall requirements review */}
         <div>
           <div className="mb-3">
             <p className="text-sm font-semibold text-stone-800">
               Requirements review
             </p>
-
             <p className="mt-0.5 text-xs text-stone-500">
-              Finalize the complete document checklist for this application.
+              Save the complete document checklist for this application.
             </p>
           </div>
 
@@ -2880,14 +2927,12 @@ function VerificationActions({
             >
               <StatusIcon className="h-4 w-4" />
             </div>
-
             <div className="min-w-0">
               <p
                 className={`text-sm font-semibold ${statusConfig.titleColor}`}
               >
                 {statusConfig.title}
               </p>
-
               <p
                 className={`mt-0.5 text-xs leading-5 ${statusConfig.descriptionColor}`}
               >
@@ -2904,14 +2949,12 @@ function VerificationActions({
           >
             {submitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : isSaved ? (
-              <ShieldCheck className="mr-2 h-4 w-4" />
-            ) : readyToSave ? (
-              <CheckCircle className="mr-2 h-4 w-4" />
-            ) : hasRejectedRequirement ? (
+            ) : finalVerificationStatus === 'rejected' ? (
               <XCircle className="mr-2 h-4 w-4" />
+            ) : finalVerificationStatus === 'requires_reupload' ? (
+              <AlertTriangle className="mr-2 h-4 w-4" />
             ) : (
-              <Clock className="mr-2 h-4 w-4" />
+              <CheckCircle className="mr-2 h-4 w-4" />
             )}
 
             {saveButtonLabel}
@@ -2937,9 +2980,10 @@ export default function DocumentVerification() {
 
   const [docStatuses, setDocStatuses] = useState({});
   const [docComments, setDocComments] = useState({});
+  const [docReviewMeta, setDocReviewMeta] = useState({});
   const [comment, setComment] = useState('');
 
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [reviewIssueModal, setReviewIssueModal] = useState(null);
 
   const [runningIotOcr, setRunningIotOcr] = useState(false);
   const [iotOcrError, setIotOcrError] = useState('');
@@ -3032,6 +3076,27 @@ export default function DocumentVerification() {
             next[d.id] = hasUnsavedReview
               ? current[d.id] ?? d.admin_comment ?? ''
               : d.admin_comment || '';
+          });
+
+          return next;
+        });
+
+        setDocReviewMeta((current) => {
+          const next = {};
+
+          normalizedDocs.forEach((d) => {
+            const hasUnsavedReview =
+              soft && dirtyReviewIdsRef.current.has(d.id);
+
+            next[d.id] = hasUnsavedReview
+              ? current[d.id] ?? {
+                  issue_severity: d.issue_severity || null,
+                  reason_code: d.reason_code || null,
+                }
+              : {
+                  issue_severity: d.issue_severity || null,
+                  reason_code: d.reason_code || null,
+                };
           });
 
           return next;
@@ -3207,6 +3272,14 @@ export default function DocumentVerification() {
         ...d,
         status: docStatuses[d.id] || d.status || 'pending',
         admin_comment: docComments[d.id] || '',
+        issue_severity:
+          docReviewMeta[d.id]?.issue_severity ??
+          d.issue_severity ??
+          null,
+        reason_code:
+          docReviewMeta[d.id]?.reason_code ??
+          d.reason_code ??
+          null,
         ocr: hasIotOverride ? iotOverride?.ocr || {} : d.ocr || {},
         ocr_confidence: hasIotOverride
           ? iotOverride?.ocr_confidence ?? iotOverride?.ocr?.confidence ?? ''
@@ -3224,7 +3297,7 @@ export default function DocumentVerification() {
           null,
       };
     });
-  }, [application, docStatuses, docComments, iotOcrResults]);
+  }, [application, docStatuses, docComments, docReviewMeta, iotOcrResults]);
 
   const activeDoc = useMemo(
     () => docs.find((d) => d.id === activeDocId) || docs[0] || null,
@@ -3281,6 +3354,11 @@ export default function DocumentVerification() {
     [docs]
   );
 
+  const reuploadCount = useMemo(
+    () => docs.filter((d) => d.status === 'reupload_required').length,
+    [docs]
+  );
+
   const reviewedCount = useMemo(
     () =>
       docs.filter((d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded')
@@ -3300,9 +3378,7 @@ export default function DocumentVerification() {
   );
 
   const finalVerificationStatus =
-    allRequiredDocsVerified
-      ? 'verified'
-      : 'rejected';
+    deriveRequirementsOutcome(requiredDocs);
 
   const persistedVerificationStatus = normalizeKey(
     application?.verification_status || ''
@@ -3310,7 +3386,8 @@ export default function DocumentVerification() {
 
   const requirementsReviewAlreadySaved =
     persistedVerificationStatus === 'verified' ||
-    persistedVerificationStatus === 'rejected';
+    persistedVerificationStatus === 'rejected' ||
+    persistedVerificationStatus === 'requires_reupload';
 
   const canCompleteVerification =
     allRequiredDocsUploaded &&
@@ -3512,10 +3589,15 @@ export default function DocumentVerification() {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status]);
-  const updateActiveDocStatus = (nextStatus, nextComment = null) => {
+  const updateActiveDocStatus = (
+    nextStatus,
+    nextComment = null,
+    reviewMeta = null
+  ) => {
     if (!activeDoc || !hasUploadedDocument) return;
 
-    const resolvedComment = nextComment !== null ? nextComment : comment;
+    const resolvedComment =
+      nextComment !== null ? nextComment : comment;
 
     dirtyReviewIdsRef.current.add(activeDoc.id);
 
@@ -3529,23 +3611,63 @@ export default function DocumentVerification() {
       [activeDoc.id]: resolvedComment,
     }));
 
+    setDocReviewMeta((prev) => ({
+      ...prev,
+      [activeDoc.id]:
+        reviewMeta || {
+          issue_severity: null,
+          reason_code: null,
+        },
+    }));
+
     setComment(resolvedComment);
   };
 
   const handleVerify = () => {
     if (requirementsReviewAlreadySaved) return;
 
-    updateActiveDocStatus('verified');
+    updateActiveDocStatus('verified', '', {
+      issue_severity: null,
+      reason_code: null,
+    });
   };
 
-  const handleRejectConfirm = (finalComment) => {
+  const handleMinorIssueConfirm = ({
+    status,
+    issueSeverity,
+    reasonCode,
+    comment: nextComment,
+  }) => {
     if (requirementsReviewAlreadySaved) {
-      setRejectModalOpen(false);
+      setReviewIssueModal(null);
       return;
     }
 
-    updateActiveDocStatus('rejected', finalComment);
-    setRejectModalOpen(false);
+    updateActiveDocStatus(status, nextComment, {
+      issue_severity: issueSeverity,
+      reason_code: reasonCode,
+    });
+
+    setReviewIssueModal(null);
+  };
+
+  const handleMajorIssueConfirm = ({
+    status,
+    issueSeverity,
+    reasonCode,
+    comment: nextComment,
+  }) => {
+    if (requirementsReviewAlreadySaved) {
+      setReviewIssueModal(null);
+      return;
+    }
+
+    updateActiveDocStatus(status, nextComment, {
+      issue_severity: issueSeverity,
+      reason_code: reasonCode,
+    });
+
+    setReviewIssueModal(null);
   };
 
   const handleRunIotOcr = async () => {
@@ -3934,26 +4056,34 @@ export default function DocumentVerification() {
   };
 
   const handleCompleteVerification = async () => {
-    if (requirementsReviewAlreadySaved) {
-      return;
-    }
-
-    if (!canCompleteVerification) {
+    if (requirementsReviewAlreadySaved || !canCompleteVerification) {
       return;
     }
 
     try {
       setSubmitting(true);
 
+      const majorComments = docs
+        .filter(
+          (document) =>
+            document.status === 'rejected' &&
+            document.issue_severity === 'major'
+        )
+        .map((document) => document.admin_comment)
+        .filter(Boolean);
+
       const payload = {
         application_id: id,
         verification_status: finalVerificationStatus,
+        final_comment: majorComments.join(' | '),
         document_reviews: docs.map((d) => ({
           document_key: d.document_key || d.id,
-          document_id: d.id,
+          document_id: d.document_id || null,
           requirement_id: d.requirement_id || null,
           name: d.name,
           status: d.status,
+          issue_severity: d.issue_severity || null,
+          reason_code: d.reason_code || null,
           comment: d.admin_comment || '',
           url: d.url || null,
         })),
@@ -3962,50 +4092,74 @@ export default function DocumentVerification() {
           reviewed: reviewedCount,
           uploaded: availableCount,
           rejected: rejectedCount,
-          pending: docs.filter((d) => d.status === 'pending' || d.status === 'uploaded').length,
+          reupload: reuploadCount,
+          pending: docs.filter(
+            (d) =>
+              d.status === 'pending' ||
+              d.status === 'uploaded'
+          ).length,
           progress,
         },
       };
 
-      const res = await fetch(`${API_BASE}/api/applications/${id}/verify`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `${API_BASE}/api/applications/${id}/verify`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to save verification');
+        throw new Error(
+          data.error || 'Failed to save verification'
+        );
       }
 
-      const finalOutcome = data?.data?.final_outcome;
+      const savedStatus =
+        data?.data?.verification_status ||
+        finalVerificationStatus;
+
       const readiness = data?.data?.readiness || {};
 
       const successMessage =
-        finalOutcome === 'approved'
-          ? 'Requirements review saved successfully.'
-          : finalVerificationStatus === 'verified'
-            ? readiness?.endorsement_complete
-              ? 'Requirements review saved successfully. The application is ready for explicit admin scholar activation.'
-              : 'Requirements review saved successfully. Endorsement slip completion is still required before scholar activation.'
-            : 'Requirements review completed. Application marked as rejected and ready for archiving.';
+        savedStatus === 'requires_reupload'
+          ? 'Re-upload request saved. The application remains active and the applicant has been notified to replace the affected document.'
+          : savedStatus === 'rejected'
+            ? 'Major violation saved. The scholarship application has been rejected.'
+            : readiness?.endorsement_complete
+              ? 'Requirements review saved successfully. The application is ready for the next eligibility step.'
+              : 'Requirements review saved successfully. Endorsement completion is still required before scholar activation.';
 
       navigate('/admin/applications', {
         state: {
           verificationFeedback: {
             tone: 'success',
-            title: 'Verification saved',
+            title:
+              savedStatus === 'requires_reupload'
+                ? 'Re-upload requested'
+                : savedStatus === 'rejected'
+                  ? 'Application rejected'
+                  : 'Verification saved',
             message: successMessage,
           },
         },
       });
     } catch (err) {
-      console.error('COMPLETE VERIFICATION ERROR:', err);
-      alert(err.message || 'Failed to complete verification');
+      console.error(
+        'COMPLETE VERIFICATION ERROR:',
+        err
+      );
+      alert(
+        err.message ||
+        'Failed to complete verification'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -4099,11 +4253,15 @@ export default function DocumentVerification() {
 
   return (
     <div className="space-y-5 py-2 animate-in fade-in duration-300" style={{ background: C.bg }}>
-      {rejectModalOpen && (
-        <RejectDocumentModal
-          onClose={() => setRejectModalOpen(false)}
-          onConfirm={handleRejectConfirm}
-          saving={false}
+      {reviewIssueModal && (
+        <ReviewIssueModal
+          mode={reviewIssueModal}
+          onClose={() => setReviewIssueModal(null)}
+          onConfirm={
+            reviewIssueModal === 'major'
+              ? handleMajorIssueConfirm
+              : handleMinorIssueConfirm
+          }
           activeDocName={activeDoc?.name}
         />
       )}
@@ -4190,6 +4348,7 @@ export default function DocumentVerification() {
             availableCount={availableCount}
             verifiedCount={verifiedCount}
             rejectedCount={rejectedCount}
+            reuploadCount={reuploadCount}
             progress={progress}
             requiredDocCount={requiredDocCount}
           />
@@ -4349,7 +4508,8 @@ export default function DocumentVerification() {
           <VerificationActions
             activeDoc={activeDoc}
             onVerify={handleVerify}
-            onReject={() => setRejectModalOpen(true)}
+            onRequestReupload={() => setReviewIssueModal('minor')}
+            onRejectApplication={() => setReviewIssueModal('major')}
             onComplete={handleCompleteVerification}
             hasUploadedDocument={hasUploadedDocument}
             hasAnyUpload={hasAnyUpload}

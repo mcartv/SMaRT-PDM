@@ -1530,6 +1530,14 @@ function OCRPanel({
   const birthDiagnosticOnly = Boolean(
     isBirthReview && reviewCandidate?.processing?.diagnostic_only
   );
+  const birthV2Review = Boolean(isBirthReview && reviewCandidate?.ocr_version === 'v2');
+  const birthFullPageRecovery = Boolean(
+    birthV2Review
+    && reviewCandidate?.processing?.structured_value_source === 'birth_v2_full_page_gemini_recovery'
+  );
+  const birthRawUnavailable = Boolean(
+    birthV2Review && !String(rawOcrSnapshot || '').trim()
+  );
   const birthHasCorrections = Boolean(
     isBirthReview
     && JSON.stringify(correctedFields || {}) !== JSON.stringify(normalizeReviewFields(reviewCandidate))
@@ -1773,6 +1781,12 @@ function OCRPanel({
               </div>
             )}
 
+            {birthFullPageRecovery && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+                Exact-cell extraction was incomplete. These provisional names were recovered from the full-page Gemini reading and require administrator verification.
+              </div>
+            )}
+
             {reviewCandidate.ocr_version === 'v2' && reviewCandidate.status === 'review_required' && (
               <div className="lg:float-left lg:mr-4 lg:w-[48%]">
                 <BirthV2ReviewImage
@@ -1863,6 +1877,17 @@ function OCRPanel({
                 </div>
               </div>
             ))}
+
+            {(reviewCandidate.validation_issues || []).length > 0 && (
+              <div className="clear-both rounded-lg border border-amber-200 bg-white p-3 text-sm text-amber-900">
+                <p className="mb-1 font-semibold">OCR review notices</p>
+                {(reviewCandidate.validation_issues || []).map((issue, index) => (
+                  <p key={`${issue.code || 'birth-issue'}-${issue.field || 'document'}-${index}`}>
+                    {issue.message || issue.code}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {!birthReviewClosed && (
               <div className="clear-both space-y-3">
@@ -2144,13 +2169,25 @@ function OCRPanel({
         ) : null}
 
         <div className="rounded-lg border border-stone-200 bg-white p-3">
-          <p className="mb-2 text-xs uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-stone-400">
+            {isBirthReview
+              ? reviewCandidate?.ocr_version === 'v2'
+                ? 'Full-Page Gemini Transcription'
+                : 'Raw Tesseract OCR Snapshot'
+              : 'Raw OCR Snapshot'}
+          </p>
 
-          {birthDiagnosticOnly && !String(rawOcrSnapshot || '').trim() ? (
+          {birthV2Review && (
+            <p className="mb-2 text-xs text-stone-500">
+              Immutable machine-generated transcription · unverified
+            </p>
+          )}
+
+          {birthRawUnavailable ? (
             <div className="min-h-[120px] rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
-              Full-page diagnostic transcription is unavailable
-              {reviewCandidate?.processing?.diagnostic_raw_error_code
-                ? ` (${reviewCandidate.processing.diagnostic_raw_error_code})`
+              Full-page Gemini transcription is unavailable
+              {reviewCandidate?.processing?.raw_text_error_code || reviewCandidate?.processing?.diagnostic_raw_error_code
+                ? ` (${reviewCandidate.processing.raw_text_error_code || reviewCandidate.processing.diagnostic_raw_error_code})`
                 : ''}. Request a rescan; no OCR text was fabricated.
             </div>
           ) : (

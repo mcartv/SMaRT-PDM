@@ -44,6 +44,29 @@ const cells = service.CELL_KEYS.map((cellKey) => ({
     bytes: Buffer.from(`image-${cellKey}`),
 }));
 
+function flatFields(overrides = {}) {
+    return {
+        child_first_name: 'VENICE EVE',
+        child_middle_name: '',
+        child_last_name: 'PELIMA',
+        mothers_maiden_first: 'ROWENA',
+        mothers_maiden_middle: 'FRANCISCO',
+        mothers_maiden_last: 'PELIMA',
+        father_first_name: '',
+        father_middle_name: '',
+        father_last_name: '',
+        ...overrides,
+    };
+}
+
+function fullPageResponse(rawText, fields = flatFields()) {
+    return JSON.stringify({
+        template_id: 'psa_birth_v1',
+        raw_text: rawText,
+        fields,
+    });
+}
+
 function promptText(request) {
     return request.contents[0].parts
         .filter((part) => typeof part.text === 'string')
@@ -65,7 +88,6 @@ test('incomplete nine-cell result recovers Child and Mother in parallel row call
         }
         return { text: JSON.stringify({
             template_id: 'psa_birth_v1',
-            raw_text: '',
             fields: Object.fromEntries(service.RESPONSE_KEYS.map((key) => [key, ''])),
         }) };
     };
@@ -81,12 +103,12 @@ test('incomplete nine-cell result recovers Child and Mother in parallel row call
     assert.equal(result.value.father_first_name, '');
 });
 
-test('full-page diagnostic requests and preserves plain transcription text', async () => {
-    const expected = 'OFFICE OF THE CIVIL REGISTRAR\nCERTIFICATE OF LIVE BIRTH';
+test('full-page extraction preserves literal transcription and recovery fields', async () => {
+    const expected = '\nOFFICE OF THE CIVIL REGISTRAR\nCERTIFICATE OF LIVE BIRTH\n';
     handler = async (request) => {
-        assert.equal(request.config.responseMimeType, undefined);
-        assert.equal(request.config.responseJsonSchema, undefined);
-        return { text: expected };
+        assert.equal(request.config.responseMimeType, 'application/json');
+        assert.ok(request.config.responseJsonSchema);
+        return { text: fullPageResponse(expected) };
     };
 
     const result = await service.callGeminiFullPage({
@@ -94,7 +116,9 @@ test('full-page diagnostic requests and preserves plain transcription text', asy
         bytes: Buffer.from('private-original'),
     });
 
-    assert.deepEqual(result, { ok: true, value: expected });
+    assert.equal(result.ok, true);
+    assert.equal(result.value.raw_text, expected);
+    assert.deepEqual(result.value.fields, flatFields());
 });
 
 test('diagnostic rate limits produce an actionable sanitized code', async () => {
@@ -109,7 +133,7 @@ test('diagnostic rate limits produce an actionable sanitized code', async () => 
         bytes: Buffer.from('private-original'),
     });
 
-    assert.deepEqual(result, { ok: false, code: 'GEMINI_DIAGNOSTIC_RATE_LIMITED' });
+    assert.deepEqual(result, { ok: false, code: 'GEMINI_FULL_PAGE_RATE_LIMITED' });
 });
 
 test('unavailable configured model falls back to the current stable model', async () => {
@@ -121,7 +145,7 @@ test('unavailable configured model falls back to the current stable model', asyn
             error.status = 404;
             throw error;
         }
-        return { text: 'literal full-page transcription' };
+        return { text: fullPageResponse('literal full-page transcription') };
     };
 
     const result = await service.callGeminiFullPage({
@@ -129,9 +153,76 @@ test('unavailable configured model falls back to the current stable model', asyn
         bytes: Buffer.from('private-original'),
     });
 
-    assert.deepEqual(result, { ok: true, value: 'literal full-page transcription' });
+    assert.equal(result.ok, true);
+    assert.equal(result.value.raw_text, 'literal full-page transcription');
     assert.deepEqual(requestedModels.slice(0, 2), [
         'gemini-test-model',
         'gemini-3.6-flash',
     ]);
+});
+
+test('exact-cell fields win while full-page text remains the immutable raw value', () => {
+    const selected = service.selectBirthV2Candidate({
+        cellGemini: { ok: true, value: flatFields({ child_first_name: 'CELL CHILD' }) },
+        fullPageGemini: {
+            ok: true,
+            value: {
+                raw_text: 'literal full-page text',
+                fields: flatFields({ child_first_name: 'FULL PAGE CHILD' }),
+            },
+        },
+    });
+
+    assert.equal(selected.raw_text, 'literal full-page text');
+    assert.equal(selected.fields.child_name.components.first_name, 'CELL CHILD');
+    assert.equal(selected.structured_value_source, 'birth_v2_exact_cells_gemini');
+    assert.equal(selected.diagnostic_only, false);
+    assert.ok(selected.validation_issues.some((issue) => (
+        issue.code === 'BIRTH_V2_SOURCE_DISAGREEMENT' && issue.field === 'child_name'
+    )));
+});
+
+test('full-page fields recover a confirmable candidate when exact cells are unavailable', () => {
+    const selected = service.selectBirthV2Candidate({
+        cellGemini: { ok: false, code: 'PSA_BIRTH_V2_TOPOLOGY_MISMATCH' },
+        fullPageGemini: {
+            ok: true,
+            value: { raw_text: 'complete literal transcription', fields: flatFields() },
+        },
+        diagnosticResult: { message: 'Birth topology failed.' },
+    });
+
+    assert.equal(selected.diagnostic_only, false);
+    assert.equal(selected.structured_value_source, 'birth_v2_full_page_gemini_recovery');
+    assert.equal(selected.fields.mother_maiden_name.components.first_name, 'ROWENA');
+    assert.ok(selected.validation_issues.some((issue) => issue.code === 'BIRTH_V2_FULL_PAGE_RECOVERY_USED'));
+});
+
+test('valid exact cells stay confirmable when full-page transcription is unavailable', () => {
+    const selected = service.selectBirthV2Candidate({
+        cellGemini: { ok: true, value: flatFields() },
+        fullPageGemini: { ok: false, code: 'GEMINI_FULL_PAGE_TIMEOUT' },
+    });
+
+    assert.equal(selected.diagnostic_only, false);
+    assert.equal(selected.raw_text, '');
+    assert.equal(selected.structured_value_source, 'birth_v2_exact_cells_gemini');
+    assert.ok(selected.validation_issues.some((issue) => issue.code === 'GEMINI_FULL_PAGE_TIMEOUT'));
+});
+
+test('both structured paths failing produces a diagnostic-only candidate', () => {
+    const selected = service.selectBirthV2Candidate({
+        cellGemini: { ok: false, code: 'GEMINI_REQUIRED_NAME_MISSING' },
+        fullPageGemini: {
+            ok: true,
+            value: {
+                raw_text: 'literal but incomplete transcription',
+                fields: flatFields({ mothers_maiden_last: '' }),
+            },
+        },
+    });
+
+    assert.equal(selected.diagnostic_only, true);
+    assert.deepEqual(selected.fields, {});
+    assert.equal(selected.raw_text, 'literal but incomplete transcription');
 });

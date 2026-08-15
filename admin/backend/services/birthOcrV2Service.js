@@ -49,6 +49,20 @@ const RESPONSE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
         template_id: { type: 'string', enum: ['psa_birth_v1'] },
+        fields: {
+            type: 'object',
+            properties: Object.fromEntries(RESPONSE_KEYS.map((key) => [key, { type: 'string' }])),
+            required: RESPONSE_KEYS,
+            additionalProperties: false,
+        },
+    },
+    required: ['template_id', 'fields'],
+    additionalProperties: false,
+});
+const FULL_PAGE_RESPONSE_SCHEMA = Object.freeze({
+    type: 'object',
+    properties: {
+        template_id: { type: 'string', enum: ['psa_birth_v1'] },
         raw_text: { type: 'string' },
         fields: {
             type: 'object',
@@ -328,8 +342,7 @@ async function assertRequestStillProcessing(requestId, deviceId) {
 
 function validateGeminiPayload(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)
-        || Object.keys(value).length !== 3 || value.template_id !== 'psa_birth_v1'
-        || typeof value.raw_text !== 'string'
+        || Object.keys(value).length !== 2 || value.template_id !== 'psa_birth_v1'
         || !value.fields || typeof value.fields !== 'object' || Array.isArray(value.fields)) return null;
     const keys = Object.keys(value.fields).sort();
     if (keys.length !== RESPONSE_KEYS.length || RESPONSE_KEYS.some((key) => !keys.includes(key))) return null;
@@ -341,6 +354,21 @@ function validateGeminiPayload(value) {
     return normalized;
 }
 
+function validateFullPageGeminiPayload(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).length !== 3 || value.template_id !== 'psa_birth_v1'
+        || typeof value.raw_text !== 'string'
+        || !value.fields || typeof value.fields !== 'object' || Array.isArray(value.fields)) return null;
+    const keys = Object.keys(value.fields).sort();
+    if (keys.length !== RESPONSE_KEYS.length || RESPONSE_KEYS.some((key) => !keys.includes(key))) return null;
+    const fields = {};
+    for (const key of RESPONSE_KEYS) {
+        if (typeof value.fields[key] !== 'string') return null;
+        fields[key] = value.fields[key];
+    }
+    return { raw_text: value.raw_text, fields };
+}
+
 function hasRequiredNames(value) {
     return [
         value?.child_first_name,
@@ -348,17 +376,6 @@ function hasRequiredNames(value) {
         value?.mothers_maiden_first,
         value?.mothers_maiden_last,
     ].every((entry) => String(entry || '').trim());
-}
-
-function buildRawSnapshot(result) {
-    if (String(result?.raw_text || '').trim()) {
-        return String(result.raw_text).trim();
-    }
-    return [
-        [result.child_first_name, result.child_middle_name, result.child_last_name],
-        [result.mothers_maiden_first, result.mothers_maiden_middle, result.mothers_maiden_last],
-        [result.father_first_name, result.father_middle_name, result.father_last_name],
-    ].map((row) => row.join('\t')).join('\n');
 }
 
 function isGeminiTimeout(error, controller) {
@@ -512,8 +529,6 @@ async function callGemini(cells) {
         'Ignore form labels, headings, grid lines, stamps, and neighboring text.',
         'Keep compound names inside their supplied cell. Do not move words between cells.',
         'Return an empty string only when that supplied cell is genuinely blank or N/A.',
-        'Also include raw_text as a best-effort transcription of the nine cells in physical order,',
-        'using tabs between first, middle, and last, and newlines between rows.',
         'Return only the required JSON schema.',
     ].join(' ') }];
     for (const key of CELL_KEYS) {
@@ -575,10 +590,14 @@ async function callGeminiFullPage(original) {
             model: GEMINI_MODEL,
             contents: [{ role: 'user', parts: [
                 { text: [
-                    'Transcribe every legible printed or typed character from this certificate literally.',
-                    'Preserve reading order and line breaks. Do not summarize, infer, correct, normalize,',
-                    'or convert the text into person-name fields. Return only plain transcription text,',
-                    'without JSON, Markdown fences, commentary, or a preface.',
+                    'Read this PSA Certificate of Live Birth as two separate outputs in one JSON object.',
+                    'For raw_text, transcribe every legible printed or typed character from the certificate',
+                    'literally and preserve reading order and line breaks. Do not summarize, correct,',
+                    'normalize, or add commentary. For fields, propose only the values printed in Item 1',
+                    'NAME, Item 6 MAIDEN NAME, and Item 13 NAME, preserving First, Middle, and Last printed',
+                    'columns. Keep compound names inside their physical column. Use an empty string when a',
+                    'component is blank or N/A. The raw_text string must remain a literal transcription and',
+                    'must not be generated from or rewritten to match the fields. Return only the schema.',
                 ].join(' ') },
                 { inlineData: {
                     mimeType: original.mime_type,
@@ -586,20 +605,29 @@ async function callGeminiFullPage(original) {
                 } },
             ] }],
             config: {
+                responseMimeType: 'application/json',
+                responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
                 maxOutputTokens: 4096,
             },
-        }, GEMINI_DIAGNOSTIC_TIMEOUT_MS, 'GEMINI_DIAGNOSTIC_TIMEOUT');
+        }, GEMINI_DIAGNOSTIC_TIMEOUT_MS, 'GEMINI_FULL_PAGE_TIMEOUT');
         const raw = typeof response.text === 'function' ? response.text() : response.text;
-        if (!String(raw || '').trim()) {
-            return { ok: false, code: 'GEMINI_DIAGNOSTIC_EMPTY' };
+        let parsed;
+        try {
+            parsed = validateFullPageGeminiPayload(JSON.parse(String(raw || '')));
+        } catch {
+            parsed = null;
         }
-        return { ok: true, value: String(raw) };
+        if (!parsed) return { ok: false, code: 'GEMINI_FULL_PAGE_INVALID_RESULT' };
+        if (!String(parsed.raw_text).trim()) {
+            return { ok: false, code: 'GEMINI_FULL_PAGE_EMPTY' };
+        }
+        return { ok: true, value: parsed };
     } catch (error) {
         return {
             ok: false,
-            code: error.code === 'GEMINI_DIAGNOSTIC_TIMEOUT'
-                ? 'GEMINI_DIAGNOSTIC_TIMEOUT'
-                : geminiFailureCode(error, 'GEMINI_DIAGNOSTIC'),
+            code: error.code === 'GEMINI_FULL_PAGE_TIMEOUT'
+                ? 'GEMINI_FULL_PAGE_TIMEOUT'
+                : geminiFailureCode(error, 'GEMINI_FULL_PAGE'),
         };
     }
 }
@@ -622,7 +650,6 @@ function buildCandidate(result) {
     ];
     const fatherBlank = rows[2].every((value) => !value || /^(?:N\s*[/.\-]?\s*A)$/i.test(value));
     return {
-        raw_text: buildRawSnapshot(result),
         fields: {
             child_name: field(rows[0].join(' ').trim(), ...rows[0]),
             mother_maiden_name: field(rows[1].join(' ').trim(), ...rows[1]),
@@ -630,6 +657,86 @@ function buildCandidate(result) {
                 ? field('', null, null, null, 'not_applicable')
                 : field(rows[2].join(' ').trim(), ...rows[2]),
         },
+    };
+}
+
+function comparableName(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function proposalDisagreementIssues(cellFields, fullPageFields) {
+    if (!cellFields || !fullPageFields) return [];
+    const groups = [
+        ['child_name', ['child_first_name', 'child_middle_name', 'child_last_name']],
+        ['mother_maiden_name', ['mothers_maiden_first', 'mothers_maiden_middle', 'mothers_maiden_last']],
+        ['father_name', ['father_first_name', 'father_middle_name', 'father_last_name']],
+    ];
+    return groups
+        .filter(([, keys]) => keys.some((key) => (
+            comparableName(cellFields[key]) !== comparableName(fullPageFields[key])
+        )))
+        .map(([fieldKey]) => ({
+            code: 'BIRTH_V2_SOURCE_DISAGREEMENT',
+            field: fieldKey,
+            message: 'Exact-cell and full-page Gemini proposals differ. Review this field against the private capture.',
+        }));
+}
+
+function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult = null }) {
+    const cellFields = cellGemini?.ok && hasRequiredNames(cellGemini.value)
+        ? cellGemini.value
+        : null;
+    const fullPageFields = fullPageGemini?.ok && hasRequiredNames(fullPageGemini.value?.fields)
+        ? fullPageGemini.value.fields
+        : null;
+    const rawText = fullPageGemini?.ok ? fullPageGemini.value.raw_text : '';
+    const validationIssues = [];
+    let selectedFields = null;
+    let structuredValueSource = 'none';
+
+    if (cellFields) {
+        selectedFields = buildCandidate(cellFields).fields;
+        structuredValueSource = 'birth_v2_exact_cells_gemini';
+        validationIssues.push(...proposalDisagreementIssues(cellFields, fullPageFields));
+    } else if (fullPageFields) {
+        selectedFields = buildCandidate(fullPageFields).fields;
+        structuredValueSource = 'birth_v2_full_page_gemini_recovery';
+        validationIssues.push({
+            code: 'BIRTH_V2_FULL_PAGE_RECOVERY_USED',
+            message: 'Name fields were recovered from the full-page Gemini reading and require administrator review.',
+        });
+        if (cellGemini?.code) {
+            validationIssues.push({
+                code: cellGemini.code,
+                message: diagnosticResult?.message || 'Exact-cell Birth extraction was unavailable.',
+            });
+        }
+    } else {
+        validationIssues.push({
+            code: cellGemini?.code || 'BIRTH_V2_STRUCTURED_EXTRACTION_FAILED',
+            message: diagnosticResult?.message || 'Gemini could not produce the required Child and Mother names.',
+        });
+        if (fullPageGemini?.ok) {
+            validationIssues.push({
+                code: 'BIRTH_V2_FULL_PAGE_REQUIRED_NAMES_MISSING',
+                message: 'The full-page transcription was saved, but it did not provide all required Birth names.',
+            });
+        }
+    }
+
+    if (!fullPageGemini?.ok) {
+        validationIssues.push({
+            code: fullPageGemini?.code || 'GEMINI_FULL_PAGE_UNAVAILABLE',
+            message: 'The immutable full-page Gemini transcription is unavailable; no replacement text was fabricated.',
+        });
+    }
+
+    return {
+        raw_text: rawText,
+        fields: selectedFields || {},
+        diagnostic_only: !selectedFields,
+        structured_value_source: structuredValueSource,
+        validation_issues: validationIssues,
     };
 }
 
@@ -709,87 +816,74 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
     if (cells.length === 9 && diagnosticResult) {
         throw httpError(400, 'Birth V2 diagnostic metadata is only valid for original-only uploads');
     }
-    let gemini;
-    if (cells.length === 9) {
-        console.info('BIRTH_V2_GEMINI_STARTED', {
-            request_id: String(requestId).slice(0, 8),
-            model: GEMINI_MODEL,
-        });
-        gemini = await callGemini(cells);
-        console.info('BIRTH_V2_GEMINI_FINISHED', {
-            request_id: String(requestId).slice(0, 8),
-            status: gemini.ok ? 'structured_candidate' : 'diagnostic_only',
-            recovered_required_rows: Boolean(gemini.recovered),
-            error_code: gemini.ok ? null : gemini.code,
-        });
-    } else {
-        gemini = { ok: false, code: diagnosticResult.code, value: null };
-        console.info('BIRTH_V2_PRIVATE_CAPTURE_READY', {
-            request_id: String(requestId).slice(0, 8),
-            status: 'diagnostic_only',
-            error_code: diagnosticResult.code,
-        });
-    }
-    let diagnosticTranscription = null;
-    if (!gemini.ok) {
-        const original = artifacts.find(({ artifact_kind: kind }) => kind === 'original');
-        console.info('BIRTH_V2_DIAGNOSTIC_GEMINI_STARTED', {
-            request_id: String(requestId).slice(0, 8),
-            model: GEMINI_MODEL,
-        });
-        diagnosticTranscription = await callGeminiFullPage(original);
-        console.info('BIRTH_V2_DIAGNOSTIC_GEMINI_FINISHED', {
-            request_id: String(requestId).slice(0, 8),
-            status: diagnosticTranscription.ok ? 'transcribed' : 'unavailable',
-            error_code: diagnosticTranscription.ok ? null : diagnosticTranscription.code,
-        });
-    }
+    const original = artifacts.find(({ artifact_kind: kind }) => kind === 'original');
+    console.info('BIRTH_V2_GEMINI_STARTED', {
+        request_id: String(requestId).slice(0, 8),
+        model: GEMINI_MODEL,
+        cell_extraction: cells.length === 9 ? 'requested' : 'skipped',
+        full_page_extraction: 'requested',
+    });
+    const [cellSettlement, fullPageSettlement] = await Promise.allSettled([
+        cells.length === 9
+            ? callGemini(cells)
+            : Promise.resolve({
+                ok: false,
+                code: diagnosticResult?.code || 'BIRTH_V2_EXACT_CELLS_UNAVAILABLE',
+            }),
+        callGeminiFullPage(original),
+    ]);
+    const cellGemini = cellSettlement.status === 'fulfilled'
+        ? cellSettlement.value
+        : { ok: false, code: 'GEMINI_CELL_REQUEST_FAILED' };
+    const fullPageGemini = fullPageSettlement.status === 'fulfilled'
+        ? fullPageSettlement.value
+        : { ok: false, code: 'GEMINI_FULL_PAGE_REQUEST_FAILED' };
+    const selected = selectBirthV2Candidate({
+        cellGemini,
+        fullPageGemini,
+        diagnosticResult,
+    });
+    console.info('BIRTH_V2_GEMINI_FINISHED', {
+        request_id: String(requestId).slice(0, 8),
+        status: selected.diagnostic_only ? 'diagnostic_only' : 'structured_candidate',
+        structured_value_source: selected.structured_value_source,
+        cell_status: cellGemini.ok ? 'available' : 'unavailable',
+        cell_error_code: cellGemini.ok ? null : cellGemini.code,
+        full_page_status: fullPageGemini.ok ? 'available' : 'unavailable',
+        full_page_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
+    });
     await assertRequestStillProcessing(requestId, deviceId);
-    const partialCellSnapshot = !gemini.ok && gemini.value
-        ? buildRawSnapshot(gemini.value)
-        : '';
-    const diagnosticRawText = diagnosticTranscription?.ok
-        ? diagnosticTranscription.value
-        : partialCellSnapshot;
-    const structured = gemini.ok
-        ? buildCandidate(gemini.value)
-        : { raw_text: diagnosticRawText, fields: {} };
     const sourceRegions = cells.length === 9
         ? Object.fromEntries(cells.map(({ cell_key, roi_polygon }) => [cell_key, roi_polygon]))
         : diagnosticResult.source_regions;
-    const validationIssues = gemini.ok ? [] : [{
-        code: gemini.code,
-        message: diagnosticResult?.message || 'Birth OCR requires a rescan or admin rejection.',
-    }];
-    if (!gemini.ok && !diagnosticTranscription?.ok) {
-        validationIssues.push({
-            code: diagnosticTranscription?.code || 'GEMINI_DIAGNOSTIC_UNAVAILABLE',
-            message: 'Full-page diagnostic transcription is unavailable. Request a rescan.',
-        });
-    }
     const result = await iotOcrRequestService.completeRequest({
         requestId,
         status: 'review_required',
-        rawText: structured.raw_text,
+        rawText: selected.raw_text,
         templateId: 'psa_birth_v1',
-        fields: structured.fields,
+        fields: selected.fields,
         fieldConfidence: { child_name: null, mother_maiden_name: null, father_name: null },
-        validationIssues,
+        validationIssues: selected.validation_issues,
         processing: {
             ocr_version: 'v2',
+            pipeline_version: 'v2',
             registration_status: diagnosticResult?.registration_status || 'matched',
             topology_status: diagnosticResult?.topology_status || 'matched',
             ocr_engine: 'gemini',
             model: GEMINI_MODEL,
-            diagnostic_only: !gemini.ok,
-            diagnostic_raw_status: gemini.ok
-                ? 'not_required'
-                : diagnosticTranscription?.ok
-                    ? 'available'
-                    : partialCellSnapshot ? 'partial_cells' : 'unavailable',
-            diagnostic_raw_error_code: (!gemini.ok && !diagnosticTranscription?.ok)
-                ? diagnosticTranscription?.code || 'GEMINI_DIAGNOSTIC_UNAVAILABLE'
-                : null,
+            diagnostic_only: selected.diagnostic_only,
+            raw_text_source: 'birth_v2_full_page_gemini_literal',
+            raw_text_status: fullPageGemini.ok ? 'available' : 'unavailable',
+            raw_text_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
+            structured_value_source: selected.structured_value_source,
+            cell_extraction_status: cells.length !== 9
+                ? 'skipped'
+                : cellGemini.ok ? 'available' : 'unavailable',
+            cell_extraction_error_code: cellGemini.ok ? null : cellGemini.code,
+            full_page_extraction_status: fullPageGemini.ok ? 'available' : 'unavailable',
+            full_page_extraction_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
+            diagnostic_raw_status: fullPageGemini.ok ? 'available' : 'unavailable',
+            diagnostic_raw_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
             private_capture_available: true,
             source_regions: sourceRegions,
             region_mode: cells.length === 9
@@ -893,8 +987,9 @@ exports.RESPONSE_KEYS = RESPONSE_KEYS;
 exports.validateManifest = validateManifest;
 exports.normalizeDiagnostic = normalizeDiagnostic;
 exports.validateGeminiPayload = validateGeminiPayload;
+exports.validateFullPageGeminiPayload = validateFullPageGeminiPayload;
 exports.hasRequiredNames = hasRequiredNames;
-exports.buildRawSnapshot = buildRawSnapshot;
 exports.buildCandidate = buildCandidate;
+exports.selectBirthV2Candidate = selectBirthV2Candidate;
 exports.callGemini = callGemini;
 exports.callGeminiFullPage = callGeminiFullPage;

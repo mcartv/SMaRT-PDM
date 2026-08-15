@@ -31,15 +31,17 @@ test('Birth V2 uses private signed uploads and backend schema-constrained Gemini
     );
 });
 
-test('Birth V2 routes incomplete structured Gemini output to literal full-page diagnostics', () => {
+test('Birth V2 persists first-class full-page transcription independently from structured fields', () => {
     assert.match(service, /GEMINI_REQUIRED_NAME_MISSING/);
     assert.match(service, /callGeminiFullPage\(original\)/);
-    assert.match(service, /partialCellSnapshot/);
-    assert.match(service, /buildRawSnapshot\(gemini\.value\)/);
+    assert.match(service, /Promise\.allSettled/);
+    assert.match(service, /FULL_PAGE_RESPONSE_SCHEMA/);
+    assert.match(service, /rawText:\s*selected\.raw_text/);
+    assert.match(service, /raw_text_source:\s*'birth_v2_full_page_gemini_literal'/);
+    assert.doesNotMatch(service, /buildRawSnapshot/);
+    assert.doesNotMatch(service, /partialCellSnapshot/);
     assert.match(service, /GEMINI_FALLBACK_MODELS/);
-    assert.match(service, /Return only plain transcription text/);
-    assert.doesNotMatch(service, /FULL_PAGE_RESPONSE_SCHEMA/);
-    assert.match(service, /Do not summarize, infer, correct, normalize/);
+    assert.match(service, /raw_text string must remain a literal transcription/);
     assert.match(requestService, /candidate_processing\?\.diagnostic_only/);
     assert.match(requestService, /reference-only and cannot be changed/);
 });
@@ -54,7 +56,7 @@ test('Birth V2 recovers required cells before a separately bounded diagnostic ca
     assert.match(service, /abortSignal:\s*controller\.signal/);
     assert.match(service, /gemini-3\.6-flash/);
     assert.match(service, /gemini-3\.5-flash/);
-    assert.match(service, /geminiFailureCode\(error, 'GEMINI_DIAGNOSTIC'\)/);
+    assert.match(service, /geminiFailureCode\(error, 'GEMINI_FULL_PAGE'\)/);
     assert.match(service, /RATE_LIMITED/);
 });
 

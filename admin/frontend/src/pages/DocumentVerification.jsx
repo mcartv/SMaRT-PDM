@@ -1728,7 +1728,7 @@ function OCRPanel({
                     />
                   )}
                   <span className="text-right text-xs font-semibold text-amber-700">
-                    {ocrScoreLabel(reviewCandidate, key, correctedFields?.[key])}
+                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '—'}
                   </span>
                 </label>
               ))}

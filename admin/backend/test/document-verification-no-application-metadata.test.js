@@ -79,6 +79,13 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.doesNotMatch(source, /\['issue_date', 'Issue Date'\]/);
     assert.doesNotMatch(source, /\['issuing_barangay', 'Issuing Barangay'\]/);
     assert.match(source, /aria-label="Verified full residence address"/);
+    const indigencyStart = source.indexOf('{isIndigencyReview && (');
+    const indigencyEnd = source.indexOf('{isBirthReview && (', indigencyStart);
+    const indigencyCard = source.slice(indigencyStart, indigencyEnd);
+    assert.ok(indigencyStart >= 0 && indigencyEnd > indigencyStart);
+    assert.doesNotMatch(indigencyCard, /ocrScoreLabel\(/);
+    assert.doesNotMatch(indigencyCard, /field_confidence/);
+    assert.match(indigencyCard, /\? 'Detected' : '—'/);
     assert.match(source, /hasCorrections \? 'OCR_CORRECTED' : null/);
     assert.match(
         source,

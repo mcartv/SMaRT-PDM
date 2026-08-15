@@ -31,7 +31,7 @@ test('Birth review defaults to V2 and supports private image-assisted review', (
 });
 
 test('Birth review keeps Child locked and exposes reject and rescan actions', () => {
-    assert.match(source, /aria-label={`Child \${label}`}[\s\S]*?className="bg-stone-100"/);
+    assert.match(source, /aria-label={`Child \${label}`}[\s\S]*?className="[^"]*bg-stone-100"/);
     assert.match(source, /Request Rescan/);
     assert.match(source, /birthCanRequestRescan/);
     assert.match(source, /payload\?\.data\?\.replacement/);
@@ -39,4 +39,15 @@ test('Birth review keeps Child locked and exposes reject and rescan actions', ()
     assert.match(source, />\s*Reject\s*</);
     assert.match(source, /Confirm Parents/);
     assert.match(source, /event\.altKey/);
+});
+
+test('Birth review keeps replacement state live and uses non-overlapping status badges', () => {
+    assert.doesNotMatch(source, /OCR closed/);
+    assert.match(source, /birthReplacementRunning/);
+    assert.match(source, /Rescan in progress/);
+    assert.match(source, /Rescan required/);
+    assert.match(source, /xl:grid-cols-\[minmax\(280px,0\.9fr\)_minmax\(0,1\.1fr\)\]/);
+    assert.doesNotMatch(source, /birthComponentScoreLabel/);
+    assert.match(source, /inline-flex shrink-0 whitespace-nowrap rounded-full/);
+    assert.match(source, /grid min-w-0 gap-3 sm:grid-cols-3/);
 });

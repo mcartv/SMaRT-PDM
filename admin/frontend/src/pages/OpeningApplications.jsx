@@ -531,8 +531,9 @@ function ApplicantTable({
                         return (
                             <tr
                                 key={app.id}
-                                className={`border-b border-stone-100 align-top transition hover:bg-stone-50 ${state.isDisqualified ? 'bg-red-50/20' : ''
-                                    }`}
+                                className={`border-b border-stone-100 align-top transition hover:bg-stone-50 ${
+                                    state.isDisqualified ? 'bg-red-50/20' : ''
+                                }`}
                             >
 
                                 <td className="px-3 py-4">
@@ -667,8 +668,8 @@ function ApplicantTable({
                                     </div>
 
                                     {!state.isApproved &&
-                                        !state.isQualified &&
-                                        state.decisionHint ? (
+                                    !state.isQualified &&
+                                    state.decisionHint ? (
                                         <p className="mt-2 text-right text-[11px] text-stone-400">
                                             {state.decisionHint}
                                         </p>
@@ -791,31 +792,20 @@ export default function OpeningApplications() {
     const fcfsSortedApplicants = useMemo(
         () =>
             apps
-                .filter((app) => {
-                    if (app.is_archived === true) {
-                        return false;
-                    }
-
-                    if (isApprovedCandidate(app)) {
-                        return false;
-                    }
-
-                    return (
-                        Boolean(app.fcfs_completed_at) ||
+                .filter(
+                    (app) =>
+                        app.fcfs_completed_at ||
                         Number(app.queue_position) > 0
-                    );
-                })
+                )
                 .sort(compareFcfs),
         [apps]
     );
 
     const fcfsOrder = useMemo(() => {
         const order = new Map();
-
         fcfsSortedApplicants.forEach((app, index) => {
-            order.set(app.id, index + 1);
+            order.set(app.id, getFcfsRank(app, index + 1));
         });
-
         return order;
     }, [fcfsSortedApplicants]);
 
@@ -854,11 +844,14 @@ export default function OpeningApplications() {
                 const nameParts = fullName.replace(',', ' ').split(/\s+/).filter(Boolean);
 
                 return (
-                    fullName.startsWith(q) ||
-                    nameParts.some((part) => part.startsWith(q)) ||
-                    studentNumber.startsWith(q) ||
-                    normalizedStudentNumber.startsWith(normalizedQ) ||
-                    appId.startsWith(q)
+                    fullName.includes(q) ||
+                    nameParts.some((part) => part.includes(q)) ||
+                    studentNumber.includes(q) ||
+                    (
+                        normalizedQ.length > 0 &&
+                        normalizedStudentNumber.includes(normalizedQ)
+                    ) ||
+                    appId.includes(q)
                 );
             })
             .sort(viewMode === VIEW_MODES.current ? compareFcfs : compareFcfs);
@@ -1078,13 +1071,13 @@ export default function OpeningApplications() {
 
                 <div className="flex flex-col gap-3 border-t border-stone-100 p-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="relative w-full lg:max-w-lg">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                        <Input
-                            placeholder="Search applicant or PDM ID..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="h-9 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
-                        />
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder="Search applicant or PDM ID..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-9 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
+                            />
                     </div>
 
                     <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 lg:w-auto">
@@ -1129,7 +1122,7 @@ export default function OpeningApplications() {
 
                     </div>
 
-                </div>
+               </div>
 
                 <CardContent className="p-4">
                     {tableLoading ? (

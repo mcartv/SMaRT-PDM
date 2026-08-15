@@ -61,6 +61,13 @@ function normalizeStatus(value = '') {
   return String(value).trim().toLowerCase();
 }
 
+function normalizePdmSearchValue(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
 function formatDate(value) {
   if (!value) return 'No date';
   const d = new Date(value);
@@ -757,16 +764,30 @@ function ReadinessOpeningCards({
           return compareFcfs(a, b);
         }),
       }))
-      .filter((group) => group.reserved.length > 0 || group.waiting.length > 0);
+      .filter((group) => {
+        const statusGroup = getOpeningGroup(
+          group.opening?.posting_status || group.opening?.status || ''
+        );
+
+        // Readiness is an operational work queue, so every currently
+        // available/open scholarship opening should stay visible even
+        // when it has no ready or waitlisted applicants yet.
+        return statusGroup === 'open';
+      })
+      .sort((a, b) =>
+        String(a.opening?.opening_title || '').localeCompare(
+          String(b.opening?.opening_title || '')
+        )
+      );
   }, [openings, rows]);
 
   if (!grouped.length) {
     return (
       <Card className="rounded-2xl border-stone-200 shadow-none">
         <CardContent className="py-16 text-center">
-          <p className="text-base font-semibold text-stone-700">No applicants in readiness yet.</p>
+          <p className="text-base font-semibold text-stone-700">No available scholarship openings.</p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-stone-500">
-            Applicants appear here automatically after the coordinator saves a verified requirements review and the endorsement slip becomes completed.
+            Readiness shows every currently open scholarship opening, including openings that do not have ready or waitlisted applicants yet.
           </p>
         </CardContent>
       </Card>
@@ -774,7 +795,7 @@ function ReadinessOpeningCards({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       {grouped.map(({ opening, reserved, waiting }) => {
         const allocated = Number(opening.allocated_slots || opening.slot_count || 0);
         const active = Number(opening.filled_slots || 0);
@@ -833,69 +854,49 @@ function ReadinessOpeningCards({
                   </div>
                 ) : (
                   <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
-                    {reserved.map((row, index) => {
-                      // Display position inside THIS opening's current active reserved queue.
-                      // The database queue_position remains untouched for audit/history.
-                      const displayFcfsPosition = index + 1;
-
-                      return (
-                        <div
-                          key={row.application_id}
-                          className="flex flex-col gap-3 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
-                        >
-                          <div className="flex min-w-0 items-start gap-3">
-                            <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
-                              #{displayFcfsPosition}
-                            </span>
-
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-stone-900">
-                                {row.applicant_name}
-                              </p>
-
-                              <p className="mt-1 text-sm text-stone-500">
-                                {row.pdm_id} · Ready {formatDate(row.fcfs_completed_at)}
-                              </p>
-
-                              <p className="mt-1 text-xs font-medium text-green-700">
-                                {normalizeStatus(row.selection_status) === 'promoted'
-                                  ? 'Promoted from waiting list'
-                                  : 'Reserved by FCFS'}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap gap-2 lg:justify-end">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-9 rounded-lg border-stone-200 text-sm"
-                              onClick={() =>
-                                navigate(`/admin/applications/${row.application_id}/documents`)
-                              }
-                            >
-                              View Application
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              className="h-9 rounded-lg border-none px-4 text-sm text-white"
-                              style={{ background: C.green }}
-                              disabled={approvalLoadingId === row.application_id}
-                              onClick={() => onApproveScholar(row)}
-                            >
-                              {approvalLoadingId === row.application_id ? (
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                              ) : (
-                                <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                              )}
-
-                              Activate Scholar
-                            </Button>
+                    {reserved.map((row) => (
+                      <div key={row.application_id} className="flex flex-col gap-3 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
+                            {getFcfsLabel(row)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
+                            <p className="mt-1 text-sm text-stone-500">
+                              {row.pdm_id} · Ready {formatDate(row.fcfs_completed_at)}
+                            </p>
+                            <p className="mt-1 text-xs font-medium text-green-700">
+                              {normalizeStatus(row.selection_status) === 'promoted' ? 'Promoted from waiting list' : 'Reserved by FCFS'}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })}
+
+                        <div className="flex flex-wrap gap-2 lg:justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-9 rounded-lg border-stone-200 text-sm"
+                            onClick={() => navigate(`/admin/applications/${row.application_id}/documents`)}
+                          >
+                            View Application
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-9 rounded-lg border-none px-4 text-sm text-white"
+                            style={{ background: C.green }}
+                            disabled={approvalLoadingId === row.application_id}
+                            onClick={() => onApproveScholar(row)}
+                          >
+                            {approvalLoadingId === row.application_id ? (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                            )}
+                            Activate Scholar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>
@@ -1486,15 +1487,25 @@ export default function ApplicationReview() {
 
   const filteredRegistryRows = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const normalizedPdmQuery = normalizePdmSearchValue(search);
 
     return registryRows.filter((row) => {
       const applicationGroup = getStatusGroup(row.application_status);
       const documentGroup = getDocumentGroup(row.document_status);
+      const pdmId = String(row.pdm_id || '').toLowerCase();
+      const normalizedPdmId = normalizePdmSearchValue(row.pdm_id);
+
+      const matchesPdmId =
+        pdmId.includes(q) ||
+        (
+          normalizedPdmQuery.length > 0 &&
+          normalizedPdmId.includes(normalizedPdmQuery)
+        );
 
       const matchesSearch =
         !q ||
         (row.applicant_name || '').toLowerCase().includes(q) ||
-        (row.pdm_id || '').toLowerCase().includes(q) ||
+        matchesPdmId ||
         (row.program_name || '').toLowerCase().includes(q) ||
         (row.application_status || '').toLowerCase().includes(q) ||
         (row.document_status || '').toLowerCase().includes(q) ||

@@ -13,11 +13,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: StepEssay(
-              data: data,
-              onChanged: () {},
-              showErrors: true,
-            ),
+            child: StepEssay(data: data, onChanged: () {}, showErrors: true),
           ),
         ),
       ),
@@ -38,23 +34,13 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: StepEssay(
-              data: data,
-              onChanged: () {},
-              showErrors: true,
-            ),
+            child: StepEssay(data: data, onChanged: () {}, showErrors: true),
           ),
         ),
       ),
     );
 
-    expect(
-      find.text('Describe yourself essay is required.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Aims and ambition essay is required.'),
-      findsOneWidget,
-    );
+    expect(find.text('Describe yourself essay is required.'), findsOneWidget);
+    expect(find.text('Aims and ambition essay is required.'), findsOneWidget);
   });
 }

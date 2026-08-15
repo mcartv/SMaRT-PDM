@@ -1,4 +1,5 @@
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 
 class MobileAnnouncement {
   const MobileAnnouncement({
@@ -24,6 +25,25 @@ class MobileAnnouncement {
       date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
     );
   }
+
+  AppNotification toNotification() {
+    final id = announcementId.trim();
+
+    return AppNotification(
+      notificationId: id.isEmpty
+          ? 'announcement-${date.microsecondsSinceEpoch}'
+          : 'announcement-$id',
+      userId: '',
+      type: 'Announcement',
+      title: title.trim().isEmpty ? 'Announcement' : title.trim(),
+      message: content.trim(),
+      referenceId: id.isEmpty ? null : id,
+      referenceType: 'announcement',
+      isRead: true,
+      pushSent: false,
+      createdAt: date,
+    );
+  }
 }
 
 class AnnouncementService {
@@ -36,12 +56,22 @@ class AnnouncementService {
     final response = await _apiClient.getObject('/api/announcements');
     final items = response['items'] as List<dynamic>? ?? const [];
 
-    return items
+    final now = DateTime.now();
+
+    final announcements = items
         .whereType<Map>()
         .map(
           (item) =>
               MobileAnnouncement.fromJson(Map<String, dynamic>.from(item)),
         )
-        .toList();
+        // Defensive client-side guard: a scheduled item with a future
+        // publication date must not appear early even if the API returns it.
+        .where((item) => !item.date.toLocal().isAfter(now))
+        .toList(growable: false);
+
+    final sorted = List<MobileAnnouncement>.from(announcements)
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    return sorted;
   }
 }

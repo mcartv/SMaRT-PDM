@@ -87,9 +87,16 @@ void main() {
     });
 
     test('accepts a fully valid submission snapshot', () {
+      final result = validator.validateSubmissionPreflight(
+        _validApplicationData(),
+      );
+
       expect(
-        validator.validateSubmissionPreflight(_validApplicationData()).isValid,
+        result.isValid,
         isTrue,
+        reason: result.issues
+            .map((issue) => '${issue.field}: ${issue.message}')
+            .join(' | '),
       );
     });
 
@@ -105,10 +112,16 @@ void main() {
       );
     });
 
-    test('college accepts On Going or a graduation year from 2026 onward', () {
-      final ongoing = _validApplicationData()
-        ..collegeYearGraduated = 'On Going';
+    test('college accepts Ongoing or a graduation year from 2026 onward', () {
+      final ongoing = _validApplicationData()..collegeYearGraduated = 'Ongoing';
       expect(validator.validateAcademicProgression(ongoing).isValid, isTrue);
+
+      final legacyOngoing = _validApplicationData()
+        ..collegeYearGraduated = 'On Going';
+      expect(
+        validator.validateAcademicProgression(legacyOngoing).isValid,
+        isTrue,
+      );
 
       final validYear = _validApplicationData()..collegeYearGraduated = '2026';
       expect(validator.validateAcademicProgression(validYear).isValid, isTrue);
@@ -118,7 +131,7 @@ void main() {
       expect(result.isValid, isFalse);
       expect(
         result.issueForField('collegeYearGraduated')?.message,
-        'Select On Going or a college graduation year of 2026 or later.',
+        'Select Ongoing or a college graduation year of 2026 or later.',
       );
     });
 
@@ -127,9 +140,14 @@ void main() {
       () {
         final longResidency = _validApplicationData()
           ..parentMarilaoResidencyDuration = '100';
+        final longResult = validator.validateReviewReadiness(longResidency);
+
         expect(
-          validator.validateReviewReadiness(longResidency).isValid,
+          longResult.isValid,
           isTrue,
+          reason: longResult.issues
+              .map((issue) => '${issue.field}: ${issue.message}')
+              .join(' | '),
         );
 
         final invalidResidency = _validApplicationData()
@@ -184,7 +202,7 @@ ApplicationData _validApplicationData() {
     ..parentMarilaoResidencyDuration = '12'
     ..collegeSchool = 'Pambayang Dalubhasaan ng Marilao'
     ..collegeAddress = 'Abangan, Norte, Marilao, Bulacan'
-    ..collegeYearGraduated = 'On Going'
+    ..collegeYearGraduated = 'Ongoing'
     ..highSchoolSchool = 'Marilao National High School'
     ..highSchoolAddress = 'Marilao, Bulacan'
     ..highSchoolYearGraduated = '2022'

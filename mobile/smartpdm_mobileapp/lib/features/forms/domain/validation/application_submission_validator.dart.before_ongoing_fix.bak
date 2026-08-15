@@ -617,15 +617,7 @@ class ApplicationSubmissionValidator {
     );
 
     final collegeYear = data.collegeYearGraduated.trim();
-    final normalizedCollegeYear = collegeYear.toLowerCase().replaceAll(
-      RegExp(r'\s+'),
-      '',
-    );
-
-    // "Ongoing" is the canonical value used by the current UI. Accept the
-    // legacy "On Going" spelling as well so previously saved drafts continue
-    // to validate correctly.
-    if (collegeYear.isNotEmpty && normalizedCollegeYear != 'ongoing') {
+    if (collegeYear.isNotEmpty && collegeYear != 'Ongoing') {
       final parsedCollegeYear = int.tryParse(collegeYear);
       if (parsedCollegeYear == null || parsedCollegeYear < 2026) {
         issues.add(
@@ -634,9 +626,9 @@ class ApplicationSubmissionValidator {
             section: ApplicationSubmissionSection.academic,
             field: 'collegeYearGraduated',
             message:
-                'Select Ongoing or a college graduation year of 2026 or later.',
+                'Select On Going or a college graduation year of 2026 or later.',
             repairAction:
-                'Choose Ongoing or select a college graduation year from 2026 onward.',
+                'Choose On Going or select a college graduation year from 2026 onward.',
           ),
         );
       }

@@ -10,6 +10,30 @@ function normalizeText(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function parseDate(value) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function publicationDate(row = {}) {
+  return (
+    parseDate(row.published_at) ||
+    parseDate(row.publish_date) ||
+    parseDate(row.scheduled_at) ||
+    parseDate(row.created_at)
+  );
+}
+
+function isPublishedNow(row = {}, now = new Date()) {
+  if (row.is_archived === true) return false;
+  if (normalizeText(row.status) !== 'published') return false;
+
+  const published = publicationDate(row);
+  return published === null || published.getTime() <= now.getTime();
+}
+
 async function getAudienceContext(userId) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
@@ -136,22 +160,21 @@ function canViewAudience(context, row = {}) {
 }
 
 function mapAnnouncementRow(row = {}) {
+  const date = publicationDate(row);
+
   return {
     announcementId: row.announcement_id?.toString() || '',
     title: row.subject?.toString() || 'Announcement',
     content: row.content?.toString() || '',
     audienceKey: row.target_audience?.toString() || 'all',
     targetProgramId: row.target_program_id?.toString() || null,
-    date:
-      row.published_at?.toString() ||
-      row.publish_date?.toString() ||
-      row.created_at?.toString() ||
-      new Date().toISOString(),
+    date: date ? date.toISOString() : new Date().toISOString(),
   };
 }
 
 async function listPublishedAnnouncements(userId) {
   const context = await getAudienceContext(userId);
+  const now = new Date();
 
   const { data, error } = await supabase
     .from('announcements')
@@ -163,24 +186,31 @@ async function listPublishedAnnouncements(userId) {
       target_program_id,
       published_at,
       publish_date,
+      scheduled_at,
       created_at,
       status,
       is_archived
     `)
     .eq('is_archived', false)
-    .eq('status', 'Published')
-    .order('published_at', { ascending: false });
+    .eq('status', 'Published');
 
   if (error) {
     throw error;
   }
 
   return (data || [])
+    .filter((row) => isPublishedNow(row, now))
     .filter((row) => canViewAudience(context, row))
+    .sort((a, b) => {
+      const aDate = publicationDate(a)?.getTime() || 0;
+      const bDate = publicationDate(b)?.getTime() || 0;
+      return bDate - aDate;
+    })
     .map(mapAnnouncementRow);
 }
 
 module.exports = {
   listPublishedAnnouncements,
   canViewAudience,
+  isPublishedNow,
 };

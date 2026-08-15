@@ -39,12 +39,14 @@ class _StepSubmitState extends State<StepSubmit> {
     super.initState();
     certRead = widget.data.certificationRead;
     agreeTerms = widget.data.agree;
+
     _termsRecognizer = TapGestureRecognizer()
       ..onTap = () => showLegalDocumentSheet(
         context,
         title: LegalDocuments.termsOfServiceTitle,
         content: LegalDocuments.termsOfService,
       );
+
     _privacyRecognizer = TapGestureRecognizer()
       ..onTap = () => showLegalDocumentSheet(
         context,
@@ -71,6 +73,7 @@ class _StepSubmitState extends State<StepSubmit> {
       middle,
       last,
     ].map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
+
     return parts.isEmpty ? '-' : parts.join(' ');
   }
 
@@ -85,6 +88,7 @@ class _StepSubmitState extends State<StepSubmit> {
       widget.data.province,
       widget.data.zipCode,
     ].map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
+
     return parts.isEmpty ? '-' : parts.join(', ');
   }
 
@@ -94,6 +98,7 @@ class _StepSubmitState extends State<StepSubmit> {
 
   Widget _warningBox() {
     final validation = _reviewValidation();
+
     if (validation.isValid) {
       return IntakeInfoCard(
         title: 'Ready to submit',
@@ -136,142 +141,137 @@ class _StepSubmitState extends State<StepSubmit> {
     );
   }
 
-  Widget _certificationArea() {
+  Widget _confirmationCard() {
+    return IntakeCard(
+      margin: const EdgeInsets.only(bottom: 16),
+      backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFFEFE4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: certRead,
+            onChanged: (value) {
+              setState(() {
+                certRead = value ?? false;
+                widget.data.certificationRead = certRead;
+              });
+              widget.onChanged();
+            },
+            title: Text(
+              'I confirm that the information I provided in this application is true, accurate, and complete to the best of my knowledge. I understand that false or misleading information may result in the rejection or disqualification of my application.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: intakeTextColor(context),
+                fontWeight: FontWeight.w700,
+                height: 1.5,
+              ),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          if (widget.showErrors && !certRead)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+              child: Text(
+                'You must confirm that the information you provided is accurate.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legalAgreementCard() {
+    return IntakeCard(
+      margin: const EdgeInsets.only(bottom: 16),
+      backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFFF8EA),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: agreeTerms,
+            onChanged: (value) {
+              setState(() {
+                agreeTerms = value ?? false;
+                widget.data.agree = agreeTerms;
+              });
+              widget.onChanged();
+            },
+            title: RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: intakeTextColor(context),
+                  fontWeight: FontWeight.w600,
+                  height: 1.5,
+                ),
+                children: [
+                  const TextSpan(text: 'By continuing, I agree to the '),
+                  TextSpan(
+                    text: 'Terms of Service',
+                    style: const TextStyle(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.w800,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: _termsRecognizer,
+                  ),
+                  const TextSpan(text: ' and acknowledge the '),
+                  TextSpan(
+                    text: 'SMaRT-PDM Privacy Statement',
+                    style: const TextStyle(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.w800,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: _privacyRecognizer,
+                  ),
+                  const TextSpan(
+                    text:
+                        '. I understand how my account and information will be used for scholarship-related services.',
+                  ),
+                ],
+              ),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          if (widget.showErrors && !agreeTerms)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+              child: Text(
+                'You must agree to the Terms of Service and acknowledge the Privacy Statement.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _confirmationArea() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const IntakeSectionHeader(title: 'VI. CERTIFICATION & SUBMISSION'),
+        const IntakeSectionHeader(title: 'VI. CONFIRM & SUBMIT'),
         const IntakeInfoCard(
           title: 'Before you submit',
           message:
-              'Submitting this form creates your scholarship application for the selected scholarship. After submission, upload the required documents to continue the review process.',
+              'Submitting this form creates your scholarship application. After submission, you can upload the required documents from the next application stage.',
           icon: Icons.assignment_turned_in_outlined,
         ),
         const SizedBox(height: 16),
-        IntakeCard(
-          margin: const EdgeInsets.only(bottom: 16),
-          backgroundColor: intakeIsDark(context)
-              ? AppColors.applicantDarkSurfaceMuted
-              : const Color(0xFFFFF8EA),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Documentary Requirements',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: intakeTextColor(context),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '• Fully accomplished survey form\n'
-                '• Letter of request for scholarship grant\n'
-                '• Certificate of indigency from the Punong Barangay\n'
-                '• Photocopy of recent Certificate of Registration (COR)\n'
-                '• Grade report for the current semester',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: intakeSubtextColor(context),
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-        IntakeCard(
-          margin: const EdgeInsets.only(bottom: 16),
-          backgroundColor: intakeIsDark(context)
-              ? AppColors.applicantDarkSurfaceMuted
-              : const Color(0xFFFFEFE4),
-          child: Text(
-            'Certification: I certify that all answers given above are true and correct to the best of my knowledge. I understand that any false information will disqualify my application.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: intakeTextColor(context),
-              fontWeight: FontWeight.w700,
-              height: 1.5,
-            ),
-          ),
-        ),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: certRead,
-          onChanged: (value) {
-            setState(() {
-              certRead = value ?? false;
-              widget.data.certificationRead = certRead;
-            });
-            widget.onChanged();
-          },
-          title: const Text(
-            'I certify that all information I provided is truthful, accurate, and complete to the best of my knowledge.',
-          ),
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-        if (widget.showErrors && !certRead)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              'You must confirm the certification statement.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: agreeTerms,
-          onChanged: (value) {
-            setState(() {
-              agreeTerms = value ?? false;
-              widget.data.agree = agreeTerms;
-            });
-            widget.onChanged();
-          },
-          title: RichText(
-            text: TextSpan(
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: intakeSubtextColor(context),
-                height: 1.45,
-              ),
-              children: [
-                const TextSpan(text: 'By continuing, I agree to the '),
-                TextSpan(
-                  text: 'Terms of Service',
-                  style: const TextStyle(
-                    color: AppColors.gold,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                  recognizer: _termsRecognizer,
-                ),
-                const TextSpan(text: ' and the '),
-                TextSpan(
-                  text: 'SMaRT-PDM Privacy Statement',
-                  style: const TextStyle(
-                    color: AppColors.gold,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                  recognizer: _privacyRecognizer,
-                ),
-                const TextSpan(
-                  text:
-                      '. I understand that using an account that is not mine may invalidate this scholarship application.',
-                ),
-              ],
-            ),
-          ),
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-        if (widget.showErrors && !agreeTerms)
-          Text(
-            'You must agree to the legal terms and privacy statement.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.redAccent,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+        _confirmationCard(),
+        _legalAgreementCard(),
       ],
     );
   }
@@ -423,7 +423,7 @@ class _StepSubmitState extends State<StepSubmit> {
           ],
         ),
         const SizedBox(height: 10),
-        _certificationArea(),
+        _confirmationArea(),
       ],
     );
   }

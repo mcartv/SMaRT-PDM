@@ -7,7 +7,6 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
-import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_controller.dart';
@@ -118,7 +117,6 @@ class _UnifiedDashboardContent extends StatefulWidget {
 class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   final ApplicantDocumentsService _documentsService =
       ApplicantDocumentsService();
-  final AnnouncementService _announcementService = AnnouncementService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
   final ApplicationService _applicationService = ApplicationService();
   final ProfileService _profileService = ProfileService();
@@ -132,18 +130,15 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   bool _isRefreshing = false;
   bool _isLoadingStatus = true;
   bool _isLoadingRequirements = true;
-  bool _isLoadingAnnouncements = true;
   bool _isLoadingOpenings = true;
 
   ApplicationStatusSummary? _statusSummary;
   ApplicantDocumentsPackage? _requirementsPackage;
-  List<AppNotification> _announcements = const [];
   List<ProgramOpening> _latestOpenings = const [];
 
   String? _identityError;
   String? _statusError;
   String? _requirementsError;
-  String? _announcementsError;
   bool _needsBaseApplication = false;
   bool _guideChecked = false;
 
@@ -285,14 +280,12 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final requirementsChanged =
         provider.applicationRevision != _lastApplicationRevision;
     final openingsChanged = provider.openingRevision != _lastOpeningRevision;
-    final announcementsChanged =
-        provider.announcementRevision != _lastAnnouncementRevision;
 
     final anythingChanged =
         statusChanged ||
         requirementsChanged ||
         openingsChanged ||
-        announcementsChanged ||
+        provider.announcementRevision != _lastAnnouncementRevision ||
         provider.payoutRevision != _lastPayoutRevision ||
         provider.renewalRevision != _lastRenewalRevision ||
         provider.roRevision != _lastRoRevision;
@@ -303,8 +296,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
     if (statusChanged || requirementsChanged || openingsChanged) {
       _loadDashboardData(refreshNotifications: false);
-    } else if (announcementsChanged) {
-      _loadAnnouncements();
     } else if (mounted) {
       setState(() {});
     }
@@ -319,7 +310,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       setState(() {
         _isLoadingStatus = true;
         _isLoadingRequirements = true;
-        _isLoadingAnnouncements = true;
         _isLoadingOpenings = true;
       });
     }
@@ -335,7 +325,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           setState(() {
             _isLoadingStatus = false;
             _isLoadingRequirements = false;
-            _isLoadingAnnouncements = false;
             _isLoadingOpenings = false;
           });
         }
@@ -345,7 +334,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       await Future.wait([
         _loadApplicationStatus(),
         _loadRequirements(),
-        _loadAnnouncements(),
         _loadOpenings(),
       ]);
     } finally {
@@ -436,36 +424,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
   }
 
-  Future<void> _loadAnnouncements() async {
-    try {
-      final items = await _announcementService.fetchAnnouncements();
-      if (!mounted) return;
-
-      setState(() {
-        _announcements = items
-            .map((item) => item.toNotification())
-            .take(3)
-            .toList(growable: false);
-        _announcementsError = null;
-        _isLoadingAnnouncements = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _announcements = const [];
-        _announcementsError = error
-            .toString()
-            .replaceFirst('Exception: ', '')
-            .trim();
-        _isLoadingAnnouncements = false;
-      });
-    }
-  }
-
   Future<void> _loadOpenings() async {
     try {
-      final result = await _openingService.fetchDashboardOpenings();
+      final result = await _openingService.fetchAvailableOpenings();
       if (!mounted) return;
       setState(() {
         _latestOpenings = result.items.take(2).toList(growable: false);
@@ -549,11 +510,15 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
-  List<AppNotification> _latestAnnouncements() {
-    final announcements = List<AppNotification>.from(_announcements)
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  List<AppNotification> _latestAnnouncements(NotificationProvider provider) {
+    final announcements = provider.officeUpdatesItems
+        .where((item) => item.isAnnouncementNotification)
+        .take(3)
+        .toList(growable: false);
 
-    return announcements.take(3).toList(growable: false);
+    if (announcements.isNotEmpty) return announcements;
+
+    return provider.officeUpdatesItems.take(3).toList(growable: false);
   }
 
   List<AppNotification> _recentUpdates(NotificationProvider provider) {
@@ -906,19 +871,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   Widget _buildAnnouncements(List<AppNotification> announcements) {
-    if (_isLoadingAnnouncements && announcements.isEmpty) {
+    if (_notificationProvider?.isLoading == true && announcements.isEmpty) {
       return _LoadingCard(isDark: _isDark);
-    }
-
-    if (_announcementsError != null && announcements.isEmpty) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.cloud_off_rounded,
-        title: 'Unable to load announcements',
-        message: _announcementsError!,
-        buttonLabel: 'Try again',
-        onPressed: _loadAnnouncements,
-      );
     }
 
     if (announcements.isEmpty) {
@@ -1188,7 +1142,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
-    final announcements = _latestAnnouncements();
+    final announcements = _latestAnnouncements(provider);
 
     if (_identityError != null) {
       return ColoredBox(

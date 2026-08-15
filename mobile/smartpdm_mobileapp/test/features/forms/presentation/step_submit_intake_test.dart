@@ -32,9 +32,7 @@ void main() {
     expect(find.text('Review required fields'), findsOneWidget);
     expect(find.text('- Enter your First name.'), findsOneWidget);
     expect(
-      find.text(
-        '- Write your Describe yourself essay before continuing.',
-      ),
+      find.text('- Write your Describe yourself essay before continuing.'),
       findsOneWidget,
     );
     expect(find.text('- Check the certification statement.'), findsOneWidget);
@@ -53,11 +51,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: StepSubmit(
-              data: data,
-              onChanged: () {},
-              onEditStep: (_) {},
-            ),
+            child: StepSubmit(data: data, onChanged: () {}, onEditStep: (_) {}),
           ),
         ),
       ),
@@ -126,7 +120,7 @@ ApplicationData _validApplicationData() {
     ..parentMarilaoResidencyDuration = '12'
     ..collegeSchool = 'Pambayang Dalubhasaan ng Marilao'
     ..collegeAddress = 'Abangan, Norte, Marilao, Bulacan'
-    ..collegeYearGraduated = 'On Going'
+    ..collegeYearGraduated = 'Ongoing'
     ..highSchoolSchool = 'Meycauayan National High School'
     ..highSchoolAddress = 'Meycauayan, Bulacan'
     ..highSchoolYearGraduated = '2022'

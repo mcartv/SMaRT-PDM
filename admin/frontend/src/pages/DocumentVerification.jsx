@@ -1406,6 +1406,7 @@ function ocrScoreLabel(candidate, key, displayedValue) {
   return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
 }
 
+<<<<<<< HEAD
 function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
@@ -1413,6 +1414,8 @@ function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedVa
   return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
 }
 
+=======
+>>>>>>> refs/remotes/origin/main
 const BIRTH_REGION_PREFIX = {
   child_name: 'item1',
   mother_maiden_name: 'item6',
@@ -1537,6 +1540,17 @@ function OCRPanel({
   );
   const birthRawUnavailable = Boolean(
     birthV2Review && !String(rawOcrSnapshot || '').trim()
+  );
+  const birthCanRequestRescan = Boolean(
+    birthV2Review
+    && birthDiagnosticOnly
+    && ['review_required', 'failed'].includes(String(reviewCandidate?.status || '').toLowerCase())
+  );
+  const birthReplacementRunning = Boolean(
+    isBirthReview && reviewCandidate?.status === 'failed' && runningIotOcr
+  );
+  const birthShowReviewImage = Boolean(
+    birthV2Review && reviewCandidate?.status === 'review_required'
   );
   const birthHasCorrections = Boolean(
     isBirthReview
@@ -1765,8 +1779,16 @@ function OCRPanel({
                 ))}
                 <Badge className={birthReviewCompleted
                   ? 'border-green-200 bg-green-100 text-green-800'
+                  : birthReplacementRunning
+                    ? 'border-blue-200 bg-blue-100 text-blue-800'
                   : 'border-rose-200 bg-rose-100 text-rose-800'}>
-                  {birthReviewCompleted ? 'OCR confirmed' : reviewCandidate.status === 'failed' ? 'OCR closed' : 'Review required'}
+                  {birthReviewCompleted
+                    ? 'OCR confirmed'
+                    : birthReplacementRunning
+                      ? 'Rescan in progress'
+                      : reviewCandidate.status === 'failed'
+                        ? 'Rescan required'
+                        : 'Review required'}
                 </Badge>
               </div>
             </div>
@@ -1787,8 +1809,11 @@ function OCRPanel({
               </div>
             )}
 
-            {reviewCandidate.ocr_version === 'v2' && reviewCandidate.status === 'review_required' && (
-              <div className="lg:float-left lg:mr-4 lg:w-[48%]">
+            <div className={birthShowReviewImage && !birthDiagnosticOnly
+              ? 'grid items-start gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]'
+              : 'space-y-4'}>
+            {birthShowReviewImage && (
+              <div className="min-w-0 space-y-2">
                 <BirthV2ReviewImage
                   src={birthReviewImageUrl}
                   regions={reviewCandidate?.processing?.source_regions}
@@ -1797,38 +1822,30 @@ function OCRPanel({
                   status={birthReviewImageStatus}
                   error={birthReviewImageError}
                 />
-                <p className="mt-1 text-xs text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
+                <p className="text-xs text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
               </div>
             )}
 
-            {!birthDiagnosticOnly && <div className="rounded-lg border border-rose-100 bg-white p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-stone-700">Child Name (reference)</p>
-                <span className="text-xs font-semibold text-rose-700">
-                  {ocrScoreLabel(reviewCandidate, 'child_name', correctedFields?.child_name?.first_name)}
+            <div className="min-w-0 space-y-4">
+
+            {!birthDiagnosticOnly && <div className="rounded-xl border border-rose-100 bg-white p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <p className="min-w-0 text-sm font-semibold text-stone-700">Child Name (reference)</p>
+                <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                  {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : '—'}
                 </span>
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-3">
                 {BIRTH_NAME_PARTS.map(([part, label]) => (
-                  <label key={part} className="space-y-1">
-                    <span className="flex items-center justify-between gap-2 text-xs text-stone-500">
-                      <span>{label}</span>
-                      <span className="font-semibold text-rose-600">
-                        {birthComponentScoreLabel(
-                          reviewCandidate,
-                          'child_name',
-                          part,
-                          correctedFields?.child_name?.[part]
-                        )}
-                      </span>
-                    </span>
+                  <label key={part} className="min-w-0 space-y-1.5">
+                    <span className="block text-xs text-stone-500">{label}</span>
                     <Input
                       value={correctedFields?.child_name?.[part] || ''}
                       readOnly
                       data-birth-ocr-field
                       onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX.child_name}_${part.replace('_name', '')}`)}
                       aria-label={`Child ${label}`}
-                      className="bg-stone-100"
+                      className="w-full min-w-0 bg-stone-100"
                     />
                   </label>
                 ))}
@@ -1836,27 +1853,17 @@ function OCRPanel({
             </div>}
 
             {!birthDiagnosticOnly && BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
-              <div key={fieldKey} className="rounded-lg border border-rose-100 bg-white p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-stone-800">{heading}</p>
-                  <span className="text-xs font-semibold text-rose-700">
-                    {ocrScoreLabel(reviewCandidate, fieldKey, correctedFields?.[fieldKey]?.first_name)}
+              <div key={fieldKey} className="rounded-xl border border-rose-100 bg-white p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <p className="min-w-0 text-sm font-semibold text-stone-800">{heading}</p>
+                  <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                    {Object.values(correctedFields?.[fieldKey] || {}).some((value) => String(value || '').trim()) ? 'Detected' : '—'}
                   </span>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid min-w-0 gap-3 sm:grid-cols-3">
                   {BIRTH_NAME_PARTS.map(([part, label]) => (
-                    <label key={part} className="space-y-1">
-                      <span className="flex items-center justify-between gap-2 text-xs text-stone-500">
-                        <span>{label}</span>
-                        <span className="font-semibold text-rose-600">
-                          {birthComponentScoreLabel(
-                            reviewCandidate,
-                            fieldKey,
-                            part,
-                            correctedFields?.[fieldKey]?.[part]
-                          )}
-                        </span>
-                      </span>
+                    <label key={part} className="min-w-0 space-y-1.5">
+                      <span className="block text-xs text-stone-500">{label}</span>
                       <Input
                         value={correctedFields?.[fieldKey]?.[part] || ''}
                         readOnly={birthReviewClosed}
@@ -1870,13 +1877,15 @@ function OCRPanel({
                             [part]: event.target.value,
                           },
                         })}
-                        className={birthReviewClosed ? 'bg-stone-100' : 'bg-white'}
+                        className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
                       />
                     </label>
                   ))}
                 </div>
               </div>
             ))}
+            </div>
+            </div>
 
             {(reviewCandidate.validation_issues || []).length > 0 && (
               <div className="clear-both rounded-lg border border-amber-200 bg-white p-3 text-sm text-amber-900">
@@ -1889,7 +1898,7 @@ function OCRPanel({
               </div>
             )}
 
-            {!birthReviewClosed && (
+            {(!birthReviewClosed || birthCanRequestRescan) && (
               <div className="clear-both space-y-3">
                 <label className="block text-xs font-semibold text-stone-700">
                   Review reason
@@ -1915,7 +1924,7 @@ function OCRPanel({
                   ) : (
                     <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
                   )}
-                  <div className="flex gap-2">
+                  {!birthReviewClosed && <div className="flex gap-2">
                     <Button variant="outline" onClick={onRejectCandidate} disabled={reviewingCandidate || !birthReviewReason} className="text-red-700">
                       Reject
                     </Button>
@@ -1926,7 +1935,7 @@ function OCRPanel({
                       {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       {birthHasCorrections ? 'Correct & Confirm' : 'Confirm Parents'}
                     </Button>}
-                  </div>
+                  </div>}
                 </div>
               </div>
             )}
@@ -3837,13 +3846,23 @@ export default function DocumentVerification() {
       if (!response.ok) throw new Error(payload.error || `Failed to ${action} OCR candidate`);
       setBirthReviewReason('');
       if (action === 'rescan') {
+        const replacement = payload?.data?.replacement || null;
         setReviewCandidate(null);
         setCorrectedFields({});
-        setRunningIotOcr(true);
+        setRawOcrSnapshot('');
+        if (replacement?.request_id) {
+          activeIotRequestRef.current = {
+            documentId: activeDoc.id,
+            requestId: replacement.request_id,
+            request: replacement,
+          };
+        }
+        await fetchApplicationDocuments({ soft: true });
+        await handleRunIotOcr(activeDoc.id);
       } else {
         setReviewCandidate((current) => current ? { ...current, status: 'failed' } : current);
+        await fetchApplicationDocuments({ soft: true });
       }
-      await fetchApplicationDocuments({ soft: true });
     } catch (error) {
       setIotOcrError(error.message || `Failed to ${action} OCR candidate`);
     } finally {

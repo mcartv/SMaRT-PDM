@@ -41,18 +41,22 @@ test('Birth V2 persists first-class full-page transcription independently from s
     assert.doesNotMatch(service, /buildRawSnapshot/);
     assert.doesNotMatch(service, /partialCellSnapshot/);
     assert.match(service, /GEMINI_FALLBACK_MODELS/);
+    assert.match(service, /retryOptions/);
+    assert.match(service, /GEMINI_RETRY_ATTEMPTS/);
+    assert.match(service, /GEMINI_ENABLE_ROW_RECOVERY/);
     assert.match(service, /raw_text string must remain a literal transcription/);
     assert.match(requestService, /candidate_processing\?\.diagnostic_only/);
     assert.match(requestService, /reference-only and cannot be changed/);
 });
 
-test('Birth V2 recovers required cells before a separately bounded diagnostic call', () => {
+test('Birth V2 bounds Gemini calls and retries transient provider failures', () => {
     assert.match(service, /GEMINI_DIAGNOSTIC_TIMEOUT_MS/);
     assert.match(service, /recoverRequiredNames\(client, cells, parsed\)/);
     assert.match(service, /readRequiredNameRow/);
     assert.match(service, /Promise\.all/);
     assert.match(service, /ROW_RECOVERY_SCHEMA/);
-    assert.match(service, /httpOptions:\s*\{ timeout: timeoutMs \}/);
+    assert.match(service, /httpOptions:\s*\{[\s\S]*?timeout: timeoutMs,[\s\S]*?retryOptions:/);
+    assert.match(service, /httpStatusCodes:\s*\[408, 429, 500, 502, 503, 504\]/);
     assert.match(service, /abortSignal:\s*controller\.signal/);
     assert.match(service, /gemini-3\.6-flash/);
     assert.match(service, /gemini-3\.5-flash/);
@@ -85,6 +89,8 @@ test('review_required may transition to failed for reject and rescan', () => {
     assert.match(requestService, /review_required:\s*Object\.freeze\(\['completed', 'failed', 'expired'\]\)/);
     assert.match(requestService, /ADMIN_REJECTED/);
     assert.match(requestService, /ADMIN_RESCAN_REQUESTED/);
+    assert.match(requestService, /createReplacement && previous\.status === 'failed'/);
+    assert.match(requestService, /retry_of_request_id/);
 });
 
 test('V2 schema has immutable review events and protected private artifact metadata', () => {

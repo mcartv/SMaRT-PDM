@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 process.env.GEMINI_API_KEY = 'test-only-key';
 process.env.GEMINI_MODEL = 'gemini-test-model';
+process.env.GEMINI_ENABLE_ROW_RECOVERY = 'true';
 
 for (const relative of [
     '../config/db',
@@ -121,11 +122,18 @@ test('full-page extraction preserves literal transcription and recovery fields',
     assert.deepEqual(result.value.fields, flatFields());
 });
 
-test('diagnostic rate limits produce an actionable sanitized code', async () => {
-    handler = async () => {
-        const error = new Error('sensitive provider message');
-        error.status = 429;
-        throw error;
+test('diagnostic rate limits fall through configured models after bounded SDK retries', async () => {
+    const requestedModels = [];
+    handler = async (request) => {
+        requestedModels.push(request.model);
+        assert.equal(request.config.httpOptions.retryOptions.attempts, 4);
+        assert.deepEqual(request.config.httpOptions.retryOptions.httpStatusCodes, [408, 429, 500, 502, 503, 504]);
+        if (request.model !== 'gemini-3.6-flash') {
+            const error = new Error('sensitive provider message');
+            error.status = 429;
+            throw error;
+        }
+        return { text: fullPageResponse('literal transcription after model fallback') };
     };
 
     const result = await service.callGeminiFullPage({
@@ -133,6 +141,21 @@ test('diagnostic rate limits produce an actionable sanitized code', async () => 
         bytes: Buffer.from('private-original'),
     });
 
+    assert.equal(result.ok, true);
+    assert.equal(result.value.raw_text, 'literal transcription after model fallback');
+    assert.deepEqual(requestedModels.slice(0, 2), ['gemini-test-model', 'gemini-3.6-flash']);
+});
+
+test('diagnostic reports rate limited only after every configured model is exhausted', async () => {
+    handler = async () => {
+        const error = new Error('RESOURCE_EXHAUSTED');
+        error.status = 429;
+        throw error;
+    };
+    const result = await service.callGeminiFullPage({
+        mime_type: 'image/jpeg',
+        bytes: Buffer.from('private-original'),
+    });
     assert.deepEqual(result, { ok: false, code: 'GEMINI_FULL_PAGE_RATE_LIMITED' });
 });
 

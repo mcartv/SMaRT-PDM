@@ -1,19 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowLeft, Eye, EyeOff, FileCheck2, ShieldCheck, UserCheck } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
 import { buildApiUrl } from '@/api';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { getLoginErrorMessage } from '@/utils/loginErrors';
-import { consumePortalSessionFeedback } from '@/utils/authStorage';
+import {
+  consumePortalSessionFeedback,
+  getStoredPortalSession,
+  savePortalSession,
+} from '@/utils/authStorage';
 
 export default function DepartmentPortalLogin({
   portalKey,
   portalLabel,
   officeName,
   authPath,
-  tokenStorageKey,
-  profileStorageKey,
   redirectPath,
   featureLabels = [
     'Role-specific endorsement queue',
@@ -28,6 +30,14 @@ export default function DepartmentPortalLogin({
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionFeedback] = useState(() => consumePortalSessionFeedback(portalKey));
+
+  useEffect(() => {
+    const existingSession = getStoredPortalSession(portalKey);
+
+    if (existingSession?.token) {
+      navigate(existingSession.redirectPath || redirectPath, { replace: true });
+    }
+  }, [navigate, portalKey, redirectPath]);
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -52,9 +62,13 @@ export default function DepartmentPortalLogin({
         throw loginError;
       }
 
-      sessionStorage.setItem(tokenStorageKey, data.token);
-      sessionStorage.setItem(profileStorageKey, JSON.stringify(data.user));
-      navigate(redirectPath);
+      savePortalSession({
+        portalName: portalKey,
+        token: data.token,
+        user: data.user,
+        stayLoggedIn: false,
+      });
+      navigate(redirectPath, { replace: true });
     } catch (err) {
       const normalizedError =
         err instanceof TypeError

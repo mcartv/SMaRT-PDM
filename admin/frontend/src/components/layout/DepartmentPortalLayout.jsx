@@ -19,7 +19,7 @@ import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
-import { clearPortalSession } from '../../utils/authStorage';
+import { broadcastPortalSessionCleared, clearPortalSession } from '../../utils/authStorage';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -215,9 +215,9 @@ export default function DepartmentPortalLayout({
   );
 
   const handleLogout = () => {
-    sessionStorage.removeItem(tokenStorageKey);
-    sessionStorage.removeItem(profileStorageKey);
-    navigate(loginPath);
+    broadcastPortalSessionCleared(portalKey);
+    clearPortalSession(portalKey);
+    navigate(loginPath, { replace: true });
   };
 
   const handleNavRefresh = (event, path) => {

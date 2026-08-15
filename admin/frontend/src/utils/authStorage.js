@@ -1,6 +1,9 @@
 const DEVICE_ID_KEY = 'smartpdmAdminDeviceId';
 const SESSION_FEEDBACK_KEY = 'smartpdmPortalSessionFeedback';
 const SESSION_FEEDBACK_MAX_AGE_MS = 10 * 60_000;
+const ACTIVE_PORTAL_HINT_KEY = 'smartpdmActivePortal';
+const PORTAL_SESSION_CHANNEL = 'smartpdm-portal-session-sync-v1';
+const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 160;
 
 export const PORTAL_CONFIG = {
     admin: {
@@ -39,6 +42,54 @@ const AUTH_STORAGE_KEYS = Object.values(PORTAL_CONFIG).flatMap((portal) => [
     portal.tokenKey,
     portal.profileKey,
 ]);
+
+function isKnownPortalName(portalName) {
+    return Boolean(portalName && PORTAL_CONFIG[portalName]);
+}
+
+function setActivePortalHint(portalName) {
+    if (!isKnownPortalName(portalName)) return;
+    localStorage.setItem(ACTIVE_PORTAL_HINT_KEY, portalName);
+}
+
+function clearActivePortalHint(portalName = null) {
+    if (!portalName || localStorage.getItem(ACTIVE_PORTAL_HINT_KEY) === portalName) {
+        localStorage.removeItem(ACTIVE_PORTAL_HINT_KEY);
+    }
+}
+
+function clearTabAuthStorage() {
+    AUTH_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
+}
+
+function writePortalSessionToTab({ portalName, token, profile }) {
+    const portal = PORTAL_CONFIG[portalName];
+    if (!portal || !token) return null;
+
+    clearTabAuthStorage();
+    sessionStorage.setItem(portal.tokenKey, token);
+    sessionStorage.setItem(portal.profileKey, JSON.stringify(profile || {}));
+    setActivePortalHint(portalName);
+
+    return {
+        portalName,
+        ...portal,
+        token,
+        profile: profile || null,
+        remembered: Boolean(localStorage.getItem(portal.tokenKey)),
+    };
+}
+
+export function getPortalNameFromPath(pathname = '') {
+    const normalized = String(pathname || '').trim().toLowerCase();
+
+    return (
+        Object.entries(PORTAL_CONFIG).find(([, portal]) => {
+            const portalRoot = portal.loginPath.replace(/\/login$/, '');
+            return normalized === portalRoot || normalized.startsWith(`${portalRoot}/`);
+        })?.[0] || null
+    );
+}
 
 const SESSION_INVALIDATION_CODES = new Set([
     'ACCOUNT_DEACTIVATED',
@@ -106,6 +157,7 @@ export function clearAuthStorage() {
         sessionStorage.removeItem(key);
         localStorage.removeItem(key);
     });
+    clearActivePortalHint();
 }
 
 export function clearPortalSession(portalName) {
@@ -116,6 +168,7 @@ export function clearPortalSession(portalName) {
         sessionStorage.removeItem(key);
         localStorage.removeItem(key);
     });
+    clearActivePortalHint(portalName);
 }
 
 export function redirectPortalToLogin(portalName) {
@@ -343,13 +396,18 @@ export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
 
     const profileJson = JSON.stringify(user || {});
 
-    sessionStorage.setItem(portal.tokenKey, token);
-    sessionStorage.setItem(portal.profileKey, profileJson);
+    writePortalSessionToTab({
+        portalName,
+        token,
+        profile: user || {},
+    });
 
     if (stayLoggedIn) {
         localStorage.setItem(portal.tokenKey, token);
         localStorage.setItem(portal.profileKey, profileJson);
     }
+
+    setActivePortalHint(portalName);
 }
 
 export function getPortalNameFromRole(role) {
@@ -396,3 +454,139 @@ export function getStoredPortalSession(portalName = null) {
 
     return null;
 }
+
+let portalSessionSyncChannel = null;
+
+function createPortalSessionChannel() {
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
+        return null;
+    }
+
+    try {
+        return new BroadcastChannel(PORTAL_SESSION_CHANNEL);
+    } catch {
+        return null;
+    }
+}
+
+export async function hydratePortalSessionFromPeerTabs({
+    portalName = null,
+    timeoutMs = PORTAL_SESSION_REQUEST_TIMEOUT_MS,
+} = {}) {
+    if (typeof window === 'undefined') return null;
+
+    const requestedPortal = isKnownPortalName(portalName)
+        ? portalName
+        : isKnownPortalName(localStorage.getItem(ACTIVE_PORTAL_HINT_KEY))
+          ? localStorage.getItem(ACTIVE_PORTAL_HINT_KEY)
+          : null;
+
+    const existing = requestedPortal
+        ? getStoredPortalSession(requestedPortal)
+        : getStoredPortalSession();
+
+    if (existing?.token) {
+        setActivePortalHint(existing.portalName);
+        return existing;
+    }
+
+    const channel = createPortalSessionChannel();
+    if (!channel) return null;
+
+    const requestId = makeRandomId();
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (session = null) => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timer);
+            channel.close();
+            resolve(session);
+        };
+
+        const timer = window.setTimeout(() => finish(null), Math.max(40, Number(timeoutMs) || 0));
+
+        channel.onmessage = (event) => {
+            const payload = event?.data || {};
+            if (payload.type !== 'SESSION_RESPONSE' || payload.requestId !== requestId) return;
+            if (!isKnownPortalName(payload.portalName) || !payload.token) return;
+            if (requestedPortal && payload.portalName !== requestedPortal) return;
+
+            const session = writePortalSessionToTab({
+                portalName: payload.portalName,
+                token: payload.token,
+                profile: payload.profile || {},
+            });
+
+            finish(session);
+        };
+
+        channel.postMessage({
+            type: 'SESSION_REQUEST',
+            requestId,
+            portalName: requestedPortal,
+        });
+    });
+}
+
+export function installPortalSessionSync() {
+    if (portalSessionSyncChannel || typeof window === 'undefined') return;
+
+    portalSessionSyncChannel = createPortalSessionChannel();
+    if (!portalSessionSyncChannel) return;
+
+    const current = getStoredPortalSession();
+    if (current?.portalName) {
+        setActivePortalHint(current.portalName);
+    }
+
+    portalSessionSyncChannel.onmessage = (event) => {
+        const payload = event?.data || {};
+
+        if (payload.type === 'SESSION_REQUEST') {
+            const requestedPortal = isKnownPortalName(payload.portalName)
+                ? payload.portalName
+                : null;
+            const active = requestedPortal
+                ? getStoredPortalSession(requestedPortal)
+                : getStoredPortalSession();
+
+            if (!active?.token) return;
+
+            portalSessionSyncChannel.postMessage({
+                type: 'SESSION_RESPONSE',
+                requestId: payload.requestId,
+                portalName: active.portalName,
+                token: active.token,
+                profile: active.profile || {},
+            });
+            return;
+        }
+
+        if (payload.type === 'SESSION_CLEARED' && isKnownPortalName(payload.portalName)) {
+            const active = getStoredPortalSession(payload.portalName);
+            if (!active?.token) return;
+
+            clearPortalSession(payload.portalName);
+            redirectPortalToLogin(payload.portalName);
+        }
+    };
+}
+
+export function broadcastPortalSessionCleared(portalName) {
+    if (!isKnownPortalName(portalName)) return;
+
+    const channel = portalSessionSyncChannel || createPortalSessionChannel();
+    if (!channel) return;
+
+    channel.postMessage({
+        type: 'SESSION_CLEARED',
+        portalName,
+    });
+
+    if (channel !== portalSessionSyncChannel) {
+        channel.close();
+    }
+}
+

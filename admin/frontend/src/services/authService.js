@@ -1,6 +1,7 @@
 import { buildApiUrl } from '@/api';
 import {
   PAGE_INSTANCE_ID,
+  broadcastPortalSessionCleared,
   clearAuthStorage,
   clearPortalSessionFeedback,
   getAdminDeviceId,
@@ -225,6 +226,9 @@ export const authService = {
       // Local logout still proceeds even if the network request fails.
     } finally {
       clearPortalSessionFeedback(active?.portalName || null);
+      if (active?.portalName) {
+        broadcastPortalSessionCleared(active.portalName);
+      }
       clearAuthStorage();
       window.location.href = active?.loginPath || '/admin/login';
     }

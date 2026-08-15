@@ -775,11 +775,14 @@ async function deliverVerificationOutcomeNotification({
 }
 
 function normalizeDocumentType(value) {
-    const normalized = (value || '')
-        .toString()
+    const normalized = String(value || '')
         .trim()
         .toLowerCase()
-        .replace(/[\s-]+/g, '_');
+        // Treat every punctuation/separator consistently. This is important
+        // for labels such as "Birth Certificate / PSA", which previously
+        // became "birth_certificate_/_psa" and failed REQUIRED_REVIEW checks.
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
 
     return DOCUMENT_TYPE_ALIASES[normalized] || normalized;
 }

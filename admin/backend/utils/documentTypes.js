@@ -48,7 +48,8 @@ function normalizeDocumentType(value) {
     const normalized = String(value || '')
         .trim()
         .toLowerCase()
-        .replace(/[\s-]+/g, '_');
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
 
     return DOCUMENT_TYPE_ALIASES[normalized] || normalized;
 }

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
@@ -557,7 +557,7 @@ export function buildExtractedData(activeDoc, application) {
   if (hasStructuredBirthFields) {
     const birthFieldDefinitions = [
       ['child_name', 'Child Name'],
-      ['mother_maiden_name', 'Motherâ€™s Maiden Name'],
+      ['mother_maiden_name', 'Mother’s Maiden Name'],
       ['father_name', 'Father Name'],
     ];
 
@@ -1196,7 +1196,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
         ) : previewLoading ? (
           <div className="flex flex-col items-center gap-3 text-stone-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
-            <p className="text-[15px]">Loading secure previewâ€¦</p>
+            <p className="text-[15px]">Loading secure preview…</p>
           </div>
         ) : previewError ? (
           <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
@@ -1290,7 +1290,7 @@ function deriveGradeReviewValues(rawText) {
     'THE PERIOD'
   );
   const period = periodText.match(
-    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-â€“]\s*\d{4})?/i
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-–]\s*\d{4})?/i
   );
   if (period) {
     derived.semester = {
@@ -1403,14 +1403,14 @@ function ocrScoreLabel(candidate, key, displayedValue) {
   const rawScore = candidate?.field_confidence?.[key];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
-  return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
+  return String(displayedValue || '').trim() ? 'Detected' : '—';
 }
 
 function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
-  return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
+  return String(displayedValue || '').trim() ? 'Detected' : '—';
 }
 
 const BIRTH_REGION_PREFIX = {
@@ -1436,7 +1436,7 @@ function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, er
   if (!src) {
     return (
       <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
-        Loading private Birth review imageâ€¦
+        Loading private Birth review image…
       </div>
     );
   }
@@ -1656,7 +1656,7 @@ function OCRPanel({
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
                   <span className="whitespace-nowrap text-right text-xs font-semibold text-blue-700">
-                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : 'â€”'}
+                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '—'}
                   </span>
                 </label>
               ))}
@@ -1670,7 +1670,7 @@ function OCRPanel({
                   className="bg-stone-100 font-bold text-stone-900"
                 />
                 <span className="whitespace-nowrap text-right text-xs font-semibold text-blue-700">
-                  {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : 'â€”'}
+                  {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : '—'}
                 </span>
               </div>
             </div>
@@ -1728,7 +1728,7 @@ function OCRPanel({
                     />
                   )}
                   <span className="whitespace-nowrap text-right text-xs font-semibold text-amber-700">
-                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : 'â€”'}
+                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '—'}
                   </span>
                 </label>
               ))}
@@ -1949,7 +1949,7 @@ function OCRPanel({
                   <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-600">
                     {key.replaceAll('_', ' ')}
                     {reviewCandidate.field_confidence?.[key] != null
-                      ? ` Â· ${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
+                      ? ` · ${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
                       : ''}
                   </span>
                   {value && typeof value === 'object' ? (
@@ -2179,7 +2179,7 @@ function OCRPanel({
 
           {birthV2Review && (
             <p className="mb-2 text-xs text-stone-500">
-              Immutable machine-generated transcription Â· unverified
+              Immutable machine-generated transcription · unverified
             </p>
           )}
 
@@ -2948,13 +2948,9 @@ export default function DocumentVerification() {
   const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
   const [cancellingIotOcr, setCancellingIotOcr] = useState(false);
   const [iotOcrCapabilities, setIotOcrCapabilities] = useState({});
+
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
-
-  // Verify/Reject actions are draft review decisions until the coordinator
-  // presses "Save Requirements Review". Background/realtime refreshes must not
-  // overwrite those unsaved decisions with the persisted "uploaded" state.
-  const dirtyReviewIdsRef = useRef(new Set());
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -2994,35 +2990,22 @@ export default function DocumentVerification() {
           ...data,
           documents: normalizedDocs,
         });
-        if (!soft) {
-          dirtyReviewIdsRef.current.clear();
-        }
 
-        setDocStatuses((current) => {
+        setDocStatuses(() => {
           const next = {};
 
           normalizedDocs.forEach((d) => {
-            const hasUnsavedReview =
-              soft && dirtyReviewIdsRef.current.has(d.id);
-
-            next[d.id] = hasUnsavedReview
-              ? current[d.id] ?? d.status ?? 'pending'
-              : d.status || 'pending';
+            next[d.id] = d.status || 'pending';
           });
 
           return next;
         });
 
-        setDocComments((current) => {
+        setDocComments(() => {
           const next = {};
 
           normalizedDocs.forEach((d) => {
-            const hasUnsavedReview =
-              soft && dirtyReviewIdsRef.current.has(d.id);
-
-            next[d.id] = hasUnsavedReview
-              ? current[d.id] ?? d.admin_comment ?? ''
-              : d.admin_comment || '';
+            next[d.id] = d.admin_comment || '';
           });
 
           return next;
@@ -3232,7 +3215,7 @@ export default function DocumentVerification() {
     },
     {
       key: 'manual',
-      label: 'Manual Review Â· No OCR',
+      label: 'Manual Review · No OCR',
       documents: docs.filter((document) => IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
     },
   ], [docs]);
@@ -3503,12 +3486,11 @@ export default function DocumentVerification() {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [activeDoc?.id, id, reviewCandidate?.ocr_version, reviewCandidate?.request_id, reviewCandidate?.status]);
+
   const updateActiveDocStatus = (nextStatus, nextComment = null) => {
     if (!activeDoc || !hasUploadedDocument) return;
 
     const resolvedComment = nextComment !== null ? nextComment : comment;
-
-    dirtyReviewIdsRef.current.add(activeDoc.id);
 
     setDocStatuses((prev) => ({
       ...prev,
@@ -4347,4 +4329,3 @@ export default function DocumentVerification() {
     </div>
   );
 }
-

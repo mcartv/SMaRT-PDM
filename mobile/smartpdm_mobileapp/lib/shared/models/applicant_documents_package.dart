@@ -3,6 +3,7 @@ class ApplicantRequirementDocument {
   final String documentType;
   final String routeParam;
   final bool isSubmitted;
+  final bool isRequired;
   final String status;
   final String? fileUrl;
   final String? adminComment;
@@ -13,11 +14,25 @@ class ApplicantRequirementDocument {
     required this.documentType,
     required this.routeParam,
     required this.isSubmitted,
+    this.isRequired = true,
     required this.status,
     this.fileUrl,
     this.adminComment,
     this.uploadedAt,
   });
+
+  bool get isVerified => status == 'verified';
+
+  bool get isRejected => status == 'rejected';
+
+  bool get needsReplacement =>
+      status == 'reupload_required' || status == 'rejected';
+
+  bool get isMissing => !isSubmitted || status == 'missing';
+
+  bool get isUnderReview =>
+      isSubmitted &&
+      (status == 'uploaded' || status == 'under_review' || status == 'pending');
 
   factory ApplicantRequirementDocument.fromJson(Map<String, dynamic> json) {
     final documentId = (json['document_id'] ?? json['id'] ?? '')
@@ -28,6 +43,7 @@ class ApplicantRequirementDocument {
         .toString()
         .trim();
 
+    final isSubmitted = json['is_submitted'] == true;
     final reviewStatus = (json['review_status'] ?? json['status'] ?? '')
         .toString()
         .trim();
@@ -39,18 +55,69 @@ class ApplicantRequirementDocument {
       id: documentId,
       documentType: documentType,
       routeParam: documentId,
-      isSubmitted: json['is_submitted'] == true,
-      status: json['is_submitted'] == true
-          ? (reviewStatus.isEmpty ? 'uploaded' : reviewStatus)
-          : 'pending',
+      isSubmitted: isSubmitted,
+      isRequired: json['required'] == null ? true : json['required'] == true,
+      status: _normalizeStatus(
+        reviewStatus: reviewStatus,
+        isSubmitted: isSubmitted,
+      ),
       fileUrl: (json['file_url'] ?? '').toString().trim().isEmpty
           ? null
           : json['file_url'].toString(),
-      adminComment: (json['remarks'] ?? json['notes'] ?? '').toString(),
+      adminComment: _optionalText(json['remarks'] ?? json['notes']),
       uploadedAt: submittedAtRaw == null
           ? null
           : DateTime.tryParse(submittedAtRaw.toString()),
     );
+  }
+
+  static String _normalizeStatus({
+    required String reviewStatus,
+    required bool isSubmitted,
+  }) {
+    if (!isSubmitted) return 'missing';
+
+    final normalized = reviewStatus
+        .trim()
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    if (normalized == 'verified' || normalized == 'approved') {
+      return 'verified';
+    }
+
+    if (normalized == 'rejected' ||
+        normalized == 'denied' ||
+        normalized == 'declined') {
+      return 'rejected';
+    }
+
+    if (normalized == 'reupload required' ||
+        normalized == 'requires reupload' ||
+        normalized == 'requires re upload' ||
+        normalized == 'reupload' ||
+        normalized == 're upload' ||
+        normalized == 'needs reupload' ||
+        normalized == 'needs re upload' ||
+        normalized == 'flagged') {
+      return 'reupload_required';
+    }
+
+    if (normalized == 'under review' ||
+        normalized == 'uploaded' ||
+        normalized == 'pending' ||
+        normalized.isEmpty) {
+      return 'under_review';
+    }
+
+    return normalized.replaceAll(' ', '_');
+  }
+
+  static String? _optionalText(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 }
 
@@ -73,12 +140,31 @@ class ApplicantDocumentsPackage {
   final String documentStatus;
   final List<ApplicantRequirementDocument> documents;
 
+  List<ApplicantRequirementDocument> get requiredDocuments => documents
+      .where((document) => document.isRequired)
+      .toList(growable: false);
+
+  List<ApplicantRequirementDocument> get optionalDocuments => documents
+      .where((document) => !document.isRequired)
+      .toList(growable: false);
+
   int get uploadedCount =>
-      documents.where((document) => document.isSubmitted).length;
+      requiredDocuments.where((document) => document.isSubmitted).length;
+
+  int get requiredCount => requiredDocuments.length;
+
+  int get missingCount =>
+      requiredDocuments.where((document) => document.isMissing).length;
+
+  int get verifiedCount =>
+      requiredDocuments.where((document) => document.isVerified).length;
+
+  int get needsReplacementCount =>
+      requiredDocuments.where((document) => document.needsReplacement).length;
 
   bool get allRequiredUploaded =>
-      documents.isNotEmpty &&
-      documents.every((document) => document.isSubmitted);
+      requiredDocuments.isNotEmpty &&
+      requiredDocuments.every((document) => document.isSubmitted);
 
   factory ApplicantDocumentsPackage.fromJson(Map<String, dynamic> json) {
     final application =
@@ -94,7 +180,7 @@ class ApplicantDocumentsPackage {
             Map<String, dynamic>.from(item),
           ),
         )
-        .toList();
+        .toList(growable: false);
 
     return ApplicantDocumentsPackage(
       applicationId: application['application_id']?.toString() ?? '',
@@ -104,8 +190,7 @@ class ApplicantDocumentsPackage {
           '',
       contextTitle:
           context['opening_title']?.toString() ?? 'Scholarship Requirements',
-      programName:
-          context['program_name']?.toString() ?? 'Unassigned Application',
+      programName: context['program_name']?.toString() ?? 'Current Application',
       applicationStatus:
           application['application_status']?.toString() ?? 'Pending Review',
       documentStatus:

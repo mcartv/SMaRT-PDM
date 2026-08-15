@@ -1,6 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -44,25 +44,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
   final Map<String, bool> _uploadingDocuments = <String, bool>{};
 
-  static const Set<String> _allowedDocumentTypes = {
-    'birth certificate / psa',
-    'birth certificate',
-    'psa',
-    'certificate of live birth',
-    'certificate of registration',
-    'cor',
-    'certificate of indigency',
-    'indigency',
-    'grade report',
-    'grade',
-    'letter of request',
-    'request letter',
-  };
-
   @override
   void initState() {
     super.initState();
-
     _loadPackage(showFullLoader: true);
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
@@ -79,9 +63,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = context.read<NotificationProvider>();
-    if (_notificationProvider == provider) {
-      return;
-    }
+    if (_notificationProvider == provider) return;
 
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
     _notificationProvider = provider;
@@ -96,10 +78,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     if (!mounted) return;
 
     final hasExistingData = _package != null;
-
-    // Full-screen spinner only when:
-    // 1. the screen has no data yet, OR
-    // 2. explicitly requested.
     final shouldShowFullLoader =
         showFullLoader || (!hasExistingData && !silent);
 
@@ -110,7 +88,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         _isRefreshing = true;
       }
 
-      // Do not wipe the visible package during background refresh.
       if (!silent) {
         _errorMessage = null;
         _needsBaseApplication = false;
@@ -119,7 +96,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     try {
       final payload = await _service.fetchMyDocuments();
-
       if (!mounted) return;
 
       setState(() {
@@ -129,29 +105,17 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       });
     } on ApiException catch (error) {
       if (!mounted) return;
-
-      // If we already have valid data, do not destroy the screen
-      // because one background refresh failed.
-      if (silent && _package != null) {
-        return;
-      }
+      if (silent && _package != null) return;
 
       setState(() {
         _needsBaseApplication =
             error.statusCode == 404 || error.statusCode == 409;
-
         _errorMessage = error.message.trim();
-
-        if (!hasExistingData) {
-          _package = null;
-        }
+        if (!hasExistingData) _package = null;
       });
     } catch (_) {
       if (!mounted) return;
-
-      if (silent && _package != null) {
-        return;
-      }
+      if (silent && _package != null) return;
 
       setState(() {
         _errorMessage =
@@ -159,7 +123,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       });
     } finally {
       if (!mounted) return;
-
       setState(() {
         _isLoading = false;
         _isRefreshing = false;
@@ -169,14 +132,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
   void _handleRealtimeUpdates() {
     final provider = _notificationProvider;
-
-    if (provider == null) {
-      return;
-    }
-
-    if (provider.applicationRevision == _lastApplicationRevision) {
-      return;
-    }
+    if (provider == null) return;
+    if (provider.applicationRevision == _lastApplicationRevision) return;
 
     _lastApplicationRevision = provider.applicationRevision;
 
@@ -195,36 +152,33 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     super.dispose();
   }
 
-  List<ApplicantRequirementDocument> _visibleDocuments(
+  List<ApplicantRequirementDocument> _orderedDocuments(
     List<ApplicantRequirementDocument> documents,
   ) {
-    final filtered = documents.where((document) {
-      final type = document.documentType.trim().toLowerCase();
-      return _allowedDocumentTypes.contains(type);
-    }).toList();
+    final items = List<ApplicantRequirementDocument>.from(documents);
 
-    filtered.sort((a, b) {
-      if (a.isSubmitted != b.isSubmitted) {
-        return a.isSubmitted ? 1 : -1;
-      }
+    items.sort((a, b) {
+      if (a.isRequired != b.isRequired) return a.isRequired ? -1 : 1;
 
       final orderA = _documentOrder(a.documentType);
       final orderB = _documentOrder(b.documentType);
-      return orderA.compareTo(orderB);
+      if (orderA != orderB) return orderA.compareTo(orderB);
+
+      return a.documentType.toLowerCase().compareTo(
+        b.documentType.toLowerCase(),
+      );
     });
 
-    return filtered;
+    return items;
   }
 
   int _documentOrder(String type) {
-    final text = type.toLowerCase();
-
+    final text = type.trim().toLowerCase();
     if (text.contains('birth') || text == 'psa' || text == 'nso') return 1;
     if (text.contains('registration') || text == 'cor') return 2;
     if (text.contains('indigency')) return 3;
     if (text.contains('grade')) return 4;
     if (text.contains('request')) return 5;
-
     return 99;
   }
 
@@ -234,9 +188,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? Colors.red.shade700 : null,
-        action: isError
-            ? SnackBarAction(label: 'Retry', onPressed: _loadPackage)
-            : null,
       ),
     );
   }
@@ -269,14 +220,19 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }
 
     const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
-
     if (!allowedExtensions.contains(extension)) {
-      _showSnackBar('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
+      _showUploadMessage(
+        'Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.',
+        isError: true,
+      );
       return;
     }
 
     if (kIsWeb && (fileBytes == null || fileBytes.isEmpty)) {
-      _showSnackBar('The selected file could not be read. Try another file.');
+      _showUploadMessage(
+        'The selected file could not be read. Try another file.',
+        isError: true,
+      );
       return;
     }
 
@@ -288,43 +244,36 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return;
     }
 
-    setState(() {
-      _uploadingDocuments[document.id] = true;
-    });
+    setState(() => _uploadingDocuments[document.id] = true);
 
     try {
       final payload = await _service.uploadDocument(
-        documentRouteParam: document.id,
+        documentRouteParam: document.routeParam,
         fileName: fileName,
         filePath: filePath,
         fileBytes: fileBytes,
       );
 
       if (!mounted) return;
-
-      // Immediately replace the visible package using the upload response.
-      // No full-page reload is needed.
       setState(() {
         _package = payload;
         _errorMessage = null;
       });
 
-      _showSnackBar('${document.documentType} uploaded successfully.');
+      _showUploadMessage(
+        document.needsReplacement
+            ? '${document.documentType} replacement uploaded successfully.'
+            : '${document.documentType} uploaded successfully.',
+      );
     } catch (error) {
       if (!mounted) return;
-
       _showUploadMessage(
         error.toString().replaceFirst('Exception: ', '').trim(),
         isError: true,
       );
     } finally {
       if (!mounted) return;
-
-      setState(() {
-        _uploadingDocuments.remove(document.id);
-      });
-
-      // Quietly synchronize once after the upload completes.
+      setState(() => _uploadingDocuments.remove(document.id));
       unawaited(_loadPackage(silent: true));
     }
   }
@@ -333,15 +282,14 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     ApplicantRequirementDocument document,
   ) async {
     final fileUrl = document.fileUrl?.trim() ?? '';
-
     if (fileUrl.isEmpty) {
-      _showSnackBar('No uploaded file is available yet.');
+      _showUploadMessage('No uploaded file is available yet.', isError: true);
       return;
     }
 
     final uri = Uri.tryParse(fileUrl);
     if (uri == null || !uri.hasScheme) {
-      _showSnackBar('The uploaded file URL is invalid.');
+      _showUploadMessage('The uploaded file URL is invalid.', isError: true);
       return;
     }
 
@@ -353,7 +301,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         path.endsWith('.webp');
     final isPdf = path.endsWith('.pdf');
 
-    final shouldReupload = await showDialog<bool>(
+    final shouldReplace = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -386,7 +334,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Back',
+                        tooltip: 'Close',
                         onPressed: () => Navigator.of(dialogContext).pop(false),
                         icon: const Icon(Icons.close),
                       ),
@@ -402,7 +350,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                         dialogContext,
                       ).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: primaryColor.withOpacity(0.18)),
                     ),
                     child: isImage
                         ? InteractiveViewer(
@@ -411,18 +358,17 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                             child: Image.network(
                               fileUrl,
                               fit: BoxFit.contain,
-                              loadingBuilder: (context, child, progress) {
-                                if (progress == null) return child;
-                                return const Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return const _PreviewUnavailable(
-                                  message:
-                                      'The image preview could not be loaded. Try reopening this document.',
-                                );
-                              },
+                              loadingBuilder: (context, child, progress) =>
+                                  progress == null
+                                  ? child
+                                  : const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                              errorBuilder: (_, __, ___) =>
+                                  const _PreviewUnavailable(
+                                    message:
+                                        'The image preview could not be loaded.',
+                                  ),
                             ),
                           )
                         : _PreviewUnavailable(
@@ -430,15 +376,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                                 ? Icons.picture_as_pdf_outlined
                                 : Icons.insert_drive_file_outlined,
                             message: isPdf
-                                ? 'PDF uploaded successfully. In-app PDF rendering is not available on this screen yet.'
+                                ? 'PDF uploaded successfully. In-app PDF rendering is not available on this screen.'
                                 : 'This uploaded file type cannot be previewed here.',
                           ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'Uploaded: ${_formatTimestamp(document.uploadedAt)}',
-                    style: Theme.of(dialogContext).textTheme.bodySmall,
-                  ),
+                  Text('Uploaded: ${_formatTimestamp(document.uploadedAt)}'),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -446,7 +389,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                         child: OutlinedButton(
                           onPressed: () =>
                               Navigator.of(dialogContext).pop(false),
-                          child: const Text('Back'),
+                          child: const Text('Close'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -455,10 +398,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           onPressed: () =>
                               Navigator.of(dialogContext).pop(true),
                           icon: const Icon(Icons.upload_file),
-                          label: const Text('Re-upload'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
+                          label: Text(
+                            document.needsReplacement
+                                ? 'Replace File'
+                                : 'Re-upload',
                           ),
                         ),
                       ),
@@ -472,54 +415,55 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       },
     );
 
-    if (shouldReupload == true && mounted) {
+    if (shouldReplace == true && mounted) {
       await _pickAndUploadDocument(document);
     }
   }
 
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'verified':
-        return Colors.green;
-      case 'uploaded':
-        return const Color(0xFFC76917);
-      case 'rejected':
-      case 'flagged':
-        return Colors.red;
-      case 'pending':
-      default:
-        return primaryColor;
-    }
+  Color _statusColor(ApplicantRequirementDocument document) {
+    if (document.isVerified) return Colors.green;
+    if (document.needsReplacement) return Colors.red.shade700;
+    if (document.isMissing) return Colors.red.shade600;
+    if (document.isUnderReview) return const Color(0xFFC76917);
+    return primaryColor;
   }
 
   String _statusLabel(ApplicantRequirementDocument document) {
-    switch (document.status) {
-      case 'verified':
-        return 'Verified';
-      case 'uploaded':
-        return 'Uploaded';
-      case 'rejected':
-      case 'flagged':
-        return 'Needs Re-upload';
-      case 'pending':
-      default:
-        return 'Required';
-    }
+    if (document.isVerified) return 'Verified';
+    if (document.status == 'reupload_required') return 'Needs Re-upload';
+    if (document.isRejected) return 'Rejected';
+    if (document.isMissing) return 'Missing';
+    if (document.isUnderReview) return 'Uploaded — Pending Review';
+    return document.status
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
   }
 
   String _summaryText(ApplicantDocumentsPackage package) {
-    if (package.documentStatus == 'Documents Ready') {
-      return 'All required documents have been uploaded and are ready for review.';
+    if (package.needsReplacementCount > 0) {
+      return '${package.needsReplacementCount} document${package.needsReplacementCount == 1 ? '' : 's'} need replacement before review can continue.';
     }
 
-    return 'Upload the five required documents below. Make sure every file is clear, readable, and uses an accepted file format.';
+    if (package.missingCount > 0) {
+      return '${package.uploadedCount} of ${package.requiredCount} required documents uploaded. Upload the remaining ${package.missingCount} document${package.missingCount == 1 ? '' : 's'} below.';
+    }
+
+    if (package.requiredCount > 0 &&
+        package.verifiedCount == package.requiredCount) {
+      return 'All required documents are verified.';
+    }
+
+    if (package.allRequiredUploaded) {
+      return 'All required documents are uploaded and waiting for review.';
+    }
+
+    return 'Upload all required scholarship documents below.';
   }
 
   String _formatTimestamp(DateTime? value) {
@@ -537,11 +481,17 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     final documents = package == null
         ? const <ApplicantRequirementDocument>[]
-        : _visibleDocuments(package.documents);
+        : _orderedDocuments(package.documents);
+    final requiredDocuments = documents
+        .where((document) => document.isRequired)
+        .toList();
+    final optionalDocuments = documents
+        .where((document) => !document.isRequired)
+        .toList();
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: Text('Scholarship Documents'),
+        title: const Text('Required Documents'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -556,7 +506,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 padding: EdgeInsets.only(bottom: 8),
                 child: LinearProgressIndicator(minHeight: 2),
               ),
-
             _HeaderCard(
               title:
                   package?.contextTitle ??
@@ -575,17 +524,16 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               subtitleColor: subtitleColor,
               accentColor: accentColor,
               package: package,
-              uploadedCount: documents.where((doc) => doc.isSubmitted).length,
-              totalCount: documents.length,
             ),
             const SizedBox(height: 12),
-            _ActionPanel(
-              onBackToApplication: () {
-                Navigator.pushNamed(context, AppRoutes.newApplicant);
-              },
-              onBackToDashboard: () {
-                AppNavigator.goToTopLevel(context, AppRoutes.home);
-              },
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    AppNavigator.goToTopLevel(context, AppRoutes.home),
+                icon: const Icon(Icons.dashboard_outlined),
+                label: const Text('Back to Dashboard'),
+              ),
             ),
             const SizedBox(height: 18),
             if (_isLoading && package == null)
@@ -612,40 +560,58 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Required: Birth Certificate / PSA, COR, Certificate of Indigency, Grade Report, and Letter of Request.',
-                style: TextStyle(color: subtitleColor, height: 1.4),
+                'All documents in this section are required. Accepted formats: PDF, JPG, JPEG, PNG, and WEBP. Maximum file size: 10 MB.',
+                style: TextStyle(color: subtitleColor, height: 1.45),
               ),
               const SizedBox(height: 12),
-              if (documents.isEmpty)
+              if (requiredDocuments.isEmpty)
                 _ErrorCard(
                   message:
-                      'No required document slots were found for this application.',
+                      'No required document slots were returned for this application.',
                   onRetry: _loadPackage,
                 )
               else
-                ...documents.map((document) {
-                  final statusColor = _statusColor(document.status);
-                  final isUploading = _uploadingDocuments[document.id] == true;
-                  final isGradeReport = document.documentType
-                      .trim()
-                      .toLowerCase()
-                      .contains('grade');
-
-                  return _DocumentCard(
+                ...requiredDocuments.map(
+                  (document) => _DocumentCard(
                     document: document,
-                    statusColor: statusColor,
+                    statusColor: _statusColor(document),
                     titleColor: titleColor,
                     subtitleColor: subtitleColor,
                     statusLabel: _statusLabel(document),
                     uploadedText: _formatTimestamp(document.uploadedAt),
-                    isUploading: isUploading,
-                    isGradeReport: isGradeReport,
+                    isUploading: _uploadingDocuments[document.id] == true,
                     onUpload: () => _pickAndUploadDocument(document),
-                    onOpen: document.isSubmitted
+                    onOpen: document.isSubmitted && document.fileUrl != null
                         ? () => _showDocumentPreview(document)
                         : null,
-                  );
-                }),
+                  ),
+                ),
+              if (optionalDocuments.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Optional Documents',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...optionalDocuments.map(
+                  (document) => _DocumentCard(
+                    document: document,
+                    statusColor: _statusColor(document),
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    statusLabel: _statusLabel(document),
+                    uploadedText: _formatTimestamp(document.uploadedAt),
+                    isUploading: _uploadingDocuments[document.id] == true,
+                    onUpload: () => _pickAndUploadDocument(document),
+                    onOpen: document.isSubmitted && document.fileUrl != null
+                        ? () => _showDocumentPreview(document)
+                        : null,
+                  ),
+                ),
+              ],
             ],
           ],
         ),
@@ -663,8 +629,6 @@ class _HeaderCard extends StatelessWidget {
     required this.subtitleColor,
     required this.accentColor,
     required this.package,
-    required this.uploadedCount,
-    required this.totalCount,
   });
 
   final String title;
@@ -674,11 +638,13 @@ class _HeaderCard extends StatelessWidget {
   final Color subtitleColor;
   final Color accentColor;
   final ApplicantDocumentsPackage? package;
-  final int uploadedCount;
-  final int totalCount;
 
   @override
   Widget build(BuildContext context) {
+    final uploaded = package?.uploadedCount ?? 0;
+    final total = package?.requiredCount ?? 0;
+    final progress = total == 0 ? 0.0 : uploaded / total;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -723,6 +689,26 @@ class _HeaderCard extends StatelessWidget {
           ),
           if (package != null) ...[
             const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '$uploaded/$total uploaded',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: accentColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -733,13 +719,8 @@ class _HeaderCard extends StatelessWidget {
                   accentColor: accentColor,
                 ),
                 _InfoChip(
-                  label: 'Documents',
-                  value: package!.documentStatus,
-                  accentColor: accentColor,
-                ),
-                _InfoChip(
-                  label: 'Uploaded',
-                  value: '$uploadedCount/$totalCount',
+                  label: 'Verified',
+                  value: '${package!.verifiedCount}/${package!.requiredCount}',
                   accentColor: accentColor,
                 ),
               ],
@@ -747,43 +728,6 @@ class _HeaderCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _ActionPanel extends StatelessWidget {
-  const _ActionPanel({
-    required this.onBackToApplication,
-    required this.onBackToDashboard,
-  });
-
-  final VoidCallback onBackToApplication;
-  final VoidCallback onBackToDashboard;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: onBackToApplication,
-            icon: const Icon(Icons.edit_document),
-            label: Text('Back to Application Form'),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: onBackToDashboard,
-            icon: const Icon(Icons.dashboard_outlined),
-            label: Text('Back to Dashboard'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -843,7 +787,6 @@ class _SimpleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -879,7 +822,6 @@ class _DocumentCard extends StatelessWidget {
     required this.statusLabel,
     required this.uploadedText,
     required this.isUploading,
-    required this.isGradeReport,
     required this.onUpload,
     required this.onOpen,
   });
@@ -891,7 +833,6 @@ class _DocumentCard extends StatelessWidget {
   final String statusLabel;
   final String uploadedText;
   final bool isUploading;
-  final bool isGradeReport;
   final VoidCallback onUpload;
   final VoidCallback? onOpen;
 
@@ -906,18 +847,11 @@ class _DocumentCard extends StatelessWidget {
             : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isGradeReport
-              ? const Color(0xFFC76917).withOpacity(0.45)
-              : statusColor.withOpacity(0.18),
-          width: isGradeReport ? 1.6 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.035),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+          color: statusColor.withOpacity(
+            document.needsReplacement ? 0.42 : 0.18,
           ),
-        ],
+          width: document.needsReplacement ? 1.5 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,37 +878,8 @@ class _DocumentCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-
-          if (isGradeReport) ...[
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFC76917).withOpacity(0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    size: 18,
-                    color: Color(0xFFC76917),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Required before Program Director approval',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFF8F4E10),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
                 backgroundColor: statusColor.withOpacity(0.12),
@@ -985,38 +890,61 @@ class _DocumentCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  document.documentType,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: titleColor,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      document.documentType,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      document.isRequired ? 'Required' : 'Optional',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: subtitleColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              _StatusPill(label: statusLabel, color: statusColor),
+              const SizedBox(width: 8),
+              Flexible(
+                child: _StatusPill(label: statusLabel, color: statusColor),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            'Uploaded: $uploadedText',
+            document.isSubmitted
+                ? 'Uploaded: $uploadedText'
+                : 'No file uploaded yet.',
             style: TextStyle(color: subtitleColor, height: 1.35),
           ),
-          if (isGradeReport) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Upload your latest grades as a clear PDF file so the Program Director can complete endorsement approval.',
-              style: TextStyle(
-                color: subtitleColor,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
           if ((document.adminComment ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              document.adminComment!,
-              style: TextStyle(color: subtitleColor, height: 1.4),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: document.needsReplacement
+                    ? Colors.red.withOpacity(0.06)
+                    : statusColor.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Reviewer note: ${document.adminComment!}',
+                style: TextStyle(
+                  color: document.needsReplacement
+                      ? Colors.red.shade700
+                      : subtitleColor,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
           const SizedBox(height: 14),
@@ -1024,17 +952,17 @@ class _DocumentCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              if (!document.isSubmitted)
+              if (!document.isSubmitted || document.needsReplacement)
                 ElevatedButton.icon(
                   onPressed: isUploading ? null : onUpload,
-                  icon: isUploading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.upload_file),
-                  label: Text(isUploading ? 'Uploading...' : 'Upload File'),
+                  icon: const Icon(Icons.upload_file),
+                  label: Text(
+                    isUploading
+                        ? 'Uploading...'
+                        : document.needsReplacement
+                        ? 'Upload Replacement'
+                        : 'Upload File',
+                  ),
                 ),
               if (onOpen != null)
                 OutlinedButton.icon(
@@ -1051,14 +979,15 @@ class _DocumentCard extends StatelessWidget {
 
   IconData _iconForDocument(String type) {
     final text = type.toLowerCase();
-
+    if (text.contains('birth') || text == 'psa') {
+      return Icons.badge_outlined;
+    }
     if (text.contains('registration') || text == 'cor') {
       return Icons.assignment_outlined;
     }
     if (text.contains('indigency')) return Icons.home_work_outlined;
     if (text.contains('grade')) return Icons.school_outlined;
     if (text.contains('request')) return Icons.mail_outline;
-
     return Icons.description_outlined;
   }
 }
@@ -1113,7 +1042,8 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w800,
         ),

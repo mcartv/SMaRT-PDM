@@ -22,12 +22,14 @@ class StepEssay extends StatefulWidget {
 class _StepEssayState extends State<StepEssay> {
   static const ApplicationSubmissionValidator _validator =
       ApplicationSubmissionValidator();
+
   late final TextEditingController describeYourselfController;
   late final TextEditingController aimsAndAmbitionController;
 
   @override
   void initState() {
     super.initState();
+
     describeYourselfController = TextEditingController(
       text: widget.data.describeYourselfEssay,
     );
@@ -38,19 +40,14 @@ class _StepEssayState extends State<StepEssay> {
     describeYourselfController.addListener(() {
       widget.data.describeYourselfEssay = describeYourselfController.text;
       widget.onChanged();
-      setState(() {});
+      if (mounted) setState(() {});
     });
+
     aimsAndAmbitionController.addListener(() {
       widget.data.aimsAndAmbitionEssay = aimsAndAmbitionController.text;
       widget.onChanged();
-      setState(() {});
+      if (mounted) setState(() {});
     });
-  }
-
-  int _wordCount(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return 0;
-    return trimmed.split(RegExp(r'\s+')).length;
   }
 
   String? _essayError(String field) {
@@ -66,10 +63,8 @@ class _StepEssayState extends State<StepEssay> {
     required String title,
     required TextEditingController controller,
     required String hint,
-    required String errorLabel,
     required String field,
   }) {
-    final count = _wordCount(controller.text);
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -97,7 +92,7 @@ class _StepEssayState extends State<StepEssay> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  title,
+                  '$title *',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: intakeTextColor(context),
                     fontWeight: FontWeight.w800,
@@ -108,20 +103,11 @@ class _StepEssayState extends State<StepEssay> {
             ],
           ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '$count / 300 words',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: intakeSubtextColor(context).withValues(alpha: 0.75),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
           TextFormField(
             controller: controller,
-            maxLines: 7,
+            minLines: 7,
+            maxLines: 12,
+            textCapitalization: TextCapitalization.sentences,
             decoration: intakeInputDecoration(
               context,
               hint: hint,
@@ -149,27 +135,32 @@ class _StepEssayState extends State<StepEssay> {
           title: 'PERSONAL STATEMENT',
           icon: Icons.edit_outlined,
         ),
+        const IntakeInfoCard(
+          title: 'Essay guidance',
+          message:
+              'Both responses are required. Write clearly and answer each prompt in your own words. There is no minimum word-count requirement.',
+          icon: Icons.info_outline_rounded,
+        ),
+        const SizedBox(height: 16),
         _essayCard(
           number: 1,
-          title: 'Write a short essay describing yourself. (200-300 words)',
+          title: 'Write a short essay describing yourself.',
           controller: describeYourselfController,
           hint: 'Start writing here...',
-          errorLabel: 'Describe yourself essay',
           field: 'describeYourselfEssay',
         ),
         _essayCard(
           number: 2,
           title:
-              'State briefly your aims and ambition after graduation (include plans for hometown or province). (200-300 words)',
+              'State briefly your aims and ambition after graduation, including plans for your hometown or province.',
           controller: aimsAndAmbitionController,
           hint: 'Start writing here...',
-          errorLabel: 'Aims and ambition essay',
           field: 'aimsAndAmbitionEssay',
         ),
         const IntakeInfoCard(
           title: 'Tips for a strong essay',
           message:
-              'Be honest and genuine in your responses.\nProofread for grammar and spelling.\nStay within the word limit.\nUse clear and concise language.',
+              'Be honest and genuine in your responses.\nProofread for grammar and spelling.\nAnswer the prompt directly.\nUse clear and concise language.',
           icon: Icons.lightbulb_outline_rounded,
         ),
       ],

@@ -151,8 +151,8 @@ class _StepSubmitState extends State<StepSubmit> {
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
           backgroundColor: intakeIsDark(context)
-          ? AppColors.applicantDarkSurfaceMuted
-          : const Color(0xFFFFF8EA),
+              ? AppColors.applicantDarkSurfaceMuted
+              : const Color(0xFFFFF8EA),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -181,8 +181,8 @@ class _StepSubmitState extends State<StepSubmit> {
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
           backgroundColor: intakeIsDark(context)
-          ? AppColors.applicantDarkSurfaceMuted
-          : const Color(0xFFFFEFE4),
+              ? AppColors.applicantDarkSurfaceMuted
+              : const Color(0xFFFFEFE4),
           child: Text(
             'Certification: I certify that all answers given above are true and correct to the best of my knowledge. I understand that any false information will disqualify my application.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(

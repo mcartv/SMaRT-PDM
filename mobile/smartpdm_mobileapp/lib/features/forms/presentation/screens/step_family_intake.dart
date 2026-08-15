@@ -191,7 +191,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.fatherMiddleName,
     );
     fatherMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(widget.data.fatherMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(
+        widget.data.fatherMobile,
+      ),
     );
     fatherOccupationController = TextEditingController(
       text: widget.data.fatherOccupation,
@@ -209,7 +211,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.motherMiddleName,
     );
     motherMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(widget.data.motherMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(
+        widget.data.motherMobile,
+      ),
     );
     motherOccupationController = TextEditingController(
       text: widget.data.motherOccupation,
@@ -227,7 +231,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.siblingMiddleName,
     );
     siblingMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(widget.data.siblingMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(
+        widget.data.siblingMobile,
+      ),
     );
     siblingOccupationController = TextEditingController(
       text: widget.data.siblingOccupation,
@@ -248,7 +254,9 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.guardianMiddleName,
     );
     guardianMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(widget.data.guardianMobile),
+      text: AppFieldValidators.normalizePhilippineMobile(
+        widget.data.guardianMobile,
+      ),
     );
     widget.data.fatherMobile = fatherMobileController.text;
     widget.data.motherMobile = motherMobileController.text;
@@ -438,7 +446,7 @@ class _StepFamilyState extends State<StepFamily> {
 
   InputDecoration _dec(String hint, {String? errorText, Widget? suffixIcon}) =>
       intakeInputDecoration(
-      context,
+        context,
         hint: hint,
         errorText: errorText,
         suffixIcon: suffixIcon,
@@ -460,9 +468,14 @@ class _StepFamilyState extends State<StepFamily> {
     if (!widget.showErrors || selectedParentNative == 'No') return null;
     final value = parentMarilaoResidencyDurationController.text.trim();
     if (value.isEmpty) return 'Years as resident is required.';
-    return RegExp(r'^\d+$').hasMatch(value)
-        ? null
-        : 'Enter the number of years using digits only.';
+    if (!RegExp(r'^\d+$').hasMatch(value)) {
+      return 'Enter the number of years using digits only.';
+    }
+    final years = int.tryParse(value);
+    if (years == null || years < 1 || years > 120) {
+      return 'Years as resident must be between 1 and 120.';
+    }
+    return null;
   }
 
   String? _primaryCarerError() {
@@ -615,27 +628,17 @@ class _StepFamilyState extends State<StepFamily> {
   bool get _showGuardianFields => guardianOnly || (!hasFather && !hasMother);
 
   bool _isValidFamilyMobile(String value) {
-    return AppFieldValidators.philippineMobile(
-          value,
-          required: false,
-        ) ==
-        null &&
+    return AppFieldValidators.philippineMobile(value, required: false) ==
+            null &&
         value.trim().isNotEmpty;
   }
 
   String? _familyMobileError(String value) {
     if (!widget.showErrors) return null;
-    return AppFieldValidators.philippineMobile(
-      value,
-      required: false,
-    );
+    return AppFieldValidators.philippineMobile(value, required: false);
   }
 
-  String? _familyNameError(
-    String value,
-    String label, {
-    int minLength = 2,
-  }) {
+  String? _familyNameError(String value, String label, {int minLength = 2}) {
     if (!widget.showErrors) return null;
     return AppFieldValidators.name(
       value,
@@ -681,7 +684,10 @@ class _StepFamilyState extends State<StepFamily> {
                 decoration: _dec(
                   'Last Name',
                   errorText: widget.showErrors
-                      ? (_familyNameError(lastNameController.text, 'Last name') ??
+                      ? (_familyNameError(
+                              lastNameController.text,
+                              'Last name',
+                            ) ??
                             (_primaryCarerError() != null
                                 ? _requiredError(
                                     lastNameController.text,
@@ -700,7 +706,10 @@ class _StepFamilyState extends State<StepFamily> {
                 decoration: _dec(
                   'First Name',
                   errorText: widget.showErrors
-                      ? (_familyNameError(firstNameController.text, 'First name') ??
+                      ? (_familyNameError(
+                              firstNameController.text,
+                              'First name',
+                            ) ??
                             (_primaryCarerError() != null
                                 ? _requiredError(
                                     firstNameController.text,
@@ -1134,7 +1143,10 @@ class _StepFamilyState extends State<StepFamily> {
                     TextFormField(
                       controller: parentMarilaoResidencyDurationController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3),
+                      ],
                       decoration: _dec(
                         'Enter number of years',
                         errorText: _parentResidencyDurationError(),

@@ -358,9 +358,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         _showValidationErrors = true;
       });
       _scrollToFormTop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(firstIssue.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(firstIssue.message)));
       return;
     }
 
@@ -511,7 +511,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     String? validateAcademic() {
-      return _submissionValidator.validateAcademicProgression(_data).firstMessage;
+      return _submissionValidator
+          .validateAcademicProgression(_data)
+          .firstMessage;
     }
 
     String? validateEssay() {
@@ -547,9 +549,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         }
       } else if (_data.parentMarilaoResidencyDuration.trim().isEmpty) {
         return 'Marilao residency duration is required.';
-      } else if (!RegExp(r'^\d+$').hasMatch(
-        _data.parentMarilaoResidencyDuration.trim(),
-      )) {
+      } else if (!RegExp(
+        r'^\d+$',
+      ).hasMatch(_data.parentMarilaoResidencyDuration.trim())) {
         return 'Enter the number of years as a Marilao resident using digits only.';
       }
 
@@ -688,7 +690,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   side: BorderSide(color: borderColor, width: 1.2),
                 ),
                 elevation: isDark ? 2 : 10,
-                shadowColor: Colors.black.withValues(alpha: isDark ? 0.28 : 0.26),
+                shadowColor: Colors.black.withValues(
+                  alpha: isDark ? 0.28 : 0.26,
+                ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
@@ -758,9 +762,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.applicantDarkSurfaceMuted
-            : Colors.white,
+        color: isDark ? AppColors.applicantDarkSurfaceMuted : Colors.white,
         border: Border.all(
           color: isDark
               ? AppColors.applicantDarkOutline
@@ -782,10 +784,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           const SizedBox(height: 8),
           Text(
             'This application form is tied to one scholarship opening. Select the opening you want to apply for before continuing.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              height: 1.45,
-              color: mutedColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.45, color: mutedColor),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -817,9 +818,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.applicantDarkSurfaceMuted
-            : Colors.white,
+        color: isDark ? AppColors.applicantDarkSurfaceMuted : Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: isDark

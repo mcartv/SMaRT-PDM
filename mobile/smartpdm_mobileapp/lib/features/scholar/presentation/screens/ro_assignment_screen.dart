@@ -27,7 +27,6 @@ class ROAssignmentScreen extends StatefulWidget {
   State<ROAssignmentScreen> createState() => _ROAssignmentScreenState();
 }
 
-
 class RoPickedPhoto {
   const RoPickedPhoto({
     required this.file,
@@ -1496,10 +1495,7 @@ class RoAssignment {
           json['academicYear']?.toString() ??
           json['academic_year']?.toString() ??
           '',
-      semester:
-          json['semester']?.toString() ??
-          json['term']?.toString() ??
-          '',
+      semester: json['semester']?.toString() ?? json['term']?.toString() ?? '',
       assignedArea:
           json['assignedArea']?.toString() ??
           json['assigned_area']?.toString() ??
@@ -1528,8 +1524,9 @@ class RoAssignment {
       checkoutGraceMinutes: _toInt(json['checkoutGraceMinutes']),
       activeSessionTargetMinutes: _toInt(json['activeSessionTargetMinutes']),
       activeSessionTargetAt: _toDate(json['activeSessionTargetAt']),
-      activeSessionGraceDeadlineAt:
-          _toDate(json['activeSessionGraceDeadlineAt']),
+      activeSessionGraceDeadlineAt: _toDate(
+        json['activeSessionGraceDeadlineAt'],
+      ),
       activeLog: json['activeLog'] is Map<String, dynamic>
           ? RoTimeLog.fromJson(json['activeLog'] as Map<String, dynamic>)
           : null,
@@ -1669,17 +1666,11 @@ class RoProof {
   factory RoProof.fromJson(Map<String, dynamic> json) {
     return RoProof(
       proofId:
-          json['proofId']?.toString() ??
-          json['proof_id']?.toString() ??
-          '',
+          json['proofId']?.toString() ?? json['proof_id']?.toString() ?? '',
       proofType:
-          json['proofType']?.toString() ??
-          json['proof_type']?.toString() ??
-          '',
+          json['proofType']?.toString() ?? json['proof_type']?.toString() ?? '',
       fileUrl:
-          json['fileUrl']?.toString() ??
-          json['file_url']?.toString() ??
-          '',
+          json['fileUrl']?.toString() ?? json['file_url']?.toString() ?? '',
       capturedAtDevice: _toDate(
         json['capturedAtDevice'] ?? json['captured_at_device'],
       ),
@@ -1845,10 +1836,7 @@ class _AssignmentCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 6),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.black38,
-              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.black38),
             ],
           ),
         ),
@@ -1928,18 +1916,14 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
         !widget.hasAnyActiveSession &&
         !widget.isSubmitting;
 
-    final canTimeOut =
-        !item.isCleared && isTimedIn && !widget.isSubmitting;
+    final canTimeOut = !item.isCleared && isTimedIn && !widget.isSubmitting;
 
     final proofEntries = item.logs
         .expand(
-          (log) => log.proofs.map(
-            (proof) => _ProofEntry(log: log, proof: proof),
-          ),
+          (log) =>
+              log.proofs.map((proof) => _ProofEntry(log: log, proof: proof)),
         )
-        .where(
-          (entry) => entry.proof.isTimeIn || entry.proof.isTimeOut,
-        )
+        .where((entry) => entry.proof.isTimeIn || entry.proof.isTimeOut)
         .take(8)
         .toList();
 
@@ -1986,10 +1970,11 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       item.assignedArea.trim().isEmpty
                           ? 'Return of Obligation'
                           : item.assignedArea,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.darkBrown,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.darkBrown,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -2019,9 +2004,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                                   'AY ${item.academicYear}',
                                 if (item.semester.isNotEmpty) item.semester,
                               ].join(' · '),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: Colors.black54,
                                     fontWeight: FontWeight.w800,
@@ -2194,8 +2177,9 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed:
-                              canAcknowledge ? widget.onAcknowledge : null,
+                          onPressed: canAcknowledge
+                              ? widget.onAcknowledge
+                              : null,
                           icon: const Icon(Icons.check_circle_rounded),
                           label: const Text('Acknowledge Notice'),
                           style: FilledButton.styleFrom(
@@ -2232,7 +2216,6 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
   }
 }
 
-
 class _ObligationActionFooter extends StatelessWidget {
   const _ObligationActionFooter({
     required this.isSubmitting,
@@ -2260,19 +2243,10 @@ class _ObligationActionFooter extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        18,
-        12,
-        18,
-        10 + bottomInset,
-      ),
+      padding: EdgeInsets.fromLTRB(18, 12, 18, 10 + bottomInset),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBF6),
-        border: Border(
-          top: BorderSide(
-            color: Colors.black.withOpacity(0.08),
-          ),
-        ),
+        border: Border(top: BorderSide(color: Colors.black.withOpacity(0.08))),
         boxShadow: const [
           BoxShadow(
             color: Color(0x12000000),
@@ -2290,25 +2264,21 @@ class _ObligationActionFooter extends StatelessWidget {
                 child: SizedBox(
                   height: 48,
                   child: FilledButton.icon(
-                    onPressed:
-                        !isSubmitting && canTimeIn ? onTimeIn : null,
-                    icon: const Icon(
-                      Icons.login_rounded,
-                      size: 19,
-                    ),
+                    onPressed: !isSubmitting && canTimeIn ? onTimeIn : null,
+                    icon: const Icon(Icons.login_rounded, size: 19),
                     label: const Text(
                       'Time In',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.darkBrown,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          AppColors.darkBrown.withOpacity(0.18),
-                      disabledForegroundColor:
-                          AppColors.darkBrown.withOpacity(0.45),
+                      disabledBackgroundColor: AppColors.darkBrown.withOpacity(
+                        0.18,
+                      ),
+                      disabledForegroundColor: AppColors.darkBrown.withOpacity(
+                        0.45,
+                      ),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2322,25 +2292,21 @@ class _ObligationActionFooter extends StatelessWidget {
                 child: SizedBox(
                   height: 48,
                   child: FilledButton.icon(
-                    onPressed:
-                        !isSubmitting && canTimeOut ? onTimeOut : null,
-                    icon: const Icon(
-                      Icons.logout_rounded,
-                      size: 19,
-                    ),
+                    onPressed: !isSubmitting && canTimeOut ? onTimeOut : null,
+                    icon: const Icon(Icons.logout_rounded, size: 19),
                     label: const Text(
                       'Time Out',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFB3261E),
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          const Color(0xFFB3261E).withOpacity(0.14),
-                      disabledForegroundColor:
-                          const Color(0xFFB3261E).withOpacity(0.42),
+                      disabledBackgroundColor: const Color(
+                        0xFFB3261E,
+                      ).withOpacity(0.14),
+                      disabledForegroundColor: const Color(
+                        0xFFB3261E,
+                      ).withOpacity(0.42),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2357,10 +2323,9 @@ class _ObligationActionFooter extends StatelessWidget {
               button: true,
               label: 'Report a concern about this RO assignment',
               child: InkWell(
-                onTap:
-                    !isSubmitting && canReportConcern
-                        ? onReportConcern
-                        : null,
+                onTap: !isSubmitting && canReportConcern
+                    ? onReportConcern
+                    : null,
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -2390,20 +2355,14 @@ class _ObligationActionFooter extends StatelessWidget {
 }
 
 class _ProofEntry {
-  const _ProofEntry({
-    required this.log,
-    required this.proof,
-  });
+  const _ProofEntry({required this.log, required this.proof});
 
   final RoTimeLog log;
   final RoProof proof;
 }
 
 class _ProofPreviewCard extends StatelessWidget {
-  const _ProofPreviewCard({
-    required this.entry,
-    required this.formatDateTime,
-  });
+  const _ProofPreviewCard({required this.entry, required this.formatDateTime});
 
   final _ProofEntry entry;
   final String Function(DateTime? value) formatDateTime;
@@ -2442,10 +2401,7 @@ class _ProofPreviewCard extends StatelessWidget {
                 top: 6,
                 child: IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white,
-                  ),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
                 ),
               ),
             ],
@@ -2531,8 +2487,7 @@ class _ProofPreviewCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (proof.latitude != null &&
-                        proof.longitude != null) ...[
+                    if (proof.latitude != null && proof.longitude != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         '${proof.latitude!.toStringAsFixed(5)}, ${proof.longitude!.toStringAsFixed(5)}',
@@ -2814,8 +2769,7 @@ class _ActiveSessionBox extends StatelessWidget {
     final target = targetAt?.toLocal();
     final graceDeadline = graceDeadlineAt?.toLocal();
     final requirementReached = target != null && !now.isBefore(target);
-    final graceExpired =
-        graceDeadline != null && !now.isBefore(graceDeadline);
+    final graceExpired = graceDeadline != null && !now.isBefore(graceDeadline);
 
     final creditedSeconds = targetMinutes <= 0
         ? 0

@@ -161,9 +161,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final cardColor = isDark
-        ? AppColors.applicantDarkSurface
-        : Colors.white;
+    final cardColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
     final textColor = isDark
         ? AppColors.applicantDarkText
         : AppColors.darkBrown;
@@ -227,7 +225,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                           borderRadius: BorderRadius.circular(28),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.darkBrown.withValues(alpha: 0.18),
+                              color: AppColors.darkBrown.withValues(
+                                alpha: 0.18,
+                              ),
                               blurRadius: 30,
                               offset: const Offset(0, 16),
                             ),
@@ -267,7 +267,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                                         ? 'Secure account access'
                                         : 'Verified student registration',
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.72),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.72,
+                                      ),
                                       fontSize: 13,
                                     ),
                                   ),
@@ -285,8 +287,8 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                           borderRadius: BorderRadius.circular(28),
                           border: Border.all(
                             color: isDark
-                                        ? AppColors.applicantDarkOutline
-                                        : AppColors.gold.withValues(alpha: 0.24),
+                                ? AppColors.applicantDarkOutline
+                                : AppColors.gold.withValues(alpha: 0.24),
                           ),
                           boxShadow: [
                             BoxShadow(
@@ -344,13 +346,17 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                                   borderSide: BorderSide(
                                     color: isDark
                                         ? AppColors.applicantDarkOutline
-                                        : AppColors.gold.withValues(alpha: 0.24),
+                                        : AppColors.gold.withValues(
+                                            alpha: 0.24,
+                                          ),
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
                                   borderSide: BorderSide(
-                                    color: isDark ? AppColors.gold : AppColors.brown,
+                                    color: isDark
+                                        ? AppColors.gold
+                                        : AppColors.brown,
                                     width: 1.6,
                                   ),
                                 ),

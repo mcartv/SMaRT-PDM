@@ -290,13 +290,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.applicantDarkSurface
-                      : Colors.white,
+                  color: isDark ? AppColors.applicantDarkSurface : Colors.white,
                   borderRadius: BorderRadius.circular(borderRadius * 1.4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.22 : 0.05,
+                      ),
                       blurRadius: 18,
                       offset: const Offset(0, 8),
                     ),
@@ -338,7 +338,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       _buildTextField(
                         label: 'First Name *',
                         controller: _firstNameController,
-                        validator: (v) => AppFieldValidators.name(v, label: 'First name'),
+                        validator: (v) =>
+                            AppFieldValidators.name(v, label: 'First name'),
                       ),
                       _buildTextField(
                         label: 'Middle Name (Optional)',
@@ -354,22 +355,29 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       _buildTextField(
                         label: 'Last Name *',
                         controller: _lastNameController,
-                        validator: (v) => AppFieldValidators.name(v, label: 'Last name'),
+                        validator: (v) =>
+                            AppFieldValidators.name(v, label: 'Last name'),
                       ),
                       _buildCourseDropdown(),
                       _buildYearLevelDropdown(),
                       _buildTextField(
                         label: 'Barangay *',
                         controller: _barangayController,
-                        validator: (v) => AppFieldValidators.requiredText(v, label: 'Barangay'),
+                        validator: (v) => AppFieldValidators.requiredText(
+                          v,
+                          label: 'Barangay',
+                        ),
                       ),
                       _buildTextField(
                         label: 'Phone Number *',
                         controller: _phoneNumberController,
-                        validator: (v) => AppFieldValidators.philippineMobile(v),
+                        validator: (v) =>
+                            AppFieldValidators.philippineMobile(v),
                         keyboardType: TextInputType.phone,
                         textCapitalization: TextCapitalization.none,
-                        inputFormatters: const [PhilippineMobileInputFormatter()],
+                        inputFormatters: const [
+                          PhilippineMobileInputFormatter(),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       SizedBox(

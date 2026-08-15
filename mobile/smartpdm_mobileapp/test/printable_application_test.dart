@@ -13,11 +13,12 @@ class _FakePrintableApplicationService extends PrintableApplicationService {
   String? applicationId;
 
   @override
-  Future<File> generateFromSubmissionPayload(Map<String, dynamic> payload) async {
+  Future<File> generateFromSubmissionPayload(
+    Map<String, dynamic> payload,
+  ) async {
     submissionPayload = payload;
-    return File(
-      '${Directory.systemTemp.path}/fake_printable_application.pdf',
-    )..writeAsStringSync('fake pdf');
+    return File('${Directory.systemTemp.path}/fake_printable_application.pdf')
+      ..writeAsStringSync('fake pdf');
   }
 
   @override

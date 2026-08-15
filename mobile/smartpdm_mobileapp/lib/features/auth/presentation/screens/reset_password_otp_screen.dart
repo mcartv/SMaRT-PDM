@@ -284,7 +284,9 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                   borderRadius: BorderRadius.circular(borderRadius * 1.4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.22 : 0.05,
+                      ),
                       blurRadius: 18,
                       offset: const Offset(0, 8),
                     ),
@@ -337,10 +339,10 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
-                                color: isDark
-                                    ? AppColors.applicantDarkTextMuted
-                                    : Colors.grey.shade600,
-                              ),
+                              color: isDark
+                                  ? AppColors.applicantDarkTextMuted
+                                  : Colors.grey.shade600,
+                            ),
                       ),
                       const SizedBox(height: 24),
                       SizedBox(

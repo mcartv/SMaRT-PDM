@@ -106,9 +106,7 @@ class StepIndicator extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: isActive ? AppColors.gold : inactiveSurface,
                           border: Border.all(
-                            color: isCurrent
-                                ? AppColors.gold
-                                : inactiveColor,
+                            color: isCurrent ? AppColors.gold : inactiveColor,
                             width: 1.5,
                           ),
                           boxShadow: isCurrent
@@ -143,9 +141,7 @@ class StepIndicator extends StatelessWidget {
                     labels[index],
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: isCurrent
-                          ? currentTextColor
-                          : inactiveColor,
+                      color: isCurrent ? currentTextColor : inactiveColor,
                       fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -177,7 +173,9 @@ class GhostButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        foregroundColor: isDark ? AppColors.applicantDarkText : AppColors.darkBrown,
+        foregroundColor: isDark
+            ? AppColors.applicantDarkText
+            : AppColors.darkBrown,
         side: const BorderSide(color: AppColors.gold, width: 1.4),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),

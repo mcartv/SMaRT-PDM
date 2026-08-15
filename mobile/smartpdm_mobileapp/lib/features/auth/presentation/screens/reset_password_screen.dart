@@ -163,7 +163,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         child: Text(
                           _error!,
                           style: TextStyle(
-                            color: isDark ? Colors.red.shade200 : Colors.red.shade900,
+                            color: isDark
+                                ? Colors.red.shade200
+                                : Colors.red.shade900,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

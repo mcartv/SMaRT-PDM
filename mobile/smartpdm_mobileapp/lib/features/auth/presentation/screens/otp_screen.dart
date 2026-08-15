@@ -301,7 +301,9 @@ class _OtpScreenState extends State<OtpScreen> {
                     borderRadius: BorderRadius.circular(borderRadius * 1.4),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+                        color: Colors.black.withValues(
+                          alpha: isDark ? 0.22 : 0.05,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),

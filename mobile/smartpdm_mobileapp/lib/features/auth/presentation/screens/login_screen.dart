@@ -106,9 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _studentIdController.text,
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? AppColors.applicantDarkSurface
-        : Colors.white;
+    final cardColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
     final textColor = isDark
         ? AppColors.applicantDarkText
         : AppColors.darkBrown;
@@ -155,7 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.07),
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.24 : 0.07,
+                          ),
                           blurRadius: 30,
                           offset: const Offset(0, 16),
                         ),
@@ -197,10 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ? 'Your Student ID is ready. Enter your password to continue.'
                                 : 'Enter your Student ID and password to continue.',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: mutedColor,
-                                  height: 1.45,
-                                ),
+                                ?.copyWith(color: mutedColor, height: 1.45),
                           ),
                           const SizedBox(height: 22),
                           if (hasPrefilledId)
@@ -210,10 +207,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 vertical: 14,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.gold.withValues(alpha: isDark ? 0.16 : 0.10),
+                                color: AppColors.gold.withValues(
+                                  alpha: isDark ? 0.16 : 0.10,
+                                ),
                                 borderRadius: BorderRadius.circular(17),
                                 border: Border.all(
-                                  color: AppColors.gold.withValues(alpha: isDark ? 0.42 : 0.30),
+                                  color: AppColors.gold.withValues(
+                                    alpha: isDark ? 0.42 : 0.30,
+                                  ),
                                 ),
                               ),
                               child: Row(
@@ -301,7 +302,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Text(
                                 'Forgot password?',
                                 style: TextStyle(
-                                  color: isDark ? AppColors.gold : AppColors.brown,
+                                  color: isDark
+                                      ? AppColors.gold
+                                      : AppColors.brown,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),

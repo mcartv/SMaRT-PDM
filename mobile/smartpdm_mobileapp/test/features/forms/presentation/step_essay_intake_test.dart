@@ -4,12 +4,35 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essa
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
 void main() {
-  testWidgets('StepEssay shows the shared essay range error', (
+  testWidgets('StepEssay accepts short non-blank essays', (tester) async {
+    final data = ApplicationData()
+      ..describeYourselfEssay = 'I am a student.'
+      ..aimsAndAmbitionEssay = 'I want to serve my community.';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StepEssay(
+              data: data,
+              onChanged: () {},
+              showErrors: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Describe yourself essay is required.'), findsNothing);
+    expect(find.text('Aims and ambition essay is required.'), findsNothing);
+  });
+
+  testWidgets('StepEssay rejects blank and whitespace-only essays', (
     tester,
   ) async {
     final data = ApplicationData()
-      ..describeYourselfEssay = _essayWords(199)
-      ..aimsAndAmbitionEssay = _essayWords(200);
+      ..describeYourselfEssay = '   '
+      ..aimsAndAmbitionEssay = '';
 
     await tester.pumpWidget(
       MaterialApp(
@@ -26,12 +49,12 @@ void main() {
     );
 
     expect(
-      find.text('Describe yourself essay must be 200-300 words. Current count: 199.'),
+      find.text('Describe yourself essay is required.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Aims and ambition essay is required.'),
       findsOneWidget,
     );
   });
-}
-
-String _essayWords(int count) {
-  return List<String>.generate(count, (index) => 'word').join(' ');
 }

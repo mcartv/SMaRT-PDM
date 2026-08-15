@@ -108,11 +108,11 @@ void main() {
     // We simulate missing template by running this in an environment where assets are not loaded
     // or we can test the fallback directly if we intercept rootBundle.
     final service = ScholarshipFormPdfService();
-    
+
     // In test environment, rootBundle doesn't have the assets loaded unless we set them up.
     // This will naturally trigger the fallback.
     final file = await service.generateFromSavedApplication(dummyModel);
-    
+
     // We verify the file was successfully generated (either from template or fallback)
     expect(file.existsSync(), true);
     expect(await file.length() > 0, true);

@@ -12,9 +12,7 @@ Future<void> showLegalDocumentSheet(
     backgroundColor: Colors.transparent,
     builder: (sheetContext) {
       final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
-      final sheetColor = isDark
-          ? AppColors.applicantDarkSurface
-          : Colors.white;
+      final sheetColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
       final sheetText = isDark
           ? AppColors.applicantDarkText
           : AppColors.darkBrown;

@@ -3,8 +3,47 @@ import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 void main() {
   group('AppFieldValidators', () {
+    test('required text rejects blank and whitespace-only values', () {
+      expect(
+        AppFieldValidators.requiredText('', label: 'First name'),
+        'First name is required.',
+      );
+      expect(
+        AppFieldValidators.requiredText('     ', label: 'First name'),
+        'First name is required.',
+      );
+      expect(
+        AppFieldValidators.requiredText('  Teresa  ', label: 'First name'),
+        isNull,
+      );
+    });
+
+    test('required text supports safe field-specific length limits', () {
+      expect(
+        AppFieldValidators.requiredText('A', label: 'Address', minLength: 2),
+        'Address must contain at least 2 characters.',
+      );
+
+      expect(
+        AppFieldValidators.requiredText(
+          '123456',
+          label: 'Reference',
+          maxLength: 5,
+        ),
+        'Reference must not exceed 5 characters.',
+      );
+    });
+
     test('uses one Philippine mobile rule', () {
       expect(AppFieldValidators.philippineMobile('09123456789'), isNull);
+
+      // International/canonical account values are accepted after
+      // normalization and resolve to the same 09XXXXXXXXX rule.
+      expect(AppFieldValidators.philippineMobile('+639123456789'), isNull);
+      expect(AppFieldValidators.philippineMobile('639123456789'), isNull);
+      expect(AppFieldValidators.philippineMobile('0912 345 6789'), isNull);
+      expect(AppFieldValidators.philippineMobile('0912-345-6789'), isNull);
+
       expect(
         AppFieldValidators.philippineMobile('9123456789'),
         'Mobile number must be exactly 11 digits and start with 09.',
@@ -19,12 +58,13 @@ void main() {
       );
     });
 
-    test('validates names and email consistently', () {
+    test('validates Filipino and compound names consistently', () {
       expect(
         AppFieldValidators.name("Dela Cruz-O'Neil", label: 'Name'),
         isNull,
       );
       expect(AppFieldValidators.name('Peña', label: 'Name'), isNull);
+      expect(AppFieldValidators.name('Mary Anne', label: 'First name'), isNull);
       expect(
         AppFieldValidators.name(
           'A',
@@ -47,11 +87,15 @@ void main() {
         AppFieldValidators.name('Name123', label: 'Name'),
         'Enter a valid Name.',
       );
+    });
+
+    test('validates email consistently', () {
       expect(AppFieldValidators.email('student@pdm.edu.ph'), isNull);
       expect(
         AppFieldValidators.email('student@'),
         'Enter a valid email address.',
       );
+      expect(AppFieldValidators.email('     '), 'Email address is required.');
     });
 
     test('requires four-digit ZIP codes and year levels 1 through 4', () {

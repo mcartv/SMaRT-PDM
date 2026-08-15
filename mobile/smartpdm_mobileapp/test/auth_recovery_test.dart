@@ -63,10 +63,7 @@ void main() {
       await tester.tap(find.text('Send Verification Code'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Student ID must contain 10 digits.'),
-        findsOneWidget,
-      );
+      expect(find.text('Student ID must contain 10 digits.'), findsOneWidget);
     });
 
     testWidgets('submits student id and navigates to otp screen', (

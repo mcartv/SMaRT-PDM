@@ -1157,8 +1157,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               title: 'We could not load Home right now.',
               message: _identityError!,
               buttonLabel: 'Try again',
-              onPressed: () =>
-                  _loadDashboardData(refreshNotifications: false),
+              onPressed: () => _loadDashboardData(refreshNotifications: false),
             ),
           ),
         ),

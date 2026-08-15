@@ -9,7 +9,7 @@ void main() {
   ) async {
     final data = _validApplicationData()
       ..firstName = '   '
-      ..describeYourselfEssay = _essayWords(199)
+      ..describeYourselfEssay = '   '
       ..certificationRead = false
       ..agree = false;
 
@@ -33,7 +33,7 @@ void main() {
     expect(find.text('- Enter your First name.'), findsOneWidget);
     expect(
       find.text(
-        '- Add 1 more words to the Describe yourself essay.',
+        '- Write your Describe yourself essay before continuing.',
       ),
       findsOneWidget,
     );
@@ -42,6 +42,28 @@ void main() {
       find.text('- Accept the terms of service and privacy statement.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('StepSubmit accepts short non-blank essays', (tester) async {
+    final data = _validApplicationData()
+      ..describeYourselfEssay = 'I am a student.'
+      ..aimsAndAmbitionEssay = 'I want to serve my community.';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StepSubmit(
+              data: data,
+              onChanged: () {},
+              onEditStep: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Ready to submit'), findsOneWidget);
   });
 
   testWidgets('StepSubmit shows the ready state when the form is valid', (
@@ -122,12 +144,8 @@ ApplicationData _validApplicationData() {
     ..scholarshipHistoryAnswered = true
     ..disciplinaryAction = false
     ..disciplinaryActionAnswered = true
-    ..describeYourselfEssay = _essayWords(200)
-    ..aimsAndAmbitionEssay = _essayWords(200)
+    ..describeYourselfEssay = 'I am a student.'
+    ..aimsAndAmbitionEssay = 'I want to serve my community.'
     ..certificationRead = true
     ..agree = true;
-}
-
-String _essayWords(int count) {
-  return List<String>.generate(count, (index) => 'word').join(' ');
 }

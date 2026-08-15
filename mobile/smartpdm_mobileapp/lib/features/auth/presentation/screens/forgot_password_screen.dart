@@ -146,7 +146,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.28)),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.28),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.06),
@@ -236,9 +238,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        validator: (_) => StudentIdInputFormatter.validationMessage(
-                          _studentIdController.text,
-                        ),
+                        validator: (_) =>
+                            StudentIdInputFormatter.validationMessage(
+                              _studentIdController.text,
+                            ),
                         onFieldSubmitted: (_) => _submit(),
                       ),
                       const SizedBox(height: 20),

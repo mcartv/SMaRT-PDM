@@ -281,10 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    final lastNameError = AppFieldValidators.name(
-      lastName,
-      label: 'Last name',
-    );
+    final lastNameError = AppFieldValidators.name(lastName, label: 'Last name');
     if (lastNameError != null) {
       _showMessage(lastNameError);
       return;

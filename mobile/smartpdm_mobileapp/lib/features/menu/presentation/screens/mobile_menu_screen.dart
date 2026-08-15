@@ -406,10 +406,11 @@ class _ProfileSummaryCard extends StatelessWidget {
                         displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
                     ),
                     if (isRefreshing)
@@ -507,17 +508,18 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
                     children: [
                       Text(
                         "Scholar's Obligations",
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: titleColor,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: titleColor,
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Office for Scholarship and Financial Assistance',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: bodyColor,
-                        ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: bodyColor),
                       ),
                     ],
                   ),
@@ -568,20 +570,21 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
                         ),
                         child: Text(
                           '${index + 1}',
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: isDark ? AppColors.gold : AppColors.darkBrown,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: isDark
+                                    ? AppColors.gold
+                                    : AppColors.darkBrown,
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           responsibilities[index],
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: bodyColor,
-                            height: 1.5,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: bodyColor, height: 1.5),
                         ),
                       ),
                     ],

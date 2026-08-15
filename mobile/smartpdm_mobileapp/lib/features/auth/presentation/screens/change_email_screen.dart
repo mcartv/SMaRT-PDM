@@ -187,7 +187,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.28)),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.28),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.06),
@@ -272,10 +274,11 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          validator: (value) => AppFieldValidators.differentEmail(
-                            value,
-                            currentEmail: _currentEmail,
-                          ),
+                          validator: (value) =>
+                              AppFieldValidators.differentEmail(
+                                value,
+                                currentEmail: _currentEmail,
+                              ),
                           onFieldSubmitted: (_) => _requestCode(),
                         ),
                         const SizedBox(height: 20),
@@ -408,10 +411,7 @@ class _StatusBox extends StatelessWidget {
       ),
       child: Text(
         message,
-        style: TextStyle(
-          color: textColor,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
       ),
     );
   }

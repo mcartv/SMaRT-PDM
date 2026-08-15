@@ -442,14 +442,113 @@ function rawFamilyMember(snapshot = {}, relation = '') {
     };
 }
 
+function graduationYearFromRegistryValue(value) {
+    const text = safeText(value);
+    if (!text) return '';
+
+    const years = text.match(/\b(?:19|20)\d{2}\b/g) || [];
+    return years.length > 0 ? years[years.length - 1] : text;
+}
+
+function registryEducationFromRawSnapshot(snapshot = {}, level = '') {
+    const normalizedLevel = safeText(level).toLowerCase();
+
+    if (normalizedLevel === 'elementary') {
+        return {
+            school_name: rawSnapshotValue(snapshot, ['Elem School']),
+            school_address: rawSnapshotValue(snapshot, ['Elem Address']),
+            year_graduated: graduationYearFromRegistryValue(
+                rawSnapshotValue(snapshot, ['Elem Inclusive Year'])
+            ),
+        };
+    }
+
+    if (normalizedLevel === 'high school') {
+        return {
+            school_name: firstNonEmpty(
+                rawSnapshotValue(snapshot, ['Grade 7-10 School']),
+                rawSnapshotValue(snapshot, ['HS Old Curriculum School'])
+            ),
+            school_address: firstNonEmpty(
+                rawSnapshotValue(snapshot, ['Grade 7-10 Address']),
+                rawSnapshotValue(snapshot, ['HS Old Curriculum Address'])
+            ),
+            year_graduated: graduationYearFromRegistryValue(
+                firstNonEmpty(
+                    rawSnapshotValue(snapshot, ['Grade 7-10 Year']),
+                    rawSnapshotValue(snapshot, ['HS Old Curriculum Year'])
+                )
+            ),
+        };
+    }
+
+    if (normalizedLevel === 'senior high school') {
+        return {
+            school_name: rawSnapshotValue(snapshot, ['Grade 11-12 School']),
+            school_address: rawSnapshotValue(snapshot, ['Grade 11-12 Address']),
+            year_graduated: graduationYearFromRegistryValue(
+                rawSnapshotValue(snapshot, ['Grade 11-12 Year'])
+            ),
+        };
+    }
+
+    return {};
+}
+
+function emergencyGuardianFromRawSnapshot(snapshot = {}) {
+    const relationship = normalizeLookupKey(
+        rawSnapshotValue(snapshot, ['Relationship'])
+    );
+
+    if (!relationship.includes('guardian')) return {};
+
+    const fullName = splitFullName(
+        rawSnapshotValue(snapshot, ['Emergency Contact Person'])
+    );
+
+    return {
+        relation: 'Guardian',
+        ...fullName,
+        mobile_number: rawSnapshotValue(snapshot, ['Emergency Contact No.']),
+        address: rawSnapshotValue(snapshot, ['Emergency Address']),
+    };
+}
+
 function addressFromRawSnapshot(snapshot = {}) {
     const permanentAddress = rawSnapshotValue(snapshot, ['Permanent Address']);
     const presentAddress = rawSnapshotValue(snapshot, ['Present Address']);
     const permanentZip = rawSnapshotValue(snapshot, ['Permanent ZIP Code']);
     const presentZip = rawSnapshotValue(snapshot, ['Present ZIP Code']);
+    const fullAddress = firstNonEmpty(permanentAddress, presentAddress);
+    const parts = fullAddress
+        .split(',')
+        .map((value) => safeText(value))
+        .filter(Boolean);
+
+    let street = fullAddress;
+    let barangay = '';
+    let city = '';
+    let province = '';
+
+    if (parts.length >= 2) {
+        province = parts[parts.length - 1];
+        city = parts[parts.length - 2];
+    }
+
+    if (parts.length >= 3) {
+        barangay = parts[parts.length - 3]
+            .replace(/^brgy\.?\s*/i, '')
+            .trim();
+        street = parts.slice(0, -3).join(', ');
+    } else if (parts.length === 2) {
+        street = '';
+    }
 
     return {
-        street: firstNonEmpty(permanentAddress, presentAddress),
+        street,
+        barangay,
+        city,
+        province,
         zip_code: firstNonEmpty(permanentZip, presentZip),
     };
 }
@@ -803,9 +902,13 @@ async function getMyFormData(userId) {
             middle_name: safeText(master?.sibling_middle_name),
             mobile_number: safeText(master?.sibling_mobile_no),
         };
+    const registryGuardian = rawFamilyMember(master?.raw_snapshot, 'Guardian');
+    const emergencyGuardian = emergencyGuardianFromRawSnapshot(
+        master?.raw_snapshot
+    );
     const guardian =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Guardian') ||
-        rawFamilyMember(master?.raw_snapshot, 'Guardian');
+        (hasFamilyName(registryGuardian) ? registryGuardian : emergencyGuardian);
     const collegeEducation = educationRowByLevel(educationRows, 'College');
     const highSchoolEducation = educationRowByLevel(educationRows, 'High School');
     const seniorHighEducation = educationRowByLevel(
@@ -813,6 +916,18 @@ async function getMyFormData(userId) {
         'Senior High School'
     );
     const elementaryEducation = educationRowByLevel(educationRows, 'Elementary');
+    const registryHighSchoolEducation = registryEducationFromRawSnapshot(
+        master?.raw_snapshot,
+        'High School'
+    );
+    const registrySeniorHighEducation = registryEducationFromRawSnapshot(
+        master?.raw_snapshot,
+        'Senior High School'
+    );
+    const registryElementaryEducation = registryEducationFromRawSnapshot(
+        master?.raw_snapshot,
+        'Elementary'
+    );
 
     const firstName = firstNonEmpty(master?.first_name, student.first_name);
     const middleName = firstNonEmpty(master?.middle_name, student.middle_name);
@@ -873,7 +988,11 @@ async function getMyFormData(userId) {
                 profile?.place_of_birth,
                 master?.place_of_birth
             ),
-            citizenship: firstNonEmpty(profile?.citizenship, 'Filipino'),
+            citizenship: firstNonEmpty(
+                profile?.citizenship,
+                rawSnapshotValue(master?.raw_snapshot, ['Nationality']),
+                'Filipino'
+            ),
             civil_status: firstNonEmpty(profile?.civil_status, master?.civil_status),
             religion: firstNonEmpty(
                 profile?.religion,
@@ -887,9 +1006,9 @@ async function getMyFormData(userId) {
             house_lot_block_no: safeText(profile?.house_lot_block_no),
             street: firstNonEmpty(profile?.street_address, rawAddress.street),
             subdivision: safeText(profile?.subdivision),
-            barangay: safeText(profile?.barangay),
-            city_municipality: safeText(profile?.city),
-            province: safeText(profile?.province),
+            barangay: firstNonEmpty(profile?.barangay, rawAddress.barangay),
+            city_municipality: firstNonEmpty(profile?.city, rawAddress.city),
+            province: firstNonEmpty(profile?.province, rawAddress.province),
             zip_code: firstNonEmpty(profile?.zip_code, rawAddress.zip_code),
         },
 
@@ -904,6 +1023,7 @@ async function getMyFormData(userId) {
                 firstNonEmpty(
                     draftPayload.family?.parent_guardian_address,
                     profile?.parent_guardian_address,
+                    rawSnapshotValue(master?.raw_snapshot, ['Emergency Address']),
                     guardian?.address,
                     father?.address,
                     mother?.address
@@ -987,26 +1107,47 @@ async function getMyFormData(userId) {
             college_honors: safeText(collegeEducation.honors_awards),
             college_club: safeText(collegeEducation.club_organization),
             college_year_graduated: safeText(collegeEducation.year_graduated),
-            high_school_school: safeText(highSchoolEducation.school_name),
-            high_school_address: safeText(highSchoolEducation.school_address),
+            high_school_school: firstNonEmpty(
+                highSchoolEducation.school_name,
+                registryHighSchoolEducation.school_name
+            ),
+            high_school_address: firstNonEmpty(
+                highSchoolEducation.school_address,
+                registryHighSchoolEducation.school_address
+            ),
             high_school_honors: safeText(highSchoolEducation.honors_awards),
             high_school_club: safeText(highSchoolEducation.club_organization),
-            high_school_year_graduated: safeText(
-                highSchoolEducation.year_graduated
+            high_school_year_graduated: firstNonEmpty(
+                graduationYearFromRegistryValue(highSchoolEducation.year_graduated),
+                registryHighSchoolEducation.year_graduated
             ),
-            senior_high_school: safeText(seniorHighEducation.school_name),
-            senior_high_address: safeText(seniorHighEducation.school_address),
+            senior_high_school: firstNonEmpty(
+                seniorHighEducation.school_name,
+                registrySeniorHighEducation.school_name
+            ),
+            senior_high_address: firstNonEmpty(
+                seniorHighEducation.school_address,
+                registrySeniorHighEducation.school_address
+            ),
             senior_high_honors: safeText(seniorHighEducation.honors_awards),
             senior_high_club: safeText(seniorHighEducation.club_organization),
-            senior_high_year_graduated: safeText(
-                seniorHighEducation.year_graduated
+            senior_high_year_graduated: firstNonEmpty(
+                graduationYearFromRegistryValue(seniorHighEducation.year_graduated),
+                registrySeniorHighEducation.year_graduated
             ),
-            elementary_school: safeText(elementaryEducation.school_name),
-            elementary_address: safeText(elementaryEducation.school_address),
+            elementary_school: firstNonEmpty(
+                elementaryEducation.school_name,
+                registryElementaryEducation.school_name
+            ),
+            elementary_address: firstNonEmpty(
+                elementaryEducation.school_address,
+                registryElementaryEducation.school_address
+            ),
             elementary_honors: safeText(elementaryEducation.honors_awards),
             elementary_club: safeText(elementaryEducation.club_organization),
-            elementary_year_graduated: safeText(
-                elementaryEducation.year_graduated
+            elementary_year_graduated: firstNonEmpty(
+                graduationYearFromRegistryValue(elementaryEducation.year_graduated),
+                registryElementaryEducation.year_graduated
             ),
             current_section: safeText(draftPayload.academic?.current_section),
         },
@@ -2729,6 +2870,20 @@ function collectMissingSubmissionFields(payload = {}) {
         .map((field) => field.label);
 }
 
+function normalizePhilippineMobileSubmission(value) {
+    const compact = safeText(value).replace(/[\s-]+/g, '');
+
+    if (/^\+639\d{9}$/.test(compact)) {
+        return `09${compact.slice(4)}`;
+    }
+
+    if (/^639\d{9}$/.test(compact)) {
+        return `09${compact.slice(3)}`;
+    }
+
+    return compact.replace(/\D/g, '');
+}
+
 function validateApplicationSubmissionPayload(payload = {}) {
     const missingFields = collectMissingSubmissionFields(payload);
 
@@ -2737,6 +2892,113 @@ function validateApplicationSubmissionPayload(payload = {}) {
             400,
             `Complete the following required fields: ${missingFields.join(', ')}.`
         );
+    }
+
+    const contact = payload.contact || {};
+    const rawMobile = firstNonEmpty(
+        contact.mobile_number,
+        contact.mobile,
+        contact.phone_number
+    );
+    const normalizedMobile = normalizePhilippineMobileSubmission(rawMobile);
+
+    if (!/^09\d{9}$/.test(normalizedMobile)) {
+        throw createHttpError(
+            400,
+            'Mobile number must be a valid Philippine mobile number in 09XXXXXXXXX format.'
+        );
+    }
+
+    payload.contact = {
+        ...contact,
+        mobile_number: normalizedMobile,
+    };
+
+    const family = payload.family || {};
+    const nativeStatus = safeText(family.parent_native_status).toLowerCase();
+    const isNative = nativeStatus.startsWith('yes');
+    const isNotNative = nativeStatus === 'no';
+
+    if (isNative) {
+        const residencyRaw = safeText(
+            family.parent_marilao_residency_duration
+        );
+        const residencyYears = /^\d+$/.test(residencyRaw)
+            ? Number.parseInt(residencyRaw, 10)
+            : Number.NaN;
+
+        if (!Number.isInteger(residencyYears) || residencyYears < 1 || residencyYears > 120) {
+            throw createHttpError(
+                400,
+                'Years as resident must be a whole number between 1 and 120.'
+            );
+        }
+    }
+
+    if (isNotNative) {
+        const legacyOrigin = safeText(family.parent_previous_town_province);
+        const previousTown = safeText(
+            family.parent_previous_town_municipality || legacyOrigin
+        );
+        const previousProvince = safeText(
+            family.parent_previous_province || legacyOrigin
+        );
+
+        if (!previousTown) {
+            throw createHttpError(
+                400,
+                'Town or municipality is required when parents are not native of Marilao.'
+            );
+        }
+
+        if (!previousProvince) {
+            throw createHttpError(
+                400,
+                'Province is required when parents are not native of Marilao.'
+            );
+        }
+    }
+
+    const academic = payload.academic || {};
+    const collegeSchool = safeText(academic.college_school);
+    const collegeAddress = safeText(academic.college_address);
+    const collegeYearRaw = safeText(academic.college_year_graduated);
+    const normalizedCollegeStatus = collegeYearRaw.toLowerCase().replace(/\s+/g, '');
+    const isOngoing = normalizedCollegeStatus === 'ongoing';
+
+    if (!collegeSchool) {
+        throw createHttpError(400, 'College school is required.');
+    }
+
+    if (!collegeAddress) {
+        throw createHttpError(400, 'College address is required.');
+    }
+
+    if (!collegeYearRaw) {
+        throw createHttpError(400, 'College academic status is required.');
+    }
+
+    if (isOngoing) {
+        payload.academic = {
+            ...academic,
+            college_year_graduated: 'Ongoing',
+        };
+    } else {
+        const graduationYear = /^\d{4}$/.test(collegeYearRaw)
+            ? Number.parseInt(collegeYearRaw, 10)
+            : Number.NaN;
+        const currentYear = new Date().getFullYear();
+
+        if (
+            !Number.isInteger(graduationYear) ||
+            graduationYear < 1950 ||
+            graduationYear > currentYear
+        ) {
+            throw createHttpError(
+                400,
+                `College graduation year must be between 1950 and ${currentYear}, or use Ongoing.`
+            );
+        }
     }
 }
 

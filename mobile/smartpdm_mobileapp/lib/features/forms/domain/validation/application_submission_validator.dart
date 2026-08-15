@@ -36,9 +36,7 @@ class ApplicationSubmissionValidationResult {
 
   ApplicationSubmissionIssue? issueForField(String field) {
     for (final issue in issues) {
-      if (issue.field == field) {
-        return issue;
-      }
+      if (issue.field == field) return issue;
     }
     return null;
   }
@@ -52,8 +50,17 @@ class ApplicationSubmissionValidationResult {
 class ApplicationSubmissionValidator {
   const ApplicationSubmissionValidator();
 
-  static const int essayMinWords = 200;
-  static const int essayMaxWords = 300;
+  ApplicationSubmissionValidationResult validatePersonalProgression(
+    ApplicationData data,
+  ) {
+    return ApplicationSubmissionValidationResult(_validatePersonalFields(data));
+  }
+
+  ApplicationSubmissionValidationResult validateFamilyProgression(
+    ApplicationData data,
+  ) {
+    return ApplicationSubmissionValidationResult(_validateFamilyFields(data));
+  }
 
   ApplicationSubmissionValidationResult validateAcademicProgression(
     ApplicationData data,
@@ -64,7 +71,7 @@ class ApplicationSubmissionValidator {
   ApplicationSubmissionValidationResult validateEssayProgression(
     ApplicationData data,
   ) {
-    final issues = <ApplicationSubmissionIssue>[
+    return ApplicationSubmissionValidationResult(<ApplicationSubmissionIssue>[
       ..._validateEssayField(
         field: 'describeYourselfEssay',
         label: 'Describe yourself essay',
@@ -75,15 +82,13 @@ class ApplicationSubmissionValidator {
         label: 'Aims and ambition essay',
         value: data.aimsAndAmbitionEssay,
       ),
-    ];
-
-    return ApplicationSubmissionValidationResult(issues);
+    ]);
   }
 
   ApplicationSubmissionValidationResult validateReviewReadiness(
     ApplicationData data,
   ) {
-    final issues = <ApplicationSubmissionIssue>[
+    return ApplicationSubmissionValidationResult(<ApplicationSubmissionIssue>[
       ..._validateAccountFields(data),
       ..._validatePersonalFields(data),
       ..._validateFamilyFields(data),
@@ -99,9 +104,7 @@ class ApplicationSubmissionValidator {
         value: data.aimsAndAmbitionEssay,
       ),
       ..._validateCertificationFields(data),
-    ];
-
-    return ApplicationSubmissionValidationResult(issues);
+    ]);
   }
 
   ApplicationSubmissionValidationResult validateSubmissionPreflight(
@@ -214,6 +217,7 @@ class ApplicationSubmissionValidator {
         );
       }
     }
+
     requireText(field: 'age', label: 'Age');
     requireText(field: 'dateOfBirth', label: 'Date of birth');
     requireText(field: 'sex', label: 'Sex');
@@ -287,9 +291,7 @@ class ApplicationSubmissionValidator {
       }
     }
 
-    final mobileError = AppFieldValidators.philippineMobile(
-      data.mobileNumber,
-    );
+    final mobileError = AppFieldValidators.philippineMobile(data.mobileNumber);
     if (mobileError != null) {
       issues.add(
         ApplicationSubmissionIssue(
@@ -334,6 +336,7 @@ class ApplicationSubmissionValidator {
         ),
       );
     }
+
     final hasStreetAddress =
         data.houseLotBlockNo.trim().isNotEmpty ||
         data.unitBldgNo.trim().isNotEmpty ||
@@ -384,6 +387,7 @@ class ApplicationSubmissionValidator {
       'guardianFirstName': data.guardianFirstName,
       'guardianMiddleName': data.guardianMiddleName,
     };
+
     for (final entry in familyNames.entries) {
       if (_isBlank(entry.value)) continue;
       final error = AppFieldValidators.name(
@@ -435,8 +439,7 @@ class ApplicationSubmissionValidator {
           code: 'family.primary_carer.required',
           section: ApplicationSubmissionSection.family,
           field: 'familyPrimaryCarer',
-          message:
-              'Enter the complete name of at least one parent or guardian.',
+          message: 'Enter the complete name of at least one parent or guardian.',
           repairAction:
               'Enter both the first and last name of at least one parent or guardian.',
         ),
@@ -515,8 +518,7 @@ class ApplicationSubmissionValidator {
                 'Enter how long the parent or parents have lived in Marilao.',
           ),
         );
-      }
-      else if (!RegExp(r'^\d+$').hasMatch(
+      } else if (!RegExp(r'^\d+$').hasMatch(
         data.parentMarilaoResidencyDuration.trim(),
       )) {
         issues.add(
@@ -614,8 +616,10 @@ class ApplicationSubmissionValidator {
             code: 'academic.college_year.invalid',
             section: ApplicationSubmissionSection.academic,
             field: 'collegeYearGraduated',
-            message: 'Select On Going or a college graduation year of 2026 or later.',
-            repairAction: 'Choose On Going or select a college graduation year from 2026 onward.',
+            message:
+                'Select On Going or a college graduation year of 2026 or later.',
+            repairAction:
+                'Choose On Going or select a college graduation year from 2026 onward.',
           ),
         );
       }
@@ -681,7 +685,7 @@ class ApplicationSubmissionValidator {
 
     if (data.financialSupport
             .split(',')
-            .map((v) => v.trim())
+            .map((value) => value.trim())
             .contains('Other') &&
         _isBlank(data.financialSupportOtherSpecify)) {
       issues.add(
@@ -768,25 +772,17 @@ class ApplicationSubmissionValidator {
     required String label,
     required String value,
   }) {
-    final count = essayWordCount(value);
-    if (count >= essayMinWords && count <= essayMaxWords) {
+    if (_hasText(value)) {
       return const <ApplicationSubmissionIssue>[];
     }
 
-    final message = count == 0
-        ? '$label must be $essayMinWords-$essayMaxWords words.'
-        : '$label must be $essayMinWords-$essayMaxWords words. Current count: $count.';
-    final repairAction = count < essayMinWords
-        ? 'Add ${essayMinWords - count} more words to the $label.'
-        : 'Shorten the $label to $essayMaxWords words or fewer.';
-
-    return [
+    return <ApplicationSubmissionIssue>[
       ApplicationSubmissionIssue(
-        code: 'essay.$field.word_count',
+        code: 'essay.$field.required',
         section: ApplicationSubmissionSection.essay,
         field: field,
-        message: message,
-        repairAction: repairAction,
+        message: '$label is required.',
+        repairAction: 'Write your $label before continuing.',
       ),
     ];
   }

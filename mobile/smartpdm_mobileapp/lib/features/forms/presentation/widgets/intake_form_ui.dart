@@ -38,9 +38,8 @@ Color intakeMutedBorderColor(BuildContext context) => intakeIsDark(context)
     ? AppColors.applicantDarkOutline.withValues(alpha: 0.78)
     : IntakePalette.mutedBorder;
 
-Color intakeTextColor(BuildContext context) => intakeIsDark(context)
-    ? AppColors.applicantDarkText
-    : IntakePalette.text;
+Color intakeTextColor(BuildContext context) =>
+    intakeIsDark(context) ? AppColors.applicantDarkText : IntakePalette.text;
 
 Color intakeSubtextColor(BuildContext context) => intakeIsDark(context)
     ? AppColors.applicantDarkTextMuted
@@ -283,7 +282,9 @@ class IntakeChoiceCard extends StatelessWidget {
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: intakeSubtextColor(context).withValues(alpha: 0.85),
+                      color: intakeSubtextColor(
+                        context,
+                      ).withValues(alpha: 0.85),
                       height: 1.35,
                     ),
                   ),
@@ -439,10 +440,7 @@ class IntakeReviewRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: intakeMutedBorderColor(context),
-            width: 1,
-          ),
+          bottom: BorderSide(color: intakeMutedBorderColor(context), width: 1),
         ),
       ),
       child: Row(

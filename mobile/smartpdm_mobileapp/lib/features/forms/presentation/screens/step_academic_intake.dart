@@ -56,7 +56,7 @@ class _StepAcademicState extends State<StepAcademic> {
   ];
   static const List<String> _defaultSectionOptions = ['A', 'B', 'C', 'D'];
   static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
-  static const int _collegeMinimumGraduationYear = 2026;
+  static const int _minimumGraduationYear = 1950;
   static const String _defaultCollegeSchool =
       'Pambayang Dalubhasaan ng Marilao';
   static const String _defaultCollegeAddress =
@@ -73,6 +73,7 @@ class _StepAcademicState extends State<StepAcademic> {
   bool scholarshipCollege = false;
   bool scholarshipOthers = false;
   bool disciplinaryAction = false;
+  String? selectedCollegeStatus;
 
   @override
   void initState() {
@@ -107,15 +108,23 @@ class _StepAcademicState extends State<StepAcademic> {
       text: widget.data.collegeClub,
     );
     final initialCollegeYear = widget.data.collegeYearGraduated.trim();
-    collegeYearController = TextEditingController(
-      text: initialCollegeYear.isEmpty ? 'On Going' : initialCollegeYear,
+    final normalizedCollegeYear = initialCollegeYear.toLowerCase().replaceAll(
+      ' ',
+      '',
     );
-    if (initialCollegeYear.isEmpty) {
-      widget.data.collegeYearGraduated = 'On Going';
+    final isLegacyOngoing = normalizedCollegeYear == 'ongoing';
+    selectedCollegeStatus = isLegacyOngoing
+        ? 'Ongoing'
+        : (int.tryParse(initialCollegeYear) != null ? 'Graduated' : null);
+    collegeYearController = TextEditingController(
+      text: isLegacyOngoing ? 'Ongoing' : initialCollegeYear,
+    );
+    if (isLegacyOngoing && initialCollegeYear != 'Ongoing') {
+      widget.data.collegeYearGraduated = 'Ongoing';
     }
     if (shouldDefaultCollegeSchool ||
         shouldDefaultCollegeAddress ||
-        initialCollegeYear.isEmpty) {
+        (isLegacyOngoing && initialCollegeYear != 'Ongoing')) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         widget.onChanged();
@@ -396,12 +405,10 @@ class _StepAcademicState extends State<StepAcademic> {
 
   List<String> _academicYearOptions(String title) {
     if (title == 'College') {
-      final lastYear = DateTime.now().year + 10;
-      return <String>[
-        'On Going',
-        for (int year = _collegeMinimumGraduationYear; year <= lastYear; year++)
-          year.toString(),
-      ];
+      return List<String>.generate(
+        DateTime.now().year - _minimumGraduationYear + 1,
+        (index) => (DateTime.now().year - index).toString(),
+      );
     }
 
     return List<String>.generate(
@@ -413,24 +420,37 @@ class _StepAcademicState extends State<StepAcademic> {
   bool _isValidAcademicYear(String title, String value) {
     final normalized = value.trim();
     if (normalized.isEmpty) return false;
-    if (title != 'College') return _academicYearOptions(title).contains(normalized);
-    if (normalized == 'On Going') return true;
-    final year = int.tryParse(normalized);
-    return year != null && year >= _collegeMinimumGraduationYear;
+    if (title != 'College')
+      return _academicYearOptions(title).contains(normalized);
+    if (normalized.toLowerCase().replaceAll(' ', '') == 'ongoing') return true;
+    return _academicYearOptions('College').contains(normalized);
+  }
+
+  String? _collegeStatusError() {
+    if (!widget.showErrors || (selectedCollegeStatus ?? '').isNotEmpty) {
+      return null;
+    }
+    return 'College status is required.';
+  }
+
+  String? _collegeYearError(TextEditingController controller) {
+    if (!widget.showErrors || selectedCollegeStatus != 'Graduated') return null;
+    final value = controller.text.trim();
+    if (value.isEmpty) return 'Year graduated is required.';
+    if (!_academicYearOptions('College').contains(value)) {
+      return 'Select a valid graduation year.';
+    }
+    return null;
   }
 
   String? _academicYearError(String title, TextEditingController controller) {
+    if (title == 'College') return _collegeYearError(controller);
     if (!widget.showErrors) return null;
     final value = controller.text.trim();
-    if (value.isEmpty) {
-      return title == 'College'
-          ? 'College year graduated or status is required.'
-          : 'Year graduated is required.';
-    }
-    if (title == 'College' && !_isValidAcademicYear(title, value)) {
-      return 'Select On Going or a graduation year of 2026 or later.';
-    }
-    return null;
+    if (value.isEmpty) return 'Year graduated is required.';
+    return _academicYearOptions(title).contains(value)
+        ? null
+        : 'Select a valid graduation year.';
   }
 
   String? _yearLevelError() {
@@ -490,6 +510,8 @@ class _StepAcademicState extends State<StepAcademic> {
     required TextEditingController club,
     required TextEditingController year,
   }) {
+    final isCollege = title == 'College';
+
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -549,45 +571,131 @@ class _StepAcademicState extends State<StepAcademic> {
                   ),
                 ),
               ),
-              _field(
-                title == 'College'
-                    ? 'Year Graduated / Status *'
-                    : 'Year Graduated *',
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: _academicYearOptions(title).contains(
-                    year.text.trim(),
-                  )
-                      ? year.text.trim()
-                      : null,
-                  decoration: _dec(
-                    title == 'College'
-                        ? 'Select On Going or year'
-                        : 'Select year',
-                    errorText: _academicYearError(title, year),
-                    suffixIcon: intakeCompletionIcon(
-                      _isValidAcademicYear(title, year.text) ? year.text : '',
-                    ),
-                  ),
-                  items: _academicYearOptions(title)
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(value),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      year.text = value ?? '';
-                    });
-                    widget.onChanged();
-                  },
-                ),
-              ),
             ],
-            flexes: const [3, 3, 2],
+            flexes: const [1, 1],
           ),
+          const SizedBox(height: 16),
+          if (isCollege)
+            _flexRow(
+              [
+                _field(
+                  'Academic Status *',
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: selectedCollegeStatus,
+                    decoration: _dec(
+                      'Select status',
+                      errorText: _collegeStatusError(),
+                      suffixIcon: intakeCompletionIcon(
+                        (selectedCollegeStatus ?? '').trim(),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Ongoing',
+                        child: Text('Ongoing'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Graduated',
+                        child: Text('Graduated'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        selectedCollegeStatus = value;
+                        if (value == 'Ongoing') {
+                          year.text = 'Ongoing';
+                        } else if (year.text.trim().toLowerCase().replaceAll(
+                              ' ',
+                              '',
+                            ) ==
+                            'ongoing') {
+                          year.clear();
+                        }
+                      });
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+                _field(
+                  'Year Graduated${selectedCollegeStatus == 'Graduated' ? ' *' : ''}',
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'college-year-${selectedCollegeStatus ?? 'unset'}-${year.text}',
+                    ),
+                    isExpanded: true,
+                    initialValue:
+                        selectedCollegeStatus == 'Graduated' &&
+                            _academicYearOptions(
+                              'College',
+                            ).contains(year.text.trim())
+                        ? year.text.trim()
+                        : null,
+                    decoration: _dec(
+                      selectedCollegeStatus == 'Ongoing'
+                          ? 'Not required while ongoing'
+                          : 'Select graduation year',
+                      errorText: _collegeYearError(year),
+                      suffixIcon: intakeCompletionIcon(
+                        selectedCollegeStatus == 'Graduated' &&
+                                _academicYearOptions(
+                                  'College',
+                                ).contains(year.text.trim())
+                            ? year.text
+                            : '',
+                      ),
+                    ),
+                    items: _academicYearOptions('College')
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(value),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: selectedCollegeStatus == 'Graduated'
+                        ? (value) {
+                            setState(() {
+                              year.text = value ?? '';
+                            });
+                            widget.onChanged();
+                          }
+                        : null,
+                  ),
+                ),
+              ],
+              flexes: const [1, 1],
+            )
+          else
+            _field(
+              'Year Graduated *',
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue:
+                    _academicYearOptions(title).contains(year.text.trim())
+                    ? year.text.trim()
+                    : null,
+                decoration: _dec(
+                  'Select year',
+                  errorText: _academicYearError(title, year),
+                  suffixIcon: intakeCompletionIcon(
+                    _isValidAcademicYear(title, year.text) ? year.text : '',
+                  ),
+                ),
+                items: _academicYearOptions(title)
+                    .map(
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    year.text = value ?? '';
+                  });
+                  widget.onChanged();
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -779,11 +887,12 @@ class _StepAcademicState extends State<StepAcademic> {
                       Expanded(
                         child: Text(
                           'Your course comes from your account profile. Update your profile before continuing.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: intakeTextColor(context),
-                            height: 1.35,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: intakeTextColor(context),
+                                height: 1.35,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                       if (widget.onRepairCourse != null) ...[

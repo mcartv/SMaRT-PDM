@@ -435,7 +435,8 @@ class _StepPersonalState extends State<StepPersonal> {
           locationData[selectedProvince!]?[selectedCity!] ?? const <String>[];
       if (barangays.isEmpty) {
         _manualBarangayEntry = true;
-      } else if (savedBarangay.isNotEmpty && barangays.contains(savedBarangay)) {
+      } else if (savedBarangay.isNotEmpty &&
+          barangays.contains(savedBarangay)) {
         selectedBarangay = savedBarangay;
       } else if (savedBarangay.isNotEmpty) {
         _manualBarangayEntry = true;
@@ -540,7 +541,7 @@ class _StepPersonalState extends State<StepPersonal> {
     Widget? suffixIcon,
     bool hasValue = false,
   }) => intakeInputDecoration(
-      context,
+    context,
     hint: hint,
     errorText: errorText,
     suffixIcon: suffixIcon,

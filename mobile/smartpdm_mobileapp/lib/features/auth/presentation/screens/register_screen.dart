@@ -187,10 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         children: [
           Text(
             'Registry Record Found',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
           ),
           const SizedBox(height: 8),
           if (fullName.isNotEmpty)
@@ -332,9 +329,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final hasRegistryRecord = _studentData != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? AppColors.applicantDarkSurface
-        : Colors.white;
+    final cardColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
     final textColor = isDark
         ? AppColors.applicantDarkText
         : AppColors.darkBrown;
@@ -357,10 +352,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isDark
-                ? const [
-                    AppColors.applicantDarkBackground,
-                    Color(0xFF24180F),
-                  ]
+                ? const [AppColors.applicantDarkBackground, Color(0xFF24180F)]
                 : const [Color(0xFFF3E4D5), Color(0xFFF8F5F0)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -379,7 +371,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.08),
+                        color: Colors.black.withValues(
+                          alpha: isDark ? 0.24 : 0.08,
+                        ),
                         blurRadius: 24,
                         offset: const Offset(0, 10),
                       ),
@@ -398,9 +392,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 18),
                         Text(
                           'Finish account setup',
-                          style: titleStyle?.copyWith(
-                            color: textColor,
-                          ),
+                          style: titleStyle?.copyWith(color: textColor),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 10),
@@ -432,12 +424,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                             floatingLabelStyle: TextStyle(
-                              color: isDark ? AppColors.gold : AppColors.darkBrown,
+                              color: isDark
+                                  ? AppColors.gold
+                                  : AppColors.darkBrown,
                               fontWeight: FontWeight.w800,
                             ),
                             focusedBorder: UnderlineInputBorder(
                               borderSide: BorderSide(
-                                color: isDark ? AppColors.gold : AppColors.darkBrown,
+                                color: isDark
+                                    ? AppColors.gold
+                                    : AppColors.darkBrown,
                                 width: 2,
                               ),
                             ),
@@ -501,10 +497,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               },
                             ),
                           ),
-                          validator: (value) => AppFieldValidators.confirmPassword(
-                            value,
-                            password: _passwordController.text,
-                          ),
+                          validator: (value) =>
+                              AppFieldValidators.confirmPassword(
+                                value,
+                                password: _passwordController.text,
+                              ),
                         ),
                         const SizedBox(height: 20),
                         _buildPolicyAgreement(),

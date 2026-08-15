@@ -4,50 +4,38 @@ import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
 void main() {
   group('ApplicationSubmissionValidator', () {
-    test('enforces the 200 to 300 word essay range', () {
-      const validator = ApplicationSubmissionValidator();
+    const validator = ApplicationSubmissionValidator();
 
-      final underLimit = _validApplicationData()
-        ..describeYourselfEssay = _essayWords(199)
-        ..aimsAndAmbitionEssay = _essayWords(200);
-      final underLimitResult = validator.validateEssayProgression(underLimit);
+    test('essay fields are required but do not have a minimum word count', () {
+      final shortEssay = _validApplicationData()
+        ..describeYourselfEssay = 'I am a student.'
+        ..aimsAndAmbitionEssay = 'I want to serve my community.';
 
-      expect(underLimitResult.isValid, isFalse);
+      expect(validator.validateEssayProgression(shortEssay).isValid, isTrue);
+    });
+
+    test('rejects blank and whitespace-only essays', () {
+      final blank = _validApplicationData()
+        ..describeYourselfEssay = '   '
+        ..aimsAndAmbitionEssay = '';
+
+      final result = validator.validateEssayProgression(blank);
+
+      expect(result.isValid, isFalse);
       expect(
-        underLimitResult.issueForField('describeYourselfEssay')?.message,
-        'Describe yourself essay must be 200-300 words. Current count: 199.',
+        result.issueForField('describeYourselfEssay')?.message,
+        'Describe yourself essay is required.',
       );
-
-      final lowerBoundary = _validApplicationData()
-        ..describeYourselfEssay = _essayWords(200)
-        ..aimsAndAmbitionEssay = _essayWords(200);
-      expect(validator.validateEssayProgression(lowerBoundary).isValid, isTrue);
-
-      final upperBoundary = _validApplicationData()
-        ..describeYourselfEssay = _essayWords(300)
-        ..aimsAndAmbitionEssay = _essayWords(300);
-      expect(validator.validateEssayProgression(upperBoundary).isValid, isTrue);
-
-      final overLimit = _validApplicationData()
-        ..describeYourselfEssay = _essayWords(301)
-        ..aimsAndAmbitionEssay = _essayWords(200);
-      final overLimitResult = validator.validateEssayProgression(overLimit);
-
-      expect(overLimitResult.isValid, isFalse);
       expect(
-        overLimitResult.issueForField('describeYourselfEssay')?.message,
-        'Describe yourself essay must be 200-300 words. Current count: 301.',
+        result.issueForField('aimsAndAmbitionEssay')?.message,
+        'Aims and ambition essay is required.',
       );
     });
 
-    test('rejects whitespace-only required fields', () {
-      const validator = ApplicationSubmissionValidator();
-      final data = _validApplicationData()
-        ..firstName = '   '
-        ..describeYourselfEssay = _essayWords(200)
-        ..aimsAndAmbitionEssay = _essayWords(200);
+    test('rejects whitespace-only required personal fields', () {
+      final data = _validApplicationData()..firstName = '   ';
 
-      final result = validator.validateReviewReadiness(data);
+      final result = validator.validatePersonalProgression(data);
 
       expect(result.isValid, isFalse);
       expect(
@@ -56,8 +44,32 @@ void main() {
       );
     });
 
+    test('family progression uses the same centralized rules as preflight', () {
+      final data = _validApplicationData()
+        ..fatherPresent = false
+        ..motherPresent = false
+        ..fatherFirstName = ''
+        ..fatherLastName = ''
+        ..motherFirstName = ''
+        ..motherLastName = ''
+        ..guardianFirstName = ''
+        ..guardianLastName = '';
+
+      final progression = validator.validateFamilyProgression(data);
+      final preflight = validator.validateSubmissionPreflight(data);
+
+      expect(progression.isValid, isFalse);
+      expect(
+        progression.issueForField('familyPrimaryCarer')?.message,
+        'Enter the complete name of at least one parent or guardian.',
+      );
+      expect(
+        preflight.issueForField('familyPrimaryCarer')?.message,
+        progression.issueForField('familyPrimaryCarer')?.message,
+      );
+    });
+
     test('requires certification and consent before final submission', () {
-      const validator = ApplicationSubmissionValidator();
       final data = _validApplicationData()
         ..certificationRead = false
         ..agree = false;
@@ -75,13 +87,13 @@ void main() {
     });
 
     test('accepts a fully valid submission snapshot', () {
-      const validator = ApplicationSubmissionValidator();
-
-      expect(validator.validateSubmissionPreflight(_validApplicationData()).isValid, isTrue);
+      expect(
+        validator.validateSubmissionPreflight(_validApplicationData()).isValid,
+        isTrue,
+      );
     });
 
     test('requires every academic background section', () {
-      const validator = ApplicationSubmissionValidator();
       final data = _validApplicationData()..seniorHighSchool = '';
 
       final result = validator.validateAcademicProgression(data);
@@ -94,9 +106,8 @@ void main() {
     });
 
     test('college accepts On Going or a graduation year from 2026 onward', () {
-      const validator = ApplicationSubmissionValidator();
-
-      final ongoing = _validApplicationData()..collegeYearGraduated = 'On Going';
+      final ongoing = _validApplicationData()
+        ..collegeYearGraduated = 'On Going';
       expect(validator.validateAcademicProgression(ongoing).isValid, isTrue);
 
       final validYear = _validApplicationData()..collegeYearGraduated = '2026';
@@ -111,22 +122,26 @@ void main() {
       );
     });
 
-    test('Marilao residency years are numeric and are not capped by applicant age', () {
-      const validator = ApplicationSubmissionValidator();
+    test(
+      'Marilao residency years are numeric and are not capped by applicant age',
+      () {
+        final longResidency = _validApplicationData()
+          ..parentMarilaoResidencyDuration = '100';
+        expect(
+          validator.validateReviewReadiness(longResidency).isValid,
+          isTrue,
+        );
 
-      final longResidency = _validApplicationData()
-        ..parentMarilaoResidencyDuration = '100';
-      expect(validator.validateReviewReadiness(longResidency).isValid, isTrue);
-
-      final invalidResidency = _validApplicationData()
-        ..parentMarilaoResidencyDuration = '20 years';
-      final result = validator.validateReviewReadiness(invalidResidency);
-      expect(result.isValid, isFalse);
-      expect(
-        result.issueForField('parentMarilaoResidencyDuration')?.message,
-        'Years as resident must contain digits only.',
-      );
-    });
+        final invalidResidency = _validApplicationData()
+          ..parentMarilaoResidencyDuration = '20 years';
+        final result = validator.validateReviewReadiness(invalidResidency);
+        expect(result.isValid, isFalse);
+        expect(
+          result.issueForField('parentMarilaoResidencyDuration')?.message,
+          'Years as resident must contain digits only.',
+        );
+      },
+    );
   });
 }
 
@@ -187,12 +202,8 @@ ApplicationData _validApplicationData() {
     ..scholarshipHistory = false
     ..disciplinaryActionAnswered = true
     ..disciplinaryAction = false
-    ..describeYourselfEssay = _essayWords(200)
-    ..aimsAndAmbitionEssay = _essayWords(200)
+    ..describeYourselfEssay = 'I am a student.'
+    ..aimsAndAmbitionEssay = 'I want to serve my community.'
     ..certificationRead = true
     ..agree = true;
-}
-
-String _essayWords(int count) {
-  return List<String>.generate(count, (index) => 'word').join(' ');
 }

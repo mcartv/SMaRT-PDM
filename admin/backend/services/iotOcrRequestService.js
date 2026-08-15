@@ -277,15 +277,12 @@ function normalizeYearLevel(value) {
 
 async function persistVerifiedGradeSummary(client, studentId, verifiedFields) {
     const gwa = normalizeGwa(verifiedFields.gwa);
-    const yearLevel = normalizeYearLevel(verifiedFields.academic_year);
-    if (!yearLevel) throw buildHttpError(400, 'Academic Year must be a valid year level');
     await client.query(`
         UPDATE public.students
-        SET gwa = $2,
-            year_level = $3
+        SET gwa = $2
         WHERE student_id = $1::uuid
-    `, [studentId, gwa, yearLevel.number]);
-    return { gwa, academic_year: yearLevel.label };
+    `, [studentId, gwa]);
+    return { gwa };
 }
 
 function birthNameComponents(value, { required = true, label = 'Name' } = {}) {
@@ -343,7 +340,6 @@ function buildVerifiedApplicationPatch(documentKey, verifiedFields = {}) {
         return {
             student: {
                 gwa: normalizeGwa(verifiedFields.gwa),
-                academic_year: normalizeAcademicYear(verifiedFields.academic_year),
             },
         };
     }
@@ -524,7 +520,6 @@ function validateConfirmedDocumentFields(documentKey, fields, candidateFields = 
     }
     return {
         student_number: String(fieldValue(fields.student_number) ?? '').trim(),
-        academic_year: normalizeAcademicYear(candidateFields?.academic_year),
         subjects: fields.subjects,
         gwa: candidateGwa.toFixed(2),
     };
@@ -558,7 +553,6 @@ function candidateFieldsForReviewDiff(documentKey, candidateFields = {}) {
     if (documentKey === 'student_grade_forms') {
         return {
             student_number: String(fieldValue(candidateFields?.student_number) ?? '').trim(),
-            academic_year: normalizeAcademicYear(candidateFields?.academic_year),
             subjects: Array.isArray(candidateFields?.subjects) ? candidateFields.subjects : [],
             gwa: normalizeGwa(candidateFields?.gwa).toFixed(2),
         };

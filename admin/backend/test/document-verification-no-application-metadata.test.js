@@ -32,6 +32,7 @@ test('grade review uses the bottom raw snapshot and status-only detection labels
     assert.doesNotMatch(gradeCard, /ocrScoreLabel\(/);
     assert.doesNotMatch(gradeCard, /field_confidence/);
     assert.match(gradeCard, /\? 'Detected' : '—'/);
+    assert.match(gradeCard, /whitespace-nowrap/);
 
     const fieldsStart = source.indexOf('const GRADE_REVIEW_FIELDS');
     const fieldsEnd = source.indexOf('];', fieldsStart);
@@ -86,6 +87,7 @@ test('indigency has a dedicated editable review while raw OCR is immutable', () 
     assert.doesNotMatch(indigencyCard, /ocrScoreLabel\(/);
     assert.doesNotMatch(indigencyCard, /field_confidence/);
     assert.match(indigencyCard, /\? 'Detected' : '—'/);
+    assert.match(indigencyCard, /whitespace-nowrap/);
     assert.match(source, /hasCorrections \? 'OCR_CORRECTED' : null/);
     assert.match(
         source,

@@ -288,7 +288,7 @@ test('admin cancellation is allowed for every Pi-active lifecycle state', () => 
     }
 });
 
-test('grade confirmation keeps GWA and restores Academic Year', () => {
+test('grade confirmation keeps GWA without requiring the removed Academic Year field', () => {
     const candidate = {
         student_number: { raw_text: '2023-001234', normalized_value: '2023-001234' },
         student_name: { raw_text: 'JUAN DELA CRUZ', normalized_value: 'JUAN DELA CRUZ' },
@@ -311,11 +311,11 @@ test('grade confirmation keeps GWA and restores Academic Year', () => {
     assert.equal(verified.student_name, undefined);
     assert.equal(verified.course, undefined);
     assert.equal(verified.semester, undefined);
-    assert.equal(verified.academic_year, '1st');
+    assert.equal(verified.academic_year, undefined);
     assert.equal(verified.gwa, '1.63');
     assert.deepEqual(
         service.buildVerifiedApplicationPatch('student_grade_forms', verified),
-        { student: { gwa: 1.63, academic_year: '1st' } }
+        { student: { gwa: 1.63 } }
     );
     assert.throws(
         () => service.validateConfirmedDocumentFields(
@@ -340,7 +340,7 @@ test('grade confirmation rejects an invalid Tesseract GWA', () => {
     assert.throws(() => service.normalizeGwa('5.50'), /1.00 to 5.00/);
 });
 
-test('grade confirmation persists GWA and year level atomically', async () => {
+test('grade confirmation persists GWA without changing year level', async () => {
     const calls = [];
     const client = {
         async query(sql, params) {
@@ -353,29 +353,14 @@ test('grade confirmation persists GWA and year level atomically', async () => {
     const result = await service.persistVerifiedGradeSummary(
         client,
         requestRow().student_id,
-        { gwa: '1.63', academic_year: '1st' }
+        { gwa: '1.63' }
     );
 
-    assert.deepEqual(result, { gwa: 1.63, academic_year: '1st' });
+    assert.deepEqual(result, { gwa: 1.63 });
     const update = calls.find((call) => call.sql.startsWith('UPDATE public.students'));
     assert.ok(update);
-    assert.match(update.sql, /year_level = \$3/);
-    assert.deepEqual(update.params.slice(1), [
-        1.63,
-        1,
-    ]);
-});
-
-test('grade confirmation rejects a school-year range as Academic Year', async () => {
-    const client = { query: async () => ({ rows: [] }) };
-    await assert.rejects(
-        () => service.persistVerifiedGradeSummary(
-            client,
-            requestRow().student_id,
-            { gwa: '1.63', academic_year: '2025-2026' }
-        ),
-        /valid year level/
-    );
+    assert.doesNotMatch(update.sql, /year_level/);
+    assert.deepEqual(update.params.slice(1), [1.63]);
 });
 
 test('birth confirmation normalizes parent components without overwriting child identity', () => {

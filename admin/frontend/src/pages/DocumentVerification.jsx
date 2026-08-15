@@ -1644,7 +1644,7 @@ function OCRPanel({
 
             <div className="space-y-3">
               {GRADE_REVIEW_FIELDS.map(([key, label]) => (
-                <label key={key} className="grid gap-1 sm:grid-cols-[130px_1fr_70px] sm:items-center">
+                <label key={key} className="grid gap-1 sm:grid-cols-[130px_1fr_auto] sm:items-center">
                   <span className="text-sm font-semibold text-stone-700">{label}</span>
                   <Input
                     value={ocrFieldValue(correctedFields?.[key])}
@@ -1655,13 +1655,13 @@ function OCRPanel({
                     })}
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
-                  <span className="text-right text-xs font-semibold text-blue-700">
+                  <span className="whitespace-nowrap text-right text-xs font-semibold text-blue-700">
                     {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '—'}
                   </span>
                 </label>
               ))}
 
-              <div className="grid gap-1 border-t border-blue-200 pt-3 sm:grid-cols-[130px_1fr_70px] sm:items-center">
+              <div className="grid gap-1 border-t border-blue-200 pt-3 sm:grid-cols-[130px_1fr_auto] sm:items-center">
                 <span className="text-sm font-bold text-stone-800">GWA</span>
                 <Input
                   value={ocrFieldValue(correctedFields?.gwa)}
@@ -1669,7 +1669,7 @@ function OCRPanel({
                   aria-label="Detected GWA (read only)"
                   className="bg-stone-100 font-bold text-stone-900"
                 />
-                <span className="text-right text-xs font-semibold text-blue-700">
+                <span className="whitespace-nowrap text-right text-xs font-semibold text-blue-700">
                   {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : '—'}
                 </span>
               </div>
@@ -1703,7 +1703,7 @@ function OCRPanel({
 
             <div className="space-y-3">
               {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
-                <label key={key} className="grid gap-1 sm:grid-cols-[180px_1fr_70px] sm:items-center">
+                <label key={key} className="grid gap-1 sm:grid-cols-[180px_1fr_auto] sm:items-center">
                   <span className="text-sm font-semibold text-stone-700">{label}</span>
                   {key === 'residency_address' ? (
                     <Textarea
@@ -1727,7 +1727,7 @@ function OCRPanel({
                       className={indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                     />
                   )}
-                  <span className="text-right text-xs font-semibold text-amber-700">
+                  <span className="whitespace-nowrap text-right text-xs font-semibold text-amber-700">
                     {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '—'}
                   </span>
                 </label>

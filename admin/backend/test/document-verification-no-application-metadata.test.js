@@ -17,20 +17,21 @@ test('document verification does not render application metadata cards', () => {
     assert.doesNotMatch(source, /Rejection Reason \/ Admin Remarks/i);
 });
 
-test('grade review uses the bottom raw snapshot and visible OCR score labels', () => {
+test('grade review uses the bottom raw snapshot and status-only detection labels', () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
         'utf8'
     );
     const gradeStart = source.indexOf('{isGradeReview && (');
-    const gradeEnd = source.indexOf('{reviewCandidate && !isGradeReview', gradeStart);
+    const gradeEnd = source.indexOf('{isIndigencyReview && (', gradeStart);
     const gradeCard = source.slice(gradeStart, gradeEnd);
 
     assert.ok(gradeStart >= 0 && gradeEnd > gradeStart);
     assert.doesNotMatch(gradeCard, /<summary[^>]*>Raw OCR<\/summary>/);
     assert.doesNotMatch(gradeCard, />Validation Issues<\/summary>/);
-    assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, key/);
-    assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, 'gwa'/);
+    assert.doesNotMatch(gradeCard, /ocrScoreLabel\(/);
+    assert.doesNotMatch(gradeCard, /field_confidence/);
+    assert.match(gradeCard, /\? 'Detected' : '—'/);
 
     const fieldsStart = source.indexOf('const GRADE_REVIEW_FIELDS');
     const fieldsEnd = source.indexOf('];', fieldsStart);
@@ -48,7 +49,6 @@ test('grade review uses the bottom raw snapshot and visible OCR score labels', (
         applicationService,
         /academic_year:[\s\S]*?student\.year_level[\s\S]*?getOrdinalSuffix\(student\.year_level\)/
     );
-    assert.match(gradeCard, /ocrScoreLabel\(reviewCandidate, key/);
     assert.match(source, /THE\\s\*PERI\[O0D\]\{2,4\}/);
 });
 

@@ -1656,7 +1656,7 @@ function OCRPanel({
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
                   <span className="text-right text-xs font-semibold text-blue-700">
-                    {ocrScoreLabel(reviewCandidate, key, correctedFields?.[key])}
+                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '—'}
                   </span>
                 </label>
               ))}
@@ -1670,7 +1670,7 @@ function OCRPanel({
                   className="bg-stone-100 font-bold text-stone-900"
                 />
                 <span className="text-right text-xs font-semibold text-blue-700">
-                  {ocrScoreLabel(reviewCandidate, 'gwa', correctedFields?.gwa)}
+                  {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : '—'}
                 </span>
               </div>
             </div>

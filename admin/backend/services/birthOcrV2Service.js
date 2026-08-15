@@ -22,6 +22,17 @@ const GEMINI_DIAGNOSTIC_TIMEOUT_MS = Math.max(
     GEMINI_TIMEOUT_MS,
     configuredTimeout('GEMINI_DIAGNOSTIC_TIMEOUT_MS', 90000, 30000)
 );
+const GEMINI_RETRY_ATTEMPTS = Math.min(5, Math.max(
+    1,
+    Number.parseInt(process.env.GEMINI_RETRY_ATTEMPTS || '4', 10) || 4
+));
+const GEMINI_RETRY_INITIAL_DELAY_SECONDS = Math.min(10, Math.max(
+    0.5,
+    Number(process.env.GEMINI_RETRY_INITIAL_DELAY_SECONDS || 2) || 2
+));
+const GEMINI_ENABLE_ROW_RECOVERY = String(
+    process.env.GEMINI_ENABLE_ROW_RECOVERY || 'false'
+).trim().toLowerCase() === 'true';
 const MAX_ARTIFACT_BYTES = 15 * 1024 * 1024;
 const REVIEW_GROUPS = new Set([
     'ready_to_confirm', 'low_confidence', 'missing_field',
@@ -389,8 +400,14 @@ function isGeminiTimeout(error, controller) {
 }
 
 function geminiFailureCode(error, prefix) {
-    const status = Number(error?.status || error?.statusCode || error?.code);
-    const signal = [error?.code, error?.status, error?.name]
+    const status = Number(
+        error?.status || error?.statusCode || error?.code
+        || error?.error?.code || error?.response?.status
+    );
+    const signal = [
+        error?.code, error?.status, error?.name, error?.message,
+        error?.error?.status, error?.error?.message,
+    ]
         .map((value) => String(value || '').toUpperCase()).join(' ');
     if (status === 400 || signal.includes('INVALID_ARGUMENT')) return `${prefix}_INVALID_REQUEST`;
     if ([401, 403].includes(status) || signal.includes('PERMISSION_DENIED')
@@ -408,8 +425,20 @@ function isGeminiModelUnavailable(error) {
     return status === 404 || signal.includes('NOT_FOUND');
 }
 
+function isGeminiTransient(error) {
+    const status = Number(
+        error?.status || error?.statusCode || error?.code
+        || error?.error?.code || error?.response?.status
+    );
+    const signal = [error?.code, error?.status, error?.name, error?.message, error?.error?.status]
+        .map((value) => String(value || '').toUpperCase()).join(' ');
+    return [408, 429, 500, 502, 503, 504].includes(status)
+        || signal.includes('RESOURCE_EXHAUSTED')
+        || signal.includes('UNAVAILABLE');
+}
+
 async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
-    let unavailableError = null;
+    let fallbackError = null;
     for (const model of GEMINI_MODELS) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -420,7 +449,17 @@ async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
                 config: {
                     ...(request.config || {}),
                     abortSignal: controller.signal,
-                    httpOptions: { timeout: timeoutMs },
+                    httpOptions: {
+                        timeout: timeoutMs,
+                        retryOptions: {
+                            attempts: GEMINI_RETRY_ATTEMPTS,
+                            initialDelay: GEMINI_RETRY_INITIAL_DELAY_SECONDS,
+                            maxDelay: 15,
+                            expBase: 2,
+                            jitter: 0.5,
+                            httpStatusCodes: [408, 429, 500, 502, 503, 504],
+                        },
+                    },
                 },
             });
             if (model !== GEMINI_MODEL) {
@@ -434,8 +473,8 @@ async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
             if (isGeminiTimeout(error, controller)) {
                 throw Object.assign(new Error('Gemini request timed out'), { code: timeoutCode });
             }
-            if (isGeminiModelUnavailable(error)) {
-                unavailableError = error;
+            if (isGeminiModelUnavailable(error) || isGeminiTransient(error)) {
+                fallbackError = error;
                 continue;
             }
             throw error;
@@ -443,7 +482,7 @@ async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
             clearTimeout(timeoutId);
         }
     }
-    throw unavailableError || Object.assign(new Error('No Gemini model is available'), {
+    throw fallbackError || Object.assign(new Error('No Gemini model is available'), {
         status: 404,
     });
 }
@@ -549,12 +588,18 @@ async function callGemini(cells) {
         const raw = typeof response.text === 'function' ? response.text() : response.text;
         const parsed = validateGeminiPayload(JSON.parse(String(raw || '')));
         if (!parsed) {
+            if (!GEMINI_ENABLE_ROW_RECOVERY) {
+                return { ok: false, code: 'GEMINI_INVALID_RESULT' };
+            }
             const recovered = await recoverRequiredNames(client, cells);
             return recovered
                 ? { ok: true, value: recovered, recovered: true }
                 : { ok: false, code: 'GEMINI_INVALID_RESULT' };
         }
         if (!hasRequiredNames(parsed)) {
+            if (!GEMINI_ENABLE_ROW_RECOVERY) {
+                return { ok: false, code: 'GEMINI_REQUIRED_NAME_MISSING', value: parsed };
+            }
             const recovered = await recoverRequiredNames(client, cells, parsed);
             if (!recovered) {
                 return { ok: false, code: 'GEMINI_REQUIRED_NAME_MISSING', value: parsed };
@@ -566,7 +611,8 @@ async function callGemini(cells) {
         const code = error.code === 'GEMINI_TIMEOUT'
             ? 'GEMINI_TIMEOUT'
             : geminiFailureCode(error, 'GEMINI');
-        if (!['GEMINI_AUTH_FAILED', 'GEMINI_MODEL_UNAVAILABLE', 'GEMINI_RATE_LIMITED']
+        if (GEMINI_ENABLE_ROW_RECOVERY
+            && !['GEMINI_AUTH_FAILED', 'GEMINI_MODEL_UNAVAILABLE', 'GEMINI_RATE_LIMITED']
             .includes(code)) {
             const recovered = await recoverRequiredNames(client, cells);
             if (recovered) return { ok: true, value: recovered, recovered: true };

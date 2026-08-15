@@ -1126,6 +1126,44 @@ async function closeReviewRequest({
         `, [requestId, applicationId, normalizedDocumentKey]);
         previous = selected.rows[0];
         if (!previous) throw buildHttpError(404, 'IoT OCR candidate not found');
+        if (createReplacement && previous.status === 'failed') {
+            const existingActive = await client.query(`
+                SELECT * FROM public.iot_ocr_requests
+                WHERE application_id = $1::uuid AND document_key = $2
+                  AND status IN (${ACTIVE_STATUS_SQL})
+                ORDER BY created_at DESC LIMIT 1
+                FOR UPDATE
+            `, [previous.application_id, previous.document_key]);
+            replacement = existingActive.rows[0] || null;
+            if (!replacement) {
+                const inserted = await client.query(`
+                    INSERT INTO public.iot_ocr_requests
+                        (application_id, student_id, student_name, document_key, document_type,
+                         ocr_version, status, requested_by, retry_of_request_id)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)
+                    RETURNING *
+                `, [previous.application_id, previous.student_id, previous.student_name,
+                    previous.document_key, previous.document_type, previous.ocr_version || 'v1',
+                    reviewerId, previous.request_id]);
+                replacement = inserted.rows[0];
+            }
+            if (!existingActive.rows[0]) {
+                await client.query(`
+                    INSERT INTO public.iot_ocr_review_events
+                        (request_id, candidate_id, application_id, event_type, predicted_fields,
+                         submitted_fields, changed_fields, reason_code, triggered_rules, reviewed_by)
+                    VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, '{}'::jsonb,
+                            '[]'::jsonb, $6, '[]'::jsonb, $7::uuid)
+                `, [requestId, previous.candidate_id, applicationId, eventType,
+                    JSON.stringify(previous.candidate_fields || {}), normalizedReason, reviewerId]);
+            }
+            await client.query('COMMIT');
+            return {
+                request: mapRequestRow(previous),
+                replacement: mapRequestRow(replacement),
+                idempotent: Boolean(existingActive.rows[0]),
+            };
+        }
         if (previous.status === 'failed' && previous.error_code === errorCode) {
             if (createReplacement) {
                 const existingReplacement = await client.query(`

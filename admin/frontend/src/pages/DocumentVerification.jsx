@@ -1538,6 +1538,11 @@ function OCRPanel({
   const birthRawUnavailable = Boolean(
     birthV2Review && !String(rawOcrSnapshot || '').trim()
   );
+  const birthCanRequestRescan = Boolean(
+    birthV2Review
+    && birthDiagnosticOnly
+    && ['review_required', 'failed'].includes(String(reviewCandidate?.status || '').toLowerCase())
+  );
   const birthHasCorrections = Boolean(
     isBirthReview
     && JSON.stringify(correctedFields || {}) !== JSON.stringify(normalizeReviewFields(reviewCandidate))
@@ -1889,7 +1894,7 @@ function OCRPanel({
               </div>
             )}
 
-            {!birthReviewClosed && (
+            {(!birthReviewClosed || birthCanRequestRescan) && (
               <div className="clear-both space-y-3">
                 <label className="block text-xs font-semibold text-stone-700">
                   Review reason
@@ -1915,7 +1920,7 @@ function OCRPanel({
                   ) : (
                     <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
                   )}
-                  <div className="flex gap-2">
+                  {!birthReviewClosed && <div className="flex gap-2">
                     <Button variant="outline" onClick={onRejectCandidate} disabled={reviewingCandidate || !birthReviewReason} className="text-red-700">
                       Reject
                     </Button>
@@ -1926,7 +1931,7 @@ function OCRPanel({
                       {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       {birthHasCorrections ? 'Correct & Confirm' : 'Confirm Parents'}
                     </Button>}
-                  </div>
+                  </div>}
                 </div>
               </div>
             )}
@@ -3819,13 +3824,23 @@ export default function DocumentVerification() {
       if (!response.ok) throw new Error(payload.error || `Failed to ${action} OCR candidate`);
       setBirthReviewReason('');
       if (action === 'rescan') {
+        const replacement = payload?.data?.replacement || null;
         setReviewCandidate(null);
         setCorrectedFields({});
-        setRunningIotOcr(true);
+        setRawOcrSnapshot('');
+        if (replacement?.request_id) {
+          activeIotRequestRef.current = {
+            documentId: activeDoc.id,
+            requestId: replacement.request_id,
+            request: replacement,
+          };
+        }
+        await fetchApplicationDocuments({ soft: true });
+        await handleRunIotOcr(activeDoc.id);
       } else {
         setReviewCandidate((current) => current ? { ...current, status: 'failed' } : current);
+        await fetchApplicationDocuments({ soft: true });
       }
-      await fetchApplicationDocuments({ soft: true });
     } catch (error) {
       setIotOcrError(error.message || `Failed to ${action} OCR candidate`);
     } finally {

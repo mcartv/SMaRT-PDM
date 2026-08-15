@@ -33,6 +33,9 @@ test('Birth review defaults to V2 and supports private image-assisted review', (
 test('Birth review keeps Child locked and exposes reject and rescan actions', () => {
     assert.match(source, /aria-label={`Child \${label}`}[\s\S]*?className="bg-stone-100"/);
     assert.match(source, /Request Rescan/);
+    assert.match(source, /birthCanRequestRescan/);
+    assert.match(source, /payload\?\.data\?\.replacement/);
+    assert.match(source, /await handleRunIotOcr\(activeDoc\.id\)/);
     assert.match(source, />\s*Reject\s*</);
     assert.match(source, /Confirm Parents/);
     assert.match(source, /event\.altKey/);

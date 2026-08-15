@@ -85,6 +85,8 @@ test('review_required may transition to failed for reject and rescan', () => {
     assert.match(requestService, /review_required:\s*Object\.freeze\(\['completed', 'failed', 'expired'\]\)/);
     assert.match(requestService, /ADMIN_REJECTED/);
     assert.match(requestService, /ADMIN_RESCAN_REQUESTED/);
+    assert.match(requestService, /createReplacement && previous\.status === 'failed'/);
+    assert.match(requestService, /retry_of_request_id/);
 });
 
 test('V2 schema has immutable review events and protected private artifact metadata', () => {

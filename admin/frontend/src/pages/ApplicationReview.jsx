@@ -1403,9 +1403,19 @@ export default function ApplicationReview() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    // Realtime events are the primary refresh path. This visible-tab fallback
+    // only self-heals a temporarily missed socket event.
+    const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       loadData({ soft: true });
-    }, 8000);
+    };
+
+    const timer = window.setInterval(
+      refreshIfVisible,
+      FALLBACK_REFRESH_INTERVAL_MS
+    );
 
     return () => window.clearInterval(timer);
   }, []);
@@ -1414,6 +1424,7 @@ export default function ApplicationReview() {
   useSocketEvent('application:approved', () => loadData({ soft: true }), []);
   useSocketEvent('application:rejected', () => loadData({ soft: true }), []);
   useSocketEvent('application-document:uploaded', () => loadData({ soft: true }), []);
+  useSocketEvent('application-document:reviewed', () => loadData({ soft: true }), []);
   useSocketEvent('endorsement:updated', () => loadData({ soft: true }), []);
 
   useEffect(() => {

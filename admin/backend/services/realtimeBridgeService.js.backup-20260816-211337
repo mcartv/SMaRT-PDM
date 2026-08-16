@@ -181,44 +181,6 @@ function handleApplicationDocumentChange(io, payload = {}) {
   });
 }
 
-function buildApplicationDocumentReviewPayload(row = {}) {
-  return {
-    review_id: row.review_id?.toString() || '',
-    application_id: row.application_id?.toString() || '',
-    document_key: row.document_key?.toString() || '',
-    document_name: row.document_name?.toString() || '',
-    review_status: row.review_status?.toString() || '',
-    issue_severity: row.issue_severity?.toString() || null,
-    reason_code: row.reason_code?.toString() || null,
-    reviewed_at:
-      row.reviewed_at?.toString() ||
-      row.updated_at?.toString() ||
-      row.created_at?.toString() ||
-      new Date().toISOString(),
-  };
-}
-
-function handleApplicationDocumentReviewChange(io, payload = {}) {
-  const eventType = safeText(payload.eventType).toUpperCase();
-  const nextRow = payload.new || {};
-  const previousRow = payload.old || {};
-  const review = buildApplicationDocumentReviewPayload(
-    nextRow.review_id ? nextRow : previousRow
-  );
-
-  if (!review.application_id) {
-    return;
-  }
-
-  // This is intentionally a single purpose-built event. Consumers that care
-  // about document review state subscribe to this event and refresh once.
-  emitPublic(io, 'application-document:reviewed', {
-    ...review,
-    source: 'application_document_review',
-    event_type: eventType,
-  });
-}
-
 function handleEndorsementSlipChange(io, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
@@ -503,13 +465,6 @@ function configureRealtimeBridge({ io, supabase }) {
       { event: '*', schema: 'public', table: 'application_documents' },
       (payload) => {
         handleApplicationDocumentChange(io, payload);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'application_document_reviews' },
-      (payload) => {
-        handleApplicationDocumentReviewChange(io, payload);
       }
     )
     .on(

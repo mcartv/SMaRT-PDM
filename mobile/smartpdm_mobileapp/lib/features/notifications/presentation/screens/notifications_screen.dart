@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -105,6 +103,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         message.contains('return of obligation');
   }
 
+  bool _isRenewalNotification(AppNotification item) {
+    final type = item.type.toLowerCase();
+    final title = item.title.toLowerCase();
+    final message = item.message.toLowerCase();
+    final referenceType = (item.referenceType ?? '').toLowerCase();
+
+    return referenceType.contains('renewal') ||
+        type.contains('renewal') ||
+        title.contains('renewal') ||
+        message.contains('renewal');
+  }
+
   List<AppNotification> _filteredItems(NotificationProvider provider) {
     final items = [...provider.notifications];
 
@@ -154,6 +164,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return Icons.payments_rounded;
     }
 
+    if (_isRenewalNotification(notification)) {
+      return Icons.autorenew_rounded;
+    }
+
     if (notification.isOpeningUpdate ||
         referenceType.contains('opening') ||
         type.contains('opening') ||
@@ -200,7 +214,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (type.contains('warning') ||
         title.contains('required') ||
-        title.contains('missing')) {
+        title.contains('missing') ||
+        _isRenewalNotification(notification)) {
       return const Color(0xFFD97706);
     }
 
@@ -250,6 +265,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final referenceType = (notification.referenceType ?? '').toLowerCase();
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
+
+    if (_isRenewalNotification(notification)) {
+      Navigator.pushNamed(context, AppRoutes.renewalDocuments);
+      return;
+    }
 
     if (_isRoNotification(notification)) {
       Navigator.pushNamed(

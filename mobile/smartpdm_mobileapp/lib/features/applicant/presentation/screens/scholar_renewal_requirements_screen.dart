@@ -8,7 +8,6 @@ import 'package:smartpdm_mobileapp/features/notifications/presentation/providers
 import 'package:smartpdm_mobileapp/features/scholar/data/services/renewal_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class ScholarRenewalRequirementsScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -112,6 +111,19 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
+  bool get _hasPendingReupload {
+    final package = _renewalPackage;
+    if (package == null) return false;
+
+    final renewalStatus = package.renewal.renewalStatus.toLowerCase().trim();
+
+    return renewalStatus == 'needs reupload' ||
+        renewalStatus == 'failed' ||
+        package.documents.any(
+          (document) => document.status.toLowerCase().trim() == 'rejected',
+        );
+  }
+
   Future<void> _pickAndUploadDocument(ScholarRenewalDocument document) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -130,10 +142,12 @@ class _ScholarRenewalRequirementsScreenState
     final fileBytes = pickedFile.bytes;
     final extension = fileName.split('.').last.toLowerCase();
     const maxFileSizeBytes = 10 * 1024 * 1024;
+
     if (pickedFile.size <= 0) {
       _showSnackBar('The selected file is empty. Choose another file.');
       return;
     }
+
     if (pickedFile.size > maxFileSizeBytes) {
       _showSnackBar('File is too large. Maximum size is 10 MB.');
       return;
@@ -171,7 +185,9 @@ class _ScholarRenewalRequirementsScreenState
       );
 
       if (!mounted) return;
+
       setState(() => _renewalPackage = payload);
+
       _showSnackBar('${document.documentType} uploaded successfully.');
     } catch (error) {
       if (!mounted) return;
@@ -189,25 +205,34 @@ class _ScholarRenewalRequirementsScreenState
       return;
     }
 
+    if (_hasPendingReupload) {
+      _showSnackBar(
+        'Replace every document marked for re-upload before submitting again.',
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
+
     try {
       final payload = await _renewalService.submitRenewal();
+
       if (!mounted) return;
+
       setState(() => _renewalPackage = payload);
+
       await showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Renewal Submitted'),
-          content: Text(
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Renewal Submitted'),
+          content: const Text(
             'Your renewal requirements have been submitted for admin review.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: Text('OK'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
             ),
           ],
         ),
@@ -222,27 +247,123 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
-  Future<void> _openFile(ScholarRenewalDocument document) async {
+  bool _isImageDocument(ScholarRenewalDocument document) {
+    final url = (document.fileUrl ?? '').toLowerCase();
+    final type = document.documentType.toLowerCase();
+
+    return url.contains('.jpg') ||
+        url.contains('.jpeg') ||
+        url.contains('.png') ||
+        type.contains('image');
+  }
+
+  Future<void> _openFilePreview(ScholarRenewalDocument document) async {
     final fileUrl = document.fileUrl;
+
     if (fileUrl == null || fileUrl.trim().isEmpty) {
       _showSnackBar('No uploaded file is available yet.');
       return;
     }
 
-    final uri = Uri.tryParse(fileUrl);
-    if (uri == null) {
-      _showSnackBar('The uploaded file URL is invalid.');
+    if (!_isImageDocument(document)) {
+      _showSnackBar(
+        'Inline preview is currently available for image files. PDF files can still be replaced from this screen.',
+      );
       return;
     }
 
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      _showSnackBar('Unable to open the uploaded file.');
-    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final screenSize = MediaQuery.of(dialogContext).size;
+
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 28,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: screenSize.height * 0.78,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          document.documentType,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close preview',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: Container(
+                    width: double.infinity,
+                    color: const Color(0xFFF7F7F6),
+                    padding: const EdgeInsets.all(12),
+                    child: InteractiveViewer(
+                      minScale: 0.8,
+                      maxScale: 4,
+                      child: Center(
+                        child: Image.network(
+                          fileUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) {
+                            return const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Unable to display this image preview.',
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(30),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showSnackBar(String message) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
@@ -278,15 +399,19 @@ class _ScholarRenewalRequirementsScreenState
 
   String _renewalSummary(ScholarRenewalPackage package) {
     final status = package.renewal.renewalStatus;
+
     if (status == 'Approved') {
       return 'Your renewal package has been approved for this cycle.';
     }
+
     if (status == 'Under Review') {
       return 'Your renewal package is now pending admin review.';
     }
-    if (status == 'Failed') {
+
+    if (status == 'Failed' || status == 'Needs Reupload') {
       return 'Admin requested a re-upload. Replace the flagged file and submit again.';
     }
+
     return 'Upload both required documents to maintain your scholarship for the current release cycle.';
   }
 
@@ -294,15 +419,19 @@ class _ScholarRenewalRequirementsScreenState
     List<ScholarRenewalDocument> documents,
   ) {
     final sorted = List<ScholarRenewalDocument>.from(documents);
+
     sorted.sort((a, b) {
       final submissionComparison = a.isSubmitted == b.isSubmitted
           ? 0
           : (a.isSubmitted ? 1 : -1);
+
       if (submissionComparison != 0) {
         return submissionComparison;
       }
+
       return 0;
     });
+
     return sorted;
   }
 
@@ -315,6 +444,20 @@ class _ScholarRenewalRequirementsScreenState
     final documents = _renewalPackage == null
         ? const <ScholarRenewalDocument>[]
         : _sortedDocuments(_renewalPackage!.documents);
+
+    final submitDisabled =
+        _isSubmitting ||
+        _renewalPackage?.renewal.isLockedForReview == true ||
+        _renewalPackage?.allRequiredUploaded != true ||
+        _hasPendingReupload;
+
+    final submitLabel = _isSubmitting
+        ? 'Submitting...'
+        : _hasPendingReupload
+        ? 'Replace Re-upload Documents First'
+        : _renewalPackage?.renewal.isLockedForReview == true
+        ? 'Awaiting Admin Review'
+        : 'Submit Renewal Requirements';
 
     return SmartPdmPageScaffold(
       appBar: widget.showTopBar
@@ -411,12 +554,7 @@ class _ScholarRenewalRequirementsScreenState
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed:
-                      _isSubmitting ||
-                          _renewalPackage!.renewal.isLockedForReview ||
-                          !_renewalPackage!.allRequiredUploaded
-                      ? null
-                      : _submitRenewal,
+                  onPressed: submitDisabled ? null : _submitRenewal,
                   icon: _isSubmitting
                       ? const SizedBox(
                           width: 16,
@@ -424,15 +562,11 @@ class _ScholarRenewalRequirementsScreenState
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.send),
-                  label: Text(
-                    _isSubmitting
-                        ? 'Submitting...'
-                        : _renewalPackage!.renewal.isLockedForReview
-                        ? 'Awaiting Admin Review'
-                        : 'Submit Renewal Requirements',
-                  ),
+                  label: Text(submitLabel),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledForegroundColor: Colors.grey.shade600,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
@@ -554,7 +688,8 @@ class _ScholarRenewalRequirementsScreenState
     final isUploading = _uploadingDocuments[document.id] == true;
     final canUpload =
         !package.renewal.isLockedForReview ||
-        package.renewal.renewalStatus == 'Failed';
+        package.renewal.renewalStatus == 'Failed' ||
+        package.renewal.renewalStatus == 'Needs Reupload';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -677,9 +812,9 @@ class _ScholarRenewalRequirementsScreenState
                       ),
                       if (document.hasFile)
                         TextButton.icon(
-                          onPressed: () => _openFile(document),
+                          onPressed: () => _openFilePreview(document),
                           icon: const Icon(Icons.visibility_outlined, size: 16),
-                          label: Text('View file'),
+                          label: const Text('View file'),
                           style: TextButton.styleFrom(
                             foregroundColor: isDark
                                 ? accentColor
@@ -765,7 +900,7 @@ class _RenewalErrorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Unable to load renewal package',
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
@@ -775,7 +910,7 @@ class _RenewalErrorCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
-            label: Text('Retry'),
+            label: const Text('Retry'),
           ),
         ],
       ),
@@ -794,7 +929,7 @@ class _RenewalEmptyState extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Text(
+      child: const Text(
         'No active renewal package is available for your scholar account yet.',
       ),
     );

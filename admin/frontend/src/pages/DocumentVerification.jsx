@@ -1184,7 +1184,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
         const response = await fetch(activeDoc.url, {
           method: 'GET',
-          cache: 'no-store',
+          cache: 'force-cache',
           redirect: 'follow',
         });
 
@@ -3249,9 +3249,20 @@ export default function DocumentVerification() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    // Supabase Realtime/Socket.IO events above are the primary refresh path.
+    // Keep only a slow visible-tab fallback so a temporarily missed socket event
+    // self-heals without re-signing and re-fetching every document every 8 seconds.
+    const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       fetchApplicationDocuments({ soft: true });
-    }, 8000);
+    };
+
+    const timer = window.setInterval(
+      refreshIfVisible,
+      FALLBACK_REFRESH_INTERVAL_MS
+    );
 
     return () => window.clearInterval(timer);
   }, [fetchApplicationDocuments]);

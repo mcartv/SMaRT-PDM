@@ -123,6 +123,86 @@ const STORAGE_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET,
     'documents'
 );
+
+// Signed URLs are stable credentials for the same private object until they expire.
+// Reusing them prevents repeated Storage signing calls and lets browsers reuse the
+// same URL from cache instead of receiving a new token on every API refresh.
+const SIGNED_URL_CACHE_MAX_ENTRIES = 1000;
+const SIGNED_URL_CACHE_TTL_MS = 50 * 60 * 1000;
+const SIGNED_URL_EXPIRY_SAFETY_MS = 5 * 60 * 1000;
+const signedUrlCache = new Map();
+const signedUrlInFlight = new Map();
+
+function pruneSignedUrlCache(now = Date.now()) {
+    for (const [key, entry] of signedUrlCache.entries()) {
+        if (!entry || entry.expiresAt <= now) {
+            signedUrlCache.delete(key);
+        }
+    }
+
+    while (signedUrlCache.size > SIGNED_URL_CACHE_MAX_ENTRIES) {
+        const oldestKey = signedUrlCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        signedUrlCache.delete(oldestKey);
+    }
+}
+
+async function createCachedSignedUrl({
+    bucket,
+    filePath,
+    expiresInSeconds,
+    download = false,
+}) {
+    if (!bucket || !filePath) return null;
+
+    const normalizedPath = String(filePath).replace(/^\/+/, '');
+    const cacheKey = `${bucket}:${normalizedPath}:${download ? 'download' : 'preview'}`;
+    const now = Date.now();
+    const cached = signedUrlCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > now) {
+        // Refresh insertion order so frequently used entries are retained.
+        signedUrlCache.delete(cacheKey);
+        signedUrlCache.set(cacheKey, cached);
+        return cached.url;
+    }
+
+    if (signedUrlInFlight.has(cacheKey)) {
+        return signedUrlInFlight.get(cacheKey);
+    }
+
+    const request = (async () => {
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(normalizedPath, expiresInSeconds, { download });
+
+        if (error) {
+            throw error;
+        }
+
+        const maximumReusableMs = Math.max(
+            60 * 1000,
+            (expiresInSeconds * 1000) - SIGNED_URL_EXPIRY_SAFETY_MS
+        );
+        const cacheTtlMs = Math.min(SIGNED_URL_CACHE_TTL_MS, maximumReusableMs);
+
+        signedUrlCache.set(cacheKey, {
+            url: data?.signedUrl || null,
+            expiresAt: now + cacheTtlMs,
+        });
+        pruneSignedUrlCache(now);
+
+        return data?.signedUrl || null;
+    })();
+
+    signedUrlInFlight.set(cacheKey, request);
+
+    try {
+        return await request;
+    } finally {
+        signedUrlInFlight.delete(cacheKey);
+    }
+}
 const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
 const IOT_OCR_ENDPOINT_URL =
@@ -369,15 +449,17 @@ async function resolveAvatarUrl(value) {
         return rawValue;
     }
 
-    const { data, error } = await supabase.storage
-        .from('avatars')
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-    if (error) {
+    try {
+        return (
+            await createCachedSignedUrl({
+                bucket: 'avatars',
+                filePath: storagePath,
+                expiresInSeconds: 60 * 60 * 24 * 7,
+            })
+        ) || rawValue;
+    } catch (_error) {
         return rawValue;
     }
-
-    return data?.signedUrl || rawValue;
 }
 
 function getOrdinalSuffix(n) {
@@ -1230,13 +1312,14 @@ function isAsyncIotOcrStart(response, payload = {}) {
 async function getSignedFileUrl(filePath) {
     if (!filePath) return null;
 
-    const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(filePath, 60 * 60, {
+    try {
+        return await createCachedSignedUrl({
+            bucket: STORAGE_BUCKET,
+            filePath,
+            expiresInSeconds: 60 * 60,
             download: false,
         });
-
-    if (error) {
+    } catch (error) {
         console.error(
             'SUPABASE SIGNED URL ERROR:',
             `bucket=${STORAGE_BUCKET}`,
@@ -1245,8 +1328,6 @@ async function getSignedFileUrl(filePath) {
         );
         return null;
     }
-
-    return data?.signedUrl || null;
 }
 
 async function buildApplicationDetails(applicationId) {

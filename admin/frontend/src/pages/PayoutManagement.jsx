@@ -118,7 +118,10 @@ function filterScholarsByOpening(scholars = [], openingId) {
 }
 
 function getBatchScholars(batch) {
-  return filterScholarsByOpening(batch?.scholars, batch?.opening_id);
+  // Scholars nested under a payout batch are already scoped by payout_batch_id
+  // in the backend query. Those aggregated scholar objects do not include
+  // opening_id, so filtering them again by opening_id removes every row.
+  return Array.isArray(batch?.scholars) ? batch.scholars : [];
 }
 
 function isTerminalPayoutStatus(status) {

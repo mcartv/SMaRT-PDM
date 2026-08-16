@@ -1,57 +1,5 @@
-﻿let bridgeStarted = false;
+let bridgeStarted = false;
 let bridgeChannel = null;
-
-// Prevent the exact same Realtime payload from causing repeated Socket.IO
-// refreshes while preserving immediate delivery of genuine changes.
-const PUBLIC_EVENT_DEDUPE_TTL_MS = 1500;
-const PUBLIC_EVENT_DEDUPE_MAX_ENTRIES = 1000;
-const recentPublicEvents = new Map();
-
-function buildPublicEventDedupeKey(eventName, payload = {}) {
-  const entityId =
-    payload.application_id ||
-    payload.document_id ||
-    payload.review_id ||
-    payload.slip_id ||
-    payload.renewal_id ||
-    payload.message_id ||
-    '';
-
-  const version =
-    payload.updated_at ||
-    payload.reviewed_at ||
-    payload.created_at ||
-    payload.event_type ||
-    '';
-
-  if (!entityId || !version) return '';
-  return `${eventName}:${entityId}:${version}`;
-}
-
-function shouldSuppressDuplicatePublicEvent(eventName, payload = {}) {
-  const key = buildPublicEventDedupeKey(eventName, payload);
-  if (!key) return false;
-
-  const now = Date.now();
-  const previous = recentPublicEvents.get(key);
-
-  if (previous && now - previous < PUBLIC_EVENT_DEDUPE_TTL_MS) {
-    return true;
-  }
-
-  recentPublicEvents.set(key, now);
-
-  if (recentPublicEvents.size > PUBLIC_EVENT_DEDUPE_MAX_ENTRIES) {
-    for (const [storedKey, storedAt] of recentPublicEvents.entries()) {
-      if (now - storedAt >= PUBLIC_EVENT_DEDUPE_TTL_MS) {
-        recentPublicEvents.delete(storedKey);
-      }
-      if (recentPublicEvents.size <= PUBLIC_EVENT_DEDUPE_MAX_ENTRIES) break;
-    }
-  }
-
-  return false;
-}
 
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
@@ -78,7 +26,6 @@ function uniqueIds(...values) {
 
 function emitPublic(io, eventName, payload) {
   if (!io) return;
-  if (shouldSuppressDuplicatePublicEvent(eventName, payload)) return;
 
   const finalPayload = {
     ...payload,
@@ -223,6 +170,15 @@ function handleApplicationDocumentChange(io, payload = {}) {
     event_type: eventType,
   });
 
+  emitPublic(io, 'application:updated', {
+    application_id: document.application_id,
+    updated_at: document.updated_at,
+    source: 'application_document',
+    document_type: document.document_type,
+    review_status: document.review_status,
+    is_submitted: document.is_submitted,
+    event_type: eventType,
+  });
 }
 
 function buildApplicationDocumentReviewPayload(row = {}) {
@@ -280,6 +236,14 @@ function handleEndorsementSlipChange(io, payload = {}) {
     event_type: eventType,
   });
 
+  emitPublic(io, 'application:updated', {
+    application_id: endorsement.application_id,
+    updated_at: endorsement.updated_at,
+    source: 'endorsement',
+    current_stage: endorsement.current_stage,
+    overall_status: endorsement.overall_status,
+    event_type: eventType,
+  });
 }
 
 async function fetchRoomMemberIds(supabase, roomId) {

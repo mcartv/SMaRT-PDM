@@ -1264,7 +1264,7 @@ function DocumentPreviewPanel({ activeDoc, application }) {
         ) : previewLoading ? (
           <div className="flex flex-col items-center gap-3 text-stone-500">
             <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
-            <p className="text-[15px]">Loading secure previewâ€¦</p>
+            <p className="text-[15px]">Loading secure preview</p>
           </div>
         ) : previewError ? (
           <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">

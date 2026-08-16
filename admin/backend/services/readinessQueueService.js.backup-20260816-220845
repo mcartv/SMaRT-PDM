@@ -102,11 +102,6 @@ async function syncOpeningFcfsQueue(openingId) {
             requirements_verified_at = COALESCE(requirements_verified_at, $2::timestamptz),
             updated_at = now()
           WHERE application_id = $1::uuid
-            AND (
-              queue_position IS DISTINCT FROM $3::integer
-              OR fcfs_completed_at IS NULL
-              OR requirements_verified_at IS NULL
-            )
         `,
         [row.application_id, row.ready_at, queuePosition]
       );
@@ -185,18 +180,6 @@ async function syncOpeningFcfsQueue(openingId) {
                 END,
                 updated_at = now()
             WHERE application_id = $1::uuid
-              AND (
-                selection_status IS DISTINCT FROM $2::varchar(30)
-                OR waitlist_position IS NOT NULL
-                OR selected_at IS NULL
-                OR (
-                  CASE
-                    WHEN LOWER(COALESCE(activation_status, '')) = 'activated'
-                      THEN activation_status
-                    ELSE 'Not Activated'
-                  END
-                ) IS DISTINCT FROM activation_status
-              )
         `,
           [
             row.application_id,
@@ -219,18 +202,6 @@ async function syncOpeningFcfsQueue(openingId) {
             END,
             updated_at = now()
         WHERE application_id = $1::uuid
-          AND (
-            selection_status IS DISTINCT FROM 'Waitlisted'
-            OR waitlist_position IS DISTINCT FROM $2::integer
-            OR waitlisted_at IS NULL
-            OR (
-              CASE
-                WHEN LOWER(COALESCE(activation_status, '')) = 'activated'
-                  THEN activation_status
-                ELSE 'Not Activated'
-              END
-            ) IS DISTINCT FROM activation_status
-          )
     `,
           [
             row.application_id,

@@ -418,7 +418,7 @@ exports.publishDueAnnouncements = async () => {
 
     const { data, error } = await supabase
         .from('announcements')
-        .select('announcement_id')
+        .select('*')
         .eq('status', 'Scheduled')
         .eq('is_archived', false)
         .lte('scheduled_at', nowIso);

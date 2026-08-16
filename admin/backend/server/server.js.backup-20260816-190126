@@ -467,20 +467,16 @@ function emitScheduledAnnouncementRealtime(announcement) {
   socketEvents.announcementRefresh(io, payload);
 }
 
-const SCHEDULER_INTERVAL_MS = 60 * 1000;
-
 if (!global._announcementSchedulerRunning) {
   global._announcementSchedulerRunning = true;
 
-  let announcementSchedulerBusy = false;
-  let reminderSchedulerBusy = false;
-  let digestSchedulerBusy = false;
+  let schedulerBusy = false;
 
-  const runAnnouncementScheduler = async () => {
+  const runSchedulers = async () => {
     if (!global._applicationStartupReady) return;
-    if (announcementSchedulerBusy) return;
+    if (schedulerBusy) return;
 
-    announcementSchedulerBusy = true;
+    schedulerBusy = true;
 
     try {
       const publishedAnnouncements =
@@ -498,56 +494,23 @@ if (!global._announcementSchedulerRunning) {
           `[Scheduler] Published ${publishedAnnouncements.length} scheduled announcement(s).`
         );
       }
-    } catch (err) {
-      console.error('Announcement Scheduler Error:', err.message);
-    } finally {
-      announcementSchedulerBusy = false;
-    }
-  };
 
-  const runReminderScheduler = async () => {
-    if (!global._applicationStartupReady) return;
-    if (reminderSchedulerBusy) return;
+      await runDepartmentDigestScheduler();
 
-    reminderSchedulerBusy = true;
-
-    try {
       const dueReminders = await personalToolService.processDueReminders();
-
       dueReminders.forEach(({ userId, notification }) => {
         socketEvents.notificationCreated(io, userId, notification);
       });
     } catch (err) {
-      console.error('Reminder Scheduler Error:', err.message);
+      console.error('Scheduler Error:', err.message);
     } finally {
-      reminderSchedulerBusy = false;
+      schedulerBusy = false;
     }
   };
 
-  const runDigestScheduler = async () => {
-    if (!global._applicationStartupReady) return;
-    if (digestSchedulerBusy) return;
+  runSchedulers();
 
-    digestSchedulerBusy = true;
-
-    try {
-      await runDepartmentDigestScheduler();
-    } catch (err) {
-      console.error('Department Digest Scheduler Error:', err.message);
-    } finally {
-      digestSchedulerBusy = false;
-    }
-  };
-
-  runAnnouncementScheduler();
-  runReminderScheduler();
-  runDigestScheduler();
-
-  // Realtime delivery remains handled by configureRealtimeBridge()/Socket.IO.
-  // These timers only perform clock-based work.
-  setInterval(runAnnouncementScheduler, SCHEDULER_INTERVAL_MS);
-  setInterval(runReminderScheduler, SCHEDULER_INTERVAL_MS);
-  setInterval(runDigestScheduler, SCHEDULER_INTERVAL_MS);
+  setInterval(runSchedulers, 10000);
 }
 
 async function startServer() {

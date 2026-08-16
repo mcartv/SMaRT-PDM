@@ -13,6 +13,7 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essa
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_family_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_personal_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_submit_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -679,69 +680,114 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Card(
-                color: cardColor,
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                  side: BorderSide(color: borderColor, width: 1.2),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final compact = IntakeLayout.isCompact(width);
+              final gutter = IntakeLayout.horizontalPadding(width);
+              final formTheme = Theme.of(context).copyWith(
+                textTheme: Theme.of(context).textTheme.copyWith(
+                  bodyLarge: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.45),
+                  bodyMedium: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontSize: 15, height: 1.45),
+                  labelLarge: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontSize: 15),
                 ),
-                elevation: isDark ? 2 : 10,
-                shadowColor: Colors.black.withValues(
-                  alpha: isDark ? 0.28 : 0.26,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    AppHeader(
-                      subtitle: 'Scholarship Application Form',
-                      onBack: () => Navigator.maybePop(context),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-                      child: StepIndicator(
-                        currentStep: _step,
-                        labels: _stepLabels,
+              );
+
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: IntakeLayout.contentMaxWidth,
+                  ),
+                  child: Theme(
+                    data: formTheme,
+                    child: Card(
+                      color: cardColor,
+                      margin: EdgeInsets.fromLTRB(
+                        gutter,
+                        0,
+                        gutter,
+                        compact ? 6 : 12,
                       ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: _scrollCtrl,
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                        child: Column(
-                          children: [
-                            if (_isBootstrapping)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 72),
-                                child: CircularProgressIndicator(),
-                              )
-                            else if (!_hasSelectedOpening)
-                              _buildOpeningReminder(context)
-                            else
-                              Column(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(compact ? 22 : 28),
+                        side: BorderSide(color: borderColor, width: 1.2),
+                      ),
+                      elevation: isDark ? 2 : 10,
+                      shadowColor: Colors.black.withValues(
+                        alpha: isDark ? 0.28 : 0.26,
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          AppHeader(
+                            subtitle: 'Scholarship Application Form',
+                            onBack: () => Navigator.maybePop(context),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              compact ? 10 : 20,
+                              4,
+                              compact ? 10 : 20,
+                              compact ? 8 : 12,
+                            ),
+                            child: StepIndicator(
+                              currentStep: _step,
+                              labels: _stepLabels,
+                            ),
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              controller: _scrollCtrl,
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 12 : 20,
+                                compact ? 6 : 12,
+                                compact ? 12 : 20,
+                                24,
+                              ),
+                              child: Column(
                                 children: [
-                                  _buildSelectedOpeningCard(context),
-                                  AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 220),
-                                    child: KeyedSubtree(
-                                      key: ValueKey(_step),
-                                      child: _buildStep(),
+                                  if (_isBootstrapping)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 72,
+                                      ),
+                                      child: CircularProgressIndicator(),
+                                    )
+                                  else if (!_hasSelectedOpening)
+                                    _buildOpeningReminder(context)
+                                  else
+                                    Column(
+                                      children: [
+                                        _buildSelectedOpeningCard(context),
+                                        AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 220,
+                                          ),
+                                          child: KeyedSubtree(
+                                            key: ValueKey(_step),
+                                            child: _buildStep(),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
                                 ],
                               ),
-                          ],
-                        ),
+                            ),
+                          ),
+                          _buildFooter(provider),
+                        ],
                       ),
                     ),
-                    _buildFooter(provider),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -915,8 +961,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   Widget _buildFooter(NewScholarProvider provider) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final compact = MediaQuery.sizeOf(context).width < 360;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 12 : 20,
+        12,
+        compact ? 12 : 20,
+        compact ? 12 : 18,
+      ),
       decoration: BoxDecoration(
         color: isDark
             ? AppColors.applicantDarkSurface
@@ -935,7 +987,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             Expanded(
               child: GhostButton(label: 'Back', onTap: _back),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: compact ? 8 : 12),
           ],
           Expanded(
             flex: 2,
@@ -960,7 +1012,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       disabledForegroundColor: AppColors.darkBrown.withValues(
                         alpha: 0.6,
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      minimumSize: const Size(0, 56),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),
                       ),
@@ -968,7 +1024,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                     ),
                     child: Text(
                       'Submit Application',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
           ),

@@ -506,7 +506,7 @@ class _StepFamilyState extends State<StepFamily> {
   Widget _row(List<Widget> fields) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
+        if (constraints.maxWidth < 500) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: fields
@@ -665,6 +665,7 @@ class _StepFamilyState extends State<StepFamily> {
   }) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -673,9 +674,10 @@ class _StepFamilyState extends State<StepFamily> {
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
+              fontSize: 19,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _row([
             _field(
               'Last Name',
@@ -847,6 +849,7 @@ class _StepFamilyState extends State<StepFamily> {
         const IntakeSectionHeader(
           title: 'II. FAMILY INFORMATION',
           icon: Icons.family_restroom,
+          bottomSpacing: 22,
         ),
         if (_primaryCarerError() != null)
           Padding(
@@ -861,6 +864,7 @@ class _StepFamilyState extends State<StepFamily> {
           ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -869,9 +873,10 @@ class _StepFamilyState extends State<StepFamily> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               IntakeChoiceCard(
                 title: 'Same as applicant',
                 subtitle:
@@ -897,6 +902,7 @@ class _StepFamilyState extends State<StepFamily> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -905,9 +911,10 @@ class _StepFamilyState extends State<StepFamily> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               IntakeChoiceCard(
                 title: 'No parents / Guardian only',
                 subtitle: 'Use this if both parents are absent or unavailable.',
@@ -967,6 +974,7 @@ class _StepFamilyState extends State<StepFamily> {
           ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -975,9 +983,10 @@ class _StepFamilyState extends State<StepFamily> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               _row([
                 _field(
                   'Last Name',
@@ -1097,6 +1106,7 @@ class _StepFamilyState extends State<StepFamily> {
         if (!guardianOnly)
           IntakeCard(
             margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1105,9 +1115,10 @@ class _StepFamilyState extends State<StepFamily> {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: intakeTextColor(context),
                     fontWeight: FontWeight.w900,
+                    fontSize: 19,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 ...parentNativeOptions.map(
                   (option) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),

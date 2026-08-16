@@ -356,7 +356,7 @@ class _StepAcademicState extends State<StepAcademic> {
   Widget _flexRow(List<Widget> children, {required List<int> flexes}) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
+        if (constraints.maxWidth < 500) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: children
@@ -514,6 +514,7 @@ class _StepAcademicState extends State<StepAcademic> {
 
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -522,9 +523,10 @@ class _StepAcademicState extends State<StepAcademic> {
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
+              fontSize: 19,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _field(
             'School *',
             TextFormField(
@@ -804,6 +806,7 @@ class _StepAcademicState extends State<StepAcademic> {
         const IntakeSectionHeader(
           title: 'ACADEMIC BACKGROUND',
           icon: Icons.school,
+          bottomSpacing: 22,
         ),
         _educationCard(
           title: 'College',
@@ -839,6 +842,7 @@ class _StepAcademicState extends State<StepAcademic> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -847,9 +851,10 @@ class _StepAcademicState extends State<StepAcademic> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               _field(
                 'Course *',
                 TextFormField(
@@ -863,12 +868,12 @@ class _StepAcademicState extends State<StepAcademic> {
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: intakeIsDark(context)
                         ? AppColors.applicantDarkSurfaceMuted
                         : const Color(0xFFFFF6E5),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: intakeIsDark(context)
                           ? AppColors.applicantDarkOutline
@@ -892,6 +897,7 @@ class _StepAcademicState extends State<StepAcademic> {
                                 color: intakeTextColor(context),
                                 height: 1.35,
                                 fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
                               ),
                         ),
                       ),
@@ -976,6 +982,7 @@ class _StepAcademicState extends State<StepAcademic> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -984,9 +991,10 @@ class _StepAcademicState extends State<StepAcademic> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               ...supportOptions.map(_supportChoice),
               if (isOtherSupport) ...[
                 const SizedBox(height: 8),
@@ -1006,6 +1014,7 @@ class _StepAcademicState extends State<StepAcademic> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1014,9 +1023,10 @@ class _StepAcademicState extends State<StepAcademic> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _binaryQuestion(
                 title: 'Have you ever been a scholar?',
                 value: scholarshipHistory,
@@ -1134,6 +1144,7 @@ class _StepAcademicState extends State<StepAcademic> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1142,9 +1153,10 @@ class _StepAcademicState extends State<StepAcademic> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _binaryQuestion(
                 title:
                     'Have you ever been subject to disciplinary action from any school or institution attended?',

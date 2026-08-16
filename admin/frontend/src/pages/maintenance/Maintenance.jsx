@@ -39,7 +39,7 @@ const TABS = [
   { key: 'ro-settings', label: 'Obligation', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'system', label: 'System', icon: Cpu },
-  { key: 'audit', label: 'Audit', icon: ClipboardList },
+  { key: 'audit', label: 'Audit Trail', icon: ClipboardList },
 ];
 
 function TopNav({ tabs, active, onChange, accentColor }) {
@@ -55,10 +55,11 @@ function TopNav({ tabs, active, onChange, accentColor }) {
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-1.5 py-2.5 text-[13px] font-medium transition ${isActive
+              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-1.5 py-2.5 text-[13px] font-medium transition ${
+                isActive
                   ? 'text-stone-900'
                   : 'text-stone-400 hover:text-stone-700'
-                }`}
+              }`}
             >
               <Icon size={13} />
               {item.label}
@@ -105,10 +106,11 @@ export default function Maintenance() {
                 <button
                   type="button"
                   onClick={() => setThemeView('landing')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${themeView === 'landing'
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    themeView === 'landing'
                       ? 'text-white shadow-sm'
                       : 'text-stone-600 hover:text-stone-900'
-                    }`}
+                  }`}
                   style={themeView === 'landing' ? { background: theme.base } : undefined}
                 >
                   Landing Page
@@ -117,10 +119,11 @@ export default function Maintenance() {
                 <button
                   type="button"
                   onClick={() => setThemeView('admin')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${themeView === 'admin'
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    themeView === 'admin'
                       ? 'text-white shadow-sm'
                       : 'text-stone-600 hover:text-stone-900'
-                    }`}
+                  }`}
                   style={themeView === 'admin' ? { background: theme.base } : undefined}
                 >
                   Admin Theme
@@ -191,10 +194,11 @@ export default function Maintenance() {
       <div className="flex-1 p-2.5">
         <Card className="flex h-full flex-col overflow-hidden rounded-xl border-stone-200 shadow-none">
           <div
-            className={`flex-1 overflow-auto ${isRegistry
+            className={`flex-1 overflow-auto ${
+              isRegistry
                 ? 'max-h-[calc(100vh-132px)] p-2.5'
                 : 'max-h-[calc(100vh-132px)] p-3'
-              }`}
+            }`}
           >
             {renderActiveTab()}
           </div>

@@ -204,8 +204,35 @@ function toLocalDateTimeInputValue(value) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
-function currentLocalDateTimeInputValue() {
-  return toLocalDateTimeInputValue(new Date());
+function nextSchedulableLocalDateTimeInputValue(baseDate = new Date()) {
+  const date = new Date(baseDate);
+  date.setSeconds(0, 0);
+  date.setMinutes(date.getMinutes() + 1);
+
+  return toLocalDateTimeInputValue(date);
+}
+
+function getLocalScheduleParts(value = '') {
+  const [date = '', time = ''] = String(value || '').split('T');
+  const [hour = '', minute = ''] = time.split(':');
+
+  return {
+    date,
+    hour,
+    minute,
+  };
+}
+
+function formatScheduleHour(hourValue) {
+  const hour = Number(hourValue);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+
+  return `${String(displayHour).padStart(2, '0')}:00 ${period}`;
+}
+
+function formatScheduleMinute(minuteValue) {
+  return String(minuteValue).padStart(2, '0');
 }
 
 function StatusPill({ status }) {
@@ -371,20 +398,218 @@ function ComposeAnnouncementModal({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-                    Schedule
-                  </label>
-                  <Input
-                    type="datetime-local"
-                    value={schedDate}
-                    min={minScheduleDateTime}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value && value < minScheduleDateTime) return;
-                      setSchedDate(value);
-                    }}
-                    className="h-10 rounded-lg border-stone-200 bg-white text-sm"
-                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+                      Schedule
+                    </label>
+
+                    {schedDate && (
+                      <button
+                        type="button"
+                        onClick={() => setSchedDate('')}
+                        className="text-[10px] font-medium text-stone-400 transition hover:text-stone-700"
+                      >
+                        Clear schedule
+                      </button>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const selected = getLocalScheduleParts(schedDate);
+                    const minimum = getLocalScheduleParts(minScheduleDateTime);
+
+                    const selectedDate = selected.date;
+                    const selectedHour = selected.hour;
+                    const selectedMinute = selected.minute;
+
+                    const minimumDate = minimum.date;
+                    const minimumHour = minimum.hour;
+                    const minimumMinute = minimum.minute;
+
+                    const minimumHourNumber = Number(minimumHour || 0);
+                    const selectedHourNumber = Number(selectedHour || 0);
+
+                    const availableHours = Array.from(
+                      { length: 24 },
+                      (_, index) => index
+                    ).filter((hour) => {
+                      if (!selectedDate || selectedDate !== minimumDate) return true;
+                      return hour >= minimumHourNumber;
+                    });
+
+                    const availableMinutes = Array.from(
+                      { length: 60 },
+                      (_, index) => index
+                    ).filter((minute) => {
+                      if (
+                        !selectedDate ||
+                        selectedDate !== minimumDate ||
+                        selectedHourNumber !== minimumHourNumber
+                      ) {
+                        return true;
+                      }
+
+                      return minute >= Number(minimumMinute || 0);
+                    });
+
+                    const handleDateChange = (event) => {
+                      const nextDate = event.target.value;
+
+                      if (!nextDate) {
+                        setSchedDate('');
+                        return;
+                      }
+
+                      if (minimumDate && nextDate < minimumDate) {
+                        return;
+                      }
+
+                      const isMinimumDate = nextDate === minimumDate;
+
+                      let nextHour = selectedHour
+                        ? Number(selectedHour)
+                        : isMinimumDate
+                          ? minimumHourNumber
+                          : 0;
+
+                      if (isMinimumDate && nextHour < minimumHourNumber) {
+                        nextHour = minimumHourNumber;
+                      }
+
+                      let nextMinute = selectedMinute
+                        ? Number(selectedMinute)
+                        : isMinimumDate && nextHour === minimumHourNumber
+                          ? Number(minimumMinute || 0)
+                          : 0;
+
+                      if (
+                        isMinimumDate &&
+                        nextHour === minimumHourNumber &&
+                        nextMinute < Number(minimumMinute || 0)
+                      ) {
+                        nextMinute = Number(minimumMinute || 0);
+                      }
+
+                      setSchedDate(
+                        `${nextDate}T${String(nextHour).padStart(2, '0')}:${String(
+                          nextMinute
+                        ).padStart(2, '0')}`
+                      );
+                    };
+
+                    const handleHourChange = (value) => {
+                      if (!selectedDate) return;
+
+                      const nextHour = Number(value);
+                      let nextMinute = selectedMinute
+                        ? Number(selectedMinute)
+                        : 0;
+
+                      if (
+                        selectedDate === minimumDate &&
+                        nextHour === minimumHourNumber &&
+                        nextMinute < Number(minimumMinute || 0)
+                      ) {
+                        nextMinute = Number(minimumMinute || 0);
+                      }
+
+                      setSchedDate(
+                        `${selectedDate}T${String(nextHour).padStart(2, '0')}:${String(
+                          nextMinute
+                        ).padStart(2, '0')}`
+                      );
+                    };
+
+                    const handleMinuteChange = (value) => {
+                      if (!selectedDate || selectedHour === '') return;
+
+                      setSchedDate(
+                        `${selectedDate}T${selectedHour}:${String(value).padStart(
+                          2,
+                          '0'
+                        )}`
+                      );
+                    };
+
+                    return (
+                      <div className="space-y-2">
+                        <Input
+                          type="date"
+                          value={selectedDate}
+                          min={minimumDate}
+                          onChange={handleDateChange}
+                          className={`h-10 rounded-lg border-stone-200 bg-white text-sm ${
+                            validationErrors.schedule
+                              ? 'border-red-300 ring-1 ring-red-200'
+                              : ''
+                          }`}
+                        />
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={selectedHour}
+                            onChange={(event) => handleHourChange(event.target.value)}
+                            disabled={!selectedDate}
+                            className={`h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none transition focus:border-stone-300 focus:ring-2 focus:ring-stone-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 ${
+                              validationErrors.schedule
+                                ? 'border-red-300 ring-1 ring-red-200'
+                                : ''
+                            }`}
+                            aria-label="Schedule hour"
+                          >
+                            <option value="" disabled>
+                              Hour
+                            </option>
+                            {availableHours.map((hour) => {
+                              const hourValue = String(hour).padStart(2, '0');
+
+                              return (
+                                <option key={hourValue} value={hourValue}>
+                                  {formatScheduleHour(hourValue)}
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <select
+                            value={selectedMinute}
+                            onChange={(event) => handleMinuteChange(event.target.value)}
+                            disabled={!selectedDate || selectedHour === ''}
+                            className={`h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none transition focus:border-stone-300 focus:ring-2 focus:ring-stone-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 ${
+                              validationErrors.schedule
+                                ? 'border-red-300 ring-1 ring-red-200'
+                                : ''
+                            }`}
+                            aria-label="Schedule minute"
+                          >
+                            <option value="" disabled>
+                              Minute
+                            </option>
+                            {availableMinutes.map((minute) => {
+                              const minuteValue = String(minute).padStart(2, '0');
+
+                              return (
+                                <option key={minuteValue} value={minuteValue}>
+                                  :{formatScheduleMinute(minuteValue)}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <p className="text-[10px] leading-4 text-stone-400">
+                          Past dates cannot be selected. Past hours and minutes are removed from
+                          the native time dropdowns. The earliest schedule is the next minute.
+                        </p>
+
+                        {validationErrors.schedule && (
+                          <p className="text-xs text-red-500">
+                            {validationErrors.schedule}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1071,6 +1296,22 @@ export default function AnnouncementsManagement() {
     };
   }, [loadAnnouncements]);
 
+  useEffect(() => {
+    if (!showForm) return undefined;
+
+    const refreshMinimumSchedule = () => {
+      setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
+    };
+
+    refreshMinimumSchedule();
+
+    const intervalId = window.setInterval(refreshMinimumSchedule, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [showForm]);
+
   useSocketEvent('maintenance:updated', () => {
     loadPrograms();
   }, [loadPrograms]);
@@ -1128,7 +1369,7 @@ export default function AnnouncementsManagement() {
       setContent(buildOpeningPrefillContent(params));
       setAudience(normalizePrefillAudience(targetAudience));
       setSchedDate('');
-      setMinScheduleDateTime(currentLocalDateTimeInputValue());
+      setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
       setIsRoVoluntary('false');
       setSelectedTemplate('blank');
       setValidationErrors({});
@@ -1171,7 +1412,7 @@ export default function AnnouncementsManagement() {
           : normalizePrefillAudience(targetAudience)
       );
       setSchedDate('');
-      setMinScheduleDateTime(currentLocalDateTimeInputValue());
+      setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
       setIsRoVoluntary('false');
       setSelectedTemplate('payout_notice');
       setValidationErrors({});
@@ -1198,6 +1439,21 @@ export default function AnnouncementsManagement() {
     () => buildAudienceOptions(programs, audience),
     [programs, audience]
   );
+
+  useEffect(() => {
+    if (!validationErrors.schedule || !schedDate) return;
+
+    const freshMinimumSchedule =
+      nextSchedulableLocalDateTimeInputValue();
+
+    if (schedDate >= freshMinimumSchedule) {
+      setValidationErrors((previous) => {
+        const next = { ...previous };
+        delete next.schedule;
+        return next;
+      });
+    }
+  }, [schedDate, validationErrors.schedule]);
 
   const activeItems = useMemo(
     () => items.filter((item) => !item.is_archived && item.status !== 'Archived'),
@@ -1243,7 +1499,7 @@ export default function AnnouncementsManagement() {
 
   const handleOpenModal = () => {
     resetForm();
-    setMinScheduleDateTime(currentLocalDateTimeInputValue());
+    setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     setShowForm(true);
   };
 
@@ -1277,7 +1533,7 @@ export default function AnnouncementsManagement() {
         ? toLocalDateTimeInputValue(announcement.date)
         : ''
     );
-    setMinScheduleDateTime(currentLocalDateTimeInputValue());
+    setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     setIsRoVoluntary(announcement.isRoVoluntary ? 'true' : 'false');
     setSelectedTemplate('blank');
     setValidationErrors({});
@@ -1289,6 +1545,18 @@ export default function AnnouncementsManagement() {
 
     if (!title.trim()) errors.title = 'Announcement subject is required.';
     if (!content.trim()) errors.content = 'Announcement content is required.';
+
+    if (schedDate) {
+      const freshMinimumSchedule =
+        nextSchedulableLocalDateTimeInputValue();
+
+      setMinScheduleDateTime(freshMinimumSchedule);
+
+      if (schedDate < freshMinimumSchedule) {
+        errors.schedule =
+          'Choose a future schedule. The earliest available time is the next minute.';
+      }
+    }
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -1417,6 +1685,22 @@ export default function AnnouncementsManagement() {
       if (!title.trim() && !content.trim()) {
         handleCancelAnnouncement();
         return;
+      }
+
+      if (schedDate) {
+        const freshMinimumSchedule =
+          nextSchedulableLocalDateTimeInputValue();
+
+        setMinScheduleDateTime(freshMinimumSchedule);
+
+        if (schedDate < freshMinimumSchedule) {
+          setValidationErrors((previous) => ({
+            ...previous,
+            schedule:
+              'Choose a future schedule. The earliest available time is the next minute.',
+          }));
+          return;
+        }
       }
 
       setDraftSaving(true);

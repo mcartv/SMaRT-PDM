@@ -159,14 +159,14 @@ export default function AuditPanel() {
         throw new Error(
           data.error?.message ||
             data.message ||
-            'Failed to load audit trail.'
+            'Failed to load system logs.'
         );
       }
 
       setLogs(Array.isArray(data.items) ? data.items : []);
       setTotal(Number(data.total || 0));
     } catch (err) {
-      const message = err.message || 'Failed to load audit trail.';
+      const message = err.message || 'Failed to load system logs.';
       setError(message);
 
       if (
@@ -236,7 +236,7 @@ export default function AuditPanel() {
       setPassword('');
       setShowPassword(false);
     } catch (err) {
-      setError(err.message || 'Failed to unlock audit trail.');
+      setError(err.message || 'Failed to unlock system logs.');
     } finally {
       setUnlocking(false);
     }
@@ -263,7 +263,7 @@ export default function AuditPanel() {
     const anchor = document.createElement('a');
 
     anchor.href = url;
-    anchor.download = `audit-trail-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `system-logs-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -284,10 +284,10 @@ export default function AuditPanel() {
 
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[#7c4a2e]">
-                Audit Trail
+                System Logs
               </p>
               <h2 className="mt-0.5 text-sm font-semibold text-stone-900">
-                Audit Trail Access Restricted
+                System Logs Access Restricted
               </h2>
               <p className="mt-0.5 text-xs text-stone-500">
                 Enter your current account password to continue.
@@ -347,7 +347,7 @@ export default function AuditPanel() {
             ) : (
               <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
             )}
-            {unlocking ? 'Unlocking...' : 'Unlock Audit Trail'}
+            {unlocking ? 'Unlocking...' : 'Unlock System Logs'}
           </button>
         </form>
       </div>
@@ -361,7 +361,7 @@ export default function AuditPanel() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                Audit Trail
+                System Logs
               </p>
               <h2 className="mt-1 text-base font-semibold text-stone-900">
                 Administrative Activity
@@ -376,7 +376,7 @@ export default function AuditPanel() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search audit trail by action, user, or module..."
+                placeholder="Search system logs by action, user, or module..."
                 className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
               />
             </div>
@@ -385,7 +385,7 @@ export default function AuditPanel() {
           <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-2 text-xs text-stone-500">
               <ClipboardList className="h-4 w-4" />
-              Audit Trail access expires after 10 minutes.
+              System Logs access expires after 10 minutes.
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -426,7 +426,7 @@ export default function AuditPanel() {
                 className="h-8 rounded-lg border-stone-200 text-xs"
               >
                 <Download className="mr-1.5 h-3.5 w-3.5" />
-                Export Audit Trail
+                Export System Logs
               </Button>
 
               <Button
@@ -462,7 +462,7 @@ export default function AuditPanel() {
         {loading ? (
           <div className="flex min-h-[280px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading audit trail...
+            Loading system logs...
           </div>
         ) : error ? (
           <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 bg-red-50 px-4 text-center text-xs text-red-700">
@@ -472,9 +472,9 @@ export default function AuditPanel() {
         ) : logs.length === 0 ? (
           <div className="flex min-h-[260px] flex-col items-center justify-center px-4 text-center text-stone-400">
             <ClipboardList size={42} className="mb-4 opacity-50" />
-            <p className="text-sm font-medium">No audit trail records found</p>
+            <p className="text-sm font-medium">No system logs found</p>
             <p className="mt-1 text-xs">
-              Administrative actions will appear here once recorded.
+              System actions will appear here once logged.
             </p>
           </div>
         ) : (

@@ -39,7 +39,7 @@ const TABS = [
   { key: 'ro-settings', label: 'Obligation', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'system', label: 'System', icon: Cpu },
-  { key: 'audit', label: 'Audit Trail', icon: ClipboardList },
+  { key: 'audit', label: 'System Logs', icon: ClipboardList },
 ];
 
 function TopNav({ tabs, active, onChange, accentColor }) {

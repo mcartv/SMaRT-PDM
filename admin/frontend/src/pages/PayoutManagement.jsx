@@ -507,6 +507,7 @@ export default function PayoutManagement() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [workspaceView, setWorkspaceView] = useState('batches');
   const [activeSection, setActiveSection] = useState('batches');
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [archiveCandidate, setArchiveCandidate] = useState(null);
@@ -578,7 +579,7 @@ export default function PayoutManagement() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeSection, search]);
+  }, [activeSection, search, workspaceView]);
 
   const loadOpeningEligibility = async (openingId) => {
     try {
@@ -1122,7 +1123,7 @@ export default function PayoutManagement() {
         key={batch.payout_batch_id}
         className="h-full rounded-2xl border-stone-200 bg-white shadow-none transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-sm"
       >
-        <CardContent className="flex h-full flex-col p-4 sm:p-5">
+        <CardContent className="flex h-full flex-col gap-4 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="truncate text-base font-semibold text-stone-900">
@@ -1144,7 +1145,7 @@ export default function PayoutManagement() {
             </Badge>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <SmallMetric
               label="Academic Period"
               value={period || '—'}
@@ -1163,14 +1164,28 @@ export default function PayoutManagement() {
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <SmallMetric label="Released" value={counts.released} />
-            <SmallMetric label="Pending" value={counts.pending} />
-            <SmallMetric label="Absent" value={counts.absent} />
-            <SmallMetric label="On Hold" value={counts.onHold} />
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['Released', counts.released],
+              ['Pending', counts.pending],
+              ['Absent', counts.absent],
+              ['On Hold', counts.onHold],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="min-w-[110px] rounded-xl border border-stone-100 bg-stone-50 px-3 py-2"
+              >
+                <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">
+                  {label}
+                </p>
+                <p className="mt-0.5 text-sm font-semibold text-stone-900">
+                  {value}
+                </p>
+              </div>
+            ))}
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-auto flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-wide text-stone-400">
                 Payout Amount Summary
@@ -1226,102 +1241,154 @@ export default function PayoutManagement() {
         onCreateAnnouncement={handleCreatePayoutAnnouncementRedirect}
       />
 
-      <PayoutProofReviewPanel />
-
       <section
         className="rounded-2xl border bg-white p-3 sm:p-4"
         style={{ borderColor: C.line }}
       >
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:flex sm:w-auto">
-            {[
-              ['batches', 'Active', inProgressBatches.length],
-              ['status', 'Status Manager', statusManagerBatches.length],
-              ['completed', 'Completed', completedBatches.length],
-              ['archived', 'Archived', archivedBatches.length],
-            ].map(([key, label, count]) => (
-              <button
-                type="button"
-                key={key}
-                onClick={() => setActiveSection(key)}
-                className={`rounded-lg px-3 py-2 text-xs font-medium transition sm:px-4 sm:text-sm ${
-                  activeSection === key
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
-                }`}
-              >
-                {label}
-                {Number(count) > 0 ? (
-                  <span className="ml-2 rounded-full bg-stone-900 px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                    {count}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <Input
-                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
-                placeholder="Search payout title, program, benefactor..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex w-fit flex-wrap gap-1 rounded-xl bg-stone-100 p-1">
+              {[
+                ['batches', 'Payout Batches', activeBatches.length],
+                ['proofs', 'Payout Proof Review', null],
+              ].map(([key, label, count]) => (
+                <button
+                  type="button"
+                  key={key}
+                  onClick={() => setWorkspaceView(key)}
+                  className={`rounded-lg px-3 py-2 text-xs font-medium transition sm:px-4 sm:text-sm ${
+                    workspaceView === key
+                      ? 'bg-white text-stone-900 shadow-sm'
+                      : 'text-stone-600'
+                  }`}
+                >
+                  {label}
+                  {Number(count) > 0 ? (
+                    <span className="ml-2 rounded-full bg-stone-900 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                      {count}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
             </div>
 
-            <Button
-              style={{ background: C.brownMid }}
-              className="h-10 rounded-xl text-white"
-              onClick={() => setShowCreateModal(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Payout Batch
-            </Button>
+            {workspaceView === 'batches' ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:min-w-[300px]">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                  <Input
+                    className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
+                    placeholder="Search payout title, program, benefactor..."
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </div>
+
+                <Button
+                  style={{ background: C.brownMid }}
+                  className="h-10 rounded-xl text-white"
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Payout Batch
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-stone-500 xl:text-right">
+                Switch to payout proof review when you need to verify scholar acknowledgements.
+              </p>
+            )}
           </div>
-        </div>
-      </section>
 
-      <section
-        className="overflow-hidden rounded-2xl border bg-white"
-        style={{ borderColor: C.line }}
-      >
-        <div className="border-b border-stone-100 px-4 py-4 sm:px-5">
-          <h2 className="text-sm font-semibold text-stone-800">
-            {sectionMeta.title}
-          </h2>
-          <p className="mt-1 text-xs text-stone-500">
-            {sectionMeta.subtitle}
-          </p>
-        </div>
+          {workspaceView === 'batches' ? (
+            <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:flex sm:w-auto">
+                {[
+                  ['batches', 'Active', inProgressBatches.length],
+                  ['status', 'Status Manager', statusManagerBatches.length],
+                  ['completed', 'Completed', completedBatches.length],
+                  ['archived', 'Archived', archivedBatches.length],
+                ].map(([key, label, count]) => (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => setActiveSection(key)}
+                    className={`rounded-lg px-3 py-2 text-xs font-medium transition sm:px-4 sm:text-sm ${
+                      activeSection === key
+                        ? 'bg-white text-stone-900 shadow-sm'
+                        : 'text-stone-600'
+                    }`}
+                  >
+                    {label}
+                    {Number(count) > 0 ? (
+                      <span className="ml-2 rounded-full bg-stone-900 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                        {count}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
 
-        <CardContent className="p-3 sm:p-4">
-          {pageData.length === 0 ? (
-            <EmptyState
-              title={sectionMeta.emptyTitle}
-              message={sectionMeta.empty}
-            />
+              <p className="text-xs text-stone-500 xl:text-right">
+                Use the tabs to jump between active, pending-action, completed, and archived payout batches.
+              </p>
+            </div>
           ) : (
-            <section className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-3">
-              {pageData.map(renderBatchCard)}
-            </section>
+            <div className="border-t border-stone-100 pt-3">
+              <p className="text-xs text-stone-500">
+                The proof review panel is shown alone to keep the page cleaner and reduce unnecessary scrolling.
+              </p>
+            </div>
           )}
-        </CardContent>
+        </div>
       </section>
 
-      <PaginationFooter
-        total={filteredDisplayedBatches.length}
-        page={page}
-        totalPages={totalPages}
-        pageSize={PAGE_SIZE}
-        onPrev={() => setPage((previous) => Math.max(1, previous - 1))}
-        onNext={() =>
-          setPage((previous) => Math.min(totalPages, previous + 1))
-        }
-      />
+      {workspaceView === 'proofs' ? (
+        <PayoutProofReviewPanel />
+      ) : (
+        <>
+          <section
+            className="overflow-hidden rounded-2xl border bg-white"
+            style={{ borderColor: C.line }}
+          >
+            <div className="border-b border-stone-100 px-4 py-4 sm:px-5">
+              <h2 className="text-sm font-semibold text-stone-800">
+                {sectionMeta.title}
+              </h2>
+              <p className="mt-1 text-xs text-stone-500">
+                {sectionMeta.subtitle}
+              </p>
+            </div>
 
-      {showCreateModal && (
+            <CardContent className="p-3 sm:p-4">
+              {pageData.length === 0 ? (
+                <EmptyState
+                  title={sectionMeta.emptyTitle}
+                  message={sectionMeta.empty}
+                />
+              ) : (
+                <section className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                  {pageData.map(renderBatchCard)}
+                </section>
+              )}
+            </CardContent>
+          </section>
+
+          <PaginationFooter
+            total={filteredDisplayedBatches.length}
+            page={page}
+            totalPages={totalPages}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setPage((previous) => Math.max(1, previous - 1))}
+            onNext={() =>
+              setPage((previous) => Math.min(totalPages, previous + 1))
+            }
+          />
+        </>
+      )}
+
+      
+{showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4">
           <div className="max-h-[94vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white px-4 py-4 sm:px-6">

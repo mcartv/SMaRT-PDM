@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
 import {
@@ -171,103 +171,14 @@ function emitUserJoin(socket) {
   socket.emit('joinUserRoom', payload);
 }
 
-function refreshSocketAuthFromStorage(socket) {
-  if (!socket) return false;
-
-  const token = getStoredSocketToken();
-  if (!token) return false;
-
-  const { userId, role } = getSocketIdentity(token);
-
-  socket.auth = {
-    token,
-    userId,
-    role,
-  };
-
-  if (socket.io?.opts) {
-    socket.io.opts.query = {
-      userId,
-      role,
-    };
-  }
-
-  return true;
-}
-
-let socketRecoveryHooksInstalled = false;
-let socketRecoveryTimer = null;
-
-function recoverSocketConnection() {
-  if (!globalSocket) {
-    initializeSocket();
-    return;
-  }
-
-  if (globalSocket.connected) {
-    return;
-  }
-
-  if (!refreshSocketAuthFromStorage(globalSocket)) {
-    return;
-  }
-
-  try {
-    globalSocket.io.reconnection(true);
-    globalSocket.connect();
-  } catch (error) {
-    console.warn(
-      '[Socket] Recovery connect failed:',
-      error?.message || error
-    );
-  }
-}
-
-function installSocketRecoveryHooks() {
-  if (
-    socketRecoveryHooksInstalled ||
-    typeof window === 'undefined'
-  ) {
-    return;
-  }
-
-  socketRecoveryHooksInstalled = true;
-
-  window.addEventListener('online', recoverSocketConnection);
-  window.addEventListener('focus', recoverSocketConnection);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      recoverSocketConnection();
-    }
-  });
-
-  // Local connection watchdog only. When the socket is healthy this sends
-  // no HTTP request and no application API traffic.
-  socketRecoveryTimer = window.setInterval(() => {
-    if (!globalSocket?.connected && getStoredSocketToken()) {
-      recoverSocketConnection();
-    }
-  }, 15000);
-}
-
 function attachSocketLifecycle(socket) {
   socket.on('connect', () => {
     console.log('[Socket] Connected:', socket.id);
-    joinedUserId = '';
     emitUserJoin(socket);
-  });
-
-  socket.on('socket:joined', (payload = {}) => {
-    console.log('[Socket] Server room joined:', payload.room || '');
-  });
-
-  socket.io.on('reconnect_attempt', () => {
-    refreshSocketAuthFromStorage(socket);
   });
 
   socket.io.on('reconnect', () => {
     console.log('[Socket] Manager reconnected');
-    refreshSocketAuthFromStorage(socket);
     joinedUserId = '';
     emitUserJoin(socket);
   });
@@ -275,33 +186,23 @@ function attachSocketLifecycle(socket) {
   socket.on('disconnect', (reason) => {
     console.log('[Socket] Disconnected:', reason);
     joinedUserId = '';
-
-    if (
-      reason !== 'io client disconnect' &&
-      getStoredSocketToken()
-    ) {
-      window.setTimeout(recoverSocketConnection, 500);
-    }
   });
 
   socket.on('session:invalidated', (payload = {}, acknowledge) => {
+    // Acknowledge receipt before clearing storage/navigation. The backend waits
+    // for this acknowledgement (or a short timeout) before hard-disconnecting
+    // the socket, preventing the logout event from being lost in a race.
     if (typeof acknowledge === 'function') {
       acknowledge({
         received: true,
-        user_id:
-          getSocketIdentity(socket.auth?.token || '').userId ||
-          null,
+        user_id: getSocketIdentity(socket.auth?.token || '').userId || null,
         received_at: new Date().toISOString(),
       });
     }
 
     invalidatePortalSession({
-      message:
-        payload?.message ||
-        'Your session is no longer active. Please sign in again.',
-      data: {
-        code: payload?.code || 'SESSION_REVOKED',
-      },
+      message: payload?.message || 'Your session is no longer active. Please sign in again.',
+      data: { code: payload?.code || 'SESSION_REVOKED' },
     });
   });
 
@@ -314,18 +215,11 @@ function attachSocketLifecycle(socket) {
       return;
     }
 
-    console.error(
-      '[Socket] Connect error:',
-      error?.message || error
-    );
-
-    // A transient network/backend restart should not permanently strand the
-    // global socket. Refresh auth before Socket.IO retries.
-    refreshSocketAuthFromStorage(socket);
+    console.error('[Socket] Connect error:', error?.message || error);
   });
 }
+
 export const initializeSocket = () => {
-  installSocketRecoveryHooks();
   const token = getStoredSocketToken();
 
   // Public pages intentionally do not open the authenticated staff socket.

@@ -369,9 +369,8 @@ function getRenewalDocumentStatusMeta(raw) {
 function StatusPill({ meta, compact = false }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full font-semibold ${
-        compact ? 'px-2.5 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'
-      }`}
+      className={`inline-flex items-center rounded-full font-semibold ${compact ? 'px-2.5 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'
+        }`}
       style={{
         color: meta.color,
         background: meta.bg,
@@ -386,9 +385,8 @@ function StatusPill({ meta, compact = false }) {
 function InfoItem({ icon: Icon, label, value, wide = false }) {
   return (
     <div
-      className={`rounded-xl border border-stone-200 bg-white px-3.5 py-3 ${
-        wide ? 'md:col-span-2' : ''
-      }`}
+      className={`rounded-xl border border-stone-200 bg-white px-3.5 py-3 ${wide ? 'md:col-span-2' : ''
+        }`}
     >
       <div className="mb-1.5 flex items-center gap-2 text-stone-400">
         {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
@@ -617,8 +615,8 @@ function ObligationHistoryPanel({ studentId }) {
         if (!response.ok) {
           throw new Error(
             payload?.error ||
-              payload?.message ||
-              'Unable to load obligation history.'
+            payload?.message ||
+            'Unable to load obligation history.'
           );
         }
 
@@ -695,8 +693,8 @@ function ObligationHistoryPanel({ studentId }) {
 
               const requiredMinutes = Number(
                 item.required_minutes ??
-                  item.requiredMinutes ??
-                  Number(item.required_hours || item.requiredHours || 0) * 60
+                item.requiredMinutes ??
+                Number(item.required_hours || item.requiredHours || 0) * 60
               );
 
               const submittedMinutes = Number(
@@ -711,23 +709,23 @@ function ObligationHistoryPanel({ studentId }) {
                 item.is_cleared === true || item.isCleared === true
                   ? 100
                   : item.validated_progress ??
-                      item.validatedProgress ??
-                      item.ro_progress ??
-                      (requiredMinutes > 0
-                        ? (validatedMinutes / requiredMinutes) * 100
-                        : 0)
+                  item.validatedProgress ??
+                  item.ro_progress ??
+                  (requiredMinutes > 0
+                    ? (validatedMinutes / requiredMinutes) * 100
+                    : 0)
               );
 
               const logs = Array.isArray(item.logs) ? item.logs : [];
               const proofCount = Number(
                 item.proof_count ??
-                  item.proofCount ??
-                  logs.reduce(
-                    (sum, log) =>
-                      sum +
-                      (Array.isArray(log.proofs) ? log.proofs.length : 0),
-                    0
-                  )
+                item.proofCount ??
+                logs.reduce(
+                  (sum, log) =>
+                    sum +
+                    (Array.isArray(log.proofs) ? log.proofs.length : 0),
+                  0
+                )
               );
 
               const cycle = [
@@ -774,7 +772,7 @@ function ObligationHistoryPanel({ studentId }) {
                         </p>
 
                         {item.is_current_period === true ||
-                        item.isCurrentPeriod === true ? (
+                          item.isCurrentPeriod === true ? (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-700">
                             Current
                           </span>
@@ -881,15 +879,15 @@ function ObligationHistoryPanel({ studentId }) {
                                     <p className="text-[10px] font-bold text-stone-600">
                                       {formatMinutes(
                                         log.validated_minutes ??
-                                          log.validatedMinutes ??
-                                          0
+                                        log.validatedMinutes ??
+                                        0
                                       )}{' '}
                                       validated
                                     </p>
                                     <p className="mt-0.5 text-[9px] text-stone-400">
                                       {logStatus}
                                       {log.auto_timed_out === true ||
-                                      log.autoTimedOut === true
+                                        log.autoTimedOut === true
                                         ? ' · Auto timed out'
                                         : ''}
                                     </p>
@@ -939,17 +937,17 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 
   const standingMeta = isAtRisk
     ? {
-        label: 'At Risk',
-        color: C.red,
-        bg: C.redSoft,
-        border: '#fecaca',
-      }
+      label: 'At Risk',
+      color: C.red,
+      bg: C.redSoft,
+      border: '#fecaca',
+    }
     : {
-        label: 'Good Standing',
-        color: C.green,
-        bg: C.greenSoft,
-        border: '#bbf7d0',
-      };
+      label: 'Good Standing',
+      color: C.green,
+      bg: C.greenSoft,
+      border: '#bbf7d0',
+    };
 
   const currentPeriod = [
     s.semester,
@@ -1186,15 +1184,6 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
             </section>
 
             <section className="min-h-0 overflow-y-auto bg-stone-50/45 p-4 sm:p-5">
-              <div className="mb-4">
-                <h4 className="text-sm font-black text-stone-800">
-                  Obligation History
-                </h4>
-                <p className="mt-0.5 text-[10px] text-stone-400">
-                  Semester-by-semester Return of Obligation records
-                </p>
-              </div>
-
               <ObligationHistoryPanel
                 studentId={s.student_id || s.scholar_id}
               />
@@ -1406,16 +1395,16 @@ export default function ScholarMonitoring() {
       if (!scholarsRes.ok) {
         throw new Error(
           scholarsPayload?.error ||
-            scholarsPayload?.message ||
-            'Failed to load scholars'
+          scholarsPayload?.message ||
+          'Failed to load scholars'
         );
       }
 
       if (!statsRes.ok) {
         throw new Error(
           statsPayload?.error ||
-            statsPayload?.message ||
-            'Failed to load scholar statistics'
+          statsPayload?.message ||
+          'Failed to load scholar statistics'
         );
       }
 
@@ -1453,8 +1442,8 @@ export default function ScholarMonitoring() {
       if (!response.ok) {
         throw new Error(
           payload?.error ||
-            payload?.message ||
-            'Failed to load renewal records'
+          payload?.message ||
+          'Failed to load renewal records'
         );
       }
 
@@ -1536,8 +1525,8 @@ export default function ScholarMonitoring() {
       if (!response.ok) {
         throw new Error(
           payload?.error ||
-            payload?.message ||
-            'Failed to fetch scholar profile'
+          payload?.message ||
+          'Failed to fetch scholar profile'
         );
       }
 
@@ -1575,8 +1564,8 @@ export default function ScholarMonitoring() {
       if (!response.ok) {
         throw new Error(
           data?.error ||
-            data?.message ||
-            'Failed to archive scholar'
+          data?.message ||
+          'Failed to archive scholar'
         );
       }
 
@@ -1591,12 +1580,11 @@ export default function ScholarMonitoring() {
 
       window.alert(
         data?.message ||
-          (data?.promotion?.promoted
-            ? `Scholar removed. ${
-                data.promotion.applicant_name ||
-                'The next waiting applicant'
-              } was promoted automatically.`
-            : 'Scholar removed and the scholarship slot was released.')
+        (data?.promotion?.promoted
+          ? `Scholar removed. ${data.promotion.applicant_name ||
+          'The next waiting applicant'
+          } was promoted automatically.`
+          : 'Scholar removed and the scholarship slot was released.')
       );
     } catch (err) {
       console.error('ARCHIVE SCHOLAR ERROR:', err);
@@ -1667,7 +1655,7 @@ export default function ScholarMonitoring() {
       const matchYear =
         academicYear === 'All Years' ||
         String(item.academic_year || item.batch_year || '') ===
-          String(academicYear);
+        String(academicYear);
 
       const matchStatus =
         status === 'All Statuses' ||
@@ -1737,12 +1725,12 @@ export default function ScholarMonitoring() {
       const matchYear =
         academicYear === 'All Years' ||
         String(item.school_year_label || '') ===
-          String(academicYear);
+        String(academicYear);
 
       const matchStatus =
         status === 'All Statuses' ||
         normalizeRenewalStatus(item.renewal_status) ===
-          normalizeRenewalStatus(status);
+        normalizeRenewalStatus(status);
 
       return (
         matchSearch &&
@@ -1822,8 +1810,8 @@ export default function ScholarMonitoring() {
     const source =
       sectionMode === 'registry'
         ? scholars.map(
-            (item) => item.academic_year || item.batch_year
-          )
+          (item) => item.academic_year || item.batch_year
+        )
         : renewals.map((item) => item.school_year_label);
 
     return [
@@ -1982,11 +1970,10 @@ export default function ScholarMonitoring() {
                 onClick={() =>
                   handleSectionModeChange('registry')
                 }
-                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
-                  sectionMode === 'registry'
+                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'registry'
                     ? 'bg-white text-stone-900 shadow-sm'
                     : 'text-stone-600'
-                }`}
+                  }`}
               >
                 Registry
               </button>
@@ -1995,11 +1982,10 @@ export default function ScholarMonitoring() {
                 onClick={() =>
                   handleSectionModeChange('renewals')
                 }
-                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
-                  sectionMode === 'renewals'
+                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'renewals'
                     ? 'bg-white text-stone-900 shadow-sm'
                     : 'text-stone-600'
-                }`}
+                  }`}
               >
                 Renewals
               </button>
@@ -2033,12 +2019,10 @@ export default function ScholarMonitoring() {
           </h2>
           <p className="mt-1 text-xs text-stone-500">
             {sectionMode === 'registry'
-              ? `Current scholarship records · ${filteredScholars.length} result${
-                  filteredScholars.length === 1 ? '' : 's'
-                }`
-              : `Canonical renewal records · ${filteredRenewals.length} result${
-                  filteredRenewals.length === 1 ? '' : 's'
-                }`}
+              ? `Current scholarship records · ${filteredScholars.length} result${filteredScholars.length === 1 ? '' : 's'
+              }`
+              : `Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'
+              }`}
           </p>
         </div>
 
@@ -2347,8 +2331,7 @@ function RenewalTable({ rows, navigate }) {
                     className="h-8 rounded-lg border-stone-200 text-xs"
                     onClick={() =>
                       navigate(
-                        `/admin/scholars/renewals/${
-                          renewal.renewal_id || renewal.id
+                        `/admin/scholars/renewals/${renewal.renewal_id || renewal.id
                         }`
                       )
                     }

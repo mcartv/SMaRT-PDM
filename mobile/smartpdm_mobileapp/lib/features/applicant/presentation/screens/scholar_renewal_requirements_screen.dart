@@ -528,7 +528,7 @@ class _ScholarRenewalRequirementsScreenState
               _InfoChip(
                 icon: Icons.school_outlined,
                 label:
-                    '${package.programName} • ${package.semesterLabel} Sem AY ${package.schoolYearLabel}',
+                    '${package.programName} • ${package.semesterLabel} AY ${package.schoolYearLabel}',
               ),
               _InfoChip(
                 icon: Icons.verified_outlined,

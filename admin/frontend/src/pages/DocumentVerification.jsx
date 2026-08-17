@@ -2023,7 +2023,7 @@ function OCRPanel({
                   <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-600">
                     {key.replaceAll('_', ' ')}
                     {reviewCandidate.field_confidence?.[key] != null
-                      ? ` Ã‚Â· ${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
+                      ? ` · ${Number(reviewCandidate.field_confidence[key]).toFixed(1)}%`
                       : ''}
                   </span>
                   {value && typeof value === 'object' ? (
@@ -2253,7 +2253,7 @@ function OCRPanel({
 
           {birthV2Review && (
             <p className="mb-2 text-xs text-stone-500">
-              Immutable machine-generated transcription Ã‚Â· unverified
+              Immutable machine-generated transcription · unverified
             </p>
           )}
 
@@ -3389,7 +3389,7 @@ export default function DocumentVerification() {
     },
     {
       key: 'manual',
-      label: 'Manual Review Ã‚Â· No OCR',
+      label: 'Manual Review · No OCR',
       documents: docs.filter((document) => IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
     },
   ], [docs]);

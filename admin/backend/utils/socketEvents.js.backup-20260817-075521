@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Socket.io Event Emitter Utility
  * Centralized realtime event names for SMaRT-PDM.
  *
@@ -142,7 +142,6 @@ const socketEvents = {
     applicationOcrQueued: (io, data) => emitEvent(io, 'application-ocr:queued', data),
     applicationOcrStatus: (io, data) => emitEvent(io, 'application-ocr:status', data),
     applicationOcrSnapshotSaved: (io, data) => emitEvent(io, 'application-ocr:snapshot-saved', data),
-    piAvailability: (io, data) => emitEvent(io, 'pi:availability', data),
 
     /** Scholars and renewals. */
     scholarCreated: (io, data) => emitEvent(io, 'scholar:created', data),

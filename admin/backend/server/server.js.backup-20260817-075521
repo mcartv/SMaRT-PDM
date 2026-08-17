@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
@@ -55,7 +55,6 @@ const internalRealtimeRoutes = require('../routes/internalRealtimeRoutes');
 
 const announcementService = require('../services/announcementService');
 const personalToolService = require('../services/personalToolService');
-const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
 const socketEvents = require('../utils/socketEvents');
 const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
@@ -399,13 +398,6 @@ const io = socketIO(server, {
 io.use(createStaffSocketAuthMiddleware());
 
 app.set('io', io);
-
-iotOcrPresenceService.setAvailabilityListener((availability) => {
-  socketEvents.piAvailability(io, {
-    ...availability,
-    source: 'iot_ocr_presence',
-  });
-});
 
 configureRealtimeBridge({
   io,

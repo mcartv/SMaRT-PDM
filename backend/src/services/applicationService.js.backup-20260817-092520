@@ -1,4 +1,4 @@
-﻿const crypto = require('crypto');
+const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
@@ -21,40 +21,6 @@ const ENDORSEMENT_SLIP_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET ||
     'documents'
 );
-const PORT5000_SIGNED_URL_CACHE_MAX_ENTRIES = Math.max(
-    100,
-    Number(process.env.STORAGE_SIGNED_URL_CACHE_MAX_ENTRIES || 2000)
-);
-const PORT5000_SIGNED_URL_CACHE_TTL_MS = Math.max(
-    60 * 1000,
-    Number(process.env.STORAGE_SIGNED_URL_CACHE_TTL_MS || 50 * 60 * 1000)
-);
-const PORT5000_SIGNED_URL_EXPIRY_SAFETY_MS = 5 * 60 * 1000;
-const PORT5000_SIGNED_URL_CACHE_DEBUG =
-    String(process.env.STORAGE_SIGNED_URL_CACHE_DEBUG || '').trim().toLowerCase() === 'true';
-
-const applicationDocumentSignedUrlCache = new Map();
-const applicationDocumentSignedUrlInFlight = new Map();
-
-function pruneApplicationDocumentSignedUrlCache(now = Date.now()) {
-    for (const [key, entry] of applicationDocumentSignedUrlCache.entries()) {
-        if (!entry || entry.expiresAt <= now) applicationDocumentSignedUrlCache.delete(key);
-    }
-
-    while (applicationDocumentSignedUrlCache.size > PORT5000_SIGNED_URL_CACHE_MAX_ENTRIES) {
-        const oldestKey = applicationDocumentSignedUrlCache.keys().next().value;
-        if (oldestKey === undefined) break;
-        applicationDocumentSignedUrlCache.delete(oldestKey);
-    }
-}
-
-function logStorageSignedUrlCache(kind, cacheKey) {
-    if (!PORT5000_SIGNED_URL_CACHE_DEBUG) return;
-    console.log(`[Storage Signed URL Cache] ${kind}`, {
-        key: cacheKey,
-        size: applicationDocumentSignedUrlCache.size,
-    });
-}
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
     'birth_certificate',
@@ -170,65 +136,23 @@ function financialSupportChoices(support = {}) {
 }
 
 async function createApplicationDocumentSignedUrl(filePath) {
-    const normalizedPath = safeText(filePath).replace(/^\/+/, '');
+    const normalizedPath = safeText(filePath);
     if (!normalizedPath) return null;
 
-    const expiresInSeconds = 60 * 60;
-    const cacheKey = `${APPLICATION_DOCUMENT_BUCKET}:${normalizedPath}`;
-    const now = Date.now();
-    const cached = applicationDocumentSignedUrlCache.get(cacheKey);
+    const { data, error } = await supabase.storage
+        .from(APPLICATION_DOCUMENT_BUCKET)
+        .createSignedUrl(normalizedPath, 60 * 60);
 
-    if (cached && cached.expiresAt > now && cached.url) {
-        applicationDocumentSignedUrlCache.delete(cacheKey);
-        applicationDocumentSignedUrlCache.set(cacheKey, cached);
-        logStorageSignedUrlCache('HIT', cacheKey);
-        return cached.url;
-    }
-
-    if (applicationDocumentSignedUrlInFlight.has(cacheKey)) {
-        logStorageSignedUrlCache('IN_FLIGHT', cacheKey);
-        return applicationDocumentSignedUrlInFlight.get(cacheKey);
-    }
-
-    const request = (async () => {
-        logStorageSignedUrlCache('MISS', cacheKey);
-
-        const { data, error } = await supabase.storage
-            .from(APPLICATION_DOCUMENT_BUCKET)
-            .createSignedUrl(normalizedPath, expiresInSeconds);
-
-        if (error) {
-            console.error('[APPLICATION DOCUMENT SIGNED URL ERROR]', {
-                bucket: APPLICATION_DOCUMENT_BUCKET,
-                path: normalizedPath,
-                message: error.message,
-            });
-            return null;
-        }
-
-        const signedUrl = safeText(data?.signedUrl) || null;
-        if (!signedUrl) return null;
-
-        const reusableMs = Math.max(
-            60 * 1000,
-            expiresInSeconds * 1000 - PORT5000_SIGNED_URL_EXPIRY_SAFETY_MS
-        );
-
-        applicationDocumentSignedUrlCache.set(cacheKey, {
-            url: signedUrl,
-            expiresAt: Date.now() + Math.min(PORT5000_SIGNED_URL_CACHE_TTL_MS, reusableMs),
+    if (error) {
+        console.error('[APPLICATION DOCUMENT SIGNED URL ERROR]', {
+            bucket: APPLICATION_DOCUMENT_BUCKET,
+            path: normalizedPath,
+            message: error.message,
         });
-
-        pruneApplicationDocumentSignedUrlCache();
-        return signedUrl;
-    })();
-
-    applicationDocumentSignedUrlInFlight.set(cacheKey, request);
-    try {
-        return await request;
-    } finally {
-        applicationDocumentSignedUrlInFlight.delete(cacheKey);
+        return null;
     }
+
+    return safeText(data?.signedUrl) || null;
 }
 
 async function attachSignedUrlsToDocuments(documents = []) {

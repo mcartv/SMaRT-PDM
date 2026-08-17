@@ -1,26 +1,5 @@
-﻿const supabase = require('../config/supabase');
+const supabase = require('../config/supabase');
 const AVATAR_BUCKET = 'avatars';
-const AVATAR_SIGNED_URL_CACHE_TTL_MS = Math.max(
-  60 * 1000,
-  Number(process.env.AVATAR_SIGNED_URL_CACHE_TTL_MS || 6 * 60 * 60 * 1000)
-);
-const AVATAR_SIGNED_URL_CACHE_MAX_ENTRIES = Math.max(
-  100,
-  Number(process.env.AVATAR_SIGNED_URL_CACHE_MAX_ENTRIES || 1000)
-);
-const avatarSignedUrlCache = new Map();
-const avatarSignedUrlInFlight = new Map();
-
-function pruneAvatarSignedUrlCache(now = Date.now()) {
-  for (const [key, entry] of avatarSignedUrlCache.entries()) {
-    if (!entry || entry.expiresAt <= now) avatarSignedUrlCache.delete(key);
-  }
-  while (avatarSignedUrlCache.size > AVATAR_SIGNED_URL_CACHE_MAX_ENTRIES) {
-    const oldestKey = avatarSignedUrlCache.keys().next().value;
-    if (oldestKey === undefined) break;
-    avatarSignedUrlCache.delete(oldestKey);
-  }
-}
 const AVATAR_BUCKET_CONFIG = {
   public: false,
   fileSizeLimit: 5 * 1024 * 1024,
@@ -84,43 +63,19 @@ async function resolveAvatarUrl(value) {
   if (!rawValue) return null;
 
   const storagePath = extractAvatarStoragePath(rawValue);
-  if (!storagePath) return rawValue;
-
-  const cacheKey = storagePath.replace(/^\/+/, '');
-  const now = Date.now();
-  const cached = avatarSignedUrlCache.get(cacheKey);
-
-  if (cached && cached.expiresAt > now && cached.url) {
-    avatarSignedUrlCache.delete(cacheKey);
-    avatarSignedUrlCache.set(cacheKey, cached);
-    return cached.url;
+  if (!storagePath) {
+    return rawValue;
   }
 
-  const existingRequest = avatarSignedUrlInFlight.get(cacheKey);
-  if (existingRequest) return existingRequest;
+  const { data, error } = await supabase.storage
+    .from('avatars')
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
 
-  const request = (async () => {
-    const { data, error } = await supabase.storage
-      .from(AVATAR_BUCKET)
-      .createSignedUrl(cacheKey, 60 * 60 * 24 * 7);
-
-    if (error) return rawValue;
-
-    const signedUrl = data?.signedUrl || rawValue;
-    avatarSignedUrlCache.set(cacheKey, {
-      url: signedUrl,
-      expiresAt: Date.now() + AVATAR_SIGNED_URL_CACHE_TTL_MS,
-    });
-    pruneAvatarSignedUrlCache();
-    return signedUrl;
-  })();
-
-  avatarSignedUrlInFlight.set(cacheKey, request);
-  try {
-    return await request;
-  } finally {
-    avatarSignedUrlInFlight.delete(cacheKey);
+  if (error) {
+    return rawValue;
   }
+
+  return data?.signedUrl || rawValue;
 }
 
 async function ensureAvatarBucketExists() {

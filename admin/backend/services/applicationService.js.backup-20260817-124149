@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
@@ -1812,23 +1812,12 @@ async function buildApplicationDetails(applicationId) {
                         document.file_path ||
                         null;
 
-                    const originalSignedUrl =
+                    const signedUrl =
                         filePath
                             ? await getSignedFileUrl(
                                 filePath
                             )
                             : null;
-
-                    const previewSignedUrl =
-                        document.preview_path
-                            ? await getSignedFileUrl(
-                                document.preview_path
-                            )
-                            : null;
-
-                    const signedUrl =
-                        previewSignedUrl ||
-                        originalSignedUrl;
 
                     return {
                         id: documentKey,
@@ -1866,18 +1855,6 @@ async function buildApplicationDetails(applicationId) {
 
                         signed_url:
                             signedUrl ||
-                            null,
-
-                        preview_path:
-                            document.preview_path ||
-                            null,
-
-                        preview_url:
-                            previewSignedUrl ||
-                            null,
-
-                        original_url:
-                            originalSignedUrl ||
                             null,
 
                         status:

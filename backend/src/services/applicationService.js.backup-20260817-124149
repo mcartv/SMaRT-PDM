@@ -2,10 +2,6 @@
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
-const {
-    createDocumentPreview,
-    removeDocumentPreview,
-} = require('./documentPreviewService');
 
 function normalizeStorageBucketName(value) {
     const normalized = String(value || '')
@@ -238,24 +234,15 @@ async function createApplicationDocumentSignedUrl(filePath) {
 async function attachSignedUrlsToDocuments(documents = []) {
     return Promise.all(
         (documents || []).map(async (document) => {
-            const originalSignedUrl = document.is_submitted === true
+            const signedUrl = document.is_submitted === true
                 ? await createApplicationDocumentSignedUrl(document.file_path)
                 : null;
 
-            const previewSignedUrl =
-                document.is_submitted === true && safeText(document.preview_path)
-                    ? await createApplicationDocumentSignedUrl(document.preview_path)
-                    : null;
-
-            const displayUrl = previewSignedUrl || originalSignedUrl;
-
             return {
                 ...document,
-                file_url: displayUrl,
-                signed_url: displayUrl,
-                view_url: displayUrl,
-                preview_url: previewSignedUrl,
-                original_url: originalSignedUrl,
+                file_url: signedUrl,
+                signed_url: signedUrl,
+                view_url: signedUrl,
             };
         })
     );
@@ -2453,7 +2440,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const { data: targetDocument, error: targetDocumentError } = await supabase
         .from('application_documents')
-        .select('document_id, application_id, document_type, file_path, preview_path')
+        .select('document_id, application_id, document_type, file_path')
         .eq('document_id', documentId)
         .maybeSingle();
 
@@ -2497,13 +2484,6 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     if (uploadError) throw uploadError;
 
-    const generatedPreview = await createDocumentPreview({
-        bucket: APPLICATION_DOCUMENT_BUCKET,
-        filePath,
-        inputBuffer: file.buffer,
-        mimeType: file.mimetype,
-    });
-
     const fileUrl = null;
 
     const { data: finalizedUpload, error: finalizeError } = await supabase.rpc(
@@ -2529,55 +2509,12 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
             console.error('FAILED UPLOAD CLEANUP ERROR:', cleanupError);
         }
 
-        if (generatedPreview?.path) {
-            await removeDocumentPreview({
-                bucket: APPLICATION_DOCUMENT_BUCKET,
-                previewPath: generatedPreview.path,
-            });
-        }
-
         throw finalizeError;
     }
 
     if (!finalizedUpload) {
         await supabase.storage.from(APPLICATION_DOCUMENT_BUCKET).remove([filePath]);
-
-        if (generatedPreview?.path) {
-            await removeDocumentPreview({
-                bucket: APPLICATION_DOCUMENT_BUCKET,
-                previewPath: generatedPreview.path,
-            });
-        }
-
         throw createHttpError(500, 'The uploaded document could not be finalized.');
-    }
-
-    if (generatedPreview?.path) {
-        const { error: previewMetadataError } = await supabase
-            .from('application_documents')
-            .update({
-                preview_path: generatedPreview.path,
-                preview_size_bytes: generatedPreview.sizeBytes,
-                preview_created_at: generatedPreview.createdAt,
-            })
-            .eq('document_id', documentId);
-
-        if (previewMetadataError) {
-            console.warn('DOCUMENT PREVIEW METADATA WARNING:', previewMetadataError);
-        }
-    } else {
-        const { error: previewMetadataClearError } = await supabase
-            .from('application_documents')
-            .update({
-                preview_path: null,
-                preview_size_bytes: null,
-                preview_created_at: null,
-            })
-            .eq('document_id', documentId);
-
-        if (previewMetadataClearError) {
-            console.warn('DOCUMENT PREVIEW METADATA CLEAR WARNING:', previewMetadataClearError);
-        }
     }
 
     if (targetDocument.file_path && targetDocument.file_path !== filePath) {
@@ -2587,13 +2524,6 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
         if (oldFileDeleteError) {
             console.warn('OLD DOCUMENT FILE CLEANUP ERROR:', oldFileDeleteError);
-        }
-
-        if (targetDocument.preview_path) {
-            await removeDocumentPreview({
-                bucket: APPLICATION_DOCUMENT_BUCKET,
-                previewPath: targetDocument.preview_path,
-            });
         }
     }
 

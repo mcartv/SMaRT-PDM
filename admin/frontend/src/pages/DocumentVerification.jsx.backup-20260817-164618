@@ -138,7 +138,7 @@ const ACTIVE_IOT_OCR_STATUSES = new Set([
   'processing',
 ]);
 
-const IOT_OCR_STATUS_POLL_INTERVAL_MS = 2000;
+const IOT_OCR_STATUS_POLL_INTERVAL_MS = 500;
 
 const IOT_OCR_STATUS_MESSAGES = {
   pending: 'Waiting for Raspberry Pi',
@@ -3493,78 +3493,14 @@ export default function DocumentVerification() {
 
     if (!pollingRef.current) {
       const pollPersistedRequest = async () => {
-        let keepPolling = true;
-
         try {
-          const response = await fetch(
-            `${API_BASE}/api/applications/${id}/documents/${activeDocId}/iot-ocr?request_id=${encodeURIComponent(requestId)}`,
-            {
-              headers: {
-                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-              },
-              cache: 'no-store',
-            }
-          );
-
-          const payload = await response.json().catch(() => ({}));
-
-          if (!response.ok) {
-            throw new Error(payload.error || 'Failed to refresh OCR request status.');
-          }
-
-          const latestRequest = payload?.data?.request || null;
-          const candidate = payload?.data?.candidate || null;
-
-          if (latestRequest?.request_id === requestId) {
-            setIotOcrResults((current) => ({
-              ...current,
-              [activeDocId]: {
-                ...(current[activeDocId] || {}),
-                iot_ocr_request: latestRequest,
-                ocr_job: latestRequest,
-              },
-            }));
-
-            const requestStatus = String(latestRequest.status || '')
-              .trim()
-              .toLowerCase();
-
-            if (candidate) {
-              setReviewCandidate(candidate);
-              setCorrectedFields(normalizeReviewFields(candidate));
-              setRawOcrSnapshot(candidate.raw_text || '');
-            }
-
-            if (
-              requestStatus === 'review_required' ||
-              requestStatus === 'completed' ||
-              requestStatus === 'cancelled' ||
-              requestStatus === 'failed' ||
-              requestStatus === 'expired'
-            ) {
-              keepPolling = false;
-              setRunningIotOcr(false);
-
-              if (activeIotRequestRef.current?.requestId === requestId) {
-                activeIotRequestRef.current = null;
-              }
-
-              await fetchApplicationDocuments({ soft: true });
-            }
-          }
-        } catch (pollError) {
-          console.error('POLL IOT OCR STATUS ERROR:', pollError);
+          await fetchApplicationDocuments({ soft: true });
         } finally {
-          if (
-            keepPolling &&
-            activeIotRequestRef.current?.requestId === requestId
-          ) {
+          if (activeIotRequestRef.current?.requestId === requestId) {
             pollingRef.current = window.setTimeout(
               pollPersistedRequest,
               IOT_OCR_STATUS_POLL_INTERVAL_MS
             );
-          } else {
-            pollingRef.current = null;
           }
         }
       };

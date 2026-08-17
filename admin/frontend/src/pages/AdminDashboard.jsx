@@ -524,16 +524,23 @@ export default function AdminDashboard() {
             <p className="mt-3 text-xs text-white/60">Updated {formatDateTime(dashboard.generatedAt)}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[520px]">
             {[
               ['Applications', summaryByKey.total_applications?.value || 0],
               ['Needs Review', summaryByKey.needs_action?.value || 0],
               ['Active Scholars', summaryByKey.active_scholars?.value || 0],
               ['Active Payouts', summaryByKey.active_payouts?.value || 0],
             ].map(([label, value]) => (
-              <div key={label} className="min-w-[118px] rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/70">{label}</p>
-                <p className="mt-1 text-2xl font-semibold">{formatNumber(value)}</p>
+              <div
+                key={label}
+                className="flex min-h-[92px] min-w-0 flex-col justify-between rounded-2xl border border-white/15 bg-white/10 px-4 py-3.5 backdrop-blur-sm"
+              >
+                <p className="min-h-[28px] text-[10px] font-medium uppercase leading-[1.4] tracking-[0.18em] text-white/70">
+                  {label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold leading-none tabular-nums">
+                  {formatNumber(value)}
+                </p>
               </div>
             ))}
           </div>

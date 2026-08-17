@@ -2981,7 +2981,6 @@ export default function DocumentVerification() {
   const [iotOcrCapabilities, setIotOcrCapabilities] = useState({});
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
-  const ocrRefreshSuppressedUntilRef = useRef(0);
 
   // Verify/Reject actions are draft review decisions until the coordinator
   // presses "Save Requirements Review". Background/realtime refreshes must not
@@ -3120,13 +3119,6 @@ export default function DocumentVerification() {
         '';
 
       if (eventApplicationId && id && eventApplicationId !== id) {
-        return;
-      }
-
-      if (
-        activeIotRequestRef.current?.requestId ||
-        Date.now() < ocrRefreshSuppressedUntilRef.current
-      ) {
         return;
       }
 
@@ -3965,7 +3957,6 @@ export default function DocumentVerification() {
               setReviewCandidate(candidate || null);
               setCorrectedFields(normalizeReviewFields(candidate));
               setRawOcrSnapshot(candidate?.raw_text || '');
-              ocrRefreshSuppressedUntilRef.current = Date.now() + 5000;
               await fetchApplicationDocuments({ soft: true });
               stopPolling();
               setRunningIotOcr(false);
@@ -3985,7 +3976,6 @@ export default function DocumentVerification() {
                 [targetDocumentId]: freshOverride,
               }));
               setRawOcrSnapshot(buildRawOcrSnapshot(freshDocument));
-              ocrRefreshSuppressedUntilRef.current = Date.now() + 5000;
               await fetchApplicationDocuments({ soft: true });
               stopPolling();
               setRunningIotOcr(false);
@@ -3993,7 +3983,6 @@ export default function DocumentVerification() {
             }
 
             if (['failed', 'cancelled', 'expired'].includes(requestStatus)) {
-              ocrRefreshSuppressedUntilRef.current = Date.now() + 5000;
               await fetchApplicationDocuments({ soft: true });
               setBlankIotOverride(
                 latestRequest,

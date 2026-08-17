@@ -1330,41 +1330,6 @@ async function getSignedFileUrl(filePath) {
     }
 }
 
-exports.fetchApplicationDocumentViewUrl = async ({ applicationId, documentKey, source = 'preview' } = {}) => {
-    if (!applicationId) throw buildHttpError(400, 'Application ID is required.');
-    const key = normalizeDocumentType(documentKey);
-    if (!key || key === 'application_form') {
-        throw buildHttpError(400, 'A stored application document is required.');
-    }
-
-    const { data: rows, error } = await supabase
-        .from('application_documents')
-        .select('document_id, application_id, document_type, file_name, file_path, preview_path, is_submitted')
-        .eq('application_id', applicationId);
-    if (error) throw buildHttpError(500, error.message);
-
-    const document = (rows || []).find((row) => getDocumentKey(row) === key);
-    if (!document || document.is_submitted !== true || !document.file_path) {
-        throw buildHttpError(404, 'Uploaded document not found.');
-    }
-
-    const wantsOriginal = String(source || '').trim().toLowerCase() === 'original';
-    const previewPath = document.preview_path || null;
-    const path = wantsOriginal ? document.file_path : (previewPath || document.file_path);
-    const selectedSource = wantsOriginal || !previewPath ? 'original' : 'preview';
-    const url = await getSignedFileUrl(path);
-    if (!url) throw buildHttpError(502, `Failed to create ${selectedSource} document URL.`);
-
-    return {
-        document_id: document.document_id,
-        document_key: key,
-        file_name: document.file_name || null,
-        source: selectedSource,
-        url,
-        fallback_available: selectedSource === 'preview' && Boolean(document.file_path),
-    };
-};
-
 async function buildApplicationDetails(applicationId) {
     const { data: applicationRecord, error: applicationError } = await supabase
         .from('applications')
@@ -1847,10 +1812,23 @@ async function buildApplicationDetails(applicationId) {
                         document.file_path ||
                         null;
 
-                    // Phase 6D: sign only when this document is actually opened.
-                    const originalSignedUrl = null;
-                    const previewSignedUrl = null;
-                    const signedUrl = null;
+                    const originalSignedUrl =
+                        filePath
+                            ? await getSignedFileUrl(
+                                filePath
+                            )
+                            : null;
+
+                    const previewSignedUrl =
+                        document.preview_path
+                            ? await getSignedFileUrl(
+                                document.preview_path
+                            )
+                            : null;
+
+                    const signedUrl =
+                        previewSignedUrl ||
+                        originalSignedUrl;
 
                     return {
                         id: documentKey,
@@ -1877,9 +1855,13 @@ async function buildApplicationDetails(applicationId) {
                             filePath,
 
                         url:
+                            signedUrl ||
+                            document.file_url ||
                             null,
 
                         file_url:
+                            signedUrl ||
+                            document.file_url ||
                             null,
 
                         signed_url:
@@ -4030,7 +4012,6 @@ module.exports = {
     fetchApplications: exports.fetchApplications,
     fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
     fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,
-    fetchApplicationDocumentViewUrl: exports.fetchApplicationDocumentViewUrl,
     runApplicationDocumentIotOcr: exports.runApplicationDocumentIotOcr,
     fetchApplicationDocumentOcrSnapshot: exports.fetchApplicationDocumentOcrSnapshot,
     saveApplicationDocumentOcrSnapshot: exports.saveApplicationDocumentOcrSnapshot,

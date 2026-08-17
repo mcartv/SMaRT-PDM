@@ -1167,75 +1167,53 @@ function DocumentPreviewPanel({ activeDoc, application }) {
   const [previewMimeType, setPreviewMimeType] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
-  const [usingOriginalFallback, setUsingOriginalFallback] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl = '';
-    const controller = new AbortController();
-
-    const getSignedUrl = async (source) => {
-      const applicationId = application?.application_id || application?.id;
-      const response = await fetch(
-        `${API_BASE}/api/applications/${applicationId}/documents/${encodeURIComponent(activeDoc.id)}/view-url?source=${source}&_=${Date.now()}`,
-        {
-          headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
-          cache: 'no-store',
-          signal: controller.signal,
-        }
-      );
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Could not prepare document preview.');
-      if (!payload?.data?.url) throw new Error('Document preview URL was not returned.');
-      return payload.data;
-    };
-
-    const getBytes = async (url) => {
-      const response = await fetch(url, {
-        method: 'GET', cache: 'force-cache', redirect: 'follow', signal: controller.signal,
-      });
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(text || `Preview failed with status ${response.status}.`);
-      }
-      return response;
-    };
 
     const loadPreview = async () => {
       setPreviewError('');
       setPreviewUrl('');
       setPreviewMimeType('');
-      setUsingOriginalFallback(false);
-      if (activeDoc?.id === 'application_form') return;
-      if (!activeDoc?.file_path && !activeDoc?.is_submitted) return;
+
+      if (!activeDoc?.url || activeDoc?.id === 'application_form') return;
 
       try {
         setPreviewLoading(true);
-        let signed = await getSignedUrl('preview');
-        let response;
-        try {
-          response = await getBytes(signed.url);
-        } catch (previewError) {
-          if (signed.source !== 'preview' || !signed.fallback_available) throw previewError;
-          signed = await getSignedUrl('original');
-          response = await getBytes(signed.url);
-          if (!cancelled) setUsingOriginalFallback(true);
+
+        const response = await fetch(activeDoc.url, {
+          method: 'GET',
+          cache: 'force-cache',
+          redirect: 'follow',
+        });
+
+        if (!response.ok) {
+          const payload = await response.text().catch(() => '');
+          throw new Error(payload || `Preview failed with status ${response.status}.`);
         }
 
         const bytes = await response.arrayBuffer();
         if (!bytes.byteLength) throw new Error('The uploaded document is empty.');
-        const mimeType = inferPreviewMimeType(activeDoc, response.headers.get('content-type') || '');
+
+        const mimeType = inferPreviewMimeType(
+          activeDoc,
+          response.headers.get('content-type') || ''
+        );
+
         if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
-          throw new Error('This file type cannot be previewed.');
+          throw new Error('This file type cannot be previewed. Re-upload it as PDF, JPG, JPEG, PNG, or WEBP.');
         }
+
         const blob = new Blob([bytes], { type: mimeType });
         objectUrl = URL.createObjectURL(blob);
+
         if (!cancelled) {
           setPreviewMimeType(mimeType);
           setPreviewUrl(objectUrl);
         }
       } catch (error) {
-        if (!cancelled && error?.name !== 'AbortError') {
+        if (!cancelled) {
           setPreviewError(error?.message || 'The document preview could not be loaded.');
         }
       } finally {
@@ -1244,12 +1222,12 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     };
 
     loadPreview();
+
     return () => {
       cancelled = true;
-      controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [activeDoc?.id, activeDoc?.file_path, activeDoc?.preview_path, activeDoc?.is_submitted, application?.application_id, application?.id]);
+  }, [activeDoc?.id, activeDoc?.url, activeDoc?.file_name, activeDoc?.file_path]);
 
   const isImage = previewMimeType.startsWith('image/');
   const isPdf = previewMimeType === 'application/pdf';
@@ -1258,30 +1236,74 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><FileText className="h-4 w-4" /></div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+            <FileText className="h-4 w-4" />
+          </div>
           <div className="min-w-0">
-            <h4 className="truncate text-base font-semibold text-stone-900">{activeDoc?.name || 'Document'}</h4>
-            <p className="truncate text-[15px] text-stone-500">{activeDoc?.id === 'application_form' ? 'Submitted application data' : activeDoc?.file_name || 'Secure preview'}</p>
+            <h4 className="truncate text-base font-semibold text-stone-900">
+              {activeDoc?.name || 'Document'}
+            </h4>
+            <p className="truncate text-[15px] text-stone-500">
+              {activeDoc?.id === 'application_form'
+                ? 'Submitted application data'
+                : activeDoc?.file_name || 'Secure preview'}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {usingOriginalFallback ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Original fallback</Badge> : null}
-          <Badge className={activeDoc?.file_path || activeDoc?.id === 'application_form' ? 'border-green-200 bg-green-50 text-green-700' : 'border-stone-200 bg-stone-100 text-stone-500'}>
-            {activeDoc?.file_path || activeDoc?.id === 'application_form' ? 'Available' : 'Missing'}
-          </Badge>
-        </div>
+
+        <Badge className={activeDoc?.url || activeDoc?.id === 'application_form'
+          ? 'border-green-200 bg-green-50 text-green-700'
+          : 'border-stone-200 bg-stone-100 text-stone-500'}>
+          {activeDoc?.url || activeDoc?.id === 'application_form' ? 'Available' : 'Missing'}
+        </Badge>
       </header>
+
       <div className="flex min-h-[560px] items-center justify-center bg-[#f8fafc] p-3 sm:p-4">
-        {activeDoc?.id === 'application_form' ? <ApplicationFormPreview application={application} />
-          : previewLoading ? <div className="flex flex-col items-center gap-3 text-stone-500"><Loader2 className="h-7 w-7 animate-spin text-blue-700" /><p className="text-[15px]">Loading secure preview</p></div>
-          : previewError ? <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center"><AlertTriangle className="mx-auto h-7 w-7 text-amber-600" /><p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p><p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p></div>
-          : previewUrl && isImage ? <div className="flex h-[560px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-3"><img src={previewUrl} alt={activeDoc?.name || 'Uploaded document'} className="max-h-full max-w-full select-none object-contain" draggable={false} onError={() => setPreviewError('The image could not be decoded.')} /></div>
-          : previewUrl && isPdf ? <iframe src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`} title={activeDoc?.name || 'PDF preview'} className="h-[560px] w-full rounded-xl border border-stone-200 bg-white" />
-          : <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center"><FileText className="mx-auto h-6 w-6 text-stone-500" /><h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4></div>}
+        {activeDoc?.id === 'application_form' ? (
+          <ApplicationFormPreview application={application} />
+        ) : previewLoading ? (
+          <div className="flex flex-col items-center gap-3 text-stone-500">
+            <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
+            <p className="text-[15px]">Loading secure preview</p>
+          </div>
+        ) : previewError ? (
+          <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <AlertTriangle className="mx-auto h-7 w-7 text-amber-600" />
+            <p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p>
+            <p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p>
+          </div>
+        ) : previewUrl && isImage ? (
+          <div className="flex h-[560px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-3">
+            <img
+              src={previewUrl}
+              alt={activeDoc?.name || 'Uploaded document'}
+              className="max-h-full max-w-full select-none object-contain"
+              draggable={false}
+              onError={() => setPreviewError('The image could not be decoded. Re-upload a valid image file.')}
+            />
+          </div>
+        ) : previewUrl && isPdf ? (
+          <iframe
+            src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+            title={activeDoc?.name || 'PDF preview'}
+            className="h-[560px] w-full rounded-xl border border-stone-200 bg-white"
+          />
+        ) : (
+          <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-stone-100 text-stone-500">
+              <FileText className="h-6 w-6" />
+            </div>
+            <h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4>
+            <p className="mt-1 text-[15px] leading-relaxed text-stone-500">
+              The applicant has not submitted this requirement yet.
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
 }
+
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
 ];

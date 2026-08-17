@@ -1,4 +1,4 @@
-﻿const applicationService = require('../services/applicationService');
+const applicationService = require('../services/applicationService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const { resolveActorUserId } = require('../utils/iotOcrIdentity');
@@ -56,23 +56,6 @@ exports.getApplicationDocuments = async (req, res) => {
         }
 
         res.status(500).json({ error: err.message });
-    }
-};
-
-exports.getApplicationDocumentViewUrl = async (req, res) => {
-    try {
-        const data = await applicationService.fetchApplicationDocumentViewUrl({
-            applicationId: req.params.id,
-            documentKey: req.params.documentKey,
-            source: req.query?.source || 'preview',
-        });
-        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-        return res.status(200).json({ data });
-    } catch (err) {
-        console.error('APPLICATION DOCUMENT VIEW URL CONTROLLER ERROR:', err.message);
-        return res.status(err.statusCode || 500).json({
-            error: err.message || 'Failed to create document view URL.',
-        });
     }
 };
 
@@ -707,7 +690,7 @@ exports.exportApplicationsExcel = async (req, res) => {
 
         worksheet.mergeCells('A1:Q1');
         worksheet.getCell('A1').value =
-            'PAMBAYANG DALUBHASAAN NG MARILAO â€” OFFICE OF STUDENT FINANCIAL ASSISTANCE';
+            'PAMBAYANG DALUBHASAAN NG MARILAO — OFFICE OF STUDENT FINANCIAL ASSISTANCE';
         worksheet.getCell('A1').font = { bold: true, size: 14 };
         worksheet.getCell('A1').alignment = {
             horizontal: 'center',

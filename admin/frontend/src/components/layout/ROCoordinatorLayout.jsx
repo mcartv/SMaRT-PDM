@@ -9,11 +9,18 @@ export default function ROCoordinatorLayout() {
       dashboardPath="/ro-coordinator/dashboard"
       profilePath="/ro-coordinator/profile"
       queuePath="/ro-coordinator/queue"
-      queueLabel="RO Management"
+      queueLabel="RO Request"
       reportsPath="/ro-coordinator/reports"
       maintenancePath="/ro-coordinator/settings"
       tokenStorageKey="roCoordinatorToken"
       profileStorageKey="roCoordinatorProfile"
+      colors={{
+        base: '#155e75',
+        text: '#ecfeff',
+        sub: '#a5f3fc',
+        active: '#0e7490',
+        mainBg: '#f3fafb',
+      }}
     />
   );
 }

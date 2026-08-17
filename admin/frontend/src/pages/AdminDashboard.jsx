@@ -515,7 +515,7 @@ export default function AdminDashboard() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
               <LayoutDashboard className="h-3.5 w-3.5" />
-              OSFA Administration
+              OSFA Administrator
             </div>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight">Administrator Dashboard</h1>
             <p className="mt-2 text-sm text-white/80">
@@ -583,23 +583,23 @@ export default function AdminDashboard() {
                 key={item.key}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className="group rounded-[20px] border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="group grid min-h-[164px] grid-rows-[36px_36px_24px_minmax(40px,auto)] rounded-[20px] border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 style={{ borderColor: C.border }}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex h-9 items-start justify-between gap-3">
                   <div
                     className="flex h-9 w-9 items-center justify-center rounded-xl"
                     style={{ background: theme.accentSoft, color: theme.base }}
                   >
                     <Icon className="h-4 w-4" />
                   </div>
-                  <ArrowRight className="h-4 w-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-stone-500" />
+                  <ArrowRight className="mt-0.5 h-4 w-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-stone-500" />
                 </div>
-                <p className="mt-4 text-2xl font-semibold tracking-tight text-stone-900">
+                <p className="self-end text-2xl font-semibold leading-none tracking-tight text-stone-900 tabular-nums">
                   {formatNumber(item.value)}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-stone-800">{item.label}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.sub}</p>
+                <p className="self-end text-sm font-semibold leading-5 text-stone-800">{item.label}</p>
+                <p className="self-start line-clamp-2 text-xs leading-5 text-stone-500">{item.sub}</p>
               </button>
             );
           })}

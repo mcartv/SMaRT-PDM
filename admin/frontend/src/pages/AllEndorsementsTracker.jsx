@@ -54,6 +54,23 @@ function formatStatus(value = '') {
   );
 }
 
+function formatWorkflowStatus(value = '', fallback = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  const labels = {
+    pending_sdo: 'Pending SDO',
+    pending_guidance: 'Pending GCO',
+    pending_pd: 'Pending PD',
+  };
+
+  if (labels[normalized]) return labels[normalized];
+
+  return String(fallback || formatStatus(value))
+    .replace(/\bSdo\b/g, 'SDO')
+    .replace(/\bGuidance\b/g, 'GCO')
+    .replace(/\bProgram Director\b/g, 'PD')
+    .replace(/\bPd\b/g, 'PD');
+}
+
 const STATUS_TONE = {
   completed: 'bg-green-50 text-green-700',
   pending_sdo: 'bg-orange-50 text-orange-700',
@@ -110,12 +127,12 @@ function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'guidanceToken') {
     return {
       eyebrow: 'Guidance Office',
-      shortLabel: 'Guidance',
+      shortLabel: 'GCO',
       stage: 'pending_guidance',
       resultKey: 'guidance',
-      processedLabel: 'Processed by Guidance',
+      processedLabel: 'Processed by GCO',
       processedDescription:
-        'Applicants already certified for Good Moral Standing and routed to the Program Director.',
+        'Applicants already certified for Good Moral Standing and routed to PD.',
     };
   }
 
@@ -240,8 +257,24 @@ export default function AllEndorsementsTracker({
 
   const statuses = useMemo(() => {
     const source = [...sourceRows, ...officeProcessedRows];
-    return ['all', ...new Set(source.map((row) => row.overall_status).filter(Boolean))];
-  }, [officeProcessedRows, sourceRows]);
+    const observed = source.map((row) => row.overall_status).filter(Boolean);
+
+    if (tokenStorageKey === 'sdoToken') {
+      return [
+        'all',
+        ...new Set([
+          'pending_sdo',
+          'pending_guidance',
+          'pending_pd',
+          'completed',
+          'disqualified_major',
+          ...observed,
+        ]),
+      ];
+    }
+
+    return ['all', ...new Set(observed)];
+  }, [officeProcessedRows, sourceRows, tokenStorageKey]);
 
   const filterRows = useCallback(
     (list) => {
@@ -292,7 +325,7 @@ export default function AllEndorsementsTracker({
     ? [
         { value: 'active', label: 'In Progress', count: summary.active },
         { value: 'sdo', label: 'SDO Review', count: summary.sdo },
-        { value: 'guidance', label: 'Guidance Review', count: summary.guidance },
+        { value: 'guidance', label: 'GCO Review', count: summary.guidance },
         { value: 'pd', label: 'PD Review', count: summary.pd },
         { value: 'completed', label: 'Completed', count: summary.completed },
         { value: 'stopped', label: 'Stopped', count: summary.stopped },
@@ -346,7 +379,7 @@ export default function AllEndorsementsTracker({
       tone: 'bg-orange-50 text-orange-700 border-orange-100',
     },
     {
-      label: 'Guidance',
+      label: 'GCO',
       value: summary.guidance,
       tone: 'bg-sky-50 text-sky-700 border-sky-100',
     },
@@ -436,7 +469,7 @@ export default function AllEndorsementsTracker({
                 <SelectContent>
                   {statuses.map((status) => (
                     <SelectItem key={status} value={status}>
-                      {status === 'all' ? 'All Statuses' : formatStatus(status)}
+                      {status === 'all' ? 'All Statuses' : formatWorkflowStatus(status)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -522,7 +555,7 @@ export default function AllEndorsementsTracker({
                 <SelectContent>
                   {statuses.map((status) => (
                     <SelectItem key={status} value={status}>
-                      {status === 'all' ? 'All Statuses' : formatStatus(status)}
+                      {status === 'all' ? 'All Statuses' : formatWorkflowStatus(status)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -573,16 +606,16 @@ export default function AllEndorsementsTracker({
                               STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
                             }
                           >
-                            {row.overall_status_label || formatStatus(row.overall_status)}
+                            {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
                           </Badge>
 
-                          {(row.current_stage_label || formatStatus(row.current_stage)) !==
-                          (row.overall_status_label || formatStatus(row.overall_status)) ? (
+                          {formatWorkflowStatus(row.current_stage, row.current_stage_label) !==
+                          formatWorkflowStatus(row.overall_status, row.overall_status_label) ? (
                             <Badge
                               variant="outline"
                               className="border-stone-200 bg-white text-stone-600"
                             >
-                              {row.current_stage_label || formatStatus(row.current_stage)}
+                              {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
                             </Badge>
                           ) : null}
 
@@ -651,7 +684,7 @@ export default function AllEndorsementsTracker({
                               STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
                             }
                           >
-                            {row.overall_status_label || formatStatus(row.overall_status)}
+                            {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
                           </Badge>
                         </div>
 
@@ -660,7 +693,7 @@ export default function AllEndorsementsTracker({
                         </p>
 
                         <p className="text-xs text-stone-500">
-                          Current stage: {row.current_stage_label || formatStatus(row.current_stage)}
+                          Current stage: {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
                         </p>
                       </div>
 

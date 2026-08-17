@@ -2054,22 +2054,6 @@ export default function ROAdmin() {
               Refresh
             </Button>
 
-            {selectedIds.length > 0 &&
-            !['cleared', 'requests'].includes(topTab) ? (
-              <Button
-                onClick={() => {
-                  setBatchError('');
-                  setBatchModalOpen(true);
-                }}
-                size="sm"
-                disabled={activeRequiredHours <= 0}
-                className="h-11 rounded-2xl border-none px-4 text-white"
-                style={{ background: C.brownMid }}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Batch Assign ({selectedIds.length})
-              </Button>
-            ) : null}
           </div>
         </div>
       </section>
@@ -2097,18 +2081,48 @@ export default function ROAdmin() {
         className="overflow-hidden rounded-2xl border bg-white"
         style={{ borderColor: C.line }}
       >
-        <div className="border-b border-stone-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-stone-900">
-            {topTab === 'assigned'
-              ? 'Assigned RO Scholars'
-              : topTab === 'unassigned'
-                ? 'Unassigned RO Scholars'
-                : 'Cleared RO Scholars'}
-          </h2>
+        <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-900">
+              {topTab === 'assigned'
+                ? 'Assigned RO Scholars'
+                : topTab === 'unassigned'
+                  ? 'Unassigned RO Scholars'
+                  : 'Cleared RO Scholars'}
+            </h2>
 
-          <p className="mt-1 text-xs text-stone-400">
-            {displayedScholars.length} result{displayedScholars.length !== 1 ? 's' : ''}
-          </p>
+            <p className="mt-1 text-xs text-stone-400">
+              {displayedScholars.length} result{displayedScholars.length !== 1 ? 's' : ''}
+              {selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ''}
+            </p>
+          </div>
+
+          {selectedIds.length > 0 && !['cleared', 'requests'].includes(topTab) ? (
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds([])}
+                className="h-9 rounded-lg px-3 text-xs text-stone-600"
+              >
+                Clear Selection
+              </Button>
+              <Button
+                onClick={() => {
+                  setBatchError('');
+                  setBatchModalOpen(true);
+                }}
+                size="sm"
+                disabled={activeRequiredHours <= 0}
+                className="h-9 rounded-lg border-none px-4 text-xs font-semibold text-white"
+                style={{ background: C.brownMid }}
+              >
+                <Send className="mr-2 h-3.5 w-3.5" />
+                Batch Assign ({selectedIds.length})
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <CardContent className="p-4">

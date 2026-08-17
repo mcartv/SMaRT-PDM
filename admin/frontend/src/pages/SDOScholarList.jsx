@@ -196,15 +196,6 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                     <span className="font-medium text-stone-800">{scholar.course_code || scholar.course_name || 'N/A'}</span>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Current GWA</span>
-                    <span
-                      className="font-semibold"
-                      style={{ color: Number(scholar.gwa) >= 2.0 ? C.red : C.green }}
-                    >
-                      {Number.isFinite(Number(scholar.gwa)) ? Number(scholar.gwa).toFixed(2) : '—'}
-                    </span>
-                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -72,13 +72,13 @@ const C = {
 const PAGE_SIZE = 10;
 
 const REMOVAL_REASONS = [
-  'Failed GWA requirement',
-  'SDU / disciplinary case',
-  'Failed RO compliance',
-  'Voluntary withdrawal',
-  'Transferred out',
+  'Failed GWA Requirement',
+  'SDO/Disciplinary Case',
+  'Failed RO Compliance',
+  'Voluntary Withdrawal',
+  'Transferred Out',
   'Graduated',
-  'Duplicate / invalid record',
+  'Duplicate / Invalid Record',
   'Other',
 ];
 
@@ -1259,7 +1259,7 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-semibold text-amber-800">
-              Scholarship slot will be released
+              Scholarship Slot Will Be Released
             </p>
             <p className="mt-1 text-xs leading-relaxed text-amber-700">
               Removing, graduating, or withdrawing this scholar releases one

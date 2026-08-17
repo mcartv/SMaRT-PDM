@@ -421,6 +421,11 @@ function validateCreateForm(form, roAreas = []) {
         return 'Enter a valid email address.';
     }
 
+    const phoneNumber = String(form.phone_number || '').trim();
+    if (phoneNumber && !/^09\d{9}$/.test(phoneNumber)) {
+        return 'Contact number must be 11 digits and start with 09.';
+    }
+
     if (!form.role) {
         return 'Select an account role.';
     }
@@ -583,17 +588,38 @@ function AccountCreateModal({
                         </div>
                     </div>
 
-                    <div>
-                        <FieldLabel>Email Address</FieldLabel>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                            <Input
-                                type="email"
-                                value={form.email}
-                                onChange={(event) => setField('email', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                disabled={saving}
-                            />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel>Email Address</FieldLabel>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="email"
+                                    value={form.email}
+                                    onChange={(event) => setField('email', event.target.value)}
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <FieldLabel>Mobile / Contact Number</FieldLabel>
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={11}
+                                    value={form.phone_number}
+                                    onChange={(event) =>
+                                        setField('phone_number', event.target.value.replace(/\D/g, '').slice(0, 11))
+                                    }
+                                    placeholder="09XXXXXXXXX"
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -654,10 +680,6 @@ function AccountCreateModal({
                             />
                         </div>
                     </div>
-
-                    <p className="text-[11px] leading-5 text-stone-500">
-                        Phone number and profile presentation can be completed by the account owner after sign-in.
-                    </p>
 
                     {error ? (
                         <p className="flex items-start gap-1.5 text-xs font-medium text-red-600">

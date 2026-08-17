@@ -3165,40 +3165,20 @@ export default function DocumentVerification() {
     'application-ocr:status',
     (data = {}) => {
       if (String(data.application_id || '') !== String(id || '')) return;
-
       const documentId = data.document_key;
       if (!documentId || !data.request_id) return;
-
-      // OCR status events can arrive several times per second while the Pi moves
-      // through pending/claimed/previewing/focusing/capturing/processing.
-      // Keep these updates local. Re-fetching the entire application bundle here
-      // caused the PostgREST storm seen in Supabase logs.
       setIotOcrResults((current) => {
         const existing = current[documentId] || {};
         const existingRequest = existing.iot_ocr_request || existing.ocr_job || {};
-
-        if (
-          existingRequest.request_id &&
-          existingRequest.request_id !== data.request_id
-        ) {
+        if (existingRequest.request_id && existingRequest.request_id !== data.request_id) {
           const activeRequestId = activeIotRequestRef.current?.requestId;
-          const existingTime = new Date(
-            existingRequest.updated_at || existingRequest.created_at || 0
-          ).getTime();
-          const incomingTime = new Date(
-            data.updated_at || data.emitted_at || 0
-          ).getTime();
-
-          if (
-            activeRequestId !== data.request_id &&
-            incomingTime <= existingTime
-          ) {
+          const existingTime = new Date(existingRequest.updated_at || existingRequest.created_at || 0).getTime();
+          const incomingTime = new Date(data.updated_at || data.emitted_at || 0).getTime();
+          if (activeRequestId !== data.request_id && incomingTime <= existingTime) {
             return current;
           }
         }
-
         const request = { ...existingRequest, ...data };
-
         return {
           ...current,
           [documentId]: {
@@ -3208,13 +3188,9 @@ export default function DocumentVerification() {
           },
         };
       });
-
-      // No fetchApplicationDocuments() here.
-      // - active OCR state is already carried by the socket payload above
-      // - the small /iot-ocr and /ocr-snapshot fallbacks hydrate candidate data
-      // - snapshot-saved / terminal paths perform the one allowed full refresh
+      fetchApplicationDocuments({ soft: true });
     },
-    [id]
+    [id, fetchApplicationDocuments]
   );
 
   useSocketEvent(

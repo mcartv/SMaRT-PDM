@@ -5,7 +5,7 @@ export default function GuidanceLogin() {
     <DepartmentPortalLogin
       portalKey="guidance"
       portalLabel="Guidance"
-      officeName="Guidance Office"
+      officeName="Guidance and Counselling Office"
       authPath="/api/auth/guidance/login"
       tokenStorageKey="guidanceToken"
       profileStorageKey="guidanceProfile"

@@ -631,6 +631,7 @@ function buildActionSummary({
     returnOfObligations,
     roTimeLogs,
     payoutEntries,
+    profilePhotoReviews,
 }) {
     const activeApplications = applications.filter(
         (row) => !isRecordArchived(row)
@@ -705,6 +706,11 @@ function buildActionSummary({
         return status === 'pending' || status === 'on hold';
     });
 
+    const profilePhotosPending = countBy(
+        profilePhotoReviews,
+        (row) => normalizeLower(row?.status) === 'pending'
+    );
+
     return [
         {
             key: 'requirements_review',
@@ -742,6 +748,13 @@ function buildActionSummary({
             path: '/admin/payout',
         },
         {
+            key: 'profile_photo_review',
+            label: 'Profile Photo Review',
+            value: profilePhotosPending,
+            sub: 'Submitted profile photos still waiting for administrator review',
+            path: '/admin/profile-photos',
+        },
+        {
             key: 'waiting_list',
             label: 'Waiting List',
             value: waitingList,
@@ -764,6 +777,7 @@ exports.getAdminDashboard = async () => {
         renewals,
         returnOfObligations,
         roTimeLogs,
+        profilePhotoReviews,
     ] = await Promise.all([
         fetchRows(
             'applications',
@@ -848,6 +862,10 @@ exports.getAdminDashboard = async () => {
             'ro_time_logs',
             'log_id, ro_id, validation_status, requires_admin_attention'
         ),
+        fetchRows(
+            'profile_photo_reviews',
+            'review_id, status, submitted_at'
+        ),
     ]);
 
     const activeApplications = applications.filter(
@@ -873,6 +891,7 @@ exports.getAdminDashboard = async () => {
             returnOfObligations,
             roTimeLogs,
             payoutEntries,
+            profilePhotoReviews,
         }),
 
         applicationPipeline: buildApplicationPipeline(

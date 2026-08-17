@@ -207,6 +207,17 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                         margin: const EdgeInsets.only(bottom: 12),
                         child: InkWell(
                           onTap: () {
+                            // A view means the authenticated user actually opened
+                            // the announcement detail. The backend de-duplicates
+                            // repeat opens by announcement + user.
+                            _announcementService
+                                .markViewed(announcement.announcementId)
+                                .catchError((error) {
+                                  debugPrint(
+                                    'ANNOUNCEMENT VIEW TRACKING ERROR: $error',
+                                  );
+                                });
+
                             showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,

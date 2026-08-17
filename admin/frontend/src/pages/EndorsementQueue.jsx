@@ -23,6 +23,7 @@ import {
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -201,31 +202,6 @@ function ProfileAvatar({ row, size = 'md', onPreview }) {
     </button>
   );
 }
-
-function ProfilePreview({ preview, onClose }) {
-  return (
-    <Dialog open={Boolean(preview?.url)} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-lg overflow-hidden rounded-2xl p-0">
-        <DialogHeader className="border-b border-stone-200 px-5 py-4">
-          <DialogTitle>{preview?.name || 'Student'} profile photo</DialogTitle>
-          <DialogDescription className="sr-only">
-            Enlarged preview of the student profile photo.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex min-h-72 items-center justify-center bg-stone-950 p-4">
-          {preview?.url ? (
-            <img
-              src={preview.url}
-              alt={`${preview.name || 'Student'} profile preview`}
-              className="max-h-[70vh] max-w-full rounded-xl object-contain"
-            />
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 
 const clampPreviewZoom = (value) => Math.min(4, Math.max(0.5, value));
 
@@ -801,7 +777,14 @@ export default function EndorsementQueue({
 
   return (
     <div className="space-y-5 py-2">
-      <ProfilePreview preview={profilePreview} onClose={() => setProfilePreview(null)} />
+      <ProfilePhotoPreviewDialog
+        open={Boolean(profilePreview?.url)}
+        onOpenChange={(open) => {
+          if (!open) setProfilePreview(null);
+        }}
+        src={profilePreview?.url || ''}
+        name={profilePreview?.name || 'Student'}
+      />
       <GradeReportPreview preview={gradePreview} onClose={() => setGradePreview(null)} />
 
       <AlertDialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open && !savingSlipId) setConfirmAction(null); }}>

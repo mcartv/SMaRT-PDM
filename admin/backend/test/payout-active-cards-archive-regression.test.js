@@ -22,8 +22,8 @@ const service = fs.readFileSync(
 
 test('active payout batches are rendered as responsive cards with required summary fields', () => {
   assert.match(page, /Active Payout Batches/);
-  assert.match(page, /md:grid-cols-2/);
-  assert.match(page, /2xl:grid-cols-3/);
+  assert.match(page, /xl:grid-cols-2/);
+  assert.doesNotMatch(page, /2xl:grid-cols-3/);
   assert.match(page, /program_name/);
   assert.match(page, /benefactor_name/);
   assert.match(page, /academic_year/);
@@ -31,9 +31,11 @@ test('active payout batches are rendered as responsive cards with required summa
   assert.match(page, /Payout Date/);
   assert.match(page, /Scholars/);
   assert.match(page, /Amount \/ Scholar/);
-  assert.match(page, /Payout Amount Summary/);
+  assert.match(page, /Batch Total/);
   assert.match(page, /getBatchDisplayStatus/);
   assert.match(page, /Open Batch/);
+  assert.match(page, /borderLeft: '4px solid var\(--portal-base\)'/);
+  assert.match(page, /brownMid: 'var\(--portal-base\)'/);
   assert.match(page, /No active payout batches/);
 });
 

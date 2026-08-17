@@ -14,7 +14,7 @@ export default function GuidanceProfile() {
       maintenancePath="/guidance/settings"
       portalName="Guidance"
       positionFallback="Guidance Counselor"
-      departmentFallback="Guidance Office"
+      departmentFallback="Guidance and Counselling Office"
       roleFallback="Guidance Officer"
       avatarTone={theme.base}
       accountConfig={guidanceMaintenanceConfig}

@@ -20,7 +20,7 @@ import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 
 const C = {
-    brownMid: '#7c4a2e',
+    brownMid: 'var(--portal-base)',
     green: '#16a34a',
     greenSoft: '#F0FDF4',
     red: '#dc2626',
@@ -631,7 +631,7 @@ export default function ROSettingsPanel() {
                                 type="button"
                                 onClick={() => setPageTab('current')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
-                                        ? 'bg-[#7c4a2e] text-white'
+                                        ? 'bg-[var(--portal-base)] text-white'
                                         : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                     }`}
                             >
@@ -642,7 +642,7 @@ export default function ROSettingsPanel() {
                                 type="button"
                                 onClick={() => setPageTab('inactive')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'inactive'
-                                        ? 'bg-[#7c4a2e] text-white'
+                                        ? 'bg-[var(--portal-base)] text-white'
                                         : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                     }`}
                             >

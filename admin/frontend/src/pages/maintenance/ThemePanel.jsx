@@ -69,7 +69,7 @@ function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
         </div>
 
         <div className="rounded-2xl border border-stone-200/80 bg-white/80 p-3">
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
             <BarChart3 className="h-3.5 w-3.5" />
             Sample Chart Palette
           </div>
@@ -158,7 +158,7 @@ function CompactPortalDisplayCard({ portalKey, presetKey }) {
     <div className="rounded-2xl border border-stone-200 bg-white p-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
             {PORTAL_LABELS[portalKey]}
           </p>
           <p className="mt-1 text-sm font-semibold text-stone-900">{theme.label}</p>

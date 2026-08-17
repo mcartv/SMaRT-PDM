@@ -27,7 +27,10 @@ test('Birth review defaults to V2 and supports private image-assisted review', (
     assert.match(source, /Raw Tesseract OCR Snapshot/);
     assert.match(source, /Immutable machine-generated transcription · unverified/);
     assert.match(source, /birth_v2_full_page_gemini_recovery/);
-    assert.match(source, /recovered from the full-page Gemini reading/);
+    assert.doesNotMatch(source, /Exact-cell extraction was incomplete/);
+    assert.doesNotMatch(source, /OCR review notices/);
+    assert.doesNotMatch(source, /Name fields were recovered from the full-page Gemini reading and require administrator review/);
+    assert.doesNotMatch(source, /Exact-cell Birth extraction was unavailable/);
 });
 
 test('Birth review keeps Child locked and exposes reject and rescan actions', () => {

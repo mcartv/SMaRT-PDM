@@ -21,7 +21,7 @@ import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 
 const C = {
-    brown: '#7c4a2e',
+    brown: 'var(--portal-base)',
 };
 
 function authHeaders() {
@@ -296,7 +296,7 @@ function AcademicYearModal({
                                         e.target.checked,
                                 }))
                             }
-                            className="mt-1 h-4 w-4 accent-[#7c4a2e]"
+                            className="mt-1 h-4 w-4 accent-[var(--portal-base)]"
                             disabled={saving}
                         />
                         <div>

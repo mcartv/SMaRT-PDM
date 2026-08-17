@@ -18,10 +18,10 @@ const schedulerSource = fs.readFileSync(
   'utf8'
 );
 
-test('schedule input uses datetime-local and a current-time minimum', () => {
-  assert.match(frontendSource, /type=["']datetime-local["']/);
-  assert.match(frontendSource, /min=\{minScheduleDateTime\}/);
+test('schedule controls enforce the current-time minimum with the custom local date/time picker', () => {
   assert.match(frontendSource, /minScheduleDateTime/);
+  assert.match(frontendSource, /getLocalScheduleParts\(minScheduleDateTime\)/);
+  assert.match(frontendSource, /earliest schedule is the next minute/i);
 });
 
 test('frontend converts local datetime input into an absolute ISO timestamp', () => {

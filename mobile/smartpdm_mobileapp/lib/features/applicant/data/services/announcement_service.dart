@@ -52,6 +52,13 @@ class AnnouncementService {
 
   final ApiClient _apiClient;
 
+  Future<void> markViewed(String announcementId) async {
+    final id = announcementId.trim();
+    if (id.isEmpty) return;
+
+    await _apiClient.postJson('/api/announcements/$id/view', body: const {});
+  }
+
   Future<List<MobileAnnouncement>> fetchAnnouncements() async {
     final response = await _apiClient.getObject('/api/announcements');
     final items = response['items'] as List<dynamic>? ?? const [];

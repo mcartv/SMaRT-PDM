@@ -13,7 +13,7 @@ import {
 function ColorInput({ label, value, onChange }) {
   return (
     <label className="rounded-2xl border border-stone-200 bg-white p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">{label}</p>
       <div className="mt-3 flex items-center gap-3">
         <input
           type="color"
@@ -40,7 +40,7 @@ function LandingThemePreview({ theme }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
               Landing Preview
             </p>
             <p className="mt-1 text-lg font-semibold">Scholarship platform entry page</p>

@@ -19,7 +19,8 @@ import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
-import { broadcastPortalSessionCleared, clearPortalSession } from '../../utils/authStorage';
+import { clearPortalSession } from '../../utils/authStorage';
+import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -58,7 +59,7 @@ function getHeaderGreeting(profile) {
     profile?.first_name || profile?.name || profile?.full_name || ''
   ).trim().split(/\s+/)[0];
 
-  return `${greeting}, ${firstName || 'there'}`;
+  return `${greeting}, ${firstName || 'there'} 👋`;
 }
 
 export default function DepartmentPortalLayout({
@@ -69,19 +70,18 @@ export default function DepartmentPortalLayout({
   profilePath = '',
   tokenStorageKey,
   profileStorageKey,
+  colors,
   queuePath = '',
   queueLabel = 'For Endorsement',
   trackerPath = '',
   reportsPath = '',
   maintenancePath = '',
   roQueuePath = '',
-  roQueueLabel = 'RO Requests',
-  extraNavItems = [],
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
-  const { theme } = usePortalTheme(portalKey);
+  const { theme } = usePortalTheme(portalKey, colors);
   const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
 
   const [collapsed, setCollapsed] = useState(false);
@@ -89,6 +89,7 @@ export default function DepartmentPortalLayout({
   const [profile, setProfile] = useState(() => readStoredProfile(profileStorageKey));
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const {
     notifications,
     newNotifications,
@@ -215,9 +216,9 @@ export default function DepartmentPortalLayout({
   );
 
   const handleLogout = () => {
-    broadcastPortalSessionCleared(portalKey);
-    clearPortalSession(portalKey);
-    navigate(loginPath, { replace: true });
+    sessionStorage.removeItem(tokenStorageKey);
+    sessionStorage.removeItem(profileStorageKey);
+    navigate(loginPath);
   };
 
   const handleNavRefresh = (event, path) => {
@@ -234,13 +235,10 @@ export default function DepartmentPortalLayout({
   };
 
   const profileImage = resolveProfileImage(profile);
-  const profileFullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
-  const displayName = profile?.name || profile?.full_name || profileFullName || officeName;
+  const displayName = profile?.name || officeName;
   const displayPosition = profile?.position || officeName;
   const portalDisplayName = portalKey === 'pd'
     ? 'PD'
-    : portalKey === 'sdo'
-      ? 'SDO'
     : portalKey
       .split('_')
       .map((part) => part.toLowerCase() === 'ro'
@@ -252,9 +250,8 @@ export default function DepartmentPortalLayout({
     ...(queuePath ? [{ path: queuePath, label: queueLabel, icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
-    ...extraNavItems,
     ...(roQueuePath && hasRoCoordinatorAccess
-      ? [{ path: roQueuePath, label: roQueueLabel, icon: ClipboardCheck }]
+      ? [{ path: roQueuePath, label: 'RO Requests', icon: ClipboardCheck }]
       : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Settings', icon: Settings }] : []),
   ];
@@ -358,20 +355,9 @@ export default function DepartmentPortalLayout({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
-            <h1 className="text-base font-semibold leading-tight text-stone-800 md:text-lg">
+            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
               {getHeaderGreeting(profile)}
             </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="truncate text-[11px] text-stone-500">
-                Welcome to SMaRT-PDM.
-              </p>
-              <span
-                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
-                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
-              >
-                {theme.label}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -391,7 +377,7 @@ export default function DepartmentPortalLayout({
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
                   <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -401,11 +387,11 @@ export default function DepartmentPortalLayout({
                         >
                           <Bell className="h-4 w-4" />
                         </div>
-                        <p className="text-sm font-semibold text-stone-900">Notifications</p>
+                        <p className="text-base font-semibold text-stone-900">Notifications</p>
                       </div>
                       {unreadCount > 0 ? (
                         <span
-                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
                           style={{ background: theme.accentSoft, color: theme.base }}
                         >
                           {unreadCount} New
@@ -418,7 +404,7 @@ export default function DepartmentPortalLayout({
                       <>
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: theme.accentSoft }}>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
                               New
                             </p>
                           </div>
@@ -435,7 +421,7 @@ export default function DepartmentPortalLayout({
                             style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-900">
+                              <p className="text-sm font-semibold leading-5 text-stone-900">
                                 {item.title || 'Notification'}
                               </p>
                               <span
@@ -445,17 +431,17 @@ export default function DepartmentPortalLayout({
                                 New
                               </span>
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-600">
+                            <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-stone-600">
                               {item.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-xs font-medium text-stone-400">
                               {formatNotificationTime(item.created_at)}
                             </p>
                           </button>
                         ))}
                         {earlierNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
                               Earlier
                             </p>
                           </div>
@@ -474,21 +460,21 @@ export default function DepartmentPortalLayout({
                               : undefined}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-800">
+                              <p className="text-sm font-medium leading-5 text-stone-800">
                                 {item.title || 'Notification'}
                               </p>
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
+                            <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-stone-600">
                               {item.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-xs font-medium text-stone-400">
                               {formatNotificationTime(item.created_at)}
                             </p>
                           </button>
                         ))}
                       </>
                     ) : (
-                      <div className="p-8 text-center text-xs text-stone-400">
+                      <div className="p-8 text-center text-sm text-stone-400">
                         {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
                       </div>
                     )}
@@ -499,7 +485,7 @@ export default function DepartmentPortalLayout({
                         type="button"
                         onClick={markAllAsRead}
                         disabled={markingAll || unreadCount === 0}
-                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
                       </button>
@@ -518,16 +504,30 @@ export default function DepartmentPortalLayout({
 
             <button
               type="button"
-              onClick={() => navigate(profilePath || dashboardPath)}
+              onClick={(event) => {
+                if (profileImage && event.target.closest('[data-profile-preview-target="true"]')) {
+                  setProfilePhotoPreviewOpen(true);
+                  return;
+                }
+                navigate(profilePath || dashboardPath);
+              }}
               className="group flex cursor-pointer items-center gap-2.5 rounded-full border border-stone-200 bg-white py-1.5 pl-1.5 pr-2 shadow-sm transition hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)]"
               title="Open Profile"
             >
               {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={displayName}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
-                />
+                <span
+                  data-profile-preview-target="true"
+                  className="relative shrink-0 rounded-full outline-none ring-offset-2 transition hover:ring-2 hover:ring-[var(--portal-border)]"
+                  title="Preview profile photo"
+                  aria-label={`Preview ${displayName} profile photo`}
+                >
+                  <img
+                    data-profile-preview-target="true"
+                    src={profileImage}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
+                  />
+                </span>
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
@@ -554,6 +554,13 @@ export default function DepartmentPortalLayout({
       </div>
 
       <AdminMessages tokenStorageKey={tokenStorageKey} portalKey={portalKey} />
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={profileImage}
+        name={`${displayName} profile photo`}
+      />
     </div>
   );
 }

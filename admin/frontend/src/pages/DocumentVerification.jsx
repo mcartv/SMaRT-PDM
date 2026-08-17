@@ -1846,12 +1846,6 @@ function OCRPanel({
               </div>
             )}
 
-            {birthFullPageRecovery && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
-                Exact-cell extraction was incomplete. These provisional names were recovered from the full-page Gemini reading and require administrator verification.
-              </div>
-            )}
-
             <div className={birthShowReviewImage && !birthDiagnosticOnly
               ? 'grid items-start gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]'
               : 'space-y-4'}>
@@ -1929,17 +1923,6 @@ function OCRPanel({
             ))}
             </div>
             </div>
-
-            {(reviewCandidate.validation_issues || []).length > 0 && (
-              <div className="clear-both rounded-lg border border-amber-200 bg-white p-3 text-sm text-amber-900">
-                <p className="mb-1 font-semibold">OCR review notices</p>
-                {(reviewCandidate.validation_issues || []).map((issue, index) => (
-                  <p key={`${issue.code || 'birth-issue'}-${issue.field || 'document'}-${index}`}>
-                    {issue.message || issue.code}
-                  </p>
-                ))}
-              </div>
-            )}
 
             {(!birthReviewClosed || birthCanRequestRescan) && (
               <div className="clear-both space-y-3">

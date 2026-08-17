@@ -37,7 +37,7 @@ import {
 import { buildApiUrl } from '@/api';
 
 const C = {
-    brownMid: '#7c4a2e',
+    brownMid: 'var(--portal-base)',
     green: '#16a34a',
     greenSoft: '#F0FDF4',
     amber: '#d97706',

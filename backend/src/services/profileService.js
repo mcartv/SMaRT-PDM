@@ -5,6 +5,7 @@ const {
   ensureAvatarBucketExists,
   resolveAvatarUrl,
 } = require('./avatarService');
+const { validateProfilePhoto } = require('../utils/profilePhotoValidation');
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -466,6 +467,8 @@ async function uploadAvatar(userId, file) {
   if (!file) {
     throw createHttpError(400, 'An avatar image is required.');
   }
+
+  validateProfilePhoto(file);
 
   const { data: student, error: studentError } = await supabase
     .from('students')

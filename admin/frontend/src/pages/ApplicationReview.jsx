@@ -40,7 +40,7 @@ import {
 import { buildApiUrl } from '@/api';
 
 const C = {
-  brownMid: '#7c4a2e',
+  brownMid: 'var(--portal-base)',
   green: '#16a34a',
   greenSoft: '#F0FDF4',
   blueMid: '#2563EB',
@@ -321,7 +321,7 @@ function isApplicantAtRisk(app) {
 function StatusPill({ meta }) {
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap"
       style={{ background: meta.bg, color: meta.color }}
     >
       {meta.label}
@@ -432,7 +432,7 @@ function Toolbar({
           />
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
               type="button"
@@ -480,7 +480,7 @@ function Toolbar({
                 variant="outline"
                 size="sm"
                 onClick={openModal}
-                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
               >
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
                 Filters
@@ -595,7 +595,7 @@ function Toolbar({
             variant="outline"
             size="sm"
             onClick={onRefresh}
-            className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+            className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
           >
             {refreshing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -687,7 +687,7 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                    className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                     style={{ background: C.brownMid }}
                     onClick={() =>
                       navigate(`/admin/openings/${opening.opening_id}/applications`)
@@ -840,7 +840,7 @@ function ReadinessOpeningCards({
               <section>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-stone-900">Ready for Activation</h3>
+                    <h3 className="text-sm font-semibold leading-5 text-stone-900">Ready for Activation</h3>
                     <p className="mt-0.5 text-sm text-stone-500">
                       FCFS applicants currently holding a scholarship slot.
                     </p>
@@ -969,8 +969,8 @@ function RegistryTable({
       style={{ borderColor: C.line }}
     >
       <div className="border-b border-stone-100 px-5 py-4">
-        <h2 className="text-sm font-semibold text-stone-800">{title}</h2>
-        <p className="mt-1 text-xs text-stone-500">{subtitle}</p>
+        <h2 className="text-base font-semibold text-stone-900">{title}</h2>
+        <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
       </div>
 
       <CardContent className="p-4">
@@ -980,25 +980,24 @@ function RegistryTable({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-left">
+            <table className="min-w-[1210px] w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50/70">
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Applicant</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">PDM ID</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Scholarship</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Opening</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Submitted</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Requirements</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Endorsement</th>
+                  <th className="min-w-[250px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Applicant</th>
+                  <th className="min-w-[165px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship</th>
+                  <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Opening</th>
+                  <th className="min-w-[135px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Submitted</th>
+                  <th className="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Requirements</th>
+                  <th className="min-w-[135px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Endorsement</th>
                   {isReadinessMode ? (
                     <>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">FCFS</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Completed</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Slip</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Ready Status</th>
+                      <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">FCFS</th>
+                      <th className="min-w-[110px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Completed</th>
+                      <th className="min-w-[165px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Slip</th>
+                      <th className="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Ready Status</th>
                     </>
                   ) : null}
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">Action</th>
+                  <th className="min-w-[165px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</th>
                 </tr>
               </thead>
 
@@ -1025,50 +1024,49 @@ function RegistryTable({
                       key={row.application_id}
                       className="transition-colors hover:bg-stone-50/70"
                     >
-                      <td className="px-3 py-3 align-top">
-                        <div className="max-w-[220px]">
-                          <p className="text-sm font-semibold text-stone-900">
+                      <td className="px-3 py-3.5 align-top">
+                        <div className="max-w-[240px] min-w-0">
+                          <p className="truncate text-sm font-semibold leading-5 text-stone-900">
                             {row.applicant_name}
+                          </p>
+                          <p className="mt-1 font-mono text-xs leading-4 text-stone-500">
+                            {row.pdm_id}
                           </p>
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 align-top whitespace-nowrap font-mono text-xs text-stone-700">
-                        {row.pdm_id}
+                      <td className="px-3 py-3.5 align-top text-sm font-semibold leading-5 text-stone-900">
+                        <div className="max-w-[180px] leading-5">{row.program_name}</div>
                       </td>
 
-                      <td className="px-3 py-3 align-top text-xs font-semibold leading-5 text-stone-900">
-                        <div className="max-w-[220px]">{row.program_name}</div>
-                      </td>
-
-                      <td className="px-3 py-3 align-top text-xs text-stone-600">
-                        <div className="max-w-[220px] font-medium text-stone-700">{row.opening_title}</div>
+                      <td className="px-3 py-3.5 align-top text-sm leading-5 text-stone-600">
+                        <div className="max-w-[190px] font-medium leading-5 text-stone-700">{row.opening_title}</div>
                         <p className="mt-0.5 text-[11px] text-stone-400">{row.academic_year}</p>
                       </td>
 
-                      <td className="px-3 py-3 align-top whitespace-nowrap text-xs font-medium text-stone-700">
+                      <td className="px-3 py-3.5 align-top whitespace-nowrap text-xs font-medium text-stone-700">
                         {formatDate(row.submitted_at)}
                       </td>
 
-                      <td className="px-3 py-3 align-top">
+                      <td className="px-3 py-3.5 align-top">
                         <StatusPill meta={requirementsMeta} />
                       </td>
 
-                      <td className="px-3 py-3 align-top">
+                      <td className="px-3 py-3.5 align-top">
                         <StatusPill meta={endorsementMeta} />
                       </td>
 
                       {isReadinessMode ? (
                         <>
-                          <td className="px-3 py-3 align-top">
-                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                          <td className="px-3 py-3.5 align-top">
+                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
                               {getFcfsLabel(row)}
                             </span>
                           </td>
-                          <td className="px-3 py-3 align-top whitespace-nowrap text-xs text-stone-600">
+                          <td className="px-3 py-3.5 align-top whitespace-nowrap text-xs text-stone-600">
                             {formatDate(row.fcfs_completed_at)}
                           </td>
-                          <td className="px-3 py-3 align-top">
+                          <td className="px-3 py-3.5 align-top">
                             {row.endorsement_slip_id ? (
                               <div className="space-y-2">
                                 <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
@@ -1086,19 +1084,19 @@ function RegistryTable({
                               <span className="text-xs text-stone-400">No slip yet</span>
                             )}
                           </td>
-                          <td className="px-3 py-3 align-top">
+                          <td className="px-3 py-3.5 align-top">
                             <StatusPill meta={readinessMeta} />
                           </td>
                         </>
                       ) : null}
 
-                      <td className="px-3 py-3 align-top text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-3 py-3.5 align-top text-center">
+                        <div className="flex flex-wrap justify-center gap-2 xl:flex-nowrap">
                           {isReadinessMode && row.endorsement_slip_id ? (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                              className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap text-stone-700"
                               onClick={() => navigate(`/admin/endorsements/${row.endorsement_slip_id}`)}
                             >
                               View Slip
@@ -1108,7 +1106,7 @@ function RegistryTable({
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                              className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap text-stone-700"
                               onClick={() => onDownloadSlip(row)}
                             >
                               <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -1118,7 +1116,7 @@ function RegistryTable({
                           {isReadinessMode ? (
                             <Button
                               size="sm"
-                              className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                              className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                               style={{ background: C.green }}
                               onClick={() => onApproveScholar(row)}
                               disabled={approvalLoadingId === row.application_id}
@@ -1133,7 +1131,7 @@ function RegistryTable({
                           ) : null}
                           <Button
                             size="sm"
-                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                             style={{ background: C.brownMid }}
                             onClick={() =>
                               navigate(`/admin/applications/${row.application_id}/documents`)

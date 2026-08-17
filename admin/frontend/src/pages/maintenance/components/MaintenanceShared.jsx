@@ -3,8 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Building2, ToggleLeft, ToggleRight } from 'lucide-react';
 
 export const C = {
-    brown: '#5c2d0e',
-    brownMid: '#7c4a2e',
+    brown: 'var(--portal-base)',
+    brownMid: 'var(--portal-base)',
     amber: '#d97706',
     amberSoft: '#FFF7ED',
     green: '#16a34a',

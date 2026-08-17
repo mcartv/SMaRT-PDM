@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
-class OfficeUpdateArticleScreen extends StatelessWidget {
+class OfficeUpdateArticleScreen extends StatefulWidget {
   const OfficeUpdateArticleScreen({
     super.key,
     required this.notification,
@@ -13,12 +15,32 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
   final AppNotification notification;
   final bool showBottomNav;
 
+  @override
+  State<OfficeUpdateArticleScreen> createState() => _OfficeUpdateArticleScreenState();
+}
+
+class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
+  final AnnouncementService _announcementService = AnnouncementService();
+
+  @override
+  void initState() {
+    super.initState();
+
+    final referenceId = widget.notification.referenceId?.trim() ?? '';
+    if (widget.notification.isAnnouncementNotification && referenceId.isNotEmpty) {
+      _announcementService.markViewed(referenceId).catchError((error) {
+        debugPrint('ANNOUNCEMENT VIEW TRACKING ERROR: $error');
+      });
+    }
+  }
+
   void _openOpenings(BuildContext context) {
     Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
   }
 
   @override
   Widget build(BuildContext context) {
+    final notification = widget.notification;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF2A1608);
     final bodyColor = isDark ? Colors.white70 : const Color(0xFF5F5A55);
@@ -30,7 +52,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Office Update'), centerTitle: false),
       selectedIndex: 2,
-      showBottomNav: showBottomNav,
+      showBottomNav: widget.showBottomNav,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: Column(

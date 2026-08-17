@@ -403,7 +403,7 @@ export default function CoursesPanel() {
                                 type="button"
                                 onClick={() => setPageTab('current')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
-                                    ? 'bg-[#7c4a2e] text-white'
+                                    ? 'bg-[var(--portal-base)] text-white'
                                     : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                     }`}
                             >
@@ -414,7 +414,7 @@ export default function CoursesPanel() {
                                 type="button"
                                 onClick={() => setPageTab('archived')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
-                                    ? 'bg-[#7c4a2e] text-white'
+                                    ? 'bg-[var(--portal-base)] text-white'
                                     : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                     }`}
                             >

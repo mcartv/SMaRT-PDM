@@ -442,8 +442,8 @@ function ImportRegistryModal({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition ${isDragging
-              ? 'border-stone-500 bg-stone-50'
-              : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
+                ? 'border-stone-500 bg-stone-50'
+                : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
               }`}
           >
             <input
@@ -819,10 +819,6 @@ export default function StudentRegistryPanel() {
 
   const filteredRows = useMemo(() => {
     const q = normalizeText(search);
-    const normalizedPdmQuery = String(search || '')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
 
     const studentNumberHeader = currentHeaders.find(
       (header) => normalizeHeaderKey(header) === 'student number'
@@ -852,56 +848,24 @@ export default function StudentRegistryPanel() {
         ].join(' ')
       );
 
-      const studentNumber = normalizeText(
-        row[studentNumberHeader] || ''
-      );
-
-      const normalizedStudentNumber = studentNumber.replace(
-        /[^a-z0-9]/g,
-        ''
-      );
-
-      const courseCode = String(
-        row[courseHeader] || ''
-      ).trim();
-
-      const yearLevel = String(
-        row[yearHeader] || ''
-      ).trim();
-
-      const matchesStudentNumber =
-        studentNumber.includes(q) ||
-        (
-          normalizedPdmQuery.length > 0 &&
-          normalizedStudentNumber.includes(normalizedPdmQuery)
-        );
+      const studentNumber = normalizeText(row[studentNumberHeader] || '');
+      const courseCode = String(row[courseHeader] || '').trim();
+      const yearLevel = String(row[yearHeader] || '').trim();
 
       const matchesSearch =
         !q ||
         fullName.includes(q) ||
-        matchesStudentNumber;
+        studentNumber.includes(q);
 
       const matchesCourse =
-        courseFilter === 'all' ||
-        courseCode === courseFilter;
+        courseFilter === 'all' || courseCode === courseFilter;
 
       const matchesYear =
-        yearFilter === 'all' ||
-        yearLevel === yearFilter;
+        yearFilter === 'all' || yearLevel === yearFilter;
 
-      return (
-        matchesSearch &&
-        matchesCourse &&
-        matchesYear
-      );
+      return matchesSearch && matchesCourse && matchesYear;
     });
-  }, [
-    currentRows,
-    currentHeaders,
-    search,
-    courseFilter,
-    yearFilter,
-  ]);
+  }, [currentRows, currentHeaders, search, courseFilter, yearFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -1005,8 +969,8 @@ export default function StudentRegistryPanel() {
                   setPage(1);
                 }}
                 className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'excel'
-                  ? 'bg-[#7c4a2e] text-white'
-                  : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-[var(--portal-base)] text-white'
+                    : 'text-stone-500 hover:text-stone-700'
                   }`}
                 disabled={excelRows.length === 0}
               >
@@ -1021,8 +985,8 @@ export default function StudentRegistryPanel() {
                   setPage(1);
                 }}
                 className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'imported'
-                  ? 'bg-[#7c4a2e] text-white'
-                  : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-[var(--portal-base)] text-white'
+                    : 'text-stone-500 hover:text-stone-700'
                   }`}
               >
                 <Eye className="h-3.5 w-3.5" />

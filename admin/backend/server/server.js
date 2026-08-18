@@ -7,8 +7,36 @@ const socketIO = require('socket.io');
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
+    quiet: true,
   });
 }
+
+const LOG_STARTUP_DETAILS =
+  String(process.env.LOG_STARTUP_DETAILS || 'false').toLowerCase() === 'true';
+
+const LOG_REALTIME_DETAILS =
+  String(process.env.LOG_REALTIME_DETAILS || 'false').toLowerCase() === 'true';
+
+const LOG_SOCKET_DETAILS =
+  String(process.env.LOG_SOCKET_DETAILS || 'false').toLowerCase() === 'true';
+
+const startupLog = (...args) => {
+  if (LOG_STARTUP_DETAILS) {
+    console.log(...args);
+  }
+};
+
+const realtimeLog = (...args) => {
+  if (LOG_REALTIME_DETAILS) {
+    console.log(...args);
+  }
+};
+
+const socketLog = (...args) => {
+  if (LOG_SOCKET_DETAILS) {
+    console.log(...args);
+  }
+};
 
 const express = require('express');
 const cors = require('cors');
@@ -196,9 +224,15 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 
-console.log('Frontend build path:', frontendBuildPath);
-console.log('Index.html exists:', fs.existsSync(path.join(frontendBuildPath, 'index.html')));
-console.log('Assets directory exists:', fs.existsSync(path.join(frontendBuildPath, 'assets')));
+startupLog('Frontend build path:', frontendBuildPath);
+startupLog(
+  'Index.html exists:',
+  fs.existsSync(path.join(frontendBuildPath, 'index.html'))
+);
+startupLog(
+  'Assets directory exists:',
+  fs.existsSync(path.join(frontendBuildPath, 'assets'))
+);
 
 app.use(express.static(frontendBuildPath));
 
@@ -348,7 +382,7 @@ function joinSocketToUserRoom(socket) {
 
   socket.join(roomName);
 
-  console.log(`[Socket] Socket ${socket.id} joined ${roomName}`);
+  socketLog(`[Socket] Socket ${socket.id} joined ${roomName}`);
 
   socket.emit('socket:joined', {
     userId,
@@ -413,7 +447,7 @@ configureRealtimeBridge({
 });
 
 io.on('connection', (socket) => {
-  console.log(
+  socketLog(
     `[Socket] Authenticated user connected: ${socket.id} (${socket.data?.role || 'unknown'})`
   );
 
@@ -448,7 +482,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', (reason) => {
-    console.log(`[Socket] User disconnected: ${socket.id}`, reason);
+    socketLog(`[Socket] User disconnected: ${socket.id}`, reason);
   });
 });
 

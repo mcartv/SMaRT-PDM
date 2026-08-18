@@ -3,6 +3,10 @@ const router = express.Router();
 
 const programOpeningController = require('../controllers/programOpeningController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const {
+    validateOpeningUniqueness,
+} = require('../middleware/programOpeningUniquenessMiddleware');
+
 const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get(
@@ -37,12 +41,14 @@ router.get(
 router.post(
     '/',
     ...adminOnly,
+    validateOpeningUniqueness,
     programOpeningController.createProgramOpening
 );
 
 router.patch(
     '/:openingId',
     ...adminOnly,
+    validateOpeningUniqueness,
     programOpeningController.updateProgramOpening
 );
 

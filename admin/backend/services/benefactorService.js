@@ -42,18 +42,20 @@ function mapBenefactorRow(row) {
     };
 }
 
-exports.getBenefactors = async () => {
+const BENEFACTOR_SELECT = `
+    benefactor_id,
+    benefactor_name,
+    benefactor_type,
+    description,
+    is_archived,
+    created_at,
+    updated_at
+`;
+
+async function getBenefactors() {
     const { data, error } = await supabase
         .from('benefactors')
-        .select(`
-            benefactor_id,
-            benefactor_name,
-            benefactor_type,
-            description,
-            is_archived,
-            created_at,
-            updated_at
-        `)
+        .select(BENEFACTOR_SELECT)
         .order('benefactor_name', { ascending: true });
 
     if (error) {
@@ -62,14 +64,14 @@ exports.getBenefactors = async () => {
     }
 
     return (data || []).map(mapBenefactorRow);
-};
+}
 
-exports.getPublicBenefactors = async () => {
-    const benefactors = await exports.getBenefactors();
+async function getPublicBenefactors() {
+    const benefactors = await getBenefactors();
     return benefactors.filter((item) => item.is_archived !== true);
-};
+}
 
-exports.createBenefactor = async (payload = {}) => {
+async function createBenefactor(payload = {}) {
     const insertData = {
         benefactor_name: normalizeRequiredText(
             payload.benefactor_name,
@@ -88,15 +90,7 @@ exports.createBenefactor = async (payload = {}) => {
     const { data, error } = await supabase
         .from('benefactors')
         .insert([insertData])
-        .select(`
-            benefactor_id,
-            benefactor_name,
-            benefactor_type,
-            description,
-            is_archived,
-            created_at,
-            updated_at
-        `)
+        .select(BENEFACTOR_SELECT)
         .single();
 
     if (error) {
@@ -105,9 +99,9 @@ exports.createBenefactor = async (payload = {}) => {
     }
 
     return mapBenefactorRow(data);
-};
+}
 
-exports.updateBenefactor = async (benefactorId, payload = {}) => {
+async function updateBenefactor(benefactorId, payload = {}) {
     if (!benefactorId) {
         throw new Error('Benefactor ID is required');
     }
@@ -148,15 +142,7 @@ exports.updateBenefactor = async (benefactorId, payload = {}) => {
         .from('benefactors')
         .update(updateData)
         .eq('benefactor_id', benefactorId)
-        .select(`
-            benefactor_id,
-            benefactor_name,
-            benefactor_type,
-            description,
-            is_archived,
-            created_at,
-            updated_at
-        `)
+        .select(BENEFACTOR_SELECT)
         .maybeSingle();
 
     if (error) {
@@ -165,11 +151,30 @@ exports.updateBenefactor = async (benefactorId, payload = {}) => {
     }
 
     return data ? mapBenefactorRow(data) : null;
-};
+}
+
+async function deleteBenefactor(benefactorId) {
+    if (!benefactorId) {
+        throw new Error('Benefactor ID is required');
+    }
+
+    const { error } = await supabase
+        .from('benefactors')
+        .delete()
+        .eq('benefactor_id', benefactorId);
+
+    if (error) {
+        console.error('SUPABASE DELETE BENEFACTOR ROLLBACK ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return true;
+}
 
 module.exports = {
-    getBenefactors: exports.getBenefactors,
-    getPublicBenefactors: exports.getPublicBenefactors,
-    createBenefactor: exports.createBenefactor,
-    updateBenefactor: exports.updateBenefactor,
+    getBenefactors,
+    getPublicBenefactors,
+    createBenefactor,
+    updateBenefactor,
+    deleteBenefactor,
 };

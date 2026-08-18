@@ -1047,6 +1047,7 @@ export default function GeneralPanel() {
                                                 ? 'text-white shadow-sm'
                                                 : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                                         }`}
+                                        style={activeLandingSection === 'about' ? { background: 'var(--portal-base)' } : undefined}
                                     >
                                         About OSFA
                                     </button>
@@ -1058,6 +1059,7 @@ export default function GeneralPanel() {
                                                 ? 'text-white shadow-sm'
                                                 : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                                         }`}
+                                        style={activeLandingSection === 'notice' ? { background: 'var(--portal-base)' } : undefined}
                                     >
                                         Featured Notice
                                     </button>
@@ -1069,6 +1071,7 @@ export default function GeneralPanel() {
                                                 ? 'text-white shadow-sm'
                                                 : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                                         }`}
+                                        style={activeLandingSection === 'copy' ? { background: 'var(--portal-base)' } : undefined}
                                     >
                                         Page Text
                                     </button>
@@ -1080,6 +1083,7 @@ export default function GeneralPanel() {
                                                 ? 'text-white shadow-sm'
                                                 : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                                         }`}
+                                        style={activeLandingSection === 'faq' ? { background: 'var(--portal-base)' } : undefined}
                                     >
                                         Landing FAQs
                                     </button>
@@ -1091,6 +1095,7 @@ export default function GeneralPanel() {
                                                 ? 'text-white shadow-sm'
                                                 : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                                         }`}
+                                        style={activeLandingSection === 'policy' ? { background: 'var(--portal-base)' } : undefined}
                                     >
                                         Policy Content
                                     </button>

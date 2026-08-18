@@ -33,6 +33,7 @@ import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -144,12 +145,15 @@ function ScholarViewModal({ scholar, draft, onClose }) {
             <Card className="border-stone-200 shadow-none lg:col-span-1">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-start gap-3">
-                  <div
-                    className="w-12 h-12 rounded-2xl border border-stone-200 flex items-center justify-center text-sm font-bold shrink-0"
-                    style={{ background: C.amberSoft, color: C.brown }}
-                  >
-                    {getInitials(scholar.student_name)}
-                  </div>
+                  <PreviewableProfileAvatar
+                    src={scholar.avatar_url || scholar.profile_photo_url || scholar.avatarUrl || ''}
+                    name={`${scholar.student_name || 'Scholar'} profile photo`}
+                    fallback={getInitials(scholar.student_name)}
+                    avatarClassName="h-12 w-12 shrink-0 rounded-2xl border border-stone-200"
+                    imageClassName="rounded-2xl"
+                    fallbackClassName="rounded-2xl bg-orange-50 text-sm font-bold text-[#5c2d0e]"
+                    buttonClassName="rounded-2xl"
+                  />
 
                   <div>
                     <h4 className="text-base font-semibold text-stone-800">

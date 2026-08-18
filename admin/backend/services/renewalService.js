@@ -4,6 +4,8 @@ const notificationService = require('./notificationService');
 const RENEWAL_DOCUMENTS_BUCKET =
     process.env.RENEWAL_DOCUMENTS_BUCKET || 'renewal-documents';
 
+const AVATAR_BUCKET = process.env.AVATAR_BUCKET || 'avatars';
+
 const REQUIRED_RENEWAL_DOCUMENTS = [
     {
         key: 'copy_of_grades',
@@ -48,6 +50,63 @@ function buildInitials(student = {}) {
     const last = String(student.last_name || '').trim();
 
     return `${first[0] || ''}${last[0] || ''}`.toUpperCase() || 'NA';
+}
+
+function extractAvatarStoragePath(value) {
+    const rawValue = String(value || '').trim();
+
+    if (!rawValue) {
+        return null;
+    }
+
+    if (!/^https?:\/\//i.test(rawValue)) {
+        return rawValue
+            .replace(new RegExp(`^${AVATAR_BUCKET}/`), '')
+            .replace(/^\/+/, '');
+    }
+
+    const markers = [
+        `/storage/v1/object/public/${AVATAR_BUCKET}/`,
+        `/storage/v1/object/sign/${AVATAR_BUCKET}/`,
+        `/storage/v1/object/authenticated/${AVATAR_BUCKET}/`,
+    ];
+
+    for (const marker of markers) {
+        const markerIndex = rawValue.indexOf(marker);
+
+        if (markerIndex >= 0) {
+            return rawValue
+                .slice(markerIndex + marker.length)
+                .split('?')[0];
+        }
+    }
+
+    return null;
+}
+
+async function resolveAvatarUrl(value) {
+    const rawValue = String(value || '').trim();
+
+    if (!rawValue) {
+        return null;
+    }
+
+    const storagePath = extractAvatarStoragePath(rawValue);
+
+    if (!storagePath) {
+        return rawValue;
+    }
+
+    const { data, error } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+    if (error) {
+        console.warn('RENEWAL AVATAR SIGNED URL ERROR:', error.message);
+        return rawValue;
+    }
+
+    return data?.signedUrl || rawValue;
 }
 
 function documentKeyFromType(value) {
@@ -642,6 +701,7 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
     );
 
     const benefactor = benefactors[0] || {};
+    const avatarUrl = await resolveAvatarUrl(student.profile_photo_url);
 
     const serializedDocuments = await Promise.all(
         documents.map(serializeDocument)
@@ -702,6 +762,9 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
             phone: userContact.phone_number || 'N/A',
             year: student.year_level ? `${student.year_level} Year` : 'Scholar',
             gwa: student.gwa ?? 'N/A',
+            profile_photo_url: student.profile_photo_url || null,
+            avatar_url: avatarUrl,
+            avatarUrl: avatarUrl,
             program: program.program_name || 'Scholarship Program',
             benefactor_name: benefactor.benefactor_name || 'N/A',
         },
@@ -749,6 +812,43 @@ exports.saveRenewalReview = async (renewalId, payload = {}, user = {}) => {
         throw createHttpError(
             409,
             'This renewal belongs to a historical semester and is read-only. Set that semester as Current in Maintenance > Academic Years before editing it.'
+        );
+    }
+
+    const action = normalizeText(final_action);
+
+    // Validate against persisted renewal documents, not client-provided URLs.
+    // This prevents review decisions from being saved for an empty or incomplete
+    // renewal submission even when the endpoint is called directly.
+    const { data: existingDocuments, error: existingDocumentsError } = await supabase
+        .from('renewal_documents')
+        .select('*')
+        .eq('renewal_id', renewalId);
+
+    if (existingDocumentsError) {
+        throw createHttpError(500, existingDocumentsError.message);
+    }
+
+    const existingCoveredDocuments = ensureDocumentCoverage(existingDocuments || []);
+    const uploadedDocuments = existingCoveredDocuments.filter(
+        (document) => document.is_submitted === true && Boolean(document.file_url)
+    );
+    const hasAnyUploadedDocument = uploadedDocuments.length > 0;
+    const allRequiredDocumentsUploaded =
+        existingCoveredDocuments.length > 0 &&
+        uploadedDocuments.length === existingCoveredDocuments.length;
+
+    if (!hasAnyUploadedDocument) {
+        throw createHttpError(
+            400,
+            'Renewal review cannot be saved or rejected because no renewal document has been uploaded.'
+        );
+    }
+
+    if ((action === 'approve' || action === 'under_review') && !allRequiredDocumentsUploaded) {
+        throw createHttpError(
+            400,
+            'All required renewal documents must be uploaded before saving the renewal review.'
         );
     }
 
@@ -819,7 +919,6 @@ exports.saveRenewalReview = async (renewalId, payload = {}, user = {}) => {
         (document) => getDocumentStatus(document) === 'verified'
     );
 
-    const action = normalizeText(final_action);
     const comment = cleanText(final_comment);
 
     const renewalUpdate = {

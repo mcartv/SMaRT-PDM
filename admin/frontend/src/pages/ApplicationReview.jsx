@@ -997,7 +997,7 @@ function RegistryTable({
                       <th className="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Ready Status</th>
                     </>
                   ) : null}
-                  <th className="min-w-[165px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</th>
+                  <th className="w-[180px] min-w-[180px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</th>
                 </tr>
               </thead>
 
@@ -1090,8 +1090,8 @@ function RegistryTable({
                         </>
                       ) : null}
 
-                      <td className="px-3 py-3.5 align-top text-center">
-                        <div className="flex flex-wrap justify-center gap-2 xl:flex-nowrap">
+                      <td className="w-[180px] min-w-[180px] px-3 py-3.5 align-top text-center">
+                        <div className="flex w-full flex-wrap justify-center gap-2 xl:flex-nowrap">
                           {isReadinessMode && row.endorsement_slip_id ? (
                             <Button
                               size="sm"

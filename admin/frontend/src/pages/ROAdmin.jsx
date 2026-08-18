@@ -4,7 +4,7 @@ import { buildApiUrl } from '@/api';
 import ROScholarRequestsPanel from './ROScholarRequestsPanel';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -26,8 +26,8 @@ import {
 } from 'lucide-react';
 
 const C = {
-  brownMid: 'var(--portal-base)',
-  brownDark: 'var(--portal-base)',
+  brownMid: '#7c4a2e',
+  brownDark: '#5d3400',
   brownSoft: '#f5ede2',
   amber: '#d97706',
   amberSoft: '#fff7ed',
@@ -332,7 +332,7 @@ function StatusChip({ children, tone = 'default' }) {
 
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap"
       style={style}
     >
       {children}
@@ -346,8 +346,8 @@ function ProgressLine({ label, value, caption, color }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-stone-700">{label}</p>
-        <p className="text-xs font-black" style={{ color }}>
+        <p className="text-xs font-medium text-stone-600">{label}</p>
+        <p className="text-xs font-medium" style={{ color }}>
           {percent}%
         </p>
       </div>
@@ -359,7 +359,7 @@ function ProgressLine({ label, value, caption, color }) {
         />
       </div>
 
-      <p className="mt-1 text-[11px] font-medium text-stone-400">{caption}</p>
+      <p className="mt-1.5 text-xs font-normal text-stone-400">{caption}</p>
     </div>
   );
 }
@@ -393,7 +393,7 @@ function EmptyState({ onAssignMode }) {
 
 function ToolbarSegment({ options, value, onChange }) {
   return (
-    <div className="inline-flex items-center rounded-xl border border-stone-200 bg-[#f8f6f2] p-1">
+    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
       {options.map((option) => {
         const active = value === option.value;
 
@@ -402,9 +402,9 @@ function ToolbarSegment({ options, value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`rounded-[10px] px-4 py-2 text-xs font-medium transition-all ${active
+            className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${active
               ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+              : 'text-stone-600'
               }`}
           >
             {option.label}
@@ -433,7 +433,7 @@ function FilterModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
@@ -452,7 +452,7 @@ function FilterModal({
         <CardContent className="space-y-4 p-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Status
               </label>
 
@@ -470,7 +470,7 @@ function FilterModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Year Level
               </label>
 
@@ -489,7 +489,7 @@ function FilterModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Program
               </label>
 
@@ -511,7 +511,7 @@ function FilterModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Course
               </label>
 
@@ -548,7 +548,7 @@ function FilterModal({
             <Button
               type="button"
               onClick={onClose}
-              className="rounded-xl border-none px-5 text-xs font-bold text-white"
+              className="rounded-xl border-none px-5 text-xs font-medium text-white"
               style={{ background: C.brownMid }}
             >
               Apply
@@ -600,7 +600,7 @@ function AssignModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
@@ -621,15 +621,15 @@ function AssignModal({
 
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-3">
-            <p className="text-sm font-black text-stone-900">{name}</p>
-            <p className="mt-0.5 text-xs text-stone-500">
+            <p className="text-xl font-semibold text-stone-900">{name}</p>
+            <p className="mt-1 text-sm text-stone-500">
               {scholar.program_name || 'Scholarship Program'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 RO Area
               </span>
 
@@ -658,22 +658,22 @@ function AssignModal({
             </label>
 
             <div className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Required Hours
               </span>
 
               <div className="flex h-10 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3">
-                <span className="text-sm font-bold text-stone-800">
+                <span className="text-sm font-semibold text-stone-800">
                   {obligationHours > 0 ? `${obligationHours} hours total` : 'Not configured'}
                 </span>
-                <span className="text-[10px] font-semibold text-stone-400">
+                <span className="text-[10px] font-medium text-stone-400">
                   {hasAssignment ? 'Shared across all placements' : 'From Obligation settings'}
                 </span>
               </div>
             </div>
 
             <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </span>
 
@@ -709,7 +709,7 @@ function AssignModal({
               type="button"
               onClick={submit}
               disabled={loading || !assignedArea || obligationHours <= 0}
-              className="rounded-xl border-none px-5 text-xs font-bold text-white disabled:opacity-50"
+              className="rounded-xl border-none px-5 text-xs font-medium text-white disabled:opacity-50"
               style={{ background: C.brownMid }}
             >
               {loading ? (
@@ -742,7 +742,7 @@ function BatchAssignModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
@@ -761,14 +761,14 @@ function BatchAssignModal({
 
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-            <p className="text-sm font-black text-stone-900">
+            <p className="text-sm font-semibold text-stone-900">
               {selectedCount} selected scholar{selectedCount > 1 ? 's' : ''}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
                 RO Area
               </span>
 
@@ -793,20 +793,20 @@ function BatchAssignModal({
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
                 Required Hours
               </span>
 
               <div className="flex h-10 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3">
-                <span className="text-sm font-bold text-stone-800">
+                <span className="text-sm font-semibold text-stone-700">
                   {defaultRequiredHours > 0 ? `${defaultRequiredHours} hours` : 'Not configured'}
                 </span>
-                <span className="text-[10px] font-semibold text-stone-400">From Obligation settings</span>
+                <span className="text-[10px] font-medium text-stone-400">From Obligation settings</span>
               </div>
             </label>
 
             <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </span>
 
@@ -847,7 +847,7 @@ function BatchAssignModal({
                 defaultRequiredHours <= 0
               }
               onClick={() => onSubmit({ assignedArea, remarks })}
-              className="rounded-xl border-none px-5 text-xs font-bold text-white disabled:opacity-50"
+              className="rounded-xl border-none px-5 text-xs font-medium text-white disabled:opacity-50"
               style={{ background: C.brownMid }}
             >
               {loading ? (
@@ -870,14 +870,14 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
   const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
       <Card className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
             <h3 className="text-sm font-semibold text-stone-900">RO Logs & Proofs</h3>
-            <p className="mt-1 text-xs text-stone-500">{getScholarName(scholar)}</p>
+            <p className="mt-1 text-sm text-stone-500">{getScholarName(scholar)}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -904,7 +904,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
           </div>
         </div>
 
-        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5">
+        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           {logs.length === 0 ? (
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-8 text-center">
               <p className="text-sm font-semibold text-stone-700">No logs yet</p>
@@ -956,28 +956,28 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
 
                       <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                         <p>
-                          <span className="font-bold text-stone-700">Time In:</span>{' '}
+                          <span className="font-medium text-stone-700">Time In:</span>{' '}
                           <span className="text-stone-500">
                             {formatDateTime(log.timeInAt || log.time_in_at)}
                           </span>
                         </p>
 
                         <p>
-                          <span className="font-bold text-stone-700">Time Out:</span>{' '}
+                          <span className="font-medium text-stone-700">Time Out:</span>{' '}
                           <span className="text-stone-500">
                             {formatDateTime(log.timeOutAt || log.time_out_at)}
                           </span>
                         </p>
 
                         <p>
-                          <span className="font-bold text-stone-700">Duration:</span>{' '}
+                          <span className="font-medium text-stone-700">Duration:</span>{' '}
                           <span className="text-stone-500">
                             {formatMinutes(log.durationMinutes || log.duration_minutes)}
                           </span>
                         </p>
 
                         <p>
-                          <span className="font-bold text-stone-700">Validated:</span>{' '}
+                          <span className="font-medium text-stone-700">Validated:</span>{' '}
                           <span className="text-stone-500">
                             {formatMinutes(log.validatedMinutes || log.validated_minutes)}
                           </span>
@@ -991,7 +991,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                       ) : null}
 
                       <div className="mt-4 border-t border-stone-100 pt-4">
-                        <p className="mb-3 text-[11px] font-black uppercase tracking-wide text-stone-400">
+                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
                           Photo Proofs
                         </p>
 
@@ -1049,7 +1049,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                     </div>
 
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-                      <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                      <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                         Department Validation
                       </p>
                       <div className="mt-3">
@@ -1067,10 +1067,10 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                             : 'Waiting for the assigned department head to validate the time-in and time-out evidence.'}
                       </p>
                       <div className="mt-4 rounded-xl border border-stone-200 bg-white px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                        <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                           Department-validated Minutes
                         </p>
-                        <p className="mt-1 text-sm font-black text-stone-900">
+                        <p className="mt-1.5 text-sm font-medium text-stone-900">
                           {formatMinutes(log.validatedMinutes || log.validated_minutes)}
                         </p>
                       </div>
@@ -1123,14 +1123,14 @@ function RoDetailsModal({
   } = getRoMetrics(scholar);
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
-      <Card className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
+      <Card className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold text-stone-900">RO Details</h3>
-            <p className="mt-1 text-xs text-stone-500">{name}</p>
+            <h3 className="text-lg font-semibold text-stone-800">RO Details</h3>
+            <p className="mt-1 text-sm text-stone-500">{name}</p>
           </div>
 
           <button
@@ -1143,28 +1143,22 @@ function RoDetailsModal({
           </button>
         </div>
 
-        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5">
+        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <Avatar className="h-12 w-12 shrink-0 rounded-full border border-stone-200 shadow-sm">
-              <AvatarImage
-                src={
-                  scholar.profile_photo_url ||
-                  scholar.avatarUrl ||
-                  scholar.avatar_url ||
-                  undefined
-                }
-                alt={name}
-              />
-              <AvatarFallback className="bg-blue-900 text-xs font-semibold text-white">
-                {getInitials(name)}
-              </AvatarFallback>
-            </Avatar>
+            <PreviewableProfileAvatar
+              src={scholar.profile_photo_url || scholar.avatarUrl || scholar.avatar_url || ''}
+              name={`${name} profile photo`}
+              fallback={getInitials(name)}
+              avatarClassName="h-14 w-14 shrink-0 rounded-full border border-stone-200 shadow-sm"
+              fallbackClassName="bg-blue-900 text-sm font-medium text-white"
+              buttonClassName="rounded-full"
+            />
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-black text-stone-900">{name}</p>
-                  <p className="mt-0.5 text-xs text-stone-500">
+                  <p className="text-xl font-semibold text-stone-900">{name}</p>
+                  <p className="mt-1 font-mono text-xs text-stone-400">
                     {scholar.pdm_id || 'No PDM ID'}
                   </p>
                 </div>
@@ -1174,14 +1168,14 @@ function RoDetailsModal({
                 </StatusChip>
               </div>
 
-              <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-stone-600 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-stone-600 sm:grid-cols-2">
                 <p>
-                  <span className="font-bold text-stone-800">Program:</span>{' '}
+                  <span className="font-medium text-stone-700">Program:</span>{' '}
                   {scholar.program_name || 'N/A'}
                 </p>
 
                 <p>
-                  <span className="font-bold text-stone-800">Course:</span>{' '}
+                  <span className="font-medium text-stone-700">Course:</span>{' '}
                   {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
                 </p>
               </div>
@@ -1190,37 +1184,37 @@ function RoDetailsModal({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 RO Areas
               </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
                 {placements.length || (hasAssignment ? 1 : 0)}
               </p>
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 Progress
               </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
                 {hasAssignment ? progressSummary : 'N/A'}
               </p>
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 Logs
               </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
                 {pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending'}
               </p>
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 Proofs
               </p>
-              <p className="mt-1 text-sm font-black text-stone-900">
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
                 {proofCount || 0}
               </p>
             </div>
@@ -1228,7 +1222,7 @@ function RoDetailsModal({
 
           {scholar.remarks ? (
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </p>
               <p className="mt-2 text-sm leading-6 text-stone-700">
@@ -1241,10 +1235,10 @@ function RoDetailsModal({
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                  <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                     Placement Requests
                   </p>
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-1 text-sm text-stone-500">
                     Service hours may be completed in one or more approved RO Areas.
                   </p>
                 </div>
@@ -1271,13 +1265,13 @@ function RoDetailsModal({
                         className="rounded-xl border border-stone-200 bg-stone-50/70 p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-bold text-stone-900">
+                          <p className="text-sm font-medium text-stone-800">
                             {placement.assigned_area || 'RO Area'}
                           </p>
                           <StatusChip tone={tone}>{status}</StatusChip>
                         </div>
                         {placement.coordinator_remarks || placement.admin_remarks ? (
-                          <p className="mt-2 text-xs leading-5 text-stone-500">
+                          <p className="mt-2 text-sm leading-6 text-stone-500">
                             {placement.coordinator_remarks || placement.admin_remarks}
                           </p>
                         ) : null}
@@ -1286,7 +1280,7 @@ function RoDetailsModal({
                   })}
                 </div>
               ) : (
-                <p className="rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
+                <p className="rounded-xl bg-stone-50 px-3 py-2.5 text-sm text-stone-500">
                   This legacy assignment has no separate placement record yet.
                 </p>
               )}
@@ -1297,10 +1291,10 @@ function RoDetailsModal({
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                  <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                     Hours
                   </p>
-                  <p className="mt-1 text-sm font-black text-stone-900">
+                  <p className="mt-1.5 text-sm font-medium text-stone-900">
                     {progressSummary}
                   </p>
                 </div>
@@ -1330,16 +1324,16 @@ function RoDetailsModal({
 
           {scholar.conflict_reason || scholar.conflictReason ? (
             <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
-              <p className="text-[11px] font-black uppercase tracking-wide text-red-500">
+              <p className="text-xs font-medium uppercase tracking-wide text-red-500">
                 Conflict Reported
               </p>
-              <p className="mt-1 text-xs leading-5 text-red-600">
+              <p className="mt-1 text-sm leading-6 text-red-600">
                 {scholar.conflict_reason || scholar.conflictReason}
               </p>
             </div>
           ) : null}
           {hasAssignment && !isCleared && !canMarkCleared ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-normal text-amber-800">
               Mark Cleared is locked: {clearanceBlockedReason}
             </div>
           ) : null}
@@ -1351,7 +1345,7 @@ function RoDetailsModal({
             variant="outline"
             onClick={onAssign}
             disabled={loading}
-            className="h-9 rounded-xl border-stone-200 text-xs"
+            className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
           >
             <Send className="mr-2 h-3.5 w-3.5" />
             {hasAssignment ? 'Add Placement' : 'Assign'}
@@ -1363,7 +1357,7 @@ function RoDetailsModal({
               variant="outline"
               onClick={onLogs}
               disabled={loading}
-              className="h-9 rounded-xl border-stone-200 text-xs"
+              className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
             >
               <Eye className="mr-2 h-3.5 w-3.5" />
               Logs & Proofs
@@ -1376,7 +1370,7 @@ function RoDetailsModal({
               onClick={onClear}
               disabled={loading || !canMarkCleared}
               title={clearanceBlockedReason || 'All required hours were validated by the department head.'}
-              className="h-9 rounded-xl border-none text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-9 rounded-xl border-none px-4 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: C.green }}
             >
               <ShieldCheck className="mr-2 h-3.5 w-3.5" />
@@ -1408,6 +1402,7 @@ export default function ROAdmin() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchError, setBatchError] = useState('');
+
 
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
@@ -1525,6 +1520,7 @@ export default function ROAdmin() {
     selectableScholars.every((scholar) =>
       selectedIds.includes(String(scholar.student_id))
     );
+
 
   const buildScholarQuery = () => {
     const params = new URLSearchParams();
@@ -1720,6 +1716,7 @@ export default function ROAdmin() {
       return [...new Set([...current, ...visibleIds])];
     });
   };
+
 
   const closeAllModals = () => {
     setAssignModalOpen(false);
@@ -1917,7 +1914,7 @@ export default function ROAdmin() {
   }
 
   return (
-    <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
+    <div className="space-y-4 px-1 py-3 font-sans" style={{ background: C.bg }}>
       <FilterModal
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
@@ -1987,34 +1984,29 @@ export default function ROAdmin() {
         }}
       />
 
-      <section
-        className="rounded-2xl border bg-white px-4 py-4"
-        style={{ borderColor: C.line }}
-      >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           {topTab !== 'requests' ? (
-          <div className="w-full lg:max-w-xl">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+          <div className="relative w-full xl:max-w-xl">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
 
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by scholar name or PDM ID..."
-                className="h-11 rounded-2xl border-stone-200 bg-[#f8f6f2] pl-11 pr-4 text-sm shadow-none focus-visible:ring-1"
+                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm"
               />
-            </div>
           </div>
           ) : (
             <div>
               <p className="text-sm font-semibold text-stone-900">RO Area Requests</p>
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-sm text-stone-500">
                 Review offices requesting scholars for RO service.
               </p>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <ToolbarSegment
               options={TOP_TABS}
               value={topTab}
@@ -2027,7 +2019,7 @@ export default function ROAdmin() {
               variant="outline"
               size="sm"
               onClick={() => setFilterOpen(true)}
-              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />
               Filters
@@ -2043,7 +2035,7 @@ export default function ROAdmin() {
               onClick={() => refreshAll()}
               variant="outline"
               size="sm"
-              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
               disabled={filterLoading}
             >
               {filterLoading ? (
@@ -2077,51 +2069,33 @@ export default function ROAdmin() {
       {topTab === 'requests' ? (
         <ROScholarRequestsPanel token={token} />
       ) : (
-      <section
-        className="overflow-hidden rounded-2xl border bg-white"
-        style={{ borderColor: C.line }}
-      >
-        <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-stone-900">
-              {topTab === 'assigned'
-                ? 'Assigned RO Scholars'
-                : topTab === 'unassigned'
-                  ? 'Unassigned RO Scholars'
-                  : 'Cleared RO Scholars'}
-            </h2>
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-stone-100 px-5 py-4">
+          <h2 className="truncate text-sm font-semibold leading-5 text-stone-900">
+            {topTab === 'assigned'
+              ? 'Assigned RO Scholars'
+              : topTab === 'unassigned'
+                ? 'Unassigned RO Scholars'
+                : 'Cleared RO Scholars'}
+          </h2>
 
-            <p className="mt-1 text-xs text-stone-400">
-              {displayedScholars.length} result{displayedScholars.length !== 1 ? 's' : ''}
-              {selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ''}
-            </p>
-          </div>
-
-          {selectedIds.length > 0 && !['cleared', 'requests'].includes(topTab) ? (
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedIds([])}
-                className="h-9 rounded-lg px-3 text-xs text-stone-600"
-              >
-                Clear Selection
-              </Button>
-              <Button
-                onClick={() => {
-                  setBatchError('');
-                  setBatchModalOpen(true);
-                }}
-                size="sm"
-                disabled={activeRequiredHours <= 0}
-                className="h-9 rounded-lg border-none px-4 text-xs font-semibold text-white"
-                style={{ background: C.brownMid }}
-              >
-                <Send className="mr-2 h-3.5 w-3.5" />
-                Batch Assign ({selectedIds.length})
-              </Button>
-            </div>
+          {!['cleared', 'requests'].includes(topTab) ? (
+            <Button
+              type="button"
+              onClick={() => {
+                setBatchError('');
+                setBatchModalOpen(true);
+              }}
+              size="sm"
+              disabled={selectedIds.length === 0 || activeRequiredHours <= 0}
+              className="h-9 rounded-xl border-none px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-45"
+              style={{ background: C.brownMid }}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {selectedIds.length > 0
+                ? `Batch Assign (${selectedIds.length})`
+                : 'Batch Assign'}
+            </Button>
           ) : null}
         </div>
 
@@ -2133,35 +2107,38 @@ export default function ROAdmin() {
               <table className="min-w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-stone-200 bg-stone-50/70">
-                    <th className="w-[44px] px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleSelectAllVisible}
-                      />
-                    </th>
+                    {topTab !== 'cleared' ? (
+                      <th className="w-[44px] px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAllVisible}
+                          aria-label="Select all visible scholars"
+                        />
+                      </th>
+                    ) : null}
 
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
                       Scholar
                     </th>
 
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
                       Program
                     </th>
 
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
                       Department
                     </th>
 
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
                       Progress
                     </th>
 
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
                       Status
                     </th>
 
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
+                    <th className="min-w-[140px] px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-700">
                       Action
                     </th>
                   </tr>
@@ -2172,6 +2149,7 @@ export default function ROAdmin() {
                     const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
                     const name = getScholarName(scholar);
                     const hasAssignment = !!scholar.ro_id;
+
                     const selectable = isBatchSelectable(scholar);
                     const selected = selectedIds.includes(String(scholar.student_id));
 
@@ -2188,37 +2166,34 @@ export default function ROAdmin() {
 
                     return (
                       <tr key={key} className="transition-colors hover:bg-stone-50/70">
-                        <td className="px-3 py-4 align-top">
-                          <input
-                            type="checkbox"
-                            disabled={!selectable}
-                            checked={selected}
-                            onChange={() => toggleSelected(scholar.student_id)}
-                          />
-                        </td>
+                        {topTab !== 'cleared' ? (
+                          <td className="px-3 py-4 align-top">
+                            <input
+                              type="checkbox"
+                              disabled={!selectable}
+                              checked={selected}
+                              onChange={() => toggleSelected(scholar.student_id)}
+                              aria-label={`Select ${name}`}
+                            />
+                          </td>
+                        ) : null}
 
                         <td className="px-3 py-4 align-top">
                           <div className="flex items-start gap-3">
-                            <Avatar className="h-9 w-9 shrink-0 rounded-full border border-stone-200 shadow-sm">
-                              <AvatarImage
-                                src={
-                                  scholar.profile_photo_url ||
-                                  scholar.avatarUrl ||
-                                  scholar.avatar_url ||
-                                  undefined
-                                }
-                                alt={name}
-                              />
-                              <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
-                                {getInitials(name)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <PreviewableProfileAvatar
+                              src={scholar.profile_photo_url || scholar.avatarUrl || scholar.avatar_url || ''}
+                              name={`${name} profile photo`}
+                              fallback={getInitials(name)}
+                              avatarClassName="h-10 w-10 shrink-0 rounded-full border border-stone-200 shadow-sm"
+                              fallbackClassName="bg-blue-900 text-xs font-bold text-white"
+                              buttonClassName="rounded-full"
+                            />
 
                             <div className="min-w-0">
-                              <p className="max-w-[220px] truncate text-sm font-semibold text-stone-900">
+                              <p className="max-w-[220px] truncate text-sm font-semibold leading-5 text-stone-900">
                                 {name}
                               </p>
-                              <p className="mt-0.5 text-[11px] text-stone-400">
+                              <p className="mt-0.5 text-xs font-mono text-stone-400">
                                 {scholar.pdm_id || 'No PDM ID'}
                               </p>
                             </div>
@@ -2226,21 +2201,21 @@ export default function ROAdmin() {
                         </td>
 
                         <td className="px-3 py-4 align-top">
-                          <p className="max-w-[240px] text-xs font-semibold leading-5 text-stone-900">
+                          <p className="max-w-[240px] text-sm leading-5 text-stone-700">
                             {scholar.program_name || 'N/A'}
                           </p>
-                          <p className="mt-0.5 text-[11px] text-stone-400">
+                          <p className="mt-0.5 text-[10px] text-stone-400">
                             {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
                           </p>
                         </td>
 
                         <td className="px-3 py-4 align-top">
                           {hasAssignment ? (
-                            <p className="max-w-[220px] text-xs font-bold text-stone-900">
+                            <p className="max-w-[220px] text-sm leading-5 text-stone-700">
                               {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
                             </p>
                           ) : (
-                            <p className="text-xs font-semibold text-stone-400">
+                            <p className="text-sm text-stone-400">
                               Not assigned
                             </p>
                           )}
@@ -2248,7 +2223,7 @@ export default function ROAdmin() {
 
                         <td className="px-3 py-4 align-top">
                           {hasAssignment ? (
-                            <p className="text-xs font-black text-stone-900">
+                            <p className="text-sm font-semibold text-stone-700">
                               {compactProgressText({
                                 requiredMinutes,
                                 submittedMinutes,
@@ -2267,7 +2242,7 @@ export default function ROAdmin() {
                           <StatusChip tone={capsule.tone}>{capsule.label}</StatusChip>
                         </td>
 
-                        <td className="px-3 py-4 text-right align-top">
+                        <td className="min-w-[140px] px-3 py-4 text-right align-top">
                           <Button
                             type="button"
                             onClick={() =>
@@ -2283,7 +2258,7 @@ export default function ROAdmin() {
                                 ? 'Configure required hours in Maintenance > Obligation first.'
                                 : undefined
                             }
-                            className="h-9 rounded-xl border-stone-200 px-3 text-xs"
+                            className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"
                           >
                             {hasAssignment ? (
                               <>

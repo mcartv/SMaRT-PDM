@@ -2034,13 +2034,11 @@ export default function ScholarMonitoring() {
               ? 'Scholar Registry'
               : 'Renewal Queue'}
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            {sectionMode === 'registry'
-              ? `Current scholarship records · ${filteredScholars.length} result${filteredScholars.length === 1 ? '' : 's'
-              }`
-              : `Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'
-              }`}
-          </p>
+          {sectionMode === 'renewals' ? (
+            <p className="mt-1 text-sm text-stone-500">
+              {`Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'}`}
+            </p>
+          ) : null}
         </div>
 
         <CardContent className="p-4">
@@ -2148,7 +2146,7 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
             <TableHead className="min-w-[240px] text-xs font-semibold uppercase tracking-wide text-stone-700">Program</TableHead>
             <TableHead className="min-w-[170px] text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</TableHead>
             <TableHead className="min-w-[155px] text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</TableHead>
-            <TableHead className="min-w-[230px] text-right text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
+            <TableHead className="min-w-[230px] text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -2233,8 +2231,8 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                   <StatusPill meta={scholarshipMeta} compact />
                 </TableCell>
 
-                <TableCell className="text-right">
-                  <div className="flex flex-wrap justify-end gap-2 xl:flex-nowrap">
+                <TableCell className="text-center">
+                  <div className="flex flex-wrap justify-center gap-2 xl:flex-nowrap">
                     <Button
                       type="button"
                       size="sm"
@@ -2285,13 +2283,13 @@ function RenewalTable({ rows, navigate }) {
       <Table>
         <TableHeader>
           <TableRow className="bg-stone-50 hover:bg-stone-50">
-            <TableHead className="min-w-[210px] text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</TableHead>
-            <TableHead className="min-w-[220px] text-xs font-semibold uppercase tracking-wide text-stone-700">Program</TableHead>
-            <TableHead>Cycle</TableHead>
-            <TableHead>Document Status</TableHead>
-            <TableHead>Renewal Status</TableHead>
-            <TableHead>Submitted</TableHead>
-            <TableHead className="min-w-[220px] text-right text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
+            <TableHead className="min-w-[210px] text-xs font-semibold uppercase tracking-wide text-stone-700">SCHOLAR</TableHead>
+            <TableHead className="min-w-[220px] text-xs font-semibold uppercase tracking-wide text-stone-700">PROGRAM</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">CYCLE</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">DOCUMENT STATUS</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">RENEWAL STATUS</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">SUBMITTED</TableHead>
+            <TableHead className="min-w-[220px] text-center text-xs font-semibold uppercase tracking-wide text-stone-700">ACTION</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -2369,7 +2367,7 @@ function RenewalTable({ rows, navigate }) {
                   )}
                 </TableCell>
 
-                <TableCell className="text-right">
+                <TableCell className="text-center">
                   <Button
                     type="button"
                     size="sm"

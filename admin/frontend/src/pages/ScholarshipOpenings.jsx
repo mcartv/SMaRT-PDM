@@ -119,6 +119,18 @@ function targetAudienceLabel(value) {
     return normalized || 'Applicants';
 }
 
+function formatPesoAmount(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '—';
+
+    return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(amount);
+}
+
 function getCurrentSchoolYearLabel(date = new Date()) {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
@@ -343,6 +355,19 @@ function OpeningModal({
     });
 
     const audienceLabel = targetAudienceLabel(form.target_audience);
+    const allocatedSlotsValue = Number(form.allocated_slots || 0);
+    const hasFinancialAllocation =
+        String(form.financial_allocation ?? '').trim() !== '' &&
+        Number.isFinite(Number(form.financial_allocation));
+    const financialAllocationValue = hasFinancialAllocation
+        ? Number(form.financial_allocation)
+        : null;
+    const allocationPerScholar =
+        allocatedSlotsValue > 0 &&
+        financialAllocationValue !== null &&
+        financialAllocationValue >= 0
+            ? financialAllocationValue / allocatedSlotsValue
+            : null;
 
     const canSubmit =
         !!form.opening_title?.trim() &&
@@ -597,6 +622,28 @@ function OpeningModal({
                                         <p className="text-[11px] leading-4 text-stone-400">
                                             Total amount allocated to this scholarship opening.
                                         </p>
+                                    </div>
+
+                                    <div className="sm:col-span-2 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                                    Allocation per Scholar
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-left sm:min-w-[190px] sm:text-right">
+                                                <p className="text-base font-semibold text-stone-900 tabular-nums">
+                                                    {allocationPerScholar === null
+                                                        ? '—'
+                                                        : formatPesoAmount(allocationPerScholar)}
+                                                </p>
+                                                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                                                    per scholar
+                                                </p>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
                             ) : (

@@ -394,7 +394,7 @@ export default function AdminLayout() {
                             style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-sm font-semibold leading-5 text-stone-900">
+                              <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {n.title || 'Notification'}
                               </p>
                               <span
@@ -404,10 +404,10 @@ export default function AdminLayout() {
                                 New
                               </span>
                             </div>
-                            <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-stone-600">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <p className="mt-1.5 text-xs font-medium text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
                           </button>
@@ -433,14 +433,14 @@ export default function AdminLayout() {
                               : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-sm font-medium leading-5 text-stone-800">
+                              <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {n.title || 'Notification'}
                               </p>
                             </div>
-                            <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-stone-600">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <p className="mt-1.5 text-xs font-medium text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
                           </button>

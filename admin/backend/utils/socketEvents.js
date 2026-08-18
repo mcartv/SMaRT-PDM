@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Socket.io Event Emitter Utility
  * Centralized realtime event names for SMaRT-PDM.
  *
@@ -35,6 +35,17 @@ const emitEvent = (io, eventName, data = {}) => {
     const payload = addMeta(data);
     console.log(`[Socket] Emitting global: ${eventName}`, payload);
     io.emit(eventName, payload);
+};
+
+const emitPublicEvent = (io, eventName, data = {}) => {
+    if (!io || typeof io.of !== 'function') {
+        console.warn(`[Socket] No io instance available for public event: ${eventName}`);
+        return;
+    }
+
+    const payload = addMeta(data);
+    console.log(`[Socket] Emitting public: ${eventName}`, payload);
+    io.of('/public').emit(eventName, payload);
 };
 
 const emitToUser = (io, userId, eventName, data = {}) => {
@@ -106,6 +117,7 @@ function emitMessageEvent(io, eventName, data = {}, options = {}) {
 const socketEvents = {
     /** Base emitters. */
     emitEvent,
+    emitPublicEvent,
     emitToUser,
     emitToUsers,
     emitToRoom,
@@ -113,6 +125,7 @@ const socketEvents = {
     /** Dashboard-wide refresh channels. */
     dashboardUpdated: (io, data) => emitEvent(io, 'dashboard:updated', data),
     maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    landingThemeUpdated: (io, data) => emitPublicEvent(io, 'landing-theme:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
     auditCreated: (io, data) => emitEvent(io, 'audit:created', data),
 

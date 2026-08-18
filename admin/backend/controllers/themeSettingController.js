@@ -94,6 +94,15 @@ async function updateThemeSetting(req, res) {
       updated_at: result.updated_at || new Date().toISOString(),
     });
 
+    if (result.portal_key === 'landing') {
+      socketEvents.landingThemeUpdated(io, {
+        portal_key: 'landing',
+        preset_key: result.preset_key,
+        custom_colors: result.custom_colors || null,
+        updated_at: result.updated_at || new Date().toISOString(),
+      });
+    }
+
     socketEvents.reportUpdated(io, {
       module: 'reports',
       source: 'theme_settings',

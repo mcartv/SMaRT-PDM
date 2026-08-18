@@ -428,10 +428,20 @@ const io = socketIO(server, {
   pingInterval: 25000,
 });
 
-// Every Admin-backend realtime connection must prove a valid, current staff
-// session before Socket.IO accepts it. Public landing pages use HTTP and do not
-// open this authenticated staff socket.
+// Every authenticated application realtime connection must prove a valid,
+// current user session before Socket.IO accepts it on the default namespace.
 io.use(createStaffSocketAuthMiddleware());
+
+// Public landing/login pages use a separate receive-only namespace for safe
+// public UI refresh events such as landing-theme updates. It does not join
+// authenticated user rooms and has no server-side mutation handlers.
+const publicIo = io.of('/public');
+publicIo.on('connection', (socket) => {
+  socketLog(`[Socket] Public client connected: ${socket.id}`);
+  socket.on('disconnect', () => {
+    socketLog(`[Socket] Public client disconnected: ${socket.id}`);
+  });
+});
 
 app.set('io', io);
 

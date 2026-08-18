@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
-import { useSocketEvent } from '@/hooks/useSocket';
 import { getDefaultLandingTheme, resolveLandingTheme } from '@/config/landingThemes';
 
 const STORAGE_KEY = 'smartpdm-theme-landing';
+const PUBLIC_SOCKET_NAMESPACE = '/public';
+
+function getPublicSocketUrl() {
+  return `${buildApiUrl('').replace(/\/+$/, '')}${PUBLIC_SOCKET_NAMESPACE}`;
+}
 
 export default function useLandingTheme() {
   const [state, setState] = useState(() => {
@@ -42,15 +47,27 @@ export default function useLandingTheme() {
     loadTheme();
   }, [loadTheme]);
 
-  useSocketEvent(
-    'maintenance:updated',
-    (payload) => {
-      if (payload?.source !== 'theme_settings') return;
-      if (payload?.portal_key !== 'landing') return;
+  useEffect(() => {
+    const socket = io(getPublicSocketUrl(), {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      transports: ['websocket', 'polling'],
+    });
+
+    const handleThemeUpdated = (payload = {}) => {
+      if (String(payload?.portal_key || '').trim().toLowerCase() !== 'landing') return;
       loadTheme();
-    },
-    [loadTheme]
-  );
+    };
+
+    socket.on('landing-theme:updated', handleThemeUpdated);
+
+    return () => {
+      socket.off('landing-theme:updated', handleThemeUpdated);
+      socket.disconnect();
+    };
+  }, [loadTheme]);
 
   const theme = useMemo(
     () => ({

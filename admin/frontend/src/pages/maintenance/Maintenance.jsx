@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import {
-  Building2,
   BookOpen,
   ClipboardList,
   Database,
@@ -15,8 +14,7 @@ import {
 
 import GeneralPanel from './GeneralPanel';
 import StudentRegistryPanel from './StudentRegistryPanel';
-import BenefactorsPanel from './BenefactorsPanel';
-import ProgramsPanel from './ProgramsPanel';
+import ScholarshipProgramsPanel from './ScholarshipProgramsPanel';
 import CoursesPanel from './CoursesPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
@@ -30,8 +28,7 @@ const TABS = [
   { key: 'general', label: 'General', icon: Settings },
   { key: 'accounts', label: 'Accounts', icon: UsersRound },
   { key: 'theme', label: 'Theme', icon: Palette },
-  { key: 'benefactors', label: 'Benefactors', icon: Building2 },
-  { key: 'programs', label: 'Programs', icon: GraduationCap },
+  { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
   { key: 'courses', label: 'Courses', icon: BookOpen },
   { key: 'ro-settings', label: 'Obligation', icon: Clock3 },
@@ -103,8 +100,12 @@ export default function Maintenance() {
                       ? 'text-white shadow-sm'
                       : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                   }`}
-                
-                  style={themeView === 'landing' ? { background: 'var(--portal-base)' } : undefined}>
+                  style={
+                    themeView === 'landing'
+                      ? { background: 'var(--portal-base)' }
+                      : undefined
+                  }
+                >
                   Landing Page
                 </button>
 
@@ -116,8 +117,12 @@ export default function Maintenance() {
                       ? 'text-white shadow-sm'
                       : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                   }`}
-                
-                  style={themeView === 'admin' ? { background: 'var(--portal-base)' } : undefined}>
+                  style={
+                    themeView === 'admin'
+                      ? { background: 'var(--portal-base)' }
+                      : undefined
+                  }
+                >
                   Admin Theme
                 </button>
               </div>
@@ -137,11 +142,8 @@ export default function Maintenance() {
           </div>
         );
 
-      case 'benefactors':
-        return <BenefactorsPanel />;
-
-      case 'programs':
-        return <ProgramsPanel />;
+      case 'scholarship-programs':
+        return <ScholarshipProgramsPanel />;
 
       case 'academic-years':
         return <AcademicYearPanel />;
@@ -173,11 +175,7 @@ export default function Maintenance() {
         minHeight: 'calc(100dvh - 120px)',
       }}
     >
-      <TopNav
-        tabs={TABS}
-        active={tab}
-        onChange={setTab}
-      />
+      <TopNav tabs={TABS} active={tab} onChange={setTab} />
 
       <div className="flex-1 p-2.5">
         <Card className="flex h-full flex-col overflow-hidden rounded-xl border-stone-200 shadow-none">

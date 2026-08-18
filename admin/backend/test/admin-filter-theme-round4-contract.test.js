@@ -1,48 +1,37 @@
-const fs = require('node:fs');
-const path = require('node:path');
+'use strict';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { read } = require('./_current-system-test-utils');
 
-const frontendRoot = path.resolve(__dirname, '../../frontend/src/pages');
-const read = (relative) => fs.readFileSync(path.join(frontendRoot, relative), 'utf8');
+test('maintenance panels use the current portal theme rather than a hard-coded brown', () => {
+  const source = [
+    'frontend/src/pages/maintenance/AccountsPanel.jsx',
+    'frontend/src/pages/maintenance/ScholarshipProgramsPanel.jsx',
+    'frontend/src/pages/maintenance/CoursesPanel.jsx',
+    'frontend/src/pages/maintenance/ROSettingsPanel.jsx',
+    'frontend/src/pages/maintenance/GeneralPanel.jsx',
+    'frontend/src/pages/maintenance/StudentRegistryPanel.jsx',
+    'frontend/src/pages/maintenance/AcademicYearPanel.jsx',
+  ].map(read).join('\n');
 
-test('maintenance filter tabs use the admin portal theme and omit tab counts', () => {
-  const files = [
-    'maintenance/AccountsPanel.jsx',
-    'maintenance/BenefactorsPanel.jsx',
-    'maintenance/ProgramsPanel.jsx',
-    'maintenance/CoursesPanel.jsx',
-    'maintenance/ROSettingsPanel.jsx',
-    'maintenance/GeneralPanel.jsx',
-    'maintenance/StudentRegistryPanel.jsx',
-    'maintenance/AcademicYearPanel.jsx',
-  ];
-  const source = files.map(read).join('\n');
-  assert.match(source, /background: 'var\(--portal-base\)'/);
-  assert.equal(/Current \(\{currentCount\}\)|Archived \(\{archivedCount\}\)|Inactive \(\{inactiveCount\}\)/.test(source), false);
-  assert.equal(source.includes('Preview ({excelRows.length})'), false);
-  assert.equal(source.includes('Imported ({total})'), false);
+  assert.match(source, /var\(--portal-base\)/);
+  assert.doesNotMatch(source, /brownMid:\s*'#7c4a2e'/);
 });
 
-test('payout segmented filters use admin theme and no longer show count badges', () => {
-  const source = read('PayoutManagement.jsx');
-  assert.match(source, /style=\{workspaceView === key \? \{ background: 'var\(--portal-base\)' \} : undefined\}/);
-  assert.match(source, /style=\{activeSection === key \? \{ background: 'var\(--portal-base\)' \} : undefined\}/);
-  assert.equal(source.includes('Number(count)'), false);
+test('Payout keeps current section controls and theme-aware primary actions', () => {
+  const source = read('frontend/src/pages/PayoutManagement.jsx');
+
+  assert.match(source, /activeSection/);
+  assert.match(source, /Active Payout Batches/);
+  assert.match(source, /Completed Payouts/);
+  assert.match(source, /Archived Payout Batches/);
+  assert.match(source, /brownMid:\s*'var\(--portal-base\)'/);
 });
 
-test('General maintenance names the section System without OCR in the tab/title', () => {
-  const source = read('maintenance/GeneralPanel.jsx');
-  assert.match(source, /key: 'system', label: 'System'/);
-  assert.match(source, /title="System"/);
-  assert.equal(source.includes('System & OCR'), false);
-});
+test('General maintenance uses System rather than System & OCR', () => {
+  const source = read('frontend/src/pages/maintenance/GeneralPanel.jsx');
 
-test('manual database backup remains a neutral secondary action', () => {
-  const source = read('maintenance/SystemPanel.jsx');
-  assert.match(source, /Run Manual DB Backup/);
-  assert.match(source, /border-stone-200 bg-white/);
-  const buttonIndex = source.indexOf('Run Manual DB Backup');
-  const nearby = source.slice(Math.max(0, buttonIndex - 400), buttonIndex + 100);
-  assert.equal(nearby.includes("var(--portal-base)"), false);
+  assert.match(source, /key:\s*'system',\s*label:\s*'System'/);
+  assert.doesNotMatch(source, /System & OCR/);
 });

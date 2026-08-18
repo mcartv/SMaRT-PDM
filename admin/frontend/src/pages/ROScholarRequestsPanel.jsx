@@ -44,7 +44,7 @@ function ActionModal({ action, request, loading, onClose, onConfirm }) {
   const declining = action === 'Declined';
   return (
     <div
-      className="fixed inset-0 z-[75] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[75] flex items-center justify-center bg-black/40 p-4 font-sans backdrop-blur-sm"
       onMouseDown={(event) => event.target === event.currentTarget && !loading && onClose()}
     >
       <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
@@ -85,13 +85,14 @@ function ActionModal({ action, request, loading, onClose, onConfirm }) {
           </label>
         </div>
         <footer className="flex justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-3">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading} className="h-10 rounded-xl border-stone-200 px-3 text-sm font-medium text-stone-700">
             Cancel
           </Button>
           <Button
+            size="sm"
             onClick={() => onConfirm(remarks)}
             disabled={loading || (declining && !remarks.trim())}
-            className={declining ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}
+            className={`${declining ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'} h-10 rounded-xl px-3 text-sm font-medium`}
           >
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Confirm
@@ -168,7 +169,7 @@ export default function ROScholarRequestsPanel({ token }) {
   };
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 font-sans">
       <ActionModal
         key={`${actionState.request?.request_id || 'none'}-${actionState.action || 'none'}`}
         action={actionState.action}
@@ -178,25 +179,25 @@ export default function ROScholarRequestsPanel({ token }) {
         onConfirm={updateRequest}
       />
 
-      <div className="rounded-2xl border border-stone-200 bg-white p-4">
+      <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-stone-900">RO Area Requests</h2>
-            <p className="mt-1 text-xs text-stone-500">
+            <h2 className="text-sm font-semibold leading-5 text-stone-900">RO Area Requests</h2>
+            <p className="mt-1 text-sm text-stone-500">
               Offices requesting scholars for Return of Obligation service.
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="flex flex-wrap gap-1 rounded-xl bg-stone-50 p-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
               {['Pending', 'Acknowledged', 'Fulfilled', 'All'].map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setStatus(item)}
-                  className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                  className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
                     status === item
                       ? 'bg-white text-stone-900 shadow-sm'
-                      : 'text-stone-500'
+                      : 'text-stone-600'
                   }`}
                 >
                   {item}
@@ -209,14 +210,16 @@ export default function ROScholarRequestsPanel({ token }) {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search area or purpose..."
-                className="h-10 min-w-64 rounded-xl border-stone-200 pl-9"
+                className="h-10 min-w-64 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm"
               />
             </div>
             <Button
+              type="button"
               variant="outline"
+              size="sm"
               onClick={loadRequests}
               disabled={loading}
-              className="h-10 border-stone-200"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
             >
               {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -257,7 +260,7 @@ export default function ROScholarRequestsPanel({ token }) {
                     </p>
                   </div>
                   <span
-                    className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusClass(request.request_status)}`}
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(request.request_status)}`}
                   >
                     {request.request_status}
                   </span>
@@ -267,14 +270,14 @@ export default function ROScholarRequestsPanel({ token }) {
                   <div className="rounded-xl bg-stone-50 p-3">
                     <Users className="h-4 w-4 text-stone-400" />
                     <p className="mt-2 text-xs text-stone-500">Scholars needed</p>
-                    <p className="text-sm font-semibold text-stone-900">
+                    <p className="text-sm font-medium text-stone-900">
                       {request.requested_scholar_count}
                     </p>
                   </div>
                   <div className="rounded-xl bg-stone-50 p-3">
                     <CalendarDays className="h-4 w-4 text-stone-400" />
                     <p className="mt-2 text-xs text-stone-500">Preferred date</p>
-                    <p className="text-sm font-semibold text-stone-900">
+                    <p className="text-sm font-medium text-stone-900">
                       {formatDate(request.preferred_date)}
                     </p>
                   </div>
@@ -296,7 +299,7 @@ export default function ROScholarRequestsPanel({ token }) {
                         onClick={() =>
                           setActionState({ action: 'Acknowledged', request })
                         }
-                        className="border-blue-200 text-blue-700"
+                        className="h-9 rounded-xl border-blue-200 px-3 text-sm font-medium text-blue-700"
                       >
                         <Check className="mr-1.5 h-3.5 w-3.5" />
                         Acknowledge
@@ -305,7 +308,7 @@ export default function ROScholarRequestsPanel({ token }) {
                     <Button
                       size="sm"
                       onClick={() => setActionState({ action: 'Fulfilled', request })}
-                      className="bg-emerald-600 text-white"
+                      className="h-9 rounded-xl bg-emerald-600 px-3 text-sm font-medium text-white"
                     >
                       Mark Fulfilled
                     </Button>
@@ -313,7 +316,7 @@ export default function ROScholarRequestsPanel({ token }) {
                       variant="outline"
                       size="sm"
                       onClick={() => setActionState({ action: 'Declined', request })}
-                      className="border-red-200 text-red-700"
+                      className="h-9 rounded-xl border-red-200 px-3 text-sm font-medium text-red-700"
                     >
                       Decline
                     </Button>

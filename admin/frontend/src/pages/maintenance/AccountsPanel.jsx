@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -1120,15 +1120,13 @@ function AccountProfileModal({ account, onClose, onEdit }) {
 
                 <div className="p-4">
                     <div className="flex items-center gap-3 border-b border-stone-100 pb-4">
-                        <Avatar className="h-12 w-12">
-                            <AvatarImage
-                                src={account.avatar_url || account.profile_photo_url || undefined}
-                                alt={`${account.name} profile`}
-                            />
-                            <AvatarFallback className="bg-stone-900 text-sm font-bold text-white">
-                                {initials}
-                            </AvatarFallback>
-                        </Avatar>
+                        <PreviewableProfileAvatar
+                            src={account.avatar_url || account.profile_photo_url || ''}
+                            name={`${account.name || 'Account'} profile photo`}
+                            fallback={initials}
+                            avatarClassName="h-12 w-12"
+                            fallbackClassName="bg-stone-900 text-sm font-bold text-white"
+                        />
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="truncate text-base font-semibold text-stone-900">{account.name}</h3>
@@ -1914,15 +1912,13 @@ export default function AccountsPanel() {
                                             className={`grid gap-3 px-4 py-3 transition-colors lg:grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] lg:items-center lg:gap-4 ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
                                         >
                                             <div className="flex min-w-0 items-center gap-2.5">
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage
-                                                        src={account.avatar_url || account.profile_photo_url || undefined}
-                                                        alt={`${account.name} profile`}
-                                                    />
-                                                    <AvatarFallback className="bg-stone-100 text-xs font-bold text-stone-600">
-                                                        {(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <PreviewableProfileAvatar
+                                                    src={account.avatar_url || account.profile_photo_url || ''}
+                                                    name={`${account.name || 'Account'} profile photo`}
+                                                    fallback={(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
+                                                    avatarClassName="h-9 w-9"
+                                                    fallbackClassName="bg-stone-100 text-xs font-bold text-stone-600"
+                                                />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <p className="truncate text-sm font-semibold text-stone-900">{account.name}</p>

@@ -21,6 +21,7 @@ import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { clearPortalSession } from '../../utils/authStorage';
+import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -70,6 +71,7 @@ export default function SDOLayout() {
       return null;
     }
   });
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
   const { theme } = usePortalTheme('sdo');
@@ -248,7 +250,12 @@ export default function SDOLayout() {
 
   const profileImage = resolveProfileImage(profile);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = (event) => {
+    if (profileImage && event?.target?.closest?.('[data-profile-preview-target="true"]')) {
+      setProfilePhotoPreviewOpen(true);
+      return;
+    }
+
     navigate('/sdo/profile');
   };
 
@@ -533,11 +540,18 @@ export default function SDOLayout() {
               title="Open Profile"
             >
               {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={getDisplayName()}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
-                />
+                <span
+                  data-profile-preview-target="true"
+                  className="relative shrink-0 rounded-full outline-none ring-offset-2 transition hover:ring-2 hover:ring-[var(--portal-border)]"
+                  title="Preview profile photo"
+                >
+                  <img
+                    data-profile-preview-target="true"
+                    src={profileImage}
+                    alt={getDisplayName()}
+                    className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
+                  />
+                </span>
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
@@ -569,6 +583,13 @@ export default function SDOLayout() {
       </div>
 
       <AdminMessages tokenStorageKey="sdoToken" portalKey="sdo" />
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={profileImage}
+        name={`${getDisplayName()} profile photo`}
+      />
     </div>
   );
 }

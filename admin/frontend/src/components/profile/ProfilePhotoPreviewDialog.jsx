@@ -1,12 +1,17 @@
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { X } from 'lucide-react';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 export default function ProfilePhotoPreviewDialog({ open, onOpenChange, src, name = 'Profile photo' }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-auto max-w-[90vw] border-none bg-transparent p-0 shadow-none [&>button]:right-3 [&>button]:top-3 [&>button]:h-10 [&>button]:w-10 [&>button]:rounded-full [&>button]:bg-white/92 [&>button]:p-0 [&>button]:text-stone-600 [&>button]:opacity-100 [&>button]:shadow-md [&>button]:ring-0 [&>button]:transition hover:[&>button]:bg-white hover:[&>button]:text-stone-900">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[80] bg-black/35 backdrop-blur-sm"
+        className="z-[90] w-auto max-w-[96vw] border-0 bg-transparent p-0 shadow-none !ring-0 outline-none"
+      >
         <DialogTitle className="sr-only">{name} preview</DialogTitle>
 
-        <div className="flex items-center justify-center p-2 sm:p-4">
+        <div className="relative flex items-center justify-center px-10 py-6 sm:px-14 sm:py-8">
           {src ? (
             <div className="flex h-[min(78vw,30rem)] w-[min(78vw,30rem)] max-h-[78vh] max-w-[78vh] items-center justify-center overflow-hidden rounded-full border-4 border-white bg-stone-950 shadow-2xl">
               <img
@@ -20,6 +25,16 @@ export default function ProfilePhotoPreviewDialog({ open, onOpenChange, src, nam
               <p className="text-sm text-stone-500">No profile photo available.</p>
             </div>
           )}
+
+          <DialogClose asChild>
+            <button
+              type="button"
+              aria-label="Close profile photo preview"
+              className="absolute right-0 top-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-stone-600 shadow-md transition hover:bg-white hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </DialogClose>
         </div>
       </DialogContent>
     </Dialog>

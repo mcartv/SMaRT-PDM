@@ -26,6 +26,7 @@ import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
+import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -74,6 +75,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('admin');
   const {
@@ -192,7 +194,12 @@ export default function AdminLayout() {
 
   const profileImage = resolveProfileImage(adminData);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = (event) => {
+    if (profileImage && event?.target?.closest?.('[data-profile-preview-target="true"]')) {
+      setProfilePhotoPreviewOpen(true);
+      return;
+    }
+
     navigate('/admin/adminprofile');
   };
 
@@ -475,11 +482,18 @@ export default function AdminLayout() {
               title="Open Profile"
             >
               {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={adminData?.name || 'Admin'}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
-                />
+                <span
+                  data-profile-preview-target="true"
+                  className="relative shrink-0 rounded-full outline-none ring-offset-2 transition hover:ring-2 hover:ring-[var(--portal-border)]"
+                  title="Preview profile photo"
+                >
+                  <img
+                    data-profile-preview-target="true"
+                    src={profileImage}
+                    alt={adminData?.name || 'Admin'}
+                    className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
+                  />
+                </span>
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
@@ -525,6 +539,13 @@ export default function AdminLayout() {
 
         <AdminMessages />
       </div>
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={profileImage}
+        name={`${adminData?.name || 'Admin'} profile photo`}
+      />
     </div>
   );
 }

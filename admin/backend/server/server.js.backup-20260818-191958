@@ -88,7 +88,6 @@ const { configureRealtimeBridge } = require('../services/realtimeBridgeService')
 const socketEvents = require('../utils/socketEvents');
 const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
 const supabase = require('../config/supabase');
-const pool = require('../config/db');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -511,46 +510,6 @@ function emitScheduledAnnouncementRealtime(announcement) {
 }
 
 const SCHEDULER_INTERVAL_MS = 60 * 1000;
-const SCHEDULER_LEADER_LOCK_KEY = 'smart-pdm:admin:scheduler-leader';
-
-let schedulerLeaderClient = null;
-let schedulerLeadershipPromise = null;
-
-async function ensureSchedulerLeadership() {
-  if (schedulerLeaderClient) return true;
-  if (schedulerLeadershipPromise) return schedulerLeadershipPromise;
-
-  schedulerLeadershipPromise = (async () => {
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        'SELECT pg_try_advisory_lock(hashtext($1)::bigint) AS acquired',
-        [SCHEDULER_LEADER_LOCK_KEY]
-      );
-      const acquired = result.rows?.[0]?.acquired === true;
-      if (!acquired) {
-        client.release();
-        return false;
-      }
-      schedulerLeaderClient = client;
-      client.on('error', (error) => {
-        console.error('Scheduler leader database connection lost:', error.message);
-        schedulerLeaderClient = null;
-      });
-      console.log('[Scheduler] This admin backend is the scheduler leader.');
-      return true;
-    } catch (error) {
-      client.release();
-      throw error;
-    }
-  })();
-
-  try {
-    return await schedulerLeadershipPromise;
-  } finally {
-    schedulerLeadershipPromise = null;
-  }
-}
 
 if (!global._announcementSchedulerRunning) {
   global._announcementSchedulerRunning = true;
@@ -566,7 +525,6 @@ if (!global._announcementSchedulerRunning) {
     announcementSchedulerBusy = true;
 
     try {
-      if (!(await ensureSchedulerLeadership())) return;
       const publishedAnnouncements =
         await announcementService.publishDueAnnouncements();
 
@@ -596,7 +554,6 @@ if (!global._announcementSchedulerRunning) {
     reminderSchedulerBusy = true;
 
     try {
-      if (!(await ensureSchedulerLeadership())) return;
       const dueReminders = await personalToolService.processDueReminders();
 
       dueReminders.forEach(({ userId, notification }) => {
@@ -616,7 +573,6 @@ if (!global._announcementSchedulerRunning) {
     digestSchedulerBusy = true;
 
     try {
-      if (!(await ensureSchedulerLeadership())) return;
       await runDepartmentDigestScheduler();
     } catch (err) {
       console.error('Department Digest Scheduler Error:', err.message);

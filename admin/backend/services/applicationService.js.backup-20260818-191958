@@ -133,28 +133,6 @@ const SIGNED_URL_EXPIRY_SAFETY_MS = 5 * 60 * 1000;
 const signedUrlCache = new Map();
 const signedUrlInFlight = new Map();
 
-const DOCUMENT_VIEW_METADATA_CACHE_TTL_MS = Math.max(
-    5000,
-    Number(process.env.DOCUMENT_VIEW_METADATA_CACHE_TTL_MS || 30000)
-);
-const DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES = Math.max(
-    100,
-    Number(process.env.DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES || 1000)
-);
-const documentViewMetadataCache = new Map();
-const documentViewMetadataInFlight = new Map();
-
-function pruneDocumentViewMetadataCache(now = Date.now()) {
-    for (const [key, entry] of documentViewMetadataCache.entries()) {
-        if (!entry || entry.expiresAt <= now) documentViewMetadataCache.delete(key);
-    }
-    while (documentViewMetadataCache.size > DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES) {
-        const oldestKey = documentViewMetadataCache.keys().next().value;
-        if (oldestKey === undefined) break;
-        documentViewMetadataCache.delete(oldestKey);
-    }
-}
-
 function pruneSignedUrlCache(now = Date.now()) {
     for (const [key, entry] of signedUrlCache.entries()) {
         if (!entry || entry.expiresAt <= now) {
@@ -1352,43 +1330,6 @@ async function getSignedFileUrl(filePath) {
     }
 }
 
-async function getCachedApplicationDocumentForView(applicationId, documentKey) {
-    const key = normalizeDocumentType(documentKey);
-    const cacheKey = `${applicationId}:${key}`;
-    const now = Date.now();
-    const cached = documentViewMetadataCache.get(cacheKey);
-    if (cached && cached.expiresAt > now) {
-        documentViewMetadataCache.delete(cacheKey);
-        documentViewMetadataCache.set(cacheKey, cached);
-        return cached.document;
-    }
-    if (documentViewMetadataInFlight.has(cacheKey)) {
-        return documentViewMetadataInFlight.get(cacheKey);
-    }
-
-    const request = (async () => {
-        const { data: rows, error } = await supabase
-            .from('application_documents')
-            .select('document_id, application_id, document_type, file_name, file_path, preview_path, is_submitted')
-            .eq('application_id', applicationId);
-        if (error) throw buildHttpError(500, error.message);
-        const document = (rows || []).find((row) => getDocumentKey(row) === key) || null;
-        documentViewMetadataCache.set(cacheKey, {
-            document,
-            expiresAt: Date.now() + DOCUMENT_VIEW_METADATA_CACHE_TTL_MS,
-        });
-        pruneDocumentViewMetadataCache();
-        return document;
-    })();
-
-    documentViewMetadataInFlight.set(cacheKey, request);
-    try {
-        return await request;
-    } finally {
-        documentViewMetadataInFlight.delete(cacheKey);
-    }
-}
-
 exports.fetchApplicationDocumentViewUrl = async ({ applicationId, documentKey, source = 'preview' } = {}) => {
     if (!applicationId) throw buildHttpError(400, 'Application ID is required.');
     const key = normalizeDocumentType(documentKey);
@@ -1396,10 +1337,13 @@ exports.fetchApplicationDocumentViewUrl = async ({ applicationId, documentKey, s
         throw buildHttpError(400, 'A stored application document is required.');
     }
 
-    const document = await getCachedApplicationDocumentForView(
-        applicationId,
-        key
-    );
+    const { data: rows, error } = await supabase
+        .from('application_documents')
+        .select('document_id, application_id, document_type, file_name, file_path, preview_path, is_submitted')
+        .eq('application_id', applicationId);
+    if (error) throw buildHttpError(500, error.message);
+
+    const document = (rows || []).find((row) => getDocumentKey(row) === key);
     if (!document || document.is_submitted !== true || !document.file_path) {
         throw buildHttpError(404, 'Uploaded document not found.');
     }

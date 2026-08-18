@@ -6,14 +6,14 @@ const path = require('node:path');
 const frontendRoot = path.resolve(__dirname, '../../frontend/src');
 const read = (relative) => fs.readFileSync(path.join(frontendRoot, relative), 'utf8');
 
-test('landing uses Authorized Access without role Portal labels', () => {
+test('landing uses one unified staff login without role-selection cards', () => {
   const source = read('pages/SmartPDMLanding.jsx');
-  assert.match(source, /Authorized User Access/);
-  assert.match(source, /Select your access/);
-  assert.match(source, /Student Discipline Office/);
-  assert.doesNotMatch(source, /Staff Access/);
+  assert.match(source, /Authorized Staff Access/);
+  assert.match(source, /Staff sign in/);
+  assert.match(source, /Your primary role determines which portal opens after sign in/);
+  assert.doesNotMatch(source, /Select your access/);
+  assert.doesNotMatch(source, /const portalLinks = \[/);
   assert.doesNotMatch(source, /Office Portal Directory/);
-  assert.doesNotMatch(source, /\{item\.label\} Portal/);
 });
 
 test('official landing requirements remain unchanged', () => {
@@ -25,9 +25,9 @@ test('official landing requirements remain unchanged', () => {
 test('department navigation uses For Endorsement and preserves RO Requests', () => {
   const sdoLayout = read('components/layout/SDOLayout.jsx');
   const departmentLayout = read('components/layout/DepartmentPortalLayout.jsx');
-  assert.match(sdoLayout, /queuePath="\/sdo\/queue"/);
+  assert.match(sdoLayout, /label: 'For Endorsement'/);
   assert.match(departmentLayout, /queueLabel = 'For Endorsement'/);
-  assert.match(departmentLayout, /roQueueLabel = 'RO Requests'/);
+  assert.match(departmentLayout, /label: 'RO Requests'/);
 });
 
 test('endorsement queue uses compact review drawer', () => {

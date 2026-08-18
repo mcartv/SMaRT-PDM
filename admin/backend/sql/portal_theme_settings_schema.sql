@@ -63,7 +63,7 @@ create table if not exists public.staff_portal_theme_settings (
   created_at timestamptz not null default now(),
   primary key (user_id, portal_key),
   constraint staff_portal_theme_settings_portal_key_check
-    check (portal_key in ('admin', 'sdo', 'guidance', 'pd')),
+    check (portal_key in ('admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')),
   constraint staff_portal_theme_settings_preset_key_check
     check (preset_key in (
       'default',

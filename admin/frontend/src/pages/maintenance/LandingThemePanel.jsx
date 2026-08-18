@@ -276,7 +276,7 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-stone-900">Landing Page Theme</h3>
             <p className="mt-1 text-sm text-stone-500">
-              Adjust the public landing page colors separately from the admin and office portal themes.
+              Adjust the public landing page and unified login colors separately from each user's portal theme.
             </p>
             <p className="mt-1 text-xs text-stone-500">
               You can apply a preset quickly, or use manual color pickers and save a custom landing palette.

@@ -9,32 +9,37 @@ export const PORTAL_CONFIG = {
     admin: {
         tokenKey: 'adminToken',
         profileKey: 'adminProfile',
+        rootPath: '/admin',
         redirectPath: '/admin/dashboard',
-        loginPath: '/admin/login',
+        loginPath: '/login',
     },
     pd: {
         tokenKey: 'pdToken',
         profileKey: 'pdProfile',
+        rootPath: '/pd',
         redirectPath: '/pd/dashboard',
-        loginPath: '/pd/login',
+        loginPath: '/login',
     },
     guidance: {
         tokenKey: 'guidanceToken',
         profileKey: 'guidanceProfile',
+        rootPath: '/guidance',
         redirectPath: '/guidance/dashboard',
-        loginPath: '/guidance/login',
+        loginPath: '/login',
     },
     sdo: {
         tokenKey: 'sdoToken',
         profileKey: 'sdoProfile',
+        rootPath: '/sdo',
         redirectPath: '/sdo/dashboard',
-        loginPath: '/sdo/login',
+        loginPath: '/login',
     },
     ro_coordinator: {
         tokenKey: 'roCoordinatorToken',
         profileKey: 'roCoordinatorProfile',
+        rootPath: '/ro-coordinator',
         redirectPath: '/ro-coordinator/dashboard',
-        loginPath: '/ro-coordinator/login',
+        loginPath: '/login',
     },
 };
 
@@ -85,7 +90,7 @@ export function getPortalNameFromPath(pathname = '') {
 
     return (
         Object.entries(PORTAL_CONFIG).find(([, portal]) => {
-            const portalRoot = portal.loginPath.replace(/\/login$/, '');
+            const portalRoot = portal.rootPath;
             return normalized === portalRoot || normalized.startsWith(`${portalRoot}/`);
         })?.[0] || null
     );
@@ -173,16 +178,12 @@ export function clearPortalSession(portalName) {
 
 export function redirectPortalToLogin(portalName) {
     if (typeof window === 'undefined') return;
-
-    const portal = PORTAL_CONFIG[portalName];
-    if (!portal?.loginPath) return;
+    if (!PORTAL_CONFIG[portalName]) return;
 
     const currentPath = window.location.pathname || '';
-    if (currentPath === portal.loginPath || currentPath.startsWith(`${portal.loginPath}/`)) {
-        return;
-    }
+    if (currentPath === '/login') return;
 
-    window.location.replace(portal.loginPath);
+    window.location.replace('/login');
 }
 
 function buildSessionFeedback(code, message = '') {

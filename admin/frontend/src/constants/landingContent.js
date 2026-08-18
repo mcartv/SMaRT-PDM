@@ -2,7 +2,7 @@ export const DEFAULT_LANDING_CONTENT = {
   hero_badge: 'OSFA Digital Scholarship Platform',
   hero_title: 'Scholarship access, tracking, and updates in one system.',
   hero_description:
-    'SMaRT-PDM helps applicants, scholars, and authorized staff manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
+    'SMaRT-PDM helps applicants, scholars, and authorized users manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
   mobile_app_title: 'Scholar Mobile App',
   mobile_app_description:
     'Install the APK to track application updates and scholarship activity from your phone.',
@@ -37,7 +37,7 @@ export const DEFAULT_LANDING_CONTENT = {
   ],
   features_title: 'Built for scholarship operations',
   features_description:
-    'Designed for applicants, scholars, and OSFA staff who need a clean, direct, and reliable workflow.',
+    'Designed for applicants, scholars, and authorized OSFA users who need a clean, direct, and reliable workflow.',
   feature_items: [
     { title: 'Application Tracking', description: 'Applicants can monitor submission progress and requirements.' },
     { title: 'Live Announcements', description: 'Scholars receive updates from OSFA and department offices.' },
@@ -52,12 +52,27 @@ export const DEFAULT_LANDING_CONTENT = {
     "SMaRT-PDM is the scholarship monitoring platform of Pambayang Dalubhasaan ng Marilao and OSFA. Confirm important announcements through this site, the OSFA office, or PDM's official Facebook page.",
 };
 
+
+function normalizeUserTerminology(value) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/\bauthorized staff\b/gi, 'authorized users')
+    .replace(/\bOSFA staff\b/gi, 'authorized OSFA users')
+    .replace(/\bstaff\b/gi, 'users');
+}
+
 export function mergeLandingContent(content) {
   const source = content && typeof content === 'object' ? content : {};
+  const normalizedSource = Object.fromEntries(
+    Object.entries(source).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? normalizeUserTerminology(value) : value,
+    ])
+  );
   const normalizeTextItems = (items, defaults) => {
     if (!Array.isArray(items)) return defaults;
     const normalized = items
-      .map((item) => String(item || '').trim())
+      .map((item) => normalizeUserTerminology(String(item || '').trim()))
       .filter(Boolean)
       .slice(0, 12);
     return normalized.length ? normalized : defaults;
@@ -66,8 +81,8 @@ export function mergeLandingContent(content) {
     if (!Array.isArray(items)) return defaults;
     const normalized = items
       .map((item) => ({
-        title: String(item?.title || '').trim(),
-        description: String(item?.description || '').trim(),
+        title: normalizeUserTerminology(String(item?.title || '').trim()),
+        description: normalizeUserTerminology(String(item?.description || '').trim()),
       }))
       .filter((item) => item.title && item.description)
       .slice(0, 12);
@@ -75,15 +90,15 @@ export function mergeLandingContent(content) {
   };
   return {
     ...DEFAULT_LANDING_CONTENT,
-    ...source,
-    guide_steps: normalizeContentItems(source.guide_steps, DEFAULT_LANDING_CONTENT.guide_steps),
-    feature_items: normalizeContentItems(source.feature_items, DEFAULT_LANDING_CONTENT.feature_items),
+    ...normalizedSource,
+    guide_steps: normalizeContentItems(normalizedSource.guide_steps, DEFAULT_LANDING_CONTENT.guide_steps),
+    feature_items: normalizeContentItems(normalizedSource.feature_items, DEFAULT_LANDING_CONTENT.feature_items),
     requirement_items: normalizeTextItems(
-      source.requirement_items,
+      normalizedSource.requirement_items,
       DEFAULT_LANDING_CONTENT.requirement_items
     ),
     requirement_notices: normalizeTextItems(
-      source.requirement_notices,
+      normalizedSource.requirement_notices,
       DEFAULT_LANDING_CONTENT.requirement_notices
     ),
   };

@@ -3,7 +3,11 @@ const LOGIN_ERROR_MESSAGES = {
   ACCOUNT_DEACTIVATED:
     'Your account has been disabled by an administrator. Please contact the administrator for assistance.',
   WRONG_PORTAL:
-    'This account does not have access to this portal. Choose the correct office portal.',
+    'This user account does not have configured access to SMaRT-PDM. Please contact an administrator.',
+  USER_ACCESS_NOT_CONFIGURED:
+    'This user account does not have configured access to SMaRT-PDM. Please contact an administrator.',
+  STAFF_ACCESS_NOT_CONFIGURED:
+    'This user account does not have configured access to SMaRT-PDM. Please contact an administrator.',
   NETWORK_ERROR:
     'The server cannot be reached. Check your connection and try again.',
   ADMIN_ACTIVE_DEVICE_LIMIT_REACHED:
@@ -14,7 +18,7 @@ const LOGIN_ERROR_MESSAGES = {
     'The server could not complete the sign-in request. Please try again shortly.',
 };
 
-export function getLoginErrorMessage(error, portalLabel = 'this') {
+export function getLoginErrorMessage(error) {
   const knownMessage = LOGIN_ERROR_MESSAGES[error?.code];
   if (knownMessage) return knownMessage;
 
@@ -24,6 +28,6 @@ export function getLoginErrorMessage(error, portalLabel = 'this') {
 
   return (
     error?.message ||
-    `Unable to sign in to the ${portalLabel} portal. Please try again.`
+    'Unable to sign in. Please try again.'
   );
 }

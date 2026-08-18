@@ -133,10 +133,9 @@ export default function Maintenance() {
             ) : (
               <ThemePanel
                 tokenStorageKey="adminToken"
-                allowedPortals={['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator']}
-                editablePortals={['admin']}
+                allowedPortals={['admin']}
                 title="Admin Theme"
-                subtitle="Manage your personal Admin theme here. Other office login defaults are shown as quick previews only."
+                subtitle="Manage the theme saved specifically for your Admin account."
               />
             )}
           </div>

@@ -4,16 +4,36 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { read } = require('./_current-system-test-utils');
 
-test('landing keeps the approved authorized-access terminology', () => {
-  const source = read('frontend/src/pages/SmartPDMLanding.jsx');
+test('public access copy uses User terminology and the single Login entry', () => {
+  const landing = read('frontend/src/pages/SmartPDMLanding.jsx');
+  const loginCard = read('frontend/src/components/auth/UnifiedUserLoginCard.jsx');
+  const landingDefaults = read('frontend/src/constants/landingContent.js');
 
-  assert.match(source, /Authorized Staff Access/);
-  assert.match(source, /Staff sign in/);
-  assert.match(source, /Your primary role determines which portal opens after sign in/);
-  assert.doesNotMatch(source, /Select your access/);
-  assert.doesNotMatch(source, /const portalLinks = \[/);
-  assert.doesNotMatch(source, /Office Portal Directory/);
-  assert.match(source, /Student Discipline Office/);
+  assert.match(landing, />\s*Login\s*</);
+  assert.match(landing, />\s*Login Access\s*</);
+  assert.match(landingDefaults, /authorized users manage scholarship/);
+  assert.doesNotMatch(loginCard, /\bstaff\b/i);
+  assert.doesNotMatch(landing, /Select your access/);
+  assert.doesNotMatch(landing, /const portalLinks = \[/);
+});
+
+test('visible fallback copy no longer renders Staff terminology', () => {
+  const files = [
+    'frontend/src/pages/EndorsementSlipDetail.jsx',
+    'frontend/src/pages/PDProfile.jsx',
+    'frontend/src/pages/SDOProfile.jsx',
+    'frontend/src/pages/PDMaintenance.jsx',
+    'frontend/src/pages/SDOMaintenance.jsx',
+    'frontend/src/pages/maintenance/ROSettingsPanel.jsx',
+    'frontend/src/pages/AdminMessages.jsx',
+    'frontend/src/components/department/DepartmentSettingsPage.jsx',
+    'frontend/src/components/layout/AdminLayout.jsx',
+    'frontend/src/components/layout/SDOLayout.jsx',
+  ];
+
+  for (const file of files) {
+    assert.doesNotMatch(read(file), /['\"`]([^'\"`]*\bStaff\b[^'\"`]*)['\"`]/);
+  }
 });
 
 test('SDO current direct layout keeps For Endorsement and All Applicants', () => {

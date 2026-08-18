@@ -241,7 +241,7 @@ export default function SDOLayout() {
     if (profile?.name) return profile.name;
 
     const combined = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
-    return combined || 'SDO Staff';
+    return combined || 'SDO User';
   };
 
   const getDisplayPosition = () => {

@@ -620,7 +620,7 @@ function CreateGroupModal({
           <div>
             <h3 className="text-base font-semibold text-stone-900">Create Group Chat</h3>
             <p className="mt-1 text-xs text-stone-500">
-              Select students and staff by program, office, or role.
+              Select students and authorized users by program, office, or role.
             </p>
           </div>
 
@@ -669,7 +669,7 @@ function CreateGroupModal({
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search students or staff by name, ID, program, office, or role"
+              placeholder="Search students or authorized users by name, ID, program, office, or role"
               className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             />
           </div>
@@ -896,7 +896,7 @@ function AddMembersModal({
           <div>
             <h3 className="text-lg font-semibold text-stone-900">Add Contacts To Group</h3>
             <p className="mt-1 text-sm text-stone-500">
-              Search students or staff, then add them to the selected group chat.
+              Search students or authorized users, then add them to the selected group chat.
             </p>
           </div>
 
@@ -1867,7 +1867,7 @@ export default function AdminMessages({
   useEffect(() => {
     if (!token || !currentUserId) {
       if (isOpen) {
-        setError('Your staff session is required to open messaging.')
+        setError('Your user session is required to open messaging.')
       }
       setLoadingConversations(false)
       return

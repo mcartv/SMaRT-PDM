@@ -411,7 +411,7 @@ async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [
             name:
                 [row.first_name, row.last_name].filter(Boolean).join(' ') ||
                 row.email ||
-                'Staff user',
+                'User',
         }));
 
     if (courseId && normalizedRoles.has('pd')) {

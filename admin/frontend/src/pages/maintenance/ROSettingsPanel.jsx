@@ -743,7 +743,7 @@ export default function ROSettingsPanel() {
                                                         key={candidate.user_id}
                                                         value={candidate.user_id}
                                                     >
-                                                        {candidate.name} - {candidate.position || candidate.department || 'Staff'}
+                                                        {candidate.name} - {candidate.position || candidate.department || 'User'}
                                                     </option>
                                                 ))}
                                             </select>

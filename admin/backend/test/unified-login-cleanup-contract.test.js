@@ -2,15 +2,16 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { read } = require('./_current-system-test-utils');
+const { read, exists } = require('./_current-system-test-utils');
 
-const LEGACY_LOGIN_FILES = [
-  'AdminLogin.jsx',
-  'PDLogin.jsx',
-  'GuidanceLogin.jsx',
-  'SDOLogin.jsx',
-  'ROCoordinatorLogin.jsx',
-  'DepartmentPortalLogin.jsx',
+const REMOVED_LOGIN_FILES = [
+  'frontend/src/components/auth/UnifiedStaffLoginCard.jsx',
+  'frontend/src/pages/AdminLogin.jsx',
+  'frontend/src/pages/PDLogin.jsx',
+  'frontend/src/pages/GuidanceLogin.jsx',
+  'frontend/src/pages/SDOLogin.jsx',
+  'frontend/src/pages/ROCoordinatorLogin.jsx',
+  'frontend/src/pages/DepartmentPortalLogin.jsx',
 ];
 
 test('public app exposes one unified login and keeps legacy URL redirects', () => {
@@ -22,11 +23,9 @@ test('public app exposes one unified login and keeps legacy URL redirects', () =
   }
 });
 
-test('legacy role-specific login components are compatibility redirects only', () => {
-  for (const file of LEGACY_LOGIN_FILES) {
-    const source = read(`frontend/src/pages/${file}`);
-    assert.match(source, /Navigate to="\/login" replace/);
-    assert.doesNotMatch(source, /usePortalTheme|authPath|password|Email Address|Authorized .* Access/);
+test('obsolete role-specific login components and old Staff login card are removed', () => {
+  for (const file of REMOVED_LOGIN_FILES) {
+    assert.equal(exists(file), false, `${file} should be removed`);
   }
 });
 

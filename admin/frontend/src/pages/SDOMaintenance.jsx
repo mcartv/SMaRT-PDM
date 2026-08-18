@@ -10,7 +10,7 @@ export const sdoMaintenanceConfig = {
     phone_number: '',
     position: 'Student Disciplinary Officer',
     department: 'Student Disciplinary Office',
-    role: 'SDO Staff',
+    role: 'SDO User',
   },
 };
 

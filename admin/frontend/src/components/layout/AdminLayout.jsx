@@ -508,7 +508,7 @@ export default function AdminLayout() {
                   {adminData?.name || 'Admin'}
                 </p>
                 <p className="truncate text-[10px] font-medium text-stone-500">
-                  {adminData?.position || 'Staff'}
+                  {adminData?.position || 'User'}
                 </p>
               </div>
               <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--portal-base)] xl:block" />

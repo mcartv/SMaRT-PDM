@@ -1416,7 +1416,7 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
     const actorUserId = getActorUserId(actor);
 
     if (!actorUserId) {
-        throw createHttpError(401, 'Authenticated staff user is required.');
+        throw createHttpError(401, 'Authenticated user is required.');
     }
 
     const client = await pool.connect();

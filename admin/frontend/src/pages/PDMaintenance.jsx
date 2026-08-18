@@ -10,7 +10,7 @@ export const pdMaintenanceConfig = {
     phone_number: '',
     position: 'Program Director',
     department: 'Program Director Office',
-    role: 'PD Staff',
+    role: 'Program Director',
   },
 };
 

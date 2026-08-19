@@ -1428,6 +1428,142 @@ function normalizeBirthName(value) {
   return normalized;
 }
 
+const EMPTY_PARENT_NAME_MARKERS = new Set([
+  '',
+  'n a',
+  'na',
+  'none',
+  'not applicable',
+  'not listed',
+]);
+
+function normalizeParentNameText(value = '') {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isEmptyParentName(value = '') {
+  return EMPTY_PARENT_NAME_MARKERS.has(normalizeParentNameText(value));
+}
+
+function birthParentDisplayName(value) {
+  const normalized = normalizeBirthName(value);
+  if (String(normalized.section_status || '').toLowerCase() === 'not_applicable') {
+    return '';
+  }
+  return [
+    normalized.first_name,
+    normalized.middle_name,
+    normalized.last_name,
+  ].filter(Boolean).join(' ').trim();
+}
+
+function applicantFamilyMember(application, relation) {
+  const target = String(relation || '').trim().toLowerCase();
+  return (application?.family_members || []).find(
+    (member) => String(member?.relation || '').trim().toLowerCase() === target
+  ) || null;
+}
+
+// Comparison is evidence, not an approval decision. Legitimate family changes
+// may produce DIFFERENCE FOUND or NOT COMPARABLE and can still be confirmed by
+// the administrator after checking the actual Birth Certificate.
+export function compareBirthParentNames(applicantValue, birthValue) {
+  const applicantName = applicantValue && typeof applicantValue === 'object'
+    ? buildFullName(applicantValue) || ''
+    : String(applicantValue || '');
+  const birthName = birthValue && typeof birthValue === 'object'
+    ? birthParentDisplayName(birthValue)
+    : String(birthValue || '');
+
+  const applicantEmpty = isEmptyParentName(applicantName);
+  const birthEmpty = isEmptyParentName(birthName);
+
+  let status = 'DIFFERENCE FOUND';
+  if (applicantEmpty && birthEmpty) {
+    status = 'MATCHED';
+  } else if (applicantEmpty !== birthEmpty) {
+    status = 'NOT COMPARABLE';
+  } else if (
+    normalizeParentNameText(applicantName)
+    === normalizeParentNameText(birthName)
+  ) {
+    status = 'MATCHED';
+  }
+
+  return {
+    status,
+    applicant_name: applicantEmpty ? 'Not listed' : applicantName,
+    birth_certificate_name: birthEmpty ? 'Not listed' : birthName,
+  };
+}
+
+export function buildBirthParentsInformation({
+  application,
+  birthFields = {},
+  hasBirthEvidence = false,
+  adminStatus = 'PENDING VERIFICATION',
+} = {}) {
+  const definitions = [
+    ['Mother', 'mother_maiden_name'],
+    ['Father', 'father_name'],
+  ];
+
+  return {
+    admin_status: adminStatus,
+    parents: definitions.map(([relation, fieldKey]) => {
+      const applicant = applicantFamilyMember(application, relation);
+      const applicantName = buildFullName(applicant || {}) || 'Not listed';
+
+      if (!hasBirthEvidence) {
+        return {
+          relation,
+          applicant_name: applicantName,
+          birth_certificate_name:
+            adminStatus === 'REJECTED' ? 'Not available' : 'Pending OCR review',
+          comparison:
+            adminStatus === 'REJECTED' ? 'NOT COMPARABLE' : 'PENDING',
+        };
+      }
+
+      const compared = compareBirthParentNames(
+        applicant,
+        birthFields?.[fieldKey]
+      );
+
+      return {
+        relation,
+        applicant_name: compared.applicant_name,
+        birth_certificate_name: compared.birth_certificate_name,
+        comparison: compared.status,
+      };
+    }),
+  };
+}
+
+function resolveBirthAdminVerificationStatus(request, candidate) {
+  const requestStatus = String(request?.status || '').trim().toLowerCase();
+  const candidateStatus = String(candidate?.status || '').trim().toLowerCase();
+
+  if (requestStatus === 'completed' || candidateStatus === 'completed') {
+    return 'CONFIRMED';
+  }
+
+  if (
+    requestStatus === 'failed'
+    && String(request?.error_code || '').trim().toUpperCase() === 'ADMIN_REJECTED'
+  ) {
+    return 'REJECTED';
+  }
+
+  return 'PENDING VERIFICATION';
+}
+
 const BIRTH_OCR_DOCUMENT_KEYS = new Set([
   'birth_certificate',
   'certificate_of_live_birth',
@@ -1898,7 +2034,7 @@ function OCRPanel({
 
             {!birthDiagnosticOnly && <div className="rounded-xl border border-rose-100 bg-white p-4">
               <div className="mb-3 flex items-start justify-between gap-3">
-                <p className="min-w-0 text-sm font-semibold text-stone-700">Child Name (reference)</p>
+                <p className="min-w-0 text-sm font-semibold text-stone-800">Child Name</p>
                 <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
                   {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
                 </span>
@@ -1909,11 +2045,18 @@ function OCRPanel({
                     <span className="block text-xs text-stone-500">{label}</span>
                     <Input
                       value={correctedFields?.child_name?.[part] || ''}
-                      readOnly
+                      readOnly={birthReviewClosed}
                       data-birth-ocr-field
                       onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX.child_name}_${part.replace('_name', '')}`)}
                       aria-label={`Child ${label}`}
-                      className="w-full min-w-0 bg-stone-100"
+                      onChange={(event) => onCorrectedFieldsChange({
+                        ...correctedFields,
+                        child_name: {
+                          ...(correctedFields?.child_name || {}),
+                          [part]: event.target.value,
+                        },
+                      })}
+                      className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
                     />
                   </label>
                 ))}
@@ -1990,7 +2133,7 @@ function OCRPanel({
                       disabled={reviewingCandidate || (birthHasCorrections && !birthReviewReason)}
                     >
                       {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      {birthHasCorrections ? 'Correct & Confirm' : 'Confirm Parents'}
+                      Correct & Confirm
                     </Button>}
                   </div>}
                 </div>
@@ -2431,7 +2574,31 @@ function ReviewIssueModal({
   );
 }
 
-function StudentCard({ application }) {
+function StudentCard({ application, parentsInformation }) {
+  const parentInfo = parentsInformation || {
+    admin_status: 'PENDING VERIFICATION',
+    parents: [],
+  };
+  const adminStatus = parentInfo.admin_status || 'PENDING VERIFICATION';
+  const adminStatusClass = adminStatus === 'CONFIRMED'
+    ? 'border-green-200 bg-green-50 text-green-700'
+    : adminStatus === 'REJECTED'
+      ? 'border-red-200 bg-red-50 text-red-700'
+      : 'border-amber-200 bg-amber-50 text-amber-700';
+
+  const comparisonClass = (status) => {
+    if (status === 'MATCHED') {
+      return 'border-green-200 bg-green-50 text-green-700';
+    }
+    if (status === 'DIFFERENCE FOUND') {
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+    }
+    if (status === 'NOT COMPARABLE') {
+      return 'border-sky-200 bg-sky-50 text-sky-700';
+    }
+    return 'border-stone-200 bg-stone-50 text-stone-500';
+  };
+
   return (
     <Card className="border-stone-200 bg-white shadow-none">
       <div className="p-3.5 sm:p-4">
@@ -2495,6 +2662,56 @@ function StudentCard({ application }) {
             }
             className="min-w-0"
           />
+        </div>
+
+        <div className="mt-4 border-t border-stone-100 pt-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-stone-900">
+                Parents Information
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-stone-500">
+                Applicant-submitted parent information compared with the Birth Certificate OCR review.
+              </p>
+            </div>
+            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${adminStatusClass}`}>
+              {adminStatus}
+            </span>
+          </div>
+
+          <div className="mt-3 space-y-2.5">
+            {(parentInfo.parents || []).map((parent) => (
+              <div
+                key={parent.relation}
+                className="rounded-xl border border-stone-200 bg-stone-50/60 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                    {parent.relation}
+                  </p>
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${comparisonClass(parent.comparison)}`}>
+                    {parent.comparison}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <InfoRow
+                    label="Applicant Information"
+                    value={parent.applicant_name}
+                    className="min-w-0"
+                  />
+                  <InfoRow
+                    label="Birth Certificate"
+                    value={parent.birth_certificate_name}
+                    className="min-w-0"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-2 text-[11px] leading-4 text-stone-500">
+            A difference is a review signal, not an automatic rejection. Current family information may legitimately differ from information recorded at birth.
+          </p>
         </div>
       </div>
     </Card>
@@ -2943,6 +3160,10 @@ export default function DocumentVerification() {
   const [birthReviewImageStatus, setBirthReviewImageStatus] = useState('idle');
   const [birthReviewImageError, setBirthReviewImageError] = useState('');
   const [birthReviewReason, setBirthReviewReason] = useState('');
+  const [birthValidationContext, setBirthValidationContext] = useState({
+    request: null,
+    candidate: null,
+  });
   const [piOnline, setPiOnline] = useState(false);
   const [piAvailabilityChecked, setPiAvailabilityChecked] = useState(false);
   const [cancellingIotOcr, setCancellingIotOcr] = useState(false);
@@ -3217,9 +3438,51 @@ export default function DocumentVerification() {
     [refreshCurrentDocumentVerification]
   );
 
+  const loadBirthValidationContext = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/birth_certificate/iot-ocr`,
+        {
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+          },
+          cache: 'no-store',
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 404) {
+        setBirthValidationContext({ request: null, candidate: null });
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(
+          payload.error || 'Failed to load Birth Certificate verification'
+        );
+      }
+
+      const data = payload?.data || {};
+      setBirthValidationContext({
+        request: data?.request || null,
+        candidate: data?.candidate || null,
+      });
+    } catch (loadError) {
+      // Parents Information is supporting evidence. A temporary refresh failure
+      // must not block the rest of Document Verification.
+      console.error('LOAD BIRTH PARENTS INFORMATION ERROR:', loadError);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchApplicationDocuments();
-  }, [fetchApplicationDocuments]);
+    loadBirthValidationContext();
+  }, [fetchApplicationDocuments, loadBirthValidationContext]);
+
+  useEffect(() => {
+    if (activeDocId === 'birth_certificate') {
+      loadBirthValidationContext();
+    }
+  }, [activeDocId, loadBirthValidationContext]);
 
   const applyPiAvailability = useCallback((payload = {}) => {
     const data = payload?.data || payload || {};
@@ -3450,6 +3713,66 @@ export default function DocumentVerification() {
     () => buildExtractedData(activeDoc, application),
     [activeDoc, application]
   );
+
+  const birthParentsInformation = useMemo(() => {
+    const activeBirthCandidate = (
+      activeDoc?.id === 'birth_certificate'
+      && reviewCandidate
+      && isSameOcrDocument(reviewCandidate.document_key, 'birth_certificate')
+    )
+      ? reviewCandidate
+      : null;
+
+    const persistedCandidate = birthValidationContext?.candidate || null;
+    const persistedRequest = birthValidationContext?.request || null;
+    const activeRequestMatchesPersisted = Boolean(
+      activeBirthCandidate?.request_id
+      && String(persistedRequest?.request_id || '') === String(activeBirthCandidate.request_id)
+    );
+
+    const candidate = activeBirthCandidate || persistedCandidate;
+    const request = activeBirthCandidate
+      ? (
+          activeRequestMatchesPersisted
+            ? persistedRequest
+            : {
+                request_id: activeBirthCandidate.request_id,
+                status: activeBirthCandidate.status,
+              }
+        )
+      : persistedRequest;
+
+    const candidateStatus = String(candidate?.status || '').toLowerCase();
+    const useLiveCorrections = Boolean(
+      activeBirthCandidate && candidateStatus === 'review_required'
+    );
+    const birthFields = useLiveCorrections
+      ? correctedFields
+      : normalizeReviewFields(candidate);
+
+    const hasBirthEvidence = Boolean(
+      candidate
+      && candidate?.processing?.diagnostic_only !== true
+      && candidate?.fields
+      && (
+        candidate.fields.mother_maiden_name
+        || candidate.fields.father_name
+      )
+    );
+
+    return buildBirthParentsInformation({
+      application,
+      birthFields,
+      hasBirthEvidence,
+      adminStatus: resolveBirthAdminVerificationStatus(request, candidate),
+    });
+  }, [
+    activeDoc?.id,
+    application,
+    birthValidationContext,
+    correctedFields,
+    reviewCandidate,
+  ]);
 
   useEffect(() => {
     if (!activeDoc) return;
@@ -4055,6 +4378,9 @@ export default function DocumentVerification() {
         }));
       }
       await fetchApplicationDocuments({ soft: true });
+      if (BIRTH_OCR_DOCUMENT_KEYS.has(activeDoc.id)) {
+        await loadBirthValidationContext();
+      }
       setBirthReviewReason('');
     } catch (error) {
       setIotOcrError(error.message || 'Failed to confirm OCR candidate');
@@ -4098,8 +4424,10 @@ export default function DocumentVerification() {
         await handleRunIotOcr(activeDoc.id);
       } else {
         setReviewCandidate((current) => current ? { ...current, status: 'failed' } : current);
+        setCorrectedFields(normalizeReviewFields(reviewCandidate));
         await fetchApplicationDocuments({ soft: true });
       }
+      await loadBirthValidationContext();
     } catch (error) {
       setIotOcrError(error.message || `Failed to ${action} OCR candidate`);
     } finally {
@@ -4426,7 +4754,7 @@ export default function DocumentVerification() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[clamp(370px,29vw,430px)_minmax(0,1fr)] xl:gap-5">
         <aside className="min-w-0 space-y-4 lg:sticky lg:top-3 lg:self-start">
-          <StudentCard application={application} />
+          <StudentCard application={application} parentsInformation={birthParentsInformation} />
 
           <ChecklistCard
             docs={docs}

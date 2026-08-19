@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -205,7 +205,7 @@ function getDocumentStatusMeta(row) {
   }
 
   return {
-    label: row?.document_status || 'Ã¢â‚¬â€',
+    label: row?.document_status || '\u2014',
     bg: '#f5f5f4',
     color: '#57534e',
   };
@@ -266,13 +266,13 @@ function normalizeApplicantRow(app) {
       app.student_name ||
       [app.first_name, app.last_name].filter(Boolean).join(' ') ||
       'Unnamed Applicant',
-    pdm_id: app.pdm_id || 'Ã¢â‚¬â€',
+    pdm_id: app.pdm_id || '\u2014',
     program_name: app.program_name || 'No Program',
     application_status: app.application_status || 'Pending',
-    document_status: app.document_status || app.deficiency_status || 'Ã¢â‚¬â€',
+    document_status: app.document_status || app.deficiency_status || '\u2014',
     submitted_at: app.submission_date || null,
     opening_title: app.opening_title || 'Untitled Opening',
-    academic_year: app.academic_year || 'Ã¢â‚¬â€',
+    academic_year: app.academic_year || '\u2014',
     posting_status: app.posting_status || app.opening_status || 'open',
     allocated_slots: app.allocated_slots || 0,
     filled_slots: app.filled_slots || 0,
@@ -812,7 +812,7 @@ function ReadinessOpeningCards({
                   </h2>
                   <p className="mt-1 text-sm text-stone-500">
                     {opening.program_name || 'Scholarship Program'}
-                    {opening.academic_year ? ` Â· ${opening.academic_year}` : ''}
+                    {opening.academic_year ? ` \u00B7 ${opening.academic_year}` : ''}
                   </p>
                 </div>
 
@@ -863,7 +863,7 @@ function ReadinessOpeningCards({
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
                             <p className="mt-1 text-sm text-stone-500">
-                              {row.pdm_id} Â· Ready {formatDate(row.fcfs_completed_at)}
+                              {row.pdm_id} {'\u00B7'} Ready {formatDate(row.fcfs_completed_at)}
                             </p>
                             <p className="mt-1 text-xs font-medium text-green-700">
                               {normalizeStatus(row.selection_status) === 'promoted' ? 'Promoted from waiting list' : 'Reserved by FCFS'}
@@ -926,12 +926,12 @@ function ReadinessOpeningCards({
                           </span>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
-                            <p className="mt-1 text-sm text-stone-500">{row.pdm_id} Â· Ready {formatDate(row.fcfs_completed_at)}</p>
+                            <p className="mt-1 text-sm text-stone-500">{row.pdm_id} {'\u00B7'} Ready {formatDate(row.fcfs_completed_at)}</p>
                           </div>
                         </div>
 
                         <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
-                          Waiting #{Number(row.waitlist_position || 0) || 'â€”'}
+                          Waiting #{Number(row.waitlist_position || 0) || '\u2014'}
                         </span>
                       </div>
                     ))}
@@ -1188,7 +1188,7 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
   return (
     <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm text-stone-500">
-        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}Ã¢â‚¬â€œ
+        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}{'\u2013'}
         {Math.min(page * PAGE_SIZE, totalItems)} of {totalItems}
       </span>
 
@@ -1434,7 +1434,7 @@ export default function ApplicationReview() {
       opening_id: opening.opening_id,
       opening_title: opening.opening_title || opening.title || 'Untitled Opening',
       program_name: opening.program_name || 'No Program',
-      academic_year: opening.academic_year || opening.academic_year_label || opening.label || 'Ã¢â‚¬â€',
+      academic_year: opening.academic_year || opening.academic_year_label || opening.label || '\u2014',
       posting_status: opening.posting_status || opening.status || 'open',
       allocated_slots: Number(opening.allocated_slots || opening.slot_count || 0),
       filled_slots: Number(opening.filled_slots || 0),

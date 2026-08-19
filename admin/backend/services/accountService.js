@@ -784,6 +784,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         const nextPassword = safeText(payload.password);
         const confirmPassword = safeText(payload.confirm_password);
         const validPassword = validatePassword(nextPassword, confirmPassword);
+        const passwordChanged = Boolean(validPassword);
 
         if (validPassword) {
             const currentPasswordResult = await client.query(
@@ -832,7 +833,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             );
         }
 
-        if (sessionIdentityChanged) {
+        if (sessionIdentityChanged || passwordChanged) {
             await revokeStaffSessionVersion(client, userId);
         }
 
@@ -886,7 +887,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         await client.query('COMMIT');
 
         const updatedAccount = await getStaffAccountById(userId, true);
-        if (updatedAccount && sessionIdentityChanged) {
+        if (updatedAccount && (sessionIdentityChanged || passwordChanged)) {
             Object.defineProperty(updatedAccount, 'session_invalidated', {
                 value: true,
                 enumerable: false,

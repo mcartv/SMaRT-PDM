@@ -45,6 +45,7 @@ import ROCoordinatorMaintenance from './pages/ROCoordinatorMaintenance';
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
 import UnifiedLogin from './pages/UnifiedLogin';
+import AdminLogin from './pages/AdminLogin';
 import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 
 // --- SDO PAGES ---
@@ -83,7 +84,7 @@ export default function App() {
 
         {/* Unified User Login */}
         <Route path="/login" element={<UnifiedLogin />} />
-        <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/pd/login" element={<Navigate to="/login" replace />} />
         <Route path="/guidance/login" element={<Navigate to="/login" replace />} />
         <Route path="/sdo/login" element={<Navigate to="/login" replace />} />

@@ -17,6 +17,9 @@ import { buildApiUrl } from '@/api';
 import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = buildApiUrl('/api');
+const EM_DASH = '\u2014';
+const MIDDLE_DOT = '\u00B7';
+const MANILA_TIME_ZONE = 'Asia/Manila';
 
 const STATUS_META = {
   'Pending Review': {
@@ -41,15 +44,16 @@ function authHeaders() {
 }
 
 function formatDate(value) {
-  if (!value) return '—';
+  if (!value) return EM_DASH;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return EM_DASH;
   return date.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: MANILA_TIME_ZONE,
   });
 }
 
@@ -271,7 +275,7 @@ export default function PayoutProofReviewPanel() {
             <div className="border-b border-stone-100 px-5 py-4">
               <h3 className="font-semibold text-stone-900">Review Payout Proof</h3>
               <p className="mt-1 text-xs text-stone-500">
-                {proofName(selected)} · {selected.payout_title || 'Scholarship Payout'}
+                {proofName(selected)} {MIDDLE_DOT} {selected.payout_title || 'Scholarship Payout'}
               </p>
             </div>
             <CardContent className="space-y-4 p-5">

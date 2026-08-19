@@ -113,13 +113,12 @@ export default function UnifiedUserLoginCard({ theme }) {
             <div className="min-w-0">
               <p
                 id="login-heading"
-                className="text-[11px] font-black uppercase tracking-[0.17em]"
-                style={{ color: theme.base }}
+                className="text-2xl font-black tracking-[-0.025em] text-stone-900 sm:text-[28px]"
               >
                 Login Access
               </p>
               <span
-                className="mt-1 block h-0.5 w-10 rounded-full"
+                className="mt-2 block h-0.5 w-10 rounded-full"
                 style={{ background: theme.accent }}
                 aria-hidden="true"
               />

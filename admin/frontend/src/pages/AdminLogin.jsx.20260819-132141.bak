@@ -1,0 +1,324 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  GraduationCap,
+  BookOpen,
+  Award,
+} from 'lucide-react';
+
+import pdmLogo from '../assets/pdm-logo.png';
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { authService } from '@/services/authService';
+import { getLoginErrorMessage } from '@/utils/loginErrors';
+import {
+  consumePortalSessionFeedback,
+  getPortalNameFromRole,
+  getStoredPortalSession,
+  PORTAL_CONFIG,
+  savePortalSession,
+} from '@/utils/authStorage';
+
+const FEATURES = [
+  { icon: GraduationCap, label: 'Scholarship Management' },
+  { icon: BookOpen, label: 'Application Review' },
+  { icon: Award, label: 'Financial Assistance' },
+];
+
+export default function AdminLogin() {
+  const navigate = useNavigate();
+  const { theme } = usePortalTheme('admin');
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [stayLoggedIn, setStayLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sessionFeedback] = useState(() => consumePortalSessionFeedback('admin'));
+
+  useEffect(() => {
+    const existingSession = getStoredPortalSession('admin');
+
+    if (existingSession?.token) {
+      navigate(existingSession.redirectPath, { replace: true });
+    }
+  }, [navigate]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const data = await authService.login({
+        email,
+        password,
+        stayLoggedIn,
+      });
+
+      const portalName = getPortalNameFromRole(data?.user?.role);
+      const portal = PORTAL_CONFIG[portalName];
+
+      savePortalSession({
+        portalName,
+        token: data.token,
+        user: data.user,
+        // The 30-day option is intentionally limited to the true Admin account.
+        stayLoggedIn: portalName === 'admin' && stayLoggedIn,
+      });
+
+      navigate(portal.redirectPath, { replace: true });
+    } catch (err) {
+      setError(getLoginErrorMessage(err, 'Admin'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="min-h-screen flex bg-white"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
+      <div
+        className="hidden lg:flex lg:w-[52%] flex-col justify-between relative overflow-hidden"
+        style={{ background: theme.base }}
+      >
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle, #ffffff 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+
+        <div className="relative z-10 p-10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+            <img
+              src={pdmLogo}
+              alt="Logo"
+              className="w-16 h-16 object-contain block mx-auto"
+            />
+          </div>
+
+          <div>
+            <p className="text-white text-xs font-bold tracking-wide uppercase">
+              PDM · OSFA
+            </p>
+            <p className="text-[10px]" style={{ color: theme.sub }}>
+              Admin Access
+            </p>
+          </div>
+        </div>
+
+        <div className="relative z-10 px-12">
+          <h2
+            className="text-4xl font-bold leading-tight mb-10 text-white"
+            style={{ fontFamily: 'serif' }}
+          >
+            Scholarship <br />
+            <span style={{ color: theme.accent }}>Monitoring System</span>
+          </h2>
+
+          <div className="space-y-3 max-w-xs">
+            {FEATURES.map((feature) => (
+              <div
+                key={feature.label}
+                className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
+              >
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-lg"
+                  style={{ background: `${theme.accent}30` }}
+                >
+                  <feature.icon className="h-4 w-4" style={{ color: theme.accent }} />
+                </div>
+                <p className="text-sm font-medium text-stone-200">
+                  {feature.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 p-10 text-[10px] text-white/30 uppercase tracking-widest">
+          © 2026 Office for Scholarship and Financial Assistance
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[380px]">
+          <button
+            type="button"
+            onClick={() => navigate('/landing')}
+            className="mb-7 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold transition hover:bg-stone-100"
+            style={{ color: theme.base }}
+          >
+            <ArrowLeft size={15} />
+            Back to access selection
+          </button>
+
+          <div className="mb-8">
+            <div
+              className="mb-2 flex items-center gap-2"
+              style={{ color: theme.base }}
+            >
+              <ShieldCheck size={18} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                Authorized Access Only
+              </span>
+            </div>
+
+            <h1 className="text-3xl font-bold text-stone-900">Welcome back</h1>
+            <p className="text-stone-500 text-sm mt-1">
+              Sign in to manage scholarship endorsements and OSFA systems
+            </p>
+          </div>
+
+          <form
+            onSubmit={handleLogin}
+            className="space-y-5"
+            aria-busy={isLoading}
+          >
+            {sessionFeedback ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className={
+                  sessionFeedback.tone === 'danger'
+                    ? 'rounded-xl border border-red-200 bg-red-50 p-3.5 text-red-700'
+                    : sessionFeedback.tone === 'warning'
+                      ? 'rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-800'
+                      : 'rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-blue-800'
+                }
+              >
+                <p className="text-xs font-bold">{sessionFeedback.title}</p>
+                <p className="mt-1 text-xs leading-5">{sessionFeedback.message}</p>
+              </div>
+            ) : null}
+
+            {error && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium"
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-stone-700 ml-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                disabled={isLoading}
+                autoComplete="email"
+                placeholder="staff@pdm.edu.ph"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2 disabled:cursor-wait disabled:opacity-60"
+                style={{ '--tw-ring-color': `${theme.base}33` }}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-xs font-semibold text-stone-700">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/forgot-password', { state: { email } })}
+                  className="text-[10px] font-bold hover:underline"
+                  style={{ color: theme.base }}
+                >
+                  Forgot?
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2 disabled:cursor-wait disabled:opacity-60"
+                  style={{ '--tw-ring-color': `${theme.base}33` }}
+                />
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => setShowPassword((previous) => !previous)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3">
+              <input
+                type="checkbox"
+                disabled={isLoading}
+                checked={stayLoggedIn}
+                onChange={(event) => setStayLoggedIn(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-stone-300"
+                style={{ accentColor: theme.base }}
+              />
+              <span>
+                <span className="block text-xs font-semibold text-stone-700">
+                  Stay logged in for 30 days
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-4 text-stone-500">
+                  Use this only on the authorized Admin computer.
+                </span>
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              aria-live="polite"
+              className="w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
+              style={{
+                background: theme.base,
+                boxShadow: isLoading
+                  ? 'none'
+                  : `0 8px 20px -6px ${theme.base}80`,
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <div
+                    className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                    aria-hidden="true"
+                  />
+                  Authenticating...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          <p className="mt-8 text-center text-xs text-stone-400 font-medium">
+            Contact <span className="text-stone-600">OSFA IT Support</span>{' '}
+            for account issues.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

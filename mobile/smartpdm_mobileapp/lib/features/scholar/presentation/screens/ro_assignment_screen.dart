@@ -260,8 +260,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
     final originalBytes = await pickedFile.readAsBytes();
     final decoded = img.decodeImage(originalBytes);
-    if (decoded == null)
+    if (decoded == null) {
       throw Exception('The captured image could not be processed.');
+    }
 
     final localTime = capturedAt.toLocal();
     final stampLines = <String>[
@@ -1391,7 +1392,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
         final item = items[index];
 
@@ -2385,7 +2386,7 @@ class _ProofPreviewCard extends StatelessWidget {
                   entry.proof.fileUrl,
                   width: double.infinity,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox(
+                  errorBuilder: (_, _, _) => const SizedBox(
                     height: 320,
                     child: Center(
                       child: Text(
@@ -2452,7 +2453,7 @@ class _ProofPreviewCard extends StatelessWidget {
                           proof.fileUrl,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const ColoredBox(
+                          errorBuilder: (_, _, _) => const ColoredBox(
                             color: Color(0xFFF4EEE7),
                             child: Center(
                               child: Icon(

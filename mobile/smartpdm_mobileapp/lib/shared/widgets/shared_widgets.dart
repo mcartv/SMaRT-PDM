@@ -17,37 +17,49 @@ class AppHeader extends StatelessWidget {
         ? AppColors.applicantDarkSurfaceMuted
         : const Color(0xFFF8F2E7);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: onBack,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: backSurface,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 360;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            compact ? 12 : 18,
+            14,
+            compact ? 12 : 18,
+            10,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              subtitle,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: textColor,
+          child: Row(
+            children: [
+              InkWell(
+                onTap: onBack,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: compact ? 40 : 46,
+                  height: compact ? 40 : 46,
+                  decoration: BoxDecoration(
+                    color: backSurface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: compact ? 21 : 25,
+                    height: 1.1,
+                    color: textColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(width: compact ? 36 : 42),
+            ],
           ),
-          const SizedBox(width: 40),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -66,17 +78,19 @@ class StepIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inactiveColor = isDark
-        ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.46)
-        : AppColors.lightGray;
+        ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.52)
+        : const Color(0xFFDDD4C6);
     final inactiveSurface = isDark
         ? AppColors.applicantDarkSurfaceMuted
-        : Colors.white;
+        : const Color(0xFFF9F4EA);
     final currentTextColor = isDark
         ? AppColors.applicantDarkText
         : AppColors.darkBrown;
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final compact = constraints.maxWidth < 340;
+        final circleSize = compact ? 30.0 : 36.0;
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(labels.length, (index) {
@@ -93,21 +107,21 @@ class StepIndicator extends StatelessWidget {
                           left: constraints.maxWidth / (labels.length * 2),
                           right: -constraints.maxWidth / (labels.length * 2),
                           child: Container(
-                            height: 2,
+                            height: 3,
                             color: isActive
                                 ? const Color(0xFFF0C86B)
                                 : inactiveColor,
                           ),
                         ),
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: circleSize,
+                        height: circleSize,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: isActive ? AppColors.gold : inactiveSurface,
                           border: Border.all(
                             color: isCurrent ? AppColors.gold : inactiveColor,
-                            width: 1.5,
+                            width: isCurrent ? 2 : 1.4,
                           ),
                           boxShadow: isCurrent
                               ? [
@@ -136,13 +150,17 @@ class StepIndicator extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 9),
+                  SizedBox(height: compact ? 6 : 8),
                   Text(
                     labels[index],
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: isCurrent ? currentTextColor : inactiveColor,
-                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+                      fontSize: compact ? 10 : 12,
                     ),
                   ),
                 ],
@@ -176,12 +194,19 @@ class GhostButton extends StatelessWidget {
         foregroundColor: isDark
             ? AppColors.applicantDarkText
             : AppColors.darkBrown,
-        side: const BorderSide(color: AppColors.gold, width: 1.4),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        side: const BorderSide(color: AppColors.gold, width: 1.6),
+        minimumSize: const Size(0, 56),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        backgroundColor: isDark
+            ? AppColors.applicantDarkSurfaceMuted
+            : const Color(0xFFFFFBF1),
       ),
       child: icon == null
-          ? Text(label, style: const TextStyle(fontWeight: FontWeight.w700))
+          ? Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            )
           : Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -190,7 +215,10 @@ class GhostButton extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
               ],
             ),
@@ -213,11 +241,15 @@ class NavyButton extends StatelessWidget {
         disabledBackgroundColor: const Color(0xFFF0D8A0),
         disabledForegroundColor: AppColors.darkBrown.withValues(alpha: 0.55),
         foregroundColor: AppColors.darkBrown,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        minimumSize: const Size(0, 56),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         elevation: 0,
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
+      child: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+      ),
     );
   }
 }
@@ -235,11 +267,15 @@ class GoldButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.gold,
         foregroundColor: AppColors.darkBrown,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        minimumSize: const Size(0, 56),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         elevation: 0,
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
+      child: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+      ),
     );
   }
 }

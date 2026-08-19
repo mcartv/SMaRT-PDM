@@ -67,6 +67,7 @@ class _StepEssayState extends State<StepEssay> {
   }) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -86,6 +87,7 @@ class _StepEssayState extends State<StepEssay> {
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                     color: intakeTextColor(context),
+                    fontSize: 15,
                   ),
                 ),
               ),
@@ -96,17 +98,18 @@ class _StepEssayState extends State<StepEssay> {
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: intakeTextColor(context),
                     fontWeight: FontWeight.w800,
+                    fontSize: 17,
                     height: 1.35,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           TextFormField(
             controller: controller,
-            minLines: 7,
-            maxLines: 12,
+            minLines: 8,
+            maxLines: 14,
             textCapitalization: TextCapitalization.sentences,
             decoration: intakeInputDecoration(
               context,
@@ -134,6 +137,7 @@ class _StepEssayState extends State<StepEssay> {
         const IntakeSectionHeader(
           title: 'PERSONAL STATEMENT',
           icon: Icons.edit_outlined,
+          bottomSpacing: 22,
         ),
         const IntakeInfoCard(
           title: 'Essay guidance',
@@ -141,7 +145,7 @@ class _StepEssayState extends State<StepEssay> {
               'Both responses are required. Write clearly and answer each prompt in your own words. There is no minimum word-count requirement.',
           icon: Icons.info_outline_rounded,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         _essayCard(
           number: 1,
           title: 'Write a short essay describing yourself.',

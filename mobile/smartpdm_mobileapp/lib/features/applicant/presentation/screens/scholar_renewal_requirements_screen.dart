@@ -329,7 +329,7 @@ class _ScholarRenewalRequirementsScreenState
                         child: Image.network(
                           fileUrl,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) {
+                          errorBuilder: (_, _, _) {
                             return const Padding(
                               padding: EdgeInsets.all(24),
                               child: Text(

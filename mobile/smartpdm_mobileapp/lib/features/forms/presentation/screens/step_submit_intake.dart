@@ -110,6 +110,7 @@ class _StepSubmitState extends State<StepSubmit> {
 
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       backgroundColor: intakeIsDark(context)
           ? AppColors.applicantDarkSurfaceMuted
           : const Color(0xFFFFF2EE),
@@ -121,6 +122,7 @@ class _StepSubmitState extends State<StepSubmit> {
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: Colors.redAccent,
               fontWeight: FontWeight.w900,
+              fontSize: 17,
             ),
           ),
           const SizedBox(height: 10),
@@ -132,6 +134,7 @@ class _StepSubmitState extends State<StepSubmit> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w600,
+                  fontSize: 14.5,
                 ),
               ),
             ),
@@ -144,6 +147,7 @@ class _StepSubmitState extends State<StepSubmit> {
   Widget _confirmationCard() {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       backgroundColor: intakeIsDark(context)
           ? AppColors.applicantDarkSurfaceMuted
           : const Color(0xFFFFEFE4),
@@ -166,6 +170,7 @@ class _StepSubmitState extends State<StepSubmit> {
                 color: intakeTextColor(context),
                 fontWeight: FontWeight.w700,
                 height: 1.5,
+                fontSize: 15.5,
               ),
             ),
             controlAffinity: ListTileControlAffinity.leading,
@@ -178,6 +183,7 @@ class _StepSubmitState extends State<StepSubmit> {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
                 ),
               ),
             ),
@@ -189,6 +195,7 @@ class _StepSubmitState extends State<StepSubmit> {
   Widget _legalAgreementCard() {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       backgroundColor: intakeIsDark(context)
           ? AppColors.applicantDarkSurfaceMuted
           : const Color(0xFFFFF8EA),
@@ -211,6 +218,7 @@ class _StepSubmitState extends State<StepSubmit> {
                   color: intakeTextColor(context),
                   fontWeight: FontWeight.w600,
                   height: 1.5,
+                  fontSize: 15.5,
                 ),
                 children: [
                   const TextSpan(text: 'By continuing, I agree to the '),
@@ -250,6 +258,7 @@ class _StepSubmitState extends State<StepSubmit> {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
                 ),
               ),
             ),
@@ -269,7 +278,7 @@ class _StepSubmitState extends State<StepSubmit> {
               'Submitting this form creates your scholarship application. After submission, you can upload the required documents from the next application stage.',
           icon: Icons.assignment_turned_in_outlined,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         _confirmationCard(),
         _legalAgreementCard(),
       ],
@@ -283,7 +292,7 @@ class _StepSubmitState extends State<StepSubmit> {
       children: [
         const IntakeSectionHeader(title: 'V. REVIEW APPLICATION'),
         _warningBox(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         IntakeReviewCard(
           title: 'Personal Information',
           onEdit: () => widget.onEditStep(0),

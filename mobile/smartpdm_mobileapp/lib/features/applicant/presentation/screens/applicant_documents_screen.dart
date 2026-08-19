@@ -364,7 +364,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                                   : const Center(
                                       child: CircularProgressIndicator(),
                                     ),
-                              errorBuilder: (_, __, ___) =>
+                              errorBuilder: (_, _, _) =>
                                   const _PreviewUnavailable(
                                     message:
                                         'The image preview could not be loaded.',

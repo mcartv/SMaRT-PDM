@@ -558,7 +558,7 @@ class _StepPersonalState extends State<StepPersonal> {
   Widget _row(List<Widget> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
+        if (constraints.maxWidth < 500) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: items
@@ -667,6 +667,7 @@ class _StepPersonalState extends State<StepPersonal> {
   Widget _sectionCard({required String title, required List<Widget> children}) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -675,9 +676,10 @@ class _StepPersonalState extends State<StepPersonal> {
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
+              fontSize: 19,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           ...children,
         ],
       ),
@@ -905,6 +907,7 @@ class _StepPersonalState extends State<StepPersonal> {
         const IntakeSectionHeader(
           title: 'I. PERSONAL DATA',
           icon: Icons.account_circle_outlined,
+          bottomSpacing: 22,
         ),
         _sectionCard(
           title: 'Basic Information',
@@ -923,7 +926,7 @@ class _StepPersonalState extends State<StepPersonal> {
                 errorText: _nameError(firstNameController.text, 'First name'),
               ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _row([
               _textField(
                 controller: middleNameController,
@@ -947,7 +950,7 @@ class _StepPersonalState extends State<StepPersonal> {
                 ),
               ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _row([
               _textField(
                 controller: ageController,
@@ -969,7 +972,7 @@ class _StepPersonalState extends State<StepPersonal> {
                 ),
               ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _row([
               _dropdownField(
                 label: 'Sex *',
@@ -993,7 +996,7 @@ class _StepPersonalState extends State<StepPersonal> {
                 ),
               ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _row([
               _textField(
                 controller: citizenshipController,
@@ -1017,7 +1020,7 @@ class _StepPersonalState extends State<StepPersonal> {
                 },
               ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _dropdownField(
               label: 'Religion *',
               hint: 'Select religion',

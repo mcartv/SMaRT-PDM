@@ -562,8 +562,9 @@ class ApplicationData {
           .where((value) => value.isNotEmpty)
           .toList();
       if (parts.isNotEmpty) parentPreviousTownMunicipality = parts.first;
-      if (parts.length > 1)
+      if (parts.length > 1) {
         parentPreviousProvince = parts.sublist(1).join(', ');
+      }
     }
 
     _setIfPresent(

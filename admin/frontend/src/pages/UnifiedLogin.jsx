@@ -44,67 +44,46 @@ export default function UnifiedLogin() {
           to { opacity: 1; }
         }
 
-        @keyframes smartpdm-login-rise {
-          from { opacity: 0; transform: translateY(18px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
         @keyframes smartpdm-login-slide-left {
-          from { opacity: 0; transform: translateX(-24px); }
+          from { opacity: 0; transform: translateX(-16px); }
           to { opacity: 1; transform: translateX(0); }
         }
 
         @keyframes smartpdm-login-slide-right {
-          from { opacity: 0; transform: translateX(24px); }
+          from { opacity: 0; transform: translateX(16px); }
           to { opacity: 1; transform: translateX(0); }
         }
 
         @keyframes smartpdm-login-facade {
-          from { transform: scale(1.025); }
+          from { transform: scale(1.015); }
           to { transform: scale(1); }
         }
 
-        @keyframes smartpdm-login-float {
-          0%, 100% { translate: 0 0; }
-          50% { translate: 0 -8px; }
-        }
-
         .smartpdm-login-fade {
-          animation: smartpdm-login-fade .55s ease-out both;
-        }
-
-        .smartpdm-login-rise {
-          animation: smartpdm-login-rise .6s cubic-bezier(.22, 1, .36, 1) .12s both;
+          animation: smartpdm-login-fade .8s ease-out both;
         }
 
         .smartpdm-login-slide-left {
-          animation: smartpdm-login-slide-left .7s cubic-bezier(.22, 1, .36, 1) .08s both;
+          animation: smartpdm-login-slide-left 1s cubic-bezier(.22, 1, .36, 1) .08s both;
         }
 
         .smartpdm-login-slide-right {
-          animation: smartpdm-login-slide-right .7s cubic-bezier(.22, 1, .36, 1) .14s both;
+          animation: smartpdm-login-slide-right 1s cubic-bezier(.22, 1, .36, 1) .16s both;
         }
 
         .smartpdm-login-facade {
-          animation: smartpdm-login-facade 1.1s cubic-bezier(.22, 1, .36, 1) both;
+          animation: smartpdm-login-facade 1.6s cubic-bezier(.22, 1, .36, 1) both;
           transform-origin: center;
-        }
-
-        .smartpdm-login-float {
-          animation: smartpdm-login-float 7s ease-in-out 1s infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
           .smartpdm-login-fade,
-          .smartpdm-login-rise,
           .smartpdm-login-slide-left,
           .smartpdm-login-slide-right,
-          .smartpdm-login-facade,
-          .smartpdm-login-float {
+          .smartpdm-login-facade {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
-            translate: 0 !important;
           }
         }
       `}</style>
@@ -172,11 +151,11 @@ export default function UnifiedLogin() {
         </div>
 
         <HexCluster
-          className="smartpdm-login-float pointer-events-none absolute left-[3%] top-[6%] hidden h-[190px] w-[240px] opacity-70 lg:block"
+          className="pointer-events-none absolute left-[3%] top-[6%] hidden h-[190px] w-[240px] opacity-70 lg:block"
           color={theme.accent}
         />
         <HexCluster
-          className="smartpdm-login-float pointer-events-none absolute -bottom-10 right-[-24px] hidden h-[210px] w-[260px] opacity-55 lg:block"
+          className="pointer-events-none absolute -bottom-10 right-[-24px] hidden h-[210px] w-[260px] opacity-55 lg:block"
           color={theme.base}
           mirrored
         />

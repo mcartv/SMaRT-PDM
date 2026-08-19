@@ -48,11 +48,26 @@ function formatDateTime(value) {
     }
 }
 
+
+function formatActionLabel(action = '') {
+    return String(action || '')
+        .trim()
+        .toLowerCase()
+        .split('_')
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ') || 'System Action';
+}
+
 function actionTone(action = '') {
     const text = String(action).toLowerCase();
 
     if (text.includes('create') || text.includes('import') || text.includes('restore')) {
         return 'bg-green-50 text-green-700 border-green-100';
+    }
+
+    if (text.includes('password') || text.includes('reset')) {
+        return 'bg-amber-50 text-amber-800 border-amber-100';
     }
 
     if (text.includes('archive') || text.includes('reject')) {
@@ -463,7 +478,7 @@ export default function AuditPanel() {
                                             <span
                                                 className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
                                             >
-                                                {log.action_taken}
+                                                {formatActionLabel(log.action_taken)}
                                             </span>
                                         </td>
 

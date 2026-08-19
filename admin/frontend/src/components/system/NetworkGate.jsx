@@ -6,8 +6,24 @@ import pdmLogo from '@/assets/pdm-logo.png';
 const CHECK_INTERVAL_MS = 15_000;
 const CHECK_TIMEOUT_MS = 8_000;
 const SLOW_CONNECTION_MS = 2_500;
-const LANDING_REFRESH_LOADER_MIN_MS = 1_500;
-const LANDING_VISIT_LOADER_MIN_MS = 250;
+const PUBLIC_REFRESH_LOADER_MIN_MS = 1_500;
+const PUBLIC_VISIT_LOADER_MIN_MS = 250;
+const PUBLIC_ENTRY_PATHS = new Set([
+  '/',
+  '/landing',
+  '/login',
+  '/admin/login',
+  '/admin/forgot-password',
+  '/pd/login',
+  '/guidance/login',
+  '/sdo/login',
+  '/ro-coordinator/login',
+]);
+
+function isPublicEntryPath(pathname = window.location.pathname) {
+  const normalized = String(pathname || '/').replace(/\/+$/, '') || '/';
+  return PUBLIC_ENTRY_PATHS.has(normalized);
+}
 
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -144,7 +160,7 @@ function NetworkSkeleton({ status, isRetrying, onRetry }) {
   );
 }
 
-function LandingLogoLoader({ status, isRetrying, onRetry }) {
+function PublicLogoLoader({ status, isRetrying, onRetry }) {
   const checking = status === 'checking' || isRetrying;
 
   return (
@@ -177,7 +193,7 @@ function LandingLogoLoader({ status, isRetrying, onRetry }) {
               Connection interrupted
             </p>
             <p className="mt-1.5 text-xs leading-5 text-stone-500">
-              The landing page cannot reach the server right now.
+              SMaRT-PDM cannot reach the server right now.
             </p>
             <button
               type="button"
@@ -192,7 +208,7 @@ function LandingLogoLoader({ status, isRetrying, onRetry }) {
 
         <span className="sr-only">
           {checking
-            ? 'Loading the SMaRT-PDM landing page.'
+            ? 'Loading SMaRT-PDM.'
             : 'The SMaRT-PDM server is currently unreachable.'}
         </span>
       </div>
@@ -237,13 +253,13 @@ export default function NetworkGate({ children }) {
       const elapsed = Date.now() - checkStartedAt;
       const connected = response.ok;
       setSlowConnection(connected && elapsed >= SLOW_CONNECTION_MS);
-      const landingPath = ['/', '/landing'].includes(window.location.pathname);
+      const publicEntryPath = isPublicEntryPath();
 
-      if (connected && landingPath) {
+      if (connected && publicEntryPath) {
         const navigationEntry = performance.getEntriesByType('navigation')[0];
         const minimumDuration = navigationEntry?.type === 'reload'
-          ? LANDING_REFRESH_LOADER_MIN_MS
-          : LANDING_VISIT_LOADER_MIN_MS;
+          ? PUBLIC_REFRESH_LOADER_MIN_MS
+          : PUBLIC_VISIT_LOADER_MIN_MS;
         const remainingDelay = minimumDuration - (Date.now() - checkStartedAt);
         if (remainingDelay > 0) await wait(remainingDelay);
       }
@@ -281,7 +297,7 @@ export default function NetworkGate({ children }) {
   }, [checkConnection]);
 
   const blocked = status !== 'online';
-  const landingPath = ['/', '/landing'].includes(window.location.pathname);
+  const publicEntryPath = isPublicEntryPath();
 
   useEffect(() => {
     const content = contentRef.current;
@@ -316,15 +332,15 @@ export default function NetworkGate({ children }) {
         {children}
       </div>
 
-      {blocked && landingPath ? (
-        <LandingLogoLoader
+      {blocked && publicEntryPath ? (
+        <PublicLogoLoader
           status={status}
           isRetrying={isRetrying}
           onRetry={() => checkConnection({ manual: true })}
         />
       ) : null}
 
-      {blocked && !landingPath ? (
+      {blocked && !publicEntryPath ? (
         <NetworkSkeleton
           status={status}
           isRetrying={isRetrying}

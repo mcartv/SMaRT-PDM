@@ -301,8 +301,8 @@ export function installAdminSessionLifecycle() {
         });
         clearAuthStorage();
 
-        if (!window.location.pathname.startsWith('/admin/login')) {
-          window.location.replace('/admin/login');
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.replace('/login');
         }
       }
     }
@@ -333,7 +333,7 @@ export function installAdminSessionLifecycle() {
           message: error.message,
         });
         clearAuthStorage();
-        window.location.replace('/admin/login');
+        window.location.replace('/login');
       }
     }
   };

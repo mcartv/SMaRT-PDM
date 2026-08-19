@@ -1,6 +1,6 @@
-﻿import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 
-// Deprecated compatibility component. All user access now goes through /login.
+// Compatibility route for old Admin login links. Authentication lives at /login.
 export default function AdminLogin() {
   return <Navigate to="/login" replace />;
 }

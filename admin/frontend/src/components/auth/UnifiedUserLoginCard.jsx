@@ -45,12 +45,14 @@ export default function UnifiedUserLoginCard({ theme }) {
 
   const handleLogin = async (event) => {
     event.preventDefault();
+    if (isLoading) return;
+
     setError('');
     setIsLoading(true);
 
     try {
       const data = await authService.login({
-        email,
+        email: email.trim(),
         password,
         stayLoggedIn: false,
       });
@@ -71,10 +73,11 @@ export default function UnifiedUserLoginCard({ theme }) {
         stayLoggedIn: false,
       });
 
+      // Keep the card in its busy state until React Router unmounts this page.
+      // Releasing it immediately after navigate() caused a brief button/input flash.
       navigate(portal.redirectPath, { replace: true });
     } catch (err) {
       setError(getLoginErrorMessage(err, 'User'));
-    } finally {
       setIsLoading(false);
     }
   };
@@ -188,10 +191,11 @@ export default function UnifiedUserLoginCard({ theme }) {
                 <button
                   type="button"
                   onClick={() => navigate('/admin/forgot-password', { state: { email } })}
-                  className="text-[11px] font-bold transition hover:underline"
+                  disabled={isLoading}
+                  className="text-[11px] font-bold transition hover:underline disabled:cursor-wait disabled:opacity-50 disabled:no-underline"
                   style={{ color: theme.base }}
                 >
-                  Forgot password?
+                  Admin password recovery
                 </button>
               </div>
 
@@ -229,14 +233,14 @@ export default function UnifiedUserLoginCard({ theme }) {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !email.trim() || !password}
               className="mt-1 flex h-[48px] w-full items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
               style={{ background: theme.base }}
             >
               {isLoading ? (
                 <>
                   <Loader2 size={17} className="animate-spin" />
-                  Logging in…
+                  Signing in...
                 </>
               ) : (
                 <>
@@ -245,6 +249,10 @@ export default function UnifiedUserLoginCard({ theme }) {
                 </>
               )}
             </button>
+
+            <span className="sr-only" role="status" aria-live="polite">
+              {isLoading ? 'Signing in. Please wait.' : ''}
+            </span>
           </form>
         </div>
       </div>

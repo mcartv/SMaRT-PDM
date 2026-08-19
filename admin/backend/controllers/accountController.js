@@ -372,6 +372,7 @@ exports.createAdminAccount = async (req, res) => {
 
 exports.updateStaffAccount = async (req, res) => {
     try {
+        const passwordResetRequested = Boolean(String(req.body?.password || '').trim());
         const account = await accountService.updateStaffAccount(req.params.id, req.body, getActorUserId(req));
 
         if (!account) {
@@ -405,16 +406,43 @@ exports.updateStaffAccount = async (req, res) => {
             console.error('UPDATE STAFF ACCOUNT AUDIT ERROR:', auditError.message);
         });
 
+        if (passwordResetRequested) {
+            await auditLogService.logAudit({
+                req,
+                actionTaken: 'RESET_ACCOUNT_PASSWORD',
+                module: 'Accounts',
+                entityType: 'staff_account',
+                entityId: account.user_id || req.params.id,
+                description: `Reset password for account: ${account.email || req.params.id}.`,
+                metadata: {
+                    target_user_id: account.user_id || req.params.id,
+                    target_email: account.email || null,
+                    target_role: account.role || null,
+                    session_invalidated: account.session_invalidated === true,
+                },
+            }).catch((auditError) => {
+                console.error('RESET ACCOUNT PASSWORD AUDIT ERROR:', auditError.message);
+            });
+        }
+
         emitAccountUpdate(req, 'update', account);
         await notifyAdminManagedAccountChange(req, account, 'Updated');
 
         if (account.session_invalidated === true) {
             disconnectAccountSockets(req, account.user_id, {
-                reason: 'account-role-or-status-updated',
-                code: account.is_archived ? 'ACCOUNT_DEACTIVATED' : 'SESSION_REVOKED',
-                message: account.is_archived
-                    ? 'This account has been deactivated. Contact an administrator.'
-                    : 'Your account access has changed. Please sign in again.',
+                reason: passwordResetRequested
+                    ? 'admin-password-reset'
+                    : 'account-role-or-status-updated',
+                code: passwordResetRequested
+                    ? 'PASSWORD_CHANGED'
+                    : account.is_archived
+                        ? 'ACCOUNT_DEACTIVATED'
+                        : 'SESSION_REVOKED',
+                message: passwordResetRequested
+                    ? 'Your password was reset by an administrator. Please sign in again using your new password.'
+                    : account.is_archived
+                        ? 'This account has been deactivated. Contact an administrator.'
+                        : 'Your account access has changed. Please sign in again.',
             });
         }
 

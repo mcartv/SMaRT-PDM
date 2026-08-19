@@ -2,10 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { read, exists } = require('./_current-system-test-utils');
+const { read } = require('./_current-system-test-utils');
 
-const REMOVED_LOGIN_FILES = [
-  'frontend/src/components/auth/UnifiedStaffLoginCard.jsx',
+const COMPATIBILITY_LOGIN_FILES = [
   'frontend/src/pages/AdminLogin.jsx',
   'frontend/src/pages/PDLogin.jsx',
   'frontend/src/pages/GuidanceLogin.jsx',
@@ -14,40 +13,62 @@ const REMOVED_LOGIN_FILES = [
   'frontend/src/pages/DepartmentPortalLogin.jsx',
 ];
 
-test('public app exposes one unified login and keeps legacy URL redirects', () => {
+test('public app exposes one unified login and keeps compatibility redirects', () => {
   const app = read('frontend/src/App.jsx');
 
   assert.match(app, /path="\/login"\s+element=\{<UnifiedLogin\s*\/>\}/);
-  for (const path of ['/admin/login', '/sdo/login', '/guidance/login', '/pd/login', '/ro-coordinator/login']) {
-    assert.match(app, new RegExp(`path="${path.replaceAll('/', '\\/')}"[\\s\\S]{0,120}Navigate to="\\/login"`));
+  assert.match(app, /path="\/admin\/login"\s+element=\{<AdminLogin\s*\/>\}/);
+
+  for (const path of ['/sdo/login', '/guidance/login', '/pd/login', '/ro-coordinator/login']) {
+    const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(app, new RegExp(`path="${escaped}"[\\s\\S]{0,120}Navigate to="\\/login"`));
   }
 });
 
-test('obsolete role-specific login components and old Staff login card are removed', () => {
-  for (const file of REMOVED_LOGIN_FILES) {
-    assert.equal(exists(file), false, `${file} should be removed`);
+test('legacy login components are inert compatibility shims with no duplicated authentication UI', () => {
+  for (const file of COMPATIBILITY_LOGIN_FILES) {
+    const source = read(file);
+    assert.match(source, /Navigate to="\/login" replace/);
+    assert.doesNotMatch(source, /authService|<form|type="password"|PDM-Facade|Login Access/);
   }
+
+  const legacyCard = read('frontend/src/components/auth/UnifiedStaffLoginCard.jsx');
+  assert.match(legacyCard, /UnifiedUserLoginCard/);
+  assert.doesNotMatch(legacyCard, /<form|authService|Authorized Staff Access|Staff sign in/);
 });
 
-test('backend exposes one login endpoint and no role-specific login endpoints', () => {
-  const routes = read('backend/routes/authRoutes.js');
-  const controller = read('backend/controllers/authController.js');
+test('session invalidation sends users directly to the unified login', () => {
+  const authService = read('frontend/src/services/authService.js');
 
-  assert.match(routes, /router\.post\('\/login',\s*loginLimiter,\s*authController\.staffLogin\)/);
-  assert.doesNotMatch(routes, /router\.post\('\/(?:pd|guidance|sdo|ro-coordinator)\/login'/);
-  assert.doesNotMatch(controller, /exports\.(?:pdLogin|guidanceLogin|sdoLogin|roCoordinatorLogin|adminLogin)/);
-  assert.match(controller, /const tokenRole = resolvedRole;/);
-  assert.match(controller, /USER_ACCESS_NOT_CONFIGURED/);
+  assert.match(authService, /window\.location\.replace\('\/login'\)/);
+  assert.doesNotMatch(authService, /window\.location\.replace\('\/admin\/login'\)/);
 });
 
-test('authenticated themes no longer fetch public role/login themes', () => {
-  const hook = read('frontend/src/hooks/usePortalTheme.js');
-  const landingHook = read('frontend/src/hooks/useLandingTheme.js');
-  const service = read('backend/services/themeSettingService.js');
 
-  assert.doesNotMatch(hook, /publicOnly/);
-  assert.doesNotMatch(hook, /theme-settings\/public\/\$\{normalizedPortal\}/);
-  assert.match(hook, /theme-settings\/current\/\$\{normalizedPortal\}/);
-  assert.match(landingHook, /theme-settings\/public\/landing/);
-  assert.match(service, /Only the Landing Page Theme is available publicly/);
+test('Admin-only password recovery is labeled clearly from the unified login', () => {
+  const loginCard = read('frontend/src/components/auth/UnifiedUserLoginCard.jsx');
+  const forgot = read('frontend/src/pages/ForgotPassword.jsx');
+
+  assert.match(loginCard, /Admin password recovery/);
+  assert.match(forgot, /Admin Password Recovery/);
+  assert.match(forgot, /Registered Admin Email/);
+  assert.match(forgot, /Reset Admin Password/);
+  assert.match(forgot, /\/api\/auth\/admin\/forgot-password\/start/);
+  assert.match(forgot, /\/api\/auth\/admin\/forgot-password\/verify/);
+  assert.match(forgot, /\/api\/auth\/admin\/forgot-password\/reset/);
+  assert.doesNotMatch(forgot, /\/api\/auth\/forgot-password\/(?:start|verify|reset)/);
+});
+
+test('login and Admin forgot-password reloads reuse the landing public loader', () => {
+  const networkGate = read('frontend/src/components/system/NetworkGate.jsx');
+
+  for (const path of ['/landing', '/login', '/admin/forgot-password']) {
+    const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(networkGate, new RegExp(`['\"]${escaped}['\"]`));
+  }
+
+  assert.match(networkGate, /PUBLIC_REFRESH_LOADER_MIN_MS\s*=\s*1_500/);
+  assert.match(networkGate, /performance\.getEntriesByType\('navigation'\)/);
+  assert.match(networkGate, /<PublicLogoLoader/);
+  assert.doesNotMatch(networkGate, /The landing page cannot reach the server right now/);
 });

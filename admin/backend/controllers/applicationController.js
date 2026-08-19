@@ -1,4 +1,4 @@
-﻿const applicationService = require('../services/applicationService');
+const applicationService = require('../services/applicationService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const { resolveActorUserId } = require('../utils/iotOcrIdentity');
@@ -707,7 +707,7 @@ exports.exportApplicationsExcel = async (req, res) => {
 
         worksheet.mergeCells('A1:Q1');
         worksheet.getCell('A1').value =
-            'PAMBAYANG DALUBHASAAN NG MARILAO â€” OFFICE OF STUDENT FINANCIAL ASSISTANCE';
+            'PAMBAYANG DALUBHASAAN NG MARILAO \u2014 OFFICE OF STUDENT FINANCIAL ASSISTANCE';
         worksheet.getCell('A1').font = { bold: true, size: 14 };
         worksheet.getCell('A1').alignment = {
             horizontal: 'center',

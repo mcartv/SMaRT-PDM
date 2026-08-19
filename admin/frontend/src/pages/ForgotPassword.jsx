@@ -120,7 +120,8 @@ export default function ForgotPassword() {
   const [confirmPass, setConfirmPass] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState('');
+  const loading = Boolean(loadingAction);
   const [resendTimer, setResendTimer] = useState(0);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -131,11 +132,11 @@ export default function ForgotPassword() {
   const passwordStrong = passwordChecks.every((item) => item.valid);
   const passwordsMatch = Boolean(newPassword && confirmPass && newPassword === confirmPass);
   const cardTitle = {
-    email: 'Forgot Password',
-    otp: 'Verification Code',
-    reset: 'Reset Password',
-    done: 'Password Reset',
-  }[step] || 'Forgot Password';
+    email: 'Admin Password Recovery',
+    otp: 'Admin Verification Code',
+    reset: 'Reset Admin Password',
+    done: 'Admin Password Reset',
+  }[step] || 'Admin Password Recovery';
 
   useEffect(() => {
     if (resendTimer <= 0) return undefined;
@@ -162,26 +163,26 @@ export default function ForgotPassword() {
     setResendTimer(seconds);
   };
 
-  const sendOtpRequest = async () => {
+  const sendOtpRequest = async ({ isResend = false } = {}) => {
     clearFeedback();
 
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail) {
       setStep('email');
-      setError('Enter your Admin email address.');
+      setError('Enter the registered Admin email address.');
       return;
     }
 
     const remaining = getRemainingCooldown(normalizedEmail);
     if (remaining > 0) {
       setStep('otp');
-      setNotice('A recovery code was already requested. Check your Admin email.');
+      setNotice('A recovery code was already requested. Check the registered Admin email.');
       startResendTimer(remaining);
       focusFirstOtp();
       return;
     }
 
-    setLoading(true);
+    setLoadingAction(isResend ? 'resend' : 'send');
 
     try {
       await requestJson(
@@ -195,14 +196,14 @@ export default function ForgotPassword() {
       setStep('otp');
       setOtp(['', '', '', '', '', '']);
       setResetToken('');
-      setNotice('If this active Admin account exists, a recovery code has been sent.');
+      setNotice('');
       startResendTimer();
       focusFirstOtp();
     } catch (err) {
       console.error('[FORGOT PASSWORD] SEND OTP ERROR:', err);
       setError(err.message || 'Unable to send recovery code.');
     } finally {
-      setLoading(false);
+      setLoadingAction('');
     }
   };
 
@@ -214,7 +215,7 @@ export default function ForgotPassword() {
   const handleVerifyOtp = async (event) => {
     event.preventDefault();
     clearFeedback();
-    setLoading(true);
+    setLoadingAction('verify');
 
     try {
       const data = await requestJson(
@@ -233,7 +234,7 @@ export default function ForgotPassword() {
       console.error('[FORGOT PASSWORD] VERIFY OTP ERROR:', err);
       setError(err.message || 'Invalid or expired recovery code.');
     } finally {
-      setLoading(false);
+      setLoadingAction('');
     }
   };
 
@@ -256,7 +257,7 @@ export default function ForgotPassword() {
       return;
     }
 
-    setLoading(true);
+    setLoadingAction('reset');
 
     try {
       await requestJson(
@@ -281,13 +282,13 @@ export default function ForgotPassword() {
       console.error('[FORGOT PASSWORD] RESET PASSWORD ERROR:', err);
       setError(err.message || 'Unable to reset password.');
     } finally {
-      setLoading(false);
+      setLoadingAction('');
     }
   };
 
   const handleResend = async () => {
     if (loading || resendTimer > 0) return;
-    await sendOtpRequest();
+    await sendOtpRequest({ isResend: true });
   };
 
   const handleOtpChange = (value, index) => {
@@ -374,7 +375,7 @@ export default function ForgotPassword() {
       <form onSubmit={handleEmailSubmit} className="space-y-4" aria-busy={loading}>
         <div>
           <label htmlFor="admin-recovery-email" className="mb-1.5 block text-xs font-bold text-stone-700">
-            Admin Email
+            Registered Admin Email
           </label>
           <div className="relative">
             <Mail
@@ -387,7 +388,7 @@ export default function ForgotPassword() {
               required
               disabled={loading}
               autoComplete="email"
-              placeholder="Enter your email"
+              placeholder="Enter Admin email"
               value={email}
               onChange={(event) => setEmail(normalizeEmail(event.target.value))}
               className={`${inputClass} pl-10 pr-4`}
@@ -402,15 +403,15 @@ export default function ForgotPassword() {
           className={primaryButtonClass}
           style={{ background: theme.base }}
         >
-          {loading ? (
+          {loadingAction === 'send' ? (
             <>
               <Loader2 size={17} className="animate-spin" />
-              Sending code…
+              Sending code...
             </>
           ) : (
             <>
               <KeyRound size={16} />
-              Send Recovery Code
+              Send Verification Code
             </>
           )}
         </button>
@@ -421,7 +422,7 @@ export default function ForgotPassword() {
   const renderOtpStep = () => (
     <div className="space-y-5">
       <p className="text-sm leading-6 text-stone-500">
-        Enter the 6-digit code sent to {email || 'your Admin email'}.
+        Enter the 6-digit code sent to the registered Admin email{email ? ` (${email})` : ''}.
       </p>
 
       {renderFeedback()}
@@ -460,10 +461,10 @@ export default function ForgotPassword() {
           className={primaryButtonClass}
           style={{ background: theme.base }}
         >
-          {loading ? (
+          {loadingAction === 'verify' ? (
             <>
               <Loader2 size={17} className="animate-spin" />
-              Verifying…
+              Verifying...
             </>
           ) : (
             <>
@@ -481,11 +482,15 @@ export default function ForgotPassword() {
               type="button"
               onClick={handleResend}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 text-xs font-bold transition hover:underline disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 text-xs font-bold transition hover:underline disabled:cursor-wait disabled:opacity-60"
               style={{ color: theme.base }}
             >
-              <RefreshCw size={14} />
-              Resend Code
+              {loadingAction === 'resend' ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {loadingAction === 'resend' ? 'Resending...' : 'Resend Code'}
             </button>
           )}
 
@@ -500,7 +505,7 @@ export default function ForgotPassword() {
             disabled={loading}
             className="text-[11px] font-semibold text-stone-500 transition hover:text-stone-800 hover:underline disabled:opacity-60"
           >
-            Use a different Admin email
+            Use a different email
           </button>
         </div>
       </form>
@@ -509,10 +514,6 @@ export default function ForgotPassword() {
 
   const renderResetStep = () => (
     <div className="space-y-5">
-      <p className="text-sm leading-6 text-stone-500">
-        Use a new password that meets all security requirements below.
-      </p>
-
       {renderFeedback()}
 
       <form onSubmit={handleReset} className="space-y-4" aria-busy={loading}>
@@ -608,15 +609,15 @@ export default function ForgotPassword() {
           className={primaryButtonClass}
           style={{ background: theme.base }}
         >
-          {loading ? (
+          {loadingAction === 'reset' ? (
             <>
               <Loader2 size={17} className="animate-spin" />
-              Saving…
+              Updating password...
             </>
           ) : (
             <>
               <ShieldCheck size={16} />
-              Set New Password
+              Reset Admin Password
             </>
           )}
         </button>
@@ -634,7 +635,7 @@ export default function ForgotPassword() {
       </div>
 
       <p className="mx-auto mt-5 max-w-[310px] text-sm leading-6 text-stone-500">
-        Your Admin password has been updated. You can now sign in with the new password.
+        The Admin password has been updated. You can now sign in with the new password.
       </p>
 
       <button
@@ -666,66 +667,7 @@ export default function ForgotPassword() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f7f4ec]" style={{ minHeight: '100dvh' }}>
-      <style>{`
-        @keyframes smartpdm-recovery-fade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
 
-        @keyframes smartpdm-recovery-slide-left {
-          from { opacity: 0; transform: translateX(-24px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-
-        @keyframes smartpdm-recovery-slide-right {
-          from { opacity: 0; transform: translateX(24px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-
-        @keyframes smartpdm-recovery-facade {
-          from { transform: scale(1.025); }
-          to { transform: scale(1); }
-        }
-
-        @keyframes smartpdm-recovery-float {
-          0%, 100% { translate: 0 0; }
-          50% { translate: 0 -8px; }
-        }
-
-        .smartpdm-recovery-fade {
-          animation: smartpdm-recovery-fade .55s ease-out both;
-        }
-
-        .smartpdm-recovery-slide-left {
-          animation: smartpdm-recovery-slide-left .7s cubic-bezier(.22, 1, .36, 1) .08s both;
-        }
-
-        .smartpdm-recovery-slide-right {
-          animation: smartpdm-recovery-slide-right .7s cubic-bezier(.22, 1, .36, 1) .14s both;
-        }
-
-        .smartpdm-recovery-facade {
-          animation: smartpdm-recovery-facade 1.1s cubic-bezier(.22, 1, .36, 1) both;
-          transform-origin: center;
-        }
-
-        .smartpdm-recovery-float {
-          animation: smartpdm-recovery-float 7s ease-in-out 1s infinite;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .smartpdm-recovery-fade,
-          .smartpdm-recovery-slide-left,
-          .smartpdm-recovery-slide-right,
-          .smartpdm-recovery-facade,
-          .smartpdm-recovery-float {
-            animation: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-            translate: 0 !important;
-          }
-        }
-      `}</style>
 
       <LandingInstitutionHeader theme={theme} />
 
@@ -736,7 +678,7 @@ export default function ForgotPassword() {
           <img
             src={pdmFacade}
             alt=""
-            className="smartpdm-recovery-facade absolute inset-0 h-full w-full object-cover object-center opacity-[0.58] saturate-[0.88]"
+            className="absolute inset-0 h-full w-full object-cover object-center opacity-[0.58] saturate-[0.88]"
           />
           <div
             className="absolute inset-0"
@@ -755,7 +697,7 @@ export default function ForgotPassword() {
         </div>
 
         <div
-          className="smartpdm-recovery-slide-left pointer-events-none absolute inset-y-0 left-0 hidden w-[21vw] min-w-[175px] max-w-[305px] lg:block"
+          className="pointer-events-none absolute inset-y-0 left-0 hidden w-[21vw] min-w-[175px] max-w-[305px] lg:block"
           aria-hidden="true"
         >
           <div
@@ -779,17 +721,17 @@ export default function ForgotPassword() {
         </div>
 
         <HexCluster
-          className="smartpdm-recovery-float pointer-events-none absolute left-[3%] top-[6%] hidden h-[190px] w-[240px] opacity-70 lg:block"
+          className="pointer-events-none absolute left-[3%] top-[6%] hidden h-[190px] w-[240px] opacity-70 lg:block"
           color={theme.accent}
         />
         <HexCluster
-          className="smartpdm-recovery-float pointer-events-none absolute -bottom-10 right-[-24px] hidden h-[210px] w-[260px] opacity-55 lg:block"
+          className="pointer-events-none absolute -bottom-10 right-[-24px] hidden h-[210px] w-[260px] opacity-55 lg:block"
           color={theme.base}
           mirrored
         />
 
         <div className="relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
-          <section className="smartpdm-recovery-slide-left hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
+          <section className="hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
             <div className="max-w-[560px]">
               <p
                 className="text-xs font-black uppercase tracking-[0.2em]"
@@ -813,7 +755,7 @@ export default function ForgotPassword() {
           </section>
 
           <section
-            className="smartpdm-recovery-slide-right mx-auto w-full max-w-[430px] justify-self-center lg:mx-0 lg:justify-self-end"
+            className="mx-auto w-full max-w-[430px] justify-self-center lg:mx-0 lg:justify-self-end"
             aria-labelledby="recovery-heading"
           >
             <div
@@ -857,6 +799,18 @@ export default function ForgotPassword() {
                 </div>
 
                 {renderStep()}
+
+                <span className="sr-only" role="status" aria-live="polite">
+                  {loadingAction === 'send'
+                    ? 'Sending Admin verification code. Please wait.'
+                    : loadingAction === 'resend'
+                      ? 'Resending Admin verification code. Please wait.'
+                      : loadingAction === 'verify'
+                        ? 'Verifying Admin recovery code. Please wait.'
+                        : loadingAction === 'reset'
+                          ? 'Updating Admin password. Please wait.'
+                          : ''}
+                </span>
 
                 {step !== 'done' ? (
                   <button

@@ -131,8 +131,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Unable to verify the code. Try again.');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

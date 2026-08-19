@@ -51,8 +51,9 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Please enter your first name';
+                }
                 return null;
               },
             ),
@@ -64,8 +65,9 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Please enter your last name';
+                }
                 return null;
               },
             ),

@@ -433,7 +433,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
         itemCount: _NotificationFilter.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final filter = _NotificationFilter.values[index];
           final selected = _selectedFilter == filter;

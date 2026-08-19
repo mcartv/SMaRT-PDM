@@ -18,6 +18,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
+import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 
 function DetailItem({ icon, label, value }) {
   return (
@@ -43,10 +44,12 @@ export default function OfficeProfilePage({
   roleFallback,
   avatarTone = '#475569',
   responsibilities = [],
+  bio,
   accountConfig,
   palette,
   tokenStorageKey,
 }) {
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [profile, setProfile] = useState(() => {
     try {
       const saved = sessionStorage.getItem(storageKey);
@@ -112,12 +115,21 @@ export default function OfficeProfilePage({
             <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-10" style={{ backgroundColor: avatarTone }} />
             <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                <Avatar className="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28">
-                  <AvatarImage src={account.avatarUrl || undefined} alt={`${fullName} profile photo`} />
-                  <AvatarFallback className="text-2xl font-bold text-white" style={{ backgroundColor: avatarTone }}>
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => account.avatarUrl && setProfilePhotoPreviewOpen(true)}
+                  disabled={!account.avatarUrl}
+                  className="rounded-full text-left outline-none ring-offset-4 transition enabled:cursor-zoom-in enabled:hover:ring-2 enabled:hover:ring-stone-300 enabled:focus-visible:ring-2 enabled:focus-visible:ring-stone-400 disabled:cursor-default"
+                  aria-label={account.avatarUrl ? `Preview ${fullName} profile photo` : `${fullName} has no profile photo`}
+                  title={account.avatarUrl ? 'Preview profile photo' : 'No profile photo'}
+                >
+                  <Avatar className="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28">
+                    <AvatarImage src={account.avatarUrl || undefined} alt={`${fullName} profile photo`} />
+                    <AvatarFallback className="text-2xl font-bold text-white" style={{ backgroundColor: avatarTone }}>
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -131,6 +143,8 @@ export default function OfficeProfilePage({
                   </div>
                   <p className="mt-2 text-sm font-semibold text-stone-700">{account.position}</p>
                   <p className="mt-1 text-sm text-stone-500">{account.department}</p>
+                  <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">{bio}</p>
+
                   <div className="mt-4 flex flex-wrap gap-2">
                     {account.email ? (
                       <a href={`mailto:${account.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">
@@ -218,6 +232,13 @@ export default function OfficeProfilePage({
           </Link>
         </aside>
       </div>
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={account.avatarUrl}
+        name={`${fullName} profile photo`}
+      />
     </main>
   );
 }

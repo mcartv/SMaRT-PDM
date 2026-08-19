@@ -69,7 +69,7 @@ function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
         </div>
 
         <div className="rounded-2xl border border-stone-200/80 bg-white/80 p-3">
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
             <BarChart3 className="h-3.5 w-3.5" />
             Sample Chart Palette
           </div>
@@ -151,40 +151,9 @@ function CustomThemeModal({ portalKey, colors, saving, onChange, onClose, onSave
   );
 }
 
-function CompactPortalDisplayCard({ portalKey, presetKey }) {
-  const theme = resolvePortalTheme(portalKey, presetKey);
-
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
-            {PORTAL_LABELS[portalKey]}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-stone-900">{theme.label}</p>
-        </div>
-        <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-medium text-stone-500">
-          View only
-        </span>
-      </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        {[theme.base, theme.chartSecondary, theme.chartTertiary, theme.chartQuaternary].map((color) => (
-          <span
-            key={`${portalKey}-${color}`}
-            className="h-5 w-5 rounded-full border border-black/5"
-            style={{ background: color }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function ThemePanel({
   tokenStorageKey = 'adminToken',
   allowedPortals = ['admin', 'sdo', 'guidance', 'pd'],
-  editablePortals = null,
   title = 'Theme Presets',
   subtitle = 'Choose a personal color preset for your signed-in layout and dashboard charts.',
 }) {
@@ -208,18 +177,6 @@ export default function ThemePanel({
   const normalizedPortals = useMemo(
     () => (Array.isArray(allowedPortals) && allowedPortals.length ? allowedPortals : ['admin']).map((portalKey) => String(portalKey || '').trim().toLowerCase()),
     [allowedPortals]
-  );
-  const normalizedEditablePortals = useMemo(
-    () =>
-      (Array.isArray(editablePortals) && editablePortals.length ? editablePortals : normalizedPortals).map((portalKey) =>
-        String(portalKey || '').trim().toLowerCase()
-      ),
-    [editablePortals, normalizedPortals]
-  );
-  const editablePortalSet = useMemo(() => new Set(normalizedEditablePortals), [normalizedEditablePortals]);
-  const readOnlyPortals = useMemo(
-    () => normalizedPortals.filter((portalKey) => !editablePortalSet.has(portalKey)),
-    [editablePortalSet, normalizedPortals]
   );
 
   const loadSettings = useCallback(async () => {
@@ -401,11 +358,6 @@ export default function ThemePanel({
             <p className="mt-1 text-xs text-stone-500">
               Click a preset to save it immediately. Use Restore Default anytime.
             </p>
-            {normalizedEditablePortals.length < normalizedPortals.length ? (
-              <p className="mt-1 text-xs text-stone-500">
-              This page edits only your signed-in account theme. Other office defaults are shown for reference.
-              </p>
-            ) : null}
             {feedback.message ? (
               <div
                 className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
@@ -423,7 +375,7 @@ export default function ThemePanel({
       </div>
 
       <div className="space-y-5">
-        {normalizedEditablePortals.map((portalKey) => {
+        {normalizedPortals.map((portalKey) => {
           const savedPresetKey = settings[portalKey] || 'default';
           const savedCustomColors = customColors[portalKey] || null;
 
@@ -517,25 +469,6 @@ export default function ThemePanel({
         })}
       </div>
 
-      {readOnlyPortals.length > 0 ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-            <h4 className="text-sm font-semibold text-stone-900">Other Office Themes</h4>
-            <p className="mt-1 text-xs text-stone-500">
-              Display only. These are shared login defaults; signed-in staff can choose their own portal theme.
-            </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {readOnlyPortals.map((portalKey) => (
-                <CompactPortalDisplayCard
-                  key={`overview-${portalKey}`}
-                  portalKey={portalKey}
-                  presetKey={settings[portalKey] || 'default'}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

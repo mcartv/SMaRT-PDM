@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -25,13 +25,11 @@ import {
 } from 'lucide-react';
 import API_BASE_URL from '@/api';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 const API_BASE = API_BASE_URL;
 
 const C = {
-  blue: '#1E3A8A',
-  blueMid: '#2563EB',
-  blueSoft: '#EFF6FF',
   green: '#16a34a',
   greenSoft: '#F0FDF4',
   orange: '#d97706',
@@ -45,32 +43,37 @@ const C = {
 const DOC_STATUS_META = {
   verified: {
     icon: <CheckCircle className="w-3.5 h-3.5" />,
-    color: C.green,
-    bg: C.greenSoft,
+    color: '#15803D',
+    bg: '#F0FDF4',
+    border: '#BBF7D0',
     label: 'Verified',
   },
   pending: {
     icon: <Clock className="w-3.5 h-3.5" />,
-    color: C.orange,
-    bg: C.orangeSoft,
+    color: '#78716C',
+    bg: '#F5F5F4',
+    border: '#E7E5E4',
     label: 'Pending',
   },
   rejected: {
     icon: <XCircle className="w-3.5 h-3.5" />,
-    color: C.red,
-    bg: C.redSoft,
+    color: '#DC2626',
+    bg: '#FEF2F2',
+    border: '#FECACA',
     label: 'Rejected',
   },
   reupload_required: {
     icon: <AlertTriangle className="w-3.5 h-3.5" />,
-    color: C.orange,
-    bg: C.orangeSoft,
-    label: 'Needs Re-upload',
+    color: '#C2410C',
+    bg: '#FFF7ED',
+    border: '#FED7AA',
+    label: 'Re-upload Required',
   },
   uploaded: {
     icon: <Clock className="w-3.5 h-3.5" />,
-    color: C.blueMid,
-    bg: C.blueSoft,
+    color: 'var(--portal-base)',
+    bg: 'var(--portal-accent-soft)',
+    border: 'var(--portal-sub)',
     label: 'Uploaded',
   },
 };
@@ -138,7 +141,7 @@ const ACTIVE_IOT_OCR_STATUSES = new Set([
   'processing',
 ]);
 
-const IOT_OCR_STATUS_POLL_INTERVAL_MS = 500;
+const IOT_OCR_STATUS_POLL_INTERVAL_MS = 2000;
 
 const IOT_OCR_STATUS_MESSAGES = {
   pending: 'Waiting for Raspberry Pi',
@@ -342,6 +345,32 @@ function getDocumentCandidateScore(rawDoc = {}) {
   return score;
 }
 
+function normalizeDocumentReviewStatus(value = '') {
+  const normalized = normalizeKey(value).replace(/\s+/g, '_');
+
+  if (['verified', 'approved', 'accepted'].includes(normalized)) return 'verified';
+  if (['rejected', 'major', 'major_issue'].includes(normalized)) return 'rejected';
+  if (
+    [
+      'reupload_required',
+      're_upload_required',
+      'needs_reupload',
+      'needs_re_upload',
+      'request_reupload',
+      'request_re_upload',
+      'reupload',
+    ].includes(normalized)
+  ) {
+    return 'reupload_required';
+  }
+  if (['uploaded', 'under_review', 'submitted'].includes(normalized)) return 'uploaded';
+  if (['pending', 'missing', 'missing_docs', 'not_uploaded', ''].includes(normalized)) {
+    return 'pending';
+  }
+
+  return normalized;
+}
+
 function normalizeRequiredDocuments(rawDocs = []) {
   const mapped = new Map();
 
@@ -366,16 +395,12 @@ function normalizeRequiredDocuments(rawDocs = []) {
       rawDoc.uploaded_at
     );
 
-    const rawStatus = normalizeKey(
+    let normalizedStatus = normalizeDocumentReviewStatus(
       rawDoc.review_status ||
       rawDoc.status ||
       rawDoc.document_status ||
       'pending'
     );
-
-    let normalizedStatus = rawStatus.replace(/\s+/g, '_');
-    if (normalizedStatus === 'under_review') normalizedStatus = 'uploaded';
-    if (normalizedStatus === 'missing_docs') normalizedStatus = 'pending';
     if (
       hasUploadedFile &&
       ['pending', 'missing', 'missing_docs', ''].includes(normalizedStatus)
@@ -453,7 +478,8 @@ function normalizeRequiredDocuments(rawDocs = []) {
   });
 }
 function getDocumentStatusMeta(status) {
-  return DOC_STATUS_META[status] || DOC_STATUS_META.pending;
+  const normalizedStatus = normalizeDocumentReviewStatus(status);
+  return DOC_STATUS_META[normalizedStatus] || DOC_STATUS_META.pending;
 }
 
 function isDocumentAvailable(document) {
@@ -625,7 +651,7 @@ export function buildExtractedData(activeDoc, application) {
   if (hasStructuredBirthFields) {
     const birthFieldDefinitions = [
       ['child_name', 'Child Name'],
-      ['mother_maiden_name', 'Motherâ€™s Maiden Name'],
+      ['mother_maiden_name', 'MotherÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Maiden Name'],
       ['father_name', 'Father Name'],
     ];
 
@@ -953,7 +979,7 @@ function InfoRow({ label, value, mono, className = '' }) {
       <p className="text-xs font-medium uppercase tracking-wider text-stone-400 mb-0.5">
         {label}
       </p>
-      <p className={`text-[15px] ${mono ? 'font-mono text-stone-600' : 'font-medium text-stone-800'}`}>
+      <p className={`break-words text-[15px] ${mono ? 'font-mono text-stone-600' : 'font-medium text-stone-800'}`}>
         {displayValue}
       </p>
     </div>
@@ -968,7 +994,7 @@ function ApplicationFormPreview({ application }) {
   const fullAddress = buildAddress(profile);
 
   return (
-    <div className="w-full h-[520px] overflow-y-auto bg-white border border-stone-200 rounded-lg p-4">
+    <div className="h-[380px] w-full overflow-y-auto rounded-lg border border-stone-200 bg-white p-3 sm:h-[440px] sm:p-4 xl:h-[520px]">
       <h3 className="text-[15px] font-semibold text-stone-800 mb-3">Application Form Summary</h3>
 
       <div className="space-y-5 text-[15px] text-stone-700">
@@ -1167,53 +1193,75 @@ function DocumentPreviewPanel({ activeDoc, application }) {
   const [previewMimeType, setPreviewMimeType] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
+  const [usingOriginalFallback, setUsingOriginalFallback] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl = '';
+    const controller = new AbortController();
+
+    const getSignedUrl = async (source) => {
+      const applicationId = application?.application_id || application?.id;
+      const response = await fetch(
+        `${API_BASE}/api/applications/${applicationId}/documents/${encodeURIComponent(activeDoc.id)}/view-url?source=${source}&_=${Date.now()}`,
+        {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
+          cache: 'no-store',
+          signal: controller.signal,
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Could not prepare document preview.');
+      if (!payload?.data?.url) throw new Error('Document preview URL was not returned.');
+      return payload.data;
+    };
+
+    const getBytes = async (url) => {
+      const response = await fetch(url, {
+        method: 'GET', cache: 'force-cache', redirect: 'follow', signal: controller.signal,
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(text || `Preview failed with status ${response.status}.`);
+      }
+      return response;
+    };
 
     const loadPreview = async () => {
       setPreviewError('');
       setPreviewUrl('');
       setPreviewMimeType('');
-
-      if (!activeDoc?.url || activeDoc?.id === 'application_form') return;
+      setUsingOriginalFallback(false);
+      if (activeDoc?.id === 'application_form') return;
+      if (!activeDoc?.file_path && !activeDoc?.is_submitted) return;
 
       try {
         setPreviewLoading(true);
-
-        const response = await fetch(activeDoc.url, {
-          method: 'GET',
-          cache: 'no-store',
-          redirect: 'follow',
-        });
-
-        if (!response.ok) {
-          const payload = await response.text().catch(() => '');
-          throw new Error(payload || `Preview failed with status ${response.status}.`);
+        let signed = await getSignedUrl('preview');
+        let response;
+        try {
+          response = await getBytes(signed.url);
+        } catch (previewError) {
+          if (signed.source !== 'preview' || !signed.fallback_available) throw previewError;
+          signed = await getSignedUrl('original');
+          response = await getBytes(signed.url);
+          if (!cancelled) setUsingOriginalFallback(true);
         }
 
         const bytes = await response.arrayBuffer();
         if (!bytes.byteLength) throw new Error('The uploaded document is empty.');
-
-        const mimeType = inferPreviewMimeType(
-          activeDoc,
-          response.headers.get('content-type') || ''
-        );
-
+        const mimeType = inferPreviewMimeType(activeDoc, response.headers.get('content-type') || '');
         if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
-          throw new Error('This file type cannot be previewed. Re-upload it as PDF, JPG, JPEG, PNG, or WEBP.');
+          throw new Error('This file type cannot be previewed.');
         }
-
         const blob = new Blob([bytes], { type: mimeType });
         objectUrl = URL.createObjectURL(blob);
-
         if (!cancelled) {
           setPreviewMimeType(mimeType);
           setPreviewUrl(objectUrl);
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && error?.name !== 'AbortError') {
           setPreviewError(error?.message || 'The document preview could not be loaded.');
         }
       } finally {
@@ -1222,12 +1270,12 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     };
 
     loadPreview();
-
     return () => {
       cancelled = true;
+      controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [activeDoc?.id, activeDoc?.url, activeDoc?.file_name, activeDoc?.file_path]);
+  }, [activeDoc?.id, activeDoc?.file_path, activeDoc?.preview_path, activeDoc?.is_submitted, application?.application_id, application?.id]);
 
   const isImage = previewMimeType.startsWith('image/');
   const isPdf = previewMimeType === 'application/pdf';
@@ -1236,74 +1284,30 @@ function DocumentPreviewPanel({ activeDoc, application }) {
     <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-            <FileText className="h-4 w-4" />
-          </div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)]"><FileText className="h-4 w-4" /></div>
           <div className="min-w-0">
-            <h4 className="truncate text-base font-semibold text-stone-900">
-              {activeDoc?.name || 'Document'}
-            </h4>
-            <p className="truncate text-[15px] text-stone-500">
-              {activeDoc?.id === 'application_form'
-                ? 'Submitted application data'
-                : activeDoc?.file_name || 'Secure preview'}
-            </p>
+            <h4 className="truncate text-base font-semibold text-stone-900">{activeDoc?.name || 'Document'}</h4>
+            <p className="truncate text-[15px] text-stone-500">{activeDoc?.id === 'application_form' ? 'Submitted application data' : activeDoc?.file_name || 'Secure preview'}</p>
           </div>
         </div>
-
-        <Badge className={activeDoc?.url || activeDoc?.id === 'application_form'
-          ? 'border-green-200 bg-green-50 text-green-700'
-          : 'border-stone-200 bg-stone-100 text-stone-500'}>
-          {activeDoc?.url || activeDoc?.id === 'application_form' ? 'Available' : 'Missing'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {usingOriginalFallback ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Original fallback</Badge> : null}
+          <Badge className={activeDoc?.file_path || activeDoc?.id === 'application_form' ? 'border-green-200 bg-green-50 text-green-700' : 'border-stone-200 bg-stone-100 text-stone-500'}>
+            {activeDoc?.file_path || activeDoc?.id === 'application_form' ? 'Available' : 'Missing'}
+          </Badge>
+        </div>
       </header>
-
-      <div className="flex min-h-[560px] items-center justify-center bg-[#f8fafc] p-3 sm:p-4">
-        {activeDoc?.id === 'application_form' ? (
-          <ApplicationFormPreview application={application} />
-        ) : previewLoading ? (
-          <div className="flex flex-col items-center gap-3 text-stone-500">
-            <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
-            <p className="text-[15px]">Loading secure previewâ€¦</p>
-          </div>
-        ) : previewError ? (
-          <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
-            <AlertTriangle className="mx-auto h-7 w-7 text-amber-600" />
-            <p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p>
-            <p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p>
-          </div>
-        ) : previewUrl && isImage ? (
-          <div className="flex h-[560px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-3">
-            <img
-              src={previewUrl}
-              alt={activeDoc?.name || 'Uploaded document'}
-              className="max-h-full max-w-full select-none object-contain"
-              draggable={false}
-              onError={() => setPreviewError('The image could not be decoded. Re-upload a valid image file.')}
-            />
-          </div>
-        ) : previewUrl && isPdf ? (
-          <iframe
-            src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-            title={activeDoc?.name || 'PDF preview'}
-            className="h-[560px] w-full rounded-xl border border-stone-200 bg-white"
-          />
-        ) : (
-          <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-stone-100 text-stone-500">
-              <FileText className="h-6 w-6" />
-            </div>
-            <h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4>
-            <p className="mt-1 text-[15px] leading-relaxed text-stone-500">
-              The applicant has not submitted this requirement yet.
-            </p>
-          </div>
-        )}
+      <div className="flex min-h-[360px] items-center justify-center bg-[#f8fafc] p-3 sm:min-h-[440px] sm:p-4 xl:min-h-[560px]">
+        {activeDoc?.id === 'application_form' ? <ApplicationFormPreview application={application} />
+          : previewLoading ? <div className="flex flex-col items-center gap-3 text-stone-500"><Loader2 className="h-7 w-7 animate-spin text-[var(--portal-base)]" /><p className="text-[15px]">Loading secure preview</p></div>
+          : previewError ? <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center"><AlertTriangle className="mx-auto h-7 w-7 text-amber-600" /><p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p><p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p></div>
+          : previewUrl && isImage ? <div className="flex h-[360px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-2 sm:h-[440px] sm:p-3 xl:h-[560px]"><img src={previewUrl} alt={activeDoc?.name || 'Uploaded document'} className="max-h-full max-w-full select-none object-contain" draggable={false} onError={() => setPreviewError('The image could not be decoded.')} /></div>
+          : previewUrl && isPdf ? <iframe src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`} title={activeDoc?.name || 'PDF preview'} className="h-[360px] w-full rounded-xl border border-stone-200 bg-white sm:h-[440px] xl:h-[560px]" />
+          : <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center"><FileText className="mx-auto h-6 w-6 text-stone-500" /><h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4></div>}
       </div>
     </section>
   );
 }
-
 const GRADE_REVIEW_FIELDS = [
   ['student_number', 'Student Number'],
 ];
@@ -1358,7 +1362,7 @@ function deriveGradeReviewValues(rawText) {
     'THE PERIOD'
   );
   const period = periodText.match(
-    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-â€“]\s*\d{4})?/i
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“]\s*\d{4})?/i
   );
   if (period) {
     derived.semester = {
@@ -1471,14 +1475,14 @@ function ocrScoreLabel(candidate, key, displayedValue) {
   const rawScore = candidate?.field_confidence?.[key];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
-  return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
+  return String(displayedValue || '').trim() ? 'Detected' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
 }
 
 function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
-  return String(displayedValue || '').trim() ? 'Detected' : 'â€”';
+  return String(displayedValue || '').trim() ? 'Detected' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
 }
 
 const BIRTH_REGION_PREFIX = {
@@ -1490,7 +1494,7 @@ const BIRTH_REGION_PREFIX = {
 const BIRTH_REGION_STYLE = {
   item1: { color: '#ef4444', label: 'Item 1 / Child' },
   item6: { color: '#f59e0b', label: 'Item 6 / Mother' },
-  item13: { color: '#2563eb', label: 'Item 13 / Father' },
+  item13: { color: 'var(--portal-base)', label: 'Item 13 / Father' },
 };
 
 function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, error }) {
@@ -1504,7 +1508,7 @@ function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, er
   if (!src) {
     return (
       <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
-        Loading private Birth review imageâ€¦
+        Loading private Birth review imageÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
       </div>
     );
   }
@@ -1526,7 +1530,9 @@ function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, er
             <g key={key}>
               <polygon
                 points={points.map(([x, y]) => `${x},${y}`).join(' ')}
-                fill={key === activeRegion ? `${style.color}55` : `${style.color}20`}
+                fill={prefix === 'item13'
+                  ? (key === activeRegion ? 'color-mix(in srgb, var(--portal-base) 34%, transparent)' : 'color-mix(in srgb, var(--portal-base) 13%, transparent)')
+                  : (key === activeRegion ? `${style.color}55` : `${style.color}20`)}
                 stroke={style.color}
                 strokeWidth={key === activeRegion ? 0.006 : 0.003}
                 strokeDasharray={expected ? '0.012 0.008' : undefined}
@@ -1672,15 +1678,15 @@ function OCRPanel({
             )}
           </Button>
 
-          <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-xs font-medium">
+          <Badge className="border text-xs font-medium" style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' }}>
             Extracted Preview
           </Badge>
         </div>
       </div>
 
-      <div className="p-4 min-h-[520px] space-y-4">
+      <div className="min-h-[380px] space-y-4 p-3 sm:min-h-[440px] sm:p-4 xl:min-h-[520px]">
         {runningIotOcr && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs" style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' }}>
             <div>
               <span className="font-semibold">Running IoT OCR...</span>{' '}
               {iotOcrStatus === 'capturing' && activeDoc?.id === 'birth_certificate'
@@ -1708,15 +1714,16 @@ function OCRPanel({
         )}
 
         {isGradeReview && (
-          <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
+          <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : ''}`} style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)' } : undefined}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-base font-bold tracking-wide text-stone-900">GRADE FORM OCR</p>
                 <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
               </div>
-              <Badge className={gradeReviewCompleted
-                ? 'border-green-200 bg-green-100 text-green-800'
-                : 'border-blue-200 bg-blue-100 text-blue-800'}>
+              <Badge
+                className={gradeReviewCompleted ? 'border-green-200 bg-green-100 text-green-800' : 'border'}
+                style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
+              >
                 {gradeReviewCompleted ? 'OCR confirmed' : 'Review required'}
               </Badge>
             </div>
@@ -1734,13 +1741,13 @@ function OCRPanel({
                     })}
                     className={gradeReviewCompleted ? 'bg-stone-100' : 'bg-white'}
                   />
-                  <span className="whitespace-nowrap text-right text-xs font-semibold text-blue-700">
-                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : 'â€”'}
+                  <span className="whitespace-nowrap text-right text-xs font-semibold text-[var(--portal-base)]">
+                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}
                   </span>
                 </label>
               ))}
 
-              <div className="grid gap-1 border-t border-blue-200 pt-3 sm:grid-cols-[130px_1fr_auto] sm:items-center">
+              <div className="grid gap-1 border-t pt-3 sm:grid-cols-[130px_1fr_auto] sm:items-center" style={{ borderColor: 'var(--portal-sub)' }}>
                 <span className="text-sm font-bold text-stone-800">GWA</span>
                 <Input
                   value={ocrFieldValue(correctedFields?.gwa)}
@@ -1748,8 +1755,8 @@ function OCRPanel({
                   aria-label="Detected GWA (read only)"
                   className="bg-stone-100 font-bold text-stone-900"
                 />
-                <span className="whitespace-nowrap text-right text-xs font-semibold text-blue-700">
-                  {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : 'â€”'}
+                <span className="whitespace-nowrap text-right text-xs font-semibold text-[var(--portal-base)]">
+                  {String(ocrFieldValue(correctedFields?.gwa) || '').trim() ? 'Detected' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}
                 </span>
               </div>
             </div>
@@ -1807,7 +1814,7 @@ function OCRPanel({
                     />
                   )}
                   <span className="whitespace-nowrap text-right text-xs font-semibold text-amber-700">
-                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : 'â€”'}
+                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}
                   </span>
                 </label>
               ))}
@@ -1845,8 +1852,10 @@ function OCRPanel({
                 <Badge className={birthReviewCompleted
                   ? 'border-green-200 bg-green-100 text-green-800'
                   : birthReplacementRunning
-                    ? 'border-blue-200 bg-blue-100 text-blue-800'
-                  : 'border-rose-200 bg-rose-100 text-rose-800'}>
+                    ? 'border'
+                  : 'border-rose-200 bg-rose-100 text-rose-800'}
+                  style={birthReplacementRunning && !birthReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
+                >
                   {birthReviewCompleted
                     ? 'OCR confirmed'
                     : birthReplacementRunning
@@ -1865,12 +1874,6 @@ function OCRPanel({
                     ? 'Gemini could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
                     : 'This earlier Birth V2 attempt did not upload its private capture. The candidate cannot be confirmed; request a rescan to capture and display a review image.'
                   : 'The Birth rows were not safely identified. The raw snapshot below is diagnostic full-page OCR only and cannot be confirmed as parent information. Reposition the complete form and retry OCR.'}
-              </div>
-            )}
-
-            {birthFullPageRecovery && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
-                Exact-cell extraction was incomplete. These provisional names were recovered from the full-page Gemini reading and require administrator verification.
               </div>
             )}
 
@@ -1897,7 +1900,7 @@ function OCRPanel({
               <div className="mb-3 flex items-start justify-between gap-3">
                 <p className="min-w-0 text-sm font-semibold text-stone-700">Child Name (reference)</p>
                 <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                  {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : '—'}
+                  {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : 'Ã¢â‚¬â€'}
                 </span>
               </div>
               <div className="grid min-w-0 gap-3 sm:grid-cols-3">
@@ -1922,7 +1925,7 @@ function OCRPanel({
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <p className="min-w-0 text-sm font-semibold text-stone-800">{heading}</p>
                   <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                    {Object.values(correctedFields?.[fieldKey] || {}).some((value) => String(value || '').trim()) ? 'Detected' : '—'}
+                    {Object.values(correctedFields?.[fieldKey] || {}).some((value) => String(value || '').trim()) ? 'Detected' : 'Ã¢â‚¬â€'}
                   </span>
                 </div>
                 <div className="grid min-w-0 gap-3 sm:grid-cols-3">
@@ -1951,17 +1954,6 @@ function OCRPanel({
             ))}
             </div>
             </div>
-
-            {(reviewCandidate.validation_issues || []).length > 0 && (
-              <div className="clear-both rounded-lg border border-amber-200 bg-white p-3 text-sm text-amber-900">
-                <p className="mb-1 font-semibold">OCR review notices</p>
-                {(reviewCandidate.validation_issues || []).map((issue, index) => (
-                  <p key={`${issue.code || 'birth-issue'}-${issue.field || 'document'}-${index}`}>
-                    {issue.message || issue.code}
-                  </p>
-                ))}
-              </div>
-            )}
 
             {(!birthReviewClosed || birthCanRequestRescan) && (
               <div className="clear-both space-y-3">
@@ -2142,7 +2134,7 @@ function OCRPanel({
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-blue-700" />
+                <ShieldCheck className="h-4 w-4 text-[var(--portal-base)]" />
                 <p className="text-sm font-semibold uppercase tracking-wide text-stone-700">
                   {extractedData.documentValidation.panelTitle || 'Birth Certificate / PSA Detection'}
                 </p>
@@ -2439,76 +2431,69 @@ function ReviewIssueModal({
   );
 }
 
-function StudentCard({ application, onViewSlip }) {
-  const endorsementSlipId = application?.readiness?.endorsement_slip_id || null;
-  const endorsementComplete = application?.readiness?.endorsement_complete === true;
-
+function StudentCard({ application }) {
   return (
-    <Card className="border-stone-200 shadow-none bg-white">
-      <div className="p-5">
-        <div className="flex items-center gap-3 mb-5">
-          <Avatar className="w-12 h-12 border border-stone-100">
-            <AvatarImage
-              src={application?.student?.avatar_url || undefined}
-              alt={application?.student?.name || 'Student'}
-            />
-            <AvatarFallback className="bg-blue-900 text-white text-[15px] font-semibold">
-              {application?.student?.initials || 'NA'}
-            </AvatarFallback>
-          </Avatar>
+    <Card className="border-stone-200 bg-white shadow-none">
+      <div className="p-3.5 sm:p-4">
+        <div className="flex items-center gap-3">
+          <PreviewableProfileAvatar
+            src={application?.student?.avatar_url || application?.student?.profile_photo_url || ''}
+            name={`${application?.student?.name || 'Student'} profile photo`}
+            fallback={application?.student?.initials || 'NA'}
+            avatarClassName="h-11 w-11 border border-stone-100"
+            fallbackClassName="bg-[var(--portal-base)] text-[15px] font-semibold text-white"
+          />
 
-          <div>
-            <h2 className="text-base font-semibold text-stone-900">
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-semibold text-stone-900">
               {application?.student?.name}
             </h2>
-            <p className="text-sm font-mono text-stone-400">
+            <p className="truncate text-sm font-mono text-stone-400">
               {application?.student?.pdm_id}
             </p>
-            <Badge className="mt-1.5 bg-blue-50 text-blue-700 border-blue-100 font-medium text-xs uppercase tracking-wide">
+            <Badge className="mt-1 border text-xs font-medium uppercase tracking-wide" style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' }}>
               {application?.student?.program}
             </Badge>
           </div>
         </div>
 
-        {endorsementSlipId ? (
-          <div className="mb-4 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-stone-400">Endorsement Slip</p>
-                <p className="mt-1 text-[15px] font-semibold text-stone-800">
-                  {endorsementComplete ? 'Completed and available for review' : 'Available and still in endorsement flow'}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-stone-200 text-sm"
-                onClick={onViewSlip}
-              >
-                View Slip
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="space-y-3.5 pt-4 border-t border-stone-100">
-          <InfoRow label="Email Address" value={application?.student?.email} />
-          <InfoRow label="Phone Number" value={application?.student?.phone} />
-          <div className="grid grid-cols-2 gap-3.5">
-            <InfoRow label="Academic Year" value={application?.student?.academic_year} />
-            <InfoRow label="GWA Score" value={application?.student?.gwa} mono />
-          </div>
-          <InfoRow label="Course / Program" value={application?.student?.course} />
+        <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 border-t border-stone-100 pt-4 sm:grid-cols-2">
+          <InfoRow
+            label="Email Address"
+            value={application?.student?.email}
+            className="min-w-0"
+          />
+          <InfoRow
+            label="Phone Number"
+            value={application?.student?.phone}
+            className="min-w-0"
+          />
+          <InfoRow
+            label="Course / Program"
+            value={application?.student?.course}
+            className="min-w-0"
+          />
+          <InfoRow
+            label="Year Level"
+            value={application?.student?.academic_year}
+            className="min-w-0"
+          />
+          <InfoRow
+            label="GWA Score"
+            value={application?.student?.gwa}
+            mono
+            className="min-w-0"
+          />
           <InfoRow
             label="Marilao Resident"
             value={
               application?.student?.marilao_resident === true
-                ? 'True'
+                ? 'Yes'
                 : application?.student?.marilao_resident === false
-                  ? 'False'
+                  ? 'No'
                   : 'N/A'
             }
+            className="min-w-0"
           />
         </div>
       </div>
@@ -2525,31 +2510,18 @@ function ChecklistCard({
   rejectedCount,
   reuploadCount,
   progress,
-  requiredDocCount,
+  theme,
 }) {
-  const hasAnyUpload = availableCount > 0;
-  const hasCompleteRequirements = availableCount >= requiredDocCount;
-
-  const requiredDocs = docs.slice(0, requiredDocCount);
-  const allRequiredDocsReviewed = requiredDocs.every(
-    (d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
-  );
-  const allRequiredDocsVerified = requiredDocs.every(
-    (d) => isDocumentAvailable(d) && d.status === 'verified'
-  );
-
   return (
-    <Card className="border-stone-200 shadow-none bg-white">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
-        <h3 className="text-sm font-semibold text-stone-700 uppercase tracking-wider">
-          Checklist
-        </h3>
+    <Card className="border-stone-200 bg-white shadow-none">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/50 px-3.5 py-3 sm:px-4">
+        <h3 className="text-sm font-semibold text-stone-900">Checklist</h3>
         <span className="text-sm text-stone-400">
-          {availableCount}/{docs.length} available
+          {availableCount}/{docs.length} uploaded
         </span>
       </div>
 
-      <CardContent className="p-3 space-y-1.5">
+      <CardContent className="space-y-1 p-2 sm:p-2.5">
         {docs.map((d) => {
           const meta = getDocumentStatusMeta(d.status);
           const isActive = activeDocId === d.id;
@@ -2559,21 +2531,39 @@ function ChecklistCard({
             <button
               key={d.id}
               onClick={() => onSelectDoc(d.id)}
-              className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
-                ? 'border-blue-800 bg-blue-50 shadow-sm'
-                : 'border-stone-100 bg-white hover:border-stone-200'
+              className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-left transition-all sm:px-3 ${isActive
+                ? 'shadow-sm'
+                : 'border-stone-100 bg-white hover:border-stone-200 hover:bg-stone-50/60'
                 }`}
+              style={
+                isActive
+                  ? {
+                      borderColor: theme?.base || C.brownMid,
+                      background: theme?.accentSoft || '#f9ebc8',
+                    }
+                  : undefined
+              }
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span style={{ color: meta.color }}>{meta.icon}</span>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span
+                  className={isActive ? 'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white' : 'shrink-0'}
+                  style={
+                    isActive
+                      ? { background: theme?.base || C.brownMid }
+                      : { color: meta.color }
+                  }
+                >
+                  {meta.icon}
+                </span>
                 <div className="min-w-0">
                   <p
-                    className={`text-sm truncate ${isActive ? 'font-semibold text-blue-900' : 'font-medium text-stone-700'
+                    className={`truncate text-sm ${isActive ? 'font-semibold' : 'font-medium text-stone-700'
                       }`}
+                    style={isActive ? { color: theme?.base || C.brownMid } : undefined}
                   >
                     {d.name}
                   </p>
-                  <p className="text-xs text-stone-400 mt-0.5">
+                  <p className="mt-0.5 text-xs text-stone-400">
                     {d.id === 'application_form'
                       ? 'Text-based application data'
                       : available
@@ -2584,8 +2574,12 @@ function ChecklistCard({
               </div>
 
               <span
-                className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ml-2"
-                style={{ background: meta.bg, color: meta.color }}
+                className="ml-2 shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium"
+                style={{
+                  background: meta.bg,
+                  borderColor: meta.border,
+                  color: meta.color,
+                }}
               >
                 {meta.label}
               </span>
@@ -2593,68 +2587,22 @@ function ChecklistCard({
           );
         })}
 
-        <div className="mt-3 pt-3 border-t border-stone-100 space-y-3">
+        <div className="mt-2.5 space-y-2.5 border-t border-stone-100 pt-2.5">
           <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-stone-400">
                 Verification Progress
               </span>
               <span className="text-xs font-semibold text-stone-700">{progress}%</span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
               <div
-                className="h-full bg-green-500 transition-all duration-500 rounded-full"
+                className="h-full rounded-full bg-green-500 transition-all duration-500"
                 style={{ width: `${progress}%` }}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-              <p className="text-xs uppercase tracking-wide text-stone-400">Verified</p>
-              <p className="text-[15px] font-semibold text-green-700">{verifiedCount}</p>
-            </div>
-            <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-              <p className="text-xs uppercase tracking-wide text-stone-400">Re-upload</p>
-              <p className="text-[15px] font-semibold text-amber-700">{reuploadCount}</p>
-            </div>
-            <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-              <p className="text-xs uppercase tracking-wide text-stone-400">Major</p>
-              <p className="text-[15px] font-semibold text-red-700">{rejectedCount}</p>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-stone-200 bg-white px-3 py-3">
-            <p className="text-xs uppercase tracking-wide text-stone-400">Readiness</p>
-
-            {!hasAnyUpload ? (
-              <p className="text-sm font-semibold mt-1 text-red-700">
-                No submitted requirements yet.
-              </p>
-            ) : !hasCompleteRequirements ? (
-              <p className="text-sm font-semibold mt-1 text-orange-700">
-                Incomplete requirements: {availableCount}/{requiredDocCount} available.
-              </p>
-            ) : !allRequiredDocsReviewed ? (
-              <p className="text-sm font-semibold mt-1 text-orange-700">
-                All {requiredDocCount} requirements are available, but admin review actions are still pending.
-              </p>
-            ) : allRequiredDocsVerified ? (
-              <p className="text-sm font-semibold mt-1 text-green-700">
-                All {requiredDocCount} required items are verified.
-              </p>
-            ) : requiredDocs.some(
-              (document) => document.status === 'reupload_required'
-            ) ? (
-              <p className="text-sm font-semibold mt-1 text-amber-700">
-                Review is complete. One or more documents need replacement.
-              </p>
-            ) : (
-              <p className="text-sm font-semibold mt-1 text-red-700">
-                Review contains a major violation that can reject the application.
-              </p>
-            )}
-          </div>
         </div>
       </CardContent>
     </Card>
@@ -2822,9 +2770,8 @@ function VerificationActions({
     }
 
     return `${base}
-      bg-blue-900
       text-white
-      hover:bg-blue-800`;
+      hover:opacity-90`;
   })();
 
   return (
@@ -2843,11 +2790,8 @@ function VerificationActions({
 
             {activeDoc && (
               <Badge
-                className={
-                  isSaved
-                    ? 'border-stone-200 bg-stone-100 text-stone-500'
-                    : 'border-blue-100 bg-blue-50 text-blue-700'
-                }
+                className={isSaved ? 'border-stone-200 bg-stone-100 text-stone-500' : 'border'}
+                style={!isSaved ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
               >
                 {isSaved ? 'Finalized' : 'Review'}
               </Badge>
@@ -2946,6 +2890,7 @@ function VerificationActions({
             onClick={onComplete}
             disabled={saveDisabled}
             className={saveButtonClass}
+            style={!saveDisabled && finalVerificationStatus !== 'rejected' && finalVerificationStatus !== 'requires_reupload' ? { background: 'var(--portal-base)' } : undefined}
           >
             {submitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2966,6 +2911,7 @@ function VerificationActions({
 }
 
 export default function DocumentVerification() {
+  const { theme } = usePortalTheme('admin');
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -3003,6 +2949,7 @@ export default function DocumentVerification() {
   const [iotOcrCapabilities, setIotOcrCapabilities] = useState({});
   const pollingRef = useRef(null);
   const activeIotRequestRef = useRef(null);
+  const ocrRefreshSuppressedUntilRef = useRef(0);
 
   // Verify/Reject actions are draft review decisions until the coordinator
   // presses "Save Requirements Review". Background/realtime refreshes must not
@@ -3121,6 +3068,18 @@ export default function DocumentVerification() {
     [id]
   );
 
+  const realtimeRefreshTimerRef = useRef(null);
+  const REALTIME_REFRESH_COALESCE_MS = 200;
+
+  const scheduleDocumentVerificationRefresh = useCallback(() => {
+    if (realtimeRefreshTimerRef.current) return;
+
+    realtimeRefreshTimerRef.current = window.setTimeout(() => {
+      realtimeRefreshTimerRef.current = null;
+      fetchApplicationDocuments({ soft: true });
+    }, REALTIME_REFRESH_COALESCE_MS);
+  }, [fetchApplicationDocuments]);
+
   const refreshCurrentDocumentVerification = useCallback(
     (data = {}) => {
       const eventApplicationId =
@@ -3132,9 +3091,26 @@ export default function DocumentVerification() {
         return;
       }
 
-      fetchApplicationDocuments({ soft: true });
+      if (
+        activeIotRequestRef.current?.requestId ||
+        Date.now() < ocrRefreshSuppressedUntilRef.current
+      ) {
+        return;
+      }
+
+      scheduleDocumentVerificationRefresh();
     },
-    [id, fetchApplicationDocuments]
+    [id, scheduleDocumentVerificationRefresh]
+  );
+
+  useEffect(
+    () => () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+    },
+    []
   );
 
   useSocketEvent(
@@ -3165,20 +3141,40 @@ export default function DocumentVerification() {
     'application-ocr:status',
     (data = {}) => {
       if (String(data.application_id || '') !== String(id || '')) return;
+
       const documentId = data.document_key;
       if (!documentId || !data.request_id) return;
+
+      // OCR status events can arrive several times per second while the Pi moves
+      // through pending/claimed/previewing/focusing/capturing/processing.
+      // Keep these updates local. Re-fetching the entire application bundle here
+      // caused the PostgREST storm seen in Supabase logs.
       setIotOcrResults((current) => {
         const existing = current[documentId] || {};
         const existingRequest = existing.iot_ocr_request || existing.ocr_job || {};
-        if (existingRequest.request_id && existingRequest.request_id !== data.request_id) {
+
+        if (
+          existingRequest.request_id &&
+          existingRequest.request_id !== data.request_id
+        ) {
           const activeRequestId = activeIotRequestRef.current?.requestId;
-          const existingTime = new Date(existingRequest.updated_at || existingRequest.created_at || 0).getTime();
-          const incomingTime = new Date(data.updated_at || data.emitted_at || 0).getTime();
-          if (activeRequestId !== data.request_id && incomingTime <= existingTime) {
+          const existingTime = new Date(
+            existingRequest.updated_at || existingRequest.created_at || 0
+          ).getTime();
+          const incomingTime = new Date(
+            data.updated_at || data.emitted_at || 0
+          ).getTime();
+
+          if (
+            activeRequestId !== data.request_id &&
+            incomingTime <= existingTime
+          ) {
             return current;
           }
         }
+
         const request = { ...existingRequest, ...data };
+
         return {
           ...current,
           [documentId]: {
@@ -3188,9 +3184,13 @@ export default function DocumentVerification() {
           },
         };
       });
-      fetchApplicationDocuments({ soft: true });
+
+      // No fetchApplicationDocuments() here.
+      // - active OCR state is already carried by the socket payload above
+      // - the small /iot-ocr and /ocr-snapshot fallbacks hydrate candidate data
+      // - snapshot-saved / terminal paths perform the one allowed full refresh
     },
-    [id, fetchApplicationDocuments]
+    [id]
   );
 
   useSocketEvent(
@@ -3221,6 +3221,23 @@ export default function DocumentVerification() {
     fetchApplicationDocuments();
   }, [fetchApplicationDocuments]);
 
+  const applyPiAvailability = useCallback((payload = {}) => {
+    const data = payload?.data || payload || {};
+
+    setPiOnline(data?.online === true);
+    setPiAvailabilityChecked(true);
+
+    if (data?.capabilities && typeof data.capabilities === 'object') {
+      setIotOcrCapabilities(data.capabilities);
+    }
+  }, []);
+
+  useSocketEvent(
+    'pi:availability',
+    applyPiAvailability,
+    [applyPiAvailability]
+  );
+
   useEffect(() => {
     let cancelled = false;
     const checkPiAvailability = async () => {
@@ -3240,18 +3257,54 @@ export default function DocumentVerification() {
         if (!cancelled) setPiAvailabilityChecked(true);
       }
     };
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      checkPiAvailability();
+    };
+
     checkPiAvailability();
-    const timer = window.setInterval(checkPiAvailability, 5000);
+
+    const timer = window.setInterval(
+      refreshIfVisible,
+      60 * 1000
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkPiAvailability();
+      }
+    };
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
     };
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    // Supabase Realtime/Socket.IO events above are the primary refresh path.
+    // Keep only a slow visible-tab fallback so a temporarily missed socket event
+    // self-heals without re-signing and re-fetching every document every 8 seconds.
+    const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       fetchApplicationDocuments({ soft: true });
-    }, 8000);
+    };
+
+    const timer = window.setInterval(
+      refreshIfVisible,
+      FALLBACK_REFRESH_INTERVAL_MS
+    );
 
     return () => window.clearInterval(timer);
   }, [fetchApplicationDocuments]);
@@ -3311,11 +3364,6 @@ export default function DocumentVerification() {
       key: 'ocr',
       label: 'OCR Scanning',
       documents: docs.filter((document) => !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
-    },
-    {
-      key: 'manual',
-      label: 'Manual Review Â· No OCR',
-      documents: docs.filter((document) => IOT_OCR_DISABLED_DOCUMENT_KEYS.has(document.id)),
     },
   ], [docs]);
   const persistedIotRequest = getActiveIotRequest(activeDoc);
@@ -3440,14 +3488,78 @@ export default function DocumentVerification() {
 
     if (!pollingRef.current) {
       const pollPersistedRequest = async () => {
+        let keepPolling = true;
+
         try {
-          await fetchApplicationDocuments({ soft: true });
+          const response = await fetch(
+            `${API_BASE}/api/applications/${id}/documents/${activeDocId}/iot-ocr?request_id=${encodeURIComponent(requestId)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+              },
+              cache: 'no-store',
+            }
+          );
+
+          const payload = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(payload.error || 'Failed to refresh OCR request status.');
+          }
+
+          const latestRequest = payload?.data?.request || null;
+          const candidate = payload?.data?.candidate || null;
+
+          if (latestRequest?.request_id === requestId) {
+            setIotOcrResults((current) => ({
+              ...current,
+              [activeDocId]: {
+                ...(current[activeDocId] || {}),
+                iot_ocr_request: latestRequest,
+                ocr_job: latestRequest,
+              },
+            }));
+
+            const requestStatus = String(latestRequest.status || '')
+              .trim()
+              .toLowerCase();
+
+            if (candidate) {
+              setReviewCandidate(candidate);
+              setCorrectedFields(normalizeReviewFields(candidate));
+              setRawOcrSnapshot(candidate.raw_text || '');
+            }
+
+            if (
+              requestStatus === 'review_required' ||
+              requestStatus === 'completed' ||
+              requestStatus === 'cancelled' ||
+              requestStatus === 'failed' ||
+              requestStatus === 'expired'
+            ) {
+              keepPolling = false;
+              setRunningIotOcr(false);
+
+              if (activeIotRequestRef.current?.requestId === requestId) {
+                activeIotRequestRef.current = null;
+              }
+
+              await fetchApplicationDocuments({ soft: true });
+            }
+          }
+        } catch (pollError) {
+          console.error('POLL IOT OCR STATUS ERROR:', pollError);
         } finally {
-          if (activeIotRequestRef.current?.requestId === requestId) {
+          if (
+            keepPolling &&
+            activeIotRequestRef.current?.requestId === requestId
+          ) {
             pollingRef.current = window.setTimeout(
               pollPersistedRequest,
               IOT_OCR_STATUS_POLL_INTERVAL_MS
             );
+          } else {
+            pollingRef.current = null;
           }
         }
       };
@@ -3816,6 +3928,7 @@ export default function DocumentVerification() {
               setReviewCandidate(candidate || null);
               setCorrectedFields(normalizeReviewFields(candidate));
               setRawOcrSnapshot(candidate?.raw_text || '');
+              ocrRefreshSuppressedUntilRef.current = Date.now() + 5000;
               await fetchApplicationDocuments({ soft: true });
               stopPolling();
               setRunningIotOcr(false);
@@ -3835,6 +3948,7 @@ export default function DocumentVerification() {
                 [targetDocumentId]: freshOverride,
               }));
               setRawOcrSnapshot(buildRawOcrSnapshot(freshDocument));
+              ocrRefreshSuppressedUntilRef.current = Date.now() + 5000;
               await fetchApplicationDocuments({ soft: true });
               stopPolling();
               setRunningIotOcr(false);
@@ -3842,6 +3956,7 @@ export default function DocumentVerification() {
             }
 
             if (['failed', 'cancelled', 'expired'].includes(requestStatus)) {
+              ocrRefreshSuppressedUntilRef.current = Date.now() + 5000;
               await fetchApplicationDocuments({ soft: true });
               setBlankIotOverride(
                 latestRequest,
@@ -4165,35 +4280,6 @@ export default function DocumentVerification() {
     }
   };
 
-  const handleDownloadSlipPdf = async () => {
-    if (!endorsementSlipId) return;
-
-    try {
-      const response = await fetch(`${API_BASE}/api/endorsement-slips/${endorsementSlipId}/pdf`, {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-        },
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.message || 'Failed to download endorsement slip PDF');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${application?.readiness?.endorsement_slip_code || 'endorsement-slip'}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      alert(err.message || 'Failed to download endorsement slip PDF');
-    }
-  };
-
   useEffect(() => {
     if (activeDoc?.id !== 'birth_certificate' || !reviewCandidate || reviewCandidate.status !== 'review_required') {
       return undefined;
@@ -4252,7 +4338,17 @@ export default function DocumentVerification() {
   }
 
   return (
-    <div className="space-y-5 py-2 animate-in fade-in duration-300" style={{ background: C.bg }}>
+    <div
+      className="space-y-5 py-2 animate-in fade-in duration-300"
+      style={{
+        background: theme?.mainBg || C.bg,
+        '--portal-base': theme?.base || '#6f4b33',
+        '--portal-active': theme?.active || '#8b6247',
+        '--portal-accent': theme?.accent || '#d9a441',
+        '--portal-accent-soft': theme?.accentSoft || '#f9ebc8',
+        '--portal-sub': theme?.sub || '#dbc1af',
+      }}
+    >
       {reviewIssueModal && (
         <ReviewIssueModal
           mode={reviewIssueModal}
@@ -4266,7 +4362,7 @@ export default function DocumentVerification() {
         />
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="outline"
           size="sm"
@@ -4279,40 +4375,33 @@ export default function DocumentVerification() {
         <div>
           <div className="flex items-center gap-1.5 text-sm text-stone-400">
             <span
-              className="hover:text-stone-600 cursor-pointer transition-colors"
+              className="cursor-pointer transition-colors hover:text-stone-600"
               onClick={() => navigate('/admin/applications')}
             >
-              Registry
+              Applications
             </span>
             <ChevronRight size={11} />
-            <span className="text-stone-600">{id}</span>
+            <span className="max-w-[260px] truncate text-stone-600">
+              {application?.student?.name || 'Applicant'}
+            </span>
           </div>
-          <h1 className="text-xl font-semibold text-stone-900 mt-0.5">
+          <h1 className="mt-0.5 text-lg font-semibold text-stone-900 sm:text-xl">
             Document Verification
           </h1>
         </div>
 
-        <div className="ml-auto">
-          <div className="flex items-center gap-2">
+        <div className="w-full sm:ml-auto sm:w-auto">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {endorsementSlipId ? (
               <>
                 <Button
-                  variant="outline"
                   size="sm"
                   onClick={() => navigate(`/admin/endorsements/${endorsementSlipId}`)}
-                  className="rounded-lg border-stone-200 text-sm"
+                  className="h-9 flex-1 rounded-lg border-0 px-4 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 sm:flex-none"
+                  style={{ backgroundColor: 'var(--portal-base)' }}
                 >
                   <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                   Open Endorsement Slip
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadSlipPdf}
-                  className="rounded-lg border-stone-200 text-sm"
-                >
-                  <FileText className="mr-1.5 h-3.5 w-3.5" />
-                  Download Slip PDF
                 </Button>
               </>
             ) : null}
@@ -4321,7 +4410,8 @@ export default function DocumentVerification() {
               size="sm"
               onClick={() => fetchApplicationDocuments({ soft: true })}
               disabled={refreshing}
-              className="rounded-lg border-stone-200 text-sm"
+              className="h-9 flex-1 rounded-lg border-stone-200 bg-white px-2.5 text-sm font-medium shadow-sm hover:bg-stone-50 sm:flex-none"
+              style={{ color: 'var(--portal-base)' }}
             >
               {refreshing ? (
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -4334,12 +4424,9 @@ export default function DocumentVerification() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="lg:col-span-2 space-y-4">
-          <StudentCard
-            application={application}
-            onViewSlip={() => navigate(`/admin/endorsements/${endorsementSlipId}`)}
-          />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[clamp(370px,29vw,430px)_minmax(0,1fr)] xl:gap-5">
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-3 lg:self-start">
+          <StudentCard application={application} />
 
           <ChecklistCard
             docs={docs}
@@ -4350,24 +4437,28 @@ export default function DocumentVerification() {
             rejectedCount={rejectedCount}
             reuploadCount={reuploadCount}
             progress={progress}
-            requiredDocCount={requiredDocCount}
+            theme={theme}
           />
-        </div>
+        </aside>
 
-        <div className="lg:col-span-3 space-y-4">
-          <Card className="border-stone-200 shadow-none bg-white overflow-hidden">
-            <div className="overflow-x-auto border-b border-stone-100 bg-stone-50/50">
-              <div className="flex min-w-max items-stretch divide-x divide-stone-200">
-                {documentGroups.map((group) => (
-                  <section
+        <div className="min-w-0 space-y-4">
+          <Card className="w-full overflow-hidden border-stone-200 bg-white shadow-none">
+            <div className="border-b border-stone-100 bg-white px-3 py-3 sm:px-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:gap-3">
+                {documentGroups.map((group, groupIndex) => (
+                  <div
                     key={group.key}
-                    className="px-3 py-2"
+                    className={`flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto ${groupIndex > 0 ? 'sm:border-l sm:border-stone-200 sm:pl-3' : ''}`}
                     aria-label={group.label}
                   >
-                    <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-400">
-                      {group.label}
-                    </p>
-                    <div className="flex items-center gap-1" role="tablist" aria-label={`${group.label} documents`}>
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+                      {group.key === 'ocr' ? 'OCR' : 'Manual'}
+                    </span>
+                    <div
+                      className="inline-flex min-w-0 flex-1 flex-wrap items-center gap-1 rounded-xl bg-stone-100 p-1 sm:flex-none"
+                      role="tablist"
+                      aria-label={`${group.label} documents`}
+                    >
                       {group.documents.map((document) => {
                         const isActive = activeDocId === document.id;
                         return (
@@ -4377,61 +4468,63 @@ export default function DocumentVerification() {
                             role="tab"
                             aria-selected={isActive}
                             onClick={() => setActiveDocId(document.id)}
-                            className={`shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-all ${isActive
-                              ? group.key === 'ocr'
-                                ? 'bg-blue-800 text-white shadow-sm'
-                                : 'bg-stone-700 text-white shadow-sm'
-                              : 'bg-white text-stone-500 hover:bg-stone-100 hover:text-stone-700'
+                            className={`h-9 shrink-0 rounded-lg px-3 text-xs font-medium transition-all sm:px-3.5 sm:text-[13px] ${isActive
+                              ? 'text-white shadow-sm'
+                              : 'text-stone-600 hover:bg-white hover:text-stone-900'
                               }`}
+                            style={isActive ? { background: 'var(--portal-base)' } : undefined}
                           >
                             {document.name}
                           </button>
                         );
                       })}
                     </div>
-                  </section>
+                  </div>
                 ))}
               </div>
             </div>
 
-            {activeDocumentSupportsOcr && <div className="px-5 py-3 border-b border-stone-100 bg-white">
-              <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
-                <button
-                  onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'preview'
-                    ? 'bg-white text-blue-900 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                    }`}
-                >
-                  Document Preview
-                </button>
+            {activeDocumentSupportsOcr && (
+              <div className="flex flex-wrap items-center gap-2.5 border-b border-stone-100 bg-stone-50/50 px-3 py-3 sm:gap-3 sm:px-4">
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">View</span>
+                <div className="inline-flex min-w-0 flex-1 flex-wrap items-center rounded-xl bg-stone-100 p-1 sm:flex-none">
+                  <button
+                    onClick={() => setViewMode('preview')}
+                    className={`h-9 flex-1 rounded-lg px-3 text-xs font-medium transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${viewMode === 'preview'
+                      ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-200'
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                      }`}
+                  >
+                    Preview
+                  </button>
 
-                <button
-                  onClick={() => setViewMode('ocr')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'ocr'
-                    ? 'bg-white text-blue-900 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                    }`}
-                >
-                  OCR Validation Hub
-                </button>
+                  <button
+                    onClick={() => setViewMode('ocr')}
+                    className={`h-9 flex-1 rounded-lg px-3 text-xs font-medium transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${viewMode === 'ocr'
+                      ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-200'
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                      }`}
+                  >
+                    OCR Validation
+                  </button>
 
-                <button
-                  onClick={() => setViewMode('split')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'split'
-                    ? 'bg-white text-blue-900 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                    }`}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <Columns2 className="w-3.5 h-3.5" />
-                    Split View
-                  </span>
-                </button>
+                  <button
+                    onClick={() => setViewMode('split')}
+                    className={`h-9 flex-1 rounded-lg px-3 text-xs font-medium transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${viewMode === 'split'
+                      ? 'bg-white text-stone-900 shadow-sm ring-1 ring-stone-200'
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                      }`}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <Columns2 className="h-3.5 w-3.5" />
+                      Split
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>}
+            )}
 
-            <div className="p-5 bg-stone-50/30">
+            <div className="bg-stone-50/30 p-3 sm:p-4">
               {!activeDoc ? (
                 <p className="text-[15px] text-stone-400">No document selected.</p>
               ) : !activeDocumentSupportsOcr ? (
@@ -4469,7 +4562,7 @@ export default function DocumentVerification() {
                   onRescanCandidate={() => handleBirthReviewAction('rescan')}
                 />
               ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
                   <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
                   <OCRPanel
                     activeDoc={activeDoc}

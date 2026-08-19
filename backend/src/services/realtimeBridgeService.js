@@ -1,5 +1,56 @@
-let realtimeChannel = null;
+﻿let realtimeChannel = null;
 
+// Exact-event suppression only. Genuine realtime changes are still delivered
+// immediately; only the same event/entity/version emitted twice is dropped.
+const REALTIME_EVENT_DEDUPE_TTL_MS = 1500;
+const REALTIME_EVENT_DEDUPE_MAX = 1000;
+const recentRealtimeEvents = new Map();
+
+function buildRealtimeEventKey(eventName, payload = {}) {
+  const entityId =
+    payload.application_id ||
+    payload.document_id ||
+    payload.slip_id ||
+    payload.notification_id ||
+    payload.announcement_id ||
+    payload.opening_id ||
+    payload.message_id ||
+    '';
+
+  const version =
+    payload.updated_at ||
+    payload.created_at ||
+    payload.event_type ||
+    '';
+
+  if (!entityId || !version) return '';
+  return `${eventName}:${entityId}:${version}`;
+}
+
+function shouldSuppressRealtimeDuplicate(eventName, payload = {}) {
+  const key = buildRealtimeEventKey(eventName, payload);
+  if (!key) return false;
+
+  const now = Date.now();
+  const seenAt = recentRealtimeEvents.get(key);
+
+  if (seenAt && now - seenAt < REALTIME_EVENT_DEDUPE_TTL_MS) {
+    return true;
+  }
+
+  recentRealtimeEvents.set(key, now);
+
+  if (recentRealtimeEvents.size > REALTIME_EVENT_DEDUPE_MAX) {
+    for (const [storedKey, storedAt] of recentRealtimeEvents.entries()) {
+      if (now - storedAt >= REALTIME_EVENT_DEDUPE_TTL_MS) {
+        recentRealtimeEvents.delete(storedKey);
+      }
+      if (recentRealtimeEvents.size <= REALTIME_EVENT_DEDUPE_MAX) break;
+    }
+  }
+
+  return false;
+}
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
@@ -19,8 +70,8 @@ function getRecordId(next = {}, old = {}, keys = []) {
 
 function emitGlobal(io, eventName, payload) {
   if (!io || !eventName) return;
-
-  console.log('[Socket Emit]', eventName, payload);
+  if (shouldSuppressRealtimeDuplicate(eventName, payload)) return;
+console.log('[Socket Emit]', eventName, payload);
   io.emit(eventName, payload);
 }
 
@@ -386,7 +437,7 @@ function handleApplicationDocumentChange(io, payload = {}) {
   };
 
   emitGlobal(io, 'application-document:uploaded', eventPayload);
-  emitGlobal(io, 'application:updated', eventPayload);
+  
 }
 
 function handleEndorsementChange(io, payload = {}) {
@@ -409,10 +460,7 @@ function handleEndorsementChange(io, payload = {}) {
   };
 
   emitGlobal(io, 'endorsement:updated', eventPayload);
-  emitGlobal(io, 'application:updated', {
-    ...eventPayload,
-    source: 'endorsement',
-  });
+  
 }
 
 async function handleMessageChange(io, supabase, payload = {}) {

@@ -1,4 +1,13 @@
-const supabase = require('../config/supabase');
+﻿const supabase = require('../config/supabase');
+
+const DASHBOARD_CACHE_TTL_MS = Math.max(
+    5000,
+    Number(process.env.ADMIN_DASHBOARD_CACHE_TTL_MS || 30000)
+);
+
+let dashboardCache = null;
+let dashboardCacheExpiresAt = 0;
+let dashboardInFlight = null;
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -62,8 +71,8 @@ async function fetchRows(table, columns = '*', options = {}) {
         }
 
         const limit = Math.min(
-            10000,
-            Math.max(1, Number(options.limit || 10000))
+            5000,
+            Math.max(1, Number(options.limit || 5000))
         );
 
         query = query.range(0, limit - 1);
@@ -631,6 +640,7 @@ function buildActionSummary({
     returnOfObligations,
     roTimeLogs,
     payoutEntries,
+    profilePhotoReviews,
 }) {
     const activeApplications = applications.filter(
         (row) => !isRecordArchived(row)
@@ -705,6 +715,11 @@ function buildActionSummary({
         return status === 'pending' || status === 'on hold';
     });
 
+    const profilePhotosPending = countBy(
+        profilePhotoReviews,
+        (row) => normalizeLower(row?.status) === 'pending'
+    );
+
     return [
         {
             key: 'requirements_review',
@@ -742,6 +757,13 @@ function buildActionSummary({
             path: '/admin/payout',
         },
         {
+            key: 'profile_photo_review',
+            label: 'Profile Photo Review',
+            value: profilePhotosPending,
+            sub: 'Submitted profile photos still waiting for administrator review',
+            path: '/admin/profile-photos',
+        },
+        {
             key: 'waiting_list',
             label: 'Waiting List',
             value: waitingList,
@@ -751,7 +773,7 @@ function buildActionSummary({
     ];
 }
 
-exports.getAdminDashboard = async () => {
+async function buildAdminDashboard() {
     const [
         applications,
         students,
@@ -764,6 +786,7 @@ exports.getAdminDashboard = async () => {
         renewals,
         returnOfObligations,
         roTimeLogs,
+        profilePhotoReviews,
     ] = await Promise.all([
         fetchRows(
             'applications',
@@ -832,7 +855,7 @@ exports.getAdminDashboard = async () => {
         ),
         fetchRows(
             'endorsement_slips',
-            'endorsement_slip_id, application_id, overall_status, completed_at, updated_at'
+            'slip_id, application_id, overall_status, completed_at, updated_at'
         ),
         fetchRows(
             'payout_batches',
@@ -842,11 +865,15 @@ exports.getAdminDashboard = async () => {
             'payout_batch_students',
             'payout_entry_id, payout_batch_id, student_id, release_status'
         ),
-        fetchRows('renewals', '*'),
-        fetchRows('return_of_obligations', '*'),
+        fetchRows('renewals', 'renewal_id, status, created_at, updated_at'),
+        fetchRows('return_of_obligations', 'ro_id, ro_status, created_at, updated_at'),
         fetchRows(
             'ro_time_logs',
             'log_id, ro_id, validation_status, requires_admin_attention'
+        ),
+        fetchRows(
+            'profile_photo_reviews',
+            'review_id, status, submitted_at'
         ),
     ]);
 
@@ -873,6 +900,7 @@ exports.getAdminDashboard = async () => {
             returnOfObligations,
             roTimeLogs,
             payoutEntries,
+            profilePhotoReviews,
         }),
 
         applicationPipeline: buildApplicationPipeline(
@@ -895,4 +923,27 @@ exports.getAdminDashboard = async () => {
             endorsements
         ),
     };
+}
+
+exports.getAdminDashboard = async () => {
+    const now = Date.now();
+
+    if (dashboardCache && now < dashboardCacheExpiresAt) {
+        return dashboardCache;
+    }
+
+    if (dashboardInFlight) {
+        return dashboardInFlight;
+    }
+
+    dashboardInFlight = buildAdminDashboard();
+
+    try {
+        const result = await dashboardInFlight;
+        dashboardCache = result;
+        dashboardCacheExpiresAt = Date.now() + DASHBOARD_CACHE_TTL_MS;
+        return result;
+    } finally {
+        dashboardInFlight = null;
+    }
 };

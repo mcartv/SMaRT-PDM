@@ -443,6 +443,15 @@ class _StepFamilyState extends State<StepFamily> {
         hasMother = false;
         widget.data.fatherPresent = false;
         widget.data.motherPresent = false;
+
+        // Guardian-only mode still asks Marilao residency.
+        // Keep using the existing parentNativeStatus field for compatibility
+        // with the current model/backend validators, but normalize every
+        // affirmative parent-specific value into one generic affirmative value.
+        if (selectedParentNative != 'No') {
+          selectedParentNative = 'Yes, both parents';
+          widget.data.parentNativeStatus = selectedParentNative;
+        }
       } else {
         hasFather = true;
         hasMother = true;
@@ -797,11 +806,22 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   Widget _nativeMarilaoSection() {
+    final nativeOptions = guardianOnly
+        ? const <MapEntry<String, String>>[
+            MapEntry('Yes, both parents', 'Yes'),
+            MapEntry('No', 'No'),
+          ]
+        : parentNativeOptions
+              .map((option) => MapEntry(option, option))
+              .toList(growable: false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'ARE YOUR PARENTS A NATIVE OF MARILAO?',
+          guardianOnly
+              ? 'IS YOUR GUARDIAN A NATIVE OF MARILAO?'
+              : 'ARE YOUR PARENTS A NATIVE OF MARILAO?',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.bold,
             color: Colors.brown,
@@ -809,15 +829,16 @@ class _StepFamilyState extends State<StepFamily> {
         ),
         const SizedBox(height: 4),
         Wrap(
-          children: parentNativeOptions.map((option) {
+          children: nativeOptions.map((option) {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Radio<String>(
-                  value: option,
+                  value: option.key,
                   groupValue: selectedParentNative,
                   onChanged: (value) {
                     if (value == null) return;
+
                     setState(() {
                       selectedParentNative = value;
                       widget.data.parentNativeStatus = value;
@@ -830,10 +851,14 @@ class _StepFamilyState extends State<StepFamily> {
                         widget.data.parentMarilaoResidencyDuration = '';
                       }
                     });
+
                     widget.onChanged();
                   },
                 ),
-                Text(option, style: Theme.of(context).textTheme.bodyMedium),
+                Text(
+                  option.value,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ],
             );
           }).toList(),
@@ -841,15 +866,20 @@ class _StepFamilyState extends State<StepFamily> {
         const SizedBox(height: 16),
         if (selectedParentNative != 'No')
           _field(
-            'If YES, how long they have been residents of Marilao?',
+            guardianOnly
+                ? 'If YES, how long has your guardian been a resident of Marilao?'
+                : 'If YES, how long have your parents been residents of Marilao?',
             TextFormField(
               controller: parentMarilaoResidencyDurationController,
-              decoration: _dec('e.g., 20 years'),
+              keyboardType: TextInputType.number,
+              decoration: _dec('e.g., 20'),
             ),
           ),
         if (selectedParentNative == 'No')
           _field(
-            'If NO, what town or provinces did they come from?',
+            guardianOnly
+                ? 'If NO, what town or province did your guardian come from?'
+                : 'If NO, what town or province did your parents come from?',
             TextFormField(
               controller: parentPreviousTownProvinceController,
               decoration: _dec('e.g., Pampanga'),
@@ -987,7 +1017,7 @@ class _StepFamilyState extends State<StepFamily> {
             const SizedBox(height: 24),
           ],
 
-          if (!guardianOnly) _nativeMarilaoSection(),
+          _nativeMarilaoSection(),
         ],
       ),
     );

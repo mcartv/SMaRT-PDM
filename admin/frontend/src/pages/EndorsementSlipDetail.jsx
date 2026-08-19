@@ -466,7 +466,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
                     <div>
                       <p className="text-sm font-semibold text-stone-900">{stage.label}</p>
                       <p className="mt-1 text-xs text-stone-500">
-                        {stage.acted_by_name || 'No recorded staff yet'}
+                        {stage.acted_by_name || 'No recorded user yet'}
                         {stage.acted_at ? ` • ${formatDate(stage.acted_at)}` : ''}
                       </p>
                     </div>

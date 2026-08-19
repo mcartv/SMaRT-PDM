@@ -19,6 +19,24 @@ async function getAnnouncements(req, res) {
   }
 }
 
+async function markAnnouncementViewed(req, res) {
+  try {
+    const userId = getRequestUserId(req);
+    const result = await announcementService.markAnnouncementViewed(
+      userId,
+      req.params.announcementId
+    );
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('MARK MOBILE ANNOUNCEMENT VIEW ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to record announcement view.',
+    });
+  }
+}
+
 module.exports = {
   getAnnouncements,
+  markAnnouncementViewed,
 };

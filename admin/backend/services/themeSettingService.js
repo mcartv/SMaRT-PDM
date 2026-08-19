@@ -104,6 +104,12 @@ function isMissingTableError(error, tableName) {
 async function getPublicThemeSetting(portalKey) {
   const normalizedPortal = validatePortalKey(portalKey);
 
+  // The landing page is the only shared public theme. Authenticated areas
+  // always load the signed-in user's personal theme instead.
+  if (normalizedPortal !== 'landing') {
+    throw createHttpError(404, 'Only the Landing Page Theme is available publicly.');
+  }
+
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('portal_key, preset_key, custom_colors, updated_at, updated_by_user_id')
@@ -146,10 +152,10 @@ async function getPersonalThemeSetting(portalKey, actor = {}) {
     throw createHttpError(403, 'Access denied for this personal theme.');
   }
   if (!actorUserId) {
-    throw createHttpError(401, 'A valid staff session is required.');
+    throw createHttpError(401, 'A valid user session is required.');
   }
 
-  const fallback = await getPublicThemeSetting(normalizedPortal);
+  const fallback = buildFallbackSetting(normalizedPortal, { user_id: actorUserId });
   const { data, error } = await supabase
     .from(PERSONAL_TABLE_NAME)
     .select('user_id, portal_key, preset_key, custom_colors, updated_at')
@@ -170,24 +176,12 @@ async function getPersonalThemeSetting(portalKey, actor = {}) {
 }
 
 async function getThemeSettings(actor = {}) {
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .select('portal_key, preset_key, custom_colors, updated_at, updated_by_user_id');
-
-  if (error) {
-    if (isMissingTableError(error, TABLE_NAME)) {
-      return {
-        items: PORTAL_KEYS.map(buildFallbackSetting),
-      };
-    }
-    throw error;
-  }
-
-  const byPortal = new Map((data || []).map((item) => [
-    normalizePortalKey(item.portal_key),
-    { ...item, is_personal: false },
-  ]));
   const actorRole = normalizePortalKey(actor.role);
+  const byPortal = new Map();
+
+  // Landing remains the single shared public theme. Every authenticated portal
+  // uses only the signed-in user's personal theme row.
+  byPortal.set('landing', await getPublicThemeSetting('landing'));
 
   if (PORTAL_KEYS.includes(actorRole) && actorRole !== 'landing') {
     const personalSetting = await getPersonalThemeSetting(actorRole, actor);
@@ -195,7 +189,9 @@ async function getThemeSettings(actor = {}) {
   }
 
   return {
-    items: PORTAL_KEYS.map((portalKey) => byPortal.get(portalKey) || buildFallbackSetting(portalKey)),
+    items: PORTAL_KEYS.map((portalKey) =>
+      byPortal.get(portalKey) || buildFallbackSetting(portalKey)
+    ),
   };
 }
 
@@ -254,7 +250,7 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}, customColors
   }
 
   if (!actorUserId) {
-    throw createHttpError(401, 'A valid staff session is required.');
+    throw createHttpError(401, 'A valid user session is required.');
   }
 
   const personalPayload = {

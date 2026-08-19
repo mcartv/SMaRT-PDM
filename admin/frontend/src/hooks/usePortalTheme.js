@@ -50,23 +50,24 @@ function readCachedTheme(cacheKey) {
 export default function usePortalTheme(portalKey, fallbackTheme = null, options = {}) {
   const normalizedPortal = String(portalKey || 'admin').trim().toLowerCase();
   const fallback = fallbackTheme || getPortalDefaultTheme(normalizedPortal);
-  const publicOnly = options?.publicOnly === true;
   const tokenStorageKey = options?.tokenStorageKey || PORTAL_TOKEN_KEYS[normalizedPortal] || '';
-  const token = !publicOnly && tokenStorageKey
-    ? sessionStorage.getItem(tokenStorageKey) || ''
-    : '';
+  const token = tokenStorageKey ? sessionStorage.getItem(tokenStorageKey) || '' : '';
   const userId = getUserIdFromToken(token);
-  const cacheKey = storageKeyForPortal(normalizedPortal, userId || 'public');
+  const cacheKey = userId ? storageKeyForPortal(normalizedPortal, userId) : '';
 
-  const [themeSetting, setThemeSetting] = useState(() => readCachedTheme(cacheKey));
+  const [themeSetting, setThemeSetting] = useState(() =>
+    cacheKey ? readCachedTheme(cacheKey) : { presetKey: 'default', customColors: null }
+  );
 
   const loadTheme = useCallback(async () => {
+    if (!token || !userId) {
+      setThemeSetting({ presetKey: 'default', customColors: null });
+      return;
+    }
+
     try {
-      const endpoint = token
-        ? `/api/theme-settings/current/${normalizedPortal}`
-        : `/api/theme-settings/public/${normalizedPortal}`;
-      const response = await fetch(buildApiUrl(endpoint), {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      const response = await fetch(buildApiUrl(`/api/theme-settings/current/${normalizedPortal}`), {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -81,18 +82,21 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
       };
       setThemeSetting(nextSetting);
       try {
-        localStorage.setItem(cacheKey, JSON.stringify(nextSetting));
+        if (cacheKey) localStorage.setItem(cacheKey, JSON.stringify(nextSetting));
       } catch {
         // The live theme still applies when browser storage is unavailable.
       }
     } catch (error) {
       console.error('THEME LOAD ERROR:', error);
     }
-  }, [cacheKey, normalizedPortal, token]);
+  }, [cacheKey, normalizedPortal, token, userId]);
 
   useEffect(() => {
+    setThemeSetting(
+      cacheKey ? readCachedTheme(cacheKey) : { presetKey: 'default', customColors: null }
+    );
     loadTheme();
-  }, [loadTheme]);
+  }, [cacheKey, loadTheme]);
 
   useEffect(() => {
     const handleLocalThemeUpdate = (event) => {
@@ -105,7 +109,7 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
         };
         setThemeSetting(nextSetting);
         try {
-          localStorage.setItem(cacheKey, JSON.stringify(nextSetting));
+          if (cacheKey) localStorage.setItem(cacheKey, JSON.stringify(nextSetting));
         } catch {
           // The live theme still applies when browser storage is unavailable.
         }

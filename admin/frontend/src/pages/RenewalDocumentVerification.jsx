@@ -10,14 +10,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft,
+  CalendarDays,
   CheckCircle2,
   ExternalLink,
+  FileCheck2,
+  FileClock,
+  FileText,
+  GraduationCap,
   Loader2,
   RotateCcw,
+  ShieldCheck,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -48,8 +54,8 @@ const DOC_STATUS = {
   },
   pending: {
     label: 'Missing',
-    color: '#7c4a2e',
-    bg: '#EFF6FF',
+    color: '#57534e',
+    bg: '#F5F5F4',
   },
 };
 
@@ -165,9 +171,15 @@ export default function RenewalDocumentVerification() {
     renewal?.is_current_period === false ||
     renewal?.renewal?.is_current_period === false;
 
+  const uploadedDocumentCount = documents.filter((doc) => Boolean(doc.url)).length;
+
+  const hasAnyUploadedDocument = uploadedDocumentCount > 0;
+
   const allDocumentsUploaded =
     documents.length > 0 &&
-    documents.every((doc) => Boolean(doc.url));
+    uploadedDocumentCount === documents.length;
+
+  const uploadProgressLabel = `${uploadedDocumentCount} of ${documents.length} uploaded`;
 
   const allVerified =
     documents.length > 0 &&
@@ -179,6 +191,14 @@ export default function RenewalDocumentVerification() {
     documents.some(
       (doc) => normalizedStatus(doc.status) === 'rejected'
     );
+
+  const verifiedDocumentCount = documents.filter(
+    (doc) => normalizedStatus(doc.status) === 'verified'
+  ).length;
+
+  const activeDocMeta = activeDoc
+    ? DOC_STATUS[activeDoc.status] || DOC_STATUS.pending
+    : DOC_STATUS.pending;
 
   useEffect(() => {
     if (activeDoc) {
@@ -362,7 +382,7 @@ export default function RenewalDocumentVerification() {
 
     if (!allDocumentsUploaded) {
       window.alert(
-        'Both renewal documents must be uploaded before the renewal can be approved.'
+        'The renewal review cannot be saved until all required documents are uploaded.'
       );
       return;
     }
@@ -425,14 +445,14 @@ export default function RenewalDocumentVerification() {
   }
 
   return (
-    <div className="space-y-3 py-1">
+    <div className="space-y-4 py-2">
       {reviewIssueMode ? (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
           onClick={closeReviewIssue}
         >
           <Card
-            className="w-full max-w-lg overflow-hidden border-stone-200 bg-white shadow-xl"
+            className="w-full max-w-lg gap-0 overflow-hidden bg-white py-0 shadow-xl ring-stone-200/80"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
@@ -563,61 +583,135 @@ export default function RenewalDocumentVerification() {
         </Button>
 
         <div className="min-w-0">
-          <p className="truncate text-xs text-stone-400">
+          <p className="truncate text-xs font-medium text-stone-500">
             Scholar Monitoring / Renewals
           </p>
-          <h1 className="text-base font-semibold text-stone-900">
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-stone-900">
             Renewal Verification
           </h1>
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[230px_minmax(340px,560px)_minmax(300px,1fr)]">
-        <aside className="space-y-3">
-          <Card className="border-stone-200 bg-white p-3 shadow-none">
-            <div className="flex items-center gap-2.5">
-              <Avatar className="h-9 w-9 shrink-0">
-                <AvatarFallback className="bg-blue-900 text-xs text-white">
-                  {renewal?.student?.initials || 'NA'}
-                </AvatarFallback>
-              </Avatar>
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(520px,1fr)_390px]">
+        <aside className="space-y-4">
+          <Card className="gap-0 overflow-hidden rounded-2xl bg-white py-0 shadow-[0_1px_2px_rgba(28,25,23,0.04)] ring-stone-200/80">
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <PreviewableProfileAvatar
+                  src={
+                    renewal?.student?.avatar_url ||
+                    renewal?.student?.avatarUrl ||
+                    renewal?.student?.profile_photo_url ||
+                    ''
+                  }
+                  name={`${renewal?.student?.name || 'Scholar'} profile photo`}
+                  fallback={renewal?.student?.initials || 'NA'}
+                  avatarClassName="h-12 w-12 shrink-0 border border-stone-100 bg-stone-100"
+                  imageClassName="object-cover"
+                  fallbackClassName="bg-blue-900 text-sm font-semibold text-white"
+                />
 
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-stone-900">
-                  {renewal?.student?.name}
-                </p>
-                <p className="truncate text-xs text-stone-400">
-                  {renewal?.student?.pdm_id}
-                </p>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p className="truncate text-[15px] font-semibold leading-5 text-stone-900">
+                    {renewal?.student?.name}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs font-medium text-stone-500">
+                    {renewal?.student?.pdm_id}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="mt-2.5 space-y-1 text-xs text-stone-500">
-              <p className="truncate">{renewal?.student?.program}</p>
-              <p>
-                {renewal?.renewal?.semester_label || 'Current Semester'}
-                {renewal?.renewal?.school_year_label
-                  ? ` · AY ${renewal.renewal.school_year_label}`
-                  : ''}
-              </p>
-              <div className="flex items-center justify-between gap-2">
-                <span>Status</span>
+            <div className="border-t border-stone-100/80 bg-stone-50/60 px-4 py-3.5">
+              <div className="space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500">
+                    <GraduationCap className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                      Scholarship Program
+                    </p>
+                    <p className="mt-0.5 truncate text-xs font-medium leading-5 text-stone-700">
+                      {renewal?.student?.program || 'Not available'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                      Renewal Cycle
+                    </p>
+                    <p className="mt-0.5 text-xs font-medium leading-5 text-stone-700">
+                      {renewal?.renewal?.semester_label || 'Current Semester'}
+                      {renewal?.renewal?.school_year_label
+                        ? ` · AY ${renewal.renewal.school_year_label}`
+                        : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-stone-100 px-4 py-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                    Renewal Status
+                  </p>
+                  <p className="mt-1 text-xs text-stone-500">
+                    Current submission state
+                  </p>
+                </div>
                 <Badge
                   variant="outline"
-                  className="h-6 max-w-[130px] truncate border-stone-200 px-2 text-xs font-medium text-stone-600"
+                  className="h-7 max-w-[145px] truncate rounded-full border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700"
                 >
                   {renewal?.renewal_status || 'Pending'}
                 </Badge>
               </div>
+
+              <div className="mt-3 rounded-xl bg-stone-50 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium text-stone-500">
+                    Submission progress
+                  </span>
+                  <span className="text-xs font-semibold text-stone-700">
+                    {uploadProgressLabel}
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-200">
+                  <div
+                    className="h-full rounded-full bg-[var(--portal-base)] transition-all"
+                    style={{
+                      width: documents.length
+                        ? `${Math.round((uploadedDocumentCount / documents.length) * 100)}%`
+                        : '0%',
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </Card>
 
-          <Card className="border-stone-200 bg-white p-2 shadow-none">
-            <p className="px-1 pb-1.5 text-xs font-medium text-stone-500">
-              Requirements
-            </p>
+          <Card className="gap-0 overflow-hidden rounded-2xl bg-white py-0 shadow-[0_1px_2px_rgba(28,25,23,0.04)] ring-stone-200/80">
+            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3.5">
+              <div>
+                <p className="text-sm font-semibold text-stone-900">Requirements</p>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  Select a document to review
+                </p>
+              </div>
+              <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-semibold text-stone-600">
+                {documents.length}
+              </span>
+            </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5 p-2.5">
               {documents.map((doc) => {
                 const meta = DOC_STATUS[doc.status] || DOC_STATUS.pending;
                 const isActive = activeDoc?.id === doc.id;
@@ -627,17 +721,31 @@ export default function RenewalDocumentVerification() {
                     key={doc.id}
                     type="button"
                     onClick={() => setDocKey(doc.id)}
-                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition ${isActive
-                        ? 'bg-blue-50 text-blue-900'
-                        : 'text-stone-600 hover:bg-stone-50'
+                    className={`group flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${isActive
+                        ? 'border-[#eadfd7] bg-[#faf7f2]'
+                        : 'border-transparent bg-white hover:border-stone-100 hover:bg-stone-50'
                       }`}
                   >
-                    <span className="min-w-0 flex-1 truncate">
-                      {doc.name}
-                    </span>
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${isActive
+                          ? 'border-[#eadfd7] bg-white text-[var(--portal-base)]'
+                          : 'border-stone-200 bg-stone-50 text-stone-400'
+                        }`}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-xs font-medium ${isActive ? 'text-stone-900' : 'text-stone-700'}`}>
+                        {doc.name}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-stone-400">
+                        {doc.url ? 'File submitted' : 'Awaiting upload'}
+                      </p>
+                    </div>
 
                     <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                      className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold"
                       style={{
                         background: meta.bg,
                         color: meta.color,
@@ -652,156 +760,252 @@ export default function RenewalDocumentVerification() {
           </Card>
         </aside>
 
-        <Card className="self-start overflow-hidden border-stone-200 bg-white shadow-none">
-          <div className="flex h-10 items-center justify-between border-b border-stone-100 bg-stone-50 px-3">
-            <p className="truncate text-sm font-medium text-stone-800">
-              {activeDoc?.name || 'Document Preview'}
-            </p>
+        <Card className="self-start gap-0 overflow-hidden rounded-2xl bg-white py-0 shadow-[0_1px_2px_rgba(28,25,23,0.04)] ring-stone-200/80">
+          <div className="flex min-h-[62px] items-center justify-between gap-4 border-b border-stone-100 px-4 py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-500">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                  Document Preview
+                </p>
+                <p className="mt-0.5 truncate text-sm font-semibold text-stone-900">
+                  {activeDoc?.name || 'Select a requirement'}
+                </p>
+              </div>
+            </div>
 
             {activeDoc?.url ? (
               <a
                 href={activeDoc.url}
                 target="_blank"
                 rel="noreferrer"
-                className="ml-3 inline-flex shrink-0 items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
               >
-                Open
+                Open File
                 <ExternalLink size={12} />
               </a>
             ) : null}
           </div>
 
-          <div className="flex h-[390px] items-center justify-center overflow-hidden bg-stone-100 p-3">
+          <div className="flex h-[min(66vh,650px)] min-h-[500px] items-center justify-center overflow-hidden bg-stone-50 p-5">
             {activeDoc?.url ? (
-              /\.(png|jpe?g|webp)(\?|$)/i.test(activeDoc.url) ? (
-                <img
-                  src={activeDoc.url}
-                  alt={activeDoc.name || 'Renewal document'}
-                  className="max-h-full max-w-full object-contain"
-                />
-              ) : (
-                <iframe
-                  src={activeDoc.url}
-                  className="h-full w-full rounded-lg border border-stone-200 bg-white"
-                  title={activeDoc.name || 'Renewal document'}
-                />
-              )
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-white p-2">
+                {/\.(png|jpe?g|webp)(\?|$)/i.test(activeDoc.url) ? (
+                  <img
+                    src={activeDoc.url}
+                    alt={activeDoc.name || 'Renewal document'}
+                    className="max-h-full max-w-full rounded-lg object-contain"
+                  />
+                ) : (
+                  <iframe
+                    src={activeDoc.url}
+                    className="h-full w-full rounded-lg border-0 bg-white"
+                    title={activeDoc.name || 'Renewal document'}
+                  />
+                )}
+              </div>
             ) : (
-              <div className="px-4 text-center">
-                <p className="text-sm font-medium text-stone-500">
-                  No document uploaded
+              <div className="w-full max-w-md rounded-2xl border border-dashed border-stone-200 bg-white px-8 py-10 text-center">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-stone-400">
+                  <FileClock className="h-5 w-5" />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-stone-800">
+                  Waiting for document upload
                 </p>
-                <p className="mt-1 text-xs text-stone-400">
-                  This requirement has not been submitted yet.
+                <p className="mx-auto mt-1.5 max-w-xs text-xs leading-5 text-stone-500">
+                  The scholar has not submitted this requirement yet. Verification actions will become available after a file is uploaded.
                 </p>
               </div>
             )}
           </div>
         </Card>
 
-        <Card className="self-start border-stone-200 bg-white p-4 shadow-none">
-          <div className="flex items-center justify-between gap-3">
+        <Card className="self-start gap-0 overflow-hidden rounded-2xl bg-white py-0 shadow-[0_1px_2px_rgba(28,25,23,0.04)] ring-stone-200/80">
+          <div className="border-b border-stone-100/80 bg-stone-50/60 px-4 py-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                  Review Selected Document
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-stone-900">
+                  {activeDoc?.name || 'Requirement'}
+                </p>
+              </div>
+
+              {activeDoc ? (
+                <span
+                  className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                  style={{
+                    background: activeDocMeta.bg,
+                    color: activeDocMeta.color,
+                  }}
+                >
+                  {activeDocMeta.label}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="p-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
-                Review Selected Document
-              </p>
-              <p className="mt-1 text-sm font-semibold text-stone-800">
-                {activeDoc?.name || 'Requirement'}
-              </p>
+              <label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                Review Note
+              </label>
+              <Textarea
+                value={comment}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setComment(value);
+                  persistActiveComment(value);
+                }}
+                disabled={isHistorical || !activeDoc?.url}
+                placeholder={activeDoc?.url
+                  ? 'Add an optional review note for this document...'
+                  : 'A file must be uploaded before adding a review note.'}
+                className="mt-2 min-h-[112px] resize-none rounded-xl border-stone-200 bg-white text-sm leading-5 placeholder:text-stone-400 disabled:bg-stone-50 disabled:text-stone-400"
+              />
             </div>
 
-            {activeDoc ? (
-              <Badge
-                variant="outline"
-                className="h-6 border-stone-200 px-2 text-xs font-medium"
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <Button
+                size="sm"
+                onClick={handleVerify}
+                disabled={
+                  isHistorical ||
+                  !activeDoc?.url ||
+                  Boolean(submittingAction)
+                }
+                className="h-9 rounded-lg bg-green-600 text-xs font-medium text-white hover:bg-green-700 disabled:bg-stone-200 disabled:text-stone-400"
               >
-                {(DOC_STATUS[activeDoc.status] || DOC_STATUS.pending).label}
-              </Badge>
-            ) : null}
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                Verify
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  isHistorical ||
+                  !activeDoc?.url ||
+                  Boolean(submittingAction)
+                }
+                onClick={() => openReviewIssue('reupload')}
+                className="h-9 rounded-lg border-amber-200 bg-white text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                Request Re-upload
+              </Button>
+            </div>
+
+            <div className="my-4 border-t border-stone-100" />
+
+            <div className="rounded-xl bg-stone-50 p-3.5">
+              <div className="flex items-start gap-3">
+                <div
+                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-white ${allVerified
+                      ? 'border-green-200 text-green-600'
+                      : !hasAnyUploadedDocument
+                        ? 'border-amber-200 text-amber-600'
+                        : 'border-stone-200 text-stone-500'
+                    }`}
+                >
+                  {allVerified ? (
+                    <ShieldCheck className="h-4 w-4" />
+                  ) : (
+                    <FileClock className="h-4 w-4" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-stone-800">
+                    {!hasAnyUploadedDocument
+                      ? 'Waiting for submission'
+                      : !allDocumentsUploaded
+                        ? 'Submission incomplete'
+                        : allVerified
+                          ? 'Ready for approval'
+                          : hasReupload
+                            ? 'Replacement required'
+                            : 'Review in progress'}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-stone-500">
+                    {!hasAnyUploadedDocument
+                      ? 'Save and Reject remain disabled until at least one renewal file has been submitted.'
+                      : !allDocumentsUploaded
+                        ? `${uploadProgressLabel}. Save Review unlocks once every required file is uploaded.`
+                        : allVerified
+                          ? 'Every required document is verified. Saving this review will approve the renewal.'
+                          : hasReupload
+                            ? 'One or more requirements must be replaced before this renewal can be approved.'
+                            : 'Review each submitted requirement and verify all documents before approval.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-stone-200 pt-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                    Uploaded
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-stone-700">
+                    {uploadedDocumentCount} / {documents.length}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+                    Verified
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-stone-700">
+                    {verifiedDocumentCount} / {documents.length}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <Textarea
-            value={comment}
-            onChange={(event) => {
-              const value = event.target.value;
-              setComment(value);
-              persistActiveComment(value);
-            }}
-            disabled={isHistorical || !activeDoc?.url}
-            placeholder="Optional review note for the selected document."
-            className="mt-3 min-h-[110px] resize-none text-sm disabled:bg-stone-100 disabled:text-stone-500"
-          />
+          <div className="border-t border-stone-100/80 bg-stone-50/60 p-4">
+            <div className="space-y-2.5">
+              <Button
+                size="sm"
+                className="h-10 w-full rounded-xl bg-[var(--portal-base)] text-xs font-semibold text-white hover:opacity-95 disabled:bg-stone-200 disabled:text-stone-400"
+                disabled={
+                  isHistorical ||
+                  !allDocumentsUploaded ||
+                  Boolean(submittingAction)
+                }
+                onClick={handleSaveReview}
+              >
+                {submittingAction &&
+                  submittingAction !== 'reject' &&
+                  submittingAction !== 'reupload' ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileCheck2 className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Save Renewal Review
+              </Button>
 
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Button
-              size="sm"
-              onClick={handleVerify}
-              disabled={
-                isHistorical ||
-                !activeDoc?.url ||
-                Boolean(submittingAction)
-              }
-              className="h-9 bg-green-600 text-xs text-white hover:bg-green-700"
-            >
-              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-              Verify
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={
-                isHistorical ||
-                !activeDoc?.url ||
-                Boolean(submittingAction)
-              }
-              onClick={() => openReviewIssue('reupload')}
-              className="h-9 border-amber-200 text-xs text-amber-700"
-            >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-              Request Re-upload
-            </Button>
-          </div>
-
-          <div className="my-4 border-t border-stone-100" />
-
-          <div className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2.5 text-xs text-stone-500">
-            {allVerified
-              ? 'All renewal requirements are verified. Saving will approve the renewal.'
-              : hasReupload
-                ? 'One or more requirements need replacement. Saving will keep the renewal in re-upload status.'
-                : 'Verify each requirement before approving the renewal.'}
-          </div>
-
-          <div className="mt-3 space-y-2">
-            <Button
-              size="sm"
-              className="h-9 w-full bg-[#7c4a2e] text-xs text-white hover:bg-[#6b3f27]"
-              disabled={isHistorical || Boolean(submittingAction)}
-              onClick={handleSaveReview}
-            >
-              {submittingAction &&
-                submittingAction !== 'reject' &&
-                submittingAction !== 'reupload' ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : null}
-              Save Renewal Review
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 w-full border-red-200 text-xs text-red-600"
-              disabled={isHistorical || Boolean(submittingAction)}
-              onClick={() => openReviewIssue('reject')}
-            >
-              {submittingAction === 'reject' ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <XCircle className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Reject Renewal
-            </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-10 w-full rounded-xl border-red-200 bg-white text-xs font-medium text-red-600 hover:bg-red-50 disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
+                disabled={
+                  isHistorical ||
+                  !hasAnyUploadedDocument ||
+                  Boolean(submittingAction)
+                }
+                onClick={() => openReviewIssue('reject')}
+              >
+                {submittingAction === 'reject' ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Reject Renewal
+              </Button>
+            </div>
           </div>
         </Card>
       </div>

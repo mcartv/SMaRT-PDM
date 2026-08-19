@@ -172,6 +172,82 @@ function mapAnnouncementRow(row = {}) {
   };
 }
 
+async function getVisibleAnnouncementForUser(userId, announcementId) {
+  const normalizedId = String(announcementId || '').trim();
+  if (!normalizedId) {
+    throw createHttpError(400, 'Announcement ID is required.');
+  }
+
+  const context = await getAudienceContext(userId);
+  const { data: row, error } = await supabase
+    .from('announcements')
+    .select(`
+      announcement_id,
+      subject,
+      content,
+      target_audience,
+      target_program_id,
+      published_at,
+      publish_date,
+      scheduled_at,
+      created_at,
+      status,
+      is_archived
+    `)
+    .eq('announcement_id', normalizedId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!row || !isPublishedNow(row) || !canViewAudience(context, row)) {
+    throw createHttpError(404, 'Announcement not found.');
+  }
+
+  return row;
+}
+
+async function markAnnouncementViewed(userId, announcementId) {
+  if (!userId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  const row = await getVisibleAnnouncementForUser(userId, announcementId);
+  const now = new Date().toISOString();
+
+  // The compound primary key keeps the view count unique per user and
+  // announcement. ignoreDuplicates prevents repeat opens from creating rows.
+  const { error: upsertError } = await supabase
+    .from('announcement_views')
+    .upsert(
+      {
+        announcement_id: row.announcement_id,
+        user_id: userId,
+        first_viewed_at: now,
+        last_viewed_at: now,
+      },
+      {
+        onConflict: 'announcement_id,user_id',
+        ignoreDuplicates: true,
+      }
+    );
+
+  if (upsertError) throw upsertError;
+
+  // Repeat opens should not increase the unique count, but keeping this fresh
+  // makes the record useful for later engagement/audit reporting.
+  const { error: updateError } = await supabase
+    .from('announcement_views')
+    .update({ last_viewed_at: now })
+    .eq('announcement_id', row.announcement_id)
+    .eq('user_id', userId);
+
+  if (updateError) throw updateError;
+
+  return {
+    announcementId: String(row.announcement_id),
+    viewed: true,
+  };
+}
+
 async function listPublishedAnnouncements(userId) {
   const context = await getAudienceContext(userId);
   const now = new Date();
@@ -211,6 +287,7 @@ async function listPublishedAnnouncements(userId) {
 
 module.exports = {
   listPublishedAnnouncements,
+  markAnnouncementViewed,
   canViewAudience,
   isPublishedNow,
 };

@@ -14,7 +14,6 @@ import {
   LogOut,
   Wallet,
   Briefcase,
-  LifeBuoy,
   Image,
   ClipboardCheck,
 } from 'lucide-react';
@@ -27,6 +26,7 @@ import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
+import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -41,6 +41,16 @@ function resolveProfileImage(profile) {
   );
 
   return match?.trim() || '';
+}
+
+function getHeaderGreeting(profile) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+  const firstName = String(
+    profile?.first_name || profile?.name || profile?.full_name || ''
+  ).trim().split(/\s+/)[0];
+
+  return `${greeting}, ${firstName || 'Administrator'} 👋`;
 }
 
 const navItems = [
@@ -65,6 +75,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('admin');
   const {
@@ -183,7 +194,12 @@ export default function AdminLayout() {
 
   const profileImage = resolveProfileImage(adminData);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = (event) => {
+    if (profileImage && event?.target?.closest?.('[data-profile-preview-target="true"]')) {
+      setProfilePhotoPreviewOpen(true);
+      return;
+    }
+
     navigate('/admin/adminprofile');
   };
 
@@ -209,7 +225,7 @@ export default function AdminLayout() {
 
   return (
     <div
-      className="admin-ui flex h-dvh w-full overflow-hidden"
+      className="flex h-screen w-full overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -233,32 +249,28 @@ export default function AdminLayout() {
       <aside
         className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{
-          width: collapsed ? '68px' : 'clamp(190px, 15vw, 200px)',
+          width: collapsed ? '76px' : 'clamp(218px, 18vw, 248px)',
           background: theme.base,
         }}
       >
-        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-white/10 px-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm" style={{ background: theme.active }}>
-            <img
-              src={pdmLogo}
-              alt="PDM"
-              className="h-10 w-10 scale-110 object-contain drop-shadow-sm"
-            />
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 shadow-sm">
+            <img src={pdmLogo} alt="PDM" className="h-5 w-5 object-contain" />
           </div>
 
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight text-white">
-                PDM · OSFA
+                PDM · Admin
               </p>
               <p className="truncate text-[11px]" style={{ color: theme.sub }}>
-                Admin Portal
+                OSFA Administrator
               </p>
             </div>
           )}
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
+        <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
@@ -270,9 +282,9 @@ export default function AdminLayout() {
                 item.path === '/admin/endorsements'
               }
               className={({ isActive }) =>
-                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'} rounded-xl px-2.5 py-2 text-sm transition-all ${isActive
-                  ? 'bg-[#9a5d3a] text-white shadow-sm'
-                  : 'hover:bg-white/7'
+                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
+                  ? 'text-white shadow-sm'
+                  : 'hover:bg-white/10'
                 }`
               }
               style={({ isActive }) => ({
@@ -281,19 +293,16 @@ export default function AdminLayout() {
               })}
               title={collapsed ? item.label : ''}
             >
-              <item.icon
-                className={`h-4 w-4 shrink-0 transition-colors ${collapsed ? '' : 'group-hover:text-amber-300'
-                  }`}
-              />
+              <item.icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate font-medium">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        <div className="space-y-1 border-t border-white/10 p-2.5">
+        <div className="space-y-1.5 border-t border-white/10 p-3">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-2.5'} rounded-xl px-2.5 py-2 text-sm transition-colors hover:bg-white/7`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/10`}
             style={{ color: theme.text }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
@@ -307,7 +316,7 @@ export default function AdminLayout() {
 
           <button
             onClick={handleLogout}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-2.5'} rounded-xl px-2.5 py-2 text-sm transition-colors hover:bg-red-500/20`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-red-500/20`}
             style={{ color: theme.text }}
             title={collapsed ? 'Logout' : ''}
           >
@@ -319,22 +328,11 @@ export default function AdminLayout() {
 
       {/* Main Content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-3 sm:px-4 md:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold leading-tight text-stone-800">
-              SMaRT PDM
+            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
+              {getHeaderGreeting(adminData)}
             </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="truncate text-[11px] text-stone-500">
-                Scholarship Monitoring &amp; Tracking
-              </p>
-              <span
-                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
-                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
-              >
-                {theme.label}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -354,7 +352,7 @@ export default function AdminLayout() {
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
                   <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -364,10 +362,10 @@ export default function AdminLayout() {
                         >
                           <Bell className="h-4 w-4" />
                         </div>
-                        <p className="text-sm font-semibold text-stone-900">Notifications</p>
+                        <p className="text-base font-semibold text-stone-900">Notifications</p>
                       </div>
                       {unreadCount > 0 ? (
-                        <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                        <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-700">
                           {unreadCount} New
                         </span>
                       ) : null}
@@ -379,7 +377,7 @@ export default function AdminLayout() {
                       <>
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: theme.accentSoft }}>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
                               New
                             </p>
                           </div>
@@ -396,7 +394,7 @@ export default function AdminLayout() {
                             style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-900">
+                              <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {n.title || 'Notification'}
                               </p>
                               <span
@@ -406,17 +404,17 @@ export default function AdminLayout() {
                                 New
                               </span>
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-600">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
                           </button>
                         ))}
                         {earlierNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
                               Earlier
                             </p>
                           </div>
@@ -435,21 +433,21 @@ export default function AdminLayout() {
                               : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-800">
+                              <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {n.title || 'Notification'}
                               </p>
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
                           </button>
                         ))}
                       </>
                     ) : (
-                      <div className="p-8 text-center text-xs text-stone-400">
+                      <div className="p-8 text-center text-sm text-stone-400">
                         {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
                       </div>
                     )}
@@ -461,7 +459,7 @@ export default function AdminLayout() {
                         type="button"
                         onClick={markAllAsRead}
                         disabled={markingAll || unreadCount === 0}
-                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
                       </button>
@@ -484,11 +482,18 @@ export default function AdminLayout() {
               title="Open Profile"
             >
               {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={adminData?.name || 'Admin'}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
-                />
+                <span
+                  data-profile-preview-target="true"
+                  className="relative shrink-0 rounded-full outline-none ring-offset-2 transition hover:ring-2 hover:ring-[var(--portal-border)]"
+                  title="Preview profile photo"
+                >
+                  <img
+                    data-profile-preview-target="true"
+                    src={profileImage}
+                    alt={adminData?.name || 'Admin'}
+                    className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
+                  />
+                </span>
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
@@ -498,21 +503,21 @@ export default function AdminLayout() {
                 </div>
               )}
 
-              <div className="hidden max-w-[140px] truncate text-left leading-tight sm:block">
+              <div className="hidden max-w-[160px] truncate text-left leading-tight xl:block">
                 <p className="truncate text-[12px] font-semibold text-stone-800">
                   {adminData?.name || 'Admin'}
                 </p>
                 <p className="truncate text-[10px] font-medium text-stone-500">
-                  {adminData?.position || 'Staff'}
+                  {adminData?.position || 'User'}
                 </p>
               </div>
-              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--portal-base)] sm:block" />
+              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--portal-base)] xl:block" />
             </button>
           </div>
         </header>
 
         <main
-          className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"
+          className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6"
           style={{ background: theme.mainBg }}
         >
           <div
@@ -534,6 +539,13 @@ export default function AdminLayout() {
 
         <AdminMessages />
       </div>
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={profileImage}
+        name={`${adminData?.name || 'Admin'} profile photo`}
+      />
     </div>
   );
 }

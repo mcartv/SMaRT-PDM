@@ -28,12 +28,13 @@ import {
   Sparkles,
   Search,
   ArchiveRestore,
+  Megaphone,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
 const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
+  brown: 'var(--portal-base)',
+  brownMid: 'var(--portal-base)',
   amber: '#d97706',
   amberSoft: '#FFF7ED',
   green: '#16a34a',
@@ -45,7 +46,7 @@ const C = {
   border: '#e7e5e4',
   muted: '#78716c',
   text: '#1c1917',
-  bg: '#faf7f2',
+  bg: 'var(--portal-main-bg, #faf7f2)',
 };
 
 const STATUS = {
@@ -949,121 +950,133 @@ function AnnouncementRow({
       : announcement.status;
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 transition hover:bg-stone-50/40 md:flex-row md:items-center md:justify-between">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium text-stone-900">
-            {announcement.title}
-          </p>
-          <StatusPill status={effectiveStatus} />
-        </div>
+    <article className="group overflow-hidden rounded-xl border border-stone-200 bg-white transition hover:border-stone-300 hover:shadow-sm">
+      <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-base)' }}
+            aria-hidden="true"
+          >
+            <Megaphone className="h-5 w-5" />
+          </div>
 
-        <p className="line-clamp-2 text-xs leading-relaxed text-stone-500">
-          {announcement.content}
-        </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 className="min-w-0 truncate text-sm font-semibold text-stone-900 sm:text-base">
+                {announcement.title}
+              </h3>
+              <StatusPill status={effectiveStatus} />
+            </div>
 
-        <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-wide text-stone-400">
-          <span className="flex items-center gap-1">
-            <Calendar size={12} />
-            {announcement.date
-              ? new Date(announcement.date).toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })
-              : 'No date'}
-          </span>
+            <p className="mt-1.5 truncate text-sm leading-5 text-stone-600" title={announcement.content}>
+              {announcement.content}
+            </p>
 
-          <span className="flex items-center gap-1">
-            <Users size={12} />
-            {announcement.audience || 'Audience'}
-          </span>
-
-          {effectiveStatus === 'Published' && (
-            <span className="flex items-center gap-1 text-stone-700">
-              <Eye size={12} />
-              {announcement.views}
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-stone-500">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <Calendar size={13} />
+              {announcement.date
+                ? new Date(announcement.date).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+                : 'No date'}
             </span>
-          )}
+
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Users size={13} className="shrink-0" />
+              <span className="truncate">{announcement.audience || 'Audience'}</span>
+            </span>
+
+              {effectiveStatus === 'Published' && (
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-stone-600">
+                  <Eye size={13} />
+                  {announcement.views} views
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="flex shrink-0 gap-1 self-end md:self-auto">
-        {tab === 'active' ? (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(announcement)}
-              className="h-8 border-stone-200 text-[11px]"
-            >
-              <Edit className="mr-1.5 h-3.5 w-3.5" />
-              Edit
-            </Button>
-
-            {announcement.status === 'Draft' && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-stone-100 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+          {tab === 'active' ? (
+            <>
               <Button
+                variant="outline"
                 size="sm"
-                onClick={() => onPublish(announcement.id)}
-                disabled={publishingId === announcement.id}
-                className="h-8 border-none bg-green-600 text-[11px] text-white hover:bg-green-700 disabled:opacity-60"
+                onClick={() => onEdit(announcement)}
+                className="h-9 rounded-lg border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50"
               >
-                {publishingId === announcement.id ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    Publishing
-                  </>
+                <Edit className="mr-1.5 h-3.5 w-3.5" />
+                Edit
+              </Button>
+
+              {announcement.status === 'Draft' && (
+                <Button
+                  size="sm"
+                  onClick={() => onPublish(announcement.id)}
+                  disabled={publishingId === announcement.id}
+                  className="h-9 rounded-lg border-none bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                >
+                  {publishingId === announcement.id ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Publishing
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-1.5 h-3.5 w-3.5" />
+                      Publish
+                    </>
+                  )}
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onArchive(announcement.id)}
+                disabled={archivingId === announcement.id}
+                className="h-9 rounded-lg border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+              >
+                {archivingId === announcement.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
-                    <Send className="mr-1.5 h-3.5 w-3.5" />
-                    Publish
+                    <Archive className="mr-1.5 h-3.5 w-3.5" />
+                    Archive
                   </>
                 )}
               </Button>
-            )}
-
+            </>
+          ) : (
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => onArchive(announcement.id)}
-              disabled={archivingId === announcement.id}
-              className="h-8 border-red-200 text-[11px] text-red-500 disabled:opacity-60"
+              onClick={() => onRestore(announcement.id)}
+              disabled={restoringId === announcement.id}
+              className="h-9 rounded-lg border-none px-3 text-xs font-medium text-white hover:opacity-90"
+              style={{ background: C.brownMid }}
             >
-              {archivingId === announcement.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {restoringId === announcement.id ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Restoring
+                </>
               ) : (
                 <>
-                  <Archive className="mr-1.5 h-3.5 w-3.5" />
-                  Archive
+                  <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                  Restore
                 </>
               )}
             </Button>
-          </>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onRestore(announcement.id)}
-            disabled={restoringId === announcement.id}
-            className="h-8 border-stone-200 text-[11px]"
-          >
-            {restoringId === announcement.id ? (
-              <>
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                Restoring
-              </>
-            ) : (
-              <>
-                <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
-                Restore
-              </>
-            )}
-          </Button>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -1921,9 +1934,9 @@ export default function AnnouncementsManagement() {
         <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
           <button
             onClick={() => setTab('active')}
-            className={`rounded-md px-4 py-2 text-xs font-medium transition-all ${tab === 'active'
+            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'active'
               ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+              : 'text-stone-600 hover:text-stone-900'
               }`}
           >
             Active
@@ -1931,9 +1944,9 @@ export default function AnnouncementsManagement() {
 
           <button
             onClick={() => setTab('archived')}
-            className={`rounded-md px-4 py-2 text-xs font-medium transition-all ${tab === 'archived'
+            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'archived'
               ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+              : 'text-stone-600 hover:text-stone-900'
               }`}
           >
             Archived
@@ -1944,7 +1957,7 @@ export default function AnnouncementsManagement() {
           <Button
             onClick={handleOpenModal}
             size="sm"
-            className="rounded-lg border-none text-xs text-white"
+            className="h-9 rounded-lg border-none px-3 text-sm font-medium text-white"
             style={{ background: C.brownMid }}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -1991,18 +2004,16 @@ export default function AnnouncementsManagement() {
                 setSearch('');
                 setStatusFilter('All');
               }}
-              className="h-9 border-stone-200 text-xs"
+              className="h-9 rounded-lg border-stone-200 px-3 text-sm text-stone-700"
             >
               Reset
             </Button>
           )}
         </div>
 
-        <div className="divide-y">
+        <div className="space-y-2.5 p-4">
           {filteredItems.length === 0 ? (
-            <div className="p-4">
-              <EmptyList archived={tab === 'archived'} />
-            </div>
+            <EmptyList archived={tab === 'archived'} />
           ) : (
             filteredItems.map((announcement) => (
               <AnnouncementRow

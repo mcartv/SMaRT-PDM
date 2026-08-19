@@ -627,17 +627,23 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     throw err;
   }
 
-  const hasPending = entries.some(
-    (entry) => !entry.release_status || entry.release_status === 'Pending'
+  const terminalStatuses = new Set(['released', 'absent', 'cancelled']);
+  const unfinishedEntries = entries.filter(
+    (entry) =>
+      !terminalStatuses.has(
+        String(entry.release_status || '').trim().toLowerCase()
+      )
   );
 
-  if (hasPending) {
-    const err = new Error('Cannot archive payout batch while some scholars are still pending');
+  if (unfinishedEntries.length > 0) {
+    const err = new Error(
+      `Cannot archive payout batch. ${unfinishedEntries.length} scholar payout entr${unfinishedEntries.length === 1 ? 'y is' : 'ies are'} still Pending or On Hold.`
+    );
     err.statusCode = 400;
     throw err;
   }
 
-  const updateQuery = `
+const updateQuery = `
     UPDATE payout_batches
     SET
       is_archived = TRUE,
@@ -653,6 +659,55 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     success: true,
     message: 'Payout batch archived successfully',
     batch: updateResult.rows[0],
+  };
+}
+
+async function restorePayoutBatch({
+  payout_batch_id,
+  restored_by = null,
+}) {
+  if (!payout_batch_id) {
+    throw payoutError(400, 'payout_batch_id is required');
+  }
+
+  const result = await pool.query(
+    `
+      UPDATE payout_batches
+      SET
+        is_archived = FALSE,
+        batch_status = CASE
+          WHEN LOWER(COALESCE(batch_status, '')) = 'archived' THEN 'Completed'
+          ELSE batch_status
+        END,
+        updated_at = NOW()
+      WHERE payout_batch_id = $1
+        AND COALESCE(is_archived, FALSE) = TRUE
+      RETURNING *;
+    `,
+    [payout_batch_id]
+  );
+
+  if (!result.rows.length) {
+    const existing = await pool.query(
+      `SELECT payout_batch_id, is_archived
+       FROM payout_batches
+       WHERE payout_batch_id = $1
+       LIMIT 1`,
+      [payout_batch_id]
+    );
+
+    if (!existing.rows.length) {
+      throw payoutError(404, 'Payout batch not found');
+    }
+
+    throw payoutError(400, 'Payout batch is not archived');
+  }
+
+  return {
+    success: true,
+    message: 'Payout batch restored successfully',
+    batch: result.rows[0],
+    restored_by,
   };
 }
 
@@ -763,6 +818,7 @@ module.exports = {
   createPayoutBatchFromOpening,
   updateScholarPayoutStatus,
   archivePayoutBatch,
+  restorePayoutBatch,
   fetchAcademicYears,
   fetchMyPayouts,
 };

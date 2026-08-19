@@ -1,4 +1,4 @@
-const path = require('path');
+﻿const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
@@ -123,6 +123,108 @@ const STORAGE_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET,
     'documents'
 );
+
+// Signed URLs are stable credentials for the same private object until they expire.
+// Reusing them prevents repeated Storage signing calls and lets browsers reuse the
+// same URL from cache instead of receiving a new token on every API refresh.
+const SIGNED_URL_CACHE_MAX_ENTRIES = 1000;
+const SIGNED_URL_CACHE_TTL_MS = 50 * 60 * 1000;
+const SIGNED_URL_EXPIRY_SAFETY_MS = 5 * 60 * 1000;
+const signedUrlCache = new Map();
+const signedUrlInFlight = new Map();
+
+const DOCUMENT_VIEW_METADATA_CACHE_TTL_MS = Math.max(
+    5000,
+    Number(process.env.DOCUMENT_VIEW_METADATA_CACHE_TTL_MS || 30000)
+);
+const DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES = Math.max(
+    100,
+    Number(process.env.DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES || 1000)
+);
+const documentViewMetadataCache = new Map();
+const documentViewMetadataInFlight = new Map();
+
+function pruneDocumentViewMetadataCache(now = Date.now()) {
+    for (const [key, entry] of documentViewMetadataCache.entries()) {
+        if (!entry || entry.expiresAt <= now) documentViewMetadataCache.delete(key);
+    }
+    while (documentViewMetadataCache.size > DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES) {
+        const oldestKey = documentViewMetadataCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        documentViewMetadataCache.delete(oldestKey);
+    }
+}
+
+function pruneSignedUrlCache(now = Date.now()) {
+    for (const [key, entry] of signedUrlCache.entries()) {
+        if (!entry || entry.expiresAt <= now) {
+            signedUrlCache.delete(key);
+        }
+    }
+
+    while (signedUrlCache.size > SIGNED_URL_CACHE_MAX_ENTRIES) {
+        const oldestKey = signedUrlCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        signedUrlCache.delete(oldestKey);
+    }
+}
+
+async function createCachedSignedUrl({
+    bucket,
+    filePath,
+    expiresInSeconds,
+    download = false,
+}) {
+    if (!bucket || !filePath) return null;
+
+    const normalizedPath = String(filePath).replace(/^\/+/, '');
+    const cacheKey = `${bucket}:${normalizedPath}:${download ? 'download' : 'preview'}`;
+    const now = Date.now();
+    const cached = signedUrlCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > now) {
+        // Refresh insertion order so frequently used entries are retained.
+        signedUrlCache.delete(cacheKey);
+        signedUrlCache.set(cacheKey, cached);
+        return cached.url;
+    }
+
+    if (signedUrlInFlight.has(cacheKey)) {
+        return signedUrlInFlight.get(cacheKey);
+    }
+
+    const request = (async () => {
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(normalizedPath, expiresInSeconds, { download });
+
+        if (error) {
+            throw error;
+        }
+
+        const maximumReusableMs = Math.max(
+            60 * 1000,
+            (expiresInSeconds * 1000) - SIGNED_URL_EXPIRY_SAFETY_MS
+        );
+        const cacheTtlMs = Math.min(SIGNED_URL_CACHE_TTL_MS, maximumReusableMs);
+
+        signedUrlCache.set(cacheKey, {
+            url: data?.signedUrl || null,
+            expiresAt: now + cacheTtlMs,
+        });
+        pruneSignedUrlCache(now);
+
+        return data?.signedUrl || null;
+    })();
+
+    signedUrlInFlight.set(cacheKey, request);
+
+    try {
+        return await request;
+    } finally {
+        signedUrlInFlight.delete(cacheKey);
+    }
+}
 const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
 const IOT_OCR_ENDPOINT_URL =
@@ -369,15 +471,17 @@ async function resolveAvatarUrl(value) {
         return rawValue;
     }
 
-    const { data, error } = await supabase.storage
-        .from('avatars')
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-    if (error) {
+    try {
+        return (
+            await createCachedSignedUrl({
+                bucket: 'avatars',
+                filePath: storagePath,
+                expiresInSeconds: 60 * 60 * 24 * 7,
+            })
+        ) || rawValue;
+    } catch (_error) {
         return rawValue;
     }
-
-    return data?.signedUrl || rawValue;
 }
 
 function getOrdinalSuffix(n) {
@@ -1230,13 +1334,14 @@ function isAsyncIotOcrStart(response, payload = {}) {
 async function getSignedFileUrl(filePath) {
     if (!filePath) return null;
 
-    const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(filePath, 60 * 60, {
+    try {
+        return await createCachedSignedUrl({
+            bucket: STORAGE_BUCKET,
+            filePath,
+            expiresInSeconds: 60 * 60,
             download: false,
         });
-
-    if (error) {
+    } catch (error) {
         console.error(
             'SUPABASE SIGNED URL ERROR:',
             `bucket=${STORAGE_BUCKET}`,
@@ -1245,9 +1350,76 @@ async function getSignedFileUrl(filePath) {
         );
         return null;
     }
-
-    return data?.signedUrl || null;
 }
+
+async function getCachedApplicationDocumentForView(applicationId, documentKey) {
+    const key = normalizeDocumentType(documentKey);
+    const cacheKey = `${applicationId}:${key}`;
+    const now = Date.now();
+    const cached = documentViewMetadataCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+        documentViewMetadataCache.delete(cacheKey);
+        documentViewMetadataCache.set(cacheKey, cached);
+        return cached.document;
+    }
+    if (documentViewMetadataInFlight.has(cacheKey)) {
+        return documentViewMetadataInFlight.get(cacheKey);
+    }
+
+    const request = (async () => {
+        const { data: rows, error } = await supabase
+            .from('application_documents')
+            .select('document_id, application_id, document_type, file_name, file_path, preview_path, is_submitted')
+            .eq('application_id', applicationId);
+        if (error) throw buildHttpError(500, error.message);
+        const document = (rows || []).find((row) => getDocumentKey(row) === key) || null;
+        documentViewMetadataCache.set(cacheKey, {
+            document,
+            expiresAt: Date.now() + DOCUMENT_VIEW_METADATA_CACHE_TTL_MS,
+        });
+        pruneDocumentViewMetadataCache();
+        return document;
+    })();
+
+    documentViewMetadataInFlight.set(cacheKey, request);
+    try {
+        return await request;
+    } finally {
+        documentViewMetadataInFlight.delete(cacheKey);
+    }
+}
+
+exports.fetchApplicationDocumentViewUrl = async ({ applicationId, documentKey, source = 'preview' } = {}) => {
+    if (!applicationId) throw buildHttpError(400, 'Application ID is required.');
+    const key = normalizeDocumentType(documentKey);
+    if (!key || key === 'application_form') {
+        throw buildHttpError(400, 'A stored application document is required.');
+    }
+
+    const document = await getCachedApplicationDocumentForView(
+        applicationId,
+        key
+    );
+    if (!document || document.is_submitted !== true || !document.file_path) {
+        throw buildHttpError(404, 'Uploaded document not found.');
+    }
+
+    const wantsOriginal = String(source || '').trim().toLowerCase() === 'original';
+    const previewPath = document.preview_path || null;
+    const path = wantsOriginal ? document.file_path : (previewPath || document.file_path);
+    const selectedSource = wantsOriginal || !previewPath ? 'original' : 'preview';
+    const url = await getSignedFileUrl(path);
+    if (!url) throw buildHttpError(502, `Failed to create ${selectedSource} document URL.`);
+
+    return {
+        document_id: document.document_id,
+        document_key: key,
+        file_name: document.file_name || null,
+        source: selectedSource,
+        url,
+        fallback_available: selectedSource === 'preview' && Boolean(document.file_path),
+    };
+};
 
 async function buildApplicationDetails(applicationId) {
     const { data: applicationRecord, error: applicationError } = await supabase
@@ -1731,12 +1903,10 @@ async function buildApplicationDetails(applicationId) {
                         document.file_path ||
                         null;
 
-                    const signedUrl =
-                        filePath
-                            ? await getSignedFileUrl(
-                                filePath
-                            )
-                            : null;
+                    // Phase 6D: sign only when this document is actually opened.
+                    const originalSignedUrl = null;
+                    const previewSignedUrl = null;
+                    const signedUrl = null;
 
                     return {
                         id: documentKey,
@@ -1763,17 +1933,25 @@ async function buildApplicationDetails(applicationId) {
                             filePath,
 
                         url:
-                            signedUrl ||
-                            document.file_url ||
                             null,
 
                         file_url:
-                            signedUrl ||
-                            document.file_url ||
                             null,
 
                         signed_url:
                             signedUrl ||
+                            null,
+
+                        preview_path:
+                            document.preview_path ||
+                            null,
+
+                        preview_url:
+                            previewSignedUrl ||
+                            null,
+
+                        original_url:
+                            originalSignedUrl ||
                             null,
 
                         status:
@@ -3908,6 +4086,7 @@ module.exports = {
     fetchApplications: exports.fetchApplications,
     fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
     fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,
+    fetchApplicationDocumentViewUrl: exports.fetchApplicationDocumentViewUrl,
     runApplicationDocumentIotOcr: exports.runApplicationDocumentIotOcr,
     fetchApplicationDocumentOcrSnapshot: exports.fetchApplicationDocumentOcrSnapshot,
     saveApplicationDocumentOcrSnapshot: exports.saveApplicationDocumentOcrSnapshot,

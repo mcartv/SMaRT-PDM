@@ -863,7 +863,7 @@ exports.getConversations = async (req, res) => {
           u.email,
           'Unknown user'
         ) AS name,
-        COALESCE(s.pdm_id, ap.department, INITCAP(COALESCE(u.role, 'staff'))) AS student_number,
+        COALESCE(s.pdm_id, ap.department, INITCAP(COALESCE(u.role, 'user'))) AS student_number,
         s.profile_photo_url AS avatar_url,
         CASE
           WHEN s.student_id IS NOT NULL THEN COALESCE(s.is_archived, false)
@@ -2061,7 +2061,7 @@ exports.getMessagingContacts = async (req, res) => {
 
     const staffItems = staffResult.rows.map((row) => {
       const name = [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Account';
-      const roleLabel = String(row.role || 'staff')
+      const roleLabel = String(row.role || 'user')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (character) => character.toUpperCase());
       return {

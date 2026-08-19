@@ -7,10 +7,11 @@ const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
-        message: 'Too many login attempts. Please try again later.',
+        message: 'Too many failed login attempts. Please try again later.',
     },
 });
 
@@ -24,11 +25,7 @@ const recoveryLimiter = rateLimit({
     },
 });
 
-router.post('/login', loginLimiter, authController.adminLogin);
-router.post('/pd/login', loginLimiter, authController.pdLogin);
-router.post('/guidance/login', loginLimiter, authController.guidanceLogin);
-router.post('/sdo/login', loginLimiter, authController.sdoLogin);
-router.post('/ro-coordinator/login', loginLimiter, authController.roCoordinatorLogin);
+router.post('/login', loginLimiter, authController.staffLogin);
 
 // Lightweight current-session probe for every staff portal. The protect
 // middleware performs the authoritative archive, role, token-version, and

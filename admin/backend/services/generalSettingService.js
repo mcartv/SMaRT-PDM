@@ -6,7 +6,7 @@ const DEFAULT_LANDING_CONTENT = {
   hero_badge: 'OSFA Digital Scholarship Platform',
   hero_title: 'Scholarship access, tracking, and updates in one system.',
   hero_description:
-    'SMaRT-PDM helps applicants, scholars, and authorized staff manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
+    'SMaRT-PDM helps applicants, scholars, and authorized users manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
   mobile_app_title: 'Scholar Mobile App',
   mobile_app_description:
     'Install the APK to track application updates and scholarship activity from your phone.',
@@ -41,7 +41,7 @@ const DEFAULT_LANDING_CONTENT = {
   ],
   features_title: 'Built for scholarship operations',
   features_description:
-    'Designed for applicants, scholars, and OSFA staff who need a clean, direct, and reliable workflow.',
+    'Designed for applicants, scholars, and authorized OSFA users who need a clean, direct, and reliable workflow.',
   feature_items: [
     { title: 'Application Tracking', description: 'Applicants can monitor submission progress and requirements.' },
     { title: 'Live Announcements', description: 'Scholars receive updates from OSFA and department offices.' },
@@ -76,7 +76,7 @@ const DEFAULT_POLICY_CONTENT = {
     'Certain scholarship and institutional records may still be processed or retained when another lawful or institutional basis applies. Contact OSFA using the details published on the landing page for questions or requests.',
   terms_icon: 'file-text',
   terms_intro:
-    'These terms govern access to and use of SMaRT-PDM. They are intended to protect applicants, scholars, staff, institutional records, and the integrity of scholarship processes.',
+    'These terms govern access to and use of SMaRT-PDM. They are intended to protect applicants, scholars, authorized users, institutional records, and the integrity of scholarship processes.',
   terms_sections: [
     { title: 'Purpose and acceptance', body: 'SMaRT-PDM supports scholarship applications, document review, endorsement, communication, monitoring, and related OSFA services. By using the platform, you agree to use it only for legitimate PDM scholarship activities and to follow these terms and applicable institutional policies.' },
     { title: 'Account responsibility', body: 'Users must provide accurate information, protect their credentials, and promptly report suspected unauthorized access. Actions performed through an account may be treated as actions of the registered user unless reported and verified otherwise.' },

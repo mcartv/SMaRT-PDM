@@ -28,7 +28,7 @@ function roleLabel(role) {
     pd: 'Program Director',
     ro_coordinator: 'RO Coordinator',
   };
-  return labels[role] || role || 'Staff';
+  return labels[role] || role || 'User';
 }
 
 function SettingsNav({ activeTab, onChange }) {

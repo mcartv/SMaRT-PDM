@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -421,6 +421,11 @@ function validateCreateForm(form, roAreas = []) {
         return 'Enter a valid email address.';
     }
 
+    const phoneNumber = String(form.phone_number || '').trim();
+    if (phoneNumber && !/^09\d{9}$/.test(phoneNumber)) {
+        return 'Contact number must be 11 digits and start with 09.';
+    }
+
     if (!form.role) {
         return 'Select an account role.';
     }
@@ -583,17 +588,38 @@ function AccountCreateModal({
                         </div>
                     </div>
 
-                    <div>
-                        <FieldLabel>Email Address</FieldLabel>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                            <Input
-                                type="email"
-                                value={form.email}
-                                onChange={(event) => setField('email', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                disabled={saving}
-                            />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel>Email Address</FieldLabel>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="email"
+                                    value={form.email}
+                                    onChange={(event) => setField('email', event.target.value)}
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <FieldLabel>Mobile / Contact Number</FieldLabel>
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={11}
+                                    value={form.phone_number}
+                                    onChange={(event) =>
+                                        setField('phone_number', event.target.value.replace(/\D/g, '').slice(0, 11))
+                                    }
+                                    placeholder="09XXXXXXXXX"
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -654,10 +680,6 @@ function AccountCreateModal({
                             />
                         </div>
                     </div>
-
-                    <p className="text-[11px] leading-5 text-stone-500">
-                        Phone number and profile presentation can be completed by the account owner after sign-in.
-                    </p>
 
                     {error ? (
                         <p className="flex items-start gap-1.5 text-xs font-medium text-red-600">
@@ -1098,15 +1120,13 @@ function AccountProfileModal({ account, onClose, onEdit }) {
 
                 <div className="p-4">
                     <div className="flex items-center gap-3 border-b border-stone-100 pb-4">
-                        <Avatar className="h-12 w-12">
-                            <AvatarImage
-                                src={account.avatar_url || account.profile_photo_url || undefined}
-                                alt={`${account.name} profile`}
-                            />
-                            <AvatarFallback className="bg-stone-900 text-sm font-bold text-white">
-                                {initials}
-                            </AvatarFallback>
-                        </Avatar>
+                        <PreviewableProfileAvatar
+                            src={account.avatar_url || account.profile_photo_url || ''}
+                            name={`${account.name || 'Account'} profile photo`}
+                            fallback={initials}
+                            avatarClassName="h-12 w-12"
+                            fallbackClassName="bg-stone-900 text-sm font-bold text-white"
+                        />
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="truncate text-base font-semibold text-stone-900">{account.name}</h3>
@@ -1690,7 +1710,7 @@ export default function AccountsPanel() {
                                     type="button"
                                     onClick={() => setPageTab('current')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
-                                            ? 'bg-[#7c4a2e] text-white'
+                                            ? 'bg-[var(--portal-base)] text-white'
                                             : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                         }`}
                                 >
@@ -1701,7 +1721,7 @@ export default function AccountsPanel() {
                                     type="button"
                                     onClick={() => setPageTab('archived')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
-                                            ? 'bg-[#7c4a2e] text-white'
+                                            ? 'bg-[var(--portal-base)] text-white'
                                             : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                         }`}
                                 >
@@ -1892,15 +1912,13 @@ export default function AccountsPanel() {
                                             className={`grid gap-3 px-4 py-3 transition-colors lg:grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] lg:items-center lg:gap-4 ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
                                         >
                                             <div className="flex min-w-0 items-center gap-2.5">
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage
-                                                        src={account.avatar_url || account.profile_photo_url || undefined}
-                                                        alt={`${account.name} profile`}
-                                                    />
-                                                    <AvatarFallback className="bg-stone-100 text-xs font-bold text-stone-600">
-                                                        {(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <PreviewableProfileAvatar
+                                                    src={account.avatar_url || account.profile_photo_url || ''}
+                                                    name={`${account.name || 'Account'} profile photo`}
+                                                    fallback={(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
+                                                    avatarClassName="h-9 w-9"
+                                                    fallbackClassName="bg-stone-100 text-xs font-bold text-stone-600"
+                                                />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <p className="truncate text-sm font-semibold text-stone-900">{account.name}</p>

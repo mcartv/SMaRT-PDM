@@ -106,7 +106,7 @@ async function getProgramNameMap(rows = []) {
     );
 }
 
-function mapAnnouncementRow(row, programName = null) {
+function mapAnnouncementRow(row, programName = null, viewCount = 0) {
     const audienceKey = normalizeAudience(row.target_audience) || 'all';
     const resolvedProgramName = programName || null;
     const audienceLabel = audienceKey === 'program'
@@ -129,18 +129,57 @@ function mapAnnouncementRow(row, programName = null) {
         publishedAt: row.published_at || null,
         createdAt: row.created_at || null,
         updatedAt: row.updated_at || null,
-        views: 0,
+        views: Number(viewCount || 0),
     };
 }
 
+async function getAnnouncementViewCountMap(rows = []) {
+    const announcementIds = [
+        ...new Set(
+            rows
+                .map((row) => row?.announcement_id)
+                .filter(Boolean)
+                .map(String)
+        ),
+    ];
+
+    if (!announcementIds.length) return new Map();
+
+    const { data, error } = await supabase
+        .from('announcement_views')
+        .select('announcement_id')
+        .in('announcement_id', announcementIds);
+
+    if (error) {
+        // Keep announcement management usable if the migration has not been
+        // applied yet, but make the missing tracking table obvious in logs.
+        console.error('SUPABASE ANNOUNCEMENT VIEW COUNT FETCH ERROR:', error);
+        return new Map();
+    }
+
+    const counts = new Map();
+    for (const view of data || []) {
+        const id = String(view.announcement_id || '');
+        if (!id) continue;
+        counts.set(id, Number(counts.get(id) || 0) + 1);
+    }
+
+    return counts;
+}
+
 async function mapAnnouncementRows(rows = []) {
-    const programNames = await getProgramNameMap(rows);
+    const [programNames, viewCounts] = await Promise.all([
+        getProgramNameMap(rows),
+        getAnnouncementViewCountMap(rows),
+    ]);
+
     return rows.map((row) =>
         mapAnnouncementRow(
             row,
             row.target_program_id
                 ? programNames.get(String(row.target_program_id)) || null
-                : null
+                : null,
+            viewCounts.get(String(row.announcement_id)) || 0
         )
     );
 }
@@ -418,7 +457,7 @@ exports.publishDueAnnouncements = async () => {
 
     const { data, error } = await supabase
         .from('announcements')
-        .select('*')
+        .select('announcement_id')
         .eq('status', 'Scheduled')
         .eq('is_archived', false)
         .lte('scheduled_at', nowIso);

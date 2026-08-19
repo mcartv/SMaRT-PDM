@@ -37,6 +37,17 @@ const emitEvent = (io, eventName, data = {}) => {
     io.emit(eventName, payload);
 };
 
+const emitPublicEvent = (io, eventName, data = {}) => {
+    if (!io || typeof io.of !== 'function') {
+        console.warn(`[Socket] No io instance available for public event: ${eventName}`);
+        return;
+    }
+
+    const payload = addMeta(data);
+    console.log(`[Socket] Emitting public: ${eventName}`, payload);
+    io.of('/public').emit(eventName, payload);
+};
+
 const emitToUser = (io, userId, eventName, data = {}) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
@@ -106,6 +117,7 @@ function emitMessageEvent(io, eventName, data = {}, options = {}) {
 const socketEvents = {
     /** Base emitters. */
     emitEvent,
+    emitPublicEvent,
     emitToUser,
     emitToUsers,
     emitToRoom,
@@ -113,6 +125,7 @@ const socketEvents = {
     /** Dashboard-wide refresh channels. */
     dashboardUpdated: (io, data) => emitEvent(io, 'dashboard:updated', data),
     maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    landingThemeUpdated: (io, data) => emitPublicEvent(io, 'landing-theme:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
     auditCreated: (io, data) => emitEvent(io, 'audit:created', data),
 
@@ -142,6 +155,7 @@ const socketEvents = {
     applicationOcrQueued: (io, data) => emitEvent(io, 'application-ocr:queued', data),
     applicationOcrStatus: (io, data) => emitEvent(io, 'application-ocr:status', data),
     applicationOcrSnapshotSaved: (io, data) => emitEvent(io, 'application-ocr:snapshot-saved', data),
+    piAvailability: (io, data) => emitEvent(io, 'pi:availability', data),
 
     /** Scholars and renewals. */
     scholarCreated: (io, data) => emitEvent(io, 'scholar:created', data),

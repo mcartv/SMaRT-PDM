@@ -541,19 +541,27 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       if (_data.guardianOnly && !hasNamedGuardian) {
         return 'Guardian name is required.';
       }
-      if (_data.parentNativeStatus == 'No') {
-        if (_data.parentPreviousTownMunicipality.trim().isEmpty) {
-          return 'Town or municipality is required.';
+      if (!_data.guardianOnly) {
+        if (_data.parentNativeStatus == 'No') {
+          if (_data.parentPreviousTownMunicipality.trim().isEmpty) {
+            return 'Town or municipality is required.';
+          }
+
+          if (_data.parentPreviousProvince.trim().isEmpty) {
+            return 'Province is required.';
+          }
+        } else {
+          final residencyDuration =
+              _data.parentMarilaoResidencyDuration.trim();
+
+          if (residencyDuration.isEmpty) {
+            return 'Marilao residency duration is required.';
+          }
+
+          if (!RegExp(r'^\d+$').hasMatch(residencyDuration)) {
+            return 'Enter the number of years as a Marilao resident using digits only.';
+          }
         }
-        if (_data.parentPreviousProvince.trim().isEmpty) {
-          return 'Province is required.';
-        }
-      } else if (_data.parentMarilaoResidencyDuration.trim().isEmpty) {
-        return 'Marilao residency duration is required.';
-      } else if (!RegExp(
-        r'^\d+$',
-      ).hasMatch(_data.parentMarilaoResidencyDuration.trim())) {
-        return 'Enter the number of years as a Marilao resident using digits only.';
       }
 
       return null;

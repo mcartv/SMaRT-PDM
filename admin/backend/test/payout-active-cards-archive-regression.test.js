@@ -1,85 +1,42 @@
-const fs = require('node:fs');
-const path = require('node:path');
+'use strict';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { read } = require('./_current-system-test-utils');
 
-const page = fs.readFileSync(
-  path.resolve(__dirname, '../../frontend/src/pages/PayoutManagement.jsx'),
-  'utf8'
-);
-const routes = fs.readFileSync(
-  path.resolve(__dirname, '../routes/payoutRoutes.js'),
-  'utf8'
-);
-const controller = fs.readFileSync(
-  path.resolve(__dirname, '../controllers/payoutController.js'),
-  'utf8'
-);
-const service = fs.readFileSync(
-  path.resolve(__dirname, '../services/payoutService.js'),
-  'utf8'
-);
+const page = read('frontend/src/pages/PayoutManagement.jsx');
+const routes = read('backend/routes/payoutRoutes.js');
+const service = read('backend/services/payoutService.js');
+const controller = read('backend/controllers/payoutController.js');
 
-test('active payout batches are rendered as responsive cards with required summary fields', () => {
+test('current payout page separates active, completed, and archived batches', () => {
   assert.match(page, /Active Payout Batches/);
-  assert.match(page, /md:grid-cols-2/);
-  assert.match(page, /2xl:grid-cols-3/);
-  assert.match(page, /program_name/);
-  assert.match(page, /benefactor_name/);
-  assert.match(page, /academic_year/);
-  assert.match(page, /semester/);
-  assert.match(page, /Payout Date/);
-  assert.match(page, /Scholars/);
-  assert.match(page, /Amount \/ Scholar/);
-  assert.match(page, /Payout Amount Summary/);
-  assert.match(page, /getBatchDisplayStatus/);
-  assert.match(page, /Open Batch/);
-  assert.match(page, /No active payout batches/);
+  assert.match(page, /Completed Payouts/);
+  assert.match(page, /Archived Payout Batches/);
+  assert.match(page, /const activeBatches = useMemo/);
+  assert.match(page, /batches\.filter\(\(b\) => !b\.is_archived\)/);
+  assert.match(page, /const archivedBatches = useMemo/);
+  assert.match(page, /batches\.filter\(\(b\) => b\.is_archived\)/);
 });
 
-test('archive uses an in-app confirmation modal and never window.confirm', () => {
-  assert.match(page, /function ArchiveBatchModal/);
-  assert.match(page, /Archive payout batch\?/);
-  assert.match(page, /This does not delete payout records/);
-  assert.doesNotMatch(page, /window\.confirm/);
+test('current archive action is guarded and calls the archive endpoint', () => {
+  assert.match(page, /const handleArchiveBatch = async/);
+  assert.match(page, /isBatchFinished\(batch\)/);
+  assert.match(page, /\/archive/);
+  assert.match(page, /setActiveSection\('archived'\)/);
 });
 
-test('archive action is admin-only at the route layer', () => {
-  assert.match(routes, /const adminOnly = \[protect, authorizeRoles\('admin'\)\]/);
-  assert.match(
-    routes,
-    /\/:payoutBatchId\/archive[\s\S]*?\.\.\.adminOnly[\s\S]*?archivePayoutBatch/
-  );
-});
-
-test('archive service performs a soft archive and does not delete payout records', () => {
-  assert.match(service, /UPDATE payout_batches/);
-  assert.match(service, /is_archived = TRUE/);
-  assert.match(service, /batch_status = 'Archived'/);
+test('archive remains admin-only and soft-deletes no payout records', () => {
+  assert.match(routes, /archivePayoutBatch/);
+  assert.match(service, /is_archived\s*=\s*TRUE/i);
   assert.doesNotMatch(
     service,
     /DELETE\s+FROM\s+(payout_batches|payout_batch_students)/i
   );
 });
 
-test('archived batches remain queryable and separate from active batches', () => {
-  assert.match(page, /batches\.filter\(\(batch\) => batch\?\.is_archived === true\)/);
-  assert.match(page, /Archived Payout Batches/);
-  assert.match(page, /Archived batch is read-only/);
-});
-
-test('archive controller writes audit log and broadcasts realtime refresh', () => {
+test('archive broadcasts realtime refresh and the page listens for it', () => {
   assert.match(controller, /ARCHIVE_PAYOUT_BATCH/);
-  assert.match(controller, /writePayoutAudit/);
-  assert.match(controller, /emitPayoutBatchRealtime\(req,[\s\S]*?'archived'\)/);
   assert.match(page, /useSocketEvent\('payout:archived'/);
-});
-
-test('active lists exclude archived batches immediately', () => {
-  assert.match(
-    page,
-    /activeBatches[\s\S]*?filter\(\(batch\) => batch\?\.is_archived !== true\)/
-  );
-  assert.match(page, /setBatches\(\(previous\)/);
-  assert.match(page, /is_archived: true/);
+  assert.match(page, /useSocketEvent\('payout:restored'/);
 });

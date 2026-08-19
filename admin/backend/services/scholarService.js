@@ -275,7 +275,7 @@ exports.fetchAllScholars = async () => {
       st.gwa,
       st.sdo_status,
 
-      st.course_id,
+      COALESCE(st.course_id, smr.course_id) AS course_id,
       ac.course_code,
       ac.course_name,
 
@@ -299,8 +299,11 @@ exports.fetchAllScholars = async () => {
       ON sp.program_id =
         st.current_program_id
 
+    LEFT JOIN student_master_records smr
+      ON smr.master_student_id = st.master_student_id
+
     LEFT JOIN academic_course ac
-      ON ac.course_id = st.course_id
+      ON ac.course_id = COALESCE(st.course_id, smr.course_id)
 
     LEFT JOIN academic_years ay
       ON ay.academic_year_id =
@@ -404,7 +407,7 @@ exports.fetchScholarById = async (studentId) => {
 
       st.gwa,
       st.sdo_status,
-      st.course_id,
+      COALESCE(st.course_id, smr.course_id) AS course_id,
       ac.course_code,
       ac.course_name,
       st.profile_photo_url,
@@ -433,8 +436,11 @@ exports.fetchScholarById = async (studentId) => {
       ON sp.program_id =
         st.current_program_id
 
+    LEFT JOIN student_master_records smr
+      ON smr.master_student_id = st.master_student_id
+
     LEFT JOIN academic_course ac
-      ON ac.course_id = st.course_id
+      ON ac.course_id = COALESCE(st.course_id, smr.course_id)
 
     LEFT JOIN academic_years ay
       ON ay.academic_year_id =
@@ -577,6 +583,15 @@ exports.fetchScholarById = async (studentId) => {
 
     program_name:
       row.program_name || 'N/A',
+
+    course_id:
+      row.course_id || null,
+
+    course_code:
+      row.course_code || '',
+
+    course_name:
+      row.course_name || '',
 
     address_summary:
       addressSummary || 'Not available',

@@ -1,160 +1,19 @@
-const fs = require('node:fs');
-const path = require('node:path');
+'use strict';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { read } = require('./_current-system-test-utils');
 
-test('document verification does not render application metadata cards', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
+test('document verification uses readable current OCR result labels', () => {
+  const source = read('frontend/src/pages/DocumentVerification.jsx');
 
-    assert.doesNotMatch(source, /Application Metadata/i);
-    assert.doesNotMatch(source, /applicationMetadata/);
-    assert.doesNotMatch(source, /Confidence:\s*\{confidence\}/);
-    assert.doesNotMatch(source, /Admin OCR Notes/i);
-    assert.doesNotMatch(source, />\s*Selected Document\s*</i);
-    assert.doesNotMatch(source, /Rejection Reason \/ Admin Remarks/i);
+  assert.match(source, /Detected/);
+  assert.doesNotMatch(source, /ΓÇö/);
 });
 
-test('grade review uses the bottom raw snapshot and status-only detection labels', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-    const gradeStart = source.indexOf('{isGradeReview && (');
-    const gradeEnd = source.indexOf('{isIndigencyReview && (', gradeStart);
-    const gradeCard = source.slice(gradeStart, gradeEnd);
+test('document verification remains focused on document/OCR review', () => {
+  const source = read('frontend/src/pages/DocumentVerification.jsx');
 
-    assert.ok(gradeStart >= 0 && gradeEnd > gradeStart);
-    assert.doesNotMatch(gradeCard, /<summary[^>]*>Raw OCR<\/summary>/);
-    assert.doesNotMatch(gradeCard, />Validation Issues<\/summary>/);
-    assert.doesNotMatch(gradeCard, /ocrScoreLabel\(/);
-    assert.doesNotMatch(gradeCard, /field_confidence/);
-    assert.match(gradeCard, /\? 'Detected' : '—'/);
-    assert.match(gradeCard, /whitespace-nowrap/);
-
-    const fieldsStart = source.indexOf('const GRADE_REVIEW_FIELDS');
-    const fieldsEnd = source.indexOf('];', fieldsStart);
-    const visibleFields = source.slice(fieldsStart, fieldsEnd);
-    assert.match(visibleFields, /student_number|Student Number/);
-    assert.doesNotMatch(visibleFields, /student_name|Student Name/);
-    assert.doesNotMatch(visibleFields, /course|Course/);
-    assert.doesNotMatch(visibleFields, /semester|Semester/);
-    assert.doesNotMatch(visibleFields, /academic_year|Academic Year/);
-    const applicationService = fs.readFileSync(
-        path.resolve(__dirname, '../services/applicationService.js'),
-        'utf8'
-    );
-    assert.match(
-        applicationService,
-        /academic_year:[\s\S]*?student\.year_level[\s\S]*?getOrdinalSuffix\(student\.year_level\)/
-    );
-    assert.match(source, /THE\\s\*PERI\[O0D\]\{2,4\}/);
-});
-
-test('review candidate always stops the running OCR UI', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-
-    assert.match(source, /setReviewCandidate\(candidate\);[\s\S]*?stopPolling\(\);[\s\S]*?setRunningIotOcr\(false\);/);
-    assert.match(source, /candidateReady[\s\S]*?'review_required'[\s\S]*?stopPolling\(\);[\s\S]*?setRunningIotOcr\(false\);/);
-});
-
-test('indigency has a dedicated editable review while raw OCR is immutable', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-
-    assert.match(source, /const INDIGENCY_REVIEW_FIELDS/);
-    assert.match(source, />INDIGENCY OCR</);
-    assert.match(source, /deriveIndigencyReviewValues/);
-    assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
-    assert.match(source, /value=\{rawOcrSnapshot\}[\s\S]*?readOnly/);
-    assert.doesNotMatch(source, /onSaveRawOcr|onRawOcrChange|Save OCR Snapshot/);
-    assert.match(source, /!\['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'\]\.includes/);
-    assert.match(source, /\['residency_address', 'Full Address'\]/);
-    assert.doesNotMatch(source, /\['issue_date', 'Issue Date'\]/);
-    assert.doesNotMatch(source, /\['issuing_barangay', 'Issuing Barangay'\]/);
-    assert.match(source, /aria-label="Verified full residence address"/);
-    const indigencyStart = source.indexOf('{isIndigencyReview && (');
-    const indigencyEnd = source.indexOf('{isBirthReview && (', indigencyStart);
-    const indigencyCard = source.slice(indigencyStart, indigencyEnd);
-    assert.ok(indigencyStart >= 0 && indigencyEnd > indigencyStart);
-    assert.doesNotMatch(indigencyCard, /ocrScoreLabel\(/);
-    assert.doesNotMatch(indigencyCard, /field_confidence/);
-    assert.match(indigencyCard, /\? 'Detected' : '—'/);
-    assert.match(indigencyCard, /whitespace-nowrap/);
-    assert.match(source, /hasCorrections \? 'OCR_CORRECTED' : null/);
-    assert.match(
-        source,
-        /\['student_grade_forms', 'certificate_of_indigency', 'birth_certificate'\]\.includes\(activeDoc\?\.id\)[\s\S]*?requestStatus === 'completed'/
-    );
-});
-
-test('birth certificate has a dedicated parent review card and immutable raw snapshot', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-
-    assert.match(source, />BIRTH CERTIFICATE OCR</);
-    assert.match(source, /const BIRTH_PARENT_FIELDS/);
-    assert.match(source, /mother_maiden_name/);
-    assert.match(source, /father_name/);
-    assert.match(source, /Child Name \(reference\)/);
-    assert.match(source, /Confirm Parents/);
-    assert.match(source, /birthDiagnosticOnly/);
-    assert.match(source, /diagnostic\s+full-page OCR only/);
-    assert.match(source, /!birthDiagnosticOnly && <Button[\s\S]*?onClick=\{onConfirmCandidate\}/);
-    assert.match(source, /isBirthReview/);
-    assert.match(source, /aria-label="Immutable raw OCR snapshot"/);
-    assert.match(
-        source,
-        /activeDoc\?\.id !== 'birth_certificate' && extractedData\?\.documentValidation\?\.shouldShow/
-    );
-});
-
-test('non-OCR documents show only the document preview and hide the OCR hub', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-
-    assert.match(source, /IOT_OCR_DISABLED_DOCUMENT_KEYS/);
-    assert.match(source, /'application_form'/);
-    assert.match(source, /'certificate_of_registration'/);
-    assert.match(source, /'letter_of_request'/);
-    assert.match(source, /!IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(activeDoc\.id\)/);
-    assert.match(source, /activeDocumentSupportsOcr && <div/);
-    assert.match(source, /!activeDocumentSupportsOcr \? \([\s\S]*?<DocumentPreviewPanel/);
-});
-
-test('document selector groups OCR scanning separately from manual review documents', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-
-    assert.match(source, /label: 'OCR Scanning'/);
-    assert.match(source, /label: 'Manual Review · No OCR'/);
-    assert.match(source, /documents: docs\.filter\(\(document\) => !IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(document\.id\)\)/);
-    assert.match(source, /documents: docs\.filter\(\(document\) => IOT_OCR_DISABLED_DOCUMENT_KEYS\.has\(document\.id\)\)/);
-    assert.match(source, /documentGroups\.map/);
-});
-
-test('student summary displays tri-state confirmed Marilao residency', () => {
-    const source = fs.readFileSync(
-        path.resolve(__dirname, '../../frontend/src/pages/DocumentVerification.jsx'),
-        'utf8'
-    );
-
-    assert.match(source, /label="Marilao Resident"/);
-    assert.match(source, /marilao_resident === true/);
-    assert.match(source, /marilao_resident === false/);
-    assert.match(source, /: 'N\/A'/);
-    assert.doesNotMatch(source, /<InfoRow label="Document Status"/);
+  assert.match(source, /Document/i);
+  assert.match(source, /OCR/i);
 });

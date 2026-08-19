@@ -5,6 +5,7 @@ const {
     getBenefactors,
     getPublicBenefactors,
     createBenefactor,
+    createBenefactorWithProgram,
     updateBenefactor,
 } = require('../controllers/benefactorController');
 
@@ -13,6 +14,7 @@ const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get('/public', getPublicBenefactors);
 router.get('/', ...adminOnly, getBenefactors);
+router.post('/with-program', ...adminOnly, createBenefactorWithProgram);
 router.post('/', ...adminOnly, createBenefactor);
 router.patch('/:id', ...adminOnly, updateBenefactor);
 

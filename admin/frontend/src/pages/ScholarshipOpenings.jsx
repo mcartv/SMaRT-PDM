@@ -37,7 +37,7 @@ import {
 import { buildApiUrl } from '@/api';
 
 const C = {
-    brownMid: '#7c4a2e',
+    brownMid: 'var(--portal-base)',
     green: '#16a34a',
     greenSoft: '#F0FDF4',
     amber: '#d97706',
@@ -63,6 +63,7 @@ const INITIAL_FORM = {
     academic_year_id: '',
     academic_year: '',
     allocated_slots: '',
+    financial_allocation: '',
     filled_slots_preview: 0,
     waiting_list_enabled: true,
     waiting_list_limit: 0,
@@ -116,6 +117,18 @@ function targetAudienceLabel(value) {
     if (normalized === 'Scholars') return 'Scholars';
 
     return normalized || 'Applicants';
+}
+
+function formatPesoAmount(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '—';
+
+    return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(amount);
 }
 
 function getCurrentSchoolYearLabel(date = new Date()) {
@@ -320,6 +333,7 @@ function OpeningModal({
     form,
     setForm,
     template,
+    fromTemplate = false,
     templates,
     academicYears,
     onClose,
@@ -329,6 +343,7 @@ function OpeningModal({
     if (!open) return null;
 
     const isEdit = mode === 'edit';
+    const isTemplateLaunch = Boolean(fromTemplate);
     const title = isEdit ? 'Edit Scholarship Opening' : 'Create Scholarship Opening';
 
     const selectedTemplate =
@@ -340,12 +355,25 @@ function OpeningModal({
     });
 
     const audienceLabel = targetAudienceLabel(form.target_audience);
+    const allocatedSlotsValue = Number(form.allocated_slots || 0);
+    const hasFinancialAllocation =
+        String(form.financial_allocation ?? '').trim() !== '' &&
+        Number.isFinite(Number(form.financial_allocation));
+    const financialAllocationValue = hasFinancialAllocation
+        ? Number(form.financial_allocation)
+        : null;
+    const allocationPerScholar =
+        allocatedSlotsValue > 0 &&
+        financialAllocationValue !== null &&
+        financialAllocationValue >= 0
+            ? financialAllocationValue / allocatedSlotsValue
+            : null;
 
     const canSubmit =
         !!form.opening_title?.trim() &&
         !!form.program_id &&
         !!form.academic_year_id &&
-        Number(form.allocated_slots || 0) > 0;
+        (isTemplateLaunch || Number(form.allocated_slots || 0) > 0);
 
     return (
         <div
@@ -360,7 +388,9 @@ function OpeningModal({
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">{title}</h3>
                         <p className="mt-0.5 text-xs text-stone-500">
-                            Configure the opening details, capacity, waiting list, and notes.
+                            {isTemplateLaunch
+                                ? 'Start from this template. Opening-specific capacity and budget are configured after the draft is created.'
+                                : 'Configure the opening details, capacity, financial allocation, waiting list, and notes.'}
                         </p>
                     </div>
 
@@ -544,24 +574,86 @@ function OpeningModal({
                         </div>
 
                         <div className="space-y-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Allocated Slots
-                                </label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={form.allocated_slots}
-                                    onChange={(e) =>
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            allocated_slots: e.target.value,
-                                        }))
-                                    }
-                                    placeholder="0"
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                            </div>
+                            {!isTemplateLaunch ? (
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                            Allocated Slots
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            value={form.allocated_slots}
+                                            onChange={(e) =>
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    allocated_slots: e.target.value,
+                                                }))
+                                            }
+                                            placeholder="e.g. 25"
+                                            className="h-10 rounded-lg border-stone-200 text-sm"
+                                        />
+                                        <p className="text-[11px] leading-4 text-stone-400">
+                                            Number of scholarship slots available for this opening.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                            Financial Allocation
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">₱</span>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={form.financial_allocation ?? ''}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        financial_allocation: e.target.value,
+                                                    }))
+                                                }
+                                                placeholder="0.00"
+                                                className="h-10 rounded-lg border-stone-200 pl-8 text-sm"
+                                            />
+                                        </div>
+                                        <p className="text-[11px] leading-4 text-stone-400">
+                                            Total amount allocated to this scholarship opening.
+                                        </p>
+                                    </div>
+
+                                    <div className="sm:col-span-2 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                                    Allocation per Scholar
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-left sm:min-w-[190px] sm:text-right">
+                                                <p className="text-base font-semibold text-stone-900 tabular-nums">
+                                                    {allocationPerScholar === null
+                                                        ? '—'
+                                                        : formatPesoAmount(allocationPerScholar)}
+                                                </p>
+                                                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                                                    per scholar
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                                    <p className="text-xs font-medium text-stone-700">Capacity and budget are opening-specific.</p>
+                                    <p className="mt-1 text-[11px] leading-5 text-stone-500">
+                                        Opening this template creates a draft. Configure capacity and budget from Current → Edit before publishing it.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                                 <label className="flex cursor-pointer items-start gap-3">
@@ -652,7 +744,7 @@ function OpeningModal({
                         ) : (
                             <Sparkles className="mr-2 h-4 w-4" />
                         )}
-                        {isEdit ? 'Save Changes' : 'Create Opening'}
+                        {isEdit ? 'Save Changes' : isTemplateLaunch ? 'Create Draft' : 'Create Opening'}
                     </Button>
                 </div>
             </Card>
@@ -873,211 +965,200 @@ function OpeningCard({
     const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
     const isBusy = actionLoadingId === opening.opening_id;
 
+    const themeOutlineButton =
+        'h-8 rounded-lg px-3 text-xs font-medium hover:bg-[var(--portal-accent-soft)]';
+    const themePrimaryButton =
+        'h-8 rounded-lg border-none px-3 text-xs font-medium text-white hover:opacity-90';
+
     return (
-        <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
-            <CardContent className="p-4">
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                        <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-sm font-semibold text-stone-900">
-                                    {opening.opening_title || 'Untitled Opening'}
-                                </h3>
-
-                                <span
-                                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
-                                    style={{ color: meta.color, background: meta.bg }}
-                                >
-                                    {meta.label}
-                                </span>
-                            </div>
-
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <Badge
-                                    variant="outline"
-                                    className="border-stone-200 bg-white text-[10px] text-stone-600"
-                                >
-                                    {opening.program_name || 'No Program'}
-                                </Badge>
-
-                                <Badge
-                                    variant="outline"
-                                    className={`text-[10px] ${audience === 'Both'
-                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                        : audience === 'Scholars'
-                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                            : 'border-sky-200 bg-sky-50 text-sky-700'
-                                        }`}
-                                >
-                                    <Users className="mr-1 h-3 w-3" />
-                                    {audienceLabelValue}
-                                </Badge>
-                            </div>
-
-                            <p className="mt-2 text-xs text-stone-500">
-                                {opening.benefactor_name || 'No Benefactor'}
-                            </p>
-
-                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
-                                        AY
-                                    </p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
-                                        {opening.academic_year || 'N/A'}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
-                                        Slots
-                                    </p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
-                                        {allocatedSlots}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
-                                        Filled
-                                    </p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
-                                        {filledSlots}
-                                    </p>
-                                </div>
-
-                            </div>
-
-                            {opening.announcement_text && (
-                                <details className="mt-3 text-xs">
-                                    <summary className="cursor-pointer text-stone-500 hover:text-stone-700">
-                                        View notes
-                                    </summary>
-                                    <p className="mt-1 leading-relaxed text-stone-600">
-                                        {opening.announcement_text}
-                                    </p>
-                                </details>
-                            )}
+        <Card
+            className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300 hover:shadow-sm"
+            style={{ borderLeft: '4px solid var(--portal-base)' }}
+        >
+            <CardContent className="p-0">
+                <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-3.5 lg:flex-row lg:items-start lg:justify-between sm:px-5">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold leading-6 text-stone-900">
+                                {opening.opening_title || 'Untitled Opening'}
+                            </h3>
+                            <span
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none"
+                                style={{ color: meta.color, background: meta.bg }}
+                            >
+                                {meta.label}
+                            </span>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
-                            {isArchived && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleRestoreOpening(opening)}
-                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                    disabled={isBusy}
-                                >
-                                    {isBusy ? (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
-                                    )}
-                                    Restore
-                                </Button>
-                            )}
+                        <p className="mt-1 text-[13px] leading-5 text-stone-500">
+                            {opening.benefactor_name || 'No Benefactor'}
+                        </p>
 
-                            {!isArchived && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEditModal(opening)}
-                                    className="h-7 rounded-md border-stone-200 px-2 text-[11px]"
-                                    disabled={isBusy}
-                                >
-                                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                                    Edit
-                                </Button>
-                            )}
-
-                            {!isArchived && isDraft && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleOpenDraftOpening(opening)}
-                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                    disabled={isBusy || !canBeOpened}
-                                >
-                                    {isBusy ? (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <Unlock className="mr-1.5 h-3.5 w-3.5" />
-                                    )}
-                                    Open
-                                </Button>
-                            )}
-
-                            {canMoveToDraft && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleMoveToDraft(opening)}
-                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
-                                    disabled={isBusy}
-                                >
-                                    {isBusy ? (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <Clock3 className="mr-1.5 h-3.5 w-3.5" />
-                                    )}
-                                    Draft
-                                </Button>
-                            )}
-
-                            {!isArchived && !isClosed && !isDraft && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleCloseOpening(opening.opening_id)}
-                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
-                                    disabled={isBusy}
-                                >
-                                    {isBusy ? (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <Lock className="mr-1.5 h-3.5 w-3.5" />
-                                    )}
-                                    Close
-                                </Button>
-                            )}
-
-                            {!isArchived && isClosed && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleReopenOpening(opening)}
-                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                    disabled={isBusy || !canReopen}
-                                >
-                                    {isBusy ? (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <Unlock className="mr-1.5 h-3.5 w-3.5" />
-                                    )}
-                                    Reopen
-                                </Button>
-                            )}
-
-                            {!isArchived && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleArchiveOpening(opening.opening_id)}
-                                    className="h-7 rounded-md border-red-200 px-2 text-[11px] text-red-700 hover:bg-red-50"
-                                    disabled={isBusy}
-                                >
-                                    {isBusy ? (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <Archive className="mr-1.5 h-3.5 w-3.5" />
-                                    )}
-                                    Archive
-                                </Button>
-                            )}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge
+                                variant="outline"
+                                className="h-7 rounded-full border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-600"
+                            >
+                                {opening.program_name || 'No Program'}
+                            </Badge>
+                            <Badge
+                                variant="outline"
+                                className="h-7 rounded-full border-stone-200 bg-stone-50 px-2.5 text-xs font-medium text-stone-600"
+                            >
+                                <Users className="mr-1 h-3 w-3" />
+                                {audienceLabelValue}
+                            </Badge>
                         </div>
                     </div>
+
+                    <div className="flex flex-wrap items-center gap-2 lg:max-w-[55%] lg:justify-end">
+                        {isArchived && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRestoreOpening(opening)}
+                                className={themeOutlineButton}
+                                style={{ borderColor: C.brownMid, color: C.brownMid }}
+                                disabled={isBusy}
+                            >
+                                {isBusy ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                Restore
+                            </Button>
+                        )}
+
+                        {!isArchived && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditModal(opening)}
+                                className={themeOutlineButton}
+                                style={{ borderColor: 'color-mix(in srgb, var(--portal-base) 28%, white)', color: C.brownMid }}
+                                disabled={isBusy}
+                            >
+                                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                Edit
+                            </Button>
+                        )}
+
+                        {!isArchived && isDraft && (
+                            <Button
+                                size="sm"
+                                onClick={() => handleOpenDraftOpening(opening)}
+                                className={themePrimaryButton}
+                                style={{ background: C.brownMid }}
+                                disabled={isBusy || !canBeOpened}
+                            >
+                                {isBusy ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                Open
+                            </Button>
+                        )}
+
+                        {canMoveToDraft && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleMoveToDraft(opening)}
+                                className="h-8 rounded-lg border-amber-200 px-3 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                                disabled={isBusy}
+                            >
+                                {isBusy ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                Draft
+                            </Button>
+                        )}
+
+                        {!isArchived && !isClosed && !isDraft && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCloseOpening(opening.opening_id)}
+                                className="h-8 rounded-lg border-amber-200 px-3 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                                disabled={isBusy}
+                            >
+                                {isBusy ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Lock className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                Close
+                            </Button>
+                        )}
+
+                        {!isArchived && isClosed && (
+                            <Button
+                                size="sm"
+                                onClick={() => handleReopenOpening(opening)}
+                                className={themePrimaryButton}
+                                style={{ background: C.brownMid }}
+                                disabled={isBusy || !canReopen}
+                            >
+                                {isBusy ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                Reopen
+                            </Button>
+                        )}
+
+                        {!isArchived && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleArchiveOpening(opening.opening_id)}
+                                className="h-8 rounded-lg border-red-200 px-3 text-xs font-medium text-red-700 hover:bg-red-50"
+                                disabled={isBusy}
+                            >
+                                {isBusy ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                Archive
+                            </Button>
+                        )}
+                    </div>
                 </div>
+
+                <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4 sm:px-5">
+                    {[
+                        ['Academic Year', opening.academic_year || 'N/A'],
+                        ['Allocated Slots', allocatedSlots],
+                        ['Filled', filledSlots],
+                        ['Available', availableSlots],
+                    ].map(([label, value]) => (
+                        <div key={label} className="rounded-xl bg-stone-50 px-3 py-2.5 ring-1 ring-inset ring-stone-100">
+                            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+                                {label}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold tabular-nums text-stone-900">
+                                {value}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+
+                {opening.announcement_text && (
+                    <details className="border-t border-stone-100 px-4 py-3 text-sm sm:px-5">
+                        <summary className="cursor-pointer text-[13px] font-medium text-stone-500 hover:text-[var(--portal-base)]">
+                            View opening notes
+                        </summary>
+                        <p className="mt-2 max-w-4xl text-sm leading-6 text-stone-600">
+                            {opening.announcement_text}
+                        </p>
+                    </details>
+                )}
             </CardContent>
         </Card>
     );
@@ -1105,6 +1186,7 @@ export default function ScholarshipOpenings() {
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
     const [activeTemplate, setActiveTemplate] = useState(null);
+    const [openedFromTemplate, setOpenedFromTemplate] = useState(false);
     const [editingOpeningId, setEditingOpeningId] = useState(null);
     const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
 
@@ -1359,6 +1441,7 @@ export default function ScholarshipOpenings() {
     };
 
     const openCreateFromTemplate = (template) => {
+        setOpenedFromTemplate(true);
         const currentYear = new Date().getFullYear();
         const computedAudience = deriveTargetAudience(template);
         const defaultAcademicYear = getDefaultAcademicYear(academicYears);
@@ -1387,6 +1470,7 @@ export default function ScholarshipOpenings() {
                     defaultAcademicYear?.label ||
                     '',
                 allocated_slots: existingDraft.allocated_slots ?? '',
+                financial_allocation: existingDraft.financial_allocation ?? '',
                 filled_slots_preview:
                     existingDraft.qualified_count ??
                     existingDraft.filled_slots ??
@@ -1413,6 +1497,7 @@ export default function ScholarshipOpenings() {
             academic_year_id: defaultAcademicYear?.academic_year_id || '',
             academic_year: defaultAcademicYear?.label || '',
             allocated_slots: '',
+            financial_allocation: '',
             filled_slots_preview: 0,
             waiting_list_enabled: true,
             waiting_list_limit: 0,
@@ -1424,6 +1509,7 @@ export default function ScholarshipOpenings() {
     };
 
     const openEditModal = (opening) => {
+        setOpenedFromTemplate(false);
         setModalMode('edit');
         setEditingOpeningId(opening.opening_id);
         setActiveTemplate(
@@ -1436,6 +1522,7 @@ export default function ScholarshipOpenings() {
             academic_year_id: opening.academic_year_id || '',
             academic_year: opening.academic_year || '',
             allocated_slots: opening.allocated_slots ?? '',
+            financial_allocation: opening.financial_allocation ?? '',
             filled_slots_preview:
                 opening.qualified_count ??
                 opening.filled_slots ??
@@ -1467,29 +1554,44 @@ export default function ScholarshipOpenings() {
                 return;
             }
 
+            const isEdit = modalMode === 'edit' && editingOpeningId;
+            const isTemplateLaunch = openedFromTemplate;
             const allocatedSlots = Number(form.allocated_slots || 0);
+            const financialAllocation =
+                form.financial_allocation === '' || form.financial_allocation == null
+                    ? null
+                    : Number(form.financial_allocation);
 
-            if (allocatedSlots <= 0) {
+            if (!isTemplateLaunch && allocatedSlots <= 0) {
                 alert('Allocated slots must be greater than 0.');
+                return;
+            }
+
+            if (
+                financialAllocation !== null &&
+                (!Number.isFinite(financialAllocation) || financialAllocation < 0)
+            ) {
+                alert('Financial allocation must be zero or greater.');
                 return;
             }
 
             setSaving(true);
 
-            const isEdit = modalMode === 'edit' && editingOpeningId;
-
-            const computedStatus = forcedStatus
-                ? forcedStatus
-                : derivePersistedOpeningStatus(
-                    form,
-                    isEdit ? form.posting_status : ''
-                );
+            const computedStatus = isTemplateLaunch
+                ? 'draft'
+                : forcedStatus
+                    ? forcedStatus
+                    : derivePersistedOpeningStatus(
+                        form,
+                        isEdit ? form.posting_status : ''
+                    );
 
             const payload = {
                 program_id: form.program_id,
                 opening_title: form.opening_title.trim(),
                 academic_year_id: form.academic_year_id || null,
-                allocated_slots: allocatedSlots,
+                allocated_slots: isTemplateLaunch && !isEdit ? 0 : allocatedSlots,
+                financial_allocation: isTemplateLaunch && !isEdit ? null : financialAllocation,
                 waiting_list_enabled: form.waiting_list_enabled !== false,
                 waiting_list_limit: Math.max(0, Number(form.waiting_list_limit || 0)),
                 announcement_text: form.announcement_text?.trim() || null,
@@ -1526,6 +1628,7 @@ export default function ScholarshipOpenings() {
             setForm(buildEmptyForm());
             setEditingOpeningId(null);
             setActiveTemplate(null);
+            setOpenedFromTemplate(false);
 
             await fetchData({ silent: true });
 
@@ -1546,9 +1649,10 @@ export default function ScholarshipOpenings() {
 
     const requestSaveOpening = () => {
         const isEdit = modalMode === 'edit' && editingOpeningId;
+        const isTemplateLaunch = openedFromTemplate;
 
-        if (isEdit) {
-            handleSaveOpening();
+        if (isEdit || isTemplateLaunch) {
+            handleSaveOpening(isTemplateLaunch ? 'draft' : null);
             return;
         }
 
@@ -1679,12 +1783,14 @@ export default function ScholarshipOpenings() {
                 form={form}
                 setForm={setForm}
                 template={activeTemplate}
+                fromTemplate={openedFromTemplate}
                 templates={templates}
                 academicYears={academicYears}
                 onClose={() => {
                     setModalOpen(false);
                     setCreateConfirmOpen(false);
                     setActiveTemplate(null);
+                    setOpenedFromTemplate(false);
                     setEditingOpeningId(null);
                     setForm(buildEmptyForm());
                 }}
@@ -1812,6 +1918,7 @@ export default function ScholarshipOpenings() {
                                     setModalMode('create');
                                     setEditingOpeningId(null);
                                     setActiveTemplate(null);
+                                    setOpenedFromTemplate(false);
                                     setForm(buildEmptyForm());
                                     setModalOpen(true);
                                 }}

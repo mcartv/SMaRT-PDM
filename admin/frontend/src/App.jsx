@@ -11,7 +11,6 @@ import GuidanceLayout from './components/layout/GuidanceLayout';
 import ROCoordinatorLayout from './components/layout/ROCoordinatorLayout';
 
 // --- ADMIN PAGES ---
-import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import ApplicationReview from './pages/ApplicationReview';
@@ -30,8 +29,6 @@ import AdminMessages from './pages/AdminMessages';
 import ProfilePhotoQueue from './pages/ProfilePhotoQueue';
 import EndorsementSlipDetail from './pages/EndorsementSlipDetail';
 import EndorsementVerification from './pages/EndorsementVerification';
-import PDLogin from './pages/PDLogin';
-import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
 import PDProfile from './pages/PDProfile';
@@ -40,7 +37,6 @@ import PDMaintenance from './pages/PDMaintenance';
 import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
 import EndorsementQueue from './pages/EndorsementQueue';
-import ROCoordinatorLogin from './pages/ROCoordinatorLogin';
 import ROCoordinatorDashboard from './pages/ROCoordinatorDashboard';
 import ROCoordinatorQueue from './pages/ROCoordinatorQueue';
 import ROCoordinatorProfile from './pages/ROCoordinatorProfile';
@@ -48,11 +44,11 @@ import ROCoordinatorMaintenance from './pages/ROCoordinatorMaintenance';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
+import UnifiedLogin from './pages/UnifiedLogin';
 import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 
 // --- SDO PAGES ---
 
-import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
 import SDOProfile from './pages/SDOProfile';
@@ -85,21 +81,20 @@ export default function App() {
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/endorsement/verify/:token" element={<EndorsementVerification />} />
 
-        {/* Public Routes */}
-
-
-        <Route path="/admin/login" element={<AdminLogin />} />
+        {/* Unified User Login */}
+        <Route path="/login" element={<UnifiedLogin />} />
+        <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+        <Route path="/pd/login" element={<Navigate to="/login" replace />} />
+        <Route path="/guidance/login" element={<Navigate to="/login" replace />} />
+        <Route path="/sdo/login" element={<Navigate to="/login" replace />} />
+        <Route path="/ro-coordinator/login" element={<Navigate to="/login" replace />} />
         <Route path="/admin/forgot-password" element={<ForgotPassword />} />
-        <Route path="/pd/login" element={<PDLogin />} />
-        <Route path="/guidance/login" element={<GuidanceLogin />} />
-        <Route path="/sdo/login" element={<SDOLogin />} />
-        <Route path="/ro-coordinator/login" element={<ROCoordinatorLogin />} />
 
         {/* --- PROTECTED ADMIN PANEL --- */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute storageKey="adminToken" redirectTo="/admin/login">
+            <ProtectedRoute storageKey="adminToken" redirectTo="/login">
               <AdminLayout />
             </ProtectedRoute>
           }
@@ -160,7 +155,7 @@ export default function App() {
         <Route
           path="/pd"
           element={
-            <ProtectedRoute storageKey="pdToken" redirectTo="/pd/login">
+            <ProtectedRoute storageKey="pdToken" redirectTo="/login">
               <PDLayout />
             </ProtectedRoute>
           }
@@ -221,7 +216,7 @@ export default function App() {
         <Route
           path="/guidance"
           element={
-            <ProtectedRoute storageKey="guidanceToken" redirectTo="/guidance/login">
+            <ProtectedRoute storageKey="guidanceToken" redirectTo="/login">
               <GuidanceLayout />
             </ProtectedRoute>
           }
@@ -282,7 +277,7 @@ export default function App() {
         <Route
           path="/sdo"
           element={
-            <ProtectedRoute storageKey="sdoToken" redirectTo="/sdo/login">
+            <ProtectedRoute storageKey="sdoToken" redirectTo="/login">
               <SDOLayout />
             </ProtectedRoute>
           }
@@ -344,7 +339,7 @@ export default function App() {
         <Route
           path="/ro-coordinator"
           element={
-            <ProtectedRoute storageKey="roCoordinatorToken" redirectTo="/ro-coordinator/login">
+            <ProtectedRoute storageKey="roCoordinatorToken" redirectTo="/login">
               <ROCoordinatorLayout />
             </ProtectedRoute>
           }
@@ -367,7 +362,7 @@ export default function App() {
           <Route path="maintenance" element={<Navigate to="/ro-coordinator/settings" replace />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/admin/login" replace />} />
+        <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>
       <Toaster
         position="top-right"

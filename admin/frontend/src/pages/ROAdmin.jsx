@@ -4,7 +4,7 @@ import { buildApiUrl } from '@/api';
 import ROScholarRequestsPanel from './ROScholarRequestsPanel';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -53,34 +53,6 @@ const TOP_TABS = [
 
 function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase();
-}
-
-function getActivePlacements(scholar) {
-  const placements = Array.isArray(scholar?.placements)
-    ? scholar.placements
-    : [];
-
-  return placements.filter((placement) => {
-    const status = normalizeStatus(
-      placement.placement_status || placement.status
-    );
-
-    return status === 'pending' || status === 'approved';
-  });
-}
-
-function hasActiveRoPlacement(scholar) {
-  if (getActivePlacements(scholar).length > 0) {
-    return true;
-  }
-
-  // Legacy fallback: older genuine assignments may have assigned_area set
-  // even when they predate the ro_placements workflow.
-  const assignedArea = String(
-    scholar?.assigned_area || scholar?.assignedArea || ''
-  ).trim();
-
-  return Boolean(assignedArea);
 }
 
 function getScholarName(scholar) {
@@ -281,15 +253,6 @@ function getMainStatusCapsule(scholar) {
     return { label: 'Cleared', tone: 'green' };
   }
 
-  /*
-   * A return_of_obligations row represents the semester RO cycle.
-   * It does NOT mean the scholar has already been assigned to an RO area.
-   * Only an active placement (or legacy assigned_area) makes it assigned.
-   */
-  if (!hasActiveRoPlacement(scholar)) {
-    return { label: 'Unassigned', tone: 'default' };
-  }
-
   if (assignmentStatus === 'conflict reported') {
     return { label: 'Conflict', tone: 'red' };
   }
@@ -322,6 +285,10 @@ function getMainStatusCapsule(scholar) {
 
   if (assignmentStatus === 'assigned') {
     return { label: 'Assigned', tone: 'amber' };
+  }
+
+  if (!scholar.ro_id) {
+    return { label: 'Unassigned', tone: 'default' };
   }
 
   return { label: 'Assigned', tone: 'amber' };
@@ -365,7 +332,7 @@ function StatusChip({ children, tone = 'default' }) {
 
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap"
       style={style}
     >
       {children}
@@ -379,8 +346,8 @@ function ProgressLine({ label, value, caption, color }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-stone-700">{label}</p>
-        <p className="text-xs font-black" style={{ color }}>
+        <p className="text-xs font-medium text-stone-600">{label}</p>
+        <p className="text-xs font-medium" style={{ color }}>
           {percent}%
         </p>
       </div>
@@ -392,7 +359,7 @@ function ProgressLine({ label, value, caption, color }) {
         />
       </div>
 
-      <p className="mt-1 text-[11px] font-medium text-stone-400">{caption}</p>
+      <p className="mt-1.5 text-xs font-normal text-stone-400">{caption}</p>
     </div>
   );
 }
@@ -426,7 +393,7 @@ function EmptyState({ onAssignMode }) {
 
 function ToolbarSegment({ options, value, onChange }) {
   return (
-    <div className="inline-flex shrink-0 items-center rounded-lg border border-stone-200 bg-[#f8f6f2] p-0.5">
+    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
       {options.map((option) => {
         const active = value === option.value;
 
@@ -435,9 +402,9 @@ function ToolbarSegment({ options, value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${active
+            className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${active
               ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+              : 'text-stone-600'
               }`}
           >
             {option.label}
@@ -466,7 +433,7 @@ function FilterModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
@@ -485,7 +452,7 @@ function FilterModal({
         <CardContent className="space-y-4 p-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Status
               </label>
 
@@ -503,7 +470,7 @@ function FilterModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Year Level
               </label>
 
@@ -522,7 +489,7 @@ function FilterModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Program
               </label>
 
@@ -544,7 +511,7 @@ function FilterModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Course
               </label>
 
@@ -581,7 +548,7 @@ function FilterModal({
             <Button
               type="button"
               onClick={onClose}
-              className="rounded-xl border-none px-5 text-xs font-bold text-white"
+              className="rounded-xl border-none px-5 text-xs font-medium text-white"
               style={{ background: C.brownMid }}
             >
               Apply
@@ -633,7 +600,7 @@ function AssignModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
@@ -654,15 +621,15 @@ function AssignModal({
 
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-3">
-            <p className="text-sm font-black text-stone-900">{name}</p>
-            <p className="mt-0.5 text-xs text-stone-500">
+            <p className="text-xl font-semibold text-stone-900">{name}</p>
+            <p className="mt-1 text-sm text-stone-500">
               {scholar.program_name || 'Scholarship Program'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 RO Area
               </span>
 
@@ -691,22 +658,22 @@ function AssignModal({
             </label>
 
             <div className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Required Hours
               </span>
 
               <div className="flex h-10 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3">
-                <span className="text-sm font-bold text-stone-800">
+                <span className="text-sm font-semibold text-stone-800">
                   {obligationHours > 0 ? `${obligationHours} hours total` : 'Not configured'}
                 </span>
-                <span className="text-[10px] font-semibold text-stone-400">
+                <span className="text-[10px] font-medium text-stone-400">
                   {hasAssignment ? 'Shared across all placements' : 'From Obligation settings'}
                 </span>
               </div>
             </div>
 
             <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </span>
 
@@ -742,7 +709,7 @@ function AssignModal({
               type="button"
               onClick={submit}
               disabled={loading || !assignedArea || obligationHours <= 0}
-              className="rounded-xl border-none px-5 text-xs font-bold text-white disabled:opacity-50"
+              className="rounded-xl border-none px-5 text-xs font-medium text-white disabled:opacity-50"
               style={{ background: C.brownMid }}
             >
               {loading ? (
@@ -775,7 +742,7 @@ function BatchAssignModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
@@ -794,14 +761,14 @@ function BatchAssignModal({
 
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-            <p className="text-sm font-black text-stone-900">
+            <p className="text-sm font-semibold text-stone-900">
               {selectedCount} selected scholar{selectedCount > 1 ? 's' : ''}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
                 RO Area
               </span>
 
@@ -826,20 +793,20 @@ function BatchAssignModal({
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
                 Required Hours
               </span>
 
               <div className="flex h-10 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3">
-                <span className="text-sm font-bold text-stone-800">
+                <span className="text-sm font-semibold text-stone-700">
                   {defaultRequiredHours > 0 ? `${defaultRequiredHours} hours` : 'Not configured'}
                 </span>
-                <span className="text-[10px] font-semibold text-stone-400">From Obligation settings</span>
+                <span className="text-[10px] font-medium text-stone-400">From Obligation settings</span>
               </div>
             </label>
 
             <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </span>
 
@@ -880,7 +847,7 @@ function BatchAssignModal({
                 defaultRequiredHours <= 0
               }
               onClick={() => onSubmit({ assignedArea, remarks })}
-              className="rounded-xl border-none px-5 text-xs font-bold text-white disabled:opacity-50"
+              className="rounded-xl border-none px-5 text-xs font-medium text-white disabled:opacity-50"
               style={{ background: C.brownMid }}
             >
               {loading ? (
@@ -903,14 +870,14 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
   const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
       <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
       <Card className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
             <h3 className="text-sm font-semibold text-stone-900">RO Logs & Proofs</h3>
-            <p className="mt-1 text-xs text-stone-500">{getScholarName(scholar)}</p>
+            <p className="mt-1 text-sm text-stone-500">{getScholarName(scholar)}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -937,7 +904,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
           </div>
         </div>
 
-        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5">
+        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           {logs.length === 0 ? (
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-8 text-center">
               <p className="text-sm font-semibold text-stone-700">No logs yet</p>
@@ -989,28 +956,28 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
 
                       <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                         <p>
-                          <span className="font-bold text-stone-700">Time In:</span>{' '}
+                          <span className="font-medium text-stone-700">Time In:</span>{' '}
                           <span className="text-stone-500">
                             {formatDateTime(log.timeInAt || log.time_in_at)}
                           </span>
                         </p>
 
                         <p>
-                          <span className="font-bold text-stone-700">Time Out:</span>{' '}
+                          <span className="font-medium text-stone-700">Time Out:</span>{' '}
                           <span className="text-stone-500">
                             {formatDateTime(log.timeOutAt || log.time_out_at)}
                           </span>
                         </p>
 
                         <p>
-                          <span className="font-bold text-stone-700">Duration:</span>{' '}
+                          <span className="font-medium text-stone-700">Duration:</span>{' '}
                           <span className="text-stone-500">
                             {formatMinutes(log.durationMinutes || log.duration_minutes)}
                           </span>
                         </p>
 
                         <p>
-                          <span className="font-bold text-stone-700">Validated:</span>{' '}
+                          <span className="font-medium text-stone-700">Validated:</span>{' '}
                           <span className="text-stone-500">
                             {formatMinutes(log.validatedMinutes || log.validated_minutes)}
                           </span>
@@ -1024,7 +991,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                       ) : null}
 
                       <div className="mt-4 border-t border-stone-100 pt-4">
-                        <p className="mb-3 text-[11px] font-black uppercase tracking-wide text-stone-400">
+                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
                           Photo Proofs
                         </p>
 
@@ -1082,7 +1049,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                     </div>
 
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-                      <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                      <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                         Department Validation
                       </p>
                       <div className="mt-3">
@@ -1100,10 +1067,10 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                             : 'Waiting for the assigned department head to validate the time-in and time-out evidence.'}
                       </p>
                       <div className="mt-4 rounded-xl border border-stone-200 bg-white px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                        <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                           Department-validated Minutes
                         </p>
-                        <p className="mt-1 text-sm font-black text-stone-900">
+                        <p className="mt-1.5 text-sm font-medium text-stone-900">
                           {formatMinutes(log.validatedMinutes || log.validated_minutes)}
                         </p>
                       </div>
@@ -1140,7 +1107,6 @@ function RoDetailsModal({
   const name = getScholarName(scholar);
   const hasAssignment = !!scholar.ro_id;
   const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
-  const statusCapsule = getMainStatusCapsule(scholar);
 
   const {
     requiredMinutes,
@@ -1157,247 +1123,231 @@ function RoDetailsModal({
   } = getRoMetrics(scholar);
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-3 backdrop-blur-sm">
-      <div
-        className="absolute inset-0"
-        onClick={loading ? undefined : onClose}
-      />
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
+      <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
-      <Card className="relative flex max-h-[calc(100vh-24px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border-stone-200 bg-white shadow-xl">
-        {/* Compact fixed header */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-stone-900">RO Details</h3>
-            <p className="mt-0.5 truncate text-xs text-stone-500">{name}</p>
+      <Card className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-stone-800">RO Details</h3>
+            <p className="mt-1 text-sm text-stone-500">{name}</p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Scroll only inside the modal body when the screen is very short. */}
-        <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3">
-          {/* Scholar identity */}
-          <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50/70 px-3 py-2.5">
-            <Avatar className="h-10 w-10 shrink-0 rounded-full border border-stone-200 shadow-sm">
-              <AvatarImage
-                src={
-                  scholar.profile_photo_url ||
-                  scholar.avatarUrl ||
-                  scholar.avatar_url ||
-                  undefined
-                }
-                alt={name}
-              />
-              <AvatarFallback className="bg-blue-900 text-xs font-semibold text-white">
-                {getInitials(name)}
-              </AvatarFallback>
-            </Avatar>
+        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
+          <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <PreviewableProfileAvatar
+              src={scholar.profile_photo_url || scholar.avatarUrl || scholar.avatar_url || ''}
+              name={`${name} profile photo`}
+              fallback={getInitials(name)}
+              avatarClassName="h-14 w-14 shrink-0 rounded-full border border-stone-200 shadow-sm"
+              fallbackClassName="bg-blue-900 text-sm font-medium text-white"
+              buttonClassName="rounded-full"
+            />
 
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-stone-900">
-                    {name}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-stone-500">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xl font-semibold text-stone-900">{name}</p>
+                  <p className="mt-1 font-mono text-xs text-stone-400">
                     {scholar.pdm_id || 'No PDM ID'}
                   </p>
                 </div>
 
-                <StatusChip tone={statusCapsule.tone}>
-                  {statusCapsule.label}
+                <StatusChip tone={getMainStatusCapsule(scholar).tone}>
+                  {getMainStatusCapsule(scholar).label}
                 </StatusChip>
               </div>
 
-              <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-stone-600 sm:grid-cols-2">
-                <p className="truncate">
-                  <span className="font-semibold text-stone-800">Program:</span>{' '}
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-stone-600 sm:grid-cols-2">
+                <p>
+                  <span className="font-medium text-stone-700">Program:</span>{' '}
                   {scholar.program_name || 'N/A'}
                 </p>
 
-                <p className="truncate">
-                  <span className="font-semibold text-stone-800">Course:</span>{' '}
+                <p>
+                  <span className="font-medium text-stone-700">Course:</span>{' '}
                   {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Compact metrics */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              {
-                label: 'RO Areas',
-                value: placements.length || (hasAssignment ? 1 : 0),
-              },
-              {
-                label: 'Progress',
-                value: hasAssignment ? progressSummary : 'N/A',
-              },
-              {
-                label: 'Logs',
-                value: pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending',
-              },
-              {
-                label: 'Proofs',
-                value: proofCount || 0,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg border border-stone-200 bg-white px-3 py-2"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
-                  {item.label}
-                </p>
-                <p className="mt-0.5 truncate text-xs font-semibold text-stone-900">
-                  {item.value}
-                </p>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                RO Areas
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
+                {placements.length || (hasAssignment ? 1 : 0)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                Progress
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
+                {hasAssignment ? progressSummary : 'N/A'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                Logs
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
+                {pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                Proofs
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-stone-900">
+                {proofCount || 0}
+              </p>
+            </div>
           </div>
 
           {scholar.remarks ? (
-            <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
                 Remarks
               </p>
-              <p className="mt-1 text-xs leading-5 text-stone-600">
+              <p className="mt-2 text-sm leading-6 text-stone-700">
                 {scholar.remarks}
               </p>
             </div>
           ) : null}
 
           {hasAssignment ? (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {/* Placement Requests */}
-              <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
-                      Placement Requests
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-stone-500">
-                      Current approved/pending RO area placement.
-                    </p>
-                  </div>
-
-                  <StatusChip tone="blue">
-                    {placements.length} {placements.length === 1 ? 'area' : 'areas'}
-                  </StatusChip>
-                </div>
-
-                {placements.length > 0 ? (
-                  <div className="max-h-36 space-y-1.5 overflow-y-auto pr-0.5">
-                    {placements.map((placement) => {
-                      const status = placement.placement_status || 'Pending';
-                      const statusKey = normalizeStatus(status);
-                      const tone =
-                        statusKey === 'approved'
-                          ? 'green'
-                          : statusKey === 'rejected' || statusKey === 'cancelled'
-                            ? 'red'
-                            : 'amber';
-
-                      return (
-                        <div
-                          key={placement.placement_id}
-                          className="rounded-lg border border-stone-200 bg-stone-50/70 px-2.5 py-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="min-w-0 flex-1 truncate text-xs font-semibold text-stone-900">
-                              {placement.assigned_area || 'RO Area'}
-                            </p>
-                            <StatusChip tone={tone}>{status}</StatusChip>
-                          </div>
-
-                          {placement.coordinator_remarks || placement.admin_remarks ? (
-                            <p className="mt-1 line-clamp-2 text-xs leading-4 text-stone-500">
-                              {placement.coordinator_remarks || placement.admin_remarks}
-                            </p>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                    This assignment has no separate placement record yet.
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                    Placement Requests
                   </p>
-                )}
+                  <p className="mt-1 text-sm text-stone-500">
+                    Service hours may be completed in one or more approved RO Areas.
+                  </p>
+                </div>
+                <StatusChip tone="blue">
+                  {placements.length} {placements.length === 1 ? 'area' : 'areas'}
+                </StatusChip>
               </div>
 
-              {/* Hours */}
-              <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
-                      Hours
-                    </p>
-                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
-                      {progressSummary}
-                    </p>
-                  </div>
+              {placements.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {placements.map((placement) => {
+                    const status = placement.placement_status || 'Pending';
+                    const statusKey = normalizeStatus(status);
+                    const tone =
+                      statusKey === 'approved'
+                        ? 'green'
+                        : statusKey === 'rejected' || statusKey === 'cancelled'
+                          ? 'red'
+                          : 'amber';
 
-                  <StatusChip tone={statusCapsule.tone}>
-                    {statusCapsule.label}
-                  </StatusChip>
+                    return (
+                      <div
+                        key={placement.placement_id}
+                        className="rounded-xl border border-stone-200 bg-stone-50/70 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-stone-800">
+                            {placement.assigned_area || 'RO Area'}
+                          </p>
+                          <StatusChip tone={tone}>{status}</StatusChip>
+                        </div>
+                        {placement.coordinator_remarks || placement.admin_remarks ? (
+                          <p className="mt-2 text-sm leading-6 text-stone-500">
+                            {placement.coordinator_remarks || placement.admin_remarks}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-xl bg-stone-50 px-3 py-2.5 text-sm text-stone-500">
+                  This legacy assignment has no separate placement record yet.
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {hasAssignment ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                    Hours
+                  </p>
+                  <p className="mt-1.5 text-sm font-medium text-stone-900">
+                    {progressSummary}
+                  </p>
                 </div>
 
-                <div className="space-y-2.5">
-                  <ProgressLine
-                    label="Submitted"
-                    value={submittedProgress}
-                    color={C.amber}
-                    caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
-                  />
+                <StatusChip tone={getMainStatusCapsule(scholar).tone}>
+                  {getMainStatusCapsule(scholar).label}
+                </StatusChip>
+              </div>
 
-                  <ProgressLine
-                    label="Validated"
-                    value={validatedProgress}
-                    color={C.green}
-                    caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
-                  />
-                </div>
+              <div className="space-y-4">
+                <ProgressLine
+                  label="Submitted"
+                  value={submittedProgress}
+                  color={C.amber}
+                  caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
+                />
+
+                <ProgressLine
+                  label="Validated"
+                  value={validatedProgress}
+                  color={C.green}
+                  caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
+                />
               </div>
             </div>
           ) : null}
 
           {scholar.conflict_reason || scholar.conflictReason ? (
-            <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-red-500">
                 Conflict Reported
               </p>
-              <p className="mt-1 text-xs leading-4 text-red-600">
+              <p className="mt-1 text-sm leading-6 text-red-600">
                 {scholar.conflict_reason || scholar.conflictReason}
               </p>
             </div>
           ) : null}
-
           {hasAssignment && !isCleared && !canMarkCleared ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-normal text-amber-800">
               Mark Cleared is locked: {clearanceBlockedReason}
             </div>
           ) : null}
-</CardContent>
+        </CardContent>
 
-        {/* Compact fixed footer */}
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-100 bg-stone-50/80 px-3 py-2.5">
+        <div className="flex flex-col gap-2 border-t border-stone-100 bg-stone-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
           <Button
             type="button"
             variant="outline"
             onClick={onAssign}
             disabled={loading}
-            className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+            className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
           >
-            <Send className="mr-1.5 h-3.5 w-3.5" />
+            <Send className="mr-2 h-3.5 w-3.5" />
             {hasAssignment ? 'Add Placement' : 'Assign'}
           </Button>
 
@@ -1407,9 +1357,9 @@ function RoDetailsModal({
               variant="outline"
               onClick={onLogs}
               disabled={loading}
-              className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+              className="h-9 rounded-xl border-stone-200 px-4 text-xs font-medium"
             >
-              <Eye className="mr-1.5 h-3.5 w-3.5" />
+              <Eye className="mr-2 h-3.5 w-3.5" />
               Logs & Proofs
             </Button>
           ) : null}
@@ -1419,88 +1369,14 @@ function RoDetailsModal({
               type="button"
               onClick={onClear}
               disabled={loading || !canMarkCleared}
-              title={
-                clearanceBlockedReason ||
-                'All required hours were validated by the department head.'
-              }
-              className="h-8 rounded-lg border-none px-3 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+              title={clearanceBlockedReason || 'All required hours were validated by the department head.'}
+              className="h-9 rounded-xl border-none px-4 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: C.green }}
             >
-              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+              <ShieldCheck className="mr-2 h-3.5 w-3.5" />
               Mark Cleared
             </Button>
           ) : null}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function FeedbackModal({
-  open,
-  title,
-  message,
-  details = [],
-  tone = 'info',
-  onClose,
-}) {
-  if (!open) return null;
-
-  const toneClasses = {
-    info: 'border-blue-200 bg-blue-50 text-blue-800',
-    success: 'border-green-200 bg-green-50 text-green-800',
-    warning: 'border-amber-200 bg-amber-50 text-amber-800',
-    error: 'border-red-200 bg-red-50 text-red-800',
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <Card
-        className="w-full max-w-md overflow-hidden rounded-xl border-stone-200 bg-white shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="border-b border-stone-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-stone-900">
-            {title}
-          </h3>
-        </div>
-
-        <CardContent className="space-y-3 p-4">
-          <div
-            className={`rounded-lg border px-3.5 py-3 ${toneClasses[tone] || toneClasses.info
-              }`}
-          >
-            <p className="text-sm leading-relaxed">
-              {message}
-            </p>
-
-            {details.length > 0 && (
-              <div className="mt-2 space-y-1 border-t border-current/10 pt-2">
-                {details.map((detail, index) => (
-                  <p
-                    key={`${detail}-${index}`}
-                    className="text-xs leading-relaxed"
-                  >
-                    {detail}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-
-        <div className="flex justify-end border-t border-stone-100 bg-stone-50 px-4 py-3">
-          <Button
-            type="button"
-            size="sm"
-            onClick={onClose}
-            className="h-8 bg-stone-900 px-4 text-xs text-white hover:bg-stone-800"
-          >
-            OK
-          </Button>
         </div>
       </Card>
     </div>
@@ -1527,6 +1403,7 @@ export default function ROAdmin() {
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchError, setBatchError] = useState('');
 
+
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -1540,7 +1417,6 @@ export default function ROAdmin() {
   const [selectedScholar, setSelectedScholar] = useState(null);
   const [detailsScholar, setDetailsScholar] = useState(null);
   const [actionError, setActionError] = useState('');
-  const [feedbackModal, setFeedbackModal] = useState(null);
 
   const authHeaders = useMemo(
     () => ({
@@ -1581,11 +1457,7 @@ export default function ROAdmin() {
       roStatus === 'cleared' ||
       assignmentStatus === 'cleared';
 
-    if (isCleared) return false;
-
-    // A scholar may only have one active RO placement in the current semester.
-    // Pending and Approved placements are considered active.
-    return !hasActiveRoPlacement(scholar);
+    return !isCleared;
   };
 
   const displayedScholars = useMemo(() => {
@@ -1607,16 +1479,8 @@ export default function ROAdmin() {
         roStatus === 'cleared' ||
         assignmentStatus === 'cleared';
 
-      const hasActivePlacement = hasActiveRoPlacement(scholar);
-
-      if (topTab === 'unassigned' && (hasActivePlacement || isCleared)) {
-        return false;
-      }
-
-      if (topTab === 'assigned' && (!hasActivePlacement || isCleared)) {
-        return false;
-      }
-
+      if (topTab === 'unassigned' && scholar.ro_id) return false;
+      if (topTab === 'assigned' && (!scholar.ro_id || isCleared)) return false;
       if (topTab === 'cleared' && !isCleared) return false;
 
       if (statusFilter === 'in_progress') {
@@ -1656,6 +1520,7 @@ export default function ROAdmin() {
     selectableScholars.every((scholar) =>
       selectedIds.includes(String(scholar.student_id))
     );
+
 
   const buildScholarQuery = () => {
     const params = new URLSearchParams();
@@ -1852,6 +1717,7 @@ export default function ROAdmin() {
     });
   };
 
+
   const closeAllModals = () => {
     setAssignModalOpen(false);
     setLogsModalOpen(false);
@@ -1942,30 +1808,7 @@ export default function ROAdmin() {
       await refreshAll();
     } catch (err) {
       console.error('ASSIGN RO ERROR:', err);
-
-      const message = err.message || 'Failed to assign RO';
-      const normalizedMessage = normalizeStatus(message);
-      const isAlreadyAssigned =
-        normalizedMessage.includes('already assigned') ||
-        normalizedMessage.includes('active ro placement') ||
-        normalizedMessage.includes('active placement') ||
-        normalizedMessage.includes('already has');
-
-      if (isAlreadyAssigned) {
-        setAssignModalOpen(false);
-
-        setFeedbackModal({
-          tone: 'warning',
-          title: 'Scholar already assigned',
-          message,
-          details: [
-            'A scholar can only have one active RO placement per semester.',
-            'Cancel or reject the existing placement before assigning another RO area.',
-          ],
-        });
-      } else {
-        setActionError(message);
-      }
+      setActionError(err.message || 'Failed to assign RO');
     } finally {
       setActionLoading(false);
     }
@@ -1976,75 +1819,16 @@ export default function ROAdmin() {
       setActionLoading(true);
       setBatchError('');
 
-      if (!assignedArea) {
-        throw new Error('Select an RO department.');
-      }
-
-      if (!selectedScholars.length) {
-        throw new Error('Select at least one scholar.');
-      }
-
-      /*
-       * IMPORTANT:
-       * Do not silently reuse an existing RO and create another ro_placements
-       * row for a scholar who already has a Pending/Approved placement.
-       *
-       * We reject the whole batch when at least one selected scholar is
-       * already assigned. This makes the operation predictable and prevents
-       * accidental duplicate placements.
-       */
-      const alreadyAssigned = selectedScholars.filter(hasActiveRoPlacement);
-
-      if (alreadyAssigned.length > 0) {
-        const names = alreadyAssigned.map(getScholarName);
-
-        setBatchModalOpen(false);
-        setSelectedIds([]);
-
-        setFeedbackModal({
-          tone: 'warning',
-          title:
-            alreadyAssigned.length === 1
-              ? 'Scholar already assigned'
-              : 'Some scholars are already assigned',
-          message:
-            alreadyAssigned.length === 1
-              ? `${names[0]} already has an active RO placement for the current semester.`
-              : `${alreadyAssigned.length} selected scholars already have active RO placements for the current semester.`,
-          details: [
-            ...names.slice(0, 5).map(
-              (name) => `${name} — already assigned`
-            ),
-            ...(names.length > 5
-              ? [`+${names.length - 5} more scholar(s)`]
-              : []),
-            'A scholar can only have one active RO placement per semester.',
-            'Cancel or reject the existing placement before assigning the scholar to another RO area.',
-          ],
-        });
-
-        return;
-      }
-
       const assignableIds = selectedScholars
         .filter(isBatchSelectable)
         .map((scholar) => String(scholar.student_id));
 
       if (!assignableIds.length) {
-        setBatchModalOpen(false);
-        setSelectedIds([]);
+        throw new Error('Select at least one assignable scholar.');
+      }
 
-        setFeedbackModal({
-          tone: 'warning',
-          title: 'No assignable scholars',
-          message:
-            'None of the selected scholars can receive a new RO assignment.',
-          details: [
-            'Cleared scholars and scholars with an active Pending or Approved placement cannot be batch assigned again.',
-          ],
-        });
-
-        return;
+      if (!assignedArea) {
+        throw new Error('Select an RO department.');
       }
 
       const res = await fetch(buildApiUrl('/api/ro/scholars/batch-assign'), {
@@ -2060,127 +1844,22 @@ export default function ROAdmin() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(
-          data.error ||
-          data.message ||
-          'Failed to batch assign RO.'
-        );
+        throw new Error(data.error || data.message || 'Failed to batch assign RO.');
       }
 
-      const failedRows = Array.isArray(data.failed)
-        ? data.failed
-        : Array.isArray(data.failures)
-          ? data.failures
-          : Array.isArray(data.data?.failed)
-            ? data.data.failed
-            : [];
-
-      const successfulRows = Array.isArray(data.successful)
-        ? data.successful
-        : Array.isArray(data.data?.successful)
-          ? data.data.successful
-          : [];
-
-      const successCount = Number(
-        data.success_count ??
-        data.data?.success_count ??
-        successfulRows.length ??
-        0
-      );
-
-      const failedCount = Number(
-        data.failed_count ??
-        data.data?.failed_count ??
-        failedRows.length ??
-        0
-      );
-
-      const duplicateFailures = failedRows.filter((item) => {
-        const reason = normalizeStatus(
-          item?.error || item?.message || item?.reason
+      if (Number(data.failed_count || 0) > 0) {
+        setBatchError(
+          `${data.success_count || 0} requests sent, ${data.failed_count || 0} failed.`
         );
-
-        return (
-          reason.includes('already assigned') ||
-          reason.includes('active ro placement') ||
-          reason.includes('active placement') ||
-          reason.includes('already has')
-        );
-      });
-
-      setBatchModalOpen(false);
-      setSelectedIds([]);
-
-      if (failedCount > 0 && successCount === 0) {
-        const firstDuplicate = duplicateFailures[0];
-        const firstFailure = failedRows[0];
-
-        const serverMessage =
-          firstDuplicate?.error ||
-          firstDuplicate?.message ||
-          firstDuplicate?.reason ||
-          firstFailure?.error ||
-          firstFailure?.message ||
-          firstFailure?.reason ||
-          'The selected scholar could not be assigned.';
-
-        setFeedbackModal({
-          tone: duplicateFailures.length > 0 ? 'warning' : 'error',
-          title:
-            duplicateFailures.length > 0
-              ? 'Scholar already assigned'
-              : 'Batch assignment failed',
-          message: serverMessage,
-          details:
-            duplicateFailures.length > 0
-              ? [
-                'A scholar can only have one active RO placement per semester.',
-                'Cancel or reject the existing placement before assigning another RO area.',
-              ]
-              : [],
-        });
-      } else if (failedCount > 0) {
-        setFeedbackModal({
-          tone: 'warning',
-          title: 'Batch assignment completed with issues',
-          message: `${successCount} scholar(s) were assigned and ${failedCount} scholar(s) were skipped.`,
-          details: failedRows.slice(0, 5).map((item) => {
-            const name =
-              item?.student_name ||
-              item?.name ||
-              item?.student_id ||
-              'Scholar';
-
-            const reason =
-              item?.error ||
-              item?.message ||
-              item?.reason ||
-              'Assignment failed.';
-
-            return `${name}: ${reason}`;
-          }),
-        });
       } else {
-        setFeedbackModal({
-          tone: 'success',
-          title: 'RO assignment completed',
-          message: `${successCount || assignableIds.length} scholar(s) were successfully assigned to ${assignedArea}.`,
-        });
+        setBatchModalOpen(false);
+        setSelectedIds([]);
       }
 
       await refreshAll();
     } catch (err) {
       console.error('BATCH ASSIGN RO ERROR:', err);
-
-      setBatchModalOpen(false);
-
-      setFeedbackModal({
-        tone: 'error',
-        title: 'Batch assignment failed',
-        message:
-          err.message ||
-          'The RO batch assignment could not be completed.',
-      });
+      setBatchError(err.message || 'Failed to batch assign RO.');
     } finally {
       setActionLoading(false);
     }
@@ -2235,7 +1914,7 @@ export default function ROAdmin() {
   }
 
   return (
-    <div className="space-y-3 px-1 py-2" style={{ background: C.bg }}>
+    <div className="space-y-4 px-1 py-3 font-sans" style={{ background: C.bg }}>
       <FilterModal
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
@@ -2250,15 +1929,6 @@ export default function ROAdmin() {
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
         onReset={handleResetFilters}
-      />
-
-      <FeedbackModal
-        open={Boolean(feedbackModal)}
-        title={feedbackModal?.title}
-        message={feedbackModal?.message}
-        details={feedbackModal?.details || []}
-        tone={feedbackModal?.tone || 'info'}
-        onClose={() => setFeedbackModal(null)}
       />
 
       <AssignModal
@@ -2314,89 +1984,68 @@ export default function ROAdmin() {
         }}
       />
 
-      <section
-        className="rounded-xl border bg-white px-3 py-3"
-        style={{ borderColor: C.line }}
-      >
-        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
+      <section className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           {topTab !== 'requests' ? (
-            <div className="min-w-0 flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+          <div className="relative w-full xl:max-w-xl">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
 
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by scholar name or PDM ID..."
-                  className="h-9 rounded-lg border-stone-200 bg-[#f8f6f2] pl-9 pr-3 text-sm shadow-none focus-visible:ring-1"
-                />
-              </div>
-            </div>
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by scholar name or PDM ID..."
+                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm"
+              />
+          </div>
           ) : (
-            <div className="min-w-0 flex-1">
+            <div>
               <p className="text-sm font-semibold text-stone-900">RO Area Requests</p>
-              <p className="mt-0.5 text-xs text-stone-500">
+              <p className="mt-1 text-sm text-stone-500">
                 Review offices requesting scholars for RO service.
               </p>
             </div>
           )}
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <ToolbarSegment
               options={TOP_TABS}
               value={topTab}
               onChange={setTopTab}
             />
 
-            {selectedIds.length > 0 &&
-              !['cleared', 'requests'].includes(topTab) ? (
-              <Button
-                onClick={() => {
-                  setBatchError('');
-                  setBatchModalOpen(true);
-                }}
-                size="sm"
-                disabled={activeRequiredHours <= 0}
-                className="h-9 shrink-0 rounded-lg border-none px-3 text-xs text-white"
-                style={{ background: C.brownMid }}
-              >
-                <Send className="mr-1.5 h-3.5 w-3.5" />
-                Batch Assign ({selectedIds.length})
-              </Button>
-            ) : null}
-
             {topTab !== 'requests' ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFilterOpen(true)}
-                className="h-9 shrink-0 rounded-lg border-stone-200 bg-white px-2.5 text-xs text-stone-700"
-              >
-                <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-                Filters
-                {activeFilterCount > 0 ? (
-                  <span className="ml-1.5 rounded-full bg-stone-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                    {activeFilterCount}
-                  </span>
-                ) : null}
-              </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFilterOpen(true)}
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </Button>
             ) : null}
 
             <Button
               onClick={() => refreshAll()}
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 rounded-lg border-stone-200 bg-white px-2.5 text-xs text-stone-700"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
               disabled={filterLoading}
             >
               {filterLoading ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                <RefreshCw className="mr-2 h-4 w-4" />
               )}
               Refresh
             </Button>
+
           </div>
         </div>
       </section>
@@ -2420,236 +2069,249 @@ export default function ROAdmin() {
       {topTab === 'requests' ? (
         <ROScholarRequestsPanel token={token} />
       ) : (
-        <section
-          className="overflow-hidden rounded-2xl border bg-white"
-          style={{ borderColor: C.line }}
-        >
-          <div className="border-b border-stone-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-stone-900">
-              {topTab === 'assigned'
-                ? 'Assigned RO Scholars'
-                : topTab === 'unassigned'
-                  ? 'Unassigned RO Scholars'
-                  : 'Cleared RO Scholars'}
-            </h2>
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-stone-100 px-5 py-4">
+          <h2 className="truncate text-sm font-semibold leading-5 text-stone-900">
+            {topTab === 'assigned'
+              ? 'Assigned RO Scholars'
+              : topTab === 'unassigned'
+                ? 'Unassigned RO Scholars'
+                : 'Cleared RO Scholars'}
+          </h2>
 
-            <p className="mt-1 text-xs text-stone-400">
-              {displayedScholars.length} result{displayedScholars.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+          {!['cleared', 'requests'].includes(topTab) ? (
+            <Button
+              type="button"
+              onClick={() => {
+                setBatchError('');
+                setBatchModalOpen(true);
+              }}
+              size="sm"
+              disabled={selectedIds.length === 0 || activeRequiredHours <= 0}
+              className="h-9 rounded-xl border-none px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-45"
+              style={{ background: C.brownMid }}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {selectedIds.length > 0
+                ? `Batch Assign (${selectedIds.length})`
+                : 'Batch Assign'}
+            </Button>
+          ) : null}
+        </div>
 
-          <CardContent className="p-4">
-            {displayedScholars.length === 0 ? (
-              <EmptyState onAssignMode={() => setTopTab('unassigned')} />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-stone-200 bg-stone-50/70">
+        <CardContent className="p-4">
+          {displayedScholars.length === 0 ? (
+            <EmptyState onAssignMode={() => setTopTab('unassigned')} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50/70">
+                    {topTab !== 'cleared' ? (
                       <th className="w-[44px] px-3 py-3 text-left text-xs font-semibold text-stone-900">
                         <input
                           type="checkbox"
                           checked={allVisibleSelected}
                           onChange={toggleSelectAllVisible}
+                          aria-label="Select all visible scholars"
                         />
                       </th>
+                    ) : null}
 
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                        Scholar
-                      </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
+                      Scholar
+                    </th>
 
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                        Program
-                      </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
+                      Program
+                    </th>
 
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                        Department
-                      </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
+                      Department
+                    </th>
 
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                        Progress
-                      </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
+                      Progress
+                    </th>
 
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                        Status
-                      </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">
+                      Status
+                    </th>
 
-                      <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
+                    <th className="min-w-[140px] px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-700">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
 
-                  <tbody className="divide-y divide-stone-100 bg-white">
-                    {displayedScholars.map((scholar) => {
-                      const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
-                      const name = getScholarName(scholar);
-                      const hasAssignment = !!scholar.ro_id;
-                      const selectable = isBatchSelectable(scholar);
-                      const selected = selectedIds.includes(String(scholar.student_id));
+                <tbody className="divide-y divide-stone-100 bg-white">
+                  {displayedScholars.map((scholar) => {
+                    const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
+                    const name = getScholarName(scholar);
+                    const hasAssignment = !!scholar.ro_id;
 
-                      const {
-                        requiredMinutes,
-                        submittedMinutes,
-                        validatedMinutes,
-                        submittedProgress,
-                        validatedProgress,
-                        isCleared,
-                      } = getRoMetrics(scholar);
+                    const selectable = isBatchSelectable(scholar);
+                    const selected = selectedIds.includes(String(scholar.student_id));
 
-                      const capsule = getMainStatusCapsule(scholar);
+                    const {
+                      requiredMinutes,
+                      submittedMinutes,
+                      validatedMinutes,
+                      submittedProgress,
+                      validatedProgress,
+                      isCleared,
+                    } = getRoMetrics(scholar);
 
-                      return (
-                        <tr key={key} className="transition-colors hover:bg-stone-50/70">
+                    const capsule = getMainStatusCapsule(scholar);
+
+                    return (
+                      <tr key={key} className="transition-colors hover:bg-stone-50/70">
+                        {topTab !== 'cleared' ? (
                           <td className="px-3 py-4 align-top">
                             <input
                               type="checkbox"
                               disabled={!selectable}
                               checked={selected}
                               onChange={() => toggleSelected(scholar.student_id)}
+                              aria-label={`Select ${name}`}
                             />
                           </td>
+                        ) : null}
 
-                          <td className="px-3 py-4 align-top">
-                            <div className="flex items-start gap-3">
-                              <Avatar className="h-9 w-9 shrink-0 rounded-full border border-stone-200 shadow-sm">
-                                <AvatarImage
-                                  src={
-                                    scholar.profile_photo_url ||
-                                    scholar.avatarUrl ||
-                                    scholar.avatar_url ||
-                                    undefined
-                                  }
-                                  alt={name}
-                                />
-                                <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
-                                  {getInitials(name)}
-                                </AvatarFallback>
-                              </Avatar>
+                        <td className="px-3 py-4 align-top">
+                          <div className="flex items-start gap-3">
+                            <PreviewableProfileAvatar
+                              src={scholar.profile_photo_url || scholar.avatarUrl || scholar.avatar_url || ''}
+                              name={`${name} profile photo`}
+                              fallback={getInitials(name)}
+                              avatarClassName="h-10 w-10 shrink-0 rounded-full border border-stone-200 shadow-sm"
+                              fallbackClassName="bg-blue-900 text-xs font-bold text-white"
+                              buttonClassName="rounded-full"
+                            />
 
-                              <div className="min-w-0">
-                                <p className="max-w-[220px] truncate text-sm font-semibold text-stone-900">
-                                  {name}
-                                </p>
-                                <p className="mt-0.5 text-[11px] text-stone-400">
-                                  {scholar.pdm_id || 'No PDM ID'}
-                                </p>
-                              </div>
+                            <div className="min-w-0">
+                              <p className="max-w-[220px] truncate text-sm font-semibold leading-5 text-stone-900">
+                                {name}
+                              </p>
+                              <p className="mt-0.5 text-xs font-mono text-stone-400">
+                                {scholar.pdm_id || 'No PDM ID'}
+                              </p>
                             </div>
-                          </td>
+                          </div>
+                        </td>
 
-                          <td className="px-3 py-4 align-top">
-                            <p className="max-w-[240px] text-xs font-semibold leading-5 text-stone-900">
-                              {scholar.program_name || 'N/A'}
+                        <td className="px-3 py-4 align-top">
+                          <p className="max-w-[240px] text-sm leading-5 text-stone-700">
+                            {scholar.program_name || 'N/A'}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-stone-400">
+                            {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
+                          </p>
+                        </td>
+
+                        <td className="px-3 py-4 align-top">
+                          {hasAssignment ? (
+                            <p className="max-w-[220px] text-sm leading-5 text-stone-700">
+                              {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
                             </p>
-                            <p className="mt-0.5 text-[11px] text-stone-400">
-                              {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
+                          ) : (
+                            <p className="text-sm text-stone-400">
+                              Not assigned
                             </p>
-                          </td>
+                          )}
+                        </td>
 
-                          <td className="px-3 py-4 align-top">
+                        <td className="px-3 py-4 align-top">
+                          {hasAssignment ? (
+                            <p className="text-sm font-semibold text-stone-700">
+                              {compactProgressText({
+                                requiredMinutes,
+                                submittedMinutes,
+                                validatedMinutes,
+                                submittedProgress,
+                                validatedProgress,
+                                isCleared,
+                              })}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-stone-400">N/A</p>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4 align-top">
+                          <StatusChip tone={capsule.tone}>{capsule.label}</StatusChip>
+                        </td>
+
+                        <td className="min-w-[140px] px-3 py-4 text-right align-top">
+                          <Button
+                            type="button"
+                            onClick={() =>
+                              hasAssignment
+                                ? openDetailsModal(scholar)
+                                : openAssignModal(scholar)
+                            }
+                            variant="outline"
+                            size="sm"
+                            disabled={actionLoading || (!hasAssignment && activeRequiredHours <= 0)}
+                            title={
+                              !hasAssignment && activeRequiredHours <= 0
+                                ? 'Configure required hours in Maintenance > Obligation first.'
+                                : undefined
+                            }
+                            className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"
+                          >
                             {hasAssignment ? (
-                              <p className="max-w-[220px] text-xs font-bold text-stone-900">
-                                {scholar.assigned_area || scholar.assignedArea || 'Not assigned'}
-                              </p>
+                              <>
+                                <Eye className="mr-1.5 h-3.5 w-3.5" />
+                                View
+                              </>
                             ) : (
-                              <p className="text-xs font-semibold text-stone-400">
-                                Not assigned
-                              </p>
+                              <>
+                                <Send className="mr-1.5 h-3.5 w-3.5" />
+                                Assign
+                              </>
                             )}
-                          </td>
-
-                          <td className="px-3 py-4 align-top">
-                            {hasAssignment ? (
-                              <p className="text-xs font-black text-stone-900">
-                                {compactProgressText({
-                                  requiredMinutes,
-                                  submittedMinutes,
-                                  validatedMinutes,
-                                  submittedProgress,
-                                  validatedProgress,
-                                  isCleared,
-                                })}
-                              </p>
-                            ) : (
-                              <p className="text-xs text-stone-400">N/A</p>
-                            )}
-                          </td>
-
-                          <td className="px-3 py-4 align-top">
-                            <StatusChip tone={capsule.tone}>{capsule.label}</StatusChip>
-                          </td>
-
-                          <td className="px-3 py-4 text-right align-top">
-                            <Button
-                              type="button"
-                              onClick={() =>
-                                hasAssignment
-                                  ? openDetailsModal(scholar)
-                                  : openAssignModal(scholar)
-                              }
-                              variant="outline"
-                              size="sm"
-                              disabled={actionLoading || (!hasAssignment && activeRequiredHours <= 0)}
-                              title={
-                                !hasAssignment && activeRequiredHours <= 0
-                                  ? 'Configure required hours in Maintenance > Obligation first.'
-                                  : undefined
-                              }
-                              className="h-9 rounded-xl border-stone-200 px-3 text-xs"
-                            >
-                              {hasAssignment ? (
-                                <>
-                                  <Eye className="mr-1.5 h-3.5 w-3.5" />
-                                  View
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="mr-1.5 h-3.5 w-3.5" />
-                                  Assign
-                                </>
-                              )}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-
-          <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
-            <p className="text-xs text-stone-400">
-              Showing {displayedScholars.length ? `1-${displayedScholars.length}` : '0-0'} of {displayedScholars.length}
-            </p>
-
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled
-                className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-
-              <span className="text-xs text-stone-500">Page 1 / 1</span>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled
-                className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+          )}
+        </CardContent>
+
+        <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
+          <p className="text-xs text-stone-400">
+            Showing {displayedScholars.length ? `1-${displayedScholars.length}` : '0-0'} of {displayedScholars.length}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled
+              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+
+            <span className="text-xs text-stone-500">Page 1 / 1</span>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled
+              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
           </div>
-        </section>
+        </div>
+      </section>
       )}
     </div>
   );

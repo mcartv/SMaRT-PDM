@@ -1,4 +1,4 @@
-const path = require('path');
+﻿const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
@@ -7,8 +7,36 @@ const socketIO = require('socket.io');
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
+    quiet: true,
   });
 }
+
+const LOG_STARTUP_DETAILS =
+  String(process.env.LOG_STARTUP_DETAILS || 'false').toLowerCase() === 'true';
+
+const LOG_REALTIME_DETAILS =
+  String(process.env.LOG_REALTIME_DETAILS || 'false').toLowerCase() === 'true';
+
+const LOG_SOCKET_DETAILS =
+  String(process.env.LOG_SOCKET_DETAILS || 'false').toLowerCase() === 'true';
+
+const startupLog = (...args) => {
+  if (LOG_STARTUP_DETAILS) {
+    console.log(...args);
+  }
+};
+
+const realtimeLog = (...args) => {
+  if (LOG_REALTIME_DETAILS) {
+    console.log(...args);
+  }
+};
+
+const socketLog = (...args) => {
+  if (LOG_SOCKET_DETAILS) {
+    console.log(...args);
+  }
+};
 
 const express = require('express');
 const cors = require('cors');
@@ -55,10 +83,12 @@ const internalRealtimeRoutes = require('../routes/internalRealtimeRoutes');
 
 const announcementService = require('../services/announcementService');
 const personalToolService = require('../services/personalToolService');
+const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
 const socketEvents = require('../utils/socketEvents');
 const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
 const supabase = require('../config/supabase');
+const pool = require('../config/db');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -195,9 +225,15 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 
-console.log('Frontend build path:', frontendBuildPath);
-console.log('Index.html exists:', fs.existsSync(path.join(frontendBuildPath, 'index.html')));
-console.log('Assets directory exists:', fs.existsSync(path.join(frontendBuildPath, 'assets')));
+startupLog('Frontend build path:', frontendBuildPath);
+startupLog(
+  'Index.html exists:',
+  fs.existsSync(path.join(frontendBuildPath, 'index.html'))
+);
+startupLog(
+  'Assets directory exists:',
+  fs.existsSync(path.join(frontendBuildPath, 'assets'))
+);
 
 app.use(express.static(frontendBuildPath));
 
@@ -347,7 +383,7 @@ function joinSocketToUserRoom(socket) {
 
   socket.join(roomName);
 
-  console.log(`[Socket] Socket ${socket.id} joined ${roomName}`);
+  socketLog(`[Socket] Socket ${socket.id} joined ${roomName}`);
 
   socket.emit('socket:joined', {
     userId,
@@ -392,12 +428,29 @@ const io = socketIO(server, {
   pingInterval: 25000,
 });
 
-// Every Admin-backend realtime connection must prove a valid, current staff
-// session before Socket.IO accepts it. Public landing pages use HTTP and do not
-// open this authenticated staff socket.
+// Every authenticated application realtime connection must prove a valid,
+// current user session before Socket.IO accepts it on the default namespace.
 io.use(createStaffSocketAuthMiddleware());
 
+// Public landing/login pages use a separate receive-only namespace for safe
+// public UI refresh events such as landing-theme updates. It does not join
+// authenticated user rooms and has no server-side mutation handlers.
+const publicIo = io.of('/public');
+publicIo.on('connection', (socket) => {
+  socketLog(`[Socket] Public client connected: ${socket.id}`);
+  socket.on('disconnect', () => {
+    socketLog(`[Socket] Public client disconnected: ${socket.id}`);
+  });
+});
+
 app.set('io', io);
+
+iotOcrPresenceService.setAvailabilityListener((availability) => {
+  socketEvents.piAvailability(io, {
+    ...availability,
+    source: 'iot_ocr_presence',
+  });
+});
 
 configureRealtimeBridge({
   io,
@@ -405,7 +458,7 @@ configureRealtimeBridge({
 });
 
 io.on('connection', (socket) => {
-  console.log(
+  socketLog(
     `[Socket] Authenticated user connected: ${socket.id} (${socket.data?.role || 'unknown'})`
   );
 
@@ -440,7 +493,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', (reason) => {
-    console.log(`[Socket] User disconnected: ${socket.id}`, reason);
+    socketLog(`[Socket] User disconnected: ${socket.id}`, reason);
   });
 });
 
@@ -467,18 +520,63 @@ function emitScheduledAnnouncementRealtime(announcement) {
   socketEvents.announcementRefresh(io, payload);
 }
 
+const SCHEDULER_INTERVAL_MS = 60 * 1000;
+const SCHEDULER_LEADER_LOCK_KEY = 'smart-pdm:admin:scheduler-leader';
+
+let schedulerLeaderClient = null;
+let schedulerLeadershipPromise = null;
+
+async function ensureSchedulerLeadership() {
+  if (schedulerLeaderClient) return true;
+  if (schedulerLeadershipPromise) return schedulerLeadershipPromise;
+
+  schedulerLeadershipPromise = (async () => {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'SELECT pg_try_advisory_lock(hashtext($1)::bigint) AS acquired',
+        [SCHEDULER_LEADER_LOCK_KEY]
+      );
+      const acquired = result.rows?.[0]?.acquired === true;
+      if (!acquired) {
+        client.release();
+        return false;
+      }
+      schedulerLeaderClient = client;
+      client.on('error', (error) => {
+        console.error('Scheduler leader database connection lost:', error.message);
+        schedulerLeaderClient = null;
+      });
+      console.log('[Scheduler] This admin backend is the scheduler leader.');
+      return true;
+    } catch (error) {
+      client.release();
+      throw error;
+    }
+  })();
+
+  try {
+    return await schedulerLeadershipPromise;
+  } finally {
+    schedulerLeadershipPromise = null;
+  }
+}
+
 if (!global._announcementSchedulerRunning) {
   global._announcementSchedulerRunning = true;
 
-  let schedulerBusy = false;
+  let announcementSchedulerBusy = false;
+  let reminderSchedulerBusy = false;
+  let digestSchedulerBusy = false;
 
-  const runSchedulers = async () => {
+  const runAnnouncementScheduler = async () => {
     if (!global._applicationStartupReady) return;
-    if (schedulerBusy) return;
+    if (announcementSchedulerBusy) return;
 
-    schedulerBusy = true;
+    announcementSchedulerBusy = true;
 
     try {
+      if (!(await ensureSchedulerLeadership())) return;
       const publishedAnnouncements =
         await announcementService.publishDueAnnouncements();
 
@@ -494,23 +592,58 @@ if (!global._announcementSchedulerRunning) {
           `[Scheduler] Published ${publishedAnnouncements.length} scheduled announcement(s).`
         );
       }
+    } catch (err) {
+      console.error('Announcement Scheduler Error:', err.message);
+    } finally {
+      announcementSchedulerBusy = false;
+    }
+  };
 
-      await runDepartmentDigestScheduler();
+  const runReminderScheduler = async () => {
+    if (!global._applicationStartupReady) return;
+    if (reminderSchedulerBusy) return;
 
+    reminderSchedulerBusy = true;
+
+    try {
+      if (!(await ensureSchedulerLeadership())) return;
       const dueReminders = await personalToolService.processDueReminders();
+
       dueReminders.forEach(({ userId, notification }) => {
         socketEvents.notificationCreated(io, userId, notification);
       });
     } catch (err) {
-      console.error('Scheduler Error:', err.message);
+      console.error('Reminder Scheduler Error:', err.message);
     } finally {
-      schedulerBusy = false;
+      reminderSchedulerBusy = false;
     }
   };
 
-  runSchedulers();
+  const runDigestScheduler = async () => {
+    if (!global._applicationStartupReady) return;
+    if (digestSchedulerBusy) return;
 
-  setInterval(runSchedulers, 10000);
+    digestSchedulerBusy = true;
+
+    try {
+      if (!(await ensureSchedulerLeadership())) return;
+      await runDepartmentDigestScheduler();
+    } catch (err) {
+      console.error('Department Digest Scheduler Error:', err.message);
+    } finally {
+      digestSchedulerBusy = false;
+    }
+  };
+
+  runAnnouncementScheduler();
+  runReminderScheduler();
+  runDigestScheduler();
+
+  // Realtime delivery remains handled by configureRealtimeBridge()/Socket.IO.
+  // These timers only perform clock-based work.
+  setInterval(runAnnouncementScheduler, SCHEDULER_INTERVAL_MS);
+  setInterval(runReminderScheduler, SCHEDULER_INTERVAL_MS);
+  setInterval(runDigestScheduler, SCHEDULER_INTERVAL_MS);
 }
 
 async function startServer() {

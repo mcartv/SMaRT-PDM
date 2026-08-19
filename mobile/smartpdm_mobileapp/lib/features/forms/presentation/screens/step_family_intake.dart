@@ -310,6 +310,11 @@ class _StepFamilyState extends State<StepFamily> {
     selectedParentNative = parentNativeOptions.contains(nativeStatus)
         ? nativeStatus
         : parentNativeOptions.first;
+
+    if (guardianOnly && selectedParentNative != 'No') {
+      selectedParentNative = 'Yes, both parents';
+    }
+
     widget.data.parentNativeStatus = selectedParentNative;
 
     _bind(
@@ -580,11 +585,17 @@ class _StepFamilyState extends State<StepFamily> {
     setState(() {
       guardianOnly = value;
       widget.data.guardianOnly = value;
+
       if (value) {
         hasFather = false;
         hasMother = false;
         widget.data.fatherPresent = false;
         widget.data.motherPresent = false;
+
+        if (selectedParentNative != 'No') {
+          selectedParentNative = 'Yes, both parents';
+          widget.data.parentNativeStatus = selectedParentNative;
+        }
       } else {
         hasFather = true;
         hasMother = true;
@@ -1147,72 +1158,75 @@ class _StepFamilyState extends State<StepFamily> {
                       },
                     ),
                   ),
-                ),
-                if (selectedParentNative != 'No')
-                  _field(
-                    'If YES, how long have they been residents of Marilao? *',
-                    TextFormField(
-                      controller: parentMarilaoResidencyDurationController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(3),
-                      ],
-                      decoration: _dec(
-                        'Enter number of years',
-                        errorText: _parentResidencyDurationError(),
-                        suffixIcon: intakeCompletionIcon(
-                          parentMarilaoResidencyDurationController.text,
-                        ),
+              if (selectedParentNative != 'No')
+                _field(
+                  guardianOnly
+                      ? 'If YES, how long has your guardian been a resident of Marilao? *'
+                      : 'If YES, how long have they been residents of Marilao? *',
+                  TextFormField(
+                    controller: parentMarilaoResidencyDurationController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(3),
+                    ],
+                    decoration: _dec(
+                      'Enter number of years',
+                      errorText: _parentResidencyDurationError(),
+                      suffixIcon: intakeCompletionIcon(
+                        parentMarilaoResidencyDurationController.text,
                       ),
                     ),
                   ),
-                if (selectedParentNative == 'No') ...[
-                  _field(
-                    'Town / Municipality *',
-                    TextFormField(
-                      controller: parentPreviousTownMunicipalityController,
-                      decoration: _dec('e.g., Angeles City'),
-                    ),
+                ),
+              if (selectedParentNative == 'No') ...[
+                _field(
+                  guardianOnly
+                      ? 'Guardian Previous Town / Municipality *'
+                      : 'Town / Municipality *',
+                  TextFormField(
+                    controller: parentPreviousTownMunicipalityController,
+                    decoration: _dec('e.g., Angeles City'),
                   ),
-                  const SizedBox(height: 16),
-                  _field(
-                    'Province *',
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      initialValue: selectedParentPreviousProvince,
-                      decoration: _dec('Select province'),
-                      items:
-                          <String>{
-                                ...provinceOptions,
-                                if ((selectedParentPreviousProvince ?? '')
-                                    .isNotEmpty)
-                                  selectedParentPreviousProvince!,
-                              }
-                              .map(
-                                (province) => DropdownMenuItem(
-                                  value: province,
-                                  child: Text(
-                                    province,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                ),
+                const SizedBox(height: 16),
+                _field(
+                  guardianOnly ? 'Guardian Previous Province *' : 'Province *',
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: selectedParentPreviousProvince,
+                    decoration: _dec('Select province'),
+                    items:
+                        <String>{
+                              ...provinceOptions,
+                              if ((selectedParentPreviousProvince ?? '')
+                                  .isNotEmpty)
+                                selectedParentPreviousProvince!,
+                            }
+                            .map(
+                              (province) => DropdownMenuItem(
+                                value: province,
+                                child: Text(
+                                  province,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              )
-                              .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedParentPreviousProvince = value;
-                          widget.data.parentPreviousProvince = value ?? '';
-                          _syncPreviousOrigin();
-                        });
-                        widget.onChanged();
-                      },
-                    ),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedParentPreviousProvince = value;
+                        widget.data.parentPreviousProvince = value ?? '';
+                        _syncPreviousOrigin();
+                      });
+                      widget.onChanged();
+                    },
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
+        ),
       ],
     );
   }

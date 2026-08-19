@@ -1,7 +1,11 @@
-const crypto = require('crypto');
+﻿const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
+const {
+    createDocumentPreview,
+    removeDocumentPreview,
+} = require('./documentPreviewService');
 
 function normalizeStorageBucketName(value) {
     const normalized = String(value || '')
@@ -21,6 +25,40 @@ const ENDORSEMENT_SLIP_BUCKET = normalizeStorageBucketName(
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET ||
     'documents'
 );
+const PORT5000_SIGNED_URL_CACHE_MAX_ENTRIES = Math.max(
+    100,
+    Number(process.env.STORAGE_SIGNED_URL_CACHE_MAX_ENTRIES || 2000)
+);
+const PORT5000_SIGNED_URL_CACHE_TTL_MS = Math.max(
+    60 * 1000,
+    Number(process.env.STORAGE_SIGNED_URL_CACHE_TTL_MS || 50 * 60 * 1000)
+);
+const PORT5000_SIGNED_URL_EXPIRY_SAFETY_MS = 5 * 60 * 1000;
+const PORT5000_SIGNED_URL_CACHE_DEBUG =
+    String(process.env.STORAGE_SIGNED_URL_CACHE_DEBUG || '').trim().toLowerCase() === 'true';
+
+const applicationDocumentSignedUrlCache = new Map();
+const applicationDocumentSignedUrlInFlight = new Map();
+
+function pruneApplicationDocumentSignedUrlCache(now = Date.now()) {
+    for (const [key, entry] of applicationDocumentSignedUrlCache.entries()) {
+        if (!entry || entry.expiresAt <= now) applicationDocumentSignedUrlCache.delete(key);
+    }
+
+    while (applicationDocumentSignedUrlCache.size > PORT5000_SIGNED_URL_CACHE_MAX_ENTRIES) {
+        const oldestKey = applicationDocumentSignedUrlCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        applicationDocumentSignedUrlCache.delete(oldestKey);
+    }
+}
+
+function logStorageSignedUrlCache(kind, cacheKey) {
+    if (!PORT5000_SIGNED_URL_CACHE_DEBUG) return;
+    console.log(`[Storage Signed URL Cache] ${kind}`, {
+        key: cacheKey,
+        size: applicationDocumentSignedUrlCache.size,
+    });
+}
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
     'birth_certificate',
@@ -136,37 +174,88 @@ function financialSupportChoices(support = {}) {
 }
 
 async function createApplicationDocumentSignedUrl(filePath) {
-    const normalizedPath = safeText(filePath);
+    const normalizedPath = safeText(filePath).replace(/^\/+/, '');
     if (!normalizedPath) return null;
 
-    const { data, error } = await supabase.storage
-        .from(APPLICATION_DOCUMENT_BUCKET)
-        .createSignedUrl(normalizedPath, 60 * 60);
+    const expiresInSeconds = 60 * 60;
+    const cacheKey = `${APPLICATION_DOCUMENT_BUCKET}:${normalizedPath}`;
+    const now = Date.now();
+    const cached = applicationDocumentSignedUrlCache.get(cacheKey);
 
-    if (error) {
-        console.error('[APPLICATION DOCUMENT SIGNED URL ERROR]', {
-            bucket: APPLICATION_DOCUMENT_BUCKET,
-            path: normalizedPath,
-            message: error.message,
-        });
-        return null;
+    if (cached && cached.expiresAt > now && cached.url) {
+        applicationDocumentSignedUrlCache.delete(cacheKey);
+        applicationDocumentSignedUrlCache.set(cacheKey, cached);
+        logStorageSignedUrlCache('HIT', cacheKey);
+        return cached.url;
     }
 
-    return safeText(data?.signedUrl) || null;
+    if (applicationDocumentSignedUrlInFlight.has(cacheKey)) {
+        logStorageSignedUrlCache('IN_FLIGHT', cacheKey);
+        return applicationDocumentSignedUrlInFlight.get(cacheKey);
+    }
+
+    const request = (async () => {
+        logStorageSignedUrlCache('MISS', cacheKey);
+
+        const { data, error } = await supabase.storage
+            .from(APPLICATION_DOCUMENT_BUCKET)
+            .createSignedUrl(normalizedPath, expiresInSeconds);
+
+        if (error) {
+            console.error('[APPLICATION DOCUMENT SIGNED URL ERROR]', {
+                bucket: APPLICATION_DOCUMENT_BUCKET,
+                path: normalizedPath,
+                message: error.message,
+            });
+            return null;
+        }
+
+        const signedUrl = safeText(data?.signedUrl) || null;
+        if (!signedUrl) return null;
+
+        const reusableMs = Math.max(
+            60 * 1000,
+            expiresInSeconds * 1000 - PORT5000_SIGNED_URL_EXPIRY_SAFETY_MS
+        );
+
+        applicationDocumentSignedUrlCache.set(cacheKey, {
+            url: signedUrl,
+            expiresAt: Date.now() + Math.min(PORT5000_SIGNED_URL_CACHE_TTL_MS, reusableMs),
+        });
+
+        pruneApplicationDocumentSignedUrlCache();
+        return signedUrl;
+    })();
+
+    applicationDocumentSignedUrlInFlight.set(cacheKey, request);
+    try {
+        return await request;
+    } finally {
+        applicationDocumentSignedUrlInFlight.delete(cacheKey);
+    }
 }
 
 async function attachSignedUrlsToDocuments(documents = []) {
     return Promise.all(
         (documents || []).map(async (document) => {
-            const signedUrl = document.is_submitted === true
+            const originalSignedUrl = document.is_submitted === true
                 ? await createApplicationDocumentSignedUrl(document.file_path)
                 : null;
 
+            const previewSignedUrl =
+                document.is_submitted === true && safeText(document.preview_path)
+                    ? await createApplicationDocumentSignedUrl(document.preview_path)
+                    : null;
+
+            const displayUrl = previewSignedUrl || originalSignedUrl;
+
             return {
                 ...document,
-                file_url: signedUrl,
-                signed_url: signedUrl,
-                view_url: signedUrl,
+                file_url: displayUrl,
+                signed_url: displayUrl,
+                view_url: displayUrl,
+                preview_url: previewSignedUrl,
+                original_url: originalSignedUrl,
             };
         })
     );
@@ -2364,7 +2453,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const { data: targetDocument, error: targetDocumentError } = await supabase
         .from('application_documents')
-        .select('document_id, application_id, document_type, file_path')
+        .select('document_id, application_id, document_type, file_path, preview_path')
         .eq('document_id', documentId)
         .maybeSingle();
 
@@ -2408,6 +2497,13 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     if (uploadError) throw uploadError;
 
+    const generatedPreview = await createDocumentPreview({
+        bucket: APPLICATION_DOCUMENT_BUCKET,
+        filePath,
+        inputBuffer: file.buffer,
+        mimeType: file.mimetype,
+    });
+
     const fileUrl = null;
 
     const { data: finalizedUpload, error: finalizeError } = await supabase.rpc(
@@ -2433,12 +2529,55 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
             console.error('FAILED UPLOAD CLEANUP ERROR:', cleanupError);
         }
 
+        if (generatedPreview?.path) {
+            await removeDocumentPreview({
+                bucket: APPLICATION_DOCUMENT_BUCKET,
+                previewPath: generatedPreview.path,
+            });
+        }
+
         throw finalizeError;
     }
 
     if (!finalizedUpload) {
         await supabase.storage.from(APPLICATION_DOCUMENT_BUCKET).remove([filePath]);
+
+        if (generatedPreview?.path) {
+            await removeDocumentPreview({
+                bucket: APPLICATION_DOCUMENT_BUCKET,
+                previewPath: generatedPreview.path,
+            });
+        }
+
         throw createHttpError(500, 'The uploaded document could not be finalized.');
+    }
+
+    if (generatedPreview?.path) {
+        const { error: previewMetadataError } = await supabase
+            .from('application_documents')
+            .update({
+                preview_path: generatedPreview.path,
+                preview_size_bytes: generatedPreview.sizeBytes,
+                preview_created_at: generatedPreview.createdAt,
+            })
+            .eq('document_id', documentId);
+
+        if (previewMetadataError) {
+            console.warn('DOCUMENT PREVIEW METADATA WARNING:', previewMetadataError);
+        }
+    } else {
+        const { error: previewMetadataClearError } = await supabase
+            .from('application_documents')
+            .update({
+                preview_path: null,
+                preview_size_bytes: null,
+                preview_created_at: null,
+            })
+            .eq('document_id', documentId);
+
+        if (previewMetadataClearError) {
+            console.warn('DOCUMENT PREVIEW METADATA CLEAR WARNING:', previewMetadataClearError);
+        }
     }
 
     if (targetDocument.file_path && targetDocument.file_path !== filePath) {
@@ -2448,6 +2587,13 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
         if (oldFileDeleteError) {
             console.warn('OLD DOCUMENT FILE CLEANUP ERROR:', oldFileDeleteError);
+        }
+
+        if (targetDocument.preview_path) {
+            await removeDocumentPreview({
+                bucket: APPLICATION_DOCUMENT_BUCKET,
+                previewPath: targetDocument.preview_path,
+            });
         }
     }
 

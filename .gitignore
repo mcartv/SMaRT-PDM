@@ -46,3 +46,6 @@ supabase/**/storage-version
 supabase/**/postgres-version
 backend/.env
 
+*.backup-*
+*.bak
+**/test-results.txt

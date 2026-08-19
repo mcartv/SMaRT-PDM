@@ -505,61 +505,65 @@ class ApplicationSubmissionValidator {
       value: data.guardianMobile,
     );
 
-    final parentNativeStatus = data.parentNativeStatus.trim();
-    if (parentNativeStatus == 'Yes, father only' ||
-        parentNativeStatus == 'Yes, mother only' ||
-        parentNativeStatus == 'Yes, both parents') {
-      if (_isBlank(data.parentMarilaoResidencyDuration)) {
-        issues.add(
-          const ApplicationSubmissionIssue(
-            code: 'family.residency.required',
-            section: ApplicationSubmissionSection.family,
-            field: 'parentMarilaoResidencyDuration',
-            message:
-                'Residency duration is required when parents are native of Marilao.',
-            repairAction:
-                'Enter how long the parent or parents have lived in Marilao.',
-          ),
-        );
-      } else if (!RegExp(
-        r'^\d+$',
-      ).hasMatch(data.parentMarilaoResidencyDuration.trim())) {
-        issues.add(
-          const ApplicationSubmissionIssue(
-            code: 'family.residency.invalid',
-            section: ApplicationSubmissionSection.family,
-            field: 'parentMarilaoResidencyDuration',
-            message: 'Years as resident must contain digits only.',
-            repairAction: 'Enter the number of years as a whole number.',
-          ),
-        );
-      }
-    } else if (parentNativeStatus == 'No') {
-      if (_isBlank(data.parentPreviousTownMunicipality)) {
-        issues.add(
-          const ApplicationSubmissionIssue(
-            code: 'family.origin_town.required',
-            section: ApplicationSubmissionSection.family,
-            field: 'parentPreviousTownMunicipality',
-            message:
-                'Town or municipality is required when parents are not native of Marilao.',
-            repairAction:
-                'Enter the town or municipality the parent or parents came from.',
-          ),
-        );
-      }
-      if (_isBlank(data.parentPreviousProvince)) {
-        issues.add(
-          const ApplicationSubmissionIssue(
-            code: 'family.origin_province.required',
-            section: ApplicationSubmissionSection.family,
-            field: 'parentPreviousProvince',
-            message:
-                'Province is required when parents are not native of Marilao.',
-            repairAction:
-                'Select the province the parent or parents came from.',
-          ),
-        );
+    if (!data.guardianOnly) {
+      final parentNativeStatus = data.parentNativeStatus.trim();
+
+      if (parentNativeStatus == 'Yes, father only' ||
+          parentNativeStatus == 'Yes, mother only' ||
+          parentNativeStatus == 'Yes, both parents') {
+        if (_isBlank(data.parentMarilaoResidencyDuration)) {
+          issues.add(
+            const ApplicationSubmissionIssue(
+              code: 'family.residency.required',
+              section: ApplicationSubmissionSection.family,
+              field: 'parentMarilaoResidencyDuration',
+              message:
+                  'Residency duration is required when parents are native of Marilao.',
+              repairAction:
+                  'Enter how long the parent or parents have lived in Marilao.',
+            ),
+          );
+        } else if (!RegExp(
+          r'^\d+$',
+        ).hasMatch(data.parentMarilaoResidencyDuration.trim())) {
+          issues.add(
+            const ApplicationSubmissionIssue(
+              code: 'family.residency.invalid',
+              section: ApplicationSubmissionSection.family,
+              field: 'parentMarilaoResidencyDuration',
+              message: 'Years as resident must contain digits only.',
+              repairAction: 'Enter the number of years as a whole number.',
+            ),
+          );
+        }
+      } else if (parentNativeStatus == 'No') {
+        if (_isBlank(data.parentPreviousTownMunicipality)) {
+          issues.add(
+            const ApplicationSubmissionIssue(
+              code: 'family.origin_town.required',
+              section: ApplicationSubmissionSection.family,
+              field: 'parentPreviousTownMunicipality',
+              message:
+                  'Town or municipality is required when parents are not native of Marilao.',
+              repairAction:
+                  'Enter the town or municipality the parent or parents came from.',
+            ),
+          );
+        }
+
+        if (_isBlank(data.parentPreviousProvince)) {
+          issues.add(
+            const ApplicationSubmissionIssue(
+              code: 'family.origin_province.required',
+              section: ApplicationSubmissionSection.family,
+              field: 'parentPreviousProvince',
+              message:
+                  'Province is required when parents are not native of Marilao.',
+              repairAction:
+                  'Select the province the parent or parents came from.',
+            ),
+          );
+        }
       }
     }
 

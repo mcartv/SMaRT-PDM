@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,29 +20,23 @@ import {
 } from '@/components/ui/table';
 import {
   AlertCircle,
-  Award,
+  ArrowRight,
   Building2,
+  CircleDollarSign,
   ClipboardCheck,
-  ClipboardList,
   Clock3,
   FileCheck2,
-  GraduationCap,
-  ListOrdered,
+  LayoutDashboard,
+  Megaphone,
   RefreshCw,
-  Users,
-  Wallet,
+  UsersRound,
 } from 'lucide-react';
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from 'recharts';
 import { buildApiUrl } from '@/api';
 
@@ -75,12 +70,6 @@ const TOOLTIP_STYLE = {
   },
 };
 
-const AXIS_PROPS = {
-  tick: { fontSize: 12, fill: C.muted },
-  axisLine: false,
-  tickLine: false,
-};
-
 const CHART_COLORS = [
   C.brownMid,
   C.yellow,
@@ -89,18 +78,6 @@ const CHART_COLORS = [
   C.green,
   C.red,
 ];
-
-const ICON_MAP = {
-  total_applications: ClipboardList,
-  needs_action: ClipboardCheck,
-  ready_for_activation: FileCheck2,
-  waitlisted: ListOrdered,
-  active_scholars: GraduationCap,
-  open_openings: Award,
-  active_payouts: Wallet,
-  benefactors: Building2,
-  default: Users,
-};
 
 function formatNumber(value) {
   const number = Number(value || 0);
@@ -117,6 +94,20 @@ function formatDate(value) {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+  });
+}
+
+function formatDateTime(value) {
+  if (!value) return 'Just now';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Just now';
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
 
@@ -161,46 +152,8 @@ function EmptyChart({ label }) {
   return (
     <div className="flex h-full min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-200 bg-stone-50/70 px-4 text-center">
       <AlertCircle className="mb-2 h-5 w-5 text-stone-300" />
-      <p className="text-xs font-medium text-stone-500">{label}</p>
+      <p className="text-sm font-medium text-stone-500">{label}</p>
     </div>
-  );
-}
-
-function StatCard({ item }) {
-  const Icon = ICON_MAP[item.key] || ICON_MAP.default;
-
-  return (
-    <Card
-      className="min-w-0 rounded-xl shadow-none"
-      style={{ borderColor: C.border, background: C.surface }}
-    >
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between gap-2.5">
-          <div className="min-w-0">
-            <p className="text-xs font-medium leading-4 text-stone-500">
-              {item.label}
-            </p>
-            <p className="mt-1 text-xl font-semibold leading-none text-stone-900">
-              {formatNumber(item.value)}
-            </p>
-          </div>
-
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: item.soft || C.amberSoft }}
-          >
-            <Icon
-              className="h-4 w-4"
-              style={{ color: item.accent || C.brown }}
-            />
-          </div>
-        </div>
-
-        <p className="mt-2 text-xs leading-4 text-stone-400">
-          {item.sub || 'Current system data'}
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -212,11 +165,11 @@ function ActionRow({ item, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(item.path)}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3.5 py-3 text-left transition hover:border-stone-300 hover:bg-stone-50"
+      className="flex w-full items-center justify-between gap-3 rounded-[18px] border border-stone-200 bg-white p-4 text-left transition hover:border-stone-300 hover:bg-stone-50"
     >
       <div className="min-w-0">
         <p className="text-sm font-semibold text-stone-800">{item.label}</p>
-        <p className="mt-0.5 text-xs leading-4 text-stone-500">{item.sub}</p>
+        <p className="mt-1 text-sm leading-5 text-stone-500">{item.sub}</p>
       </div>
 
       <span
@@ -234,6 +187,7 @@ function ActionRow({ item, onOpen }) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { theme } = usePortalTheme('admin');
 
   const [dashboard, setDashboard] = useState({
     summaryCards: [],
@@ -455,6 +409,70 @@ export default function AdminDashboard() {
     ];
   }, [dashboard.actionSummary]);
 
+
+  const summaryByKey = useMemo(() => {
+    return summaryCards.reduce((accumulator, item) => {
+      accumulator[item.key] = item;
+      return accumulator;
+    }, {});
+  }, [summaryCards]);
+
+  const adminSnapshotCards = useMemo(() => ([
+    {
+      ...(summaryByKey.ready_for_activation || {
+        key: 'ready_for_activation',
+        label: 'Ready for Activation',
+        value: 0,
+        sub: 'Reserved or promoted applicants ready for scholar activation',
+      }),
+      icon: FileCheck2,
+      path: '/admin/applications',
+    },
+    {
+      ...(summaryByKey.waitlisted || {
+        key: 'waitlisted',
+        label: 'Waiting List',
+        value: 0,
+        sub: 'Qualified applicants currently waiting for scholarship capacity',
+      }),
+      icon: Clock3,
+      path: '/admin/applications',
+    },
+    {
+      ...(summaryByKey.open_openings || {
+        key: 'open_openings',
+        label: 'Open Openings',
+        value: 0,
+        sub: 'Scholarship openings currently accepting applicants',
+      }),
+      icon: Megaphone,
+      path: '/admin/openings',
+    },
+    {
+      ...(summaryByKey.benefactors || {
+        key: 'benefactors',
+        label: 'Benefactors',
+        value: 0,
+        sub: 'Active scholarship benefactors represented in the system',
+      }),
+      icon: Building2,
+      path: '/admin/maintenance',
+    },
+  ]), [summaryByKey]);
+
+  const pipelineData = useMemo(
+    () => dashboard.applicationPipeline.map((item) => ({
+      ...item,
+      value: Number(item.value || 0),
+    })),
+    [dashboard.applicationPipeline]
+  );
+
+  const pipelineTotal = useMemo(
+    () => pipelineData.reduce((total, item) => total + item.value, 0),
+    [pipelineData]
+  );
+
   if (loading) {
     return (
       <PageLoadingSkeleton
@@ -477,10 +495,9 @@ export default function AdminDashboard() {
           <Button
             onClick={() => loadDashboard({ audit: true })}
             variant="outline"
-            size="sm"
-            className="mt-4 border-red-200 text-xs text-red-600"
+            className="mt-4 border-red-200 text-red-600"
           >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            <RefreshCw className="mr-2 h-4 w-4" />
             Retry
           </Button>
         </div>
@@ -489,33 +506,127 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-3 py-1" style={{ background: C.bg }}>
-      <section>
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 2xl:grid-cols-8">
-          {summaryCards.map((item) => (
-            <StatCard key={item.key || item.label} item={item} />
-          ))}
+    <div className="space-y-5 py-2" style={{ background: C.bg }}>
+      <section
+        className="overflow-hidden rounded-[28px] text-white shadow-sm"
+        style={{ background: `linear-gradient(135deg, ${theme.base} 0%, ${theme.active} 55%, ${theme.accent} 100%)` }}
+      >
+        <div className="flex flex-col gap-6 px-6 py-6 xl:flex-row xl:items-end xl:justify-between lg:px-7">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              OSFA Administrator
+            </div>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight">Administrator Dashboard</h1>
+            <p className="mt-2 text-sm text-white/80">
+              Monitor scholarship operations, pending work, scholars, payouts, and openings from one administrative workspace.
+            </p>
+            <p className="mt-3 text-xs text-white/60">Updated {formatDateTime(dashboard.generatedAt)}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[520px]">
+            {[
+              ['Applications', summaryByKey.total_applications?.value || 0],
+              ['Needs Review', summaryByKey.needs_action?.value || 0],
+              ['Active Scholars', summaryByKey.active_scholars?.value || 0],
+              ['Active Payouts', summaryByKey.active_payouts?.value || 0],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="flex min-h-[92px] min-w-0 flex-col justify-between rounded-2xl border border-white/15 bg-white/10 px-4 py-3.5 backdrop-blur-sm"
+              >
+                <p className="min-h-[28px] text-[10px] font-medium uppercase leading-[1.4] tracking-[0.18em] text-white/70">
+                  {label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold leading-none tabular-nums">
+                  {formatNumber(value)}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.45fr)]">
+      <section>
+        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-stone-900">Scholarship operations</p>
+            <p className="mt-1 text-sm text-stone-500">Capacity and activation indicators that complement the headline dashboard counts.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              className="h-9 border-none px-3 text-xs font-medium text-white shadow-sm"
+              style={{ background: theme.base }}
+              onClick={() => navigate('/admin/applications')}
+            >
+              Open Applications
+              <ArrowRight className="ml-2 h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 bg-white px-3 text-xs font-medium"
+              style={{ borderColor: theme.border, color: theme.base }}
+              onClick={() => loadDashboard({ audit: true })}
+            >
+              <RefreshCw className="mr-2 h-3.5 w-3.5" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {adminSnapshotCards.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className="group min-h-[118px] rounded-[20px] border bg-white p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                style={{ borderColor: C.border }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+                      style={{ background: theme.accentSoft, color: theme.base }}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <p className="text-2xl font-semibold leading-none tracking-tight text-stone-900 tabular-nums">
+                      {formatNumber(item.value)}
+                    </p>
+                  </div>
+                  <ArrowRight className="mt-0.5 h-4 w-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-stone-500" />
+                </div>
+
+                <p className="mt-2.5 truncate text-sm font-semibold leading-5 text-stone-800">{item.label}</p>
+                <p className="mt-1 line-clamp-1 text-xs leading-5 text-stone-500">{item.sub}</p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="grid gap-5 2xl:grid-cols-[0.92fr_1.08fr]">
         <Card
-          className="shadow-none"
+          className="rounded-[24px] shadow-none"
           style={{ borderColor: C.border, background: C.surface }}
         >
-          <CardHeader className="border-b border-stone-100 px-4 py-3">
+          <CardHeader className="border-b border-stone-100">
             <div className="flex items-center gap-2">
               <Clock3 className="h-4 w-4 text-stone-500" />
-              <CardTitle className="text-sm font-semibold">
+              <CardTitle className="text-base font-semibold">
                 Action Center
               </CardTitle>
             </div>
-            <p className="text-xs text-stone-500">
+            <p className="text-sm text-stone-500">
               Work items that may require administrator attention.
             </p>
           </CardHeader>
 
-          <CardContent className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-1">
+          <CardContent className="grid gap-3 p-5 sm:grid-cols-2 2xl:grid-cols-1">
             {actionSummary.map((item) => (
               <ActionRow
                 key={item.key}
@@ -526,153 +637,169 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card
-          className="min-w-0 shadow-none"
-          style={{ borderColor: C.border, background: C.surface }}
-        >
-          <CardHeader className="border-b border-stone-100 px-4 py-3">
-            <CardTitle className="text-sm font-semibold">
-              Application Lifecycle
-            </CardTitle>
-            <p className="text-xs text-stone-500">
-              Current active applications grouped by their actual workflow stage.
-            </p>
-          </CardHeader>
+        <div className="grid gap-5">
+          <Card
+            className="min-w-0 rounded-[24px] shadow-none"
+            style={{ borderColor: C.border, background: C.surface }}
+          >
+            <CardHeader className="border-b border-stone-100">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold">
+                    Application Flow
+                  </CardTitle>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Distribution of active applications across the current scholarship processing stages.
+                  </p>
+                </div>
+                <div className="shrink-0 rounded-xl bg-stone-50 px-3 py-2 text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">Tracked</p>
+                  <p className="text-lg font-semibold text-stone-900">{formatNumber(pipelineTotal)}</p>
+                </div>
+              </div>
+            </CardHeader>
 
-          <CardContent className="h-[280px] min-h-0 min-w-0 px-3 pb-3 pt-3">
-            {dashboard.applicationPipeline.length ? (
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-                minWidth={0}
-                minHeight={1}
-              >
-                <BarChart
-                  data={dashboard.applicationPipeline}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    horizontal={false}
-                    stroke={C.border}
-                  />
-                  <XAxis
-                    type="number"
-                    {...AXIS_PROPS}
-                    allowDecimals={false}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={126}
-                    {...AXIS_PROPS}
-                  />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar
-                    dataKey="value"
-                    fill={C.brownMid}
-                    radius={[0, 8, 8, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChart label="No active application data available." />
-            )}
-          </CardContent>
-        </Card>
+            <CardContent className="p-5">
+              {pipelineData.length && pipelineTotal > 0 ? (
+                <div className="space-y-5">
+                  <div className="flex h-3 overflow-hidden rounded-full bg-stone-100" aria-label="Application stage distribution">
+                    {pipelineData.map((item, index) => {
+                      if (item.value <= 0) return null;
+                      return (
+                        <div
+                          key={`${item.name}-${index}`}
+                          title={`${item.name}: ${formatNumber(item.value)}`}
+                          style={{
+                            width: `${Math.max((item.value / pipelineTotal) * 100, 1.5)}%`,
+                            background: CHART_COLORS[index % CHART_COLORS.length],
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {pipelineData.map((item, index) => (
+                      <div
+                        key={`${item.name}-${index}`}
+                        className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/50 px-3 py-2.5"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
+                          />
+                          <span className="min-w-0 text-sm leading-5 text-stone-600">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold text-stone-900">
+                          {formatNumber(item.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="min-h-[190px]">
+                  <EmptyChart label="No active application flow is available yet." />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card
+            className="min-w-0 rounded-[24px] shadow-none"
+            style={{ borderColor: C.border, background: C.surface }}
+          >
+            <CardHeader className="border-b border-stone-100">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-stone-500" />
+                <CardTitle className="text-base font-semibold">
+                  Active Scholars by Benefactor
+                </CardTitle>
+              </div>
+              <p className="text-sm text-stone-500">
+                Distribution of currently active scholars across benefactors.
+              </p>
+            </CardHeader>
+
+            <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(220px,1fr)]">
+              {dashboard.scholarsByBenefactor.length ? (
+                <>
+                  <div className="h-[220px] min-w-0">
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={0}
+                      minHeight={1}
+                    >
+                      <PieChart>
+                        <Pie
+                          data={dashboard.scholarsByBenefactor}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={54}
+                          outerRadius={88}
+                          paddingAngle={2}
+                        >
+                          {dashboard.scholarsByBenefactor.map((entry, index) => (
+                            <Cell
+                              key={`${entry.name}-${index}`}
+                              fill={CHART_COLORS[index % CHART_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip {...TOOLTIP_STYLE} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="grid content-center gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                    {dashboard.scholarsByBenefactor.map((item, index) => (
+                      <div
+                        key={`${item.name}-${index}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-stone-100 px-3 py-2.5"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{
+                              background:
+                                CHART_COLORS[index % CHART_COLORS.length],
+                            }}
+                          />
+                          <span className="truncate text-sm text-stone-600">
+                            {item.name}
+                          </span>
+                        </div>
+
+                        <span className="text-sm font-semibold text-stone-800">
+                          {formatNumber(item.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="lg:col-span-2">
+                  <EmptyChart label="No active scholar distribution is available yet." />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card
-        className="min-w-0 shadow-none"
+        className="min-w-0 rounded-[24px] shadow-none"
         style={{ borderColor: C.border, background: C.surface }}
       >
-        <CardHeader className="border-b border-stone-100 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-stone-500" />
-            <CardTitle className="text-sm font-semibold">
-              Active Scholars by Benefactor
-            </CardTitle>
-          </div>
-          <p className="text-xs text-stone-500">
-            Distribution of currently active scholars across benefactors.
-          </p>
-        </CardHeader>
-
-        <CardContent className="grid min-h-[230px] min-w-0 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(210px,0.65fr)]">
-          {dashboard.scholarsByBenefactor.length ? (
-            <>
-              <div className="h-[220px] min-w-0">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={1}
-                >
-                  <PieChart>
-                    <Pie
-                      data={dashboard.scholarsByBenefactor}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={58}
-                      outerRadius={92}
-                      paddingAngle={2}
-                    >
-                      {dashboard.scholarsByBenefactor.map((entry, index) => (
-                        <Cell
-                          key={`${entry.name}-${index}`}
-                          fill={CHART_COLORS[index % CHART_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip {...TOOLTIP_STYLE} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="grid content-center gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                {dashboard.scholarsByBenefactor.map((item, index) => (
-                  <div
-                    key={`${item.name}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-stone-100 px-3 py-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{
-                          background:
-                            CHART_COLORS[index % CHART_COLORS.length],
-                        }}
-                      />
-                      <span className="truncate text-xs text-stone-600">
-                        {item.name}
-                      </span>
-                    </div>
-
-                    <span className="text-xs font-semibold text-stone-800">
-                      {formatNumber(item.value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="lg:col-span-2">
-              <EmptyChart label="No active scholar distribution is available yet." />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card
-        className="min-w-0 shadow-none"
-        style={{ borderColor: C.border, background: C.surface }}
-      >
-        <CardHeader className="border-b border-stone-100 px-4 py-3">
-          <CardTitle className="text-sm font-semibold">
+        <CardHeader className="border-b border-stone-100">
+          <CardTitle className="text-base font-semibold">
             Recent Applicants
           </CardTitle>
-          <p className="text-xs text-stone-500">
+          <p className="text-sm text-stone-500">
             Latest active application records across scholarship openings.
           </p>
         </CardHeader>

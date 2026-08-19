@@ -230,7 +230,7 @@ export const authService = {
         broadcastPortalSessionCleared(active.portalName);
       }
       clearAuthStorage();
-      window.location.href = active?.loginPath || '/admin/login';
+      window.location.href = '/login';
     }
   },
 };

@@ -243,7 +243,7 @@ export default function PayoutProofReviewPanel() {
                         View File
                       </Button>
                       <Button
-                        className="flex-1 rounded-xl bg-[#7c4a2e] text-white hover:bg-[#693e27]"
+                        className="flex-1 rounded-xl bg-[var(--portal-base)] text-white hover:brightness-95"
                         onClick={() => {
                           setSelected(item);
                           setComment(item.admin_comment || '');

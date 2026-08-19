@@ -5,12 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   SlidersHorizontal,
   ClipboardList,
   Globe,
@@ -32,6 +26,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import ThemePanel from '@/pages/maintenance/ThemePanel';
+import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 
 const PORTAL_PROFILE_UPDATED_EVENT = 'portal-profile:updated';
 
@@ -677,22 +672,12 @@ export function DepartmentAccountPanel({
             </div>
           </div>
 
-          <Dialog open={photoPreviewOpen} onOpenChange={setPhotoPreviewOpen}>
-            <DialogContent className="max-w-xl overflow-hidden rounded-3xl border-stone-200 p-0">
-              <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left">
-                <DialogTitle>{displayName}&apos;s profile photo</DialogTitle>
-              </DialogHeader>
-              <div className="flex min-h-72 items-center justify-center bg-stone-950 p-5 sm:min-h-96">
-                {currentProfileImage ? (
-                  <img
-                    src={currentProfileImage}
-                    alt={`${displayName} profile photo preview`}
-                    className="max-h-[65vh] max-w-full rounded-2xl object-contain shadow-2xl"
-                  />
-                ) : null}
-              </div>
-            </DialogContent>
-          </Dialog>
+          <ProfilePhotoPreviewDialog
+            open={photoPreviewOpen && Boolean(currentProfileImage)}
+            onOpenChange={setPhotoPreviewOpen}
+            src={currentProfileImage || ''}
+            name={displayName || 'Profile photo'}
+          />
 
           {accountFeedback ? (
             <div className={`rounded-xl border px-4 py-3 text-sm ${

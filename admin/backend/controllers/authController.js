@@ -150,7 +150,7 @@ async function findAuthorizedAdminForReset(email) {
     return user;
 }
 
-async function loginWithRole(req, res, role) {
+async function loginUnified(req, res) {
     const {
         email,
         password,
@@ -193,36 +193,28 @@ async function loginWithRole(req, res, role) {
         }
 
         const resolvedRole = resolveStaffRole(user);
+        const tokenRole = resolvedRole;
+        const allowedAccessRoles = new Set([
+            'admin',
+            'sdo',
+            'guidance',
+            'pd',
+            'ro_coordinator',
+        ]);
 
-        if (role === 'admin' && resolvedRole !== 'admin') {
+        if (!tokenRole || !allowedAccessRoles.has(tokenRole)) {
             return res.status(403).json({
-                code: 'WRONG_PORTAL',
-                message: 'This account is not authorized for the Admin portal.',
+                code: 'USER_ACCESS_NOT_CONFIGURED',
+                message: 'This user account does not have configured SMaRT-PDM access.',
             });
         }
 
-        const departmentPortalLabels = {
+        const accessLabels = {
             pd: 'PD',
             guidance: 'Guidance',
             sdo: 'SDO',
             ro_coordinator: 'RO Coordinator',
         };
-
-        if (departmentPortalLabels[role] && resolvedRole !== role) {
-            return res.status(403).json({
-                code: 'WRONG_PORTAL',
-                message: `This account is not authorized for the ${departmentPortalLabels[role]} portal`,
-            });
-        }
-
-        const tokenRole = role;
-
-        if (!tokenRole) {
-            return res.status(403).json({
-                code: 'WRONG_PORTAL',
-                message: 'This account is not authorized for this portal',
-            });
-        }
 
         const displayName =
             [user.first_name, user.last_name].filter(Boolean).join(' ') ||
@@ -249,7 +241,7 @@ async function loginWithRole(req, res, role) {
             token = buildToken(user, tokenRole);
         }
 
-        const portalTitle = departmentPortalLabels[role];
+        const accessTitle = accessLabels[tokenRole];
         const avatarUrl = await resolveAvatarUrl(user.profile_photo_url || null);
 
         if (tokenRole === 'admin') {
@@ -264,8 +256,8 @@ async function loginWithRole(req, res, role) {
         return res.status(200).json({
             token,
             session: managedSession,
-            message: portalTitle
-                ? `Welcome to the ${portalTitle} panel`
+            message: accessTitle
+                ? `Welcome to ${accessTitle}`
                 : 'Welcome back',
             user: {
                 user_id: user.user_id,
@@ -277,7 +269,7 @@ async function loginWithRole(req, res, role) {
                 phone_number: user.phone_number || '',
                 position:
                     user.position ||
-                    (tokenRole === 'sdo' ? 'SDO Officer' : 'Staff'),
+                    (tokenRole === 'sdo' ? 'SDO Officer' : 'User'),
                 department:
                     user.department ||
                     (tokenRole === 'sdo'
@@ -289,7 +281,7 @@ async function loginWithRole(req, res, role) {
             },
         });
     } catch (err) {
-        console.error(`${role.toUpperCase()} LOGIN ERROR:`, err);
+        console.error('UNIFIED LOGIN ERROR:', err);
 
         if (err instanceof adminSessionService.AdminSessionError) {
             return res.status(err.statusCode).json({
@@ -305,11 +297,7 @@ async function loginWithRole(req, res, role) {
     }
 }
 
-exports.adminLogin = async (req, res) => loginWithRole(req, res, 'admin');
-exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
-exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
-exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');
-exports.roCoordinatorLogin = async (req, res) => loginWithRole(req, res, 'ro_coordinator');
+exports.staffLogin = loginUnified;
 
 exports.getStaffSessionStatus = async (req, res) => {
     return res.status(200).json({

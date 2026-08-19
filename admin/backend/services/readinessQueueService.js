@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+﻿const pool = require('../config/db');
 
 function safeUuid(value) {
   const text = String(value || '').trim();
@@ -14,10 +14,13 @@ function safeUuid(value) {
  *    - applications.verification_status = verified
  *    - endorsement_slips.overall_status = completed
  * 2. fcfs_completed_at is the later of those two completion timestamps.
- * 3. queue_position is permanent once assigned. We never renumber historical FCFS numbers.
+ * 3. queue_position is the current operational FCFS position among active eligible
+ *    applicants only. It is compacted to 1..N whenever the opening queue is synchronized.
+ *    Archived/tombstoned, approved/activated, rejected, and disqualified applications
+ *    do not occupy an operational queue number.
  * 4. Reserved vs Waiting List is recalculated from the opening capacity and currently
  *    activated scholars. Activating a scholar consumes a slot; it does NOT free one.
- * 5. waitlist_position is dynamic and may change when a genuine slot is released.
+ * 5. waitlist_position is dynamic and may change when the active queue changes.
  */
 async function syncOpeningFcfsQueue(openingId) {
   const normalizedOpeningId = safeUuid(openingId);
@@ -81,34 +84,29 @@ async function syncOpeningFcfsQueue(openingId) {
 
     const eligible = eligibleResult.rows;
 
-    // Preserve all existing FCFS numbers. New applicants receive numbers after the
-    // highest number ever assigned in this opening.
-    const maxPositionResult = await client.query(
-      `
-        SELECT COALESCE(MAX(queue_position), 0)::int AS max_position
-        FROM applications
-        WHERE opening_id = $1::uuid
-      `,
-      [normalizedOpeningId]
-    );
-
-    let nextPosition = Number(maxPositionResult.rows[0]?.max_position || 0) + 1;
-
-    for (const row of eligible) {
-      const existingPosition = Number(row.queue_position);
-      const queuePosition = Number.isFinite(existingPosition) && existingPosition > 0
-        ? existingPosition
-        : nextPosition++;
+    // queue_position represents the CURRENT active operational queue.
+    // The eligible query above already removes archived/tombstoned,
+    // activated/approved, rejected, and disqualified applications.
+    // Re-number the remaining queue contiguously while preserving FCFS order
+    // through the immutable fcfs_completed_at/ready_at ordering.
+    for (let index = 0; index < eligible.length; index += 1) {
+      const row = eligible[index];
+      const queuePosition = index + 1;
 
       await client.query(
         `
           UPDATE applications
           SET
             fcfs_completed_at = COALESCE(fcfs_completed_at, $2::timestamptz),
-            queue_position = COALESCE(queue_position, $3::integer),
+            queue_position = $3::integer,
             requirements_verified_at = COALESCE(requirements_verified_at, $2::timestamptz),
             updated_at = now()
           WHERE application_id = $1::uuid
+            AND (
+              queue_position IS DISTINCT FROM $3::integer
+              OR fcfs_completed_at IS NULL
+              OR requirements_verified_at IS NULL
+            )
         `,
         [row.application_id, row.ready_at, queuePosition]
       );
@@ -187,6 +185,18 @@ async function syncOpeningFcfsQueue(openingId) {
                 END,
                 updated_at = now()
             WHERE application_id = $1::uuid
+              AND (
+                selection_status IS DISTINCT FROM $2::varchar(30)
+                OR waitlist_position IS NOT NULL
+                OR selected_at IS NULL
+                OR (
+                  CASE
+                    WHEN LOWER(COALESCE(activation_status, '')) = 'activated'
+                      THEN activation_status
+                    ELSE 'Not Activated'
+                  END
+                ) IS DISTINCT FROM activation_status
+              )
         `,
           [
             row.application_id,
@@ -209,6 +219,18 @@ async function syncOpeningFcfsQueue(openingId) {
             END,
             updated_at = now()
         WHERE application_id = $1::uuid
+          AND (
+            selection_status IS DISTINCT FROM 'Waitlisted'
+            OR waitlist_position IS DISTINCT FROM $2::integer
+            OR waitlisted_at IS NULL
+            OR (
+              CASE
+                WHEN LOWER(COALESCE(activation_status, '')) = 'activated'
+                  THEN activation_status
+                ELSE 'Not Activated'
+              END
+            ) IS DISTINCT FROM activation_status
+          )
     `,
           [
             row.application_id,

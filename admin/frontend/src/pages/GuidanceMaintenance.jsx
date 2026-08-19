@@ -9,7 +9,7 @@ export const guidanceMaintenanceConfig = {
     email: 'guidance@pdm.edu.ph',
     phone_number: '',
     position: 'Guidance Counselor',
-    department: 'Guidance Office',
+    department: 'Guidance and Counselling Office',
     role: 'Guidance Officer',
   },
 };
@@ -21,7 +21,7 @@ export default function GuidanceMaintenance() {
       tokenStorageKey="guidanceToken"
       profilePath="/guidance/profile"
       themeTitle="Theme"
-      themeSubtitle="Choose the appearance used for the Guidance Office workspace."
+      themeSubtitle="Choose the appearance used for the Guidance and Counselling Office workspace."
     />
   );
 }

@@ -482,7 +482,7 @@ export default function ROCoordinatorQueue({
       <div className="flex flex-col gap-4 rounded-[24px] border border-stone-200 bg-white p-5 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>My RO Area</p>
-          <h1 className="mt-1 text-2xl font-semibold text-stone-900">RO Management</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-stone-900">RO Request</h1>
           <p className="mt-1 text-sm text-stone-500">{department || 'Your assigned area'} · Manage placement approvals, attendance validation, and scholar requests.</p>
         </div>
         <Button

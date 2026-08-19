@@ -1,15 +1,6 @@
-import DepartmentPortalLogin from './DepartmentPortalLogin';
+import { Navigate } from 'react-router-dom';
 
+// Deprecated compatibility component. All user access now goes through /login.
 export default function PDLogin() {
-  return (
-    <DepartmentPortalLogin
-      portalKey="pd"
-      portalLabel="PD"
-      officeName="Program Director"
-      authPath="/api/auth/pd/login"
-      tokenStorageKey="pdToken"
-      profileStorageKey="pdProfile"
-      redirectPath="/pd/dashboard"
-    />
-  );
+  return <Navigate to="/login" replace />;
 }

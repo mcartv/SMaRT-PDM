@@ -33,6 +33,11 @@ class NotificationProvider extends ChangeNotifier {
   bool _hasScholarAccess = false;
   bool _isRealtimeRefreshing = false;
   bool _hasQueuedRealtimeRefresh = false;
+  Timer? _realtimeRefreshDebounce;
+  Completer<void>? _realtimeRefreshCompleter;
+  static const Duration _realtimeRefreshCoalesceWindow = Duration(
+    milliseconds: 250,
+  );
   bool _isRoRealtimeNotification(MobileRealtimeEvent event) {
     final payload = event.payload;
 
@@ -116,8 +121,9 @@ class NotificationProvider extends ChangeNotifier {
     }
 
     if (_isInitialized && _initializedUserId == session.userId) {
+      // Realtime already keeps this user's notification state current.
+      // Re-entering the provider must not create another unread-count request.
       _ensureRealtimeListener();
-      await refreshUnreadCount();
       return;
     }
 
@@ -286,7 +292,6 @@ class NotificationProvider extends ChangeNotifier {
           return;
         }
 
-        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationUpdated:
@@ -300,13 +305,11 @@ class NotificationProvider extends ChangeNotifier {
           return;
         }
 
-        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationDeleted:
       case MobileRealtimeEvents.notificationArchived:
         _removeNotificationFromEvent(event);
-        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationRestored:
@@ -315,7 +318,6 @@ class NotificationProvider extends ChangeNotifier {
 
       case MobileRealtimeEvents.notificationRead:
         await _updateNotificationFromEvent(event);
-        await refreshUnreadCount();
         return;
 
       case MobileRealtimeEvents.notificationReadAll:
@@ -444,42 +446,57 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _refreshOfficeUpdatesFromRealtime() async {
+  Future<void> _refreshOfficeUpdatesFromRealtime() {
     if (_isRealtimeRefreshing) {
       _hasQueuedRealtimeRefresh = true;
-      return;
+      return Future<void>.value();
     }
 
-    _isRealtimeRefreshing = true;
+    _realtimeRefreshDebounce?.cancel();
 
-    try {
-      debugPrint(
-        '[NotificationProvider] refreshing notifications from realtime',
-      );
+    final completer = _realtimeRefreshCompleter ??= Completer<void>();
 
-      final result = await _notificationService.fetchNotifications();
-      _notifications = result.items;
+    _realtimeRefreshDebounce = Timer(_realtimeRefreshCoalesceWindow, () async {
+      _realtimeRefreshDebounce = null;
+      _isRealtimeRefreshing = true;
 
-      await _refreshLatestOpeningUpdate();
+      try {
+        debugPrint(
+          '[NotificationProvider] refreshing notifications from realtime',
+        );
 
-      if (_notifications.any(_isScholarApprovalNotification)) {
-        await _applyScholarAccess(true);
+        final result = await _notificationService.fetchNotifications();
+        _notifications = result.items;
+
+        await _refreshLatestOpeningUpdate();
+
+        if (_notifications.any(_isScholarApprovalNotification)) {
+          await _applyScholarAccess(true);
+        }
+
+        _recalculateUnreadCount();
+        _errorMessage = null;
+
+        notifyListeners();
+      } catch (error) {
+        debugPrint('NOTIFICATION REALTIME REFRESH ERROR: $error');
+      } finally {
+        _isRealtimeRefreshing = false;
+
+        final pendingCompleter = _realtimeRefreshCompleter;
+        _realtimeRefreshCompleter = null;
+        if (pendingCompleter != null && !pendingCompleter.isCompleted) {
+          pendingCompleter.complete();
+        }
       }
 
-      await _refreshUnreadCountFromServerOrLocal();
-      _errorMessage = null;
+      if (_hasQueuedRealtimeRefresh) {
+        _hasQueuedRealtimeRefresh = false;
+        await _refreshOfficeUpdatesFromRealtime();
+      }
+    });
 
-      notifyListeners();
-    } catch (error) {
-      debugPrint('NOTIFICATION REALTIME REFRESH ERROR: $error');
-    } finally {
-      _isRealtimeRefreshing = false;
-    }
-
-    if (_hasQueuedRealtimeRefresh) {
-      _hasQueuedRealtimeRefresh = false;
-      await _refreshOfficeUpdatesFromRealtime();
-    }
+    return completer.future;
   }
 
   Future<void> _refreshUnreadCountFromServerOrLocal() async {
@@ -753,6 +770,14 @@ class NotificationProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _realtimeRefreshDebounce?.cancel();
+    _realtimeRefreshDebounce = null;
+    final realtimeCompleter = _realtimeRefreshCompleter;
+    _realtimeRefreshCompleter = null;
+    if (realtimeCompleter != null && !realtimeCompleter.isCompleted) {
+      realtimeCompleter.complete();
+    }
+
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
     super.dispose();

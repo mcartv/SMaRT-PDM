@@ -107,6 +107,7 @@ function HeaderBranding() {
   );
 }
 
+// Deprecated compatibility component. All user access now goes through /login.
 export default function AdminLogin() {
   const navigate = useNavigate();
 

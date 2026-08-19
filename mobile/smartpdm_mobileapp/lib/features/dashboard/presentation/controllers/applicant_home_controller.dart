@@ -30,7 +30,7 @@ class ApplicantHomeController extends ChangeNotifier {
     required ApplicantHomeStatusLoader loadStatus,
     required ApplicantHomeLatestUpdateLoader loadLatestUpdate,
     ApplicantHomeMapper mapper = const ApplicantHomeMapper(),
-    this.refreshInterval = const Duration(seconds: 8),
+    this.refreshInterval = const Duration(minutes: 2),
   }) : _loadIdentity = loadIdentity,
        _loadOpenings = loadOpenings,
        _loadDocuments = loadDocuments,
@@ -80,7 +80,8 @@ class ApplicantHomeController extends ChangeNotifier {
   bool get isDisposed => _disposed;
   bool get isStarted => _started;
 
-  /// Starts the initial load and the optional periodic cadence exactly once.
+  /// Starts the initial load and a slow self-healing fallback exactly once.
+  /// Realtime/provider revision events remain the primary targeted refresh path.
   Future<void> start() {
     if (_disposed) return Future<void>.value();
     if (_started) return _fullRefreshInFlight ?? Future<void>.value();

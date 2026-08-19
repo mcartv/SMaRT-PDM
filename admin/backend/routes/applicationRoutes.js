@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 
@@ -19,6 +19,7 @@ router.get('/iot-ocr/availability', ...adminOnly, applicationController.getIotOc
 router.get('/iot-ocr/review-queue', ...adminOnly, applicationController.listIotOcrReviewQueue);
 router.get('/:id', ...adminOnly, applicationController.getApplicationDetails);
 router.get('/:id/documents', ...adminOnly, applicationController.getApplicationDocuments);
+router.get('/:id/documents/:documentKey/view-url', ...adminOnly, applicationController.getApplicationDocumentViewUrl);
 router.post('/:id/documents/upload', ...adminOnly, upload.single('file'), applicationController.uploadStudentDocument);
 router.post('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationController.runApplicationDocumentIotOcr);
 router.get('/:id/documents/:documentKey/iot-ocr', ...adminOnly, applicationController.getApplicationDocumentIotOcr);

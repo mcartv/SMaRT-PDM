@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -306,12 +306,13 @@ export default function AdminProfile() {
                     <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-amber-900/5" />
                     <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                            <Avatar className="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28">
-                                <AvatarImage src={adminData.avatarUrl || undefined} alt={fullName} />
-                                <AvatarFallback className="bg-stone-800 text-xl font-bold text-white">
-                                    {initials}
-                                </AvatarFallback>
-                            </Avatar>
+                            <PreviewableProfileAvatar
+                                src={adminData.avatarUrl || ''}
+                                name={`${fullName} profile photo`}
+                                fallback={initials}
+                                avatarClassName="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28"
+                                fallbackClassName="bg-stone-800 text-xl font-bold text-white"
+                            />
 
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">

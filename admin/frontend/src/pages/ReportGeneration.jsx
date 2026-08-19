@@ -374,11 +374,7 @@ export default function ReportGeneration({
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
       setHasPreviewed(true);
-      setFeedback({
-        tone: 'success',
-        title: 'Preview updated',
-        message: `Showing ${Number(data.total || data.rows?.length || 0)} matching record(s) for ${selectedReport?.name || 'this report'}.`,
-      });
+      setFeedback(null);
     } catch (error) {
       console.error('REPORT PREVIEW ERROR:', error);
       setFeedback({
@@ -391,7 +387,6 @@ export default function ReportGeneration({
     }
   }, [
     buildParams,
-    selectedReport?.name,
     tokenStorageKey,
   ]);
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -51,8 +52,8 @@ import {
 import { buildApiUrl } from '@/api';
 
 const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
+  brown: 'var(--portal-base)',
+  brownMid: 'var(--portal-base)',
   amber: '#d97706',
   amberSoft: '#fff7ed',
   green: '#16a34a',
@@ -71,13 +72,13 @@ const C = {
 const PAGE_SIZE = 10;
 
 const REMOVAL_REASONS = [
-  'Failed GWA requirement',
-  'SDU / disciplinary case',
-  'Failed RO compliance',
-  'Voluntary withdrawal',
-  'Transferred out',
+  'Failed GWA Requirement',
+  'SDO/Disciplinary Case',
+  'Failed RO Compliance',
+  'Voluntary Withdrawal',
+  'Transferred Out',
   'Graduated',
-  'Duplicate / invalid record',
+  'Duplicate / Invalid Record',
   'Other',
 ];
 
@@ -369,7 +370,7 @@ function getRenewalDocumentStatusMeta(raw) {
 function StatusPill({ meta, compact = false }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full font-semibold ${compact ? 'px-2.5 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'
+      className={`inline-flex items-center rounded-full font-semibold ${compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
         }`}
       style={{
         color: meta.color,
@@ -390,11 +391,11 @@ function InfoItem({ icon: Icon, label, value, wide = false }) {
     >
       <div className="mb-1.5 flex items-center gap-2 text-stone-400">
         {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-        <span className="text-[10px] font-bold uppercase tracking-wide">
+        <span className="text-xs font-medium uppercase tracking-wide">
           {label}
         </span>
       </div>
-      <p className="break-words text-xs font-semibold leading-5 text-stone-800">
+      <p className="break-words text-sm font-medium leading-5 text-stone-800">
         {value || 'Not available'}
       </p>
     </div>
@@ -405,7 +406,7 @@ function MetricCard({ label, value, helper, meta, icon: Icon }) {
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-3.5">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">
             {label}
           </p>
@@ -651,17 +652,17 @@ function ObligationHistoryPanel({ studentId }) {
             <History className="h-4 w-4" />
           </div>
           <div>
-            <h4 className="text-sm font-black text-stone-800">
+            <h4 className="text-base font-semibold text-stone-800">
               Obligation History
             </h4>
-            <p className="mt-0.5 text-[10px] text-stone-400">
+            <p className="mt-1 text-xs leading-5 text-stone-500">
               Semester-by-semester Return of Obligation record
             </p>
           </div>
         </div>
 
         {!loading && !error ? (
-          <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-stone-500 shadow-sm">
+          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
             {history.length} cycle{history.length === 1 ? '' : 's'}
           </span>
         ) : null}
@@ -669,18 +670,18 @@ function ObligationHistoryPanel({ studentId }) {
 
       <CardContent className="p-4">
         {loading ? (
-          <div className="flex min-h-[120px] items-center justify-center gap-2 text-xs text-stone-400">
+          <div className="flex min-h-[120px] items-center justify-center gap-2 text-sm text-stone-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading obligation history...
           </div>
         ) : error ? (
-          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-700">
+          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         ) : history.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
             <History className="mx-auto mb-2 h-5 w-5 text-stone-300" />
-            <p className="text-xs font-semibold text-stone-500">
+            <p className="text-sm font-medium text-stone-500">
               No obligation cycle has been recorded yet.
             </p>
           </div>
@@ -767,26 +768,26 @@ function ObligationHistoryPanel({ studentId }) {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-xs font-black text-stone-800">
+                        <p className="text-sm font-semibold text-stone-800">
                           {cycle}
                         </p>
 
                         {item.is_current_period === true ||
                           item.isCurrentPeriod === true ? (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-700">
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                             Current
                           </span>
                         ) : null}
                       </div>
 
-                      <p className="mt-1 truncate text-[11px] text-stone-500">
+                      <p className="mt-1 truncate text-xs text-stone-500">
                         {department}
                       </p>
                     </div>
 
                     <div className="shrink-0 text-right">
                       <StatusPill meta={meta} compact />
-                      <p className="mt-1.5 text-[10px] font-bold text-stone-500">
+                      <p className="mt-1.5 text-xs font-medium text-stone-500">
                         {progress}% · {formatMinutes(validatedMinutes)} /{' '}
                         {formatMinutes(requiredMinutes)}
                       </p>
@@ -841,7 +842,7 @@ function ObligationHistoryPanel({ studentId }) {
 
                       {logs.length > 0 ? (
                         <div className="mt-4">
-                          <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-stone-400">
+                          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500">
                             Recent Attendance
                           </p>
 
@@ -861,12 +862,12 @@ function ObligationHistoryPanel({ studentId }) {
                                   className="flex flex-col gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
                                 >
                                   <div>
-                                    <p className="text-[11px] font-semibold text-stone-700">
+                                    <p className="text-sm font-medium text-stone-700">
                                       {formatDateTime(
                                         log.time_in_at || log.timeInAt
                                       )}
                                     </p>
-                                    <p className="mt-0.5 text-[10px] text-stone-400">
+                                    <p className="mt-0.5 text-xs leading-5 text-stone-500">
                                       Time out:{' '}
                                       {formatDateTime(
                                         log.time_out_at || log.timeOutAt,
@@ -876,7 +877,7 @@ function ObligationHistoryPanel({ studentId }) {
                                   </div>
 
                                   <div className="text-left sm:text-right">
-                                    <p className="text-[10px] font-bold text-stone-600">
+                                    <p className="text-xs font-medium text-stone-600">
                                       {formatMinutes(
                                         log.validated_minutes ??
                                         log.validatedMinutes ??
@@ -884,7 +885,7 @@ function ObligationHistoryPanel({ studentId }) {
                                       )}{' '}
                                       validated
                                     </p>
-                                    <p className="mt-0.5 text-[9px] text-stone-400">
+                                    <p className="mt-0.5 text-xs text-stone-500">
                                       {logStatus}
                                       {log.auto_timed_out === true ||
                                         log.autoTimedOut === true
@@ -913,10 +914,10 @@ function ObligationHistoryPanel({ studentId }) {
 function HistoryMetric({ label, value }) {
   return (
     <div className="rounded-lg border border-stone-200 bg-white px-3 py-2.5">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-stone-400">
+      <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
         {label}
       </p>
-      <p className="mt-1 text-xs font-black text-stone-800">{value}</p>
+      <p className="mt-1 text-sm font-medium text-stone-800">{value}</p>
     </div>
   );
 }
@@ -926,6 +927,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
   const scholarshipMeta = getScholarshipStatusMeta(s.status);
   const sdoMeta = getSdoStatusMeta(s);
   const SdoIcon = sdoMeta.icon;
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
 
   const gwaNumber = Number(s.gwa);
   const hasGwa =
@@ -980,10 +982,10 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-100 bg-white px-5 py-4">
           <div>
-            <h3 className="text-base font-black text-stone-800">
+            <h3 className="text-lg font-semibold text-stone-800">
               Scholar Profile
             </h3>
-            <p className="mt-0.5 text-[11px] text-stone-500">
+            <p className="mt-1 text-sm text-stone-500">
               Scholar information, current standing, and obligation history
             </p>
           </div>
@@ -1009,22 +1011,30 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
             <section className="min-h-0 overflow-y-auto border-b border-stone-100 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r">
               <div className="space-y-4">
                 <div className="flex items-start gap-4">
-                  <Avatar
-                    className="h-16 w-16 shrink-0 rounded-2xl border border-stone-200"
-                    style={{ background: C.amberSoft, color: C.brown }}
+                  <button
+                    type="button"
+                    onClick={() => s.avatar_url && setAvatarPreviewOpen(true)}
+                    disabled={!s.avatar_url}
+                    className="shrink-0 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--portal-base)] focus:ring-offset-2 disabled:cursor-default"
+                    aria-label={s.avatar_url ? `Enlarge ${s.student_name || 'scholar'} profile photo` : 'No profile photo available'}
                   >
-                    <AvatarImage
-                      src={s.avatar_url || undefined}
-                      alt={s.student_name || 'Scholar'}
-                      className="rounded-2xl"
-                    />
-                    <AvatarFallback className="rounded-2xl bg-transparent text-base font-black">
-                      {getInitials(s.student_name)}
-                    </AvatarFallback>
-                  </Avatar>
+                    <Avatar
+                      className={`h-16 w-16 rounded-2xl border border-stone-200 ${s.avatar_url ? 'cursor-zoom-in' : ''}`}
+                      style={{ background: C.amberSoft, color: C.brown }}
+                    >
+                      <AvatarImage
+                        src={s.avatar_url || undefined}
+                        alt={s.student_name || 'Scholar'}
+                        className="rounded-2xl"
+                      />
+                      <AvatarFallback className="rounded-2xl bg-transparent text-base font-medium">
+                        {getInitials(s.student_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
 
                   <div className="min-w-0 flex-1">
-                    <h4 className="truncate text-lg font-black text-stone-900">
+                    <h4 className="truncate text-xl font-semibold text-stone-900">
                       {s.student_name || 'Unknown Scholar'}
                     </h4>
 
@@ -1032,11 +1042,11 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                       {s.student_number || 'N/A'}
                     </p>
 
-                    <p className="mt-2 text-xs font-semibold text-stone-600">
+                    <p className="mt-2 text-sm font-medium text-stone-700">
                       {s.program_name || 'No scholarship program'}
                     </p>
 
-                    <p className="mt-1 text-[11px] text-stone-400">
+                    <p className="mt-1 text-xs text-stone-500">
                       {currentPeriod || 'No active academic period'}
                     </p>
                   </div>
@@ -1047,18 +1057,18 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 
                   <StatusPill meta={standingMeta} compact />
 
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-bold text-stone-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-medium text-stone-600">
                     <CalendarDays className="h-3 w-3" />
                     {semesterShort}
                   </span>
 
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-bold text-stone-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-medium text-stone-600">
                     <BookOpen className="h-3 w-3" />
                     GWA {hasGwa ? gwaNumber.toFixed(2) : '—'}
                   </span>
 
                   <span
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
                     style={{
                       color: sdoMeta.color,
                       background: sdoMeta.bg,
@@ -1072,10 +1082,10 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 
                 <div>
                   <div className="mb-3">
-                    <h5 className="text-xs font-black text-stone-800">
+                    <h5 className="text-base font-semibold text-stone-800">
                       Important Information
                     </h5>
-                    <p className="mt-0.5 text-[10px] text-stone-400">
+                    <p className="mt-1 text-sm text-stone-500">
                       Core scholarship and contact details
                     </p>
                   </div>
@@ -1148,13 +1158,13 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 
                       <div>
                         <p
-                          className="text-xs font-black"
+                          className="text-sm font-semibold"
                           style={{ color: sdoMeta.color }}
                         >
                           Student Disciplinary Office
                         </p>
                         <p
-                          className="mt-0.5 text-[10px] font-semibold"
+                          className="mt-0.5 text-xs font-medium"
                           style={{ color: sdoMeta.color }}
                         >
                           {sdoMeta.label}
@@ -1164,16 +1174,16 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                   </div>
 
                   <div className="bg-white px-3.5 py-3">
-                    <p className="text-[11px] leading-5 text-stone-600">
+                    <p className="text-sm leading-6 text-stone-600">
                       {sdoMeta.description}
                     </p>
 
                     {s.student_profile?.disciplinary_details ? (
                       <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5">
-                        <p className="text-[9px] font-bold uppercase tracking-wide text-stone-400">
+                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                           Disciplinary Details
                         </p>
-                        <p className="mt-1 text-xs leading-5 text-stone-700">
+                        <p className="mt-1 text-sm leading-6 text-stone-700">
                           {s.student_profile.disciplinary_details}
                         </p>
                       </div>
@@ -1191,6 +1201,13 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
           </div>
         )}
       </Card>
+
+      <ProfilePhotoPreviewDialog
+        open={avatarPreviewOpen && Boolean(s.avatar_url)}
+        onOpenChange={setAvatarPreviewOpen}
+        src={s.avatar_url || ''}
+        name={s.student_name || 'Scholar'}
+      />
     </div>
   );
 }
@@ -1242,7 +1259,7 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-semibold text-amber-800">
-              Scholarship slot will be released
+              Scholarship Slot Will Be Released
             </p>
             <p className="mt-1 text-xs leading-relaxed text-amber-700">
               Removing, graduating, or withdrawing this scholar releases one
@@ -1996,7 +2013,7 @@ export default function ScholarMonitoring() {
               variant="outline"
               size="sm"
               onClick={openFilterModal}
-              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />
               Filters
@@ -2012,18 +2029,16 @@ export default function ScholarMonitoring() {
 
       <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
         <div className="border-b border-stone-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-stone-800">
+          <h2 className="truncate text-sm font-semibold leading-5 text-stone-900">
             {sectionMode === 'registry'
               ? 'Scholar Registry'
               : 'Renewal Queue'}
           </h2>
-          <p className="mt-1 text-xs text-stone-500">
-            {sectionMode === 'registry'
-              ? `Current scholarship records · ${filteredScholars.length} result${filteredScholars.length === 1 ? '' : 's'
-              }`
-              : `Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'
-              }`}
-          </p>
+          {sectionMode === 'renewals' ? (
+            <p className="mt-1 text-sm text-stone-500">
+              {`Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'}`}
+            </p>
+          ) : null}
         </div>
 
         <CardContent className="p-4">
@@ -2119,16 +2134,19 @@ export default function ScholarMonitoring() {
 }
 
 function ScholarRegistryTable({ rows, onView, onRemove }) {
+  const [photoPreview, setPhotoPreview] = useState(null);
+
   return (
     <div className="overflow-x-auto">
+      <div className="min-w-[980px]">
       <Table>
         <TableHeader>
           <TableRow className="bg-stone-50 hover:bg-stone-50">
-            <TableHead>Scholar</TableHead>
-            <TableHead>Program</TableHead>
-            <TableHead>Current Semester</TableHead>
-            <TableHead>Scholarship Status</TableHead>
-            <TableHead className="text-right">Action</TableHead>
+            <TableHead className="min-w-[230px] text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</TableHead>
+            <TableHead className="min-w-[240px] text-xs font-semibold uppercase tracking-wide text-stone-700">Program</TableHead>
+            <TableHead className="min-w-[170px] text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</TableHead>
+            <TableHead className="min-w-[155px] text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</TableHead>
+            <TableHead className="min-w-[230px] text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -2153,18 +2171,34 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
               >
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9 rounded-xl border border-stone-200">
-                      <AvatarImage
-                        src={scholar.avatar_url || undefined}
-                        alt={scholar.student_name}
-                      />
-                      <AvatarFallback className="rounded-xl text-xs font-bold">
-                        {getInitials(scholar.student_name)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (scholar.avatar_url) {
+                          setPhotoPreview({
+                            src: scholar.avatar_url,
+                            name: scholar.student_name || 'Scholar',
+                          });
+                        }
+                      }}
+                      disabled={!scholar.avatar_url}
+                      className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--portal-base)] focus:ring-offset-2 disabled:cursor-default"
+                      aria-label={scholar.avatar_url ? `Enlarge ${scholar.student_name || 'scholar'} profile photo` : 'No profile photo available'}
+                    >
+                      <Avatar className={`h-10 w-10 rounded-full border border-stone-200 ${scholar.avatar_url ? 'cursor-zoom-in' : ''}`}>
+                        <AvatarImage
+                          src={scholar.avatar_url || undefined}
+                          alt={scholar.student_name}
+                          className="rounded-full"
+                        />
+                        <AvatarFallback className="rounded-full text-xs font-bold">
+                          {getInitials(scholar.student_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
 
-                    <div>
-                      <p className="text-sm font-semibold text-stone-800">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold leading-5 text-stone-900">
                         {scholar.student_name}
                       </p>
                       <p className="mt-0.5 text-xs font-mono text-stone-400">
@@ -2175,14 +2209,14 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                 </TableCell>
 
                 <TableCell>
-                  <p className="max-w-[220px] truncate text-sm text-stone-700">
+                  <p className="max-w-[240px] text-sm leading-5 text-stone-700">
                     {scholar.program_name || 'N/A'}
                   </p>
                 </TableCell>
 
                 <TableCell>
                   <div>
-                    <p className="text-xs font-semibold text-stone-700">
+                    <p className="text-sm font-semibold text-stone-700">
                       {scholar.semester || 'Not set'}
                     </p>
                     <p className="mt-0.5 text-[10px] text-stone-400">
@@ -2197,8 +2231,8 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                   <StatusPill meta={scholarshipMeta} compact />
                 </TableCell>
 
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
+                <TableCell className="text-center">
+                  <div className="flex flex-wrap justify-center gap-2 xl:flex-nowrap">
                     <Button
                       type="button"
                       size="sm"
@@ -2206,7 +2240,7 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                       onClick={() =>
                         onView(scholar.scholar_id)
                       }
-                      className="h-8 rounded-lg border-stone-200 text-xs"
+                      className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"
                     >
                       <Eye className="mr-1.5 h-3.5 w-3.5" />
                       View Profile
@@ -2217,7 +2251,7 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                       size="sm"
                       variant="outline"
                       onClick={() => onRemove(scholar)}
-                      className="h-8 rounded-lg border-red-200 text-xs text-red-700 hover:bg-red-50"
+                      className="h-9 rounded-lg border-red-200 px-3.5 text-xs whitespace-nowrap text-red-700 hover:bg-red-50"
                     >
                       <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
                       Remove Privilege
@@ -2229,6 +2263,15 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
           })}
         </TableBody>
       </Table>
+      </div>
+      <ProfilePhotoPreviewDialog
+        open={Boolean(photoPreview?.src)}
+        onOpenChange={(open) => {
+          if (!open) setPhotoPreview(null);
+        }}
+        src={photoPreview?.src || ''}
+        name={photoPreview?.name || 'Scholar'}
+      />
     </div>
   );
 }
@@ -2236,16 +2279,17 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
 function RenewalTable({ rows, navigate }) {
   return (
     <div className="overflow-x-auto">
+      <div className="min-w-[1120px]">
       <Table>
         <TableHeader>
           <TableRow className="bg-stone-50 hover:bg-stone-50">
-            <TableHead>Scholar</TableHead>
-            <TableHead>Program</TableHead>
-            <TableHead>Cycle</TableHead>
-            <TableHead>Document Status</TableHead>
-            <TableHead>Renewal Status</TableHead>
-            <TableHead>Submitted</TableHead>
-            <TableHead className="text-right">Action</TableHead>
+            <TableHead className="min-w-[210px] text-xs font-semibold uppercase tracking-wide text-stone-700">SCHOLAR</TableHead>
+            <TableHead className="min-w-[220px] text-xs font-semibold uppercase tracking-wide text-stone-700">PROGRAM</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">CYCLE</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">DOCUMENT STATUS</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">RENEWAL STATUS</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">SUBMITTED</TableHead>
+            <TableHead className="min-w-[220px] text-center text-xs font-semibold uppercase tracking-wide text-stone-700">ACTION</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -2323,12 +2367,12 @@ function RenewalTable({ rows, navigate }) {
                   )}
                 </TableCell>
 
-                <TableCell className="text-right">
+                <TableCell className="text-center">
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-8 rounded-lg border-stone-200 text-xs"
+                    className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"
                     onClick={() =>
                       navigate(
                         `/admin/scholars/renewals/${renewal.renewal_id || renewal.id
@@ -2345,6 +2389,7 @@ function RenewalTable({ rows, navigate }) {
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

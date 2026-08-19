@@ -420,8 +420,9 @@ class _StepAcademicState extends State<StepAcademic> {
   bool _isValidAcademicYear(String title, String value) {
     final normalized = value.trim();
     if (normalized.isEmpty) return false;
-    if (title != 'College')
+    if (title != 'College') {
       return _academicYearOptions(title).contains(normalized);
+    }
     if (normalized.toLowerCase().replaceAll(' ', '') == 'ongoing') return true;
     return _academicYearOptions('College').contains(normalized);
   }
@@ -474,8 +475,9 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 
   String? _otherSupportError() {
-    if (!widget.showErrors || !selectedFinancialSupports.contains('Other'))
+    if (!widget.showErrors || !selectedFinancialSupports.contains('Other')) {
       return null;
+    }
     return financialSupportOtherController.text.trim().isEmpty
         ? 'Please specify the other financial support.'
         : null;

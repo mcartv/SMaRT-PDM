@@ -1414,8 +1414,9 @@ class _EndorsementProgressCard extends StatelessWidget {
 
   int _activeIndex() {
     if (endorsement.status == 'completed' ||
-        endorsement.currentStage == 'completed')
+        endorsement.currentStage == 'completed') {
       return 3;
+    }
     switch (endorsement.currentStage) {
       case 'pending_guidance':
         return 1;

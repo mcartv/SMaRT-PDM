@@ -1,0 +1,315 @@
+﻿import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  LogIn,
+  Mail,
+  ShieldCheck,
+} from 'lucide-react';
+
+import pdmFacade from '../assets/PDM-Facade.png';
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { authService } from '@/services/authService';
+import {
+  getPortalNameFromRole,
+  getStoredPortalSession,
+  PORTAL_CONFIG,
+  savePortalSession,
+} from '@/utils/authStorage';
+
+const COLORS = {
+  brown: '#6f3e23',
+  brownDark: '#2f180d',
+  brownDeep: '#4d2b18',
+  gold: '#d5a62e',
+  goldSoft: '#f0d36a',
+  cream: '#f7f1e8',
+  field: '#eef4fd',
+  fieldBorder: '#c7d2e4',
+};
+
+function DecorativeHexagons({ className = '' }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 260 260"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <g stroke="currentColor" strokeWidth="1.5">
+        <polygon points="46,18 82,39 82,81 46,102 10,81 10,39" />
+        <polygon points="105,65 141,86 141,128 105,149 69,128 69,86" />
+        <polygon points="165,20 201,41 201,83 165,104 129,83 129,41" />
+        <polygon points="207,104 243,125 243,167 207,188 171,167 171,125" />
+        <polygon points="120,145 156,166 156,208 120,229 84,208 84,166" />
+      </g>
+      <g fill="currentColor">
+        <circle cx="46" cy="120" r="3" />
+        <circle cx="66" cy="120" r="3" />
+        <circle cx="86" cy="120" r="3" />
+        <circle cx="106" cy="120" r="3" />
+      </g>
+    </svg>
+  );
+}
+
+export default function AdminLogin() {
+  const navigate = useNavigate();
+  const { theme } = usePortalTheme('admin');
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [stayLoggedIn, setStayLoggedIn] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const existingSession = getStoredPortalSession();
+
+    if (existingSession?.token) {
+      navigate(existingSession.redirectPath, { replace: true });
+    }
+  }, [navigate]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const data = await authService.login({
+        email,
+        password,
+        stayLoggedIn,
+      });
+
+      const portalName = getPortalNameFromRole(data?.user?.role);
+      const portal = PORTAL_CONFIG[portalName];
+
+      savePortalSession({
+        portalName,
+        token: data.token,
+        user: data.user,
+        stayLoggedIn: portalName === 'admin' && stayLoggedIn,
+      });
+
+      navigate(portal.redirectPath, { replace: true });
+    } catch (err) {
+      setError(
+        err.message || 'Login failed. Please check your credentials.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="relative min-h-screen overflow-hidden bg-[#f7f1e8] text-stone-900"
+      style={{ fontFamily: "'Inter', 'Geist Variable', sans-serif" }}
+    >
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${pdmFacade})` }}
+      />
+      <div className="absolute inset-0 bg-[#fffdf8]/82 backdrop-blur-[1.5px]" />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#fffdf8]/45 via-[#fffdf8]/60 to-[#fffdf8]/86" />
+
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-0 hidden w-[24vw] min-w-[270px] bg-gradient-to-br from-[#4d2b18] via-[#6f3e23] to-[#3a1f12] shadow-2xl lg:block"
+        style={{ clipPath: 'polygon(0 0, 78% 0, 58% 100%, 0 100%)' }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-[8.2vw] hidden w-[7.2vw] min-w-[82px] bg-gradient-to-b from-[#f7d23c] via-[#e1b225] to-[#f6d84f] lg:block"
+        style={{ clipPath: 'polygon(0 0, 29% 0, 68% 100%, 39% 100%)' }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-[10vw] hidden w-[7.5vw] min-w-[90px] bg-[#fff8e9]/95 lg:block"
+        style={{ clipPath: 'polygon(0 0, 18% 0, 65% 100%, 47% 100%)' }}
+      />
+
+      <DecorativeHexagons className="absolute -left-3 top-14 hidden h-64 w-64 text-[#d7ae39]/75 lg:block" />
+      <DecorativeHexagons className="absolute -bottom-10 right-[-28px] hidden h-60 w-60 rotate-12 text-[#7a4a2b]/38 xl:block" />
+
+      <div
+        aria-hidden="true"
+        className="absolute bottom-10 left-12 hidden items-center gap-3 lg:flex"
+      >
+        {[0, 1, 2, 3, 4].map((dot) => (
+          <span key={dot} className="h-1.5 w-1.5 rounded-full bg-[#e1b52f]" />
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => navigate('/landing')}
+        className="absolute right-5 top-5 z-30 inline-flex items-center gap-2 rounded-full border border-[#6f3e23]/15 bg-white/80 px-5 py-3 text-sm font-bold text-[#352118] shadow-[0_8px_25px_rgba(75,45,25,0.10)] backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#d5a62e]/40 sm:right-8 sm:top-7"
+      >
+        <ArrowLeft size={17} strokeWidth={2.2} />
+        Back to Home
+      </button>
+
+      <main className="relative z-20 grid min-h-screen items-center gap-12 px-6 pb-12 pt-28 lg:grid-cols-[1.12fr_0.88fr] lg:px-10 lg:pb-10 lg:pt-20 xl:px-16">
+        <section className="hidden lg:block lg:pl-[18vw] xl:pl-[17vw]">
+          <div className="max-w-[660px]">
+            <div className="mb-5 flex items-center gap-4">
+              <p className="text-[12px] font-extrabold uppercase tracking-[0.28em] text-[#7a4629]">
+                Pambayang Dalubhasaan ng Marilao
+              </p>
+            </div>
+
+            <div className="mb-5 h-1 w-14 rounded-full bg-[#d5a62e]" />
+
+            <h1 className="max-w-[650px] text-[clamp(3.2rem,4.8vw,5.8rem)] font-black leading-[0.98] tracking-[-0.055em] text-[#25150d]">
+              Scholarship
+              <span className="block">Monitoring System</span>
+            </h1>
+
+            <div className="mt-10 flex items-center gap-0">
+              <span className="h-[2px] w-44 bg-[#d5a62e]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#d5a62e]" />
+            </div>
+
+            <p className="mt-6 max-w-lg text-lg font-medium leading-7 text-stone-600">
+              Empowering scholars. Strengthening futures.
+              <span className="block">Building a better community.</span>
+            </p>
+          </div>
+        </section>
+
+        <section className="flex w-full justify-center lg:justify-end lg:pr-[2vw] xl:pr-[4vw]">
+          <div className="w-full max-w-[560px] rounded-[30px] border border-white/80 bg-[#fffdfa]/92 p-5 shadow-[0_28px_80px_rgba(83,53,31,0.18)] backdrop-blur-xl sm:p-7 lg:p-9">
+            <div className="rounded-[24px] border border-[#7a4a2b]/8 bg-white/78 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-7">
+              <div className="mb-7 flex items-center gap-4 border-b border-[#7a4a2b]/12 pb-6">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#7a4a2b]/10 bg-[#fffaf2] shadow-[0_8px_18px_rgba(91,54,28,0.10)]">
+                  <ShieldCheck size={27} color={COLORS.brown} strokeWidth={2.1} />
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#7a4629]">
+                    Login Access
+                  </p>
+                  <div className="mt-2 h-[2px] w-11 rounded-full bg-[#d5a62e]" />
+                </div>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-5">
+                {error && (
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label htmlFor="admin-email" className="text-sm font-bold text-stone-700">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail
+                      aria-hidden="true"
+                      size={20}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      id="admin-email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      placeholder="smartpdm.system@gmail.com"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className="h-14 w-full rounded-2xl border border-[#c7d2e4] bg-[#eef4fd]/95 pl-12 pr-4 text-[15px] font-semibold text-stone-800 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-[#b68a30] focus:ring-4 focus:ring-[#d5a62e]/12"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <label htmlFor="admin-password" className="text-sm font-bold text-stone-700">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/admin/forgot-password')}
+                      className="text-xs font-bold text-[#7a4629] transition hover:text-[#4d2b18] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d5a62e]/40"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <LockKeyhole
+                      aria-hidden="true"
+                      size={20}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      id="admin-password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="h-14 w-full rounded-2xl border border-[#c7d2e4] bg-[#eef4fd]/95 pl-12 pr-12 text-[15px] font-semibold text-stone-800 outline-none transition placeholder:text-slate-400 focus:border-[#b68a30] focus:ring-4 focus:ring-[#d5a62e]/12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((previous) => !previous)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d5a62e]/40"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                    </button>
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1">
+                  <input
+                    type="checkbox"
+                    checked={stayLoggedIn}
+                    onChange={(event) => setStayLoggedIn(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-stone-300"
+                    style={{ accentColor: theme?.base || COLORS.brown }}
+                  />
+                  <span className="text-xs leading-5 text-stone-500">
+                    Keep me signed in on this authorized admin device.
+                  </span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="mt-1 flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#8a512c] to-[#6b391f] px-5 text-base font-extrabold text-white shadow-[0_14px_30px_rgba(111,62,35,0.26)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(111,62,35,0.30)] focus:outline-none focus:ring-4 focus:ring-[#d5a62e]/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-65"
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Authenticating...
+                    </>
+                  ) : (
+                    <>
+                      <LogIn size={20} strokeWidth={2.2} />
+                      Login
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}

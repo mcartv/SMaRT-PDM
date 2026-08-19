@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,7 +134,7 @@ function hasManageablePayoutEntries(batch) {
 }
 
 function formatMoney(value) {
-  return `â‚±${Number(value || 0).toLocaleString()}`;
+  return `₱${Number(value || 0).toLocaleString()}`;
 }
 
 function getEntryId(entry) {
@@ -175,7 +175,7 @@ function ReadOnlyField({ label, value }) {
   return (
     <div className="rounded-xl border bg-stone-50 p-3">
       <p className="text-[11px] text-stone-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value || 'â€”'}</p>
+      <p className="mt-1 text-sm font-semibold">{value || '—'}</p>
     </div>
   );
 }
@@ -271,12 +271,12 @@ function PostPayoutCreatePrompt({
             </p>
             <p className="mt-1 text-xs text-stone-500">
               {payout.program_name || 'No Program'}
-              {payout.benefactor_name ? ` â€¢ ${payout.benefactor_name}` : ''}
+              {payout.benefactor_name ? ` • ${payout.benefactor_name}` : ''}
             </p>
             <p className="mt-1 text-xs text-stone-500">
               {payout.scholar_count || 0} scholar(s) selected
               {payout.amount_per_scholar
-                ? ` â€¢ ${formatMoney(payout.amount_per_scholar)} per scholar`
+                ? ` • ${formatMoney(payout.amount_per_scholar)} per scholar`
                 : ''}
             </p>
           </div>
@@ -305,81 +305,6 @@ function PostPayoutCreatePrompt({
   );
 }
 
-function ArchiveBatchModal({
-  batch,
-  open,
-  working,
-  onCancel,
-  onConfirm,
-}) {
-  if (!open || !batch) return null;
-
-  const counts = getPayoutCounts(batch);
-
-  return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-      onClick={() => {
-        if (!working) onCancel();
-      }}
-    >
-      <Card
-        className="w-full max-w-md overflow-hidden rounded-2xl border-stone-200 shadow-xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="border-b border-stone-100 px-5 py-4">
-          <h3 className="text-base font-semibold text-stone-900">
-            Archive payout batch?
-          </h3>
-          <p className="mt-1 text-sm leading-5 text-stone-500">
-            {batch.payout_title || 'This payout batch'} will move to Archived.
-            Payout records and scholar history are preserved.
-          </p>
-        </div>
-
-        <CardContent className="space-y-4 p-5">
-          <div className="grid grid-cols-3 gap-2">
-            <SmallMetric label="Released" value={counts.released} />
-            <SmallMetric label="Absent" value={counts.absent} />
-            <SmallMetric label="Cancelled" value={counts.cancelled} />
-          </div>
-
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-xs leading-5 text-stone-600">
-            Archive is available only when every scholar has a final payout
-            status: Released, Absent, or Cancelled.
-          </div>
-        </CardContent>
-
-        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={working}
-            onClick={onCancel}
-            className="h-9 rounded-lg border-stone-200 text-xs"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={working}
-            onClick={onConfirm}
-            className="h-9 rounded-lg border-none text-xs text-white"
-            style={{ background: C.brownMid }}
-          >
-            {working ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Archive className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            Archive Batch
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
 export default function PayoutManagement() {
   const navigate = useNavigate();
 
@@ -395,7 +320,6 @@ export default function PayoutManagement() {
   const [workingEntryId, setWorkingEntryId] = useState(null);
   const [archivingBatchId, setArchivingBatchId] = useState(null);
   const [restoringBatchId, setRestoringBatchId] = useState(null);
-  const [archiveCandidate, setArchiveCandidate] = useState(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -895,10 +819,15 @@ export default function PayoutManagement() {
 
       if (!isBatchFinished(batch)) {
         alert(
-          'This payout batch is not ready to archive. Resolve every Pending or On Hold scholar first. Final statuses are Released, Absent, or Cancelled.'
+          'This payout batch cannot be archived yet. All scholars must be marked Released, Absent, or Cancelled first.'
         );
         return;
       }
+
+      const confirmed = window.confirm(
+        `Archive “${batch.payout_title || 'this payout batch'}”? This hides it from active payout records but preserves its audit history.`
+      );
+      if (!confirmed) return;
 
       setArchivingBatchId(batch.payout_batch_id);
 
@@ -913,20 +842,9 @@ export default function PayoutManagement() {
         throw new Error(data?.message || data?.error || 'Failed to archive payout batch');
       }
 
-      setBatches((previous) =>
-        previous.map((item) =>
-          String(item?.payout_batch_id) === String(batch.payout_batch_id)
-            ? { ...item, is_archived: true, batch_status: 'Archived' }
-            : item
-        )
-      );
-
-      setArchiveCandidate(null);
+      await loadAll();
       setSelectedBatch(null);
       setActiveSection('archived');
-      setPage(1);
-
-      await loadAll();
     } catch (err) {
       console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
       alert(err.message || 'Failed to archive payout batch');
@@ -940,7 +858,7 @@ export default function PayoutManagement() {
       if (!batch?.payout_batch_id) return;
 
       const confirmed = window.confirm(
-        `Restore â€œ${batch.payout_title || 'this payout batch'}â€ to active payout records?`
+        `Restore “${batch.payout_title || 'this payout batch'}” to active payout records?`
       );
       if (!confirmed) return;
 
@@ -1076,11 +994,11 @@ export default function PayoutManagement() {
 
                 <p className="mt-1 text-sm text-stone-500">
                   {b.program_name || 'No Program'}
-                  {b.benefactor_name ? ` â€¢ ${b.benefactor_name}` : ''}
+                  {b.benefactor_name ? ` • ${b.benefactor_name}` : ''}
                 </p>
 
                 <p className="mt-1 text-xs text-stone-400">
-                  {b.school_year || b.academic_year || 'â€”'} â€¢ {b.payout_date || 'â€”'}
+                  {b.school_year || b.academic_year || '—'} • {b.payout_date || '—'}
                 </p>
               </div>
 
@@ -1092,7 +1010,7 @@ export default function PayoutManagement() {
                     color: b.payment_mode === 'Cash' ? C.green : C.blue,
                   }}
                 >
-                  {b.payment_mode || 'â€”'}
+                  {b.payment_mode || '—'}
                 </Badge>
 
                 {b.is_archived ? (
@@ -1170,19 +1088,6 @@ export default function PayoutManagement() {
           setNewPayoutForPrompt(null);
         }}
         onCreateAnnouncement={handleCreatePayoutAnnouncementRedirect}
-      />
-
-      <ArchiveBatchModal
-        batch={archiveCandidate}
-        open={Boolean(archiveCandidate)}
-        working={
-          Boolean(archiveCandidate?.payout_batch_id) &&
-          archivingBatchId === archiveCandidate?.payout_batch_id
-        }
-        onCancel={() => {
-          if (!archivingBatchId) setArchiveCandidate(null);
-        }}
-        onConfirm={() => handleArchiveBatch(archiveCandidate)}
       />
 
       <PayoutProofReviewPanel />
@@ -1355,7 +1260,7 @@ export default function PayoutManagement() {
                         <option value="">Select opening</option>
                         {openings.map((o) => (
                           <option key={o.opening_id} value={o.opening_id}>
-                            {o.opening_title} â€” {o.benefactor_name || 'No Benefactor'}
+                            {o.opening_title} — {o.benefactor_name || 'No Benefactor'}
                           </option>
                         ))}
                       </select>
@@ -1364,18 +1269,18 @@ export default function PayoutManagement() {
                     <div className="grid gap-3 md:grid-cols-2">
                       <ReadOnlyField
                         label="Program"
-                        value={selectedOpeningDetails?.program_name || 'â€”'}
+                        value={selectedOpeningDetails?.program_name || '—'}
                       />
                       <ReadOnlyField
                         label="Benefactor"
-                        value={selectedOpeningDetails?.benefactor_name || 'â€”'}
+                        value={selectedOpeningDetails?.benefactor_name || '—'}
                       />
                       <ReadOnlyField
                         label="Opening Status"
                         value={
                           selectedOpeningDetails?.status ||
                           selectedOpeningDetails?.posting_status ||
-                          'â€”'
+                          '—'
                         }
                       />
                       <ReadOnlyField
@@ -1383,7 +1288,7 @@ export default function PayoutManagement() {
                         value={
                           form.amount_per_scholar !== ''
                             ? formatMoney(form.amount_per_scholar)
-                            : 'â€”'
+                            : '—'
                         }
                       />
                     </div>
@@ -1556,7 +1461,7 @@ export default function PayoutManagement() {
                                   {s.student_name}
                                 </p>
                                 <p className="text-xs text-stone-500">
-                                  {s.pdm_id || 'â€”'} â€¢ Batch {s.batch_year || 'â€”'}
+                                  {s.pdm_id || '—'} • Batch {s.batch_year || '—'}
                                 </p>
                               </div>
                             </div>
@@ -1608,9 +1513,9 @@ export default function PayoutManagement() {
                   {selectedBatch.payout_title || 'Payout Batch'}
                 </h2>
                 <p className="text-sm text-stone-500">
-                  {selectedBatch.program_name || 'No Program'} â€¢{' '}
-                  {selectedBatch.benefactor_name || 'No Benefactor'} â€¢{' '}
-                  {selectedBatch.payout_date || 'â€”'}
+                  {selectedBatch.program_name || 'No Program'} •{' '}
+                  {selectedBatch.benefactor_name || 'No Benefactor'} •{' '}
+                  {selectedBatch.payout_date || '—'}
                 </p>
               </div>
 
@@ -1619,14 +1524,11 @@ export default function PayoutManagement() {
                   <Button
                     variant="outline"
                     className="rounded-xl border-stone-300"
-                    disabled={archivingBatchId === selectedBatch.payout_batch_id}
-                    onClick={() => {
-                      if (!isBatchFinished(selectedBatch)) {
-                        handleArchiveBatch(selectedBatch);
-                        return;
-                      }
-                      setArchiveCandidate(selectedBatch);
-                    }}
+                    disabled={
+                      !isBatchFinished(selectedBatch) ||
+                      archivingBatchId === selectedBatch.payout_batch_id
+                    }
+                    onClick={() => handleArchiveBatch(selectedBatch)}
                   >
                     {archivingBatchId === selectedBatch.payout_batch_id ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1707,7 +1609,7 @@ export default function PayoutManagement() {
                           </div>
 
                           <p className="mt-1 text-xs text-stone-500">
-                            {entry.pdm_id || 'â€”'} â€¢ {formatMoney(entry.amount_received)}
+                            {entry.pdm_id || '—'} • {formatMoney(entry.amount_received)}
                           </p>
 
                           <div className="mt-2 flex flex-wrap gap-2">

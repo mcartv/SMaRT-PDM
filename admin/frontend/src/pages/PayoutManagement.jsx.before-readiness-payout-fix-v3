@@ -895,10 +895,15 @@ export default function PayoutManagement() {
 
       if (!isBatchFinished(batch)) {
         alert(
-          'This payout batch is not ready to archive. Resolve every Pending or On Hold scholar first. Final statuses are Released, Absent, or Cancelled.'
+          'This payout batch cannot be archived yet. All scholars must be marked Released, Absent, or Cancelled first.'
         );
         return;
       }
+
+      const confirmed = window.confirm(
+        `Archive â€œ${batch.payout_title || 'this payout batch'}â€? This hides it from active payout records but preserves its audit history.`
+      );
+      if (!confirmed) return;
 
       setArchivingBatchId(batch.payout_batch_id);
 
@@ -913,20 +918,9 @@ export default function PayoutManagement() {
         throw new Error(data?.message || data?.error || 'Failed to archive payout batch');
       }
 
-      setBatches((previous) =>
-        previous.map((item) =>
-          String(item?.payout_batch_id) === String(batch.payout_batch_id)
-            ? { ...item, is_archived: true, batch_status: 'Archived' }
-            : item
-        )
-      );
-
-      setArchiveCandidate(null);
+      await loadAll();
       setSelectedBatch(null);
       setActiveSection('archived');
-      setPage(1);
-
-      await loadAll();
     } catch (err) {
       console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
       alert(err.message || 'Failed to archive payout batch');
@@ -1170,19 +1164,6 @@ export default function PayoutManagement() {
           setNewPayoutForPrompt(null);
         }}
         onCreateAnnouncement={handleCreatePayoutAnnouncementRedirect}
-      />
-
-      <ArchiveBatchModal
-        batch={archiveCandidate}
-        open={Boolean(archiveCandidate)}
-        working={
-          Boolean(archiveCandidate?.payout_batch_id) &&
-          archivingBatchId === archiveCandidate?.payout_batch_id
-        }
-        onCancel={() => {
-          if (!archivingBatchId) setArchiveCandidate(null);
-        }}
-        onConfirm={() => handleArchiveBatch(archiveCandidate)}
       />
 
       <PayoutProofReviewPanel />
@@ -1619,14 +1600,11 @@ export default function PayoutManagement() {
                   <Button
                     variant="outline"
                     className="rounded-xl border-stone-300"
-                    disabled={archivingBatchId === selectedBatch.payout_batch_id}
-                    onClick={() => {
-                      if (!isBatchFinished(selectedBatch)) {
-                        handleArchiveBatch(selectedBatch);
-                        return;
-                      }
-                      setArchiveCandidate(selectedBatch);
-                    }}
+                    disabled={
+                      !isBatchFinished(selectedBatch) ||
+                      archivingBatchId === selectedBatch.payout_batch_id
+                    }
+                    onClick={() => handleArchiveBatch(selectedBatch)}
                   >
                     {archivingBatchId === selectedBatch.payout_batch_id ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

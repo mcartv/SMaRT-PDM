@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -205,7 +205,7 @@ function getDocumentStatusMeta(row) {
   }
 
   return {
-    label: row?.document_status || 'Ã¢â‚¬â€',
+    label: row?.document_status || 'â€”',
     bg: '#f5f5f4',
     color: '#57534e',
   };
@@ -266,13 +266,13 @@ function normalizeApplicantRow(app) {
       app.student_name ||
       [app.first_name, app.last_name].filter(Boolean).join(' ') ||
       'Unnamed Applicant',
-    pdm_id: app.pdm_id || 'Ã¢â‚¬â€',
+    pdm_id: app.pdm_id || 'â€”',
     program_name: app.program_name || 'No Program',
     application_status: app.application_status || 'Pending',
-    document_status: app.document_status || app.deficiency_status || 'Ã¢â‚¬â€',
+    document_status: app.document_status || app.deficiency_status || 'â€”',
     submitted_at: app.submission_date || null,
     opening_title: app.opening_title || 'Untitled Opening',
-    academic_year: app.academic_year || 'Ã¢â‚¬â€',
+    academic_year: app.academic_year || 'â€”',
     posting_status: app.posting_status || app.opening_status || 'open',
     allocated_slots: app.allocated_slots || 0,
     filled_slots: app.filled_slots || 0,
@@ -612,7 +612,7 @@ function Toolbar({
 
 function OpeningsGrid({ rows, countsMap, navigate }) {
   return (
-    <section className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+    <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {rows.map((opening) => {
         const statusMeta = getOpeningStatusMeta(opening);
         const allocatedSlots = Number(opening.allocated_slots || opening.slot_count || 0);
@@ -631,7 +631,7 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
             key={opening.opening_id}
             className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300"
           >
-            <CardContent className="p-4 sm:p-5">
+            <CardContent className="p-4">
               <div className="flex h-full flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -647,7 +647,7 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                   <StatusPill meta={statusMeta} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
                   <MetricItem label="Slots" value={allocatedSlots} />
                   <MetricItem label="Filled" value={filledSlots} />
                   <MetricItem label="Applicants" value={applicationCount} />
@@ -795,7 +795,7 @@ function ReadinessOpeningCards({
   }
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       {grouped.map(({ opening, reserved, waiting }) => {
         const allocated = Number(opening.allocated_slots || opening.slot_count || 0);
         const active = Number(opening.filled_slots || 0);
@@ -804,7 +804,7 @@ function ReadinessOpeningCards({
 
         return (
           <Card key={opening.opening_id} className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
-            <div className="border-b border-stone-100 px-4 py-4 sm:px-5">
+            <div className="border-b border-stone-100 px-5 py-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-stone-900">
@@ -812,7 +812,7 @@ function ReadinessOpeningCards({
                   </h2>
                   <p className="mt-1 text-sm text-stone-500">
                     {opening.program_name || 'Scholarship Program'}
-                    {opening.academic_year ? ` Â· ${opening.academic_year}` : ''}
+                    {opening.academic_year ? ` · ${opening.academic_year}` : ''}
                   </p>
                 </div>
 
@@ -827,7 +827,7 @@ function ReadinessOpeningCards({
                 </Button>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-5">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <MetricItem label="Slots" value={allocated} />
                 <MetricItem label="Active Scholars" value={active} />
                 <MetricItem label="Reserved" value={reservedCount} />
@@ -836,7 +836,7 @@ function ReadinessOpeningCards({
               </div>
             </div>
 
-            <CardContent className="space-y-4 p-4 sm:p-5">
+            <CardContent className="space-y-5 p-5">
               <section>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
@@ -855,7 +855,7 @@ function ReadinessOpeningCards({
                 ) : (
                   <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
                     {reserved.map((row) => (
-                      <div key={row.application_id} className="flex flex-col gap-3 bg-white px-3.5 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div key={row.application_id} className="flex flex-col gap-3 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 items-start gap-3">
                           <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
                             {getFcfsLabel(row)}
@@ -863,7 +863,7 @@ function ReadinessOpeningCards({
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
                             <p className="mt-1 text-sm text-stone-500">
-                              {row.pdm_id} Â· Ready {formatDate(row.fcfs_completed_at)}
+                              {row.pdm_id} · Ready {formatDate(row.fcfs_completed_at)}
                             </p>
                             <p className="mt-1 text-xs font-medium text-green-700">
                               {normalizeStatus(row.selection_status) === 'promoted' ? 'Promoted from waiting list' : 'Reserved by FCFS'}
@@ -919,19 +919,19 @@ function ReadinessOpeningCards({
                 ) : (
                   <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
                     {waiting.map((row) => (
-                      <div key={row.application_id} className="flex flex-col gap-3 bg-stone-50/40 px-3.5 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div key={row.application_id} className="flex flex-col gap-3 bg-stone-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-start gap-3">
                           <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-stone-200 bg-white px-2 text-sm font-bold text-stone-700">
                             {getFcfsLabel(row)}
                           </span>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-stone-900">{row.applicant_name}</p>
-                            <p className="mt-1 text-sm text-stone-500">{row.pdm_id} Â· Ready {formatDate(row.fcfs_completed_at)}</p>
+                            <p className="mt-1 text-sm text-stone-500">{row.pdm_id} · Ready {formatDate(row.fcfs_completed_at)}</p>
                           </div>
                         </div>
 
                         <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
-                          Waiting #{Number(row.waitlist_position || 0) || 'â€”'}
+                          Waiting #{Number(row.waitlist_position || 0) || '—'}
                         </span>
                       </div>
                     ))}
@@ -1188,7 +1188,7 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
   return (
     <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm text-stone-500">
-        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}Ã¢â‚¬â€œ
+        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}â€“
         {Math.min(page * PAGE_SIZE, totalItems)} of {totalItems}
       </span>
 
@@ -1434,7 +1434,7 @@ export default function ApplicationReview() {
       opening_id: opening.opening_id,
       opening_title: opening.opening_title || opening.title || 'Untitled Opening',
       program_name: opening.program_name || 'No Program',
-      academic_year: opening.academic_year || opening.academic_year_label || opening.label || 'Ã¢â‚¬â€',
+      academic_year: opening.academic_year || opening.academic_year_label || opening.label || 'â€”',
       posting_status: opening.posting_status || opening.status || 'open',
       allocated_slots: Number(opening.allocated_slots || opening.slot_count || 0),
       filled_slots: Number(opening.filled_slots || 0),
@@ -1612,34 +1612,34 @@ export default function ApplicationReview() {
   }
 
   return (
-    <div className="space-y-3 py-2" style={{ background: C.bg }}>
+    <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
       <Dialog
         open={Boolean(activationCandidate)}
         onOpenChange={(open) => {
           if (!open && !approvalLoadingId) setActivationCandidate(null);
         }}
       >
-        <DialogContent className="sm:max-w-xl rounded-2xl border-stone-200 p-0">
-          <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left sm:px-6">
+        <DialogContent className="max-w-lg rounded-3xl border-stone-200 p-0">
+          <DialogHeader className="border-b border-stone-100 px-6 py-5 text-left">
             <DialogTitle className="text-lg">Confirm scholar activation</DialogTitle>
             <p className="mt-1 text-sm leading-6 text-stone-500">
               Activate {activationCandidate?.applicant_name || 'this applicant'} only after the system passes every final check.
             </p>
           </DialogHeader>
-          <div className="space-y-2.5 px-5 py-4 sm:px-6">
+          <div className="space-y-3 px-6 py-5">
             {[
               'All required documents are uploaded and verified',
               'SDO, Guidance, and Program Director endorsement is complete',
               'The scholarship opening still has an available slot',
               'The student has no other active scholar record',
             ].map((label) => (
-              <div key={label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-700">
+              <div key={label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                 {label}
               </div>
             ))}
           </div>
-          <DialogFooter className="border-t border-stone-100 px-5 py-3 sm:px-6">
+          <DialogFooter className="border-t border-stone-100 px-6 py-4">
             <Button variant="outline" disabled={Boolean(approvalLoadingId)} onClick={() => setActivationCandidate(null)}>
               Cancel
             </Button>

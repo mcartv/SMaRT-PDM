@@ -8,7 +8,7 @@ test('document verification uses readable current OCR result labels', () => {
   const source = read('frontend/src/pages/DocumentVerification.jsx');
 
   assert.match(source, /Detected/);
-  assert.doesNotMatch(source, /—/);
+  assert.doesNotMatch(source, /ΓÇö/);
 });
 
 test('document verification remains focused on document/OCR review', () => {

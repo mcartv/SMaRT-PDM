@@ -14,7 +14,7 @@ const sourceRoots = [
   path.join(projectRoot, 'ocr-scanner'),
 ];
 const textExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.dart', '.py', '.sql', '.css', '.json']);
-const badSequences = ['•', '—', '–', '’', '“', 'â€', '₱', 'ï»¿', 'Ã', 'Â'];
+const badSequences = ['â€¢', 'â€”', 'â€“', 'â€™', 'â€œ', 'â€', 'â‚±', 'ï»¿', 'Ã', 'Â'];
 
 function shouldSkip(filePath) {
   const name = path.basename(filePath).toLowerCase();

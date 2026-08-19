@@ -969,12 +969,6 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
                 )
             )
         );
-        if (
-            ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
-            && JSON.stringify(verifiedFields.child_name) !== JSON.stringify(predictedForDiff.child_name)
-        ) {
-            throw buildHttpError(400, 'The detected child name is reference-only and cannot be changed');
-        }
         const changedFields = Object.keys(verifiedFields).filter((key) => (
             JSON.stringify(verifiedFields[key] ?? null) !== JSON.stringify(predictedForDiff?.[key] ?? null)
         ));
@@ -996,9 +990,9 @@ exports.confirmCandidate = async ({ applicationId, documentKey, requestId, corre
                 verifiedFields
             );
         }
-        if (normalizedDocumentKey === 'birth_certificate') {
-            await upsertVerifiedBirthParents(client, row.student_id, verifiedFields);
-        }
+        // Birth OCR confirmation is evidence-only. Keep applicant-submitted
+        // family information unchanged so the admin can cross-validate the
+        // current application against the verified Birth Certificate record.
         await client.query(`
             INSERT INTO public.iot_ocr_review_events
                 (request_id, candidate_id, application_id, event_type, predicted_fields,

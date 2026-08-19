@@ -22,6 +22,18 @@ const GEMINI_DIAGNOSTIC_TIMEOUT_MS = Math.max(
     GEMINI_TIMEOUT_MS,
     configuredTimeout('GEMINI_DIAGNOSTIC_TIMEOUT_MS', 90000, 30000)
 );
+const GEMINI_FULL_PAGE_TIMEOUT_MS = configuredTimeout(
+    'GEMINI_FULL_PAGE_TIMEOUT_MS',
+    60000,
+    15000
+);
+const GEMINI_FULL_PAGE_RETRY_COUNT = (() => {
+    const parsed = Number.parseInt(
+        process.env.GEMINI_FULL_PAGE_RETRY_COUNT || '1',
+        10
+    );
+    return Math.min(3, Math.max(0, Number.isFinite(parsed) ? parsed : 1));
+})();
 const GEMINI_RETRY_ATTEMPTS = Math.min(5, Math.max(
     1,
     Number.parseInt(process.env.GEMINI_RETRY_ATTEMPTS || '4', 10) || 4
@@ -437,7 +449,13 @@ function isGeminiTransient(error) {
         || signal.includes('UNAVAILABLE');
 }
 
-async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
+async function generateGeminiContent(
+    client,
+    request,
+    timeoutMs,
+    timeoutCode,
+    { retryAttempts = GEMINI_RETRY_ATTEMPTS } = {}
+) {
     let fallbackError = null;
     for (const model of GEMINI_MODELS) {
         const controller = new AbortController();
@@ -452,7 +470,7 @@ async function generateGeminiContent(client, request, timeoutMs, timeoutCode) {
                     httpOptions: {
                         timeout: timeoutMs,
                         retryOptions: {
-                            attempts: GEMINI_RETRY_ATTEMPTS,
+                            attempts: Math.max(1, Number(retryAttempts) || 1),
                             initialDelay: GEMINI_RETRY_INITIAL_DELAY_SECONDS,
                             maxDelay: 15,
                             expBase: 2,
@@ -623,59 +641,96 @@ async function callGemini(cells) {
 
 async function callGeminiFullPage(original) {
     const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
-    if (!apiKey) return { ok: false, code: 'GEMINI_KEY_MISSING' };
+    if (!apiKey) return { ok: false, code: 'GEMINI_KEY_MISSING', attempts: 0 };
     let GoogleGenAI;
     try {
         ({ GoogleGenAI } = require('@google/genai'));
     } catch {
-        return { ok: false, code: 'GEMINI_DEPENDENCY_MISSING' };
+        return { ok: false, code: 'GEMINI_DEPENDENCY_MISSING', attempts: 0 };
     }
+
     const client = new GoogleGenAI({ apiKey });
-    try {
-        const response = await generateGeminiContent(client, {
-            model: GEMINI_MODEL,
-            contents: [{ role: 'user', parts: [
-                { text: [
-                    'Read this PSA Certificate of Live Birth as two separate outputs in one JSON object.',
-                    'For raw_text, transcribe every legible printed or typed character from the certificate',
-                    'literally and preserve reading order and line breaks. Do not summarize, correct,',
-                    'normalize, or add commentary. For fields, propose only the values printed in Item 1',
-                    'NAME, Item 6 MAIDEN NAME, and Item 13 NAME, preserving First, Middle, and Last printed',
-                    'columns. Keep compound names inside their physical column. Use an empty string when a',
-                    'component is blank or N/A. The raw_text string must remain a literal transcription and',
-                    'must not be generated from or rewritten to match the fields. Return only the schema.',
-                ].join(' ') },
-                { inlineData: {
-                    mimeType: original.mime_type,
-                    data: original.bytes.toString('base64'),
-                } },
-            ] }],
-            config: {
-                responseMimeType: 'application/json',
-                responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
-                maxOutputTokens: 4096,
-            },
-        }, GEMINI_DIAGNOSTIC_TIMEOUT_MS, 'GEMINI_FULL_PAGE_TIMEOUT');
-        const raw = typeof response.text === 'function' ? response.text() : response.text;
-        let parsed;
+    const maxAttempts = GEMINI_FULL_PAGE_RETRY_COUNT + 1;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-            parsed = validateFullPageGeminiPayload(JSON.parse(String(raw || '')));
-        } catch {
-            parsed = null;
-        }
-        if (!parsed) return { ok: false, code: 'GEMINI_FULL_PAGE_INVALID_RESULT' };
-        if (!String(parsed.raw_text).trim()) {
-            return { ok: false, code: 'GEMINI_FULL_PAGE_EMPTY' };
-        }
-        return { ok: true, value: parsed };
-    } catch (error) {
-        return {
-            ok: false,
-            code: error.code === 'GEMINI_FULL_PAGE_TIMEOUT'
+            const response = await generateGeminiContent(client, {
+                model: GEMINI_MODEL,
+                contents: [{ role: 'user', parts: [
+                    { text: [
+                        'Read this PSA Certificate of Live Birth as two separate outputs in one JSON object.',
+                        'For raw_text, transcribe every legible printed or typed character from the certificate',
+                        'literally and preserve reading order and line breaks. Do not summarize, correct,',
+                        'normalize, or add commentary. For fields, propose only the values printed in Item 1',
+                        'NAME, Item 6 MAIDEN NAME, and Item 13 NAME, preserving First, Middle, and Last printed',
+                        'columns. Keep compound names inside their physical column. Use an empty string when a',
+                        'component is blank or N/A. The raw_text string must remain a literal transcription and',
+                        'must not be generated from or rewritten to match the fields. Return only the schema.',
+                    ].join(' ') },
+                    { inlineData: {
+                        mimeType: original.mime_type,
+                        data: original.bytes.toString('base64'),
+                    } },
+                ] }],
+                config: {
+                    responseMimeType: 'application/json',
+                    responseJsonSchema: FULL_PAGE_RESPONSE_SCHEMA,
+                    maxOutputTokens: 4096,
+                },
+            }, GEMINI_FULL_PAGE_TIMEOUT_MS, 'GEMINI_FULL_PAGE_TIMEOUT', {
+                // The full-page path owns its retry policy so a timed-out request
+                // gets exactly one fresh 60-second attempt by default.
+                retryAttempts: 1,
+            });
+
+            const raw = typeof response.text === 'function' ? response.text() : response.text;
+            let parsed;
+            try {
+                parsed = validateFullPageGeminiPayload(JSON.parse(String(raw || '')));
+            } catch {
+                parsed = null;
+            }
+            if (!parsed) {
+                return {
+                    ok: false,
+                    code: 'GEMINI_FULL_PAGE_INVALID_RESULT',
+                    attempts: attempt,
+                };
+            }
+            if (!String(parsed.raw_text).trim()) {
+                return {
+                    ok: false,
+                    code: 'GEMINI_FULL_PAGE_EMPTY',
+                    attempts: attempt,
+                };
+            }
+            return { ok: true, value: parsed, attempts: attempt };
+        } catch (error) {
+            const code = error.code === 'GEMINI_FULL_PAGE_TIMEOUT'
                 ? 'GEMINI_FULL_PAGE_TIMEOUT'
-                : geminiFailureCode(error, 'GEMINI_FULL_PAGE'),
-        };
+                : geminiFailureCode(error, 'GEMINI_FULL_PAGE');
+
+            if (
+                code !== 'GEMINI_FULL_PAGE_TIMEOUT'
+                || attempt >= maxAttempts
+            ) {
+                return { ok: false, code, attempts: attempt };
+            }
+
+            console.info('BIRTH_V2_GEMINI_FULL_PAGE_RETRY', {
+                attempt,
+                next_attempt: attempt + 1,
+                max_attempts: maxAttempts,
+                reason: code,
+            });
+        }
     }
+
+    return {
+        ok: false,
+        code: 'GEMINI_FULL_PAGE_REQUEST_FAILED',
+        attempts: maxAttempts,
+    };
 }
 
 function field(raw, first, middle, last, status = 'detected') {
@@ -897,6 +952,7 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
         cell_error_code: cellGemini.ok ? null : cellGemini.code,
         full_page_status: fullPageGemini.ok ? 'available' : 'unavailable',
         full_page_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
+        full_page_attempts: fullPageGemini.attempts || 1,
     });
     await assertRequestStillProcessing(requestId, deviceId);
     const sourceRegions = cells.length === 9
@@ -928,6 +984,7 @@ exports.completeUploads = async ({ requestId, deviceId, diagnostic = null }) => 
             cell_extraction_error_code: cellGemini.ok ? null : cellGemini.code,
             full_page_extraction_status: fullPageGemini.ok ? 'available' : 'unavailable',
             full_page_extraction_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
+            full_page_extraction_attempts: fullPageGemini.attempts || 1,
             diagnostic_raw_status: fullPageGemini.ok ? 'available' : 'unavailable',
             diagnostic_raw_error_code: fullPageGemini.ok ? null : fullPageGemini.code,
             private_capture_available: true,

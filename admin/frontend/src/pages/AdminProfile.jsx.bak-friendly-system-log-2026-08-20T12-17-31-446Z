@@ -8,7 +8,6 @@ import { DepartmentAccountPanel } from '@/components/department/DepartmentMainte
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 import { useSocketEvent } from '@/hooks/useSocket';
-import { formatSystemLogDescription } from '@/utils/systemLogText';
 import {
     Building2,
     Shield,
@@ -80,7 +79,15 @@ function parseDevice(userAgent = '') {
 }
 
 function formatAuditAction(item = {}) {
-    return formatSystemLogDescription(item);
+    const description = String(item.description || '').trim();
+    if (description) return description;
+
+    const action = String(item.action_taken || 'Activity')
+        .replaceAll('_', ' ')
+        .toLowerCase()
+        .replace(/^\w/, (letter) => letter.toUpperCase());
+
+    return item.module ? `${action} · ${item.module}` : action;
 }
 
 function SectionCard({ title, subtitle, icon, children, action }) {

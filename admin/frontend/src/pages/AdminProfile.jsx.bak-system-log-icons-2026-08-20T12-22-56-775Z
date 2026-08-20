@@ -9,7 +9,6 @@ import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { formatSystemLogDescription } from '@/utils/systemLogText';
-import SystemLogIcon from '@/components/system/SystemLogIcon';
 import {
     Building2,
     Shield,
@@ -404,7 +403,7 @@ export default function AdminProfile() {
                                         className="flex flex-col gap-2 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
                                     >
                                         <div className="flex min-w-0 items-start gap-3">
-                                            <SystemLogIcon item={item} />
+                                            <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
                                             <div className="min-w-0">
                                                 <p className="text-sm font-medium text-stone-700">
                                                     {formatAuditAction(item)}

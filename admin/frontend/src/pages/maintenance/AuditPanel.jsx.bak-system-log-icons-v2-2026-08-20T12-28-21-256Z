@@ -27,7 +27,6 @@ import {
     formatSystemLogActionLabel,
     formatSystemLogDescription,
 } from '@/utils/systemLogText';
-import SystemLogIcon from '@/components/system/SystemLogIcon';
 
 function getAuthHeaders(extra = {}) {
     return {
@@ -474,14 +473,11 @@ export default function AuditPanel() {
                                         </td>
 
                                         <td className="whitespace-nowrap px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <SystemLogIcon item={log} size="sm" />
-                                                <span
-                                                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
-                                                >
-                                                    {formatActionLabel(log.action_taken)}
-                                                </span>
-                                            </div>
+                                            <span
+                                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
+                                            >
+                                                {formatActionLabel(log.action_taken)}
+                                            </span>
                                         </td>
 
                                         <td className="px-4 py-3 text-stone-600">

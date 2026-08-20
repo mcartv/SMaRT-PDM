@@ -34,7 +34,7 @@ SMaRT-PDM is built as a full-stack monorepo with three primary components:
 ```
 SMaRT-PDM/
 ├── admin/                              # Administrative Portal
-│   ├── backend/                        # Express.js REST API
+│   ├── mobile/backend/                        # Express.js REST API
 │   │   ├── routes/                    # API endpoints
 │   │   ├── services/                  # Business logic & schedulers
 │   │   ├── config/                    # Database & auth config
@@ -48,7 +48,7 @@ SMaRT-PDM/
 │       ├── lib/                       # Dart source code
 │       ├── screens/                   # Student-facing interfaces
 │       └── pubspec.yaml               # Flutter dependencies
-├── ocr-scanner/                        # OCR Document Processing Service
+├── ocr/scanner/                        # OCR Document Processing Service
 ├── supabase/                           # Database migrations & configs
 └── [config files]                      # Render.yaml, package.json, etc.
 ```
@@ -411,7 +411,7 @@ Frontend runs on `http://localhost:5173`
 
 #### 5. Install & Run Mobile App
 ```bash
-cd mobile/smartpdm_mobileapp
+cd mobile/frontend
 flutter pub get
 
 # Android
@@ -621,7 +621,7 @@ admin/frontend/
 
 ### Mobile App Structure
 ```
-mobile/smartpdm_mobileapp/
+mobile/frontend/
 ├── lib/
 │   ├── main.dart                 # App entry point
 │   ├── screens/                  # UI screens

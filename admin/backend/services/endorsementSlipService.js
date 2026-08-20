@@ -46,7 +46,7 @@ const PDFKIT_MODULE = 'pdfkit';
 const QRCODE_MODULE = 'qrcode';
 const SCHOOL_LOGO_PATH = path.resolve(
     __dirname,
-    '../../../mobile/smartpdm_mobileapp/assets/images/school_logo.png'
+    '../../../mobile/frontend/assets/images/school_logo.png'
 );
 const INSTITUTION_NAME = 'PAMBAYANG DALUBHASAAN NG MARILAO';
 const INSTITUTION_ADDRESS = 'Abangan Norte, Marilao, Bulacan';

@@ -27,12 +27,12 @@ function replaceInFile(file) {
   fs.writeFileSync(file, content);
 }
 
-replaceInFile('backend/services/messageService.js');
-replaceInFile('backend/server.js');
-replaceInFile('mobile/smartpdm_mobileapp/lib/shared/models/chat_message.dart');
-replaceInFile('mobile/smartpdm_mobileapp/lib/features/messaging/data/services/message_service.dart');
-replaceInFile('mobile/smartpdm_mobileapp/lib/features/messaging/presentation/providers/messaging_provider.dart');
-replaceInFile('mobile/smartpdm_mobileapp/lib/features/messaging/presentation/screens/chat_list_screen.dart');
-replaceInFile('mobile/smartpdm_mobileapp/lib/features/messaging/presentation/screens/messaging_screen.dart');
-replaceInFile('mobile/smartpdm_mobileapp/lib/app/routes/app_router.dart');
+replaceInFile('mobile/backend/services/messageService.js');
+replaceInFile('mobile/backend/server.js');
+replaceInFile('mobile/frontend/lib/shared/models/chat_message.dart');
+replaceInFile('mobile/frontend/lib/features/messaging/data/services/message_service.dart');
+replaceInFile('mobile/frontend/lib/features/messaging/presentation/providers/messaging_provider.dart');
+replaceInFile('mobile/frontend/lib/features/messaging/presentation/screens/chat_list_screen.dart');
+replaceInFile('mobile/frontend/lib/features/messaging/presentation/screens/messaging_screen.dart');
+replaceInFile('mobile/frontend/lib/app/routes/app_router.dart');
 replaceInFile('admin/frontend/src/pages/AdminMessages.jsx');

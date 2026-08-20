@@ -40,7 +40,7 @@ Relevant files for the applicant application flow:
 - `account_recovery_schema.sql`
 
 ## Mobile config checklist
-The mobile base URL is controlled in `mobile/smartpdm_mobileapp/lib/core/config/app_config.dart`.
+The mobile base URL is controlled in `mobile/frontend/lib/core/config/app_config.dart`.
 
 Development:
 - Default LAN URL can stay for local testing.
@@ -259,7 +259,7 @@ Production:
 6. Run the same smoke tests.
 
 ## Mobile release commands
-From `mobile/smartpdm_mobileapp`:
+From `mobile/frontend`:
 
 APK:
 ```bash

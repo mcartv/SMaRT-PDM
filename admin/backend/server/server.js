@@ -39,7 +39,6 @@ const socketLog = (...args) => {
 };
 
 const express = require('express');
-const systemAuditCoverageMiddleware = require('../middleware/systemAuditCoverageMiddleware');
 const cors = require('cors');
 
 // Route imports
@@ -93,8 +92,6 @@ const pool = require('../config/db');
 
 const app = express();
 
-// Fallback System Log coverage for successful mutations without a purpose-built audit entry.
-app.use(systemAuditCoverageMiddleware);
 app.set('trust proxy', 1);
 
 // =========================

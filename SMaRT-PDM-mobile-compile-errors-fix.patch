@@ -1,0 +1,28 @@
+diff --git a/mobile/smartpdm_mobileapp/lib/features/forms/presentation/screens/step_family_intake.dart b/mobile/smartpdm_mobileapp/lib/features/forms/presentation/screens/step_family_intake.dart
+--- a/mobile/smartpdm_mobileapp/lib/features/forms/presentation/screens/step_family_intake.dart
++++ b/mobile/smartpdm_mobileapp/lib/features/forms/presentation/screens/step_family_intake.dart
+@@
+                         widget.onChanged();
+                       },
+                     ),
+                   ),
++                ),
+               if (selectedParentNative != 'No')
+
+diff --git a/mobile/smartpdm_mobileapp/lib/features/notifications/presentation/providers/notification_provider.dart b/mobile/smartpdm_mobileapp/lib/features/notifications/presentation/providers/notification_provider.dart
+--- a/mobile/smartpdm_mobileapp/lib/features/notifications/presentation/providers/notification_provider.dart
++++ b/mobile/smartpdm_mobileapp/lib/features/notifications/presentation/providers/notification_provider.dart
+@@
++import 'dart:async';
++
+ import 'package:flutter/widgets.dart';
+
+diff --git a/mobile/smartpdm_mobileapp/lib/features/profile/presentation/screens/profile_screen.dart b/mobile/smartpdm_mobileapp/lib/features/profile/presentation/screens/profile_screen.dart
+--- a/mobile/smartpdm_mobileapp/lib/features/profile/presentation/screens/profile_screen.dart
++++ b/mobile/smartpdm_mobileapp/lib/features/profile/presentation/screens/profile_screen.dart
+@@
+       ),
+       selectedIndex: 4,
+-      showDrawer: false,
+       showBottomNav: widget.showBottomNav,
+       applyPadding: false,

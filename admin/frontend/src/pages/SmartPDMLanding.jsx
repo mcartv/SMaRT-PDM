@@ -41,7 +41,7 @@ import mobileDashboardScreenshot from '../assets/mobile-app/dashboard-cropped.pn
 import mobileSubmittedScreenshot from '../assets/mobile-app/application-submitted-cropped.png';
 
 const APP_DOWNLOAD_URL =
-  'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
+  'https://github.com/mcartv/SMaRT-PDM/releases/latest/download/SMaRT-PDM.apk';
 const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
 
 

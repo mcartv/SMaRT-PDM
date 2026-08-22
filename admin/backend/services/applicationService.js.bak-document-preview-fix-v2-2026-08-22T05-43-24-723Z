@@ -3688,9 +3688,8 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         const { error: submittedDocumentError } = await supabase
             .from('application_documents')
             .update({
-                // Verification changes review metadata only.
-                // The permanent upload state comes from file_path/current_version_id,
-                // not from a temporary signed preview URL.
+                is_submitted: !!review.url,
+                file_url: review.url,
                 review_status: review.reviewStatus,
                 notes: review.comment || null,
                 remarks: review.comment || null,
@@ -3708,11 +3707,6 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             );
             throw new Error(submittedDocumentError.message);
         }
-
-        // Force the next Preview request to reread the document metadata.
-        documentViewMetadataCache.delete(
-            `${applicationId}:${review.documentKey}`
-        );
     }
 
     const majorReviews = requiredReviews.filter(

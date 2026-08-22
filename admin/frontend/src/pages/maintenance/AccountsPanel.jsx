@@ -53,7 +53,15 @@ import {
 } from '@/components/ui/tooltip';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
-import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
+import {
+    C,
+    EmptyState,
+    FieldLabel,
+} from './components/MaintenanceShared';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 import { toast } from 'sonner';
 
 const ROLE_OPTIONS = [
@@ -1290,15 +1298,6 @@ export default function AccountsPanel() {
         () => accounts.filter((account) => account.is_archived === true).length,
         [accounts]
     );
-    const activePdCount = useMemo(
-        () => accounts.filter((account) => account.role === 'pd' && !account.is_archived).length,
-        [accounts]
-    );
-    const assignedCourseCount = useMemo(
-        () => courses.filter((course) => course.assigned_pd).length,
-        [courses]
-    );
-
     const filteredAccounts = useMemo(() => {
         const q = search.trim().toLowerCase();
 
@@ -1755,14 +1754,11 @@ export default function AccountsPanel() {
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Account Records
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-stone-900">
-                                    {currentCount} active · {archivedCount} archived
-                                </p>
-                                <p className="mt-1 text-[11px] text-stone-500">
-                                    {activePdCount} Program Director{activePdCount === 1 ? '' : 's'} · {assignedCourseCount} assigned course{assignedCourseCount === 1 ? '' : 's'} · {Math.max(courses.length - assignedCourseCount, 0)} unassigned
+                                <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                    Account Management
+                                </h2>
+                                <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                                    Manage authorized staff accounts, role assignments, and Program Director course access.
                                 </p>
                             </div>
 

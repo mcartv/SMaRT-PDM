@@ -30,6 +30,10 @@ import ExcelJS from 'exceljs';
 
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const API_BASE = buildApiUrl('/api');
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.csv'];
@@ -941,10 +945,10 @@ export default function StudentRegistryPanel() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                 Student Registry Records
-              </p>
-              <p className="mt-1 text-sm font-semibold text-stone-900">
+              </h2>
+              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                 {total} imported records · {currentRows.length} current rows
               </p>
             </div>

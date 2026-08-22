@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { MAINTENANCE_CARD_TITLE_CLASS } from './components/maintenanceTypography';
 
 const C = {
     brown: 'var(--portal-base)',
@@ -944,9 +945,9 @@ export default function AcademicYearPanel() {
             <section className="rounded-xl border border-stone-200 bg-white p-3.5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                        <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                             Current Academic Cycle
-                        </p>
+                        </h2>
 
                         {activePeriod ? (
                             <div className="mt-1.5">

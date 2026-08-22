@@ -40,7 +40,17 @@ import {
     mergePolicyContent,
 } from '@/constants/policyContent';
 import { toast } from 'sonner';
-import { C, FieldLabel, GroupCard, Toggle, EmptyState } from './components/MaintenanceShared';
+import {
+    C,
+    EmptyState,
+    FieldLabel,
+    GroupCard,
+    Toggle,
+} from './components/MaintenanceShared';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 import SystemPanel from './SystemPanel';
 
 const DEFAULT_ELIGIBILITY_SUMMARY =
@@ -135,8 +145,8 @@ function SectionFrame({ title, description, children, actions }) {
         <div className="group rounded-2xl border border-stone-200 bg-white p-4">
             <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
-                    <p className="mt-1 text-xs text-stone-500">{description}</p>
+                    <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{title}</h3>
+                    <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>{description}</p>
                 </div>
                 {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
             </div>
@@ -145,7 +155,18 @@ function SectionFrame({ title, description, children, actions }) {
     );
 }
 
-function LandingContentAccordion({ title, description, summary, open, onToggle, children }) {
+function EditableRegion({ editing, className = '', children }) {
+    return (
+        <fieldset
+            disabled={!editing}
+            className={`m-0 min-w-0 border-0 p-0 ${className}`}
+        >
+            {children}
+        </fieldset>
+    );
+}
+
+function LandingContentAccordion({ title, description, summary, open, onToggle, editing, children }) {
     return (
         <section
             className={`overflow-hidden rounded-2xl border bg-white transition-all duration-200 ${
@@ -176,7 +197,11 @@ function LandingContentAccordion({ title, description, summary, open, onToggle, 
                     aria-hidden="true"
                 />
             </button>
-            {open ? <div className="bg-[#fffdf9] p-5">{children}</div> : null}
+            {open ? (
+                <div className="bg-[#fffdf9] p-5">
+                    <EditableRegion editing={editing}>{children}</EditableRegion>
+                </div>
+            ) : null}
         </section>
     );
 }
@@ -267,7 +292,7 @@ export default function GeneralPanel() {
     const [officeAddress, setOfficeAddress] = useState(DEFAULT_OFFICE.office_address);
     const [landlineNumber, setLandlineNumber] = useState(DEFAULT_OFFICE.landline_number);
     const [officeHours, setOfficeHours] = useState(DEFAULT_OFFICE.office_hours);
-    const [officeEditing, setOfficeEditing] = useState(false);
+    const [generalEditing, setGeneralEditing] = useState(false);
     const [eligibilitySummary, setEligibilitySummary] = useState(DEFAULT_ELIGIBILITY_SUMMARY);
     const [landingContent, setLandingContent] = useState(DEFAULT_LANDING_CONTENT);
     const [savedLandingContent, setSavedLandingContent] = useState(DEFAULT_LANDING_CONTENT);
@@ -359,6 +384,13 @@ export default function GeneralPanel() {
 
     const updateGeneralSettings = useCallback(
         async (patchPayload, key, successText) => {
+            if (!generalEditing) {
+                toast.info('Editing is locked', {
+                    description: 'Turn on Edit mode in General Sections before saving changes.',
+                });
+                return null;
+            }
+
             try {
                 setError('');
                 setSavingKey(key);
@@ -379,9 +411,6 @@ export default function GeneralPanel() {
 
                 if (Array.isArray(payload?.landing_faqs)) {
                     setLandingFaqs(normalizeFaqs(payload.landing_faqs));
-                }
-                if (typeof payload?.about_osfa === 'string') {
-                    setAboutOsfa(payload.about_osfa);
                 }
                 if (typeof payload?.eligibility_summary === 'string') {
                     setEligibilitySummary(payload.eligibility_summary);
@@ -423,7 +452,7 @@ export default function GeneralPanel() {
                 setSavingKey('');
             }
         },
-        [showSuccess]
+        [generalEditing, showSuccess]
     );
 
     const saveOfficeSettings = async () => {
@@ -439,7 +468,7 @@ export default function GeneralPanel() {
             'office',
             'Office and contact details saved successfully.'
         );
-        if (saved) setOfficeEditing(false);
+        return saved;
     };
 
     const saveEligibilitySummary = async () => {
@@ -794,6 +823,7 @@ export default function GeneralPanel() {
                 onClick={onRestore}
                 variant="outline"
                 className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                disabled={!generalEditing || savingKey === key}
             >
                 <RotateCcw size={13} className="mr-1.5" />
                 Restore Defaults
@@ -802,7 +832,7 @@ export default function GeneralPanel() {
                 onClick={onSave}
                 className="h-8 rounded-lg border-none px-3 text-xs text-white"
                 style={{ background: savedKey === key ? C.green : C.brownMid }}
-                disabled={savingKey === key}
+                disabled={!generalEditing || savingKey === key}
             >
                 {savingKey === key ? (
                     <Loader2 size={14} className="mr-1.5 animate-spin" />
@@ -847,15 +877,6 @@ export default function GeneralPanel() {
                 editing={Boolean(editingFaqId)}
             />
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 className="text-base font-semibold text-stone-900">General Configuration</h2>
-                    <p className="mt-0.5 text-sm text-stone-500">
-                        System preferences, public content, application settings, and system tools
-                    </p>
-                </div>
-            </div>
-
             {error ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                     {error}
@@ -870,9 +891,48 @@ export default function GeneralPanel() {
 
             <div className={`space-y-4 ${loading ? 'opacity-60' : ''}`}>
                 <div className="rounded-2xl border border-stone-200 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                        General Sections
-                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                General Configuration
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                                System preferences, public content, application settings, and system tools
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            aria-pressed={generalEditing}
+                            onClick={() => {
+                                if (generalEditing) {
+                                    closeFaqDialog(false);
+                                    loadGeneralSettings();
+                                }
+                                setGeneralEditing((current) => !current);
+                            }}
+                            disabled={loading || Boolean(savingKey)}
+                            className={`inline-flex h-10 w-[150px] shrink-0 items-center justify-between self-start rounded-xl border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto ${
+                                generalEditing
+                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800 shadow-sm'
+                                    : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400 hover:bg-stone-50'
+                            }`}
+                        >
+                            <span>Edit mode</span>
+                            <span
+                                className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${
+                                    generalEditing ? 'bg-emerald-500' : 'bg-stone-300'
+                                }`}
+                                aria-hidden="true"
+                            >
+                                <span
+                                    className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                        generalEditing ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                />
+                            </span>
+                        </button>
+                    </div>
                     <div className="mt-4 inline-flex flex-wrap rounded-xl bg-stone-100 p-1">
                         {SECTION_OPTIONS.map((section) => (
                             <button
@@ -896,33 +956,8 @@ export default function GeneralPanel() {
                     <SectionFrame
                         title="Office & Contact"
                         description="Manage institution identity, office details, and public contact information."
-                        actions={
-                            <button
-                                type="button"
-                                aria-pressed={officeEditing}
-                                onClick={() => setOfficeEditing((current) => !current)}
-                                className={`inline-flex h-10 w-[138px] items-center justify-between rounded-xl border px-3 text-xs font-semibold transition-colors ${
-                                    officeEditing
-                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 shadow-sm'
-                                        : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400 hover:bg-stone-50'
-                                }`}
-                            >
-                                <span>Edit mode</span>
-                                <span
-                                    className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${
-                                        officeEditing ? 'bg-emerald-500' : 'bg-stone-300'
-                                    }`}
-                                    aria-hidden="true"
-                                >
-                                    <span
-                                        className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                                            officeEditing ? 'translate-x-4' : 'translate-x-0'
-                                        }`}
-                                    />
-                                </span>
-                            </button>
-                        }
                     >
+                        <EditableRegion editing={generalEditing}>
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <GroupCard title="Institution Info" icon={Globe}>
                                 <div className="space-y-3">
@@ -931,7 +966,7 @@ export default function GeneralPanel() {
                                         <Input
                                             value={instName}
                                             onChange={(e) => setInstName(e.target.value)}
-                                            disabled={!officeEditing}
+                                            disabled={!generalEditing}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
                                     </div>
@@ -941,7 +976,7 @@ export default function GeneralPanel() {
                                         <Input
                                             value={officeName}
                                             onChange={(e) => setOfficeName(e.target.value)}
-                                            disabled={!officeEditing}
+                                            disabled={!generalEditing}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
                                     </div>
@@ -951,7 +986,7 @@ export default function GeneralPanel() {
                                         <Input
                                             value={officeEmail}
                                             onChange={(e) => setOfficeEmail(e.target.value)}
-                                            disabled={!officeEditing}
+                                            disabled={!generalEditing}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
                                     </div>
@@ -967,7 +1002,7 @@ export default function GeneralPanel() {
                                             <Input
                                                  value={officeAddress}
                                                  onChange={(e) => setOfficeAddress(e.target.value)}
-                                                 disabled={!officeEditing}
+                                                 disabled={!generalEditing}
                                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
                                             />
                                         </div>
@@ -980,7 +1015,7 @@ export default function GeneralPanel() {
                                             <Input
                                                  value={landlineNumber}
                                                  onChange={(e) => setLandlineNumber(e.target.value)}
-                                                 disabled={!officeEditing}
+                                                 disabled={!generalEditing}
                                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
                                             />
                                         </div>
@@ -993,7 +1028,7 @@ export default function GeneralPanel() {
                                             <Input
                                                  value={officeHours}
                                                  onChange={(e) => setOfficeHours(e.target.value)}
-                                                 disabled={!officeEditing}
+                                                 disabled={!generalEditing}
                                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
                                             />
                                         </div>
@@ -1001,10 +1036,10 @@ export default function GeneralPanel() {
                                 </div>
                             </GroupCard>
                         </div>
-                        {officeEditing ? (
+                        {generalEditing ? (
                             <div className="mt-4 flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
-                                    <p className="text-xs font-semibold text-stone-800">Office editing is active</p>
+                                    <p className="text-xs font-semibold text-stone-800">General editing is active</p>
                                     <p className="mt-1 text-xs text-stone-500">Review both information groups before saving.</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -1012,6 +1047,7 @@ export default function GeneralPanel() {
                                 </div>
                             </div>
                         ) : null}
+                        </EditableRegion>
                     </SectionFrame>
                 ) : null}
 
@@ -1094,6 +1130,7 @@ export default function GeneralPanel() {
                                         description="Public introduction and platform benefits shown on the landing page."
                                         summary={`${landingContent.about_items.length} platform benefits`}
                                         open={activeAboutGroup === 'about'}
+                                        editing={generalEditing}
                                         onToggle={() => setActiveAboutGroup((current) => current === 'about' ? null : 'about')}
                                     >
                                         <FieldLabel>Section Headline</FieldLabel>
@@ -1129,6 +1166,7 @@ export default function GeneralPanel() {
                                         description="General guidance shown before detailed scholarship requirements are available."
                                         summary="Public eligibility overview"
                                         open={activeAboutGroup === 'eligibility'}
+                                        editing={generalEditing}
                                         onToggle={() => setActiveAboutGroup((current) => current === 'eligibility' ? null : 'eligibility')}
                                     >
                                         <FieldLabel>Eligibility Summary</FieldLabel>
@@ -1159,6 +1197,7 @@ export default function GeneralPanel() {
                                             description="The first message and mobile-app information visitors see."
                                             summary="Hero message and mobile app download copy"
                                             open={activeCopyGroup === 'hero'}
+                                            editing={generalEditing}
                                             onToggle={() => setActiveCopyGroup((current) => current === 'hero' ? null : 'hero')}
                                         >
                                             <div className="grid gap-4 md:grid-cols-2">
@@ -1176,6 +1215,7 @@ export default function GeneralPanel() {
                                             description="Heading, introduction, and the public application steps."
                                             summary={`${landingContent.guide_steps.length} application steps`}
                                             open={activeCopyGroup === 'guide'}
+                                            editing={generalEditing}
                                             onToggle={() => setActiveCopyGroup((current) => current === 'guide' ? null : 'guide')}
                                         >
                                             <FieldLabel>Applicant Guide Heading</FieldLabel>
@@ -1209,6 +1249,7 @@ export default function GeneralPanel() {
                                             description="Checklist and important notices displayed in the public requirements modal."
                                             summary={`${landingContent.requirement_items.length} requirements · ${landingContent.requirement_notices.length} notices`}
                                             open={activeCopyGroup === 'requirements'}
+                                            editing={generalEditing}
                                             onToggle={() => setActiveCopyGroup((current) => current === 'requirements' ? null : 'requirements')}
                                         >
                                             <FieldLabel>Requirements Heading</FieldLabel>
@@ -1270,6 +1311,7 @@ export default function GeneralPanel() {
                                             description="Heading, introduction, and public feature descriptions."
                                             summary={`${landingContent.feature_items.length} platform features`}
                                             open={activeCopyGroup === 'features'}
+                                            editing={generalEditing}
                                             onToggle={() => setActiveCopyGroup((current) => current === 'features' ? null : 'features')}
                                         >
                                             <FieldLabel>Features Heading</FieldLabel>
@@ -1303,6 +1345,7 @@ export default function GeneralPanel() {
                                             description="Institutional campus message and official-platform verification guidance."
                                             summary="Campus message and platform verification copy"
                                             open={activeCopyGroup === 'campus'}
+                                            editing={generalEditing}
                                             onToggle={() => setActiveCopyGroup((current) => current === 'campus' ? null : 'campus')}
                                         >
                                             <div className="grid gap-4 md:grid-cols-2">
@@ -1330,6 +1373,7 @@ export default function GeneralPanel() {
                                             description="Set the public effective date used by all policy documents."
                                             summary={`Effective ${policyContent.effective_date || 'date not set'}`}
                                             open={activePolicyGroup === 'shared'}
+                                            editing={generalEditing}
                                             onToggle={() => setActivePolicyGroup((current) => current === 'shared' ? null : 'shared')}
                                         >
                                             <div className="max-w-xs">
@@ -1344,6 +1388,7 @@ export default function GeneralPanel() {
                                             description="Choose its icon and edit the introduction and privacy sections."
                                             summary={`Introduction · ${policyContent.privacy_sections.length} privacy sections`}
                                             open={activePolicyGroup === 'privacy'}
+                                            editing={generalEditing}
                                             onToggle={() => setActivePolicyGroup((current) => current === 'privacy' ? null : 'privacy')}
                                         >
                                             <div className="max-w-xs">
@@ -1381,6 +1426,7 @@ export default function GeneralPanel() {
                                             description="Edit the consent statement and additional processing notice."
                                             summary="Consent heading, statement, and note"
                                             open={activePolicyGroup === 'consent'}
+                                            editing={generalEditing}
                                             onToggle={() => setActivePolicyGroup((current) => current === 'consent' ? null : 'consent')}
                                         >
                                             <div className="grid gap-4 md:grid-cols-2">
@@ -1402,6 +1448,7 @@ export default function GeneralPanel() {
                                             description="Choose its icon and edit the introduction and terms sections."
                                             summary={`Introduction · ${policyContent.terms_sections.length} terms sections`}
                                             open={activePolicyGroup === 'terms'}
+                                            editing={generalEditing}
                                             onToggle={() => setActivePolicyGroup((current) => current === 'terms' ? null : 'terms')}
                                         >
                                             <div className="max-w-xs">
@@ -1438,6 +1485,7 @@ export default function GeneralPanel() {
                             ) : null}
 
                             {activeLandingSection === 'notice' ? (
+                                <EditableRegion editing={generalEditing}>
                                 <GroupCard title="Featured Public Notice" icon={Megaphone}>
                                     <div className="space-y-4">
                                         <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1524,6 +1572,7 @@ export default function GeneralPanel() {
                                     </div>
 
                                 </GroupCard>
+                                </EditableRegion>
                             ) : null}
 
                             {activeLandingSection === 'faq' ? (
@@ -1564,7 +1613,7 @@ export default function GeneralPanel() {
                                                 variant="outline"
                                                 className="h-9 rounded-lg border-stone-200 px-3 text-sm"
                                                 onClick={restoreFaqDefaults}
-                                                disabled={savingKey === 'faq'}
+                                                disabled={!generalEditing || savingKey === 'faq'}
                                             >
                                                 <RotateCcw size={13} className="mr-1.5" />
                                                 Restore Defaults
@@ -1575,6 +1624,7 @@ export default function GeneralPanel() {
                                                 className="h-9 rounded-lg border-none px-3 text-sm text-white"
                                                 style={{ background: C.brownMid }}
                                                 onClick={openCreateFaq}
+                                                disabled={!generalEditing || savingKey === 'faq'}
                                             >
                                                 <Plus size={13} className="mr-1.5" />
                                                 Add FAQ
@@ -1616,6 +1666,7 @@ export default function GeneralPanel() {
                                                                 variant="outline"
                                                                 className="h-8 rounded-lg border-stone-200 px-3 text-xs"
                                                                 onClick={() => openEditFaq(faq)}
+                                                                disabled={!generalEditing || savingKey === 'faq'}
                                                             >
                                                                 <Pencil size={13} className="mr-1.5" />
                                                                 Edit
@@ -1625,7 +1676,7 @@ export default function GeneralPanel() {
                                                                 variant="outline"
                                                                 className="h-8 rounded-lg border-stone-200 px-3 text-xs"
                                                                 onClick={() => handleFaqArchiveRestore(faq)}
-                                                                disabled={faqActionId === faq.faq_id || savingKey === 'faq'}
+                                                                disabled={!generalEditing || faqActionId === faq.faq_id || savingKey === 'faq'}
                                                             >
                                                                 {faqActionId === faq.faq_id ? (
                                                                     <Loader2 size={13} className="mr-1.5 animate-spin" />
@@ -1665,6 +1716,7 @@ export default function GeneralPanel() {
                         description="Control public application availability and the default deadline used by the system."
                         actions={renderSectionActions(restoreApplicationDefaults, saveApplicationSettings, 'application')}
                     >
+                        <EditableRegion editing={generalEditing}>
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <GroupCard title="Application Window" icon={Calendar}>
                                 <div className="space-y-3">
@@ -1691,6 +1743,7 @@ export default function GeneralPanel() {
                                 </div>
                             </GroupCard>
                         </div>
+                        </EditableRegion>
                     </SectionFrame>
                 ) : null}
 
@@ -1699,7 +1752,9 @@ export default function GeneralPanel() {
                         title="System"
                         description="Review core service status and access system maintenance tools from General settings."
                     >
-                        <SystemPanel embedded />
+                        <EditableRegion editing={generalEditing}>
+                            <SystemPanel embedded />
+                        </EditableRegion>
                     </SectionFrame>
                 ) : null}
             </div>

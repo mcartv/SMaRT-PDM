@@ -23,6 +23,10 @@ import ThemePanel from './ThemePanel';
 import LandingThemePanel from './LandingThemePanel';
 import ROSettingsPanel from './ROSettingsPanel';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
@@ -50,14 +54,14 @@ function TopNav({ tabs, active, onChange }) {
                 key={item.key}
                 type="button"
                 onClick={() => onChange(item.key)}
-                className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-xs font-medium transition 2xl:px-3 2xl:text-sm ${
+                className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 font-sans text-sm font-semibold leading-none tracking-[-0.01em] transition-colors ${
                   isActive
                     ? 'bg-white text-stone-900 shadow-sm'
                     : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                 }`}
               >
-                <Icon size={14} />
-                {item.label}
+                <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <span>{item.label}</span>
               </button>
             );
           })}
@@ -84,10 +88,10 @@ export default function Maintenance() {
         return (
           <div className="space-y-5">
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+              <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                 Theme Presets
-              </p>
-              <p className="mt-1 text-sm text-stone-500">
+              </h2>
+              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                 Choose which theme area you want to manage.
               </p>
 

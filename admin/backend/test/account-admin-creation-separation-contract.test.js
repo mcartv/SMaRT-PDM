@@ -124,4 +124,10 @@ test('Accounts can be filtered individually and grouped into organized role sect
   assert.match(panel, /item\.type === 'group'/);
   assert.doesNotMatch(groupHeader, /roleTone|rounded-full/);
   assert.match(panel, /Date Created: \{formatAccountCreatedDate\(account\.created_at\)\}/);
+  assert.match(panel, /Account Management/);
+  assert.match(
+    panel,
+    /Manage authorized staff accounts, role assignments, and Program Director course access\./
+  );
+  assert.doesNotMatch(panel, /activePdCount|activeRoleCount|assignedCourseCount|Account Records|Account Overview/);
 });

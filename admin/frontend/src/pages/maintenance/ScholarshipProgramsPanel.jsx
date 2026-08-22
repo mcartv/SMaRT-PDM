@@ -31,6 +31,10 @@ import {
   FieldLabel,
   Toggle,
 } from './components/MaintenanceShared';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 
@@ -938,13 +942,10 @@ export default function ScholarshipProgramsPanel() {
       <section className="rounded-2xl border border-stone-200 bg-white p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-              Scholarship Maintenance
-            </p>
-            <h2 className="mt-1 text-lg font-semibold text-stone-900">
+            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
               Benefactors & Programs
             </h2>
-            <p className="mt-1 max-w-2xl text-sm text-stone-500">
+            <p className={`${MAINTENANCE_CARD_SUBTITLE_CLASS} max-w-2xl`}>
               Manage each scholarship provider together with the programs it funds.
             </p>
           </div>

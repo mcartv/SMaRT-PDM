@@ -4,6 +4,10 @@ import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
+import {
   LANDING_COLOR_FIELDS,
   getDefaultLandingTheme,
   getLandingThemePresetOptions,
@@ -274,8 +278,8 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
             <Palette className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-stone-900">Landing Page Theme</h3>
-            <p className="mt-1 text-sm text-stone-500">
+            <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>Landing Page Theme</h3>
+            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
               Adjust the public landing page and unified login colors separately from each user's portal theme.
             </p>
             <p className="mt-1 text-xs text-stone-500">
@@ -301,8 +305,8 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
         <div className="border-b border-stone-100 px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-base font-semibold text-stone-900">Landing Color Controls</h4>
-              <p className="mt-1 text-sm text-stone-500">
+              <h4 className={MAINTENANCE_CARD_TITLE_CLASS}>Landing Color Controls</h4>
+              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                 Current mode: <span className="font-medium text-stone-700">{previewTheme.label}</span>
               </p>
             </div>

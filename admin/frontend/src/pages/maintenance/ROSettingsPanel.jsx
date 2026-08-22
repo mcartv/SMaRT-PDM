@@ -18,6 +18,10 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const C = {
     brownMid: 'var(--portal-base)',
@@ -535,10 +539,10 @@ export default function ROSettingsPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 RO Configuration
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 Required hours: {Number(requiredHours || 0)} · Carry-over {allowCarryOver ? 'allowed' : 'not allowed'}
                             </p>
                             <p className="mt-0.5 text-xs text-stone-400">
@@ -606,10 +610,10 @@ export default function ROSettingsPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 RO Areas
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {currentCount} active · {inactiveCount} inactive
                             </p>
                         </div>

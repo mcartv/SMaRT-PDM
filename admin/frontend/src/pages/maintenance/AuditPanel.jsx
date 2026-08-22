@@ -28,6 +28,10 @@ import {
     formatSystemLogDescription,
 } from '@/utils/systemLogText';
 import SystemLogIcon from '@/components/system/SystemLogIcon';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 function getAuthHeaders(extra = {}) {
     return {
@@ -247,10 +251,10 @@ export default function AuditPanel() {
                         </div>
 
                         <div>
-                            <h2 className="text-sm font-semibold text-stone-900">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 System Logs Access Restricted
                             </h2>
-                            <p className="mt-0.5 text-xs text-stone-500">
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 Enter your current account password to continue.
                             </p>
                         </div>
@@ -321,10 +325,10 @@ export default function AuditPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 System Log Records
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {total} logged actions
                             </p>
                         </div>

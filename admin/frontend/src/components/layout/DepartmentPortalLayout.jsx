@@ -21,6 +21,7 @@ import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -52,16 +53,6 @@ function readStoredProfile(storageKey) {
   }
 }
 
-function getHeaderGreeting(profile) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
-  const firstName = String(
-    profile?.first_name || profile?.name || profile?.full_name || ''
-  ).trim().split(/\s+/)[0];
-
-  return `${greeting}, ${firstName || 'there'} 👋`;
-}
-
 export default function DepartmentPortalLayout({
   portalKey,
   officeName,
@@ -90,6 +81,7 @@ export default function DepartmentPortalLayout({
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
+  const headerGreeting = useHeaderGreeting(profile);
   const {
     notifications,
     newNotifications,
@@ -356,7 +348,7 @@ export default function DepartmentPortalLayout({
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {getHeaderGreeting(profile)}
+              {headerGreeting}
             </h1>
           </div>
 

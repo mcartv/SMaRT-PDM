@@ -43,9 +43,6 @@ import { toast } from 'sonner';
 import { C, FieldLabel, GroupCard, Toggle, EmptyState } from './components/MaintenanceShared';
 import SystemPanel from './SystemPanel';
 
-const DEFAULT_ABOUT_OSFA =
-    'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.';
-
 const DEFAULT_ELIGIBILITY_SUMMARY =
     'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.';
 
@@ -271,7 +268,6 @@ export default function GeneralPanel() {
     const [landlineNumber, setLandlineNumber] = useState(DEFAULT_OFFICE.landline_number);
     const [officeHours, setOfficeHours] = useState(DEFAULT_OFFICE.office_hours);
     const [officeEditing, setOfficeEditing] = useState(false);
-    const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
     const [eligibilitySummary, setEligibilitySummary] = useState(DEFAULT_ELIGIBILITY_SUMMARY);
     const [landingContent, setLandingContent] = useState(DEFAULT_LANDING_CONTENT);
     const [savedLandingContent, setSavedLandingContent] = useState(DEFAULT_LANDING_CONTENT);
@@ -330,7 +326,6 @@ export default function GeneralPanel() {
             setOfficeAddress(payload?.office_address || DEFAULT_OFFICE.office_address);
             setLandlineNumber(payload?.landline_number || DEFAULT_OFFICE.landline_number);
             setOfficeHours(payload?.office_hours || DEFAULT_OFFICE.office_hours);
-            setAboutOsfa(payload?.about_osfa || DEFAULT_ABOUT_OSFA);
             setEligibilitySummary(payload?.eligibility_summary || DEFAULT_ELIGIBILITY_SUMMARY);
             const nextLandingContent = mergeLandingContent(payload?.landing_content);
             const nextPolicyContent = mergePolicyContent(payload?.policy_content);
@@ -447,14 +442,6 @@ export default function GeneralPanel() {
         if (saved) setOfficeEditing(false);
     };
 
-    const saveAboutOsfa = async () => {
-        await updateGeneralSettings(
-            { about_osfa: aboutOsfa },
-            'about-osfa',
-            'About OSFA content saved successfully.'
-        );
-    };
-
     const saveEligibilitySummary = async () => {
         await updateGeneralSettings(
             { eligibility_summary: eligibilitySummary },
@@ -473,6 +460,7 @@ export default function GeneralPanel() {
 
     const saveLandingCopyGroup = async (group) => {
         const fieldsByGroup = {
+            about: ['about_title', 'about_description', 'about_items'],
             hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
             guide: ['guide_title', 'guide_description', 'guide_steps'],
             requirements: ['requirements_title', 'requirements_description', 'requirement_items', 'requirement_notices'],
@@ -535,11 +523,6 @@ export default function GeneralPanel() {
         showSuccess('Office and contact fields restored locally. Save to apply.');
     };
 
-    const restoreAboutOsfaDefault = () => {
-        setAboutOsfa(DEFAULT_ABOUT_OSFA);
-        showSuccess('About OSFA content restored locally. Save to apply.');
-    };
-
     const restoreEligibilityDefault = () => {
         setEligibilitySummary(DEFAULT_ELIGIBILITY_SUMMARY);
         showSuccess('Eligibility summary restored locally. Save to apply.');
@@ -547,6 +530,7 @@ export default function GeneralPanel() {
 
     const restoreLandingGroupDefaults = (group) => {
         const fieldsByGroup = {
+            about: ['about_title', 'about_description', 'about_items'],
             hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
             guide: ['guide_title', 'guide_description', 'guide_steps'],
             requirements: ['requirements_title', 'requirements_description', 'requirement_items', 'requirement_notices'],
@@ -1106,23 +1090,38 @@ export default function GeneralPanel() {
                                 <GroupCard title="Landing About OSFA & Eligibility" icon={Globe}>
                                 <div className="space-y-5">
                                     <LandingContentAccordion
-                                        title="About OSFA"
-                                        description="Public description of the scholarship office and its role."
-                                        summary="Public office description"
+                                        title="About SMaRT-PDM"
+                                        description="Public introduction and platform benefits shown on the landing page."
+                                        summary={`${landingContent.about_items.length} platform benefits`}
                                         open={activeAboutGroup === 'about'}
                                         onToggle={() => setActiveAboutGroup((current) => current === 'about' ? null : 'about')}
                                     >
-                                        <FieldLabel>About OSFA Text</FieldLabel>
-                                        <textarea
-                                            value={aboutOsfa}
-                                            onChange={(e) => setAboutOsfa(e.target.value)}
-                                            rows={7}
-                                            className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
-                                            placeholder="Write the public About OSFA description shown on the landing page."
+                                        <FieldLabel>Section Headline</FieldLabel>
+                                        <Input
+                                            value={landingContent.about_title}
+                                            onChange={(e) => updateLandingField('about_title', e.target.value)}
+                                            maxLength={180}
                                         />
-                                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-4">
-                                            {renderSectionActions(restoreAboutOsfaDefault, saveAboutOsfa, 'about-osfa')}
+                                        <div className="mt-4"><FieldLabel>About SMaRT-PDM Description</FieldLabel>
+                                        <textarea
+                                            value={landingContent.about_description}
+                                            onChange={(e) => updateLandingField('about_description', e.target.value)}
+                                            rows={5}
+                                            maxLength={1200}
+                                            className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
+                                            placeholder="Describe SMaRT-PDM and the value it provides."
+                                        />
                                         </div>
+                                        <div className="mt-4 space-y-3">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Benefit Cards</p>
+                                            {landingContent.about_items.slice(0, 3).map((item, index) => (
+                                                <div key={index} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                                                    <Input value={item.title} onChange={(e) => updateLandingItem('about_items', index, 'title', e.target.value)} maxLength={120} />
+                                                    <textarea value={item.description} onChange={(e) => updateLandingItem('about_items', index, 'description', e.target.value)} rows={2} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {renderContentGroupActions('copy', 'about')}
                                     </LandingContentAccordion>
 
                                     <LandingContentAccordion

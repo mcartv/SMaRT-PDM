@@ -57,33 +57,28 @@ import { toast } from 'sonner';
 const ROLE_OPTIONS = [
     {
         value: 'admin',
-        label: 'Admin',
+        label: 'OSFA Coordinator',
         department: 'Office for Scholarship and Financial Assistance (OSFA)',
-        position: 'OSFA Administrator',
     },
     {
         value: 'pd',
         label: 'Program Director',
         department: 'Office of the College of Hospitality and Tourism Management',
-        position: 'Program Director',
     },
     {
         value: 'guidance',
-        label: 'GCO',
+        label: 'Guidance Counselor',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Officer',
     },
     {
         value: 'sdo',
-        label: 'SDO',
+        label: 'Student Discipline Officer',
         department: 'Student Welfare and Development Office',
-        position: 'SDO Officer',
     },
     {
         value: 'ro_coordinator',
         label: 'RO Coordinator',
         department: '',
-        position: 'RO Coordinator',
     },
 ];
 
@@ -141,7 +136,6 @@ const DEFAULT_FORM = {
     phone_number: '',
     role: DEFAULT_OPERATIONAL_ROLE.value,
     department: DEFAULT_OPERATIONAL_ROLE.department,
-    position: DEFAULT_OPERATIONAL_ROLE.position,
     password: '',
     confirm_password: '',
     course_ids: [],
@@ -745,7 +739,7 @@ function AdminCreateModal({
                             Create Admin Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
-                            Creates a high-privilege OSFA Administrator account.
+                            Creates a high-privilege OSFA Coordinator account.
                         </p>
                     </div>
 
@@ -895,7 +889,6 @@ function AccountEditModal({
             department: role === 'ro_coordinator'
                 ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
                 : defaults?.department || current.department,
-            position: defaults?.position || current.position,
         }));
     };
 
@@ -1010,15 +1003,6 @@ function AccountEditModal({
                             roAreas={roAreas}
                         />
 
-                        <div>
-                            <FieldLabel>Position</FieldLabel>
-                            <Input
-                                value={form.position}
-                                onChange={(event) => setField('position', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving || form.role === 'ro_coordinator'}
-                            />
-                        </div>
                     </div>
 
                     <CourseAssignmentField form={form} setField={setField} courses={courses} currentUserId={currentUserId} disabled={saving} />
@@ -1355,7 +1339,6 @@ export default function AccountsPanel() {
             department: role === 'ro_coordinator'
                 ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
                 : defaults?.department || current.department,
-            position: defaults?.position || current.position,
             course_ids: role === 'pd' ? current.course_ids : [],
         }));
 
@@ -1369,7 +1352,6 @@ export default function AccountsPanel() {
             ...DEFAULT_FORM,
             role: defaults.value,
             department: defaults.department,
-            position: defaults.position,
         });
 
         setError('');
@@ -1411,7 +1393,6 @@ export default function AccountsPanel() {
                 account.department,
                 account.assigned_courses || []
             ),
-            position: account.position || '',
             password: '',
             confirm_password: '',
             course_ids: account.course_ids || [],
@@ -1472,7 +1453,6 @@ export default function AccountsPanel() {
                 ...DEFAULT_FORM,
                 role: form.role,
                 department: defaults.department,
-                position: defaults.position,
             });
             setPageTab('current');
             setCreateOpen(false);
@@ -1524,7 +1504,7 @@ export default function AccountsPanel() {
             setPageTab('current');
             setAdminCreateOpen(false);
             toast.success('Admin account created', {
-                description: 'The new OSFA Administrator account is ready to sign in.',
+                description: 'The new OSFA Coordinator account is ready to sign in.',
             });
         } catch (err) {
             setAdminError(err.message || 'Failed to create Admin account.');
@@ -1777,8 +1757,8 @@ export default function AccountsPanel() {
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="all">All Accounts</SelectItem>
-                                                        <SelectItem value="admin">Admin</SelectItem>
-                                                        <SelectItem value="office">Office (SDO/GCO)</SelectItem>
+                                                        <SelectItem value="admin">OSFA Coordinator</SelectItem>
+                                                        <SelectItem value="office">Guidance Counselor / Student Discipline Officer</SelectItem>
                                                         <SelectItem value="pd">Program Director</SelectItem>
                                                         <SelectItem value="ro_coordinator">RO Coordinator</SelectItem>
                                                     </SelectContent>

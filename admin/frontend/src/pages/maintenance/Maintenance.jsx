@@ -40,7 +40,7 @@ function TopNav({ tabs, active, onChange }) {
   return (
     <div className="sticky top-0 z-20 border-b border-stone-200 bg-white px-2 py-2">
       <div className="overflow-x-auto">
-        <div className="inline-flex min-w-max items-center gap-1 rounded-xl bg-stone-100 p-1">
+        <div className="mx-auto flex w-max min-w-max items-center gap-1 rounded-xl bg-stone-100 p-1">
           {tabs.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.key;

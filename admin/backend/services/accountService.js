@@ -11,7 +11,7 @@ const ROLE_CONFIG = {
     admin: {
         dbRole: 'Admin',
         department: 'Office for Scholarship and Financial Assistance (OSFA)',
-        position: 'OSFA Administrator',
+        position: 'OSFA Coordinator',
     },
     pd: {
         dbRole: 'Admin',
@@ -21,12 +21,12 @@ const ROLE_CONFIG = {
     guidance: {
         dbRole: 'Admin',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Officer',
+        position: 'Guidance Counselor',
     },
     sdo: {
         dbRole: 'SDO',
         department: 'Student Welfare and Development Office',
-        position: 'SDO Officer',
+        position: 'Student Discipline Officer',
     },
     ro_coordinator: {
         dbRole: 'Admin',
@@ -68,7 +68,6 @@ const staffAccountSchema = z
             error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
         }),
         department: z.string().trim().optional().default(''),
-        position: z.string().trim().optional().default(''),
         password: passwordSchema,
         confirm_password: z.string(),
     })
@@ -471,9 +470,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
 
     const phoneNumber = safeText(phoneNumberInput) || null;
     let department = validateDepartment(role, rawPayload.department || parsedData.department || config.department);
-    const position = role === 'ro_coordinator'
-        ? config.position
-        : safeText(rawPayload.position || parsedData.position) || config.position;
+    const position = config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
     const client = await db.connect();
@@ -718,13 +715,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             department = await validateRoCoordinatorDepartment(department, client);
         }
 
-        const position = nextRole === 'ro_coordinator'
-            ? config.position
-            : payload.position !== undefined
-                ? safeText(payload.position) || config.position
-                : roleChanged
-                    ? config.position
-                    : safeText(current.position) || config.position;
+        const position = config.position;
 
         const nextIsArchived = payload.is_archived !== undefined
             ? payload.is_archived === true

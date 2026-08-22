@@ -44,6 +44,8 @@ import ROCoordinatorMaintenance from './pages/ROCoordinatorMaintenance';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
+import AboutPage from './pages/AboutPage';
+import HowToApplyPage from './pages/HowToApplyPage';
 import UnifiedLogin from './pages/UnifiedLogin';
 import AdminLogin from './pages/AdminLogin';
 import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
@@ -78,6 +80,14 @@ export default function App() {
 
         {/* Public Landing Page */}
         <Route path="/landing" element={<SmartPDMLanding />} />
+        <Route path="/about" element={<Navigate to="/about/smart-pdm" replace />} />
+        <Route path="/about/pdm" element={<AboutPage />} />
+        <Route path="/about/smart-pdm" element={<AboutPage />} />
+        <Route path="/about/developers" element={<AboutPage />} />
+        <Route path="/how-to-apply" element={<Navigate to="/how-to-apply/process" replace />} />
+        <Route path="/how-to-apply/process" element={<HowToApplyPage />} />
+        <Route path="/how-to-apply/requirements" element={<HowToApplyPage />} />
+        <Route path="/how-to-apply/obligations" element={<HowToApplyPage />} />
         <Route path="/privacy" element={<PrivacyNotice />} />
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/endorsement/verify/:token" element={<EndorsementVerification />} />
@@ -375,4 +385,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-

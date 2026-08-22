@@ -27,6 +27,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -41,16 +42,6 @@ function resolveProfileImage(profile) {
   );
 
   return match?.trim() || '';
-}
-
-function getHeaderGreeting(profile) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
-  const firstName = String(
-    profile?.first_name || profile?.name || profile?.full_name || ''
-  ).trim().split(/\s+/)[0];
-
-  return `${greeting}, ${firstName || 'Administrator'} 👋`;
 }
 
 const navItems = [
@@ -75,6 +66,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const headerGreeting = useHeaderGreeting(adminData, 'Administrator');
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('admin');
@@ -331,7 +323,7 @@ export default function AdminLayout() {
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {getHeaderGreeting(adminData)}
+              {headerGreeting}
             </h1>
           </div>
 

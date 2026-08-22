@@ -35,6 +35,13 @@ export default function UnifiedUserLoginCard({ theme }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessionFeedback] = useState(consumeAnyPortalFeedback);
+  const loginTooltip = !email.trim() && !password
+    ? 'Enter your email and password to continue.'
+    : !email.trim()
+      ? 'Enter your email to continue.'
+      : !password
+        ? 'Enter your password to continue.'
+        : 'Sign in to SMaRT-PDM.';
 
   useEffect(() => {
     const existingSession = getStoredPortalSession();
@@ -233,7 +240,8 @@ export default function UnifiedUserLoginCard({ theme }) {
 
             <button
               type="submit"
-              disabled={isLoading || !email.trim() || !password}
+              disabled={isLoading}
+              title={loginTooltip}
               className="mt-1 flex h-[48px] w-full items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
               style={{ background: theme.base }}
             >

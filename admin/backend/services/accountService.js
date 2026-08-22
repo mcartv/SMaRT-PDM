@@ -58,12 +58,23 @@ const passwordSchema = z
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
     .regex(/[0-9]/, 'Password must contain at least one number.');
 
+const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
+const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
+const optionalPhoneNumberSchema = z
+    .string()
+    .trim()
+    .refine((value) => !value || PHONE_NUMBER_PATTERN.test(value), {
+        message: PHONE_NUMBER_ERROR,
+    })
+    .optional()
+    .default('');
+
 const staffAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
         last_name: z.string().trim().min(1, 'Last name is required.'),
         email: z.string().trim().toLowerCase().email('A valid email address is required.'),
-        phone_number: z.string().trim().optional().default(''),
+        phone_number: optionalPhoneNumberSchema,
         role: z.enum(OPERATIONAL_ROLE_VALUES, {
             error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
         }),
@@ -97,6 +108,16 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function validateOptionalPhoneNumber(value) {
+    const phoneNumber = safeText(value);
+
+    if (phoneNumber && !PHONE_NUMBER_PATTERN.test(phoneNumber)) {
+        throw createHttpError(400, PHONE_NUMBER_ERROR);
+    }
+
+    return phoneNumber || null;
 }
 
 function validateDepartment(role, value) {
@@ -702,7 +723,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : safeText(current.email).toLowerCase();
 
         const phoneNumber = payload.phone_number !== undefined
-            ? safeText(payload.phone_number) || null
+            ? validateOptionalPhoneNumber(payload.phone_number)
             : safeText(current.phone_number) || null;
 
         const departmentInput = payload.department !== undefined

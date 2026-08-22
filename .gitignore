@@ -49,3 +49,9 @@ mobile/backend/.env
 *.backup-*
 *.bak
 **/test-results.txt
+mobile/smartpdm_mobileapp/
+**/.dart_tool/
+**/.pub-cache/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages

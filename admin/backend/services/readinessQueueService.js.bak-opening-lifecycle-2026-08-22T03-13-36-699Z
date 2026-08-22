@@ -130,37 +130,6 @@ async function syncOpeningFcfsQueue(openingId) {
     );
 
     const occupiedSlots = Number(occupiedResult.rows[0]?.occupied_count || 0);
-    const openingIsFull = capacity > 0 && occupiedSlots >= capacity;
-
-    // Scholarship opening lifecycle:
-    // - active scholars continue occupying their awarded slots;
-    // - reaching capacity closes the opening to NEW applications;
-    // - closing does not archive the opening or its waiting list.
-    await client.query(
-      `
-        UPDATE program_openings
-        SET
-          filled_slots = LEAST(allocated_slots, $2::integer),
-          posting_status = CASE
-            WHEN $3::boolean
-             AND LOWER(COALESCE(posting_status, '')) = 'open'
-              THEN 'closed'
-            ELSE posting_status
-          END,
-          updated_at = CASE
-            WHEN filled_slots IS DISTINCT FROM LEAST(allocated_slots, $2::integer)
-              OR (
-                $3::boolean
-                AND LOWER(COALESCE(posting_status, '')) = 'open'
-              )
-              THEN now()
-            ELSE updated_at
-          END
-        WHERE opening_id = $1::uuid
-      `,
-      [normalizedOpeningId, occupiedSlots, openingIsFull]
-    );
-
     const reservableSlots = Math.max(0, capacity - occupiedSlots);
 
     const queueResult = await client.query(

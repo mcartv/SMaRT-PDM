@@ -330,33 +330,17 @@ function canReapplyToSameOpening(application, majorViolationIds) {
   return true;
 }
 
-async function getActiveAcademicPeriod() {
-  const { data, error } = await supabase
-    .from('academic_period')
-    .select('period_id, academic_year_id, term')
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data || null;
-}
-
 async function getOpeningsForMobile(userId) {
   const student = await getStudentByUserId(userId);
   const applications = await getStudentApplications(student?.student_id);
   const activeApplication =
     applications.find(isActiveApplication) || null;
 
-  const activePeriod = await getActiveAcademicPeriod();
-
   const { data, error } = await supabase
     .from('program_openings')
     .select(`
       opening_id,
       program_id,
-      academic_year_id,
-      period_id,
       opening_title,
       announcement_text,
       allocated_slots,
@@ -451,11 +435,6 @@ async function getOpeningsForMobile(userId) {
       const program = row.scholarship_program || {};
       const benefactor = program.benefactors || null;
 
-      const isCurrentPeriod =
-        !!activePeriod?.period_id &&
-        String(row.period_id || '') ===
-          String(activePeriod.period_id);
-
       const openingApplications = applications.filter(
         (application) =>
           application.is_archived !== true &&
@@ -508,7 +487,6 @@ async function getOpeningsForMobile(userId) {
         waitingListCount < waitingListLimit;
 
       const waitingListAvailable =
-        isCurrentPeriod &&
         availableSlots <= 0 &&
         waitingListEnabled &&
         waitingListHasCapacity &&
@@ -529,7 +507,6 @@ async function getOpeningsForMobile(userId) {
         : null;
 
       const openingAcceptsApplications =
-        isCurrentPeriod &&
         String(row.posting_status || '').toLowerCase() === 'open' &&
         (availableSlots > 0 || waitingListAvailable);
 
@@ -566,9 +543,6 @@ async function getOpeningsForMobile(userId) {
       return {
         opening_id: row.opening_id,
         program_id: row.program_id,
-        academic_year_id: row.academic_year_id || null,
-        period_id: row.period_id || null,
-        is_current_period: isCurrentPeriod,
         opening_title:
           row.opening_title ||
           program.program_name ||
@@ -644,22 +618,13 @@ async function getOpeningsForMobile(userId) {
       };
     });
 
-  // Do not clutter the scholarship list with old semesters. A historical
-  // opening is retained only when this student already has an application
-  // tied to it, so their existing status remains reachable.
-  const scopedItems = allItems.filter(
-    (item) =>
-      item.is_current_period === true ||
-      item.has_previous_application === true
-  );
-
   const items = activeApplication?.opening_id
-    ? scopedItems.filter(
+    ? allItems.filter(
         (item) =>
           String(item.opening_id) ===
           String(activeApplication.opening_id)
       )
-    : scopedItems;
+    : allItems;
 
   return {
     hasBaseApplicationProfile: !!student?.student_id,
@@ -717,22 +682,11 @@ async function applyToOpeningForMobile(
     );
   }
 
-  const activePeriod = await getActiveAcademicPeriod();
-
-  if (!activePeriod?.period_id) {
-    throw createHttpError(
-      409,
-      'No current academic semester is active. Applications are temporarily unavailable.'
-    );
-  }
-
   const { data: opening, error: openingError } = await supabase
     .from('program_openings')
     .select(`
       opening_id,
       program_id,
-      academic_year_id,
-      period_id,
       posting_status,
       is_archived,
       allocated_slots,
@@ -749,16 +703,6 @@ async function applyToOpeningForMobile(
     throw createHttpError(
       404,
       'Scholarship not found.'
-    );
-  }
-
-  if (
-    String(opening.period_id || '') !==
-    String(activePeriod.period_id)
-  ) {
-    throw createHttpError(
-      400,
-      'This scholarship opening belongs to a previous academic period.'
     );
   }
 

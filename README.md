@@ -1,5 +1,3 @@
-# SMART-PDM: A WEB-BASED AND MOBILE APPLICATION SCHOLARSHIP MONITORING SYSTEM USING OPTICAL CHARACTER RECOGNITION DOCUMENT PROCESSING FOR PAMBAYANG DALUBHASAAN NG MARILAO
-
 SMaRT-PDM is a web-based and Android mobile scholarship monitoring system developed for the **Office for Scholarship and Financial Assistance (OSFA)** of **Pambayang Dalubhasaan ng Marilao (PDM)**.
 
 **Live Demo:** [SMaRT-PDM](https://smart-pdm.vercel.app/landing)

@@ -287,6 +287,57 @@ function formatMessageTime(value) {
   }).format(new Date(value))
 }
 
+function messageDayKey(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function formatMessageDay(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const difference = Math.round((today.getTime() - target.getTime()) / 86400000)
+
+  if (difference === 0) return 'Today'
+  if (difference === 1) return 'Yesterday'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+  }).format(date)
+}
+
+function messagesBelongTogether(older, newer) {
+  if (!older || !newer) return false
+  if (!older.senderId || older.senderId !== newer.senderId) return false
+  if (messageDayKey(older.sentAt) !== messageDayKey(newer.sentAt)) return false
+
+  const olderTime = new Date(older.sentAt).getTime()
+  const newerTime = new Date(newer.sentAt).getTime()
+  if (Number.isNaN(olderTime) || Number.isNaN(newerTime)) return false
+
+  return newerTime - olderTime <= 5 * 60 * 1000
+}
+
+function MessageDateDivider({ value }) {
+  return (
+    <div className="my-4 flex items-center gap-3">
+      <div className="h-px flex-1 bg-stone-200/80" />
+      <span className="shrink-0 text-xs font-medium text-stone-500">
+        {formatMessageDay(value)}
+      </span>
+      <div className="h-px flex-1 bg-stone-200/80" />
+    </div>
+  )
+}
+
 function ThreadIcon({ item }) {
   const initials = (item.name || 'User')
     .split(/\s+/)
@@ -316,12 +367,12 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
 
   return (
     <div
-      className={`group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${hasUnread
-        ? 'bg-[var(--portal-accent-soft)]'
-        : isActive
-          ? 'bg-stone-100'
+      className={`group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${isActive
+        ? 'bg-white hover:bg-stone-50'
+        : hasUnread
+          ? 'bg-[var(--portal-accent-soft)]'
           : 'bg-white hover:bg-stone-50'
-        }`}
+        } ${isActive ? 'before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]' : ''}`}
     >
       <button
         type="button"
@@ -566,28 +617,44 @@ function MessageAvatar({ message, isMine = false }) {
   )
 }
 
-function MessageBubble({ message, isMine, isGroup = false, searchTerm = '' }) {
+function MessageBubble({
+  message,
+  isMine,
+  isGroup = false,
+  searchTerm = '',
+  showAvatar = true,
+  showSenderName = true,
+  groupedWithPrevious = false,
+  groupedWithNext = false,
+}) {
   const query = searchTerm.trim().toLowerCase()
   const isMatch = Boolean(query && message.messageBody.toLowerCase().includes(query))
+  const incomingCornerClass = `${groupedWithPrevious ? 'rounded-tl-md' : ''} ${groupedWithNext ? 'rounded-bl-md' : ''}`
+  const outgoingCornerClass = `${groupedWithPrevious ? 'rounded-tr-md' : ''} ${groupedWithNext ? 'rounded-br-md' : ''}`
 
   return (
-    <div className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-      {!isMine && isGroup ? <MessageAvatar message={message} /> : null}
+    <div className={`flex items-end gap-2 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine ? 'justify-end' : 'justify-start'}`}>
+      {!isMine && isGroup ? (
+        showAvatar ? <MessageAvatar message={message} /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+      ) : null}
+
       <div className={`flex max-w-[82%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[72%]`}>
-        {isGroup && message.senderName ? (
-          <p className={`mb-1 px-1 text-xs font-semibold ${isMine ? 'text-stone-500' : 'text-stone-500'}`}>
-            {isMine ? 'You' : message.senderName}
+        {isGroup && !isMine && showSenderName && message.senderName ? (
+          <p className="mb-1 px-1 text-xs font-semibold text-stone-500">
+            {message.senderName}
           </p>
         ) : null}
+
         <div className="group/message relative">
           <div
             className={`rounded-2xl px-3.5 py-2.5 shadow-sm transition ${isMine
-              ? 'bg-[var(--portal-base)] text-white'
-              : 'border border-stone-200 bg-white text-stone-800'
+              ? `bg-[var(--portal-base)] text-white ${outgoingCornerClass}`
+              : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
               } ${isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
           >
             <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
           </div>
+
           {message.sentAt ? (
             <div
               className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden whitespace-nowrap rounded-lg bg-stone-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg group-hover/message:block group-focus-within/message:block ${isMine ? 'right-0' : 'left-0'}`}
@@ -598,7 +665,10 @@ function MessageBubble({ message, isMine, isGroup = false, searchTerm = '' }) {
           ) : null}
         </div>
       </div>
-      {isMine && isGroup ? <MessageAvatar message={message} isMine /> : null}
+
+      {isMine && isGroup ? (
+        showAvatar ? <MessageAvatar message={message} isMine /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+      ) : null}
     </div>
   )
 }
@@ -718,9 +788,14 @@ function GroupInfoModal({
     <aside className="flex min-h-0 flex-col border-l border-stone-200 bg-white">
       <div className="border-b border-stone-100 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-stone-900">{room.name}</p>
-            <p className="mt-1 text-xs text-stone-500">Group chat</p>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-stone-900">{room.name}</p>
+              <p className="mt-0.5 text-xs text-stone-500">Group chat</p>
+            </div>
           </div>
           <button type="button" onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100" title="Close group info">
             <X className="h-4 w-4" />
@@ -1232,6 +1307,7 @@ export default function AdminMessages({
   const [activeType, setActiveType] = useState('private')
   const [activeConversationId, setActiveConversationId] = useState('')
   const [activeRoomId, setActiveRoomId] = useState('')
+  const [transientPrivateContact, setTransientPrivateContact] = useState(null)
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
@@ -1263,6 +1339,10 @@ export default function AdminMessages({
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
   const messagesEndRef = useRef(null)
+  const messagesScrollRef = useRef(null)
+  const composerRef = useRef(null)
+  const shouldAutoScrollRef = useRef(true)
+  const forceScrollToBottomRef = useRef(true)
   const processedRealtimeMessageIdsRef = useRef(new Set())
 
   const totalUnreadCount = useMemo(
@@ -1383,9 +1463,10 @@ export default function AdminMessages({
 
     return (
       filteredItems.find((item) => item.type === 'private' && item.id === activeConversationId) ||
-      mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId)
+      mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId) ||
+      (transientPrivateContact?.id === activeConversationId ? transientPrivateContact : null)
     )
-  }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId])
+  }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId, transientPrivateContact])
 
   const chatMatchCount = useMemo(() => {
     const query = chatSearchTerm.trim().toLowerCase()
@@ -1401,9 +1482,47 @@ export default function AdminMessages({
     activeRoomRef.current = activeRoomId
   }, [activeRoomId])
 
+  const scrollMessagesToBottom = useCallback((behavior = 'auto') => {
+    window.requestAnimationFrame(() => {
+      const container = messagesScrollRef.current
+      if (!container) return
+      container.scrollTo({ top: container.scrollHeight, behavior })
+      shouldAutoScrollRef.current = true
+    })
+  }, [])
+
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesScrollRef.current
+    if (!container) return
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    shouldAutoScrollRef.current = distanceFromBottom < 120
+  }, [])
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages])
+    forceScrollToBottomRef.current = true
+    shouldAutoScrollRef.current = true
+  }, [activeType, activeConversationId, activeRoomId])
+
+  useEffect(() => {
+    if (!messages.length) return
+
+    if (forceScrollToBottomRef.current) {
+      scrollMessagesToBottom('auto')
+      forceScrollToBottomRef.current = false
+      return
+    }
+
+    if (shouldAutoScrollRef.current) {
+      scrollMessagesToBottom('smooth')
+    }
+  }, [messages, scrollMessagesToBottom])
+
+  useEffect(() => {
+    const composer = composerRef.current
+    if (!composer) return
+    composer.style.height = 'auto'
+    composer.style.height = `${Math.min(composer.scrollHeight, 128)}px`
+  }, [draft])
 
   const fetchConversations = useCallback(
     async (preferredConversationId = activeConversationRef.current) => {
@@ -1957,6 +2076,7 @@ export default function AdminMessages({
       return
     }
 
+    shouldAutoScrollRef.current = true
     setSending(true)
 
     try {
@@ -2016,6 +2136,7 @@ export default function AdminMessages({
                 type: 'private',
                 name: selectedItem?.name || 'Unknown user',
                 studentNumber: selectedItem?.studentNumber || '',
+                avatarUrl: selectedItem?.avatarUrl || '',
                 lastMessage: message.messageBody,
                 lastSentAt: message.sentAt,
                 createdAt: message.sentAt,
@@ -2039,6 +2160,9 @@ export default function AdminMessages({
         })
       }
 
+      if (activeType === 'private') {
+        setTransientPrivateContact(null)
+      }
       setDraft('')
       setError('')
     } catch (err) {
@@ -2184,24 +2308,24 @@ export default function AdminMessages({
     setActiveConversationId(member.userId)
     setActiveRoomId('')
 
-    const exists = conversations.some((item) => item.id === member.userId)
-    if (!exists) {
-      setConversations((current) => sortItems([
-        ...current,
-        {
-          id: member.userId,
-          type: 'private',
-          name: member.name || 'Unknown user',
-          studentNumber: member.studentNumber || member.subtitle || '',
-          avatarUrl: member.avatarUrl || '',
-          lastMessage: '',
-          lastSentAt: '',
-          createdAt: '',
-          unreadCount: 0,
-          isDisabled: false,
-        },
-      ]))
-    }
+    const existingConversation = conversations.find((item) => item.id === member.userId)
+    setTransientPrivateContact(
+      existingConversation
+        ? null
+        : {
+            id: member.userId,
+            type: 'private',
+            name: member.name || 'Unknown user',
+            studentNumber: member.studentNumber || member.subtitle || '',
+            avatarUrl: member.avatarUrl || '',
+            lastMessage: '',
+            lastSentAt: '',
+            createdAt: '',
+            unreadCount: 0,
+            isDisabled: false,
+            isTransient: true,
+          }
+    )
   }
 
   useEffect(() => {
@@ -2916,7 +3040,7 @@ export default function AdminMessages({
 
                 <button
                   type="button"
-                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setGroupInfoOpen(false) }}
+                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setGroupInfoOpen(false); setTransientPrivateContact(null) }}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
                 >
                   <X className="h-4 w-4" />
@@ -3007,6 +3131,7 @@ export default function AdminMessages({
                           onToggleRead={toggleThreadReadState}
                           onArchive={archiveThread}
                           onClick={() => {
+                            setTransientPrivateContact(null)
                             if (item.type === 'group') {
                               setActiveType('group')
                               setActiveRoomId(item.id)
@@ -3089,25 +3214,40 @@ export default function AdminMessages({
                       ) : null}
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5">
+                    <div
+                      ref={messagesScrollRef}
+                      onScroll={handleMessagesScroll}
+                      className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5"
+                    >
                       {loadingMessages ? (
-                        <div className="flex items-center justify-center gap-2 py-12 text-sm text-stone-500">
+                        <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">
                           <LoaderCircle className="h-4 w-4 animate-spin" />
                           Loading thread
                         </div>
                       ) : messages.length ? (
-                        <div className="space-y-3">
-                          {messages.map((message) => {
+                        <div className="flex min-h-full flex-col justify-end">
+                          {messages.map((message, index) => {
                             const isMine = message.senderId === currentUserId
+                            const previousMessage = index > 0 ? messages[index - 1] : null
+                            const nextMessage = index + 1 < messages.length ? messages[index + 1] : null
+                            const groupedWithPrevious = messagesBelongTogether(previousMessage, message)
+                            const groupedWithNext = messagesBelongTogether(message, nextMessage)
+                            const showDateDivider = !previousMessage || messageDayKey(previousMessage.sentAt) !== messageDayKey(message.sentAt)
 
                             return (
-                              <MessageBubble
-                                key={message.messageId}
-                                message={message}
-                                isMine={isMine}
-                                isGroup={selectedItem.type === 'group'}
-                                searchTerm={selectedItem.type === 'group' ? chatSearchTerm : ''}
-                              />
+                              <div key={message.messageId}>
+                                {showDateDivider ? <MessageDateDivider value={message.sentAt} /> : null}
+                                <MessageBubble
+                                  message={message}
+                                  isMine={isMine}
+                                  isGroup={selectedItem.type === 'group'}
+                                  searchTerm={selectedItem.type === 'group' ? chatSearchTerm : ''}
+                                  groupedWithPrevious={groupedWithPrevious}
+                                  groupedWithNext={groupedWithNext}
+                                  showSenderName={!groupedWithPrevious}
+                                  showAvatar={!groupedWithPrevious}
+                                />
+                              </div>
                             )
                           })}
                           <div ref={messagesEndRef} />
@@ -3133,8 +3273,21 @@ export default function AdminMessages({
                     >
                       <div className="flex items-end gap-2">
                         <textarea
+                          ref={composerRef}
                           value={draft}
                           onChange={(event) => setDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' || event.nativeEvent?.isComposing) return
+
+                            // Shift + Enter keeps the textarea's normal newline behavior.
+                            if (event.shiftKey) return
+
+                            // Enter sends the current message instead of adding a newline.
+                            event.preventDefault()
+                            if (!sending && draft.trim()) {
+                              event.currentTarget.form?.requestSubmit()
+                            }
+                          }}
                           rows={1}
                           placeholder={
                             selectedItem.type === 'group'

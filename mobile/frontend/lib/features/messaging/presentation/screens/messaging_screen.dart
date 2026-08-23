@@ -22,6 +22,7 @@ class MessagingScreen extends StatefulWidget {
 
 class _MessagingScreenState extends State<MessagingScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _messageScrollController = ScrollController();
 
   MessagingProvider? _provider;
   Timer? _refreshFallback;
@@ -29,6 +30,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
   bool _isRefreshing = false;
   bool _chatSearchOpen = false;
   String _chatSearchTerm = '';
+  bool _isNearLatest = true;
+  String _lastRenderedMessageId = '';
 
   bool get _isGroupChat => _normalizedRoomId != null;
 
@@ -41,11 +44,13 @@ class _MessagingScreenState extends State<MessagingScreen> {
   void initState() {
     super.initState();
     _messageController.addListener(_handleComposerChanged);
+    _messageScrollController.addListener(_handleMessageScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
       _provider = context.read<MessagingProvider>();
+      _provider?.addListener(_handleProviderMessagesChanged);
       await _openThread();
       _startRefreshFallback();
     });
@@ -53,6 +58,54 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   void _handleComposerChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _handleMessageScroll() {
+    if (!_messageScrollController.hasClients) return;
+    _isNearLatest = _messageScrollController.offset <= 120;
+  }
+
+  void _handleProviderMessagesChanged() {
+    final provider = _provider;
+    if (provider == null || provider.messages.isEmpty) return;
+
+    final newestMessageId = provider.messages.first.messageId;
+    if (newestMessageId == _lastRenderedMessageId) return;
+
+    final shouldFollow = _lastRenderedMessageId.isEmpty || _isNearLatest;
+    _lastRenderedMessageId = newestMessageId;
+
+    if (shouldFollow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
+    }
+  }
+
+  void _scrollToLatest({bool animated = true}) {
+    if (!_messageScrollController.hasClients) return;
+    _isNearLatest = true;
+
+    if (animated) {
+      _messageScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _messageScrollController.jumpTo(0);
+    }
+  }
+
+  bool _messagesBelongTogether(ChatMessage older, ChatMessage newer) {
+    if (older.senderId != newer.senderId) return false;
+    final olderLocal = older.sentAt.toLocal();
+    final newerLocal = newer.sentAt.toLocal();
+    final sameDay =
+        olderLocal.year == newerLocal.year &&
+        olderLocal.month == newerLocal.month &&
+        olderLocal.day == newerLocal.day;
+    if (!sameDay) return false;
+
+    return newer.sentAt.difference(older.sentAt).inMinutes <= 5;
   }
 
   Future<void> _openThread() async {
@@ -96,12 +149,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSending) return;
 
+    _isNearLatest = true;
     setState(() => _isSending = true);
 
     try {
       final provider = _provider ?? context.read<MessagingProvider>();
       await provider.sendMessage(text);
       _messageController.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
     } catch (_) {
       if (!mounted) return;
 
@@ -168,6 +223,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     padding: const EdgeInsets.fromLTRB(18, 14, 10, 12),
                     child: Row(
                       children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
+                          child: const Icon(Icons.groups_rounded, color: AppColors.gold, size: 22),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,29 +299,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     ),
                   ),
                   Expanded(
-                    child: members.isEmpty
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Text(
-                                'No members could be loaded for this group.',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: isDark
-                                          ? Colors.white60
-                                          : AppColors.brown.withValues(alpha: 0.65),
-                                    ),
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
+                    child: ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       itemCount: members.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 4),
                       itemBuilder: (context, index) {
                         final member = members[index];
                         return ListTile(
-                          onTap: member.isDeleted ? null : () => _showMemberProfile(member),
+                          onTap: () => _showMemberProfile(member),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           leading: _GroupMemberAvatar(member: member),
                           title: Row(
@@ -294,17 +340,13 @@ class _MessagingScreenState extends State<MessagingScreen> {
                             ],
                           ),
                           subtitle: Text(
-                            member.isDeleted
-                                ? 'Deleted account'
-                                : member.isCurrentUser
-                                    ? '${member.subtitle.isNotEmpty ? member.subtitle : 'Group member'} · You'
-                                    : (member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
+                            member.isCurrentUser
+                                ? '${member.subtitle.isNotEmpty ? member.subtitle : 'Group member'} · You'
+                                : (member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: member.isDeleted
-                              ? null
-                              : const Icon(Icons.chevron_right_rounded),
+                          trailing: const Icon(Icons.chevron_right_rounded),
                         );
                       },
                     ),
@@ -470,28 +512,47 @@ class _MessagingScreenState extends State<MessagingScreen> {
           onPressed: () => AppNavigator.goBackOrHome(context),
         ),
         titleSpacing: 2,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              conversationTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: isDark ? Colors.white : AppColors.darkBrown,
-                fontWeight: FontWeight.w900,
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
+              child: Icon(
+                _isGroupChat ? Icons.groups_rounded : Icons.support_agent_rounded,
+                size: 19,
+                color: AppColors.gold,
               ),
             ),
-            if (!provider.isConnected) ...[
-              const SizedBox(height: 2),
-              Text(
-                'Reconnecting...',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFFB7791F),
-                  fontWeight: FontWeight.w700,
-                ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    conversationTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    _isGroupChat
+                        ? 'Group chat'
+                        : (provider.isConnected ? 'Private conversation' : 'Reconnecting...'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: provider.isConnected
+                          ? (isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.62))
+                          : const Color(0xFFB7791F),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
         ),
         actions: [
@@ -619,6 +680,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
       color: AppColors.gold,
       onRefresh: _refreshThread,
       child: ListView.builder(
+        controller: _messageScrollController,
         reverse: true,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
@@ -626,14 +688,19 @@ class _MessagingScreenState extends State<MessagingScreen> {
         itemBuilder: (context, index) {
           final message = messages[index];
           final isMe = message.senderId == provider.currentUserId;
-          final previous = index + 1 < messages.length
+          final olderMessage = index + 1 < messages.length
               ? messages[index + 1]
               : null;
+          final newerMessage = index > 0 ? messages[index - 1] : null;
+          final groupedWithOlder = olderMessage != null &&
+              _messagesBelongTogether(olderMessage, message);
+          final groupedWithNewer = newerMessage != null &&
+              _messagesBelongTogether(message, newerMessage);
           final showDate =
-              previous == null ||
-              previous.sentAt.year != message.sentAt.year ||
-              previous.sentAt.month != message.sentAt.month ||
-              previous.sentAt.day != message.sentAt.day;
+              olderMessage == null ||
+              olderMessage.sentAt.year != message.sentAt.year ||
+              olderMessage.sentAt.month != message.sentAt.month ||
+              olderMessage.sentAt.day != message.sentAt.day;
 
           return Column(
             children: [
@@ -643,6 +710,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 isMe: isMe,
                 isGroupChat: _isGroupChat,
                 timeLabel: _formatTime(message.sentAt),
+                groupedWithPrevious: groupedWithOlder,
+                groupedWithNext: groupedWithNewer,
+                showSenderName: !groupedWithOlder,
+                showAvatar: !groupedWithNewer,
                 isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
                     message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()),
               ),
@@ -657,7 +728,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
   void dispose() {
     _refreshFallback?.cancel();
     _messageController.removeListener(_handleComposerChanged);
+    _messageScrollController.removeListener(_handleMessageScroll);
+    _provider?.removeListener(_handleProviderMessagesChanged);
     _messageController.dispose();
+    _messageScrollController.dispose();
     _provider?.leaveThread(notify: false);
     _provider = null;
     super.dispose();
@@ -721,6 +795,10 @@ class _MessageBubble extends StatelessWidget {
     required this.isMe,
     required this.isGroupChat,
     required this.timeLabel,
+    this.groupedWithPrevious = false,
+    this.groupedWithNext = false,
+    this.showSenderName = true,
+    this.showAvatar = true,
     this.isSearchMatch = false,
   });
 
@@ -728,140 +806,146 @@ class _MessageBubble extends StatelessWidget {
   final bool isMe;
   final bool isGroupChat;
   final String timeLabel;
+  final bool groupedWithPrevious;
+  final bool groupedWithNext;
+  final bool showSenderName;
+  final bool showAvatar;
   final bool isSearchMatch;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final incomingSurface = isDark ? const Color(0xFF2B1D13) : Colors.white;
+    final senderName = message.senderName?.trim() ?? '';
+
+    final bubble = Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.76,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isMe ? AppColors.darkBrown : incomingSurface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(!isMe && groupedWithPrevious ? 6 : 18),
+          topRight: Radius.circular(isMe && groupedWithPrevious ? 6 : 18),
+          bottomLeft: Radius.circular(!isMe && groupedWithNext ? 6 : 18),
+          bottomRight: Radius.circular(isMe && groupedWithNext ? 6 : 18),
+        ),
+        border: Border.all(
+          color: isMe
+              ? AppColors.gold.withValues(alpha: 0.42)
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : AppColors.brown.withValues(alpha: 0.08)),
+        ),
+        boxShadow: [
+          if (isSearchMatch)
+            BoxShadow(
+              color: AppColors.gold.withValues(alpha: 0.48),
+              blurRadius: 0,
+              spreadRadius: 2,
+            ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
+            blurRadius: 9,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Text(
+        message.messageBody,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isMe
+                  ? Colors.white
+                  : (isDark ? Colors.white : AppColors.darkBrown),
+              height: 1.38,
+            ),
+      ),
+    );
+
+    final messageRow = SizedBox(
+      width: MediaQuery.of(context).size.width * 0.90,
+      child: Row(
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+        if (isGroupChat && !isMe) ...[
+          if (showAvatar)
+            _SenderAvatar(message: message)
+          else
+            const SizedBox(width: 32, height: 32),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Tooltip(
+                message: timeLabel,
+                triggerMode: TooltipTriggerMode.longPress,
+                preferBelow: false,
+                child: bubble,
+              ),
+              if (isMe) ...[
+                const SizedBox(height: 3),
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    message.isRead
+                        ? Icons.done_all_rounded
+                        : Icons.check_rounded,
+                    size: 13,
+                    color: message.isRead
+                        ? AppColors.gold
+                        : (isDark
+                              ? Colors.white54
+                              : AppColors.brown.withValues(alpha: 0.45)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+          if (isGroupChat && isMe) ...[
+            const SizedBox(width: 8),
+            if (showAvatar)
+              _SenderAvatar(message: message)
+            else
+              const SizedBox(width: 32, height: 32),
+          ],
+        ],
+      ),
+    );
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          mainAxisAlignment: isMe
-              ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        padding: EdgeInsets.only(bottom: groupedWithNext ? 3 : 11),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (isGroupChat && !isMe) ...[
-              _SenderAvatar(message: message),
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: Column(
-                crossAxisAlignment: isMe
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  if (!isMe && isGroupChat && message.senderName != null) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(left: 5, bottom: 4),
-                      child: Text(
-                        message.senderName!,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isDark
-                              ? Colors.white60
-                              : AppColors.brown.withValues(alpha: 0.64),
-                          fontWeight: FontWeight.w800,
-                        ),
+            if (!isMe &&
+                isGroupChat &&
+                showSenderName &&
+                senderName.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 40, bottom: 4),
+                child: Text(
+                  senderName,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: isDark
+                            ? Colors.white60
+                            : AppColors.brown.withValues(alpha: 0.64),
+                        fontWeight: FontWeight.w800,
                       ),
-                    ),
-                  ],
-                  Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.76,
-                    ),
-                    padding: const EdgeInsets.fromLTRB(14, 11, 12, 8),
-                    decoration: BoxDecoration(
-                      color: isMe ? AppColors.darkBrown : incomingSurface,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(18),
-                        topRight: const Radius.circular(18),
-                        bottomLeft: Radius.circular(isMe ? 18 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 18),
-                      ),
-                      border: Border.all(
-                        color: isMe
-                            ? AppColors.gold.withValues(alpha: 0.42)
-                            : (isDark
-                                  ? Colors.white.withValues(alpha: 0.07)
-                                  : AppColors.brown.withValues(alpha: 0.08)),
-                      ),
-                      boxShadow: [
-                        if (isSearchMatch)
-                          BoxShadow(
-                            color: AppColors.gold.withValues(alpha: 0.48),
-                            blurRadius: 0,
-                            spreadRadius: 2,
-                          ),
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.18 : 0.06,
-                          ),
-                          blurRadius: 12,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          message.messageBody,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: isMe
-                                    ? Colors.white
-                                    : (isDark
-                                          ? Colors.white
-                                          : AppColors.darkBrown),
-                                height: 1.38,
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              timeLabel,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: isMe
-                                        ? Colors.white60
-                                        : (isDark
-                                              ? Colors.white54
-                                              : AppColors.brown.withValues(
-                                                  alpha: 0.52,
-                                                )),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            if (isMe) ...[
-                              const SizedBox(width: 5),
-                              Icon(
-                                message.isRead
-                                    ? Icons.done_all_rounded
-                                    : Icons.check_rounded,
-                                size: 14,
-                                color: message.isRead
-                                    ? AppColors.gold
-                                    : Colors.white60,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            if (isGroupChat && isMe) ...[
-              const SizedBox(width: 8),
-              _SenderAvatar(message: message),
             ],
+            messageRow,
           ],
         ),
       ),
@@ -956,10 +1040,19 @@ class _GroupMemberAvatar extends StatelessWidget {
         .map((part) => part[0].toUpperCase())
         .join();
 
-    return _MessagingAvatar(
+    return CircleAvatar(
       radius: radius,
-      imageUrl: avatarUrl,
-      fallbackText: initials.isNotEmpty ? initials : '?',
+      backgroundColor: AppColors.gold.withValues(alpha: 0.16),
+      backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+      child: avatarUrl.isEmpty
+          ? Text(
+              initials.isNotEmpty ? initials : '?',
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontWeight: FontWeight.w900,
+              ),
+            )
+          : null,
     );
   }
 }
@@ -1006,68 +1099,17 @@ class _SenderAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = message.senderAvatarUrl?.trim() ?? '';
-    final senderName = message.senderName?.trim() ?? '';
-    final initials = senderName
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .take(2)
-        .map((part) => part[0].toUpperCase())
-        .join();
+    final avatarUrl = message.senderAvatarUrl?.trim();
 
-    return _MessagingAvatar(
+    return CircleAvatar(
       radius: 16,
-      imageUrl: avatarUrl,
-      fallbackText: initials.isNotEmpty ? initials : '?',
-    );
-  }
-}
-
-class _MessagingAvatar extends StatelessWidget {
-  const _MessagingAvatar({
-    required this.radius,
-    required this.imageUrl,
-    required this.fallbackText,
-  });
-
-  final double radius;
-  final String imageUrl;
-  final String fallbackText;
-
-  @override
-  Widget build(BuildContext context) {
-    final diameter = radius * 2;
-    final fallback = Container(
-      width: diameter,
-      height: diameter,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.16),
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        fallbackText,
-        style: TextStyle(
-          color: AppColors.gold,
-          fontSize: radius * 0.72,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-
-    final uri = Uri.tryParse(imageUrl);
-    if (imageUrl.isEmpty || uri == null || !uri.hasScheme) {
-      return fallback;
-    }
-
-    return ClipOval(
-      child: Image.network(
-        imageUrl,
-        width: diameter,
-        height: diameter,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
-      ),
+      backgroundColor: AppColors.gold.withValues(alpha: 0.18),
+      backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+          ? NetworkImage(avatarUrl)
+          : null,
+      child: avatarUrl == null || avatarUrl.isEmpty
+          ? const Icon(Icons.person_rounded, color: AppColors.gold, size: 18)
+          : null,
     );
   }
 }

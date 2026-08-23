@@ -25,6 +25,7 @@ class MessagingProvider extends ChangeNotifier {
 
   List<ChatMessage> _messages = [];
   List<ChatRoom> _rooms = [];
+  ChatMessage? _privatePreview;
 
   int _unreadCount = 0;
   int _privateUnreadCount = 0;
@@ -46,6 +47,7 @@ class MessagingProvider extends ChangeNotifier {
 
   List<ChatMessage> get messages => _messages;
   List<ChatRoom> get rooms => _rooms;
+  ChatMessage? get privatePreview => _privatePreview;
 
   int get unreadCount => _unreadCount;
   int get privateUnreadCount => _privateUnreadCount;
@@ -113,6 +115,7 @@ class MessagingProvider extends ChangeNotifier {
     if (!sameUser) {
       _messages = [];
       _rooms = [];
+      _privatePreview = null;
       _counterpartyId = '';
       _activeGroupId = null;
       _unreadCount = 0;
@@ -181,6 +184,53 @@ class MessagingProvider extends ChangeNotifier {
     await refreshUnreadCount();
   }
 
+  Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+
+    if (normalizedRoomId.isEmpty) {
+      return const <GroupMember>[];
+    }
+
+    try {
+      final members = await _messageService.fetchRoomMembers(normalizedRoomId);
+      _errorMessage = null;
+      return members;
+    } catch (error) {
+      _errorMessage = _readableError(error);
+      debugPrint('[MessagingProvider] fetch room members error: $error');
+      _notify();
+      rethrow;
+    }
+  }
+
+  Future<void> leaveGroup(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+
+    if (normalizedRoomId.isEmpty) {
+      return;
+    }
+
+    try {
+      await _messageService.leaveGroup(normalizedRoomId);
+
+      if (_activeGroupId == normalizedRoomId) {
+        _isViewingThread = false;
+        _activeGroupId = null;
+        _messages = [];
+      }
+
+      await fetchGroups(notify: false);
+      await refreshUnreadCount(notify: false);
+      _errorMessage = null;
+      _notify();
+    } catch (error) {
+      _errorMessage = _readableError(error);
+      debugPrint('[MessagingProvider] leave group error: $error');
+      _notify();
+      rethrow;
+    }
+  }
+
   Future<void> fetchGroups({bool notify = true}) async {
     if (notify) {
       _isLoading = true;
@@ -227,42 +277,6 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
-    final normalizedRoomId = roomId.trim();
-    if (normalizedRoomId.isEmpty) return const [];
-
-    try {
-      _errorMessage = null;
-      return await _messageService.fetchRoomMembers(normalizedRoomId);
-    } catch (error) {
-      _errorMessage = _readableError(error);
-      _notify();
-      rethrow;
-    }
-  }
-
-  Future<void> leaveGroup(String roomId) async {
-    final normalizedRoomId = roomId.trim();
-    if (normalizedRoomId.isEmpty) return;
-
-    try {
-      await _messageService.leaveGroup(normalizedRoomId);
-      _rooms = _rooms.where((room) => room.roomId != normalizedRoomId).toList();
-      if (_activeGroupId == normalizedRoomId) {
-        _activeGroupId = null;
-        _isViewingThread = false;
-        _messages = [];
-      }
-      _errorMessage = null;
-      _syncTotalUnreadCount();
-      _notify();
-    } catch (error) {
-      _errorMessage = _readableError(error);
-      _notify();
-      rethrow;
-    }
-  }
-
   Future<void> sendMessage(String text) async {
     final trimmed = text.trim();
 
@@ -284,6 +298,11 @@ class MessagingProvider extends ChangeNotifier {
 
       _errorMessage = null;
       _upsertMessage(message);
+      if (_activeGroupId != null) {
+        _updateGroupPreview(_activeGroupId!, message);
+      } else {
+        _privatePreview = message;
+      }
       _notify();
     } catch (error) {
       _errorMessage = _readableError(error);
@@ -347,6 +366,9 @@ class MessagingProvider extends ChangeNotifier {
       }
 
       _sortMessagesNewestFirst();
+      if (_activeGroupId == null && _messages.isNotEmpty) {
+        _privatePreview = _messages.first;
+      }
       _errorMessage = null;
     } catch (error) {
       _errorMessage = _readableError(error);
@@ -409,26 +431,6 @@ class MessagingProvider extends ChangeNotifier {
         _notify();
         return;
 
-      case MobileRealtimeEvents.roomMembersRemoved:
-      case MobileRealtimeEvents.roomMemberLeft:
-        final roomId = event.payload['roomId']?.toString() ?? event.payload['room_id']?.toString() ?? '';
-        final affectedUserId = event.payload['memberId']?.toString() ??
-            event.payload['member_id']?.toString() ??
-            event.payload['userId']?.toString() ??
-            event.payload['user_id']?.toString() ??
-            '';
-        if (affectedUserId == _currentUserId && roomId.isNotEmpty) {
-          _rooms = _rooms.where((room) => room.roomId != roomId).toList();
-          if (_activeGroupId == roomId) {
-            _activeGroupId = null;
-            _isViewingThread = false;
-            _messages = [];
-          }
-        }
-        await fetchGroups(notify: false);
-        _notify();
-        return;
-
       default:
         return;
     }
@@ -484,6 +486,8 @@ class MessagingProvider extends ChangeNotifier {
     );
 
     if (isPrivateForCurrentUser) {
+      _privatePreview = message;
+
       // Only place a private message in the visible message list while the
       // private OSFA conversation is open. This prevents private messages from
       // appearing inside an active scholarship group chat.
@@ -499,12 +503,14 @@ class MessagingProvider extends ChangeNotifier {
 
     if (isActiveGroupMessage) {
       _upsertMessage(message);
+      _updateGroupPreview(roomId, message);
       _setGroupUnreadCount(roomId, 0);
       _notify();
       return;
     }
 
     if (isGroupMessage) {
+      _updateGroupPreview(roomId, message);
       if (_incrementGroupUnreadCount(roomId)) {
         _notify();
       } else {
@@ -633,6 +639,9 @@ class MessagingProvider extends ChangeNotifier {
       roomId: room.roomId,
       roomName: room.roomName,
       unreadCount: room.unreadCount + 1,
+      memberCount: room.memberCount,
+      lastMessage: room.lastMessage,
+      lastSentAt: room.lastSentAt,
     );
 
     _syncTotalUnreadCount();
@@ -658,9 +667,36 @@ class MessagingProvider extends ChangeNotifier {
       roomId: room.roomId,
       roomName: room.roomName,
       unreadCount: count < 0 ? 0 : count,
+      memberCount: room.memberCount,
+      lastMessage: room.lastMessage,
+      lastSentAt: room.lastSentAt,
     );
 
     _syncTotalUnreadCount();
+  }
+
+  void _updateGroupPreview(String roomId, ChatMessage message) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return;
+
+    final index = _rooms.indexWhere((room) => room.roomId == normalizedRoomId);
+    if (index < 0) return;
+
+    final room = _rooms[index];
+    _rooms[index] = ChatRoom(
+      roomId: room.roomId,
+      roomName: room.roomName,
+      unreadCount: room.unreadCount,
+      memberCount: room.memberCount,
+      lastMessage: message.messageBody,
+      lastSentAt: message.sentAt,
+    );
+
+    _rooms.sort((left, right) {
+      final leftTime = left.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final rightTime = right.lastSentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return rightTime.compareTo(leftTime);
+    });
   }
 
   void _syncTotalUnreadCount() {

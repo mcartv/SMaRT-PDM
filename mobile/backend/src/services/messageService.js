@@ -1361,10 +1361,17 @@ async function listRoomsForUser(userId) {
     .filter((room) => room.roomId && room.isArchived !== true);
 
   const roomIds = rooms.map((room) => room.roomId);
-  const [unreadCounts, memberCountResult] = await Promise.all([
+  const [unreadCounts, memberCountResult, latestMessageResult] = await Promise.all([
     fetchRoomUnreadCounts(normalizedUserId, roomIds),
     roomIds.length
       ? supabase.from('chat_room_members').select('room_id').in('room_id', roomIds)
+      : Promise.resolve({ data: [], error: null }),
+    roomIds.length
+      ? supabase
+          .from('messages')
+          .select('room_id,message_body,sent_at')
+          .in('room_id', roomIds)
+          .order('sent_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -1373,18 +1380,41 @@ async function listRoomsForUser(userId) {
     throw new Error(memberCountResult.error.message);
   }
 
+  if (latestMessageResult.error) {
+    console.error('MESSAGE USER ROOM PREVIEW ERROR:', latestMessageResult.error);
+  }
+
   const memberCounts = new Map(roomIds.map((roomId) => [roomId, 0]));
   for (const row of memberCountResult.data || []) {
     memberCounts.set(row.room_id, (memberCounts.get(row.room_id) || 0) + 1);
   }
 
-  return rooms.map((room) => ({
-    ...room,
-    memberCount: memberCounts.get(room.roomId) || 0,
-    member_count: memberCounts.get(room.roomId) || 0,
-    unreadCount: unreadCounts.get(room.roomId) || 0,
-    unread_count: unreadCounts.get(room.roomId) || 0,
-  }));
+  const latestMessages = new Map();
+  for (const row of latestMessageResult.data || []) {
+    if (!row?.room_id || latestMessages.has(row.room_id)) continue;
+    latestMessages.set(row.room_id, row);
+  }
+
+  return rooms
+    .map((room) => {
+      const latestMessage = latestMessages.get(room.roomId) || null;
+      return {
+        ...room,
+        memberCount: memberCounts.get(room.roomId) || 0,
+        member_count: memberCounts.get(room.roomId) || 0,
+        unreadCount: unreadCounts.get(room.roomId) || 0,
+        unread_count: unreadCounts.get(room.roomId) || 0,
+        lastMessage: latestMessage?.message_body || '',
+        last_message: latestMessage?.message_body || '',
+        lastSentAt: latestMessage?.sent_at || null,
+        last_sent_at: latestMessage?.sent_at || null,
+      };
+    })
+    .sort((left, right) => {
+      const leftTime = new Date(left.lastSentAt || left.createdAt || 0).getTime();
+      const rightTime = new Date(right.lastSentAt || right.createdAt || 0).getTime();
+      return rightTime - leftTime;
+    });
 }
 
 async function ensureRoomMember(userId, roomId) {

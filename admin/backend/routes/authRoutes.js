@@ -61,6 +61,11 @@ router.post(
 );
 
 router.post(
+    '/session/logout-beacon',
+    authController.logoutAdminSessionBeacon
+);
+
+router.post(
     '/session/logout',
     protect,
     authorizeRoles('admin'),

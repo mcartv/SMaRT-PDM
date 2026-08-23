@@ -1480,6 +1480,46 @@ exports.addRoomMembers = async (req, res) => {
 
     const action = String(req.body?.action || 'add').trim().toLowerCase();
 
+    if (action === 'promote_admin' || action === 'promote') {
+      const memberId = String(req.body?.memberId || req.body?.member_id || '').trim();
+      if (!memberId) {
+        return res.status(400).json({ message: 'A valid member is required.' });
+      }
+
+      const result = await messageService.promoteRoomMemberToAdmin({
+        actorId: currentUserId,
+        roomId,
+        memberId,
+      });
+
+      const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
+      const members = refreshed?.items || [];
+      const allRoomMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+      const io = req.app.get('io');
+
+      emitToUsers(io, 'room:member-promoted', {
+        room_id: roomId,
+        roomId,
+        member_id: memberId,
+        memberId,
+        promoted_by: currentUserId,
+        promotedBy: currentUserId,
+        updated_at: new Date().toISOString(),
+      }, uniqueIds(allRoomMemberIds, currentUserId, memberId));
+
+      return res.json({
+        success: true,
+        action: 'promote_admin',
+        ...result,
+        members,
+        roomMembers: members,
+        memberCount: members.length,
+        member_count: members.length,
+        viewerIsAdmin: refreshed?.viewer_is_admin === true,
+        viewer_is_admin: refreshed?.viewer_is_admin === true,
+      });
+    }
+
     if (action === 'remove') {
       const memberId = String(req.body?.memberId || req.body?.member_id || '').trim();
       if (!memberId) {
@@ -1531,6 +1571,19 @@ exports.addRoomMembers = async (req, res) => {
         promotedUserId: result.promoted_user_id || null,
         updated_at: new Date().toISOString(),
       }, uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id));
+
+      emitThreadArchived(
+        io,
+        {
+          thread_type: 'group',
+          room_id: roomId,
+          roomId,
+          archived_by: currentUserId,
+          archived_at: result.archived_at || result.archive?.archived_at || new Date().toISOString(),
+          reason: 'left_group',
+        },
+        [currentUserId]
+      );
 
       return res.json({ success: true, action: 'leave', ...result });
     }
@@ -1651,6 +1704,19 @@ exports.leaveRoom = async (req, res) => {
       promotedUserId: result.promoted_user_id || null,
       updated_at: new Date().toISOString(),
     }, uniqueIds(beforeMemberIds, currentUserId));
+
+    emitThreadArchived(
+      io,
+      {
+        thread_type: 'group',
+        room_id: roomId,
+        roomId,
+        archived_by: currentUserId,
+        archived_at: result.archived_at || result.archive?.archived_at || new Date().toISOString(),
+        reason: 'left_group',
+      },
+      [currentUserId]
+    );
 
     return res.json({ success: true, ...result });
   } catch (err) {

@@ -876,6 +876,50 @@ exports.fetchRoomMembers = async (currentUserId, roomId) => {
   };
 };
 
+exports.promoteRoomMemberToAdmin = async ({ actorId, roomId, memberId }) => {
+  await ensureRoomAdmin(actorId, roomId);
+  const normalizedMemberId = String(memberId || '').trim();
+
+  if (!normalizedMemberId) {
+    const error = new Error('A valid member is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const memberResult = await db.query(
+    `SELECT is_admin FROM chat_room_members WHERE room_id = $1 AND user_id = $2 LIMIT 1;`,
+    [roomId, normalizedMemberId]
+  );
+  const member = memberResult.rows[0];
+
+  if (!member) {
+    const error = new Error('Group member not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (member.is_admin === true) {
+    return {
+      room_id: roomId,
+      member_id: normalizedMemberId,
+      promoted: false,
+      already_admin: true,
+    };
+  }
+
+  await db.query(
+    `UPDATE chat_room_members SET is_admin = true WHERE room_id = $1 AND user_id = $2;`,
+    [roomId, normalizedMemberId]
+  );
+
+  return {
+    room_id: roomId,
+    member_id: normalizedMemberId,
+    promoted: true,
+    already_admin: false,
+  };
+};
+
 exports.removeRoomMember = async ({ actorId, roomId, memberId }) => {
   await ensureRoomAdmin(actorId, roomId);
   const normalizedMemberId = String(memberId || '').trim();
@@ -924,6 +968,34 @@ exports.leaveRoom = async (currentUserId, roomId) => {
 
   try {
     await client.query('BEGIN');
+
+    // Leaving a group is personal to this account. Preserve the thread in the
+    // current user's archive before removing their membership. Other members
+    // remain unaffected and continue seeing the group normally.
+    await client.query(
+      `
+      DELETE FROM message_thread_archives
+      WHERE user_id = $1
+        AND thread_type = 'group'
+        AND room_id = $2;
+      `,
+      [currentUserId, roomId]
+    );
+
+    const archiveResult = await client.query(
+      `
+      INSERT INTO message_thread_archives (
+        user_id,
+        thread_type,
+        counterparty_id,
+        room_id
+      )
+      VALUES ($1, 'group', NULL, $2)
+      RETURNING archive_id, user_id, thread_type, counterparty_id, room_id, archived_at;
+      `,
+      [currentUserId, roomId]
+    );
+
     await client.query(
       `DELETE FROM chat_room_members WHERE room_id = $1 AND user_id = $2;`,
       [roomId, currentUserId]
@@ -939,15 +1011,18 @@ exports.leaveRoom = async (currentUserId, roomId) => {
       [roomId]
     );
 
+    let promotedUserId = null;
+
     if (!remainingResult.rows.length) {
       await client.query(
         `UPDATE chat_rooms SET is_archived = true WHERE room_id = $1;`,
         [roomId]
       );
     } else if (membership.is_admin === true && !remainingResult.rows.some((row) => row.is_admin === true)) {
+      promotedUserId = remainingResult.rows[0].user_id;
       await client.query(
         `UPDATE chat_room_members SET is_admin = true WHERE room_id = $1 AND user_id = $2;`,
-        [roomId, remainingResult.rows[0].user_id]
+        [roomId, promotedUserId]
       );
     }
 
@@ -956,10 +1031,9 @@ exports.leaveRoom = async (currentUserId, roomId) => {
       room_id: roomId,
       user_id: currentUserId,
       left: true,
-      promoted_user_id:
-        membership.is_admin === true && remainingResult.rows.length
-          ? remainingResult.rows[0].user_id
-          : null,
+      promoted_user_id: promotedUserId,
+      archive: archiveResult.rows[0] || null,
+      archived_at: archiveResult.rows[0]?.archived_at || null,
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1180,7 +1254,13 @@ exports.fetchArchivedThreads = async (currentUserId) => {
       cr.created_at,
       COALESCE(last_message.message_body, '') AS last_message,
       last_message.sent_at AS last_sent_at,
-      COALESCE(member_count.member_count, 0)::int AS member_count
+      COALESCE(member_count.member_count, 0)::int AS member_count,
+      EXISTS (
+        SELECT 1
+        FROM chat_room_members my_membership
+        WHERE my_membership.room_id = cr.room_id
+          AND my_membership.user_id = $1
+      ) AS can_restore
     FROM message_thread_archives mta
     JOIN chat_rooms cr
       ON cr.room_id = mta.room_id
@@ -1260,6 +1340,7 @@ exports.fetchArchivedThreads = async (currentUserId) => {
       last_message: archive.last_message || '',
       last_sent_at: archive.last_sent_at || archive.created_at || null,
       member_count: Number(archive.member_count || 0),
+      can_restore: archive.can_restore === true,
       archived_at: archive.archived_at,
     });
   }

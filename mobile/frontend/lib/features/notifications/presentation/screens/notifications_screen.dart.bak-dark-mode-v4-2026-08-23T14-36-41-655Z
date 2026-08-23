@@ -711,8 +711,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationProvider provider,
     List<AppNotification> items,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     if (items.isEmpty) {
       return _buildEmptyState(provider);
     }

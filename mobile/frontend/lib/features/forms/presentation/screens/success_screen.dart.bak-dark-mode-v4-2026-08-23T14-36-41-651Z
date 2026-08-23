@@ -208,7 +208,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
       appBar: AppBar(
         title: Text(
           appBarTitle,
-          style: TextStyle(
+          style: const TextStyle(
             color: titleColor,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -472,7 +472,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                             Container(
                               width: 20,
                               height: 20,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: isDark
                                     ? AppColors.applicantDarkSurface

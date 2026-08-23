@@ -587,21 +587,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: accentColor,
-                              foregroundColor: AppColors.darkBrown,
-                              disabledBackgroundColor: isDark
-                                  ? AppColors.applicantDarkSurfaceMuted
-                                  : Colors.grey.shade300,
-                              disabledForegroundColor: isDark
-                                  ? AppColors.applicantDarkTextMuted
-                                  : Colors.grey.shade600,
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              elevation: 0,
-                            ),
                             onPressed: opening.hasApplied || opening.canApply
                                 ? () => _handleApply(opening)
                                 : null,

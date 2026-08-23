@@ -1527,11 +1527,6 @@ class _EndorsementProgressCard extends StatelessWidget {
                   child: Text(
                     steps[i].$2,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? (i == active
-                                ? AppColors.applicantDarkText
-                                : AppColors.applicantDarkTextMuted)
-                          : AppColors.darkBrown,
                       fontWeight: i == active
                           ? FontWeight.w900
                           : FontWeight.w700,
@@ -1567,12 +1562,9 @@ class _EndorsementProgressCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Currently with ${endorsement.currentOffice}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? AppColors.applicantDarkTextMuted
-                    : AppColors.brown,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ],

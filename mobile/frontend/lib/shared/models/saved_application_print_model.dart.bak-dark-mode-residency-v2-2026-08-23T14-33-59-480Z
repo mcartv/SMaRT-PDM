@@ -295,12 +295,10 @@ class SavedApplicationPrintModel {
       isMotherOnlyNative: motherNative && !fatherNative,
       isBothParentsNative: fatherNative && motherNative,
       isNotNative: fatherNonNative && motherNonNative,
-      yearsResident: _residencyDurationLabel(
-        _firstNonEmpty([
-          _string(father['years_as_resident']),
-          _string(mother['years_as_resident']),
-        ]),
-      ),
+      yearsResident: _firstNonEmpty([
+        _string(father['years_as_resident']),
+        _string(mother['years_as_resident']),
+      ]),
       originProvince: _firstNonEmpty([
         _string(father['origin_province']),
         _string(mother['origin_province']),
@@ -512,9 +510,7 @@ class SavedApplicationPrintModel {
           nativeStatus.contains('mother') && !nativeStatus.contains('father'),
       isBothParentsNative: nativeStatus.contains('both'),
       isNotNative: nativeStatus == 'no' || nativeStatus.contains('not'),
-      yearsResident: _residencyDurationLabel(
-        _string(family['parent_marilao_residency_duration']),
-      ),
+      yearsResident: _string(family['parent_marilao_residency_duration']),
       originProvince: _string(family['parent_previous_town_province']),
       collegeSchool: _string(academic['college_school']),
       collegeAddress: _string(academic['college_address']),
@@ -643,29 +639,6 @@ class SavedApplicationPrintModel {
           level.toLowerCase(),
       orElse: () => <String, dynamic>{},
     );
-  }
-
-  static String _residencyDurationLabel(String value) {
-    final raw = value.trim();
-    final years = int.tryParse(raw);
-
-    if (raw.toLowerCase() == 'less than a year' || years == 0) {
-      return 'Less than a year';
-    }
-    if (raw.toLowerCase() == '1-5 years' ||
-        (years != null && years >= 1 && years <= 5)) {
-      return '1-5 years';
-    }
-    if (raw.toLowerCase() == '6-10 years' ||
-        (years != null && years >= 6 && years <= 10)) {
-      return '6-10 years';
-    }
-    if (raw.toLowerCase() == 'more than 10 years' ||
-        (years != null && years > 10)) {
-      return 'More than 10 years';
-    }
-
-    return raw;
   }
 
   static String _string(dynamic value) {

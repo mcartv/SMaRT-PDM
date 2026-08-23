@@ -1338,29 +1338,10 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
   Widget build(BuildContext context) {
     final step = _steps[_index];
     final isLast = _index == _steps.length - 1;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dialogSurface = isDark
-        ? AppColors.applicantDarkSurface
-        : Colors.white;
-    final titleColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final bodyColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.brown.withValues(alpha: 0.78);
-    final stepIconColor = isDark ? AppColors.gold : AppColors.brown;
 
     return AlertDialog(
-      backgroundColor: dialogSurface,
-      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: Text(
-        'Getting started ${_index + 1}/${_steps.length}',
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: titleColor,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
+      title: Text('Getting started ${_index + 1}/${_steps.length}'),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -1373,16 +1354,15 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
                 color: AppColors.gold.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
               ),
-              child: Icon(step.$1, size: 34, color: stepIconColor),
+              child: Icon(step.$1, size: 34, color: AppColors.brown),
             ),
             const SizedBox(height: 18),
             Text(
               step.$2,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: titleColor,
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             Text(
@@ -1390,7 +1370,7 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: bodyColor, height: 1.5),
+              ).textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
           ],
         ),
@@ -1399,18 +1379,9 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
         if (_index > 0)
           TextButton(
             onPressed: () => setState(() => _index -= 1),
-            style: TextButton.styleFrom(
-              foregroundColor: isDark
-                  ? AppColors.applicantDarkText
-                  : AppColors.brown,
-            ),
             child: const Text('Back'),
           ),
         FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.gold,
-            foregroundColor: AppColors.darkBrown,
-          ),
           onPressed: _isFinishing
               ? null
               : isLast
@@ -1518,8 +1489,8 @@ class _EndorsementProgressCard extends StatelessWidget {
                     color: i < active || (i == 3 && active == 3)
                         ? const Color(0xFF2E8B57)
                         : i == active
-                        ? (isDark ? AppColors.gold : AppColors.brown)
-                        : (isDark ? Colors.white54 : Colors.grey),
+                        ? AppColors.brown
+                        : Colors.grey,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1527,11 +1498,6 @@ class _EndorsementProgressCard extends StatelessWidget {
                   child: Text(
                     steps[i].$2,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? (i == active
-                                ? AppColors.applicantDarkText
-                                : AppColors.applicantDarkTextMuted)
-                          : AppColors.darkBrown,
                       fontWeight: i == active
                           ? FontWeight.w900
                           : FontWeight.w700,
@@ -1545,9 +1511,7 @@ class _EndorsementProgressCard extends StatelessWidget {
                       ? (stopped ? 'Stopped' : 'Current')
                       : 'Pending',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: i == active
-                        ? (isDark ? AppColors.gold : AppColors.brown)
-                        : (isDark ? Colors.white54 : Colors.grey),
+                    color: i == active ? AppColors.brown : Colors.grey,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1560,19 +1524,16 @@ class _EndorsementProgressCard extends StatelessWidget {
                 height: 10,
                 color: i < active
                     ? const Color(0xFF2E8B57)
-                    : (isDark ? Colors.white24 : Colors.grey.shade300),
+                    : Colors.grey.shade300,
               ),
           ],
           if (endorsement.currentOffice?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
             Text(
               'Currently with ${endorsement.currentOffice}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? AppColors.applicantDarkTextMuted
-                    : AppColors.brown,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ],

@@ -638,13 +638,6 @@ class _StepPersonalState extends State<StepPersonal> {
       label: label,
       child: DropdownButtonFormField<String>(
         isExpanded: true,
-        dropdownColor: intakeSurfaceColor(context),
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: intakeTextColor(context),
-          fontWeight: FontWeight.w600,
-        ),
-        iconEnabledColor: intakeSubtextColor(context),
-        iconDisabledColor: intakeSubtextColor(context).withValues(alpha: 0.45),
         initialValue: currentValue.trim().isEmpty ? null : currentValue,
         decoration: _dec(
           hint,

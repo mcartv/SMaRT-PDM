@@ -244,24 +244,6 @@ function deriveRequirementsOutcome(documents = []) {
   return 'pending';
 }
 
-function formatResidencyDuration(value) {
-  const raw = String(value ?? '').trim();
-  if (!raw) return 'N/A';
-
-  const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
-  if (normalized === 'less than a year') return 'Less than a year';
-  if (normalized === '1-5 years') return '1-5 years';
-  if (normalized === '6-10 years') return '6-10 years';
-  if (normalized === 'more than 10 years') return 'More than 10 years';
-
-  const years = Number.parseInt(raw, 10);
-  if (!Number.isFinite(years)) return raw;
-  if (years < 1) return 'Less than a year';
-  if (years <= 5) return '1-5 years';
-  if (years <= 10) return '6-10 years';
-  return 'More than 10 years';
-}
-
 function normalizeKey(value = '') {
   return String(value)
     .toLowerCase()
@@ -1124,7 +1106,7 @@ function ApplicationFormPreview({ application }) {
                         label="Marilao Native"
                         value={formatYesNo(member.is_marilao_native)}
                       />
-                      <InfoRow label="Years as Resident" value={formatResidencyDuration(member.years_as_resident)} />
+                      <InfoRow label="Years as Resident" value={member.years_as_resident} />
                       <InfoRow label="Origin Province" value={member.origin_province} />
                       <InfoRow label="Address" value={member.address} className="md:col-span-2" />
                     </div>

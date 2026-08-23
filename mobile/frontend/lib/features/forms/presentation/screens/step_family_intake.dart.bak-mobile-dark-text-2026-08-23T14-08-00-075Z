@@ -208,15 +208,9 @@ class _StepFamilyState extends State<StepFamily> {
     guardianCompanyController = TextEditingController(
       text: widget.data.guardianCompanyNameAndAddress,
     );
-    final normalizedResidencyDuration = _normalizeResidencyDuration(
-      widget.data.parentMarilaoResidencyDuration,
-    );
     parentMarilaoResidencyDurationController = TextEditingController(
-      text: normalizedResidencyDuration,
+      text: widget.data.parentMarilaoResidencyDuration,
     );
-    if (normalizedResidencyDuration.isNotEmpty) {
-      widget.data.parentMarilaoResidencyDuration = normalizedResidencyDuration;
-    }
     parentPreviousTownProvinceController = TextEditingController(
       text: widget.data.parentPreviousTownProvince,
     );
@@ -411,53 +405,32 @@ class _StepFamilyState extends State<StepFamily> {
         : null;
   }
 
-  static const Map<String, String> _residencyDurationOptions = {
-    '0': 'Less than a year',
-    '5': '1-5 years',
-    '10': '6-10 years',
-    '11': 'More than 10 years',
-  };
-
-  String _normalizeResidencyDuration(String value) {
-    final raw = value.trim();
-    if (raw.isEmpty) return '';
-
-    if (_residencyDurationOptions.containsKey(raw)) {
-      return raw;
-    }
-
-    final normalized = raw.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
-    for (final entry in _residencyDurationOptions.entries) {
-      if (entry.value.toLowerCase() == normalized) return entry.key;
-    }
-
-    final years = int.tryParse(raw);
-    if (years == null) return '';
-    if (years < 1) return '0';
-    if (years <= 5) return '5';
-    if (years <= 10) return '10';
-    return '11';
-  }
-
-  String _residencyDurationLabel(String value) {
-    final normalized = _normalizeResidencyDuration(value);
-    return _residencyDurationOptions[normalized] ?? value.trim();
-  }
-
   String? _parentResidencyDurationError() {
     if (!widget.showErrors || selectedParentNative == 'No') return null;
-    final normalized = _normalizeResidencyDuration(
-      parentMarilaoResidencyDurationController.text,
-    );
-    if (normalized.isEmpty) return 'Residency duration is required.';
-    if (!_residencyDurationOptions.containsKey(normalized)) {
-      return 'Select a valid residency duration.';
+    final value = parentMarilaoResidencyDurationController.text.trim();
+    if (value.isEmpty) return 'Years as resident is required.';
+    if (!RegExp(r'^\d+$').hasMatch(value)) {
+      return 'Enter the number of years using digits only.';
+    }
+    final years = int.tryParse(value);
+    if (years == null || years < 1) {
+      return 'Years as resident must be at least 1.';
     }
     return null;
   }
 
-  List<String> _residencyYearOptions() =>
-      _residencyDurationOptions.keys.toList(growable: false);
+  List<String> _residencyYearOptions() {
+    final values = List<String>.generate(120, (index) => '${index + 1}');
+    final saved = parentMarilaoResidencyDurationController.text.trim();
+    final savedYears = int.tryParse(saved);
+
+    if (savedYears != null && savedYears > 0 && !values.contains(saved)) {
+      values.add(saved);
+      values.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+    }
+
+    return values;
+  }
 
   String? _primaryCarerError() {
     if (!widget.showErrors) return null;
@@ -752,15 +725,6 @@ class _StepFamilyState extends State<StepFamily> {
           _field(
             'Highest Educational Attainment',
             DropdownButtonFormField<String>(
-              dropdownColor: intakeSurfaceColor(context),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: intakeTextColor(context),
-                fontWeight: FontWeight.w600,
-              ),
-              iconEnabledColor: intakeSubtextColor(context),
-              iconDisabledColor: intakeSubtextColor(
-                context,
-              ).withValues(alpha: 0.45),
               initialValue: selectedEducation,
               decoration: _dec(
                 'Select attainment',
@@ -1051,15 +1015,6 @@ class _StepFamilyState extends State<StepFamily> {
               _field(
                 'Highest Educational Attainment',
                 DropdownButtonFormField<String>(
-                  dropdownColor: intakeSurfaceColor(context),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: intakeTextColor(context),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  iconEnabledColor: intakeSubtextColor(context),
-                  iconDisabledColor: intakeSubtextColor(
-                    context,
-                  ).withValues(alpha: 0.45),
                   initialValue: selectedSiblingEducation,
                   decoration: _dec('Select attainment'),
                   items: educationalOptions
@@ -1160,15 +1115,6 @@ class _StepFamilyState extends State<StepFamily> {
                         : 'If YES, how long have they been residents of Marilao? *',
                     DropdownButtonFormField<String>(
                       isExpanded: true,
-                      dropdownColor: intakeSurfaceColor(context),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: intakeTextColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
-                      iconEnabledColor: intakeSubtextColor(context),
-                      iconDisabledColor: intakeSubtextColor(
-                        context,
-                      ).withValues(alpha: 0.45),
                       initialValue:
                           _residencyYearOptions().contains(
                             parentMarilaoResidencyDurationController.text
@@ -1188,10 +1134,7 @@ class _StepFamilyState extends State<StepFamily> {
                             (value) => DropdownMenuItem(
                               value: value,
                               child: Text(
-                                _residencyDurationLabel(value),
-                                style: TextStyle(
-                                  color: intakeTextColor(context),
-                                ),
+                                '$value year${value == '1' ? '' : 's'}',
                               ),
                             ),
                           )
@@ -1214,15 +1157,6 @@ class _StepFamilyState extends State<StepFamily> {
                         : 'City / Municipality *',
                     DropdownButtonFormField<String>(
                       isExpanded: true,
-                      dropdownColor: intakeSurfaceColor(context),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: intakeTextColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
-                      iconEnabledColor: intakeSubtextColor(context),
-                      iconDisabledColor: intakeSubtextColor(
-                        context,
-                      ).withValues(alpha: 0.45),
                       initialValue: selectedParentPreviousTown,
                       decoration: _dec('Select city / municipality'),
                       items:

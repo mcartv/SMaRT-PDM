@@ -3073,10 +3073,10 @@ function validateApplicationSubmissionPayload(payload = {}) {
             ? Number.parseInt(residencyRaw, 10)
             : Number.NaN;
 
-        if (!Number.isInteger(residencyYears) || residencyYears < 0 || residencyYears > 120) {
+        if (!Number.isInteger(residencyYears) || residencyYears < 1 || residencyYears > 120) {
             throw createHttpError(
                 400,
-                'Residency duration is invalid.'
+                'Years as resident must be a whole number between 1 and 120.'
             );
         }
     }

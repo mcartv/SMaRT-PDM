@@ -121,29 +121,6 @@ class _ApplicationFormPreviewScreenState
 
   String _yesNo(bool value) => value ? 'Yes' : 'No';
 
-  String _residencyDurationLabel(String value) {
-    final raw = value.trim();
-    final years = int.tryParse(raw);
-
-    if (raw.toLowerCase() == 'less than a year' || years == 0) {
-      return 'Less than a year';
-    }
-    if (raw.toLowerCase() == '1-5 years' ||
-        (years != null && years >= 1 && years <= 5)) {
-      return '1-5 years';
-    }
-    if (raw.toLowerCase() == '6-10 years' ||
-        (years != null && years >= 6 && years <= 10)) {
-      return '6-10 years';
-    }
-    if (raw.toLowerCase() == 'more than 10 years' ||
-        (years != null && years > 10)) {
-      return 'More than 10 years';
-    }
-
-    return raw.isEmpty ? 'Not provided' : raw;
-  }
-
   String _fullName(String first, String middle, String last) {
     final parts = [
       first,
@@ -327,7 +304,6 @@ class _ApplicationFormPreviewScreenState
   }
 
   Widget _content(ApplicationData data) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final applicationStatus =
         _optional(_application['application_status']) ?? 'Submitted';
     final openingTitle =
@@ -343,16 +319,9 @@ class _ApplicationFormPreviewScreenState
         children: [
           Card(
             elevation: 0,
-            color: isDark
-                ? AppColors.applicantDarkSurface
-                : const Color(0xFFFFFEFC),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
-              side: BorderSide(
-                color: isDark
-                    ? AppColors.applicantDarkOutline
-                    : const Color(0xFFE9DED2),
-              ),
+              side: const BorderSide(color: Color(0xFFE9DED2)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -489,7 +458,7 @@ class _ApplicationFormPreviewScreenState
               else
                 _field(
                   'Years as Marilao Resident',
-                  _residencyDurationLabel(data.parentMarilaoResidencyDuration),
+                  _text(data.parentMarilaoResidencyDuration),
                 ),
             ],
           ),

@@ -9,10 +9,38 @@ import {
 } from './components/maintenanceTypography';
 import {
   LANDING_COLOR_FIELDS,
-  getDefaultLandingTheme,
   getLandingThemePresetOptions,
   resolveLandingTheme,
 } from '@/config/landingThemes';
+
+
+const LANDING_THEME_CACHE_KEY = 'smartpdm-theme-landing';
+
+function readLandingThemeCache() {
+  try {
+    const raw = localStorage.getItem(LANDING_THEME_CACHE_KEY);
+    if (!raw) return { hasCache: false, presetKey: 'default', customColors: null };
+    const parsed = JSON.parse(raw);
+    return {
+      hasCache: true,
+      presetKey: parsed?.presetKey || 'default',
+      customColors: parsed?.customColors || null,
+    };
+  } catch {
+    return { hasCache: false, presetKey: 'default', customColors: null };
+  }
+}
+
+function writeLandingThemeCache(presetKey, customColors) {
+  try {
+    localStorage.setItem(
+      LANDING_THEME_CACHE_KEY,
+      JSON.stringify({ presetKey: presetKey || 'default', customColors: customColors || null })
+    );
+  } catch {
+    // Server persistence remains authoritative when browser storage is unavailable.
+  }
+}
 
 function ColorInput({ label, value, onChange }) {
   return (
@@ -124,14 +152,15 @@ function LandingCustomThemeModal({ open, colors, saving, onChange, onClose, onSa
 }
 
 export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
-  const [presetKey, setPresetKey] = useState('default');
+  const cachedTheme = useMemo(() => readLandingThemeCache(), []);
+  const [presetKey, setPresetKey] = useState(() => cachedTheme.presetKey);
   const [customColors, setCustomColors] = useState(() => {
-    const defaults = getDefaultLandingTheme();
-    return Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, defaults[field.key]]));
+    const resolved = resolveLandingTheme(cachedTheme.presetKey, cachedTheme.customColors);
+    return Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]));
   });
   const [customDraft, setCustomDraft] = useState(() => ({ ...customColors }));
   const [customOpen, setCustomOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedTheme.hasCache);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
@@ -141,40 +170,36 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     [customColors, presetKey]
   );
 
-  const loadLandingTheme = useCallback(async () => {
+  const loadLandingTheme = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setLoading(true);
+
     try {
-      setLoading(true);
-      const response = await fetch(buildApiUrl('/api/theme-settings'), {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(buildApiUrl('/api/theme-settings/public/landing'));
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to load theme settings.');
+        throw new Error(payload?.error || 'Failed to load landing theme.');
       }
 
-      const items = Array.isArray(payload?.items) ? payload.items : [];
-      const landing = items.find((item) => String(item?.portal_key || '').trim().toLowerCase() === 'landing');
-      const nextPreset = landing?.preset_key || 'default';
-      const resolved = resolveLandingTheme(nextPreset, landing?.custom_colors || null);
+      const nextPreset = payload?.preset_key || 'default';
+      const nextCustomColors = payload?.custom_colors || null;
+      const resolved = resolveLandingTheme(nextPreset, nextCustomColors);
 
       setPresetKey(nextPreset);
       setCustomColors(
         Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]))
       );
+      writeLandingThemeCache(nextPreset, nextCustomColors);
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to load landing theme.' });
     } finally {
       setLoading(false);
     }
-  }, [tokenStorageKey]);
+  }, []);
 
   useEffect(() => {
-    loadLandingTheme();
-  }, [loadLandingTheme]);
+    loadLandingTheme({ showLoading: !cachedTheme.hasCache });
+  }, [cachedTheme.hasCache, loadLandingTheme]);
 
   useEffect(() => {
     if (!feedback.message) return undefined;
@@ -203,10 +228,13 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
       }
 
       const resolved = resolveLandingTheme(payload?.preset_key || nextPresetKey, payload?.custom_colors || null);
-      setPresetKey(payload?.preset_key || nextPresetKey);
+      const savedPresetKey = payload?.preset_key || nextPresetKey;
+      const savedCustomColors = payload?.custom_colors || null;
+      setPresetKey(savedPresetKey);
       setCustomColors(
         Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]))
       );
+      writeLandingThemeCache(savedPresetKey, savedCustomColors);
       setFeedback({
         type: 'success',
         message:

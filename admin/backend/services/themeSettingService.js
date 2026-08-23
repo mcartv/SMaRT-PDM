@@ -178,13 +178,17 @@ async function getPersonalThemeSetting(portalKey, actor = {}) {
 async function getThemeSettings(actor = {}) {
   const actorRole = normalizePortalKey(actor.role);
   const byPortal = new Map();
+  const shouldLoadPersonal = PORTAL_KEYS.includes(actorRole) && actorRole !== 'landing';
 
-  // Landing remains the single shared public theme. Every authenticated portal
-  // uses only the signed-in user's personal theme row.
-  byPortal.set('landing', await getPublicThemeSetting('landing'));
+  // These rows are independent, so load them concurrently instead of making
+  // deployed Maintenance wait for two sequential database round trips.
+  const [landingSetting, personalSetting] = await Promise.all([
+    getPublicThemeSetting('landing'),
+    shouldLoadPersonal ? getPersonalThemeSetting(actorRole, actor) : Promise.resolve(null),
+  ]);
 
-  if (PORTAL_KEYS.includes(actorRole) && actorRole !== 'landing') {
-    const personalSetting = await getPersonalThemeSetting(actorRole, actor);
+  byPortal.set('landing', landingSetting);
+  if (personalSetting) {
     byPortal.set(actorRole, personalSetting);
   }
 

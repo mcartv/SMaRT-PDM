@@ -4,7 +4,6 @@ import 'package:smartpdm_mobileapp/app/shell/presentation/screens/top_level_shel
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/announcements_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/applicant_access_gate.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/applicant_documents_screen.dart';
-import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/application_form_preview_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholarship_openings_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/change_email_screen.dart';
@@ -109,15 +108,6 @@ class AppRouter {
           (context) => ApplicantAccessGate(
             routeName: AppRoutes.documents,
             child: _buildApplicantDocumentsScreen(context, settings),
-          ),
-        );
-
-      case AppRoutes.applicationFormPreview:
-        return _buildProtectedRoute(
-          settings,
-          (_) => const ApplicantAccessGate(
-            routeName: AppRoutes.applicationFormPreview,
-            child: ApplicationFormPreviewScreen(),
           ),
         );
 
@@ -230,7 +220,6 @@ class AppRouter {
       initialOpeningTitle: payload['openingTitle']?.toString(),
       initialProgramName: payload['programName']?.toString(),
       replaceExistingDraft: payload['replaceExistingDraft'] == true,
-      editExistingApplication: payload['editExistingApplication'] == true,
     );
   }
 

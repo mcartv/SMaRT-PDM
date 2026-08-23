@@ -26,14 +26,12 @@ class NewApplicantScreen extends StatefulWidget {
     this.initialOpeningTitle,
     this.initialProgramName,
     this.replaceExistingDraft = false,
-    this.editExistingApplication = false,
   });
 
   final String? initialOpeningId;
   final String? initialOpeningTitle;
   final String? initialProgramName;
   final bool replaceExistingDraft;
-  final bool editExistingApplication;
 
   @override
   State<NewApplicantScreen> createState() => _NewApplicantScreenState();
@@ -110,14 +108,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     try {
-      final savedFormData = widget.editExistingApplication
-          ? Map<String, dynamic>.from(
-              (await _applicationService
-                          .fetchMySubmittedApplicationForm())['form_data']
-                      as Map? ??
-                  const {},
-            )
-          : await _applicationService.fetchMySavedFormData();
+      final savedFormData = await _applicationService.fetchMySavedFormData();
 
       debugPrint('APPLICATION FORM PREFILL RESPONSE: $savedFormData');
 
@@ -136,9 +127,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       if (!shouldReplaceDraft) {
         _data.applySavedForm(savedFormData);
 
-        _hasDraftLoaded =
-            widget.editExistingApplication ||
-            savedFormData['has_saved_form'] == true;
+        _hasDraftLoaded = savedFormData['has_saved_form'] == true;
 
         await _syncAccountHolderCache();
       }
@@ -204,9 +193,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   String _savedString(dynamic value) => value?.toString() ?? '';
 
   void _queueAutosave({bool immediate = false}) {
-    if (_isBootstrapping ||
-        !_hasSelectedOpening ||
-        widget.editExistingApplication) {
+    if (_isBootstrapping || !_hasSelectedOpening) {
       return;
     }
 
@@ -216,9 +203,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Future<void> _saveDraft() async {
-    if (_isBootstrapping ||
-        !_hasSelectedOpening ||
-        widget.editExistingApplication) {
+    if (_isBootstrapping || !_hasSelectedOpening) {
       return;
     }
 
@@ -385,7 +370,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final success = await provider.submitApplication(
       _data,
       openingId: _data.openingId,
-      editExistingApplication: widget.editExistingApplication,
     );
 
     if (!mounted) return;
@@ -416,11 +400,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       ).showSnackBar(SnackBar(content: Text(successMessage)));
 
       provider.resetApplication();
-
-      if (widget.editExistingApplication) {
-        Navigator.of(context).pop(true);
-        return;
-      }
 
       Navigator.pushReplacementNamed(
         context,
@@ -754,9 +733,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       child: Column(
                         children: [
                           AppHeader(
-                            subtitle: widget.editExistingApplication
-                                ? 'Edit Application Form'
-                                : 'Scholarship Application Form',
+                            subtitle: 'Scholarship Application Form',
                             onBack: () => Navigator.maybePop(context),
                           ),
                           Padding(
@@ -970,9 +947,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    widget.editExistingApplication
-                        ? 'Changes are saved only when you tap Save Updated Application.'
-                        : _isAutosaving
+                    _isAutosaving
                         ? 'Saving draft...'
                         : _autosaveError == null
                         ? 'Draft autosaves as you complete the form.'
@@ -1084,9 +1059,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       elevation: 0,
                     ),
                     child: Text(
-                      widget.editExistingApplication
-                          ? 'Save Updated Application'
-                          : 'Submit Application',
+                      'Submit Application',
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 16,

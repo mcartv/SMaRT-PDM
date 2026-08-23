@@ -33,27 +33,6 @@ async function getMyFormData(req, res) {
     }
 }
 
-async function getMySubmittedFormData(req, res) {
-    try {
-        const userId = getRequestUserId(req);
-
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required.' });
-        }
-
-        const result = await applicationService.getMySubmittedFormData(userId);
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('SUBMITTED APPLICATION FORM ROUTE ERROR:', error);
-
-        return res.status(getSafeStatusCode(error)).json({
-            error:
-                error.message ||
-                'Failed to load the submitted application form.',
-        });
-    }
-}
-
 async function saveMyFormData(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -190,7 +169,6 @@ async function submitMyApplicationForm(req, res) {
 
 module.exports = {
     getMyFormData,
-    getMySubmittedFormData,
     saveMyFormData,
     getMyDocuments,
     getMyApplicationStatusSummary,

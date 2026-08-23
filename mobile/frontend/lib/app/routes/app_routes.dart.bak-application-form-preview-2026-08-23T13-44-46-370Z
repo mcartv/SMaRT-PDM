@@ -20,7 +20,6 @@ class AppRoutes {
   // Dashboard detail routes
   static const newApplicant = '/new_applicant';
   static const documents = '/documents';
-  static const applicationFormPreview = '/application-form-preview';
   static const renewalDocuments = '/renewal-documents';
   static const status = '/status';
   static const endorsement = '/endorsement';

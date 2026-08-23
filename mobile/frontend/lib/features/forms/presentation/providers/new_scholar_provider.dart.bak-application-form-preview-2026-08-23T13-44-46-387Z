@@ -75,7 +75,6 @@ class NewScholarProvider extends ChangeNotifier {
   Future<bool> submitApplication(
     ApplicationData applicationData, {
     required String openingId,
-    bool editExistingApplication = false,
   }) async {
     _isLoading = true;
     _submissionError = null;
@@ -88,18 +87,13 @@ class NewScholarProvider extends ChangeNotifier {
         applicationData.openingId = openingId.trim();
       }
 
-      final response = editExistingApplication
-          ? await _applicationService.updateSubmittedApplication(
-              applicationData,
-            )
-          : await _applicationService.submitApplication(applicationData);
+      final response = await _applicationService.submitApplication(
+        applicationData,
+      );
 
       _lastSubmissionResponse = response;
       _successMessage =
-          response['message']?.toString() ??
-          (editExistingApplication
-              ? 'Application updated.'
-              : 'Application submitted.');
+          response['message']?.toString() ?? 'Application submitted.';
 
       _isLoading = false;
       notifyListeners();

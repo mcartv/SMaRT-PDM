@@ -3148,246 +3148,7 @@ function validateApplicationSubmissionPayload(payload = {}) {
     }
 }
 
-async function getMySubmittedFormData(userId) {
-    if (!userId) {
-        throw createHttpError(401, 'Authentication required.');
-    }
-
-    const { data: student, error: studentError } = await supabase
-        .from('students')
-        .select('student_id, current_application_id')
-        .eq('user_id', userId)
-        .eq('is_archived', false)
-        .maybeSingle();
-
-    if (studentError) throw studentError;
-
-    if (!student?.student_id) {
-        return {
-            has_application: false,
-            application: {},
-            form_data: {},
-            editability: {
-                can_edit: false,
-                reason: 'Submit an application first.',
-            },
-        };
-    }
-
-    const applicationSelect = `
-        application_id,
-        student_id,
-        opening_id,
-        program_id,
-        application_status,
-        document_status,
-        verification_status,
-        submission_date,
-        requirements_verified_at,
-        selection_status,
-        queue_position,
-        waitlist_position,
-        selected_at,
-        waitlisted_at,
-        finalized_at,
-        activated_at,
-        application_payload,
-        is_archived
-    `;
-
-    let application = null;
-
-    if (student.current_application_id) {
-        const { data, error } = await supabase
-            .from('applications')
-            .select(applicationSelect)
-            .eq('application_id', student.current_application_id)
-            .eq('student_id', student.student_id)
-            .eq('is_archived', false)
-            .maybeSingle();
-
-        if (error) throw error;
-        application = data || null;
-    }
-
-    if (!application) {
-        const { data, error } = await supabase
-            .from('applications')
-            .select(applicationSelect)
-            .eq('student_id', student.student_id)
-            .eq('is_archived', false)
-            .order('submission_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (error) throw error;
-        application = data || null;
-    }
-
-    if (!application?.application_id) {
-        return {
-            has_application: false,
-            application: {},
-            form_data: {},
-            editability: {
-                can_edit: false,
-                reason: 'Submit an application first.',
-            },
-        };
-    }
-
-    const [
-        openingResult,
-        documentReviewResult,
-        ocrResult,
-    ] = await Promise.all([
-        application.opening_id
-            ? supabase
-                .from('program_openings')
-                .select(`
-                    opening_id,
-                    opening_title,
-                    program_id,
-                    scholarship_program (
-                        program_name
-                    )
-                `)
-                .eq('opening_id', application.opening_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null, error: null }),
-        supabase
-            .from('application_documents')
-            .select('document_id, review_status, reviewed_at')
-            .eq('application_id', application.application_id),
-        supabase
-            .from('iot_ocr_requests')
-            .select('request_id', { count: 'exact', head: true })
-            .eq('application_id', application.application_id),
-    ]);
-
-    if (openingResult.error) throw openingResult.error;
-    if (documentReviewResult.error) throw documentReviewResult.error;
-    if (ocrResult.error) throw ocrResult.error;
-
-    const documentReviewStarted = (documentReviewResult.data || []).some(
-        (document) => {
-            if (document.reviewed_at) return true;
-
-            const status = safeText(document.review_status)
-                .toLowerCase()
-                .replace(/[_-]+/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            return ![
-                '',
-                'uploaded',
-                'pending',
-                'under review',
-            ].includes(status);
-        }
-    );
-
-    const ocrStarted = Number(ocrResult.count || 0) > 0;
-
-    const applicationStatus = safeText(application.application_status)
-        .toLowerCase()
-        .replace(/[_-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    const selectionStatus = safeText(application.selection_status)
-        .toLowerCase()
-        .replace(/[_-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    const pendingReview = applicationStatus === 'pending review';
-    const selectionNotStarted =
-        selectionStatus === '' ||
-        selectionStatus === 'unranked' ||
-        selectionStatus === 'not started';
-
-    const reviewStarted =
-        !!application.requirements_verified_at ||
-        documentReviewStarted ||
-        ocrStarted;
-
-    const selectionStarted =
-        !selectionNotStarted ||
-        !!application.selected_at ||
-        !!application.waitlisted_at ||
-        !!application.finalized_at ||
-        application.queue_position != null ||
-        application.waitlist_position != null;
-
-    const activated = !!application.activated_at;
-
-    const canEdit =
-        pendingReview &&
-        !reviewStarted &&
-        !selectionStarted &&
-        !activated;
-
-    let reason = null;
-
-    if (!pendingReview) {
-        reason =
-            'Editing is unavailable because this application is no longer in Pending Review.';
-    } else if (activated || selectionStarted) {
-        reason =
-            'Editing is unavailable after FCFS selection or scholar activation begins.';
-    } else if (reviewStarted) {
-        reason =
-            'Editing is unavailable because OSFA has already started reviewing this application.';
-    }
-
-    let formData = application.application_payload;
-
-    if (
-        !formData ||
-        typeof formData !== 'object' ||
-        Array.isArray(formData)
-    ) {
-        formData = await getMyFormData(userId);
-    }
-
-    const opening = openingResult.data || {};
-
-    return {
-        has_application: true,
-        application: {
-            application_id: application.application_id,
-            opening_id: application.opening_id,
-            opening_title: opening.opening_title || '',
-            program_id: application.program_id || opening.program_id || null,
-            program_name: opening.scholarship_program?.program_name || '',
-            application_status: application.application_status || null,
-            document_status: application.document_status || null,
-            verification_status: application.verification_status || null,
-            submission_date: application.submission_date || null,
-            selection_status: application.selection_status || null,
-        },
-        form_data: formData,
-        editability: {
-            can_edit: canEdit,
-            review_started: reviewStarted,
-            selection_started: selectionStarted,
-            ocr_started: ocrStarted,
-            reason,
-        },
-    };
-}
-
 async function submitMyApplicationForm(userId, payload = {}) {
-    const editExistingApplication =
-        payload?.edit_existing_application === true;
-
-    if (editExistingApplication) {
-        payload = { ...payload };
-        delete payload.edit_existing_application;
-    }
-
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
     }
@@ -3952,36 +3713,6 @@ async function submitMyApplicationForm(userId, payload = {}) {
         throw existingApplicationError;
     }
 
-    let existingEditSnapshot = null;
-
-    if (editExistingApplication) {
-        const submittedForm = await getMySubmittedFormData(userId);
-
-        if (
-            !submittedForm?.has_application ||
-            submittedForm?.editability?.can_edit !== true
-        ) {
-            throw createHttpError(
-                409,
-                submittedForm?.editability?.reason ||
-                    'This application can no longer be edited.'
-            );
-        }
-
-        if (
-            !existingApplication?.application_id ||
-            safeText(submittedForm.application?.application_id) !==
-                safeText(existingApplication.application_id)
-        ) {
-            throw createHttpError(
-                409,
-                'The submitted application changed. Refresh the form before editing.'
-            );
-        }
-
-        existingEditSnapshot = submittedForm.application;
-    }
-
     let application;
 
     // ---------------------------------------------------------
@@ -4002,19 +3733,13 @@ async function submitMyApplicationForm(userId, payload = {}) {
                     payload,
 
                 application_status:
-                    editExistingApplication
-                        ? existingEditSnapshot?.application_status || 'Pending Review'
-                        : 'Pending Review',
+                    'Pending Review',
 
                 document_status:
-                    editExistingApplication
-                        ? existingEditSnapshot?.document_status || 'Missing Docs'
-                        : 'Missing Docs',
+                    'Missing Docs',
 
                 verification_status:
-                    editExistingApplication
-                        ? existingEditSnapshot?.verification_status || 'pending'
-                        : 'pending',
+                    'pending',
 
                 is_archived:
                     false,
@@ -4196,9 +3921,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
 
     return {
         message:
-            editExistingApplication
-                ? 'Application updated successfully.'
-                : 'Application submitted successfully.',
+            'Application submitted successfully.',
 
         application,
 
@@ -4209,7 +3932,6 @@ async function submitMyApplicationForm(userId, payload = {}) {
 
 module.exports = {
     getMyFormData,
-    getMySubmittedFormData,
     saveMyFormData,
     getMyDocuments,
     getMyApplicationStatusSummary,

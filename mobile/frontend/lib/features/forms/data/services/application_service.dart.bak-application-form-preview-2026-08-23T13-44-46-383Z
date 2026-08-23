@@ -45,23 +45,6 @@ class ApplicationService {
     return _apiClient.getObject('/api/applications/me/form-data');
   }
 
-  Future<Map<String, dynamic>> fetchMySubmittedApplicationForm() async {
-    return _apiClient.getObject('/api/applications/me/submitted-form');
-  }
-
-  Future<Map<String, dynamic>> updateSubmittedApplication(
-    ApplicationData applicationData,
-  ) async {
-    final body = applicationData.toSubmissionPayload();
-    body['edit_existing_application'] = true;
-
-    return _apiClient.postJson(
-      '/api/applications/me/submit',
-      body: body,
-      timeout: const Duration(seconds: 30),
-    );
-  }
-
   Future<Map<String, dynamic>> saveMySavedFormData(
     ApplicationData applicationData,
   ) async {

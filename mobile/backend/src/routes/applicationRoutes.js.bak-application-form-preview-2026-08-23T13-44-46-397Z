@@ -12,11 +12,6 @@ const upload = multer({
 });
 
 router.get('/me/form-data', protect, applicationController.getMyFormData);
-router.get(
-    '/me/submitted-form',
-    protect,
-    applicationController.getMySubmittedFormData
-);
 router.post('/me/form-data', protect, applicationController.saveMyFormData);
 router.put('/me/form-data', protect, applicationController.saveMyFormData);
 router.get('/me/documents', protect, applicationController.getMyDocuments);

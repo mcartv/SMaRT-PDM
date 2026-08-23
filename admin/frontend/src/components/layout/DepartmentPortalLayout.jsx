@@ -409,19 +409,23 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className="w-full border-b border-stone-100 border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
-                            style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
+                            style={item.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {item.title || 'Notification'}
                               </p>
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                                style={{ background: theme.base, color: '#fff' }}
-                              >
-                                New
-                              </span>
+                              {item.is_read !== true ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: theme.base, color: '#fff' }}
+                                >
+                                  New
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {item.message || 'Open notification'}
@@ -446,10 +450,10 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98]"
-                            style={item.is_recently_opened
-                              ? { borderLeft: `4px solid ${theme.base}`, background: theme.accentSoft }
-                              : undefined}
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
+                            style={item.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-medium leading-[18px] text-stone-800">

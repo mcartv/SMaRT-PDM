@@ -563,7 +563,37 @@ function PasswordInput({ label, value, onChange, placeholder = '', disabled = fa
 
 function AccountModalPortal({ children }) {
     if (typeof document === 'undefined') return null;
-    return createPortal(children, document.body);
+
+    // Account modals render under document.body, while portal theme variables
+    // live on the authenticated layout wrapper. Copy the active variables into
+    // the portal so primary actions keep the same visible theme color.
+    const themeSource = document.querySelector('[style*="--portal-base"]');
+    const portalThemeStyle = {};
+
+    if (themeSource && typeof window !== 'undefined') {
+        const computed = window.getComputedStyle(themeSource);
+        [
+            '--portal-base',
+            '--portal-accent',
+            '--portal-accent-soft',
+            '--portal-main-bg',
+            '--portal-surface',
+            '--portal-surface-soft',
+            '--portal-border',
+            '--portal-muted',
+            '--portal-text',
+        ].forEach((variable) => {
+            const value = computed.getPropertyValue(variable).trim();
+            if (value) portalThemeStyle[variable] = value;
+        });
+    }
+
+    return createPortal(
+        <div className="contents" style={portalThemeStyle}>
+            {children}
+        </div>,
+        document.body
+    );
 }
 
 function AccountCreateModal({
@@ -1116,8 +1146,8 @@ function AccountEditModal({
                     <Button
                         onClick={onSave}
                         disabled={saving}
-                        className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                        style={{ background: C.brownMid }}
+                        className="h-8 rounded-lg border-none px-3 text-xs font-medium text-white hover:brightness-95 disabled:opacity-60"
+                        style={{ background: 'var(--portal-base, #6f4b33)' }}
                     >
                         {saving ? (
                             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

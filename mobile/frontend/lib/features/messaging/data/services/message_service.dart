@@ -27,11 +27,13 @@ class ChatRoom {
   final String roomId;
   final String roomName;
   final int unreadCount;
+  final int memberCount;
 
   const ChatRoom({
     required this.roomId,
     required this.roomName,
     this.unreadCount = 0,
+    this.memberCount = 0,
   });
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
@@ -45,6 +47,76 @@ class ChatRoom {
           (json['unreadCount'] as num?)?.toInt() ??
           (json['unread_count'] as num?)?.toInt() ??
           0,
+      memberCount:
+          (json['memberCount'] as num?)?.toInt() ??
+          (json['member_count'] as num?)?.toInt() ??
+          0,
+    );
+  }
+}
+
+
+class GroupMember {
+  final String userId;
+  final String name;
+  final String subtitle;
+  final String studentNumber;
+  final String role;
+  final String email;
+  final String department;
+  final String position;
+  final String avatarUrl;
+  final bool isAdmin;
+  final bool isCurrentUser;
+  final bool isDeleted;
+
+  const GroupMember({
+    required this.userId,
+    required this.name,
+    this.subtitle = '',
+    this.studentNumber = '',
+    this.role = '',
+    this.email = '',
+    this.department = '',
+    this.position = '',
+    this.avatarUrl = '',
+    this.isAdmin = false,
+    this.isCurrentUser = false,
+    this.isDeleted = false,
+  });
+
+  factory GroupMember.fromJson(Map<String, dynamic> json) {
+    String pick(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key]?.toString().trim() ?? '';
+        if (value.isNotEmpty) return value;
+      }
+      return '';
+    }
+
+    bool pickBool(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is bool) return value;
+        if (value is num) return value != 0;
+        if (value is String) return value.toLowerCase() == 'true' || value == '1';
+      }
+      return false;
+    }
+
+    return GroupMember(
+      userId: pick(['userId', 'user_id']),
+      name: pick(['name']).isNotEmpty ? pick(['name']) : 'Unknown User',
+      subtitle: pick(['subtitle']),
+      studentNumber: pick(['studentNumber', 'student_number']),
+      role: pick(['role']),
+      email: pick(['email']),
+      department: pick(['department']),
+      position: pick(['position']),
+      avatarUrl: pick(['avatarUrl', 'avatar_url', 'profile_photo_url']),
+      isAdmin: pickBool(['isAdmin', 'is_admin']),
+      isCurrentUser: pickBool(['isCurrentUser', 'is_current_user']),
+      isDeleted: pickBool(['isDeleted', 'is_deleted']),
     );
   }
 }
@@ -177,6 +249,48 @@ class MessageService {
     return items
         .map((item) => ChatRoom.fromJson(Map<String, dynamic>.from(item)))
         .toList();
+  }
+
+  Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return const [];
+
+    // Use the existing room-thread contract. The deployed mobile backend already
+    // exposes /thread and /messages, while /members may not exist yet and causes
+    // a noisy 404 in Flutter web. The patched backend enriches this same response
+    // with membership/profile data.
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.getObject(
+        '/api/messages/rooms/$normalizedRoomId/thread',
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode != 404 && error.statusCode != 405) {
+        rethrow;
+      }
+      response = await _apiClient.getObject(
+        '/api/messages/rooms/$normalizedRoomId/messages',
+      );
+    }
+
+    final source =
+        response['members'] as List<dynamic>? ??
+        response['roomMembers'] as List<dynamic>? ??
+        response['room_members'] as List<dynamic>? ??
+        const [];
+
+    return source
+        .whereType<Map>()
+        .map((item) => GroupMember.fromJson(Map<String, dynamic>.from(item)))
+        .where((item) => item.userId.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<void> leaveGroup(String roomId) async {
+    await _apiClient.postJson(
+      '/api/messages/rooms/$roomId/members',
+      body: const {'action': 'leave'},
+    );
   }
 
   Future<List<ChatMessage>> fetchRoomThread(String roomId) async {

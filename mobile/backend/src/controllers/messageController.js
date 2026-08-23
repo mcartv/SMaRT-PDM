@@ -271,11 +271,25 @@ exports.getRoomThread = async (req, res) => {
       return res.status(401).json({ error: 'Authentication required.' });
     }
 
-    const items = await messageService.fetchRoomThread(currentUserId, roomId);
+    const [items, members] = await Promise.all([
+      messageService.fetchRoomThread(currentUserId, roomId),
+      messageService.fetchRoomMembers(currentUserId, roomId),
+    ]);
+    const viewer = members.find(
+      (item) => item.user_id === currentUserId || item.userId === currentUserId
+    );
+    const viewerIsAdmin = viewer?.is_admin === true || viewer?.isAdmin === true;
 
     return res.status(200).json({
       roomId,
+      room_id: roomId,
       items,
+      members,
+      roomMembers: members,
+      memberCount: members.length,
+      member_count: members.length,
+      viewerIsAdmin,
+      viewer_is_admin: viewerIsAdmin,
     });
   } catch (error) {
     console.error('GET MESSAGE ROOM THREAD ERROR:', error);
@@ -334,6 +348,37 @@ exports.markRoomThreadRead = async (req, res) => {
   }
 };
 
+exports.getRoomMembers = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const items = await messageService.fetchRoomMembers(currentUserId, roomId);
+    const viewer = items.find((item) => item.user_id === currentUserId || item.userId === currentUserId);
+
+    return res.status(200).json({
+      roomId,
+      room_id: roomId,
+      viewerIsAdmin: viewer?.is_admin === true || viewer?.isAdmin === true,
+      viewer_is_admin: viewer?.is_admin === true || viewer?.isAdmin === true,
+      items,
+      members: items,
+      roomMembers: items,
+      memberCount: items.length,
+      member_count: items.length,
+    });
+  } catch (error) {
+    console.error('GET MESSAGE ROOM MEMBERS ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to load room members.',
+    });
+  }
+};
+
 exports.addRoomMembers = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);
@@ -343,8 +388,28 @@ exports.addRoomMembers = async (req, res) => {
       return res.status(401).json({ error: 'Authentication required.' });
     }
 
+    const action = String(req.body?.action || 'add').trim().toLowerCase();
+
+    if (action === 'leave') {
+      const payload = await messageService.leaveRoom(currentUserId, roomId);
+      return res.status(200).json({ action: 'leave', ...payload });
+    }
+
     if (!isAdminLike(req)) {
-      return res.status(403).json({ error: 'Only administrators can add room members.' });
+      return res.status(403).json({ error: 'Only administrators can manage room members.' });
+    }
+
+    if (action === 'remove') {
+      const memberId = String(req.body?.memberId || req.body?.member_id || '').trim();
+      if (!memberId) {
+        return res.status(400).json({ error: 'Member ID is required.' });
+      }
+      const payload = await messageService.removeGroupMember(
+        currentUserId,
+        roomId,
+        memberId
+      );
+      return res.status(200).json({ action: 'remove', ...payload });
     }
 
     const memberIds =
@@ -361,12 +426,17 @@ exports.addRoomMembers = async (req, res) => {
     );
 
     return res.status(201).json({
+      action: 'add',
       items: payload,
+      members: payload,
+      roomMembers: payload,
+      memberCount: payload.length,
+      member_count: payload.length,
     });
   } catch (error) {
-    console.error('ADD MESSAGE ROOM MEMBERS ERROR:', error);
+    console.error('MANAGE MESSAGE ROOM MEMBERS ERROR:', error);
     return res.status(getSafeStatusCode(error)).json({
-      error: error.message || 'Failed to add room members.',
+      error: error.message || 'Failed to update room members.',
     });
   }
 };
@@ -395,6 +465,25 @@ exports.removeRoomMember = async (req, res) => {
     console.error('REMOVE MESSAGE ROOM MEMBER ERROR:', error);
     return res.status(getSafeStatusCode(error)).json({
       error: error.message || 'Failed to remove room member.',
+    });
+  }
+};
+
+exports.leaveRoom = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const payload = await messageService.leaveRoom(currentUserId, roomId);
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error('LEAVE MESSAGE ROOM ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to leave room.',
     });
   }
 };

@@ -108,6 +108,8 @@ class MobileRealtimeEvents {
   static const messageThreadRestored = 'message:thread-restored';
   static const roomCreated = 'room:created';
   static const roomMembersAdded = 'room:members-added';
+  static const roomMembersRemoved = 'room:members-removed';
+  static const roomMemberLeft = 'room:member-left';
 
   static final Set<String> notificationEvents = <String>{
     notificationNew,
@@ -208,6 +210,8 @@ class MobileRealtimeEvents {
     messageThreadRestored,
     roomCreated,
     roomMembersAdded,
+    roomMembersRemoved,
+    roomMemberLeft,
   };
 
   static final Set<String> dashboardEvents = <String>{

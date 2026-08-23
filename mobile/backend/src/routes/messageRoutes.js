@@ -44,5 +44,6 @@ router.delete(
     protect,
     messageController.removeRoomMember
 );
+router.delete('/rooms/:roomId/leave', protect, messageController.leaveRoom);
 
 module.exports = router;

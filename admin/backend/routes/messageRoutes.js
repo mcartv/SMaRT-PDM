@@ -52,7 +52,11 @@ router.post('/rooms', messageController.createRoom);
 router.get('/rooms/:roomId/messages', messageController.getRoomMessages);
 router.post('/rooms/:roomId/messages', messageController.sendRoomMessage);
 
+router.get('/rooms/:roomId/members', messageController.getRoomMembers);
 router.post('/rooms/:roomId/members', messageController.addRoomMembers);
+router.delete('/rooms/:roomId/members/:memberId', messageController.removeRoomMember);
+router.delete('/rooms/:roomId/leave', messageController.leaveRoom);
+router.post('/rooms/:roomId/leave', messageController.leaveRoom);
 
 router.patch('/rooms/:roomId/read', messageController.markRoomMessagesRead);
 router.patch('/rooms/:roomId/unread', messageController.markRoomMessagesUnread);

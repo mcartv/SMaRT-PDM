@@ -1,4 +1,5 @@
 const adminRealtimeRelayService = require('./adminRealtimeRelayService');
+const { resolveAvatarUrl } = require('./avatarService');
 
 const MESSAGE_FIELDS =
   'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url';
@@ -11,6 +12,7 @@ const ALLOWED_ADMIN_ROLES = new Set([
   'sdo',
   'guidance',
   'pd',
+  'ro_coordinator',
 ]);
 
 let ioRef = null;
@@ -344,65 +346,169 @@ async function fetchConversationProfiles(counterpartyIds = []) {
     return {
       userMap: new Map(),
       studentMap: new Map(),
+      adminMap: new Map(),
     };
   }
 
   const supabase = getSupabase();
 
-  const [usersResult, studentsResult] = await Promise.all([
+  // Member/profile enrichment must never make the group member list disappear.
+  // Membership rows are authoritative; these profile queries only decorate them.
+  const [usersResult, studentsResult, adminProfilesResult] = await Promise.all([
     supabase
       .from('users')
       .select('user_id, email, username, role')
       .in('user_id', ids),
-
     supabase
       .from('students')
       .select('user_id, pdm_id, first_name, last_name, profile_photo_url')
+      .in('user_id', ids),
+    supabase
+      .from('admin_profiles')
+      .select('user_id, first_name, last_name, department, position, is_archived')
       .in('user_id', ids),
   ]);
 
   if (usersResult.error) {
     console.error('MESSAGE USER PROFILE FETCH ERROR:', usersResult.error);
-    throw new Error(usersResult.error.message);
   }
-
   if (studentsResult.error) {
     console.error('MESSAGE STUDENT PROFILE FETCH ERROR:', studentsResult.error);
-    throw new Error(studentsResult.error.message);
+  }
+  if (adminProfilesResult.error) {
+    console.error('MESSAGE ADMIN PROFILE FETCH ERROR:', adminProfilesResult.error);
   }
 
-  return {
-    userMap: new Map((usersResult.data || []).map((row) => [row.user_id, row])),
-    studentMap: new Map(
-      (studentsResult.data || []).map((row) => [row.user_id, row])
+  const userRows = usersResult.error ? [] : usersResult.data || [];
+  const rawStudentRows = studentsResult.error ? [] : studentsResult.data || [];
+  const rawAdminRows = adminProfilesResult.error ? [] : adminProfilesResult.data || [];
+
+  // Admin profile photos are optional in older schemas. Query them separately so
+  // a missing/unsupported photo column cannot break names or membership data.
+  let adminPhotoByUserId = new Map();
+  if (rawAdminRows.length) {
+    const adminPhotoResult = await supabase
+      .from('admin_profiles')
+      .select('user_id, profile_photo_url')
+      .in('user_id', ids);
+
+    if (adminPhotoResult.error) {
+      console.warn('MESSAGE ADMIN PHOTO ENRICHMENT SKIPPED:', adminPhotoResult.error.message);
+    } else {
+      adminPhotoByUserId = new Map(
+        (adminPhotoResult.data || []).map((row) => [
+          row.user_id,
+          row.profile_photo_url || null,
+        ])
+      );
+    }
+  }
+
+  async function resolveUsableAvatar(value) {
+    const raw = safeText(value);
+    if (!raw) return null;
+
+    try {
+      const resolved = safeText(await resolveAvatarUrl(raw));
+      // Flutter NetworkImage requires a real network URL. If signing fails and
+      // the avatar service returns a storage path, return null so the UI falls
+      // back to initials instead of rendering a broken image.
+      return /^https?:\/\//i.test(resolved) ? resolved : null;
+    } catch (error) {
+      console.warn('MESSAGE AVATAR RESOLVE ERROR:', error?.message || error);
+      return null;
+    }
+  }
+
+  const [studentRows, adminRows] = await Promise.all([
+    Promise.all(
+      rawStudentRows.map(async (row) => ({
+        ...row,
+        profile_photo_url: await resolveUsableAvatar(row.profile_photo_url || null),
+      }))
     ),
+    Promise.all(
+      rawAdminRows.map(async (row) => ({
+        ...row,
+        profile_photo_url: await resolveUsableAvatar(
+          adminPhotoByUserId.get(row.user_id) || null
+        ),
+      }))
+    ),
+  ]);
+
+  return {
+    userMap: new Map(userRows.map((row) => [row.user_id, row])),
+    studentMap: new Map(studentRows.map((row) => [row.user_id, row])),
+    adminMap: new Map(adminRows.map((row) => [row.user_id, row])),
   };
 }
 
-function buildProfileDisplay(userId, { userMap, studentMap }) {
+function buildProfileDisplay(userId, { userMap, studentMap, adminMap }) {
   const user = userMap.get(userId);
   const student = studentMap.get(userId);
+  const admin = adminMap.get(userId);
 
   const studentName = [student?.first_name, student?.last_name]
     .filter(Boolean)
     .join(' ')
     .trim();
+  const adminName = [admin?.first_name, admin?.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  const rawUsername = safeText(user?.username);
+  const rawEmail = safeText(user?.email);
+  const deletedAccount = /^deleted[-_]/i.test(rawUsername) || /^deleted[-_]/i.test(rawEmail);
+  const fallbackName = deletedAccount
+    ? 'Deleted user'
+    : rawUsername || rawEmail || 'Unknown user';
 
   return {
-    name: studentName || user?.username || user?.email || 'Unknown user',
+    name: studentName || adminName || fallbackName,
     studentNumber: student?.pdm_id || null,
-    avatarUrl: student?.profile_photo_url || null,
+    avatarUrl: student?.profile_photo_url || admin?.profile_photo_url || null,
     role: user?.role || null,
+    email: deletedAccount ? null : user?.email || null,
+    department: admin?.department || null,
+    position: admin?.position || null,
+    subtitle:
+      student?.pdm_id ||
+      admin?.position ||
+      admin?.department ||
+      user?.role ||
+      '',
+    isDeleted: deletedAccount,
   };
+}
+
+function buildProfileMap(profilesResult) {
+  const ids = new Set([
+    ...profilesResult.userMap.keys(),
+    ...profilesResult.studentMap.keys(),
+    ...profilesResult.adminMap.keys(),
+  ]);
+  const map = new Map();
+
+  for (const id of ids) {
+    const display = buildProfileDisplay(id, profilesResult);
+    map.set(id, {
+      name: display.name,
+      avatarUrl: display.avatarUrl,
+    });
+  }
+
+  return map;
 }
 
 function buildConversationPreview(
   counterpartyId,
   row,
-  { userMap, studentMap },
+  { userMap, studentMap, adminMap },
   unreadCount
 ) {
-  const display = buildProfileDisplay(counterpartyId, { userMap, studentMap });
+  const display = buildProfileDisplay(counterpartyId, { userMap, studentMap, adminMap });
 
   return {
     counterpartyId,
@@ -447,27 +553,9 @@ async function fetchThreadMessages(leftUserId, rightUserId, { limit = 200 } = {}
   }
 
   const profilesResult = await fetchConversationProfiles([leftUserId, rightUserId]);
-  const combinedMap = new Map();
+  const profileMap = buildProfileMap(profilesResult);
 
-  profilesResult.userMap.forEach((user, id) => {
-    const student = profilesResult.studentMap.get(id);
-
-    const name =
-      [student?.first_name, student?.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .trim() ||
-      user.username ||
-      user.email ||
-      'Unknown';
-
-    combinedMap.set(id, {
-      name,
-      avatarUrl: student?.profile_photo_url || null,
-    });
-  });
-
-  return (data || []).map((row) => mapMessageRow(row, combinedMap));
+  return (data || []).map((row) => mapMessageRow(row, profileMap));
 }
 
 async function fetchAllPrivateMessagesForUser(userId) {
@@ -558,6 +646,83 @@ async function fetchRoomMemberIds(roomId) {
     .filter(Boolean);
 }
 
+async function upsertMessageReadStates(rows = []) {
+  const normalizedRows = rows
+    .filter((row) => row?.message_id && row?.user_id)
+    .map((row) => ({
+      message_id: row.message_id,
+      user_id: row.user_id,
+      is_read: row.is_read === true,
+    }));
+
+  if (!normalizedRows.length) return;
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('message_read_states')
+    .upsert(normalizedRows, { onConflict: 'message_id,user_id' });
+
+  if (error) {
+    console.error('MESSAGE READ STATE UPSERT ERROR:', error);
+    throw new Error(error.message);
+  }
+}
+
+async function fetchViewerReadMap(userId, messageIds = []) {
+  const normalizedIds = [...new Set(messageIds.map(safeText).filter(Boolean))];
+  const map = new Map();
+  if (!normalizedIds.length) return map;
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('message_read_states')
+    .select('message_id, is_read')
+    .eq('user_id', userId)
+    .in('message_id', normalizedIds);
+
+  if (error) {
+    console.error('MESSAGE READ STATE FETCH ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  for (const row of data || []) {
+    map.set(row.message_id, row.is_read === true);
+  }
+  return map;
+}
+
+async function ensureSharedRoomMembership(leftUserId, rightUserId) {
+  const left = safeText(leftUserId);
+  const right = safeText(rightUserId);
+  if (!left || !right || left === right) {
+    throw createHttpError(400, 'A valid group member is required.');
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .select('room_id, user_id')
+    .in('user_id', [left, right]);
+
+  if (error) {
+    console.error('SHARED ROOM MEMBERSHIP CHECK ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const leftRooms = new Set(
+    (data || []).filter((row) => row.user_id === left).map((row) => row.room_id)
+  );
+  const sharedRoom = (data || []).find(
+    (row) => row.user_id === right && leftRooms.has(row.room_id)
+  );
+
+  if (!sharedRoom?.room_id) {
+    throw createHttpError(403, 'Private messaging is available only between members of the same group.');
+  }
+
+  return sharedRoom.room_id;
+}
+
 async function emitRoomMessageToMembers(roomId, eventName, payload) {
   emitToGroup(roomId, eventName, payload);
 
@@ -611,28 +776,29 @@ async function createMessage({ senderId, receiverId, roomId, messageBody }) {
     throw new Error(error.message);
   }
 
+  if (roomId) {
+    const memberIds = await fetchRoomMemberIds(roomId);
+    await upsertMessageReadStates(
+      memberIds.map((userId) => ({
+        message_id: data.message_id,
+        user_id: userId,
+        is_read: userId === senderId,
+      }))
+    );
+  } else if (receiverId) {
+    await upsertMessageReadStates([
+      { message_id: data.message_id, user_id: senderId, is_read: true },
+      { message_id: data.message_id, user_id: receiverId, is_read: false },
+    ]);
+  }
+
   const profilesResult = await fetchConversationProfiles([senderId]);
-  const combinedMap = new Map();
-
-  profilesResult.userMap.forEach((user, id) => {
-    const student = profilesResult.studentMap.get(id);
-
-    const name =
-      [student?.first_name, student?.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .trim() ||
-      user.username ||
-      user.email ||
-      'Unknown';
-
-    combinedMap.set(id, {
-      name,
-      avatarUrl: student?.profile_photo_url || null,
-    });
-  });
-
-  const message = mapMessageRow(data, combinedMap);
+  const profileMap = buildProfileMap(profilesResult);
+  const message = {
+    ...mapMessageRow(data, profileMap),
+    isRead: true,
+    is_read: true,
+  };
   console.log('[MessageService] message inserted', {
     messageId: message.messageId,
     senderId: message.senderId,
@@ -735,27 +901,9 @@ async function getUnreadCount(userId) {
     throw new Error(membershipError.message);
   }
 
-  const roomIds = (memberships || [])
-    .map((row) => row.room_id)
-    .filter(Boolean);
-
-  let groupCount = 0;
-
-  if (roomIds.length) {
-    const { count, error: groupError } = await supabase
-      .from('messages')
-      .select('message_id', { count: 'exact', head: true })
-      .in('room_id', roomIds)
-      .neq('sender_id', normalizedUserId)
-      .eq('is_read', false);
-
-    if (groupError) {
-      console.error('GROUP MESSAGE UNREAD COUNT ERROR:', groupError);
-      throw new Error(groupError.message);
-    }
-
-    groupCount = count || 0;
-  }
+  const roomIds = (memberships || []).map((row) => row.room_id).filter(Boolean);
+  const roomUnread = await fetchRoomUnreadCounts(normalizedUserId, roomIds);
+  const groupCount = [...roomUnread.values()].reduce((sum, value) => sum + value, 0);
 
   return (privateCount || 0) + groupCount;
 }
@@ -765,39 +913,31 @@ async function fetchRoomUnreadCounts(userId, roomIds = []) {
   const normalizedRoomIds = roomIds
     .map((roomId) => safeText(roomId))
     .filter((roomId) => roomId.length > 0);
+  const unreadCounts = new Map(normalizedRoomIds.map((roomId) => [roomId, 0]));
 
-  if (!normalizedRoomIds.length) {
-    return new Map();
-  }
+  if (!normalizedRoomIds.length) return unreadCounts;
 
   const supabase = getSupabase();
-
-  const { data, error } = await supabase
+  const { data: messages, error: messageError } = await supabase
     .from('messages')
-    .select('room_id')
+    .select('message_id, room_id, sender_id')
     .in('room_id', normalizedRoomIds)
-    .neq('sender_id', normalizedUserId)
-    .eq('is_read', false);
+    .neq('sender_id', normalizedUserId);
 
-  if (error) {
-    console.error('ROOM MESSAGE UNREAD COUNT ERROR:', error);
-    throw new Error(error.message);
+  if (messageError) {
+    console.error('ROOM MESSAGE UNREAD FETCH ERROR:', messageError);
+    throw new Error(messageError.message);
   }
 
-  const unreadCounts = new Map();
+  const messageRows = messages || [];
+  const readMap = await fetchViewerReadMap(
+    normalizedUserId,
+    messageRows.map((row) => row.message_id)
+  );
 
-  for (const roomId of normalizedRoomIds) {
-    unreadCounts.set(roomId, 0);
-  }
-
-  for (const row of data || []) {
-    const roomId = row.room_id;
-
-    if (!roomId) {
-      continue;
-    }
-
-    unreadCounts.set(roomId, (unreadCounts.get(roomId) || 0) + 1);
+  for (const row of messageRows) {
+    if (readMap.get(row.message_id) === true) continue;
+    unreadCounts.set(row.room_id, (unreadCounts.get(row.room_id) || 0) + 1);
   }
 
   return unreadCounts;
@@ -935,13 +1075,35 @@ async function listRoomsForAdmin(userId) {
     throw new Error(error.message);
   }
 
-  return (data || []).map((room) => ({
+  const rooms = data || [];
+  const roomIds = rooms.map((room) => room.room_id).filter(Boolean);
+  const memberCounts = new Map(roomIds.map((roomId) => [roomId, 0]));
+
+  if (roomIds.length) {
+    const { data: memberRows, error: memberError } = await supabase
+      .from('chat_room_members')
+      .select('room_id')
+      .in('room_id', roomIds);
+
+    if (memberError) {
+      console.error('MESSAGE ADMIN ROOM MEMBER COUNT ERROR:', memberError);
+      throw new Error(memberError.message);
+    }
+
+    for (const row of memberRows || []) {
+      memberCounts.set(row.room_id, (memberCounts.get(row.room_id) || 0) + 1);
+    }
+  }
+
+  return rooms.map((room) => ({
     roomId: room.room_id,
     room_id: room.room_id,
     roomName: room.room_name,
     room_name: room.room_name,
     createdAt: room.created_at,
     created_at: room.created_at,
+    memberCount: memberCounts.get(room.room_id) || 0,
+    member_count: memberCounts.get(room.room_id) || 0,
     unreadCount: 0,
     unread_count: 0,
   }));
@@ -999,6 +1161,7 @@ async function createRoom(adminUserId, roomName, userIds = []) {
     throw new Error(memberError.message);
   }
 
+  const roomMembers = await fetchRoomMembers(admin.userId, group.room_id);
   const payload = {
     roomId: group.room_id,
     room_id: group.room_id,
@@ -1008,6 +1171,10 @@ async function createRoom(adminUserId, roomName, userIds = []) {
     created_at: group.created_at,
     unreadCount: 0,
     unread_count: 0,
+    members: roomMembers,
+    roomMembers: roomMembers,
+    memberCount: roomMembers.length,
+    member_count: roomMembers.length,
   };
 
   emitToUser(admin.userId, 'room:created', payload);
@@ -1025,6 +1192,11 @@ async function addGroupMembers(adminUserId, roomId, userIds = []) {
 
   if (!normalizedRoomId) {
     throw createHttpError(400, 'roomId is required.');
+  }
+
+  const membership = await ensureRoomMember(admin.userId, normalizedRoomId);
+  if (membership.is_admin !== true) {
+    throw createHttpError(403, 'Only the group admin can add members.');
   }
 
   const selectedUserIds = Array.from(
@@ -1076,7 +1248,7 @@ async function addGroupMembers(adminUserId, roomId, userIds = []) {
     emitToUser(memberId, 'room:members-added', payload);
   }
 
-  return data || [];
+  return fetchRoomMembers(admin.userId, normalizedRoomId);
 }
 
 async function removeGroupMember(adminUserId, roomId, memberId) {
@@ -1088,11 +1260,32 @@ async function removeGroupMember(adminUserId, roomId, memberId) {
     throw createHttpError(400, 'roomId is required.');
   }
 
+  const membership = await ensureRoomMember(admin.userId, normalizedRoomId);
+  if (membership.is_admin !== true) {
+    throw createHttpError(403, 'Only the group admin can remove members.');
+  }
+
   if (!normalizedMemberId) {
     throw createHttpError(400, 'memberId is required.');
   }
 
+  if (normalizedMemberId === admin.userId) {
+    throw createHttpError(400, 'Use Leave Group to remove yourself.');
+  }
+
   const supabase = getSupabase();
+  const { data: targetMembership, error: targetError } = await supabase
+    .from('chat_room_members')
+    .select('is_admin')
+    .eq('room_id', normalizedRoomId)
+    .eq('user_id', normalizedMemberId)
+    .maybeSingle();
+
+  if (targetError) throw new Error(targetError.message);
+  if (!targetMembership) throw createHttpError(404, 'Group member not found.');
+  if (targetMembership.is_admin === true) {
+    throw createHttpError(403, 'Another group admin cannot be removed.');
+  }
 
   const { error } = await supabase
     .from('chat_room_members')
@@ -1138,7 +1331,8 @@ async function listRoomsForUser(userId) {
       chat_rooms (
         room_id,
         room_name,
-        created_at
+        created_at,
+        is_archived
       )
     `)
     .eq('user_id', normalizedUserId);
@@ -1161,17 +1355,33 @@ async function listRoomsForUser(userId) {
         room_name: room?.room_name || 'Group Chat',
         createdAt: room?.created_at || null,
         created_at: room?.created_at || null,
+        isArchived: room?.is_archived === true,
       };
     })
-    .filter((room) => room.roomId);
+    .filter((room) => room.roomId && room.isArchived !== true);
 
-  const unreadCounts = await fetchRoomUnreadCounts(
-    normalizedUserId,
-    rooms.map((room) => room.roomId)
-  );
+  const roomIds = rooms.map((room) => room.roomId);
+  const [unreadCounts, memberCountResult] = await Promise.all([
+    fetchRoomUnreadCounts(normalizedUserId, roomIds),
+    roomIds.length
+      ? supabase.from('chat_room_members').select('room_id').in('room_id', roomIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (memberCountResult.error) {
+    console.error('MESSAGE USER ROOM MEMBER COUNT ERROR:', memberCountResult.error);
+    throw new Error(memberCountResult.error.message);
+  }
+
+  const memberCounts = new Map(roomIds.map((roomId) => [roomId, 0]));
+  for (const row of memberCountResult.data || []) {
+    memberCounts.set(row.room_id, (memberCounts.get(row.room_id) || 0) + 1);
+  }
 
   return rooms.map((room) => ({
     ...room,
+    memberCount: memberCounts.get(room.roomId) || 0,
+    member_count: memberCounts.get(room.roomId) || 0,
     unreadCount: unreadCounts.get(room.roomId) || 0,
     unread_count: unreadCounts.get(room.roomId) || 0,
   }));
@@ -1236,27 +1446,21 @@ async function fetchRoomThread(userId, roomId, { limit = 200 } = {}) {
   );
 
   const profilesResult = await fetchConversationProfiles(senderIds);
-  const combinedMap = new Map();
+  const profileMap = buildProfileMap(profilesResult);
+  const readMap = await fetchViewerReadMap(
+    safeText(userId),
+    rows.map((row) => row.message_id)
+  );
 
-  profilesResult.userMap.forEach((user, id) => {
-    const student = profilesResult.studentMap.get(id);
-
-    const name =
-      [student?.first_name, student?.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .trim() ||
-      user.username ||
-      user.email ||
-      'Unknown';
-
-    combinedMap.set(id, {
-      name,
-      avatarUrl: student?.profile_photo_url || null,
-    });
-  });
-
-  return rows.map((row) => mapMessageRow(row, combinedMap));
+  return rows.map((row) =>
+    mapMessageRow(
+      {
+        ...row,
+        is_read: row.sender_id === safeText(userId) || readMap.get(row.message_id) === true,
+      },
+      profileMap
+    )
+  );
 }
 
 async function sendRoomMessage(userId, roomId, messageBody) {
@@ -1278,21 +1482,25 @@ async function markRoomThreadRead(userId, roomId) {
 
   const { data, error } = await supabase
     .from('messages')
-    .update({ is_read: true })
+    .select('message_id')
     .eq('room_id', normalizedRoomId)
-    .neq('sender_id', normalizedUserId)
-    .eq('is_read', false)
-    .select(MESSAGE_FIELDS);
+    .neq('sender_id', normalizedUserId);
 
   if (error) {
-    console.error('MESSAGE ROOM MARK READ ERROR:', error);
+    console.error('MESSAGE ROOM MARK READ FETCH ERROR:', error);
     throw new Error(error.message);
   }
 
-  const items = (data || []).map((row) => mapMessageRow(row));
-  const messageIds = items.map((item) => item.messageId);
-
+  const messageIds = (data || []).map((row) => row.message_id).filter(Boolean);
   if (messageIds.length) {
+    await upsertMessageReadStates(
+      messageIds.map((messageId) => ({
+        message_id: messageId,
+        user_id: normalizedUserId,
+        is_read: true,
+      }))
+    );
+
     const payload = {
       readerId: normalizedUserId,
       reader_id: normalizedUserId,
@@ -1304,6 +1512,13 @@ async function markRoomThreadRead(userId, roomId) {
 
     emitToGroup(normalizedRoomId, 'message:read', payload);
     emitToUser(normalizedUserId, 'message:read', payload);
+    adminRealtimeRelayService.relayMessageEvent(
+      'message:read',
+      payload,
+      await fetchRoomMemberIds(normalizedRoomId)
+    ).catch((relayError) => {
+      console.error('[Admin Realtime Relay] room read event error:', relayError.message);
+    });
   }
 
   return {
@@ -1312,6 +1527,148 @@ async function markRoomThreadRead(userId, roomId) {
     messageIds,
     message_ids: messageIds,
   };
+}
+
+async function fetchRoomMembers(userId, roomId) {
+  await ensureRoomMember(userId, roomId);
+  const normalizedUserId = safeText(userId);
+  const normalizedRoomId = safeText(roomId);
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .select('room_id, user_id, is_admin')
+    .eq('room_id', normalizedRoomId)
+    .order('is_admin', { ascending: false })
+    .order('user_id', { ascending: true });
+
+  if (error) {
+    console.error('MESSAGE ROOM MEMBERS FETCH ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const rows = data || [];
+  const profiles = await fetchConversationProfiles(rows.map((row) => row.user_id));
+
+  return rows.map((row) => {
+    const display = buildProfileDisplay(row.user_id, profiles);
+    return {
+      userId: row.user_id,
+      user_id: row.user_id,
+      name: display.name,
+      subtitle: display.subtitle,
+      studentNumber: display.studentNumber,
+      student_number: display.studentNumber,
+      role: display.role,
+      email: display.email,
+      department: display.department,
+      position: display.position,
+      avatarUrl: display.avatarUrl,
+      avatar_url: display.avatarUrl,
+      profile_photo_url: display.avatarUrl,
+      isAdmin: row.is_admin === true,
+      is_admin: row.is_admin === true,
+      isCurrentUser: row.user_id === normalizedUserId,
+      is_current_user: row.user_id === normalizedUserId,
+      isDeleted: display.isDeleted === true,
+      is_deleted: display.isDeleted === true,
+      joinedAt: row.joined_at || null,
+      joined_at: row.joined_at || null,
+    };
+  });
+}
+
+async function leaveRoom(userId, roomId) {
+  const membership = await ensureRoomMember(userId, roomId);
+  const normalizedUserId = safeText(userId);
+  const normalizedRoomId = safeText(roomId);
+  const supabase = getSupabase();
+
+  const { error: deleteError } = await supabase
+    .from('chat_room_members')
+    .delete()
+    .eq('room_id', normalizedRoomId)
+    .eq('user_id', normalizedUserId);
+
+  if (deleteError) {
+    console.error('MESSAGE ROOM LEAVE ERROR:', deleteError);
+    throw new Error(deleteError.message);
+  }
+
+  const { data: remaining, error: remainingError } = await supabase
+    .from('chat_room_members')
+    .select('user_id, is_admin')
+    .eq('room_id', normalizedRoomId)
+    .order('is_admin', { ascending: false })
+    .order('user_id', { ascending: true });
+
+  if (remainingError) {
+    console.error('MESSAGE ROOM REMAINING MEMBERS ERROR:', remainingError);
+    throw new Error(remainingError.message);
+  }
+
+  let promotedUserId = null;
+  const rows = remaining || [];
+
+  if (!rows.length) {
+    const { error: archiveError } = await supabase
+      .from('chat_rooms')
+      .update({ is_archived: true })
+      .eq('room_id', normalizedRoomId);
+    if (archiveError) throw new Error(archiveError.message);
+  } else if (membership.is_admin === true && !rows.some((row) => row.is_admin === true)) {
+    promotedUserId = rows[0].user_id;
+    const { error: promoteError } = await supabase
+      .from('chat_room_members')
+      .update({ is_admin: true })
+      .eq('room_id', normalizedRoomId)
+      .eq('user_id', rows[0].user_id);
+    if (promoteError) throw new Error(promoteError.message);
+  }
+
+  const payload = {
+    roomId: normalizedRoomId,
+    room_id: normalizedRoomId,
+    userId: normalizedUserId,
+    user_id: normalizedUserId,
+    promotedUserId,
+    promoted_user_id: promotedUserId,
+  };
+
+  emitToGroup(normalizedRoomId, 'room:member-left', payload);
+  emitToUser(normalizedUserId, 'room:member-left', payload);
+  for (const member of rows) emitToUser(member.user_id, 'room:member-left', payload);
+  adminRealtimeRelayService.relayMessageEvent(
+    'room:member-left',
+    payload,
+    [normalizedUserId, ...rows.map((row) => row.user_id)]
+  ).catch((relayError) => {
+    console.error('[Admin Realtime Relay] leave room event error:', relayError.message);
+  });
+
+  return { success: true, ...payload };
+}
+
+async function fetchSharedConversationMessages(userId, counterpartyId) {
+  await ensureSharedRoomMembership(userId, counterpartyId);
+  return fetchThreadMessages(safeText(userId), safeText(counterpartyId));
+}
+
+async function sendSharedConversationMessage(userId, counterpartyId, messageBody) {
+  await ensureSharedRoomMembership(userId, counterpartyId);
+  return createMessage({
+    senderId: safeText(userId),
+    receiverId: safeText(counterpartyId),
+    messageBody,
+  });
+}
+
+async function markSharedConversationRead(userId, counterpartyId) {
+  await ensureSharedRoomMembership(userId, counterpartyId);
+  return markThreadRead({
+    readerId: safeText(userId),
+    senderId: safeText(counterpartyId),
+  });
 }
 
 module.exports = {
@@ -1338,4 +1695,9 @@ module.exports = {
   fetchRoomThread,
   sendRoomMessage,
   markRoomThreadRead,
+  fetchRoomMembers,
+  leaveRoom,
+  fetchSharedConversationMessages,
+  sendSharedConversationMessage,
+  markSharedConversationRead,
 };

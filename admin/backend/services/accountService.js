@@ -744,6 +744,9 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
 
         const sessionIdentityChanged =
             roleChanged || nextIsArchived !== (current.is_archived === true);
+        const isSelfUpdate = Boolean(
+            actorUserId && String(actorUserId) === String(userId)
+        );
 
         if (
             currentRole === 'ro_coordinator' &&
@@ -845,7 +848,13 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             );
         }
 
-        if (sessionIdentityChanged || passwordChanged) {
+        // Keep the current Admin signed in when changing their own password.
+        // A password reset performed for another account still revokes every
+        // session for that target account immediately.
+        const shouldInvalidateSession =
+            sessionIdentityChanged || (passwordChanged && !isSelfUpdate);
+
+        if (shouldInvalidateSession) {
             await revokeStaffSessionVersion(client, userId);
         }
 
@@ -899,7 +908,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         await client.query('COMMIT');
 
         const updatedAccount = await getStaffAccountById(userId, true);
-        if (updatedAccount && (sessionIdentityChanged || passwordChanged)) {
+        if (updatedAccount && shouldInvalidateSession) {
             Object.defineProperty(updatedAccount, 'session_invalidated', {
                 value: true,
                 enumerable: false,

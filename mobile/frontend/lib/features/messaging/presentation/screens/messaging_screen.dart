@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -26,6 +27,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
   Timer? _refreshFallback;
   bool _isSending = false;
   bool _isRefreshing = false;
+  bool _chatSearchOpen = false;
+  String _chatSearchTerm = '';
 
   bool get _isGroupChat => _normalizedRoomId != null;
 
@@ -113,6 +116,307 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  Future<void> _showGroupInfo() async {
+    final roomId = _normalizedRoomId;
+    if (roomId == null) return;
+
+    final provider = _provider ?? context.read<MessagingProvider>();
+    List<GroupMember> members;
+    try {
+      members = await provider.fetchRoomMembers(roomId);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.errorMessage ?? 'Failed to load group members.')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final chatSearchController = TextEditingController(text: _chatSearchTerm);
+    var chatQuery = _chatSearchTerm;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final normalizedQuery = chatQuery.trim().toLowerCase();
+            final matchCount = normalizedQuery.isEmpty
+                ? 0
+                : provider.messages
+                    .where(
+                      (message) => message.messageBody
+                          .toLowerCase()
+                          .contains(normalizedQuery),
+                    )
+                    .length;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.78,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF24180F) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 10, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.title?.trim().isNotEmpty == true
+                                    ? widget.title!.trim()
+                                    : 'Group information',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      color: isDark ? Colors.white : AppColors.darkBrown,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Group chat',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.62),
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: chatSearchController,
+                      onChanged: (value) {
+                        setSheetState(() => chatQuery = value);
+                        if (mounted) {
+                          setState(() {
+                            _chatSearchTerm = value;
+                            _chatSearchOpen = value.trim().isNotEmpty;
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search chat',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixText: normalizedQuery.isEmpty ? null : '$matchCount',
+                        filled: true,
+                        fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF7F3ED),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'All members',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: isDark ? Colors.white : AppColors.darkBrown,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: members.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                'No members could be loaded for this group.',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: isDark
+                                          ? Colors.white60
+                                          : AppColors.brown.withValues(alpha: 0.65),
+                                    ),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                      itemCount: members.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      itemBuilder: (context, index) {
+                        final member = members[index];
+                        return ListTile(
+                          onTap: member.isDeleted ? null : () => _showMemberProfile(member),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          leading: _GroupMemberAvatar(member: member),
+                          title: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  member.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              if (member.isAdmin) ...[
+                                const SizedBox(width: 7),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.gold.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Text(
+                                    'Admin',
+                                    style: TextStyle(
+                                      color: AppColors.gold,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            member.isDeleted
+                                ? 'Deleted account'
+                                : member.isCurrentUser
+                                    ? '${member.subtitle.isNotEmpty ? member.subtitle : 'Group member'} · You'
+                                    : (member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: member.isDeleted
+                              ? null
+                              : const Icon(Icons.chevron_right_rounded),
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(sheetContext).pop();
+                          await _confirmLeaveGroup();
+                        },
+                        style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+                        icon: const Icon(Icons.logout_rounded, size: 18),
+                        label: const Text('Leave group'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    chatSearchController.dispose();
+  }
+
+  Future<void> _showMemberProfile(GroupMember member) async {
+    if (!mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _GroupMemberAvatar(member: member, radius: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        member.name,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(member.subtitle.isNotEmpty ? member.subtitle : 'Group member'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            if (member.studentNumber.isNotEmpty) _ProfileLine(label: 'ID', value: member.studentNumber),
+            if (member.position.isNotEmpty) _ProfileLine(label: 'Position', value: member.position),
+            if (member.department.isNotEmpty) _ProfileLine(label: 'Office', value: member.department),
+            if (member.role.isNotEmpty) _ProfileLine(label: 'Role', value: member.role),
+            if (member.email.isNotEmpty) _ProfileLine(label: 'Email', value: member.email),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmLeaveGroup() async {
+    final roomId = _normalizedRoomId;
+    if (roomId == null || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave group?'),
+        content: const Text('You will stop receiving new messages from this group.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Leave group'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final provider = _provider ?? context.read<MessagingProvider>();
+    try {
+      await provider.leaveGroup(roomId);
+      if (!mounted) return;
+      AppNavigator.goBackOrHome(context);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.errorMessage ?? 'Failed to leave group.')),
+      );
+    }
+  }
+
   String _formatTime(DateTime value) {
     final local = value.toLocal();
     final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
@@ -159,7 +463,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final conversationTitle = widget.title?.trim().isNotEmpty == true
         ? widget.title!.trim()
         : 'OSFA Administrator';
-
     return SmartPdmPageScaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -185,7 +488,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 'Reconnecting...',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: const Color(0xFFB7791F),
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -203,6 +506,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   )
                 : const Icon(Icons.refresh_rounded),
           ),
+          if (_isGroupChat)
+            IconButton(
+              tooltip: 'Group information',
+              onPressed: _showGroupInfo,
+              icon: const Icon(Icons.info_outline_rounded),
+            ),
           const SizedBox(width: 4),
         ],
         elevation: 0,
@@ -217,6 +526,20 @@ class _MessagingScreenState extends State<MessagingScreen> {
         color: background,
         child: Column(
           children: [
+            if (_isGroupChat && _chatSearchOpen)
+              _ChatSearchBar(
+                value: _chatSearchTerm,
+                matchCount: _chatSearchTerm.trim().isEmpty
+                    ? 0
+                    : provider.messages
+                        .where((message) => message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()))
+                        .length,
+                onChanged: (value) => setState(() => _chatSearchTerm = value),
+                onClose: () => setState(() {
+                  _chatSearchOpen = false;
+                  _chatSearchTerm = '';
+                }),
+              ),
             Expanded(child: _buildMessageArea(provider, isDark)),
             _MessageComposer(
               controller: _messageController,
@@ -320,6 +643,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 isMe: isMe,
                 isGroupChat: _isGroupChat,
                 timeLabel: _formatTime(message.sentAt),
+                isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
+                    message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()),
               ),
             ],
           );
@@ -396,12 +721,14 @@ class _MessageBubble extends StatelessWidget {
     required this.isMe,
     required this.isGroupChat,
     required this.timeLabel,
+    this.isSearchMatch = false,
   });
 
   final ChatMessage message;
   final bool isMe;
   final bool isGroupChat;
   final String timeLabel;
+  final bool isSearchMatch;
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +745,7 @@ class _MessageBubble extends StatelessWidget {
               : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            if (!isMe) ...[
+            if (isGroupChat && !isMe) ...[
               _SenderAvatar(message: message),
               const SizedBox(width: 8),
             ],
@@ -463,6 +790,12 @@ class _MessageBubble extends StatelessWidget {
                                   : AppColors.brown.withValues(alpha: 0.08)),
                       ),
                       boxShadow: [
+                        if (isSearchMatch)
+                          BoxShadow(
+                            color: AppColors.gold.withValues(alpha: 0.48),
+                            blurRadius: 0,
+                            spreadRadius: 2,
+                          ),
                         BoxShadow(
                           color: Colors.black.withValues(
                             alpha: isDark ? 0.18 : 0.06,
@@ -525,8 +858,142 @@ class _MessageBubble extends StatelessWidget {
                 ],
               ),
             ),
+            if (isGroupChat && isMe) ...[
+              const SizedBox(width: 8),
+              _SenderAvatar(message: message),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+class _ChatSearchBar extends StatelessWidget {
+  const _ChatSearchBar({
+    required this.value,
+    required this.matchCount,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  final String value;
+  final int matchCount;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF24180F) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : AppColors.brown.withValues(alpha: 0.08),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              initialValue: value,
+              autofocus: true,
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search this conversation',
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                filled: true,
+                fillColor: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : const Color(0xFFF7F3ED),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (value.trim().isNotEmpty)
+            Text(
+              '$matchCount',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isDark ? Colors.white60 : AppColors.brown,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          IconButton(
+            tooltip: 'Close search',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupMemberAvatar extends StatelessWidget {
+  const _GroupMemberAvatar({required this.member, this.radius = 22});
+
+  final GroupMember member;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = member.avatarUrl.trim();
+    final initials = member.name
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+
+    return _MessagingAvatar(
+      radius: radius,
+      imageUrl: avatarUrl,
+      fallbackText: initials.isNotEmpty ? initials : '?',
+    );
+  }
+}
+
+class _ProfileLine extends StatelessWidget {
+  const _ProfileLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white54
+                      : AppColors.brown.withValues(alpha: 0.62),
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
       ),
     );
   }
@@ -539,17 +1006,68 @@ class _SenderAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = message.senderAvatarUrl?.trim();
+    final avatarUrl = message.senderAvatarUrl?.trim() ?? '';
+    final senderName = message.senderName?.trim() ?? '';
+    final initials = senderName
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
 
-    return CircleAvatar(
+    return _MessagingAvatar(
       radius: 16,
-      backgroundColor: AppColors.gold.withValues(alpha: 0.18),
-      backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
-          ? NetworkImage(avatarUrl)
-          : null,
-      child: avatarUrl == null || avatarUrl.isEmpty
-          ? const Icon(Icons.person_rounded, color: AppColors.gold, size: 18)
-          : null,
+      imageUrl: avatarUrl,
+      fallbackText: initials.isNotEmpty ? initials : '?',
+    );
+  }
+}
+
+class _MessagingAvatar extends StatelessWidget {
+  const _MessagingAvatar({
+    required this.radius,
+    required this.imageUrl,
+    required this.fallbackText,
+  });
+
+  final double radius;
+  final String imageUrl;
+  final String fallbackText;
+
+  @override
+  Widget build(BuildContext context) {
+    final diameter = radius * 2;
+    final fallback = Container(
+      width: diameter,
+      height: diameter,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.16),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        fallbackText,
+        style: TextStyle(
+          color: AppColors.gold,
+          fontSize: radius * 0.72,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+
+    final uri = Uri.tryParse(imageUrl);
+    if (imageUrl.isEmpty || uri == null || !uri.hasScheme) {
+      return fallback;
+    }
+
+    return ClipOval(
+      child: Image.network(
+        imageUrl,
+        width: diameter,
+        height: diameter,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      ),
     );
   }
 }
@@ -594,17 +1112,17 @@ class _MessageComposer extends StatelessWidget {
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: 'Write a message...',
+                  hintText: 'Message',
                   filled: true,
                   fillColor: isDark
                       ? Colors.white.withValues(alpha: 0.06)
                       : const Color(0xFFF7F3ED),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide(
                       color: isDark
                           ? Colors.white.withValues(alpha: 0.07)
@@ -612,7 +1130,7 @@ class _MessageComposer extends StatelessWidget {
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(24),
                     borderSide: const BorderSide(
                       color: AppColors.gold,
                       width: 1.4,
@@ -638,9 +1156,7 @@ class _MessageComposer extends StatelessWidget {
                   disabledBackgroundColor: isDark
                       ? Colors.white.withValues(alpha: 0.08)
                       : const Color(0xFFE4DED5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  shape: const CircleBorder(),
                 ),
                 child: isSending
                     ? const SizedBox(

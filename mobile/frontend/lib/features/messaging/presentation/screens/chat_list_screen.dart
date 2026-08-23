@@ -62,7 +62,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => AppNavigator.goBackOrHome(context),
         ),
-        title: const Text('Messages'),
+        title: const Text('Chats'),
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -82,7 +82,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
             children: [
               _MessagesHeader(totalUnread: provider.unreadCount),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               Text(
                 'OSFA Support',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -151,7 +151,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       title: room.roomName,
                       subtitle: room.unreadCount > 0
                           ? '${room.unreadCount} unread message${room.unreadCount == 1 ? '' : 's'}'
-                          : 'Open group conversation',
+                          : 'Group chat',
                       unreadCount: room.unreadCount,
                       onTap: () => _openGroupThread(room.roomId, room.roomName),
                     ),
@@ -172,64 +172,43 @@ class _MessagesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2E1600), Color(0xFF4A2600)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.forum_rounded, color: AppColors.gold, size: 24),
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.18),
-            blurRadius: 20,
-            offset: const Offset(0, 9),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Conversations',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                totalUnread > 0
+                    ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
+                    : 'You are all caught up.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.62),
+                    ),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(
-              Icons.forum_rounded,
-              color: AppColors.gold,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your Conversations',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  totalUnread > 0
-                      ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
-                      : 'You are all caught up.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -255,19 +234,14 @@ class _ConversationTile extends StatelessWidget {
 
     return Material(
       color: isDark ? const Color(0xFF2B1D13) : Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : AppColors.brown.withValues(alpha: 0.09),
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
@@ -276,7 +250,7 @@ class _ConversationTile extends StatelessWidget {
                 height: 50,
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
-                  borderRadius: BorderRadius.circular(16),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: AppColors.gold, size: 25),
               ),

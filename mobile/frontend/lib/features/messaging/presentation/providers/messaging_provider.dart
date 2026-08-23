@@ -227,6 +227,42 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return const [];
+
+    try {
+      _errorMessage = null;
+      return await _messageService.fetchRoomMembers(normalizedRoomId);
+    } catch (error) {
+      _errorMessage = _readableError(error);
+      _notify();
+      rethrow;
+    }
+  }
+
+  Future<void> leaveGroup(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return;
+
+    try {
+      await _messageService.leaveGroup(normalizedRoomId);
+      _rooms = _rooms.where((room) => room.roomId != normalizedRoomId).toList();
+      if (_activeGroupId == normalizedRoomId) {
+        _activeGroupId = null;
+        _isViewingThread = false;
+        _messages = [];
+      }
+      _errorMessage = null;
+      _syncTotalUnreadCount();
+      _notify();
+    } catch (error) {
+      _errorMessage = _readableError(error);
+      _notify();
+      rethrow;
+    }
+  }
+
   Future<void> sendMessage(String text) async {
     final trimmed = text.trim();
 
@@ -369,6 +405,26 @@ class MessagingProvider extends ChangeNotifier {
       case MobileRealtimeEvents.messageThreadRestored:
       case MobileRealtimeEvents.roomCreated:
       case MobileRealtimeEvents.roomMembersAdded:
+        await fetchGroups(notify: false);
+        _notify();
+        return;
+
+      case MobileRealtimeEvents.roomMembersRemoved:
+      case MobileRealtimeEvents.roomMemberLeft:
+        final roomId = event.payload['roomId']?.toString() ?? event.payload['room_id']?.toString() ?? '';
+        final affectedUserId = event.payload['memberId']?.toString() ??
+            event.payload['member_id']?.toString() ??
+            event.payload['userId']?.toString() ??
+            event.payload['user_id']?.toString() ??
+            '';
+        if (affectedUserId == _currentUserId && roomId.isNotEmpty) {
+          _rooms = _rooms.where((room) => room.roomId != roomId).toList();
+          if (_activeGroupId == roomId) {
+            _activeGroupId = null;
+            _isViewingThread = false;
+            _messages = [];
+          }
+        }
         await fetchGroups(notify: false);
         _notify();
         return;

@@ -135,23 +135,6 @@ void main() {
       );
     });
 
-    test('non-native parent origin only requires a city or municipality', () {
-      final data = _validApplicationData()
-        ..parentNativeStatus = 'No'
-        ..parentPreviousTownMunicipality = 'Meycauayan City'
-        ..parentPreviousProvince = '';
-
-      final result = validator.validateFamilyProgression(data);
-
-      expect(
-        result.isValid,
-        isTrue,
-        reason: result.issues
-            .map((issue) => '${issue.field}: ${issue.message}')
-            .join(' | '),
-      );
-    });
-
     test(
       'Marilao residency years are numeric and are not capped by applicant age',
       () {

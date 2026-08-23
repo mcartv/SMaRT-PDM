@@ -50,7 +50,7 @@ class _StepFamilyState extends State<StepFamily> {
   late final TextEditingController parentMarilaoResidencyDurationController;
   late final TextEditingController parentPreviousTownProvinceController;
   late final TextEditingController parentPreviousTownMunicipalityController;
-  String? selectedParentPreviousTown;
+  String? selectedParentPreviousProvince;
 
   final List<String> educationalOptions = [
     'None',
@@ -68,30 +68,90 @@ class _StepFamilyState extends State<StepFamily> {
     'No',
   ];
 
-  static const List<String> parentPreviousTownOptions = [
-    'Angat',
-    'Balagtas',
-    'Baliwag City',
-    'Bocaue',
-    'Bulakan',
-    'Bustos',
-    'Calumpit',
-    'Doña Remedios Trinidad',
-    'Guiguinto',
-    'Hagonoy',
-    'Malolos City',
-    'Meycauayan City',
-    'Norzagaray',
-    'Obando',
-    'Pandi',
-    'Paombong',
-    'Plaridel',
-    'Pulilan',
-    'San Ildefonso',
-    'San Jose del Monte City',
-    'San Miguel',
-    'San Rafael',
-    'Santa Maria',
+  static const List<String> provinceOptions = [
+    'Abra',
+    'Agusan del Norte',
+    'Agusan del Sur',
+    'Aklan',
+    'Albay',
+    'Antique',
+    'Apayao',
+    'Aurora',
+    'Basilan',
+    'Bataan',
+    'Batanes',
+    'Batangas',
+    'Benguet',
+    'Biliran',
+    'Bohol',
+    'Bukidnon',
+    'Bulacan',
+    'Cagayan',
+    'Camarines Norte',
+    'Camarines Sur',
+    'Camiguin',
+    'Capiz',
+    'Catanduanes',
+    'Cavite',
+    'Cebu',
+    'Cotabato',
+    'Davao de Oro',
+    'Davao del Norte',
+    'Davao del Sur',
+    'Davao Occidental',
+    'Davao Oriental',
+    'Dinagat Islands',
+    'Eastern Samar',
+    'Guimaras',
+    'Ifugao',
+    'Ilocos Norte',
+    'Ilocos Sur',
+    'Iloilo',
+    'Isabela',
+    'Kalinga',
+    'La Union',
+    'Laguna',
+    'Lanao del Norte',
+    'Lanao del Sur',
+    'Leyte',
+    'Maguindanao del Norte',
+    'Maguindanao del Sur',
+    'Marinduque',
+    'Masbate',
+    'Metro Manila',
+    'Misamis Occidental',
+    'Misamis Oriental',
+    'Mountain Province',
+    'Negros Occidental',
+    'Negros Oriental',
+    'Northern Samar',
+    'Nueva Ecija',
+    'Nueva Vizcaya',
+    'Occidental Mindoro',
+    'Oriental Mindoro',
+    'Palawan',
+    'Pampanga',
+    'Pangasinan',
+    'Quezon',
+    'Quirino',
+    'Rizal',
+    'Romblon',
+    'Samar',
+    'Sarangani',
+    'Siquijor',
+    'Sorsogon',
+    'South Cotabato',
+    'Southern Leyte',
+    'Sultan Kudarat',
+    'Sulu',
+    'Surigao del Norte',
+    'Surigao del Sur',
+    'Tarlac',
+    'Tawi-Tawi',
+    'Zambales',
+    'Zamboanga del Norte',
+    'Zamboanga del Sur',
+    'Zamboanga Sibugay',
   ];
 
   String? selectedFatherEducation;
@@ -217,8 +277,10 @@ class _StepFamilyState extends State<StepFamily> {
     parentPreviousTownMunicipalityController = TextEditingController(
       text: widget.data.parentPreviousTownMunicipality,
     );
-    final previousTown = widget.data.parentPreviousTownMunicipality.trim();
-    selectedParentPreviousTown = previousTown.isEmpty ? null : previousTown;
+    final previousProvince = widget.data.parentPreviousProvince.trim();
+    selectedParentPreviousProvince = previousProvince.isEmpty
+        ? null
+        : previousProvince;
 
     selectedFatherEducation = _educationSelection(
       widget.data.fatherEducationalAttainment,
@@ -364,10 +426,12 @@ class _StepFamilyState extends State<StepFamily> {
   }
 
   void _syncPreviousOrigin() {
-    final town = widget.data.parentPreviousTownMunicipality.trim();
-    widget.data.parentPreviousProvince = '';
-    widget.data.parentPreviousTownProvince = town;
-    parentPreviousTownProvinceController.text = town;
+    widget.data.parentPreviousTownProvince = [
+      widget.data.parentPreviousTownMunicipality.trim(),
+      widget.data.parentPreviousProvince.trim(),
+    ].where((value) => value.isNotEmpty).join(', ');
+    parentPreviousTownProvinceController.text =
+        widget.data.parentPreviousTownProvince;
   }
 
   void _bind(TextEditingController controller, void Function(String) setter) {
@@ -413,23 +477,10 @@ class _StepFamilyState extends State<StepFamily> {
       return 'Enter the number of years using digits only.';
     }
     final years = int.tryParse(value);
-    if (years == null || years < 1) {
-      return 'Years as resident must be at least 1.';
+    if (years == null || years < 1 || years > 120) {
+      return 'Years as resident must be between 1 and 120.';
     }
     return null;
-  }
-
-  List<String> _residencyYearOptions() {
-    final values = List<String>.generate(120, (index) => '${index + 1}');
-    final saved = parentMarilaoResidencyDurationController.text.trim();
-    final savedYears = int.tryParse(saved);
-
-    if (savedYears != null && savedYears > 0 && !values.contains(saved)) {
-      values.add(saved);
-      values.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
-    }
-
-    return values;
   }
 
   String? _primaryCarerError() {
@@ -1094,7 +1145,7 @@ class _StepFamilyState extends State<StepFamily> {
                           if (option != 'No') {
                             parentPreviousTownProvinceController.clear();
                             parentPreviousTownMunicipalityController.clear();
-                            selectedParentPreviousTown = null;
+                            selectedParentPreviousProvince = null;
                             widget.data.parentPreviousTownMunicipality = '';
                             widget.data.parentPreviousProvince = '';
                             widget.data.parentPreviousTownProvince = '';
@@ -1113,64 +1164,53 @@ class _StepFamilyState extends State<StepFamily> {
                     guardianOnly
                         ? 'If YES, how long has your guardian been a resident of Marilao? *'
                         : 'If YES, how long have they been residents of Marilao? *',
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      initialValue:
-                          _residencyYearOptions().contains(
-                            parentMarilaoResidencyDurationController.text
-                                .trim(),
-                          )
-                          ? parentMarilaoResidencyDurationController.text.trim()
-                          : null,
+                    TextFormField(
+                      controller: parentMarilaoResidencyDurationController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3),
+                      ],
                       decoration: _dec(
-                        'Select number of years',
+                        'Enter number of years',
                         errorText: _parentResidencyDurationError(),
                         suffixIcon: intakeCompletionIcon(
                           parentMarilaoResidencyDurationController.text,
                         ),
                       ),
-                      items: _residencyYearOptions()
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(
-                                '$value year${value == '1' ? '' : 's'}',
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          parentMarilaoResidencyDurationController.text =
-                              value ?? '';
-                          widget.data.parentMarilaoResidencyDuration =
-                              value ?? '';
-                        });
-                        widget.onChanged();
-                      },
                     ),
                   ),
                 if (selectedParentNative == 'No') ...[
                   _field(
                     guardianOnly
-                        ? 'Guardian Previous City / Municipality *'
-                        : 'City / Municipality *',
+                        ? 'Guardian Previous Town / Municipality *'
+                        : 'Town / Municipality *',
+                    TextFormField(
+                      controller: parentPreviousTownMunicipalityController,
+                      decoration: _dec('e.g., Angeles City'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    guardianOnly
+                        ? 'Guardian Previous Province *'
+                        : 'Province *',
                     DropdownButtonFormField<String>(
                       isExpanded: true,
-                      initialValue: selectedParentPreviousTown,
-                      decoration: _dec('Select city / municipality'),
+                      initialValue: selectedParentPreviousProvince,
+                      decoration: _dec('Select province'),
                       items:
                           <String>{
-                                ...parentPreviousTownOptions,
-                                if ((selectedParentPreviousTown ?? '')
+                                ...provinceOptions,
+                                if ((selectedParentPreviousProvince ?? '')
                                     .isNotEmpty)
-                                  selectedParentPreviousTown!,
+                                  selectedParentPreviousProvince!,
                               }
                               .map(
-                                (town) => DropdownMenuItem(
-                                  value: town,
+                                (province) => DropdownMenuItem(
+                                  value: province,
                                   child: Text(
-                                    town,
+                                    province,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -1178,12 +1218,8 @@ class _StepFamilyState extends State<StepFamily> {
                               .toList(),
                       onChanged: (value) {
                         setState(() {
-                          selectedParentPreviousTown = value;
-                          parentPreviousTownMunicipalityController.text =
-                              value ?? '';
-                          widget.data.parentPreviousTownMunicipality =
-                              value ?? '';
-                          widget.data.parentPreviousProvince = '';
+                          selectedParentPreviousProvince = value;
+                          widget.data.parentPreviousProvince = value ?? '';
                           _syncPreviousOrigin();
                         });
                         widget.onChanged();

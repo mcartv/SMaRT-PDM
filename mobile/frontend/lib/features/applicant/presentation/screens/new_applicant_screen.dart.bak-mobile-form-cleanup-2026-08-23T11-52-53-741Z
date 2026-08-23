@@ -551,7 +551,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             return 'Province is required.';
           }
         } else {
-          final residencyDuration = _data.parentMarilaoResidencyDuration.trim();
+          final residencyDuration =
+              _data.parentMarilaoResidencyDuration.trim();
 
           if (residencyDuration.isEmpty) {
             return 'Marilao residency duration is required.';
@@ -966,32 +967,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
-  bool get _requiredStepGateComplete {
-    if (_step == 2) {
-      return _data.scholarshipHistoryAnswered &&
-          _data.disciplinaryActionAnswered;
-    }
-
-    if (_step == 3) {
-      return _data.describeYourselfEssay.trim().isNotEmpty &&
-          _data.aimsAndAmbitionEssay.trim().isNotEmpty;
-    }
-
-    return true;
-  }
-
-  String get _nextButtonLabel {
-    if (_step == 2 && !_requiredStepGateComplete) {
-      return 'Answer Required Questions';
-    }
-
-    if (_step == 3 && !_requiredStepGateComplete) {
-      return 'Complete Personal Statement';
-    }
-
-    return 'Next';
-  }
-
   Widget _buildFooter(NewScholarProvider provider) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final compact = MediaQuery.sizeOf(context).width < 360;
@@ -1027,10 +1002,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: !_hasSelectedOpening
                 ? const SizedBox.shrink()
                 : _step < 4
-                ? NavyButton(
-                    label: _nextButtonLabel,
-                    onTap: _requiredStepGateComplete ? _next : null,
-                  )
+                ? NavyButton(label: 'Next', onTap: _next)
                 : provider.isLoading
                 ? const Center(
                     child: SizedBox(

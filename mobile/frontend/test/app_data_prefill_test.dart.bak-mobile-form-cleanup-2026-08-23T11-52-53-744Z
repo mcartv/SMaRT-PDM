@@ -65,15 +65,6 @@ void main() {
             'occupation': 'Vendor',
             'company_name_and_address': 'Public Market',
           },
-          'sibling': {
-            'last_name': 'Dela Cruz',
-            'first_name': 'Paolo',
-            'middle_name': 'Santos',
-            'mobile_number': '09180000004',
-            'highest_educational_attainment': 'College',
-            'occupation': 'Student Assistant',
-            'company_name_address': 'PDM Library',
-          },
           'guardian': {
             'last_name': 'Reyes',
             'first_name': 'Ana',
@@ -130,10 +121,6 @@ void main() {
       expect(data.fatherEducationalAttainment, 'Post-Graduate');
       expect(data.fatherCompanyNameAndAddress, 'Marilao Transport');
       expect(data.motherMobile, '09180000002');
-      expect(data.siblingMobile, '09180000004');
-      expect(data.siblingEducationalAttainment, 'College');
-      expect(data.siblingOccupation, 'Student Assistant');
-      expect(data.siblingCompanyNameAndAddress, 'PDM Library');
       expect(data.currentCourse, 'BSIT');
       expect(data.currentYearLevel, '2');
       expect(data.currentSection, 'B');

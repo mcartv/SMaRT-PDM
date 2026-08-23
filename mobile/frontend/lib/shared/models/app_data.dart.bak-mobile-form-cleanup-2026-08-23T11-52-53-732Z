@@ -509,9 +509,6 @@ class ApplicationData {
       setFirstName: (value) => siblingFirstName = value,
       setMiddleName: (value) => siblingMiddleName = value,
       setMobile: (value) => siblingMobile = value,
-      setEducation: (value) => siblingEducationalAttainment = value,
-      setOccupation: (value) => siblingOccupation = value,
-      setCompany: (value) => siblingCompanyNameAndAddress = value,
     );
     _applyFamilyMember(
       guardian,

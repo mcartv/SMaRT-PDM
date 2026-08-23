@@ -550,6 +550,20 @@ class ApplicationSubmissionValidator {
             ),
           );
         }
+
+        if (_isBlank(data.parentPreviousProvince)) {
+          issues.add(
+            const ApplicationSubmissionIssue(
+              code: 'family.origin_province.required',
+              section: ApplicationSubmissionSection.family,
+              field: 'parentPreviousProvince',
+              message:
+                  'Province is required when parents are not native of Marilao.',
+              repairAction:
+                  'Select the province the parent or parents came from.',
+            ),
+          );
+        }
       }
     }
 

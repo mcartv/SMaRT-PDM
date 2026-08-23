@@ -1,4 +1,5 @@
-SMaRT-PDM is a web-based and Android mobile scholarship monitoring system developed for the **Office for Scholarship and Financial Assistance (OSFA)** of **Pambayang Dalubhasaan ng Marilao (PDM)**.
+#SMaRT-PDM
+MaRT-PDM is a web-based and Android mobile scholarship monitoring system developed for the **Office for Scholarship and Financial Assistance (OSFA)** of **Pambayang Dalubhasaan ng Marilao (PDM)**.
 
 **Live Demo:** [SMaRT-PDM](https://smart-pdm.vercel.app/landing)
 

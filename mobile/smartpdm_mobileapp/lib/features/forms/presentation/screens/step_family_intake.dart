@@ -1158,6 +1158,7 @@ class _StepFamilyState extends State<StepFamily> {
                       },
                     ),
                   ),
+                ),
               if (selectedParentNative != 'No')
                 _field(
                   guardianOnly

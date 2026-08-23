@@ -434,7 +434,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 4,
-      showDrawer: false,
       showBottomNav: widget.showBottomNav,
       applyPadding: false,
       child: _isLoading

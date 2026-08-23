@@ -27,7 +27,6 @@ class _ApplicationFormPreviewScreenState
   String? _lockReason;
   String? _pdfError;
   String? _error;
-  final Set<String> _expandedLongFields = <String>{};
 
   @override
   void initState() {
@@ -118,8 +117,9 @@ class _ApplicationFormPreviewScreenState
   Future<void> _exportPdf() async {
     if (_isExportingPdf) return;
 
-    final data = _data;
-    if (data == null) {
+    final applicationId = _optional(_application['application_id']);
+
+    if (applicationId == null) {
       setState(() {
         _pdfError = 'Application PDF is not available yet.';
       });
@@ -132,18 +132,12 @@ class _ApplicationFormPreviewScreenState
     });
 
     try {
-      final bytes = await _pdfService.generateBytesFromSubmissionPayload(
-        data.toSubmissionPayload(),
-      );
+      final file = await _pdfService.generateFromApplicationId(applicationId);
 
       if (!mounted) return;
 
       await Share.shareXFiles([
-        XFile.fromData(
-          bytes,
-          mimeType: 'application/pdf',
-          name: 'SMaRT-PDM_Application_Form.pdf',
-        ),
+        XFile(file.path),
       ], text: 'SMaRT-PDM Scholarship Application');
     } catch (error) {
       if (!mounted) return;
@@ -270,80 +264,6 @@ class _ApplicationFormPreviewScreenState
           ),
         ],
       ),
-    );
-  }
-
-  Widget _expandableField(String label, String value) {
-    final displayValue = _text(value);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          height: 1.4,
-        );
-
-        final painter = TextPainter(
-          text: TextSpan(text: displayValue, style: textStyle),
-          maxLines: 3,
-          textDirection: Directionality.of(context),
-        )..layout(maxWidth: constraints.maxWidth);
-
-        final isLong = painter.didExceedMaxLines;
-        final expanded = _expandedLongFields.contains(label);
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 13),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.55,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.52),
-                ),
-              ),
-              const SizedBox(height: 4),
-              SelectableText(
-                displayValue,
-                maxLines: expanded ? null : 3,
-                style: textStyle,
-              ),
-              if (isLong || expanded) ...[
-                const SizedBox(height: 3),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      if (expanded) {
-                        _expandedLongFields.remove(label);
-                      } else {
-                        _expandedLongFields.add(label);
-                      }
-                    });
-                  },
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 0,
-                      vertical: 4,
-                    ),
-                    minimumSize: const Size(0, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    foregroundColor: AppColors.gold,
-                  ),
-                  child: Text(
-                    expanded ? 'Show less' : 'Read more',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -513,8 +433,10 @@ class _ApplicationFormPreviewScreenState
                         text: applicationStatus,
                       ),
                       _pill(
-                        icon: Icons.edit_outlined,
-                        text: 'Editing available',
+                        icon: _canEdit
+                            ? Icons.edit_outlined
+                            : Icons.lock_outline_rounded,
+                        text: _canEdit ? 'Editing available' : 'Read only',
                       ),
                     ],
                   ),
@@ -662,10 +584,10 @@ class _ApplicationFormPreviewScreenState
             title: 'Personal Statement',
             icon: Icons.edit_note_outlined,
             children: [
-              _expandableField('Describe Yourself', data.describeYourselfEssay),
-              _expandableField(
+              _field('Describe Yourself', _text(data.describeYourselfEssay)),
+              _field(
                 'Aims and Ambition After Graduation',
-                data.aimsAndAmbitionEssay,
+                _text(data.aimsAndAmbitionEssay),
               ),
             ],
           ),
@@ -712,12 +634,13 @@ class _ApplicationFormPreviewScreenState
 
   Widget _bottomAction() {
     final canEdit = _data != null && _canEdit;
-    final canExport = _data != null && !_isExportingPdf;
+    final canExport =
+        _optional(_application['application_id']) != null && !_isExportingPdf;
 
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           border: Border(
@@ -738,54 +661,19 @@ class _ApplicationFormPreviewScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_data != null && !canEdit) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 9,
-                ),
-                margin: const EdgeInsets.only(bottom: 9),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.gold.withValues(alpha: 0.28),
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.info_outline_rounded,
-                      size: 16,
-                      color: AppColors.gold,
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        'Your application is currently being checked. '
-                        'Editing is temporarily locked. If a correction is '
-                        'needed, OSFA/Admin must return the application before '
-                        'you can edit it.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          height: 1.35,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: canEdit ? _openEditor : null,
-                    icon: const Icon(Icons.edit_outlined, size: 19),
-                    label: const Text(
-                      'Edit Form',
+                    icon: Icon(
+                      canEdit
+                          ? Icons.edit_outlined
+                          : Icons.lock_outline_rounded,
+                      size: 19,
+                    ),
+                    label: Text(
+                      canEdit ? 'Edit Form' : 'Edit Locked',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -794,7 +682,7 @@ class _ApplicationFormPreviewScreenState
                       foregroundColor: AppColors.gold,
                       disabledForegroundColor: Theme.of(
                         context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.38),
+                      ).colorScheme.onSurface.withValues(alpha: 0.42),
                       side: BorderSide(
                         color: canEdit
                             ? AppColors.gold
@@ -862,6 +750,18 @@ class _ApplicationFormPreviewScreenState
                   color: Theme.of(context).colorScheme.error,
                   fontWeight: FontWeight.w700,
                   height: 1.35,
+                ),
+              ),
+            ] else if (!canEdit && _lockReason != null) ...[
+              const SizedBox(height: 7),
+              Text(
+                _lockReason!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  height: 1.35,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.58),
                 ),
               ),
             ],

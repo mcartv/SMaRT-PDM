@@ -43,9 +43,6 @@ class SavedApplicationPrintModel {
     required this.siblingFirstName,
     required this.siblingMiddleName,
     required this.siblingMobile,
-    required this.siblingEducationalAttainment,
-    required this.siblingOccupation,
-    required this.siblingCompanyNameAddress,
     required this.guardianLastName,
     required this.guardianFirstName,
     required this.guardianMiddleName,
@@ -144,9 +141,6 @@ class SavedApplicationPrintModel {
   final String siblingFirstName;
   final String siblingMiddleName;
   final String siblingMobile;
-  final String siblingEducationalAttainment;
-  final String siblingOccupation;
-  final String siblingCompanyNameAddress;
   final String guardianLastName;
   final String guardianFirstName;
   final String guardianMiddleName;
@@ -288,11 +282,6 @@ class SavedApplicationPrintModel {
       siblingFirstName: _string(sibling['first_name']),
       siblingMiddleName: _string(sibling['middle_name']),
       siblingMobile: _string(sibling['mobile_number']),
-      siblingEducationalAttainment: _string(
-        sibling['highest_educational_attainment'],
-      ),
-      siblingOccupation: _string(sibling['occupation']),
-      siblingCompanyNameAddress: _string(sibling['company_name_address']),
       guardianLastName: _string(guardian['last_name']),
       guardianFirstName: _string(guardian['first_name']),
       guardianMiddleName: _string(guardian['middle_name']),
@@ -500,15 +489,6 @@ class SavedApplicationPrintModel {
       siblingMobile: _firstNonEmpty([
         _string(sibling['mobile']),
         _string(sibling['mobile_number']),
-      ]),
-      siblingEducationalAttainment: _firstNonEmpty([
-        _string(sibling['educational_attainment']),
-        _string(sibling['highest_educational_attainment']),
-      ]),
-      siblingOccupation: _string(sibling['occupation']),
-      siblingCompanyNameAddress: _firstNonEmpty([
-        _string(sibling['company_name_and_address']),
-        _string(sibling['company_name_address']),
       ]),
       guardianLastName: _string(guardian['last_name']),
       guardianFirstName: _string(guardian['first_name']),

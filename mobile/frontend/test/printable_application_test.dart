@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,12 +14,26 @@ class _FakePrintableApplicationService extends PrintableApplicationService {
   String? applicationId;
 
   @override
+  Future<Uint8List> generateBytesFromSubmissionPayload(
+    Map<String, dynamic> payload,
+  ) async {
+    submissionPayload = payload;
+    return Uint8List.fromList(<int>[37, 80, 68, 70]);
+  }
+
+  @override
   Future<File> generateFromSubmissionPayload(
     Map<String, dynamic> payload,
   ) async {
     submissionPayload = payload;
     return File('${Directory.systemTemp.path}/fake_printable_application.pdf')
       ..writeAsStringSync('fake pdf');
+  }
+
+  @override
+  Future<Uint8List> generateBytesFromMySubmittedApplicationForm() async {
+    applicationId = 'submitted-form-fallback';
+    return Uint8List.fromList(<int>[37, 80, 68, 70]);
   }
 
   @override

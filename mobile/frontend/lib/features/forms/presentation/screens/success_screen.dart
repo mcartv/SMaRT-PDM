@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -37,23 +36,25 @@ class _SuccessScreenState extends State<SuccessScreen> {
     required String applicationId,
     required Map<String, dynamic>? submissionPayload,
   }) async {
+    if (_isGeneratingPdf) return;
+
     setState(() => _isGeneratingPdf = true);
 
-    File? generatedFile;
-
     try {
-      if (submissionPayload != null) {
-        generatedFile = await _printableApplicationService
-            .generateFromSubmissionPayload(submissionPayload);
-      } else {
-        generatedFile = await _printableApplicationService
-            .generateFromApplicationId(applicationId);
-      }
+      final bytes = submissionPayload != null
+          ? await _printableApplicationService
+                .generateBytesFromSubmissionPayload(submissionPayload)
+          : await _printableApplicationService
+                .generateBytesFromMySubmittedApplicationForm();
 
       if (!mounted) return;
 
       await Share.shareXFiles([
-        XFile(generatedFile.path),
+        XFile.fromData(
+          bytes,
+          mimeType: 'application/pdf',
+          name: 'SMaRT-PDM_Application_Form.pdf',
+        ),
       ], text: 'SMaRT-PDM Scholarship Application');
     } catch (error) {
       if (!mounted) return;

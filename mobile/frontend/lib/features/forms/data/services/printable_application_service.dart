@@ -22,6 +22,31 @@ class PrintableApplicationService {
     return _pdfService.generateBytesFromSavedApplication(model);
   }
 
+  Future<Uint8List> generateBytesFromMySubmittedApplicationForm() async {
+    final response = await _applicationService
+        .fetchMySubmittedApplicationForm();
+    final payload = Map<String, dynamic>.from(
+      response['form_data'] as Map? ?? const {},
+    );
+
+    if (payload.isEmpty) {
+      throw Exception('Submitted application form is not available yet.');
+    }
+
+    final application = Map<String, dynamic>.from(
+      response['application'] as Map? ?? const {},
+    );
+
+    if (application.isNotEmpty) {
+      final existingApplication = Map<String, dynamic>.from(
+        payload['application'] as Map? ?? const {},
+      );
+      payload['application'] = {...existingApplication, ...application};
+    }
+
+    return generateBytesFromSubmissionPayload(payload);
+  }
+
   Future<File> generateFromSubmissionPayload(
     Map<String, dynamic> payload,
   ) async {

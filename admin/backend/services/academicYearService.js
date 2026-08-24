@@ -103,6 +103,43 @@ async function ensureDefaultPeriods(client, academicYearId) {
     }
 }
 
+async function closeOpeningsOutsideActiveCycle(
+    client,
+    { academicYearId = null, periodId = null } = {}
+) {
+    if (!academicYearId && !periodId) {
+        return 0;
+    }
+
+    const params = [];
+    const conditions = [
+        "COALESCE(is_archived, false) = false",
+        "LOWER(COALESCE(posting_status, 'draft')) IN ('draft', 'open')",
+    ];
+
+    if (periodId) {
+        params.push(periodId);
+        conditions.push(`period_id IS DISTINCT FROM ${params.length}`);
+    } else if (academicYearId) {
+        params.push(academicYearId);
+        conditions.push(`academic_year_id IS DISTINCT FROM ${params.length}`);
+    }
+
+    const result = await client.query(
+        `
+        UPDATE program_openings
+        SET
+            posting_status = 'closed',
+            updated_at = NOW()
+        WHERE ${conditions.join('\n          AND ')}
+        RETURNING opening_id
+        `,
+        params
+    );
+
+    return result.rowCount || 0;
+}
+
 async function getPeriodForUpdate(client, periodId) {
     const result = await client.query(
         `
@@ -556,6 +593,12 @@ exports.createAcademicYear = async (payload = {}) => {
             );
         }
 
+        if (isActive) {
+            await closeOpeningsOutsideActiveCycle(client, {
+                academicYearId: result.rows[0].academic_year_id,
+            });
+        }
+
         await client.query('COMMIT');
 
         return mapAcademicYear(result.rows[0]);
@@ -674,6 +717,12 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
             );
         }
 
+        if (isActive) {
+            await closeOpeningsOutsideActiveCycle(client, {
+                academicYearId,
+            });
+        }
+
         await client.query('COMMIT');
 
         return updateResult.rows[0]
@@ -742,6 +791,10 @@ exports.activateAcademicYear = async (academicYearId) => {
             `,
             [academicYearId]
         );
+
+        await closeOpeningsOutsideActiveCycle(client, {
+            academicYearId,
+        });
 
         const result = await client.query(
             `
@@ -836,6 +889,14 @@ exports.activateAcademicPeriod = async (
             [period.period_id, actorUserId]
         );
 
+        const closedOpenings = await closeOpeningsOutsideActiveCycle(
+            client,
+            {
+                academicYearId: period.academic_year_id,
+                periodId: period.period_id,
+            }
+        );
+
         const cycleSummary = await ensurePeriodCycles(
             client,
             period
@@ -851,6 +912,7 @@ exports.activateAcademicPeriod = async (
                     period.academic_year_label,
             }),
             cycle_summary: cycleSummary,
+            closed_openings: closedOpenings,
         };
     } catch (err) {
         await client.query('ROLLBACK');

@@ -372,8 +372,12 @@ exports.createAdminAccount = async (req, res) => {
 
 exports.updateStaffAccount = async (req, res) => {
     try {
+        const actorUserId = getActorUserId(req);
         const passwordResetRequested = Boolean(String(req.body?.password || '').trim());
-        const account = await accountService.updateStaffAccount(req.params.id, req.body, getActorUserId(req));
+        const isSelfUpdate = Boolean(
+            actorUserId && String(actorUserId) === String(req.params.id)
+        );
+        const account = await accountService.updateStaffAccount(req.params.id, req.body, actorUserId);
 
         if (!account) {
             return res.status(404).json({
@@ -409,19 +413,24 @@ exports.updateStaffAccount = async (req, res) => {
         if (passwordResetRequested) {
             await auditLogService.logAudit({
                 req,
-                actionTaken: 'RESET_ACCOUNT_PASSWORD',
+                actionTaken: isSelfUpdate ? 'CHANGE_OWN_PASSWORD' : 'RESET_ACCOUNT_PASSWORD',
                 module: 'Accounts',
                 entityType: 'staff_account',
                 entityId: account.user_id || req.params.id,
-                description: `Reset password for account: ${account.email || req.params.id}.`,
+                description: isSelfUpdate
+                    ? 'Changed own account password. Current session retained. Password values are not stored in System Logs.'
+                    : `Reset password for account: ${account.email || req.params.id}. Target sessions were invalidated.`,
                 metadata: {
                     target_user_id: account.user_id || req.params.id,
                     target_email: account.email || null,
                     target_role: account.role || null,
+                    password_changed: true,
+                    credential_values_stored: false,
+                    self_change: isSelfUpdate,
                     session_invalidated: account.session_invalidated === true,
                 },
             }).catch((auditError) => {
-                console.error('RESET ACCOUNT PASSWORD AUDIT ERROR:', auditError.message);
+                console.error('ACCOUNT PASSWORD CHANGE AUDIT ERROR:', auditError.message);
             });
         }
 
@@ -614,12 +623,29 @@ exports.verifyCurrentStaffPassword = async (req, res) => {
 exports.changeCurrentStaffPassword = async (req, res) => {
     try {
         const actorUserId = getActorUserId(req);
-        const result = await accountService.changeCurrentStaffPassword(
+        await accountService.changeCurrentStaffPassword(
             actorUserId,
             req.body || {}
         );
 
         if (actorUserId) {
+            await auditLogService.logAudit({
+                req,
+                actionTaken: 'CHANGE_OWN_PASSWORD',
+                module: 'Accounts',
+                entityType: 'staff_account',
+                entityId: actorUserId,
+                description: 'Changed account password. Current password: verified. New password: updated. Password values are not stored in System Logs.',
+                metadata: {
+                    password_changed: true,
+                    current_password_verified: true,
+                    new_password_updated: true,
+                    credential_values_stored: false,
+                },
+            }).catch((auditError) => {
+                console.error('CHANGE OWN PASSWORD AUDIT ERROR:', auditError.message);
+            });
+
             try {
                 const notification = await notificationService.createUserNotification({
                     userId: actorUserId,
@@ -634,17 +660,12 @@ exports.changeCurrentStaffPassword = async (req, res) => {
                 console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
             }
 
-            disconnectAccountSockets(req, actorUserId, {
-                reason: 'password-changed',
-                code: 'PASSWORD_CHANGED',
-                message: 'Your password was changed. Please sign in again using your new password.',
-            });
         }
 
         return res.status(200).json({
             success: true,
-            session_invalidated: result?.session_invalidated === true,
-            message: 'Password changed successfully. Please sign in again.',
+            session_invalidated: false,
+            message: 'Password changed successfully.',
         });
     } catch (err) {
         console.error('CHANGE CURRENT STAFF PASSWORD ERROR:', err);

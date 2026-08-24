@@ -1,10 +1,19 @@
 const supabase = require('../config/supabase');
 
 const TABLE_NAME = 'general_settings';
+const LEGACY_HERO_TITLE = 'Scholarship access, tracking, and updates in one system.';
 
 const DEFAULT_LANDING_CONTENT = {
+  about_title: 'One connected platform for every scholarship journey.',
+  about_description:
+    'SMaRT-PDM brings PDM scholarship services into one secure and organized platform. It helps applicants submit requirements, follow application progress, receive official updates, and move through coordinated office reviews, while giving OSFA the tools to manage records and support scholars with greater clarity, accountability, and efficiency.',
+  about_items: [
+    { title: 'Centralized Scholarship Monitoring', description: 'Applications, requirements, updates, and scholar records stay organized in one reliable system.' },
+    { title: 'Guided Multi-office Review', description: 'OSFA, Guidance, Student Discipline, and Program Director reviews follow a clear and accountable process.' },
+    { title: 'Transparent Application Tracking', description: 'Applicants can follow progress and receive official updates throughout their scholarship journey.' },
+  ],
   hero_badge: 'OSFA Digital Scholarship Platform',
-  hero_title: 'Scholarship access, tracking, and updates in one system.',
+  hero_title: 'Your scholarship journey, connected from application to success.',
   hero_description:
     'SMaRT-PDM helps applicants, scholars, and authorized users manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
   mobile_app_title: 'Scholar Mobile App',
@@ -33,7 +42,7 @@ const DEFAULT_LANDING_CONTENT = {
   ],
   requirement_notices: [
     'The applicant must be a resident of Marilao, Bulacan.',
-    'The applicant must not be receiving another scholarship grant.',
+    'The applicant must not be receiving another scholarship grant, such as Pondo/Iskolar ng Bayan, Garcia/Villarica, TES, or TDP.',
     'The applicant must have no derogatory or disciplinary record from SDO.',
     'Applications are processed on a first-come, first-served basis.',
     'Available slots depend on the allocation provided by each benefactor.',
@@ -200,9 +209,13 @@ function sanitizeLandingTextItems(items, defaults, maxLength = 500) {
 
 function sanitizeLandingContent(content = {}) {
   const defaults = DEFAULT_LANDING_CONTENT;
+  const heroTitle = safeText(content.hero_title, 180);
   return {
+    about_title: safeText(content.about_title, 180) || defaults.about_title,
+    about_description: safeText(content.about_description, 1200) || defaults.about_description,
+    about_items: sanitizeLandingItems(content.about_items, defaults.about_items),
     hero_badge: safeText(content.hero_badge, 80) || defaults.hero_badge,
-    hero_title: safeText(content.hero_title, 180) || defaults.hero_title,
+    hero_title: heroTitle === LEGACY_HERO_TITLE ? defaults.hero_title : heroTitle || defaults.hero_title,
     hero_description: safeText(content.hero_description, 600) || defaults.hero_description,
     mobile_app_title: safeText(content.mobile_app_title, 100) || defaults.mobile_app_title,
     mobile_app_description:

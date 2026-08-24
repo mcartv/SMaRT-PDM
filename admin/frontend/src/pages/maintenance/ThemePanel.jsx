@@ -5,6 +5,10 @@ import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getThemePresetOptions, resolvePortalTheme } from '@/config/portalThemes';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const PORTAL_LABELS = {
   admin: 'Admin',
@@ -353,8 +357,8 @@ export default function ThemePanel({
             <Palette className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
-            <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+            <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{title}</h3>
+            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>{subtitle}</p>
             <p className="mt-1 text-xs text-stone-500">
               Click a preset to save it immediately. Use Restore Default anytime.
             </p>
@@ -384,8 +388,8 @@ export default function ThemePanel({
               <div className="border-b border-stone-100 px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-base font-semibold text-stone-900">{PORTAL_LABELS[portalKey]} Theme</h4>
-                    <p className="mt-1 text-sm text-stone-500">
+                    <h4 className={MAINTENANCE_CARD_TITLE_CLASS}>{PORTAL_LABELS[portalKey]} Theme</h4>
+                    <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                       Saved preset: <span className="font-medium text-stone-700">{resolvePortalTheme(portalKey, savedPresetKey, savedCustomColors).label}</span>
                     </p>
                     <p className="mt-1 text-xs text-stone-500">{PORTAL_HELPERS[portalKey]}</p>

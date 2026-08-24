@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowUp,
+  Check,
   ChevronDown,
   Database,
   Phone,
@@ -13,6 +14,7 @@ import {
   Clock3,
   Globe2,
   HelpCircle,
+  Lock,
   Mail,
   Megaphone,
   ShieldCheck,
@@ -34,9 +36,12 @@ import bcPackagingLogo from '../assets/BC PACKAGING.png';
 import foodCraftersLogo from '../assets/FOOD CRAFTERS.png';
 import kaizenFoundationLogo from '../assets/KAIZEN-FOUNDATION-optimized.png';
 import pusongMapagkalingaLogo from '../assets/PUSONG MAPAGKALINGA.jpg';
+import mobileLoginScreenshot from '../assets/mobile-app/login-cropped.png';
+import mobileDashboardScreenshot from '../assets/mobile-app/dashboard-cropped.png';
+import mobileSubmittedScreenshot from '../assets/mobile-app/application-submitted-cropped.png';
 
 const APP_DOWNLOAD_URL =
-  'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
+  'https://github.com/mcartv/SMaRT-PDM/releases/latest/download/SMaRT-PDM.apk';
 const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
 
 
@@ -173,6 +178,37 @@ function StepCard({ step, title, description, theme }) {
       <h3 className="mt-4 text-base font-bold text-stone-900">{title}</h3>
       <p className="mt-2 flex-1 text-sm leading-6 text-stone-500">{description}</p>
     </div>
+  );
+}
+
+function NavDropdown({ label, href, active, children, align = 'left' }) {
+  return (
+    <div className="group relative shrink-0">
+      <a
+        href={href}
+        aria-current={active ? 'location' : undefined}
+        className={`flex items-center gap-1 border-b-2 px-2.5 py-3 text-[11px] font-bold uppercase tracking-[0.07em] transition duration-300 hover:border-[var(--nav-accent)] hover:text-white focus-visible:border-[var(--nav-accent)] focus-visible:text-white focus-visible:outline-none sm:px-3 sm:text-xs sm:tracking-[0.08em] md:px-4 ${
+          active ? 'border-[var(--nav-accent)] bg-white/8 text-white' : 'border-transparent text-white/80'
+        }`}
+      >
+        {label}
+        <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180 group-focus-within:rotate-180" aria-hidden="true" />
+      </a>
+      <div
+        className={`pointer-events-none invisible fixed left-3 right-3 top-[46px] z-[70] max-h-[72vh] overflow-y-auto rounded-b-xl border border-white/15 p-2 opacity-0 shadow-2xl transition duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100 md:absolute md:left-auto md:right-auto md:top-full md:w-80 md:rounded-t-none ${align === 'right' ? 'md:right-0' : 'md:left-0'}`}
+        style={{ background: 'var(--nav-background)' }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function NavDropdownLink({ href, title, onClick }) {
+  return (
+    <a href={href} onClick={onClick} className="flex min-h-10 items-center rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-white transition hover:border-[var(--nav-accent)] hover:bg-white/10 focus-visible:border-[var(--nav-accent)] focus-visible:bg-white/10 focus-visible:outline-none">
+      <span className="truncate">{title}</span>
+    </a>
   );
 }
 
@@ -378,11 +414,13 @@ function RequirementsModal({ content, theme, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="requirements-modal-title"
-        className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[0_28px_90px_-24px_rgba(0,0,0,0.5)]"
       >
-        <header className="flex items-start justify-between gap-4 px-5 py-5 text-white md:px-7" style={{ background: theme.dark }}>
+        <header className="relative shrink-0 overflow-hidden px-6 pb-7 pt-6 text-white md:px-8 md:pb-8" style={{ background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 100%)` }}>
+          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
+          <div className="relative flex items-start justify-between gap-5">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: theme.accent, color: theme.dark }}>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white">
               <FileCheck2 size={20} aria-hidden="true" />
             </span>
             <div>
@@ -395,14 +433,15 @@ function RequirementsModal({ content, theme, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/20"
             aria-label="Close application requirements"
           >
             <X size={18} />
           </button>
+          </div>
         </header>
 
-        <div className="overflow-y-auto px-5 py-6 md:px-7">
+        <div className="overflow-y-auto px-6 py-6 md:px-8 md:py-8">
           <p className="max-w-3xl text-sm leading-7 text-stone-600">
             {content.requirements_description}
           </p>
@@ -445,6 +484,203 @@ function RequirementsModal({ content, theme, onClose }) {
   );
 }
 
+function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = false }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  const scholarActivities = [
+    {
+      title: 'Payout',
+      icon: Download,
+      description: 'Eligible active scholars receive payout schedules and release-status updates in the system. Follow official announcements and complete any requested payout confirmation.',
+    },
+    {
+      title: 'Return of Obligation (RO)',
+      icon: Clock3,
+      description: 'Scholars may be assigned service hours and a placement. Coordinate with the RO Coordinator, submit valid time records, and complete the required hours for clearance.',
+    },
+    {
+      title: 'Scholarship Renewal',
+      icon: FileText,
+      description: 'Continuing scholars must complete the renewal form and updated requirements for the next eligible period. Renewal remains subject to review and program rules.',
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section role="dialog" aria-modal="true" aria-labelledby="process-modal-title" className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[0_28px_90px_-24px_rgba(0,0,0,0.5)]">
+        <header className="relative shrink-0 overflow-hidden px-6 pb-7 pt-6 text-white md:px-8 md:pb-8" style={{ background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 100%)` }}>
+          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
+          <div className="relative flex items-start justify-between gap-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white">
+              <ArrowRight size={20} aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">{obligationsOnly ? 'Active Scholar Guide' : 'Applicant to Scholar'}</p>
+              <h2 id="process-modal-title" className="mt-1 text-xl font-bold md:text-2xl">{obligationsOnly ? 'Scholar obligations' : 'Complete scholarship process'}</h2>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Close scholarship process">
+            <X size={18} />
+          </button>
+          </div>
+        </header>
+
+        <div className="overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+          {!obligationsOnly ? <><p className="max-w-3xl text-sm leading-7 text-stone-600">Follow these stages in order. Selection is based on verified readiness, available program slots, and the first-come, first-served queue.</p>
+          <ol className="mt-6 grid gap-3 md:grid-cols-2">
+            {steps.map((step, index) => (
+              <li key={step.title} className="flex gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: theme.soft, color: theme.base }}>{index + 1}</span>
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900">{step.title}</h3>
+                  <p className="mt-1 text-xs leading-5 text-stone-600">{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol></> : <p className="max-w-3xl text-sm leading-7 text-stone-600">Scholarship support continues after activation. Keep track of these responsibilities to maintain good standing and complete each scholarship period successfully.</p>}
+
+          <div className={`${obligationsOnly ? 'mt-6' : 'mt-8 border-t border-stone-200 pt-6'}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.base }}>After scholar activation</p>
+            <h3 className="mt-2 text-lg font-bold text-stone-900">Your scholarship responsibilities continue</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              {scholarActivities.map(({ title, icon, description }) => (
+                <article key={title} className="rounded-xl border border-stone-200 p-4">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: theme.soft, color: theme.base }}>{React.createElement(icon, { size: 17, 'aria-hidden': true })}</span>
+                  <h4 className="mt-3 text-sm font-bold text-stone-900">{title}</h4>
+                  <p className="mt-1.5 text-xs leading-5 text-stone-600">{description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AboutInfoModal({ type, theme, onClose }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  const content = {
+    pdm: {
+      eyebrow: 'Pambayang Dalubhasaan ng Marilao',
+      title: 'About PDM',
+      icon: Globe2,
+      description: 'Official institutional information will be published here once it has been reviewed and provided by the project team.',
+      empty: true,
+      sections: [],
+    },
+    smart: {
+      eyebrow: 'Scholarship Management and Resource Tracking',
+      title: 'About SMaRT-PDM',
+      icon: Database,
+      description: 'The story of how PDM’s scholarship process became one connected, transparent, and student-centered experience.',
+      sections: [
+        {
+          title: 'From a Manual Process to a Shared Vision',
+          body: 'Scholarship services at PDM once depended on paper forms, physical documents, office logbooks, spreadsheets, and separate group chats. Students often prepared and submitted requirements without a clear view of available slots or their progress, while OSFA personnel spent valuable time checking records, sending repeated follow-ups, and consolidating information by hand. SMaRT-PDM grew from a shared goal: make scholarship assistance easier to reach, simpler to manage, and clearer for everyone involved.',
+        },
+        {
+          title: 'One Guided Journey for Every Applicant',
+          body: 'The platform brings each stage of the application into one continuous experience. Students begin with a verified PDM identity, discover available scholarship programs, complete a structured application, and follow their requirements from submission to verification. The companion mobile application keeps important instructions, announcements, deficiencies, and status updates within reach, reducing uncertainty and unnecessary visits to the office.',
+        },
+        {
+          title: 'Technology That Supports Human Review',
+          body: 'SMaRT-PDM uses OCR-assisted scanning to capture printed documents and identify important details such as the student name and GWA. Technology helps organize and prepare the information, but it does not replace institutional judgment. Authorized OSFA personnel review every scanned record, verify its accuracy, and decide whether a requirement is accepted or must be submitted again.',
+        },
+        {
+          title: 'A Fair and Accountable Path to Selection',
+          body: 'Verified applications move through the designated endorsement offices in sequence: Student Discipline, Guidance, and the Program Director. Only applicants who complete both requirements verification and endorsement enter the first-come, first-served readiness queue. Selection follows the slots provided for each scholarship opening, while qualified applicants beyond the available capacity may be placed on the waiting list and promoted when a slot becomes available.',
+        },
+        {
+          title: 'Support That Continues Beyond Approval',
+          body: 'The relationship continues after a student becomes a scholar. SMaRT-PDM brings together payout schedules, academic and scholarship monitoring, Return of Obligation assignments, renewal requirements, announcements, official communication, and record history. For OSFA and partner offices, role-based workspaces, reports, notifications, and audit trails create a dependable source of information while keeping every important decision in the hands of authorized personnel.',
+        },
+      ],
+    },
+    developers: {
+      eyebrow: 'Project Team',
+      title: 'About the Developers',
+      icon: UserRound,
+      description: 'Meet the project team behind the design and development of SMaRT-PDM.',
+      sections: [
+        {
+          title: 'Developer profiles coming soon',
+          body: 'The project team’s names, roles, biographies, and photographs will be added here once the official developer details are provided.',
+        },
+      ],
+    },
+  }[type];
+
+  if (!content) return null;
+  const Icon = content.icon;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section role="dialog" aria-modal="true" aria-labelledby="about-info-title" className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[0_28px_90px_-24px_rgba(0,0,0,0.5)]">
+        <header className="relative shrink-0 overflow-hidden px-6 pb-7 pt-6 text-white md:px-8 md:pb-8" style={{ background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 100%)` }}>
+          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
+          <div className="relative flex items-start justify-between gap-5">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10"><Icon size={20} aria-hidden="true" /></span>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">{content.eyebrow}</p>
+                <h2 id="about-info-title" className="mt-2 text-2xl font-bold tracking-[-0.02em] md:text-3xl">{content.title}</h2>
+                {content.description ? <p className="mt-2.5 max-w-2xl text-sm leading-6 text-white/72">{content.description}</p> : null}
+              </div>
+            </div>
+            <button type="button" onClick={onClose} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label={`Close ${content.title}`}><X size={18} /></button>
+          </div>
+        </header>
+        <div className="overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+          {content.empty ? (
+            <div className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50/70 px-6 py-10 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: theme.soft, color: theme.base }}><FileText size={21} aria-hidden="true" /></span>
+              <h3 className="mt-4 text-base font-bold text-stone-900">Official content will be added soon</h3>
+              <p className="mt-2 max-w-md text-sm leading-6 text-stone-500">The PDM history, mission, and vision are being reserved for the official information provided by the project team.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-stone-200 border-y border-stone-200">
+              {content.sections.map((section, index) => (
+                <article key={section.title} className="grid gap-3 py-5 sm:grid-cols-[3rem_1fr] sm:gap-5 md:py-6">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold" style={{ background: theme.soft, color: theme.base }}>{String(index + 1).padStart(2, '0')}</span>
+                  <div>
+                    <h3 className="text-base font-bold text-stone-900">{section.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-stone-600">{section.body}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
@@ -452,6 +688,7 @@ export default function SmartPDMLanding() {
   const [activeSection, setActiveSection] = useState('home');
   const [activePolicy, setActivePolicy] = useState(null);
   const [showRequirements, setShowRequirements] = useState(false);
+  const [processModalView, setProcessModalView] = useState(null);
   const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
@@ -470,13 +707,17 @@ export default function SmartPDMLanding() {
     landing_faqs: defaultFaqItems,
   });
   const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
-  const navigationItems = [
-    ['Home', '#home'],
-    ...(benefactors.length ? [['Benefactors', '#benefactors']] : []),
-    ['How to Apply', '#guide'],
-    ['About Us', '#about'],
-    ['FAQs', '#faq'],
-    ['Contact Us', '#contact'],
+  const applicationJourneySteps = [
+    { title: 'Register with your Student ID', description: 'Create an account using a verified PDM Student ID.' },
+    { title: 'Verify your email', description: 'Confirm the email address connected to your applicant account.' },
+    { title: 'Choose an open program', description: 'Review scholarship openings and select Apply on your chosen program.' },
+    { title: 'Fill out and submit the form', description: 'Provide complete and accurate personal, academic, and family information.' },
+    { title: 'Upload all requirements', description: 'Submit clear copies of every document required by the selected program.' },
+    { title: 'Complete requirements review', description: 'Wait for OSFA verification and replace any document marked for reupload.' },
+    { title: 'Complete office endorsements', description: 'The review proceeds in order through SDO, Guidance, then the Program Director.' },
+    { title: 'Join the FCFS readiness queue', description: 'You enter the queue only after requirements and endorsements are both complete.' },
+    { title: 'Receive the selection result', description: 'Available slots are selected in queue order; qualified overflow applicants are waitlisted.' },
+    { title: 'Scholar activation or promotion', description: 'Selected applicants are activated, while waitlisted applicants may be promoted when a slot becomes available.' },
   ];
 
   useEffect(() => {
@@ -492,7 +733,7 @@ export default function SmartPDMLanding() {
         }
 
         if (active) {
-          setBenefactors(Array.isArray(payload) ? payload.slice(0, 6) : []);
+          setBenefactors(Array.isArray(payload) ? payload : []);
         }
       } catch {
         if (active) {
@@ -852,30 +1093,68 @@ export default function SmartPDMLanding() {
       <nav
         aria-label="Landing page navigation"
         className="sticky top-0 z-50 border-b shadow-md"
-        style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent }}
+        style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent, '--nav-background': theme.dark }}
       >
         <div className="flex w-full items-center px-3 sm:px-5 md:px-8 lg:px-10">
-          <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {navigationItems.map(([label, href]) => (
-              <a
-                key={href}
-                href={href}
+          <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] md:overflow-visible [&::-webkit-scrollbar]:hidden">
+            <a
+                href="#home"
                 onClick={(event) => {
-                  if (href !== '#home') return;
                   event.preventDefault();
                   window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#home`);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                aria-current={activeSection === href.slice(1) ? 'location' : undefined}
+                aria-current={activeSection === 'home' ? 'location' : undefined}
                 className={`shrink-0 border-b-2 px-2.5 py-3 text-[11px] font-bold uppercase tracking-[0.07em] transition duration-300 hover:border-[var(--nav-accent)] hover:text-white sm:px-3 sm:text-xs sm:tracking-[0.08em] md:px-4 ${
-                  activeSection === href.slice(1)
+                  activeSection === 'home'
                     ? 'border-[var(--nav-accent)] bg-white/8 text-white'
                     : 'border-transparent text-white/80'
                 }`}
               >
-                {label}
+                Home
               </a>
-            ))}
+            {benefactors.length ? (
+              <NavDropdown label="Benefactors" href="#benefactors" active={activeSection === 'benefactors'}>
+                {benefactors.map((benefactor) => (
+                  <NavDropdownLink
+                    key={benefactor.benefactor_id}
+                    href={`#benefactor-${benefactor.benefactor_id}`}
+                    title={benefactor.benefactor_name}
+                  />
+                ))}
+              </NavDropdown>
+            ) : null}
+            <NavDropdown label="How to Apply" href="#guide" active={activeSection === 'guide'}>
+              <NavDropdownLink
+                href="/how-to-apply/process"
+                title="Scholarship Process"
+              />
+              <NavDropdownLink
+                href="/how-to-apply/requirements"
+                title="Scholar Requirements"
+              />
+              <NavDropdownLink
+                href="/how-to-apply/obligations"
+                title="Scholar Obligations"
+              />
+            </NavDropdown>
+            <NavDropdown label="About" href="#about" active={activeSection === 'about'}>
+              <NavDropdownLink href="/about/pdm" title="About PDM" />
+              <NavDropdownLink href="/about/smart-pdm" title="About SMaRT-PDM" />
+              <NavDropdownLink href="/about/developers" title="About the Developers" />
+            </NavDropdown>
+            {generalSettings.landing_faqs.length ? (
+              <NavDropdown label="FAQs" href="#faq" active={activeSection === 'faq'} align="right">
+                {generalSettings.landing_faqs.map((item, index) => (
+                  <NavDropdownLink
+                    key={`${item.question}-${index}`}
+                    href={`#faq-item-${index}`}
+                    title={item.question}
+                    onClick={() => setActiveFaq(index)}
+                  />
+                ))}
+              </NavDropdown>
+            ) : null}
           </div>
           <div className="ml-1 shrink-0 border-l border-white/15 pl-1.5 sm:ml-2 sm:pl-2 md:ml-3 md:pl-3">
             <Link
@@ -945,7 +1224,7 @@ export default function SmartPDMLanding() {
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Button href={APP_DOWNLOAD_URL} icon={Smartphone} theme={theme}>
-                Apply &amp; check status
+                Download Student App
               </Button>
               <button
                 type="button"
@@ -1022,6 +1301,80 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
+      <section id="mobile-app" className="mx-auto w-full max-w-[84rem] scroll-mt-16 px-4 pb-12 pt-4 sm:px-5 md:px-8 md:pt-8">
+        <div
+          className="relative overflow-hidden rounded-[1.75rem] border px-5 py-8 shadow-[0_22px_60px_-48px_rgba(55,32,18,0.65)] sm:px-7 md:px-10 md:py-10"
+          style={{
+            background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 68%, #8a5b31 100%)`,
+            borderColor: `${theme.accent}55`,
+          }}
+        >
+          <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute -bottom-24 left-[36%] h-56 w-56 rounded-full blur-3xl" style={{ background: `${theme.accent}20` }} aria-hidden="true" />
+
+          <div className="relative grid items-center gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:gap-12">
+            <div className="max-w-xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
+                <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
+                Official Android Application
+              </div>
+
+              <h2 className="mt-5 text-3xl font-bold leading-tight tracking-[-0.025em] text-white md:text-4xl">
+                {generalSettings.landing_content.mobile_app_title}
+              </h2>
+              <p className="mt-4 max-w-lg text-sm leading-7 text-white/72 md:text-[15px]">
+                {generalSettings.landing_content.mobile_app_description}
+              </p>
+
+              <div className="mt-6 grid gap-3 text-sm text-white/80 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {[
+                  'Apply using your official PDM Student ID',
+                  'Track application and requirement progress',
+                  'Receive official scholarship updates',
+                  'Manage scholar documents and obligations',
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: theme.accent, color: theme.dark }}>
+                      <Check size={12} strokeWidth={3} />
+                    </span>
+                    <span className="leading-5">{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              <a
+                href={APP_DOWNLOAD_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-7 inline-flex items-center gap-3 rounded-xl px-5 py-3.5 text-sm font-bold shadow-lg transition duration-200 hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-4 focus:ring-white/20"
+                style={{ background: theme.accent, color: theme.dark }}
+              >
+                <Download className="h-5 w-5" aria-hidden="true" />
+                <span>
+                  <span className="block text-left text-[10px] font-semibold uppercase leading-none tracking-[0.12em] opacity-70">Download APK</span>
+                  <span className="mt-1 block text-left leading-none">SMaRT-PDM for Android</span>
+                </span>
+              </a>
+              <p className="mt-3 text-[11px] text-white/50">Official PDM release · Android installation package</p>
+            </div>
+
+            <div className="relative mx-auto h-[390px] w-full max-w-[620px] sm:h-[470px] lg:h-[520px]" aria-label="SMaRT-PDM mobile application previews">
+              <div className="absolute bottom-0 left-[2%] z-10 w-[31%] -rotate-[5deg] overflow-hidden rounded-[1.35rem] border-[5px] border-stone-900 bg-stone-900 shadow-2xl sm:left-[4%] sm:rounded-[1.7rem] sm:border-[7px]">
+                <img src={mobileLoginScreenshot} alt="SMaRT-PDM mobile login screen" className="block h-auto w-full" />
+              </div>
+
+              <div className="absolute bottom-0 left-1/2 z-30 w-[38%] -translate-x-1/2 overflow-hidden rounded-[1.55rem] border-[6px] border-stone-950 bg-stone-950 shadow-[0_26px_55px_rgba(0,0,0,0.42)] sm:rounded-[2rem] sm:border-[8px]">
+                <img src={mobileDashboardScreenshot} alt="SMaRT-PDM scholar dashboard" className="block h-auto w-full" />
+              </div>
+
+              <div className="absolute bottom-0 right-[2%] z-20 w-[31%] rotate-[5deg] overflow-hidden rounded-[1.35rem] border-[5px] border-stone-900 bg-stone-900 shadow-2xl sm:right-[4%] sm:rounded-[1.7rem] sm:border-[7px]">
+                <img src={mobileSubmittedScreenshot} alt="SMaRT-PDM application submitted confirmation" className="block h-auto w-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {benefactors.length ? (
         <section id="benefactors" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-4 pb-12 pt-10 sm:px-5 md:px-8 md:pt-12">
           <div
@@ -1075,6 +1428,7 @@ export default function SmartPDMLanding() {
                     {benefactors.map((benefactor) => (
                       <div
                         key={`${copyIndex}-${benefactor.benefactor_id}`}
+                        id={copyIndex === 0 ? `benefactor-${benefactor.benefactor_id}` : undefined}
                         className="w-[calc(100vw-5.5rem)] min-w-[230px] max-w-[280px] shrink-0 sm:w-[320px] sm:max-w-none lg:w-[350px]"
                       >
                         <BenefactorCard benefactor={benefactor} theme={theme} />
@@ -1129,15 +1483,24 @@ export default function SmartPDMLanding() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowRequirements(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-              style={{ background: theme.accent, color: theme.dark }}
-            >
-              View requirements
-              <ArrowRight size={16} aria-hidden="true" />
-            </button>
+            <div className="flex shrink-0 flex-wrap gap-2.5">
+              <Link
+                to="/how-to-apply/process"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                style={{ borderColor: theme.border, color: theme.base }}
+              >
+                View full process
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+              <Link
+                to="/how-to-apply/requirements"
+                className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                style={{ background: theme.accent, color: theme.dark }}
+              >
+                View requirements
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -1231,46 +1594,54 @@ export default function SmartPDMLanding() {
 
       <section id="about" className="landing-zone-support mx-auto w-full max-w-[84rem] scroll-mt-16 px-4 pb-12 pt-12 sm:px-5 md:px-8">
         <div
-          className="grid gap-6 rounded-[1.65rem] border px-4 py-6 sm:rounded-[2rem] sm:px-6 sm:py-7 md:px-8 md:py-8 lg:grid-cols-[1.05fr_0.95fr]"
-          style={{ background: '#ffffff', borderColor: theme.border }}
+          className="relative overflow-hidden rounded-2xl border bg-white shadow-[0_18px_50px_-42px_rgba(71,43,24,0.5)]"
+          style={{ borderColor: theme.border }}
         >
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              About SMaRT-PDM
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-stone-900">
-              Supporting OSFA scholarship access with a clearer process
-            </h2>
-            <p className="mt-4 text-sm leading-7 text-stone-600">
-              {generalSettings.about_osfa}
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50/70 p-5">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-xl"
-                style={{ background: theme.soft, color: theme.base }}
-              >
-                <ShieldCheck size={19} />
+          <div className="px-5 py-8 sm:px-7 md:px-10 md:py-10">
+            <div className="grid items-end gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="h-px w-9" style={{ background: theme.accent }} aria-hidden="true" />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.base }}>
+                    About SMaRT-PDM
+                  </p>
+                </div>
+                <h2 className="mt-4 max-w-xl text-2xl font-bold leading-[1.18] tracking-[-0.025em] text-stone-900 md:text-[2rem]">
+                  {generalSettings.landing_content.about_title}
+                </h2>
               </div>
-              <p className="mt-4 text-sm font-bold text-stone-900">Guided office review</p>
-              <p className="mt-2 text-sm leading-6 text-stone-500">
-                SDO, Guidance, and Program Director reviews are tracked by stage for better accountability.
+
+              <p className="max-w-2xl text-sm leading-7 text-stone-600 md:text-[15px]">
+                {generalSettings.landing_content.about_description}
               </p>
             </div>
 
-            <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50/70 p-5">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-xl"
-                style={{ background: theme.soft, color: theme.base }}
-              >
-                <FileCheck2 size={19} />
-              </div>
-              <p className="mt-4 text-sm font-bold text-stone-900">Readiness-based activation</p>
-              <p className="mt-2 text-sm leading-6 text-stone-500">
-                Scholar activation happens only after both requirements and endorsement are fully completed.
-              </p>
+            <div className="my-8 border-t border-stone-200" />
+
+            <div className="grid gap-7 md:grid-cols-3 md:gap-0">
+              {generalSettings.landing_content.about_items.slice(0, 3).map((item, index) => {
+                const Icon = [Database, ShieldCheck, FileCheck2][index] || FileCheck2;
+                return (
+                  <div
+                    key={`${item.title}-${index}`}
+                    className={`group md:px-7 ${index === 0 ? 'md:pl-0' : 'md:border-l md:border-stone-200'} ${index === 2 ? 'md:pr-0' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors duration-200 group-hover:bg-white"
+                        style={{ background: theme.soft, borderColor: theme.border, color: theme.base }}
+                      >
+                        <Icon size={18} />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400">
+                        0{index + 1}
+                      </span>
+                    </div>
+                    <h3 className="mt-4 text-sm font-bold leading-5 text-stone-900">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-500">{item.description}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1288,7 +1659,7 @@ export default function SmartPDMLanding() {
                 Frequently Asked Questions
               </p>
               <h2 className="mt-2 text-2xl font-bold text-stone-900">
-                Quick answers for applicants and families
+                Quick answers for applicants
               </h2>
             </div>
 
@@ -1299,14 +1670,15 @@ export default function SmartPDMLanding() {
 
           <div className="grid gap-4">
             {generalSettings.landing_faqs.map((item, index) => (
-              <FaqCard
-                key={item.question}
-                item={item}
-                theme={theme}
-                isOpen={activeFaq === index}
-                panelId={`faq-panel-${index}`}
-                onToggle={() => setActiveFaq((current) => (current === index ? -1 : index))}
-              />
+              <div id={`faq-item-${index}`} key={`${item.question}-${index}`} className="scroll-mt-28">
+                <FaqCard
+                  item={item}
+                  theme={theme}
+                  isOpen={activeFaq === index}
+                  panelId={`faq-panel-${index}`}
+                  onToggle={() => setActiveFaq((current) => (current === index ? -1 : index))}
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -1392,9 +1764,6 @@ export default function SmartPDMLanding() {
                 Public Links
               </p>
               <div className="mt-4 flex flex-col items-start gap-3 text-sm">
-                <Link to="/login" className="text-white/70 transition hover:text-white">
-                  Login Access
-                </Link>
                 <button type="button" onClick={() => setActivePolicy('privacy')} className="text-white/70 transition hover:text-white">
                   Privacy Notice
                 </button>
@@ -1429,9 +1798,14 @@ export default function SmartPDMLanding() {
               SMaRT-PDM · Office for Scholarship and Financial Assistance
             </p>
 
-            <p className="text-xs text-white/65">
-              © {new Date().getFullYear()} Pambayang Dalubhasaan ng Marilao
-            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-white/65 md:justify-end">
+              <p>© {new Date().getFullYear()} Pambayang Dalubhasaan ng Marilao</p>
+              <span className="text-white/30" aria-hidden="true">|</span>
+              <Link to="/login" className="inline-flex items-center gap-1.5 transition hover:text-white">
+                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Login</span>
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
@@ -1450,6 +1824,15 @@ export default function SmartPDMLanding() {
           content={generalSettings.landing_content}
           theme={theme}
           onClose={() => setShowRequirements(false)}
+        />
+      ) : null}
+
+      {processModalView ? (
+        <ScholarshipProcessModal
+          steps={applicationJourneySteps}
+          theme={theme}
+          obligationsOnly={processModalView === 'obligations'}
+          onClose={() => setProcessModalView(null)}
         />
       ) : null}
 

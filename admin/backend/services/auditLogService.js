@@ -2,6 +2,86 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
+
+const HIDDEN_SYSTEM_LOG_ACTIONS = new Set([
+    'MARK_NOTIFICATION_READ',
+    'MARK_ALL_NOTIFICATIONS_READ',
+    'UPDATED_AUTH',
+]);
+
+const HIDDEN_SYSTEM_LOG_MODULES = new Set([
+    // The Pi worker reports machine lifecycle/status changes very frequently.
+    // Human-triggered OCR actions are still logged by the normal OCR/Application flows.
+    'Pi IoT OCR Worker',
+]);
+
+const VISIBLE_SYSTEM_LOG_SQL = `
+    upper(coalesce(a.action_taken, '')) !~ '^(VIEW_|PREVIEW_)'
+    and upper(coalesce(a.action_taken, '')) not in (
+        'MARK_NOTIFICATION_READ',
+        'MARK_ALL_NOTIFICATIONS_READ',
+        'UPDATED_AUTH'
+    )
+    and coalesce(a.module, '') <> 'Pi IoT OCR Worker'
+`;
+
+function getRequestPath(req) {
+    return String(req?.originalUrl || req?.url || '')
+        .split('?')[0]
+        .replace(/\\/g, '/')
+        .replace(/\/{2,}/g, '/');
+}
+
+function isNoiseAction(actionTaken) {
+    const action = String(actionTaken || '').trim().toUpperCase();
+    return (
+        action.startsWith('VIEW_') ||
+        action.startsWith('PREVIEW_') ||
+        HIDDEN_SYSTEM_LOG_ACTIONS.has(action)
+    );
+}
+
+function isQuietAuthRequest(req) {
+    const pathname = getRequestPath(req).toLowerCase();
+    return (
+        /^\/api\/auth\/session\/(?:resume|heartbeat|release|release-beacon)(?:\/|$)/.test(pathname) ||
+        /^\/api\/auth\/admin\/forgot-password\/(?:start|verify)(?:\/|$)/.test(pathname)
+    );
+}
+
+function normalizeActionTaken(req, actionTaken, moduleName) {
+    const action = String(actionTaken || '').trim().toUpperCase();
+    const pathname = getRequestPath(req).toLowerCase();
+
+    // Older wrapper code reports every successful auth mutation as UPDATED_AUTH.
+    // Keep the useful security events, but give them meaningful names.
+    if (action === 'UPDATED_AUTH' && String(moduleName || '') === 'Authentication') {
+        if (/\/api\/auth\/login(?:\/|$)/.test(pathname)) {
+            return 'LOGIN_SUCCESS';
+        }
+        if (/\/api\/auth\/session\/logout(?:\/|$)/.test(pathname)) {
+            return 'LOGOUT';
+        }
+        if (/\/api\/auth\/admin\/forgot-password\/reset(?:\/|$)/.test(pathname)) {
+            return 'PASSWORD_RESET';
+        }
+    }
+
+    return action;
+}
+
+function shouldSuppressAudit(req, actionTaken, moduleName) {
+    if (HIDDEN_SYSTEM_LOG_MODULES.has(String(moduleName || '').trim())) {
+        return true;
+    }
+
+    if (isQuietAuthRequest(req)) {
+        return true;
+    }
+
+    return isNoiseAction(actionTaken);
+}
+
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -112,7 +192,7 @@ async function listAuditLogs({
     const moduleFilter = String(module || '').trim();
 
     const values = [];
-    const where = [];
+    const where = [`(${VISIBLE_SYSTEM_LOG_SQL})`];
 
     if (q) {
         values.push(`%${q.toLowerCase()}%`);
@@ -205,6 +285,7 @@ async function listRecentActivityForUser({
             a.timestamp
         from audit_logs a
         where a.user_id = $1
+          and (${VISIBLE_SYSTEM_LOG_SQL})
         order by a.timestamp desc
         limit $2
         `,
@@ -224,10 +305,31 @@ async function logAudit({
     description = null,
     metadata = {},
 }) {
+    const normalizedAction = normalizeActionTaken(req, actionTaken, module);
+
+    if (!normalizedAction || shouldSuppressAudit(req, normalizedAction, module)) {
+        return { logged: false, reason: 'suppressed' };
+    }
+
+    // A controller may have both a purpose-built log call and a generic wrapper.
+    // Keep one authoritative System Log entry per successful request.
+    if (req?.__systemAuditLogged === true || req?.__systemAuditPending === true) {
+        return { logged: false, reason: 'duplicate' };
+    }
+
+    if (req) {
+        req.__systemAuditPending = true;
+    }
+
     try {
+        const pathname = getRequestPath(req).toLowerCase();
         const actorUserId = userId || getActorUserId(req);
         const actorRole = req?.user?.role || null;
-        const actorEmail = req?.user?.email || null;
+        const actorEmail =
+            req?.user?.email ||
+            (/\/api\/auth\/login(?:\/|$)/.test(pathname)
+                ? String(req?.body?.email || '').trim().toLowerCase() || null
+                : null);
         const ipAddress =
             req?.headers?.['x-forwarded-for']?.split(',')?.[0]?.trim() ||
             req?.ip ||
@@ -253,7 +355,7 @@ async function logAudit({
             `,
             [
                 actorUserId,
-                actionTaken,
+                normalizedAction,
                 ipAddress,
                 module,
                 entityType,
@@ -265,8 +367,19 @@ async function logAudit({
                 userAgent,
             ]
         );
+
+        if (req) {
+            req.__systemAuditLogged = true;
+        }
+
+        return { logged: true };
     } catch (err) {
         console.error('AUDIT LOG ERROR:', err.message);
+        return { logged: false, reason: 'error' };
+    } finally {
+        if (req) {
+            req.__systemAuditPending = false;
+        }
     }
 }
 

@@ -49,6 +49,22 @@ async function resolvePeriodIdFromAcademicYear(academicYearId) {
     return data?.[0]?.period_id || null;
 }
 
+async function resolveActiveAcademicPeriodId() {
+    const { data, error } = await supabase
+        .from('academic_period')
+        .select('period_id')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error('RESOLVE ACTIVE ACADEMIC PERIOD ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return data?.period_id || null;
+}
+
 function mapOpening(opening, counts = {}) {
     const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
     const qualifiedCount = toRequiredNumber(counts.qualified_count, 0);
@@ -269,12 +285,18 @@ exports.fetchAllProgramOpenings = async () => {
 };
 
 exports.fetchMobileOpenings = async () => {
+    const activePeriodId = await resolveActiveAcademicPeriodId();
+
+    if (!activePeriodId) {
+        return [];
+    }
     const { data, error } = await baseOpeningSelectQuery().in('posting_status', [
         'open',
         'draft',
         'closed',
         'archived',
-    ]);
+    ])
+        .eq('period_id', activePeriodId);
 
     if (error) {
         console.error('SUPABASE FETCH MOBILE OPENINGS ERROR:', error);

@@ -23,6 +23,15 @@ import {
 } from '@/components/ui/select';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+    formatSystemLogActionLabel,
+    formatSystemLogDescription,
+} from '@/utils/systemLogText';
+import SystemLogIcon from '@/components/system/SystemLogIcon';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 function getAuthHeaders(extra = {}) {
     return {
@@ -50,13 +59,7 @@ function formatDateTime(value) {
 
 
 function formatActionLabel(action = '') {
-    return String(action || '')
-        .trim()
-        .toLowerCase()
-        .split('_')
-        .filter(Boolean)
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ') || 'System Action';
+    return formatSystemLogActionLabel(action);
 }
 
 function actionTone(action = '') {
@@ -248,10 +251,10 @@ export default function AuditPanel() {
                         </div>
 
                         <div>
-                            <h2 className="text-sm font-semibold text-stone-900">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 System Logs Access Restricted
                             </h2>
-                            <p className="mt-0.5 text-xs text-stone-500">
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 Enter your current account password to continue.
                             </p>
                         </div>
@@ -322,10 +325,10 @@ export default function AuditPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 System Log Records
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {total} logged actions
                             </p>
                         </div>
@@ -475,16 +478,19 @@ export default function AuditPanel() {
                                         </td>
 
                                         <td className="whitespace-nowrap px-4 py-3">
-                                            <span
-                                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
-                                            >
-                                                {formatActionLabel(log.action_taken)}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <SystemLogIcon item={log} size="sm" />
+                                                <span
+                                                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
+                                                >
+                                                    {formatActionLabel(log.action_taken)}
+                                                </span>
+                                            </div>
                                         </td>
 
                                         <td className="px-4 py-3 text-stone-600">
                                             <div className="max-w-[360px] truncate">
-                                                {log.description || '-'}
+                                                {formatSystemLogDescription(log)}
                                             </div>
                                         </td>
 

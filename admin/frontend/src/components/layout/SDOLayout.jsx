@@ -22,6 +22,7 @@ import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -47,16 +48,6 @@ const baseNavItems = [
   { path: '/sdo/settings', label: 'Settings', icon: Settings },
 ];
 
-function getHeaderGreeting(profile) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
-  const firstName = String(
-    profile?.first_name || profile?.name || profile?.full_name || ''
-  ).trim().split(/\s+/)[0];
-
-  return `${greeting}, ${firstName || 'there'} 👋`;
-}
-
 export default function SDOLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -74,6 +65,7 @@ export default function SDOLayout() {
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+  const headerGreeting = useHeaderGreeting(profile);
   const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
@@ -392,7 +384,7 @@ export default function SDOLayout() {
         <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {getHeaderGreeting(profile)}
+              {headerGreeting}
             </h1>
           </div>
 
@@ -451,19 +443,23 @@ export default function SDOLayout() {
                           <button
                             key={n.notification_id || index}
                             onClick={() => handleNotificationClick(n)}
-                            className="w-full border-b border-stone-100 border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
-                            style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            style={n.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {n.title || 'Notification'}
                               </p>
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                                style={{ background: theme.base }}
-                              >
-                                New
-                              </span>
+                              {n.is_read !== true ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                                  style={{ background: theme.base }}
+                                >
+                                  New
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
@@ -484,9 +480,9 @@ export default function SDOLayout() {
                           <button
                             key={n.notification_id || `earlier-${index}`}
                             onClick={() => handleNotificationClick(n)}
-                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98]"
-                            style={n.is_recently_opened
-                              ? { borderLeft: `4px solid ${theme.base}`, background: theme.accentSoft }
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            style={n.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
                               : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">

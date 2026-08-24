@@ -27,6 +27,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -41,16 +42,6 @@ function resolveProfileImage(profile) {
   );
 
   return match?.trim() || '';
-}
-
-function getHeaderGreeting(profile) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
-  const firstName = String(
-    profile?.first_name || profile?.name || profile?.full_name || ''
-  ).trim().split(/\s+/)[0];
-
-  return `${greeting}, ${firstName || 'Administrator'} 👋`;
 }
 
 const navItems = [
@@ -75,6 +66,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const headerGreeting = useHeaderGreeting(adminData, 'Administrator');
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('admin');
@@ -331,7 +323,7 @@ export default function AdminLayout() {
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {getHeaderGreeting(adminData)}
+              {headerGreeting}
             </h1>
           </div>
 
@@ -390,19 +382,23 @@ export default function AdminLayout() {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className="w-full border-b border-stone-100 border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
-                            style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            style={n.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {n.title || 'Notification'}
                               </p>
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                                style={{ background: theme.base }}
-                              >
-                                New
-                              </span>
+                              {n.is_read !== true ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                                  style={{ background: theme.base }}
+                                >
+                                  New
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
@@ -427,9 +423,9 @@ export default function AdminLayout() {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98]"
-                            style={n.is_recently_opened
-                              ? { borderLeft: `4px solid ${theme.base}`, background: theme.accentSoft }
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            style={n.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
                               : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">

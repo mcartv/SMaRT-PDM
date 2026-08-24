@@ -2412,6 +2412,72 @@ async function buildApplicationDetails(applicationId) {
     };
 }
 
+function dedupeOperationalApplicationRows(rows = []) {
+    const grouped = new Map();
+
+    for (const row of rows || []) {
+        if (!row?.application_id) continue;
+
+        const key = [
+            row.student_id || 'unknown-student',
+            row.opening_id || 'unknown-opening',
+        ].join(':');
+
+        const existing = grouped.get(key);
+
+        if (!existing) {
+            grouped.set(key, row);
+            continue;
+        }
+
+        const currentApplicationId =
+            row.current_application_id ||
+            existing.current_application_id ||
+            null;
+
+        const rowIsCurrent =
+            !!currentApplicationId &&
+            String(row.application_id) === String(currentApplicationId);
+
+        const existingIsCurrent =
+            !!currentApplicationId &&
+            String(existing.application_id) === String(currentApplicationId);
+
+        if (rowIsCurrent && !existingIsCurrent) {
+            grouped.set(key, row);
+            continue;
+        }
+
+        if (existingIsCurrent && !rowIsCurrent) {
+            continue;
+        }
+
+        const rowSubmittedAt = new Date(
+            row.submission_date || 0
+        ).getTime();
+
+        const existingSubmittedAt = new Date(
+            existing.submission_date || 0
+        ).getTime();
+
+        if (rowSubmittedAt > existingSubmittedAt) {
+            grouped.set(key, row);
+            continue;
+        }
+
+        if (
+            rowSubmittedAt === existingSubmittedAt &&
+            String(row.application_id).localeCompare(
+                String(existing.application_id)
+            ) > 0
+        ) {
+            grouped.set(key, row);
+        }
+    }
+
+    return [...grouped.values()];
+}
+
 exports.fetchApplications = async () => {
     // Self-heal the FCFS readiness queue so previously completed
     // requirements and endorsements appear immediately in Readiness.
@@ -2569,7 +2635,14 @@ exports.fetchApplications = async () => {
         ({ rows } = await pool.query(fallbackQuery));
     }
 
-    const mappedRows = rows.map((row) => {
+    // A student can have stale legacy application rows from an earlier
+    // application attempt in the same opening. The Applicant Registry must
+    // show only the canonical current application. Prefer
+    // students.current_application_id; if legacy data has no pointer, keep
+    // the newest submitted application for that student/opening.
+    const operationalRows = dedupeOperationalApplicationRows(rows);
+
+    const mappedRows = operationalRows.map((row) => {
         const firstName = row.first_name || '';
         const lastName = row.last_name || '';
         const fullName =
@@ -3615,8 +3688,9 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         const { error: submittedDocumentError } = await supabase
             .from('application_documents')
             .update({
-                is_submitted: !!review.url,
-                file_url: review.url,
+                // Verification changes review metadata only.
+                // The permanent upload state comes from file_path/current_version_id,
+                // not from a temporary signed preview URL.
                 review_status: review.reviewStatus,
                 notes: review.comment || null,
                 remarks: review.comment || null,
@@ -3634,6 +3708,11 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             );
             throw new Error(submittedDocumentError.message);
         }
+
+        // Force the next Preview request to reread the document metadata.
+        documentViewMetadataCache.delete(
+            `${applicationId}:${review.documentKey}`
+        );
     }
 
     const majorReviews = requiredReviews.filter(

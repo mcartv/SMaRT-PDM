@@ -8,6 +8,8 @@ import { DepartmentAccountPanel } from '@/components/department/DepartmentMainte
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { formatSystemLogDescription } from '@/utils/systemLogText';
+import SystemLogIcon from '@/components/system/SystemLogIcon';
 import {
     Building2,
     Shield,
@@ -79,15 +81,7 @@ function parseDevice(userAgent = '') {
 }
 
 function formatAuditAction(item = {}) {
-    const description = String(item.description || '').trim();
-    if (description) return description;
-
-    const action = String(item.action_taken || 'Activity')
-        .replaceAll('_', ' ')
-        .toLowerCase()
-        .replace(/^\w/, (letter) => letter.toUpperCase());
-
-    return item.module ? `${action} · ${item.module}` : action;
+    return formatSystemLogDescription(item);
 }
 
 function SectionCard({ title, subtitle, icon, children, action }) {
@@ -143,7 +137,7 @@ const adminProfileConfig = {
         last_name: 'Administrator',
         email: 'admin@pdm.edu.ph',
         phone_number: '',
-        position: 'OSFA Administrator',
+        position: 'OSFA Coordinator',
         department: 'Office for Scholarship and Financial Assistance',
         role: 'Admin',
     },
@@ -166,7 +160,7 @@ export default function AdminProfile() {
         lastName: savedProfile?.last_name || 'Dela Cruz',
         email: savedProfile?.email || 'cdelacruz@pdm.edu.ph',
         phone: savedProfile?.phone || savedProfile?.phone_number || '+63 917 123 4567',
-        position: savedProfile?.position || 'OSFA Administrator',
+        position: savedProfile?.position || 'OSFA Coordinator',
         department: savedProfile?.department || 'Office for Scholarship and Financial Assistance',
         role: savedProfile?.role || 'Super Admin',
         status: savedProfile?.is_active === false ? 'Inactive' : 'Active',
@@ -410,7 +404,7 @@ export default function AdminProfile() {
                                         className="flex flex-col gap-2 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
                                     >
                                         <div className="flex min-w-0 items-start gap-3">
-                                            <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                                            <SystemLogIcon item={item} />
                                             <div className="min-w-0">
                                                 <p className="text-sm font-medium text-stone-700">
                                                     {formatAuditAction(item)}

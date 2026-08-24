@@ -1,73 +1,64 @@
 const db = require('../config/db');
-const supabase = require('../config/supabase');
+const { resolveAvatarUrl } = require('./avatarService');
 
-function extractAvatarStoragePath(value) {
-  const rawValue = String(value || '').trim();
-  if (!rawValue) return null;
+let adminProfilePhotoColumnPromise = null;
 
-  if (!/^https?:\/\//i.test(rawValue)) {
-    return rawValue.replace(/^avatars\//, '');
+async function hasAdminProfilePhotoColumn() {
+  if (!adminProfilePhotoColumnPromise) {
+    adminProfilePhotoColumnPromise = db.query(
+      `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'admin_profiles'
+        AND column_name = 'profile_photo_url'
+      LIMIT 1;
+      `
+    )
+      .then((result) => result.rows.length > 0)
+      .catch((error) => {
+        adminProfilePhotoColumnPromise = null;
+        console.warn('[Messaging] Unable to inspect admin profile photo column:', error.message);
+        return false;
+      });
   }
 
-  const markers = [
-    '/storage/v1/object/public/avatars/',
-    '/storage/v1/object/sign/avatars/',
-    '/storage/v1/object/authenticated/avatars/',
-  ];
-
-  for (const marker of markers) {
-    const markerIndex = rawValue.indexOf(marker);
-    if (markerIndex >= 0) {
-      return rawValue.slice(markerIndex + marker.length).split('?')[0];
-    }
-  }
-
-  return null;
-}
-
-async function resolveAvatarUrl(value) {
-  const rawValue = String(value || '').trim();
-  if (!rawValue) return null;
-
-  const storagePath = extractAvatarStoragePath(rawValue);
-  if (!storagePath) {
-    return rawValue;
-  }
-
-  try {
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-    if (error) {
-      return rawValue;
-    }
-
-    return data?.signedUrl || rawValue;
-  } catch {
-    return rawValue;
-  }
+  return adminProfilePhotoColumnPromise;
 }
 
 async function getUserSummary(userId) {
+  const adminPhotoEnabled = await hasAdminProfilePhotoColumn();
+  const adminPhotoExpression = adminPhotoEnabled
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
+
   const result = await db.query(
     `
     SELECT
       u.user_id,
       u.role,
       u.email,
-      st.pdm_id AS student_number,
-      st.profile_photo_url,
+      u.username,
+      ap.department,
+      ap.position,
+      COALESCE(
+        st.pdm_id,
+        ap.department,
+        INITCAP(REPLACE(COALESCE(u.role, 'user'), '_', ' '))
+      ) AS student_number,
+      COALESCE(st.profile_photo_url, ${adminPhotoExpression}) AS profile_photo_url,
       CASE
         WHEN st.student_id IS NOT NULL THEN COALESCE(st.is_archived, false)
         WHEN ap.admin_id IS NOT NULL THEN COALESCE(ap.is_archived, false)
         ELSE false
       END AS is_disabled,
-      CASE
-        WHEN st.student_id IS NOT NULL THEN TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, ''))
-        WHEN ap.admin_id IS NOT NULL THEN TRIM(COALESCE(ap.first_name, '') || ' ' || COALESCE(ap.last_name, ''))
-        ELSE COALESCE(u.email, 'Unknown User')
-      END AS display_name
+      COALESCE(
+        NULLIF(TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')), ''),
+        NULLIF(TRIM(COALESCE(ap.first_name, '') || ' ' || COALESCE(ap.last_name, '')), ''),
+        NULLIF(TRIM(COALESCE(u.username, '')), ''),
+        NULLIF(TRIM(COALESCE(u.email, '')), ''),
+        'Unknown User'
+      ) AS display_name
     FROM users u
     LEFT JOIN students st
       ON st.user_id = u.user_id
@@ -93,10 +84,48 @@ async function getUserSummary(userId) {
   };
 }
 
+async function getUserSummarySafe(userId) {
+  try {
+    return await getUserSummary(userId);
+  } catch (error) {
+    console.warn('[Messaging] Profile enrichment failed for room member:', {
+      userId,
+      message: error.message,
+    });
+
+    try {
+      const fallback = await db.query(
+        `
+        SELECT user_id, role, email, username
+        FROM users
+        WHERE user_id = $1
+        LIMIT 1;
+        `,
+        [userId]
+      );
+      const row = fallback.rows[0];
+      if (!row) return null;
+      return {
+        ...row,
+        display_name: row.username || row.email || 'Unknown User',
+        student_number: null,
+        profile_photo_url: null,
+        avatar_url: null,
+        department: null,
+        position: null,
+        is_disabled: false,
+      };
+    } catch (fallbackError) {
+      console.warn('[Messaging] Basic user fallback failed:', fallbackError.message);
+      return null;
+    }
+  }
+}
+
 async function ensureRoomMembership(userId, roomId) {
   const result = await db.query(
     `
-    SELECT membership_id
+    SELECT room_id, user_id, is_admin
     FROM chat_room_members
     WHERE room_id = $1
       AND user_id = $2
@@ -106,8 +135,24 @@ async function ensureRoomMembership(userId, roomId) {
   );
 
   if (!result.rows.length) {
-    throw new Error('You are not a member of this chat room');
+    const error = new Error('You are not a member of this chat room');
+    error.statusCode = 403;
+    throw error;
   }
+
+  return result.rows[0];
+}
+
+async function ensureRoomAdmin(userId, roomId) {
+  const membership = await ensureRoomMembership(userId, roomId);
+
+  if (membership.is_admin !== true) {
+    const error = new Error('Only a group admin can manage members.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return membership;
 }
 
 async function createPrivateReadStates(messageId, senderId, receiverId) {
@@ -239,7 +284,7 @@ exports.fetchConversations = async (currentUserId) => {
   const conversations = [];
 
   for (const row of result.rows) {
-    const summary = await getUserSummary(row.counterparty_id);
+    const summary = await getUserSummarySafe(row.counterparty_id);
 
     conversations.push({
       counterparty_id: row.counterparty_id,
@@ -294,7 +339,7 @@ exports.fetchConversationMessages = async (currentUserId, counterpartyId) => {
   const summaries = new Map();
 
   for (const senderId of [...new Set(result.rows.map((row) => row.sender_id).filter(Boolean))]) {
-    summaries.set(senderId, await getUserSummary(senderId));
+    summaries.set(senderId, await getUserSummarySafe(senderId));
   }
 
   return result.rows.map((row) => ({
@@ -455,7 +500,7 @@ exports.sendMessage = async ({
   const message = result.rows[0];
 
   if (!message) {
-    const receiverSummary = await getUserSummary(receiverId);
+    const receiverSummary = await getUserSummarySafe(receiverId);
     const error = new Error(
       receiverSummary?.is_disabled
         ? 'This account is currently disabled. You can view previous messages, but you cannot send new messages to this account.'
@@ -483,7 +528,7 @@ exports.sendMessage = async ({
     [senderId, receiverId]
   );
 
-  const senderSummary = await getUserSummary(senderId);
+  const senderSummary = await getUserSummarySafe(senderId);
 
   return {
     ...message,
@@ -537,7 +582,8 @@ exports.fetchRooms = async (currentUserId) => {
       lrm.subject,
       lrm.sent_at AS last_sent_at,
       COALESCE(mc.member_count, 0) AS member_count,
-      COALESCE(uc.unread_count, 0) AS unread_count
+      COALESCE(uc.unread_count, 0) AS unread_count,
+      COALESCE(my_membership.is_admin, false) AS is_admin
     FROM chat_room_members my_membership
     JOIN chat_rooms cr
       ON cr.room_id = my_membership.room_id
@@ -571,6 +617,7 @@ exports.fetchRooms = async (currentUserId) => {
     last_sent_at: row.last_sent_at,
     member_count: Number(row.member_count || 0),
     unread_count: Number(row.unread_count || 0),
+    is_admin: row.is_admin === true,
     conversation_type: 'group',
   }));
 };
@@ -680,7 +727,7 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
   const summaries = new Map();
 
   for (const senderId of [...new Set(result.rows.map((row) => row.sender_id).filter(Boolean))]) {
-    summaries.set(senderId, await getUserSummary(senderId));
+    summaries.set(senderId, await getUserSummarySafe(senderId));
   }
 
   return result.rows.map((row) => ({
@@ -738,7 +785,7 @@ exports.sendRoomMessage = async ({
     [roomId]
   );
 
-  const senderSummary = await getUserSummary(senderId);
+  const senderSummary = await getUserSummarySafe(senderId);
 
   return {
     ...message,
@@ -750,7 +797,7 @@ exports.sendRoomMessage = async ({
 };
 
 exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
-  await ensureRoomMembership(actorId, roomId);
+  await ensureRoomAdmin(actorId, roomId);
 
   const uniqueMemberIds = [...new Set(memberIds.filter(Boolean))];
   const inserted = [];
@@ -764,9 +811,8 @@ exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
         is_admin
       )
       VALUES ($1, $2, false)
-      ON CONFLICT (room_id, user_id)
-      DO NOTHING
-      RETURNING membership_id, room_id, user_id, joined_at, is_admin;
+      ON CONFLICT DO NOTHING
+      RETURNING room_id, user_id, is_admin;
       `,
       [roomId, userId]
     );
@@ -781,6 +827,146 @@ exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
     added_count: inserted.length,
     members: inserted,
   };
+};
+
+exports.fetchRoomMembers = async (currentUserId, roomId) => {
+  const viewerMembership = await ensureRoomMembership(currentUserId, roomId);
+  const result = await db.query(
+    `
+    SELECT room_id, user_id, is_admin
+    FROM chat_room_members
+    WHERE room_id = $1
+    ORDER BY is_admin DESC, user_id ASC;
+    `,
+    [roomId]
+  );
+
+  const summaries = await Promise.all(
+    result.rows.map((row) => getUserSummarySafe(row.user_id))
+  );
+
+  const items = result.rows.map((row, index) => {
+    const summary = summaries[index];
+    return {
+      user_id: row.user_id,
+      name: summary?.display_name || summary?.email || 'Unknown User',
+      subtitle:
+        summary?.student_number ||
+        summary?.position ||
+        summary?.department ||
+        summary?.role ||
+        '',
+      student_number: summary?.student_number || null,
+      role: summary?.role || null,
+      email: summary?.email || null,
+      department: summary?.department || null,
+      position: summary?.position || null,
+      profile_photo_url: summary?.profile_photo_url || null,
+      avatar_url: summary?.avatar_url || null,
+      is_admin: row.is_admin === true,
+      is_current_user: row.user_id === currentUserId,
+      joined_at: null,
+    };
+  });
+
+  return {
+    room_id: roomId,
+    viewer_is_admin: viewerMembership.is_admin === true,
+    items,
+  };
+};
+
+exports.removeRoomMember = async ({ actorId, roomId, memberId }) => {
+  await ensureRoomAdmin(actorId, roomId);
+  const normalizedMemberId = String(memberId || '').trim();
+
+  if (!normalizedMemberId) {
+    const error = new Error('A valid member is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizedMemberId === actorId) {
+    const error = new Error('Use Leave Group to remove yourself.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const memberResult = await db.query(
+    `SELECT is_admin FROM chat_room_members WHERE room_id = $1 AND user_id = $2 LIMIT 1;`,
+    [roomId, normalizedMemberId]
+  );
+  const member = memberResult.rows[0];
+
+  if (!member) {
+    const error = new Error('Group member not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (member.is_admin === true) {
+    const error = new Error('Another group admin cannot be removed.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  await db.query(
+    `DELETE FROM chat_room_members WHERE room_id = $1 AND user_id = $2;`,
+    [roomId, normalizedMemberId]
+  );
+
+  return { room_id: roomId, member_id: normalizedMemberId, removed: true };
+};
+
+exports.leaveRoom = async (currentUserId, roomId) => {
+  const membership = await ensureRoomMembership(currentUserId, roomId);
+  const client = await db.connect();
+
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `DELETE FROM chat_room_members WHERE room_id = $1 AND user_id = $2;`,
+      [roomId, currentUserId]
+    );
+
+    const remainingResult = await client.query(
+      `
+      SELECT user_id, is_admin
+      FROM chat_room_members
+      WHERE room_id = $1
+      ORDER BY is_admin DESC, user_id ASC;
+      `,
+      [roomId]
+    );
+
+    if (!remainingResult.rows.length) {
+      await client.query(
+        `UPDATE chat_rooms SET is_archived = true WHERE room_id = $1;`,
+        [roomId]
+      );
+    } else if (membership.is_admin === true && !remainingResult.rows.some((row) => row.is_admin === true)) {
+      await client.query(
+        `UPDATE chat_room_members SET is_admin = true WHERE room_id = $1 AND user_id = $2;`,
+        [roomId, remainingResult.rows[0].user_id]
+      );
+    }
+
+    await client.query('COMMIT');
+    return {
+      room_id: roomId,
+      user_id: currentUserId,
+      left: true,
+      promoted_user_id:
+        membership.is_admin === true && remainingResult.rows.length
+          ? remainingResult.rows[0].user_id
+          : null,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 exports.markRoomMessagesRead = async (currentUserId, roomId) => {
@@ -1022,7 +1208,7 @@ exports.fetchArchivedThreads = async (currentUserId) => {
   const items = [];
 
   for (const archive of privateArchivesResult.rows) {
-    const summary = await getUserSummary(archive.counterparty_id);
+    const summary = await getUserSummarySafe(archive.counterparty_id);
 
     const lastMessageResult = await db.query(
       `

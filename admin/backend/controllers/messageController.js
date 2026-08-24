@@ -3,6 +3,33 @@ const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 const messageService = require('../services/messageService');
+const { resolveAvatarUrl } = require('../services/avatarService');
+
+
+let adminProfilePhotoColumnPromise = null;
+
+async function hasAdminProfilePhotoColumn() {
+  if (!adminProfilePhotoColumnPromise) {
+    adminProfilePhotoColumnPromise = db.query(
+      `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'admin_profiles'
+        AND column_name = 'profile_photo_url'
+      LIMIT 1;
+      `
+    )
+      .then((result) => result.rows.length > 0)
+      .catch((error) => {
+        adminProfilePhotoColumnPromise = null;
+        console.warn('[Messaging] Unable to inspect admin profile photo column:', error.message);
+        return false;
+      });
+  }
+
+  return adminProfilePhotoColumnPromise;
+}
 
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
@@ -251,7 +278,7 @@ async function getPrimarySupportAdminId(currentUserId) {
       END
     WHERE m.room_id IS NULL
       AND (m.sender_id = $1 OR m.receiver_id = $1)
-      AND LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+      AND LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')
     ORDER BY m.sent_at DESC, m.message_id DESC
     LIMIT 1;
     `,
@@ -268,7 +295,7 @@ async function getPrimarySupportAdminId(currentUserId) {
     FROM users u
     LEFT JOIN admin_profiles ap
       ON ap.user_id = u.user_id
-    WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+    WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')
     ORDER BY
       CASE WHEN ap.admin_id IS NULL THEN 1 ELSE 0 END,
       u.created_at ASC NULLS LAST,
@@ -281,6 +308,9 @@ async function getPrimarySupportAdminId(currentUserId) {
 }
 
 async function fetchConversationMessages(leftUserId, rightUserId) {
+  const adminPhotoExpression = await hasAdminProfilePhotoColumn()
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
   const result = await db.query(
     `
     SELECT
@@ -301,8 +331,8 @@ async function fetchConversationMessages(leftUserId, rightUserId) {
         u.email,
         'Unknown'
       ) AS sender_name,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
@@ -391,6 +421,9 @@ async function createPrivateMessage({
   );
 
   const inserted = result.rows[0];
+  const adminPhotoExpression = await hasAdminProfilePhotoColumn()
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
 
   const withProfile = await db.query(
     `
@@ -412,8 +445,8 @@ async function createPrivateMessage({
         u.email,
         'Unknown'
       ) AS sender_name,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
@@ -499,6 +532,9 @@ async function createRoomMessage({
   );
 
   const inserted = result.rows[0];
+  const adminPhotoExpression = await hasAdminProfilePhotoColumn()
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
 
   const withProfile = await db.query(
     `
@@ -515,17 +551,20 @@ async function createRoomMessage({
       u.role AS sender_role,
       COALESCE(
         NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+        NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
         u.username,
         u.email,
         'Unknown'
       ) AS sender_name,
-      s.profile_photo_url AS sender_profile_photo_url,
-      s.profile_photo_url AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
     LEFT JOIN students s
       ON s.user_id = m.sender_id
+    LEFT JOIN admin_profiles ap
+      ON ap.user_id = m.sender_id
     WHERE m.message_id = $1
     LIMIT 1;
     `,
@@ -811,113 +850,25 @@ exports.getConversations = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const result = await db.query(
-      `
-      WITH direct_messages AS (
-        SELECT
-          m.*,
-          CASE
-            WHEN m.sender_id = $1 THEN m.receiver_id
-            ELSE m.sender_id
-          END AS counterparty_id
-        FROM messages m
-        WHERE m.room_id IS NULL
-          AND (m.sender_id = $1 OR m.receiver_id = $1)
-          AND NOT EXISTS (
-            SELECT 1
-            FROM message_thread_archives mta
-            WHERE mta.user_id = $1
-              AND mta.thread_type = 'private'
-              AND mta.counterparty_id = CASE
-                WHEN m.sender_id = $1 THEN m.receiver_id
-                ELSE m.sender_id
-              END
-          )
-      ),
-      ranked AS (
-        SELECT
-          dm.*,
-          ROW_NUMBER() OVER (
-            PARTITION BY dm.counterparty_id
-            ORDER BY dm.sent_at DESC, dm.message_id DESC
-          ) AS rn,
-          COUNT(*) FILTER (
-            WHERE dm.receiver_id = $1
-              AND dm.sender_id <> $1
-              AND COALESCE(dm.is_read, false) = false
-          ) OVER (PARTITION BY dm.counterparty_id) AS unread_count
-        FROM direct_messages dm
-        WHERE dm.counterparty_id IS NOT NULL
-      )
-      SELECT
-        r.counterparty_id,
-        r.message_id,
-        r.message_body,
-        r.sent_at,
-        r.unread_count,
-        u.role,
-        COALESCE(
-          NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
-          NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
-          u.username,
-          u.email,
-          'Unknown user'
-        ) AS name,
-        COALESCE(s.pdm_id, ap.department, INITCAP(COALESCE(u.role, 'user'))) AS student_number,
-        s.profile_photo_url AS avatar_url,
-        CASE
-          WHEN s.student_id IS NOT NULL THEN COALESCE(s.is_archived, false)
-          WHEN ap.admin_id IS NOT NULL THEN COALESCE(ap.is_archived, false)
-          ELSE false
-        END AS is_disabled
-      FROM ranked r
-      LEFT JOIN users u
-        ON u.user_id = r.counterparty_id
-      LEFT JOIN students s
-        ON s.user_id = r.counterparty_id
-      LEFT JOIN admin_profiles ap
-        ON ap.user_id = r.counterparty_id
-      WHERE r.rn = 1
-      ORDER BY r.sent_at DESC, r.message_id DESC;
-      `,
-      [currentUserId]
-    );
-
-    const items = result.rows.map((row) => ({
+    const rows = await messageService.fetchConversations(currentUserId);
+    const items = rows.map((row) => ({
+      ...row,
       counterpartyId: row.counterparty_id,
-      counterparty_id: row.counterparty_id,
-
-      messageId: row.message_id,
-      message_id: row.message_id,
-
-      name: row.name || 'Unknown user',
-
-      role: row.role || null,
-
-      studentNumber: row.student_number || null,
-      student_number: row.student_number || null,
-
-      avatarUrl: row.avatar_url || null,
-      avatar_url: row.avatar_url || null,
-
+      studentNumber: row.student_number || '',
+      avatarUrl: row.avatar_url || row.profile_photo_url || null,
       isDisabled: row.is_disabled === true,
-      is_disabled: row.is_disabled === true,
-
-      lastMessage: row.message_body || '',
-      last_message: row.message_body || '',
-
-      lastSentAt: row.sent_at,
-      last_sent_at: row.sent_at,
-
+      lastMessage: row.last_message || '',
+      lastSentAt: row.last_sent_at || null,
       unreadCount: Number(row.unread_count || 0),
-      unread_count: Number(row.unread_count || 0),
+      isAdmin: row.is_admin === true,
+      is_admin: row.is_admin === true,
     }));
 
     return res.json({ items });
   } catch (err) {
     console.error('GET CONVERSATIONS ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to load conversations',
       error: err.message,
     });
@@ -1038,9 +989,7 @@ exports.restoreRoom = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const result = await messageService.restoreRoom(currentUserId, roomId, {
-      skipMembershipCheck: isSystemAdmin(req),
-    });
+    const result = await messageService.restoreRoom(currentUserId, roomId);
 
     if (result.restored) {
       const io = req.app.get('io');
@@ -1081,20 +1030,10 @@ exports.markConversationRead = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const updateResult = await db.query(
-      `
-      UPDATE messages
-      SET is_read = true
-      WHERE room_id IS NULL
-        AND receiver_id = $1
-        AND sender_id = $2
-        AND COALESCE(is_read, false) = false
-      RETURNING message_id;
-      `,
-      [currentUserId, counterpartyId]
+    const messageIds = await messageService.markConversationRead(
+      currentUserId,
+      counterpartyId
     );
-
-    const messageIds = updateResult.rows.map((row) => row.message_id);
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1125,7 +1064,7 @@ exports.markConversationRead = async (req, res) => {
   } catch (err) {
     console.error('MARK CONVERSATION READ ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark conversation as read',
       error: err.message,
     });
@@ -1141,32 +1080,10 @@ exports.markConversationUnread = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const latestMessage = await db.query(
-      `
-      SELECT message_id
-      FROM messages
-      WHERE room_id IS NULL
-        AND receiver_id = $1
-        AND sender_id = $2
-      ORDER BY sent_at DESC, message_id DESC
-      LIMIT 1;
-      `,
-      [currentUserId, counterpartyId]
+    const messageIds = await messageService.markConversationUnread(
+      currentUserId,
+      counterpartyId
     );
-
-    const messageIds = latestMessage.rows.map((row) => row.message_id);
-
-    if (messageIds.length) {
-      await db.query(
-        `
-        UPDATE messages
-        SET is_read = false
-        WHERE message_id = ANY($1::uuid[]);
-        `,
-        [messageIds]
-      );
-    }
-
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1198,7 +1115,7 @@ exports.markConversationUnread = async (req, res) => {
   } catch (err) {
     console.error('MARK CONVERSATION UNREAD ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark conversation as unread',
       error: err.message,
     });
@@ -1328,75 +1245,24 @@ exports.getRooms = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    let result;
-
-    if (isSystemAdmin(req)) {
-      result = await db.query(
-        `
-        SELECT
-          cr.room_id,
-          cr.room_name,
-          cr.created_at,
-          cr.created_by,
-          0::int AS unread_count
-        FROM chat_rooms cr
-        WHERE COALESCE(cr.is_archived, false) = false
-          AND NOT EXISTS (
-            SELECT 1
-            FROM message_thread_archives mta
-            WHERE mta.user_id = $1
-              AND mta.thread_type = 'group'
-              AND mta.room_id = cr.room_id
-          )
-        ORDER BY cr.created_at DESC;
-        `,
-        [currentUserId]
-      );
-    } else {
-      result = await db.query(
-        `
-        SELECT
-          cr.room_id,
-          cr.room_name,
-          cr.created_at,
-          cr.created_by,
-          0::int AS unread_count
-        FROM chat_room_members crm
-        JOIN chat_rooms cr
-          ON cr.room_id = crm.room_id
-        WHERE crm.user_id = $1
-          AND COALESCE(cr.is_archived, false) = false
-          AND NOT EXISTS (
-            SELECT 1
-            FROM message_thread_archives mta
-            WHERE mta.user_id = $1
-              AND mta.thread_type = 'group'
-              AND mta.room_id = cr.room_id
-          )
-        ORDER BY cr.created_at DESC;
-        `,
-        [currentUserId]
-      );
-    }
-
-    const items = result.rows.map((row) => ({
+    const rows = await messageService.fetchRooms(currentUserId);
+    const items = rows.map((row) => ({
+      ...row,
       roomId: row.room_id,
-      room_id: row.room_id,
       roomName: row.room_name,
-      room_name: row.room_name,
-      createdAt: row.created_at,
-      created_at: row.created_at,
       createdBy: row.created_by,
-      created_by: row.created_by,
+      createdAt: row.created_at,
+      lastMessage: row.last_message || '',
+      lastSentAt: row.last_sent_at || null,
+      memberCount: Number(row.member_count || 0),
       unreadCount: Number(row.unread_count || 0),
-      unread_count: Number(row.unread_count || 0),
     }));
 
     return res.json({ items });
   } catch (err) {
     console.error('GET ROOMS ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to load chat rooms',
       error: err.message,
     });
@@ -1454,6 +1320,8 @@ exports.createRoom = async (req, res) => {
       );
     }
 
+    const roomMemberPayload = await messageService.fetchRoomMembers(currentUserId, room.room_id);
+    const roomMembers = roomMemberPayload?.items || [];
     const payload = {
       roomId: room.room_id,
       room_id: room.room_id,
@@ -1465,6 +1333,12 @@ exports.createRoom = async (req, res) => {
       created_at: room.created_at,
       memberIds,
       member_ids: memberIds,
+      members: roomMembers,
+      roomMembers,
+      memberCount: roomMembers.length,
+      member_count: roomMembers.length,
+      viewerIsAdmin: roomMemberPayload?.viewer_is_admin === true,
+      viewer_is_admin: roomMemberPayload?.viewer_is_admin === true,
     };
 
     const io = req.app.get('io');
@@ -1497,50 +1371,23 @@ exports.getRoomMessages = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    let items;
-
-    if (isSystemAdmin(req)) {
-      const result = await db.query(
-        `
-        SELECT
-          m.message_id,
-          m.sender_id,
-          m.receiver_id,
-          m.room_id,
-          m.subject,
-          m.message_body,
-          m.attachment_url,
-          m.sent_at,
-          m.is_read,
-          u.role AS sender_role,
-          COALESCE(
-            NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
-            NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
-            u.username,
-            u.email,
-            'Unknown'
-          ) AS sender_name,
-          COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-          COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
-        FROM messages m
-        LEFT JOIN users u ON u.user_id = m.sender_id
-        LEFT JOIN students s ON s.user_id = m.sender_id
-        LEFT JOIN admin_profiles ap ON ap.user_id = m.sender_id
-        WHERE m.room_id = $1
-        ORDER BY m.sent_at ASC, m.message_id ASC;
-        `,
-        [roomId]
-      );
-      items = result.rows.map(toMessagePayload);
-    } else {
-      items = await messageService.fetchRoomMessages(currentUserId, roomId);
-    }
+    const [items, memberPayload] = await Promise.all([
+      messageService.fetchRoomMessages(currentUserId, roomId),
+      messageService.fetchRoomMembers(currentUserId, roomId),
+    ]);
+    const members = memberPayload?.items || [];
 
     return res.json({
       roomId,
       room_id: roomId,
       items,
       messages: items,
+      members,
+      roomMembers: members,
+      memberCount: members.length,
+      member_count: members.length,
+      viewerIsAdmin: memberPayload?.viewer_is_admin === true,
+      viewer_is_admin: memberPayload?.viewer_is_admin === true,
     });
   } catch (err) {
     console.error('GET ROOM MESSAGES ERROR:', err.message);
@@ -1566,7 +1413,7 @@ exports.sendRoomMessage = async (req, res) => {
       return res.status(400).json({ message: 'Message body is required' });
     }
 
-    const message = await createRoomMessage({
+    const message = await messageService.sendRoomMessage({
       senderId,
       roomId,
       subject: getSubject(req),
@@ -1574,9 +1421,8 @@ exports.sendRoomMessage = async (req, res) => {
       attachmentUrl: getAttachmentUrl(req),
     });
 
-    const memberIds = await fetchRoomMemberUserIds(roomId);
+    const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, senderId);
-
     const io = req.app.get('io');
 
     emitMessageCreated(io, message, targetUserIds);
@@ -1592,6 +1438,37 @@ exports.sendRoomMessage = async (req, res) => {
   }
 };
 
+exports.getRoomMembers = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const payload = await messageService.fetchRoomMembers(currentUserId, roomId);
+    return res.json({
+      roomId,
+      room_id: roomId,
+      viewerIsAdmin: payload.viewer_is_admin === true,
+      viewer_is_admin: payload.viewer_is_admin === true,
+      items: payload.items || [],
+      members: payload.items || [],
+      roomMembers: payload.items || [],
+      memberCount: (payload.items || []).length,
+      member_count: (payload.items || []).length,
+    });
+  } catch (err) {
+    console.error('GET ROOM MEMBERS ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to load room members',
+      error: err.message,
+    });
+  }
+};
+
+
 exports.addRoomMembers = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);
@@ -1601,19 +1478,61 @@ exports.addRoomMembers = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const roomAccess = await db.query(
-      `
-      SELECT is_admin
-      FROM chat_room_members
-      WHERE room_id = $1
-        AND user_id = $2
-      LIMIT 1;
-      `,
-      [roomId, currentUserId]
-    );
+    const action = String(req.body?.action || 'add').trim().toLowerCase();
 
-    if (!isSystemAdmin(req) && roomAccess.rows[0]?.is_admin !== true) {
-      return res.status(403).json({ message: 'Only the group owner can add contacts.' });
+    if (action === 'remove') {
+      const memberId = String(req.body?.memberId || req.body?.member_id || '').trim();
+      if (!memberId) {
+        return res.status(400).json({ message: 'Member ID is required.' });
+      }
+
+      const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+      const result = await messageService.removeRoomMember({
+        actorId: currentUserId,
+        roomId,
+        memberId,
+      });
+      const io = req.app.get('io');
+      emitToUsers(io, 'room:members-removed', {
+        room_id: roomId,
+        roomId,
+        member_id: memberId,
+        memberId,
+        actor_id: currentUserId,
+        actorId: currentUserId,
+        updated_at: new Date().toISOString(),
+      }, uniqueIds(beforeMemberIds, currentUserId, memberId));
+
+      const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
+      const members = refreshed?.items || [];
+      return res.json({
+        success: true,
+        action: 'remove',
+        ...result,
+        members,
+        roomMembers: members,
+        memberCount: members.length,
+        member_count: members.length,
+        viewerIsAdmin: refreshed?.viewer_is_admin === true,
+        viewer_is_admin: refreshed?.viewer_is_admin === true,
+      });
+    }
+
+    if (action === 'leave') {
+      const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+      const result = await messageService.leaveRoom(currentUserId, roomId);
+      const io = req.app.get('io');
+      emitToUsers(io, 'room:member-left', {
+        room_id: roomId,
+        roomId,
+        user_id: currentUserId,
+        userId: currentUserId,
+        promoted_user_id: result.promoted_user_id || null,
+        promotedUserId: result.promoted_user_id || null,
+        updated_at: new Date().toISOString(),
+      }, uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id));
+
+      return res.json({ success: true, action: 'leave', ...result });
     }
 
     const memberIds =
@@ -1624,22 +1543,14 @@ exports.addRoomMembers = async (req, res) => {
       [];
 
     const selectedUserIds = uniqueIds(Array.isArray(memberIds) ? memberIds : []);
+    const result = await messageService.addRoomMembers({
+      actorId: currentUserId,
+      roomId,
+      memberIds: selectedUserIds,
+    });
 
-    if (selectedUserIds.length) {
-      await db.query(
-        `
-        INSERT INTO chat_room_members (room_id, user_id, is_admin)
-        SELECT $1, member_id, false
-        FROM unnest($2::uuid[]) AS member_id
-        ON CONFLICT DO NOTHING;
-        `,
-        [roomId, selectedUserIds]
-      );
-    }
-
-    const allRoomMemberIds = await fetchRoomMemberUserIds(roomId);
-    const targetUserIds = uniqueIds(allRoomMemberIds, currentUserId);
-
+    const allRoomMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+    const targetUserIds = uniqueIds(allRoomMemberIds, currentUserId, selectedUserIds);
     const payload = {
       room_id: roomId,
       roomId,
@@ -1647,34 +1558,105 @@ exports.addRoomMembers = async (req, res) => {
       actorId: currentUserId,
       member_ids: selectedUserIds,
       memberIds: selectedUserIds,
-      added_count: selectedUserIds.length,
-      addedCount: selectedUserIds.length,
+      added_count: result.added_count || 0,
+      addedCount: result.added_count || 0,
       updated_at: new Date().toISOString(),
     };
 
     const io = req.app.get('io');
-
     if (socketEvents?.roomMembersAdded) {
-      socketEvents.roomMembersAdded(io, payload, {
-        targetUserIds,
-      });
+      socketEvents.roomMembersAdded(io, payload, { targetUserIds });
     } else {
       emitToUsers(io, 'room:members-added', payload, targetUserIds);
     }
 
+    const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
+    const members = refreshed?.items || [];
     return res.json({
       success: true,
-      addedCount: selectedUserIds.length,
-      added_count: selectedUserIds.length,
-      members: selectedUserIds,
-      memberIds: selectedUserIds,
-      member_ids: selectedUserIds,
+      action: 'add',
+      ...result,
+      members,
+      roomMembers: members,
+      memberCount: members.length,
+      member_count: members.length,
+      viewerIsAdmin: refreshed?.viewer_is_admin === true,
+      viewer_is_admin: refreshed?.viewer_is_admin === true,
     });
   } catch (err) {
-    console.error('ADD ROOM MEMBERS ERROR:', err.message);
+    console.error('MANAGE ROOM MEMBERS ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to update group members',
+      error: err.message,
+    });
+  }
+};
 
-    return res.status(500).json({
-      message: 'Failed to add room members',
+exports.removeRoomMember = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId, memberId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+    const result = await messageService.removeRoomMember({
+      actorId: currentUserId,
+      roomId,
+      memberId,
+    });
+
+    const io = req.app.get('io');
+    const targetUserIds = uniqueIds(beforeMemberIds, currentUserId, memberId);
+    emitToUsers(io, 'room:members-removed', {
+      room_id: roomId,
+      roomId,
+      member_id: memberId,
+      memberId,
+      actor_id: currentUserId,
+      actorId: currentUserId,
+      updated_at: new Date().toISOString(),
+    }, targetUserIds);
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('REMOVE ROOM MEMBER ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to remove group member',
+      error: err.message,
+    });
+  }
+};
+
+exports.leaveRoom = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+    const result = await messageService.leaveRoom(currentUserId, roomId);
+    const io = req.app.get('io');
+    emitToUsers(io, 'room:member-left', {
+      room_id: roomId,
+      roomId,
+      user_id: currentUserId,
+      userId: currentUserId,
+      promoted_user_id: result.promoted_user_id || null,
+      promotedUserId: result.promoted_user_id || null,
+      updated_at: new Date().toISOString(),
+    }, uniqueIds(beforeMemberIds, currentUserId));
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('LEAVE ROOM ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to leave group',
       error: err.message,
     });
   }
@@ -1689,40 +1671,9 @@ exports.markRoomMessagesRead = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    let messageIds = [];
-
-    try {
-      const unread = await db.query(
-        `
-        SELECT m.message_id
-        FROM messages m
-        WHERE m.room_id = $1
-          AND m.sender_id <> $2;
-        `,
-        [roomId, currentUserId]
-      );
-
-      messageIds = unread.rows.map((row) => row.message_id);
-
-      if (messageIds.length) {
-        await db.query(
-          `
-          INSERT INTO message_read_states (message_id, user_id, is_read, read_at)
-          SELECT message_id, $2, true, now()
-          FROM unnest($1::uuid[]) AS message_id
-          ON CONFLICT (message_id, user_id)
-          DO UPDATE SET is_read = true, read_at = now();
-          `,
-          [messageIds, currentUserId]
-        );
-      }
-    } catch {
-      messageIds = [];
-    }
-
-    const memberIds = await fetchRoomMemberUserIds(roomId);
+    const messageIds = await messageService.markRoomMessagesRead(currentUserId, roomId);
+    const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, currentUserId);
-
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1753,7 +1704,7 @@ exports.markRoomMessagesRead = async (req, res) => {
   } catch (err) {
     console.error('MARK ROOM MESSAGES READ ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark room messages as read',
       error: err.message,
     });
@@ -1769,40 +1720,9 @@ exports.markRoomMessagesUnread = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const latest = await db.query(
-      `
-      SELECT message_id
-      FROM messages
-      WHERE room_id = $1
-        AND sender_id <> $2
-      ORDER BY sent_at DESC, message_id DESC
-      LIMIT 1;
-      `,
-      [roomId, currentUserId]
-    );
-
-    const messageIds = latest.rows.map((row) => row.message_id);
-
-    try {
-      if (messageIds.length) {
-        await db.query(
-          `
-          INSERT INTO message_read_states (message_id, user_id, is_read, read_at)
-          SELECT message_id, $2, false, null
-          FROM unnest($1::uuid[]) AS message_id
-          ON CONFLICT (message_id, user_id)
-          DO UPDATE SET is_read = false, read_at = null;
-          `,
-          [messageIds, currentUserId]
-        );
-      }
-    } catch {
-      // ignore read state failure
-    }
-
-    const memberIds = await fetchRoomMemberUserIds(roomId);
+    const messageIds = await messageService.markRoomMessagesUnread(currentUserId, roomId);
+    const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, currentUserId);
-
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1834,7 +1754,7 @@ exports.markRoomMessagesUnread = async (req, res) => {
   } catch (err) {
     console.error('MARK ROOM MESSAGES UNREAD ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark room messages as unread',
       error: err.message,
     });
@@ -1858,9 +1778,7 @@ exports.archiveRoom = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const archive = await messageService.archiveRoom(currentUserId, roomId, {
-      skipMembershipCheck: isSystemAdmin(req),
-    });
+    const archive = await messageService.archiveRoom(currentUserId, roomId);
     const archivedAt = archive?.archived_at || new Date().toISOString();
 
     const io = req.app.get('io');
@@ -1921,40 +1839,43 @@ exports.getScholarMembers = async (req, res) => {
       `
     );
 
-    const items = result.rows.map((row) => ({
-      userId: row.user_id,
-      user_id: row.user_id,
+    const items = await Promise.all(result.rows.map(async (row) => {
+      const avatarUrl = await resolveAvatarUrl(row.profile_photo_url || null);
+      return {
+        userId: row.user_id,
+        user_id: row.user_id,
 
-      studentId: row.student_id,
-      student_id: row.student_id,
+        studentId: row.student_id,
+        student_id: row.student_id,
 
-      pdmId: row.pdm_id,
-      pdm_id: row.pdm_id,
+        pdmId: row.pdm_id,
+        pdm_id: row.pdm_id,
 
-      name:
-        [row.first_name, row.last_name]
-          .filter(Boolean)
-          .join(' ')
-          .trim() ||
-        row.username ||
-        row.email ||
-        'Unknown scholar',
+        name:
+          [row.first_name, row.last_name]
+            .filter(Boolean)
+            .join(' ')
+            .trim() ||
+          row.username ||
+          row.email ||
+          'Unknown scholar',
 
-      firstName: row.first_name,
-      first_name: row.first_name,
+        firstName: row.first_name,
+        first_name: row.first_name,
 
-      lastName: row.last_name,
-      last_name: row.last_name,
+        lastName: row.last_name,
+        last_name: row.last_name,
 
-      email: row.email,
-      username: row.username,
-      role: row.role,
+        email: row.email,
+        username: row.username,
+        role: row.role,
 
-      avatarUrl: row.profile_photo_url,
-      avatar_url: row.profile_photo_url,
+        avatarUrl,
+        avatar_url: avatarUrl,
 
-      profilePhotoUrl: row.profile_photo_url,
-      profile_photo_url: row.profile_photo_url,
+        profilePhotoUrl: avatarUrl,
+        profile_photo_url: avatarUrl,
+      };
     }));
 
     return res.json({ items });
@@ -2016,19 +1937,26 @@ exports.getMessagingContacts = async (req, res) => {
       studentParams
     );
 
+    const adminPhotoEnabled = await hasAdminProfilePhotoColumn();
+    const adminPhotoSelect = adminPhotoEnabled
+      ? 'ap.profile_photo_url'
+      : 'NULL::text AS profile_photo_url';
+
     const staffResult = await db.query(
       `
       SELECT
         u.user_id,
         u.role,
+        u.username,
+        u.email,
         ap.first_name,
         ap.last_name,
         ap.department,
         ap.position,
-        ap.profile_photo_url
+        ${adminPhotoSelect}
       FROM users u
-      JOIN admin_profiles ap ON ap.user_id = u.user_id
-      WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+      LEFT JOIN admin_profiles ap ON ap.user_id = u.user_id
+      WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')
         AND COALESCE(ap.is_archived, false) = false
         AND u.user_id <> $1
       ORDER BY ap.last_name ASC NULLS LAST, ap.first_name ASC NULLS LAST
@@ -2036,34 +1964,44 @@ exports.getMessagingContacts = async (req, res) => {
       [currentUserId]
     );
 
-    const studentItems = studentsResult.rows.map((row) => ({
-      user_id: row.user_id,
-      userId: row.user_id,
-      student_id: row.student_id,
-      studentId: row.student_id,
-      student_number: row.student_number,
-      studentNumber: row.student_number,
-      first_name: row.first_name,
-      firstName: row.first_name,
-      last_name: row.last_name,
-      lastName: row.last_name,
-      student_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
-      studentName: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
-      avatar_url: row.profile_photo_url,
-      avatarUrl: row.profile_photo_url,
-      program_name: row.program_name,
-      programName: row.program_name,
-      benefactor_name: 'Student',
-      benefactorName: 'Student',
-      role: row.role,
-      contact_type: 'student',
+    const studentItems = await Promise.all(studentsResult.rows.map(async (row) => {
+      const avatarUrl = await resolveAvatarUrl(row.profile_photo_url || null);
+      return {
+        user_id: row.user_id,
+        userId: row.user_id,
+        student_id: row.student_id,
+        studentId: row.student_id,
+        student_number: row.student_number,
+        studentNumber: row.student_number,
+        first_name: row.first_name,
+        firstName: row.first_name,
+        last_name: row.last_name,
+        lastName: row.last_name,
+        student_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
+        studentName: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
+        avatar_url: avatarUrl,
+        avatarUrl,
+        program_name: row.program_name,
+        programName: row.program_name,
+        benefactor_name: 'Student',
+        benefactorName: 'Student',
+        role: row.role,
+        contact_type: 'student',
+      };
     }));
 
-    const staffItems = staffResult.rows.map((row) => {
-      const name = [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Account';
-      const roleLabel = String(row.role || 'user')
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (character) => character.toUpperCase());
+    const staffItems = await Promise.all(staffResult.rows.map(async (row) => {
+      const avatarUrl = await resolveAvatarUrl(row.profile_photo_url || null);
+      const name =
+        [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+        row.username ||
+        row.email ||
+        'Account';
+      const roleLabel = row.role === 'ro_coordinator'
+        ? 'RO Coordinator'
+        : String(row.role || 'user')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (character) => character.toUpperCase());
       return {
         user_id: row.user_id,
         userId: row.user_id,
@@ -2077,17 +2015,17 @@ exports.getMessagingContacts = async (req, res) => {
         lastName: row.last_name,
         student_name: name,
         studentName: name,
-        avatar_url: row.profile_photo_url,
-        avatarUrl: row.profile_photo_url,
+        avatar_url: avatarUrl,
+        avatarUrl,
         program_name: row.department || 'Office',
         programName: row.department || 'Office',
         benefactor_name: roleLabel,
         benefactorName: roleLabel,
         role: row.role,
         position: row.position,
-        contact_type: 'staff',
+        contact_type: 'authorized_user',
       };
-    });
+    }));
 
     return res.json({ items: [...staffItems, ...studentItems] });
   } catch (err) {

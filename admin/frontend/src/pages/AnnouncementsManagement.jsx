@@ -31,6 +31,7 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 
 const C = {
   brown: 'var(--portal-base)',
@@ -845,79 +846,6 @@ function ConfirmTemplateApplyModal({
   );
 }
 
-function FeedbackModal({
-  open,
-  tone = 'success',
-  title,
-  message,
-  onClose,
-}) {
-  if (!open) return null;
-
-  const meta = {
-    success: {
-      heading: title || 'Success',
-      bg: C.greenSoft,
-      color: C.green,
-      button: C.brownMid,
-    },
-    error: {
-      heading: title || 'Something went wrong',
-      bg: C.redSoft,
-      color: C.red,
-      button: C.red,
-    },
-    info: {
-      heading: title || 'Notice',
-      bg: C.blueSoft,
-      color: C.blue,
-      button: C.brownMid,
-    },
-  };
-
-  const current = meta[tone] || meta.info;
-
-  return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <Card
-        className="w-full max-w-md overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ background: current.color }}
-            />
-
-            <div>
-              <h3 className="text-sm font-semibold text-stone-800">
-                {current.heading}
-              </h3>
-              <p className="mt-1 text-xs text-stone-500">
-                {message || 'Action completed.'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <CardContent className="flex justify-end p-5">
-          <Button
-            onClick={onClose}
-            className="h-9 rounded-lg border-none px-5 text-xs text-white"
-            style={{ background: current.button }}
-          >
-            Okay
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 function EmptyList({ archived }) {
   return (
     <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
@@ -1189,22 +1117,6 @@ export default function AnnouncementsManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const [feedbackModal, setFeedbackModal] = useState({
-    open: false,
-    tone: 'success',
-    title: '',
-    message: '',
-  });
-
-  const showFeedback = useCallback((tone, title, message) => {
-    setFeedbackModal({
-      open: true,
-      tone,
-      title,
-      message,
-    });
-  }, []);
-
   const loadPrograms = useCallback(async () => {
     try {
       setProgramsLoading(true);
@@ -1281,7 +1193,7 @@ export default function AnnouncementsManagement() {
       console.error('LOAD ANNOUNCEMENTS ERROR:', err);
 
       if (!silent) {
-        showFeedback(
+        showAppToast(
           'error',
           'Failed to load announcements',
           err.message || 'Failed to load announcements'
@@ -1292,7 +1204,7 @@ export default function AnnouncementsManagement() {
         setLoading(false);
       }
     }
-  }, [showFeedback]);
+  }, []);
 
   useEffect(() => {
     loadAnnouncements();
@@ -1671,7 +1583,7 @@ export default function AnnouncementsManagement() {
       setShowForm(false);
       setShowDiscardModal(false);
 
-      showFeedback(
+      showAppToast(
         'success',
         wasEditing ? 'Announcement updated' : 'Announcement saved',
         wasEditing
@@ -1681,7 +1593,7 @@ export default function AnnouncementsManagement() {
     } catch (err) {
       console.error('POST ANNOUNCEMENT ERROR:', err);
 
-      showFeedback(
+      showAppToast(
         'error',
         'Save failed',
         err.message || 'Failed to save announcement'
@@ -1734,7 +1646,7 @@ export default function AnnouncementsManagement() {
       setShowForm(false);
       setShowDiscardModal(false);
 
-      showFeedback(
+      showAppToast(
         'success',
         'Draft saved',
         'The announcement draft was saved successfully.'
@@ -1742,7 +1654,7 @@ export default function AnnouncementsManagement() {
     } catch (err) {
       console.error('SAVE DRAFT ERROR:', err);
 
-      showFeedback(
+      showAppToast(
         'error',
         'Draft save failed',
         err.message || 'Failed to save draft'
@@ -1786,9 +1698,14 @@ export default function AnnouncementsManagement() {
             : a
         )
       );
+      showAppToast(
+        'success',
+        'Announcement archived',
+        'The announcement was moved to Archived.'
+      );
     } catch (err) {
       console.error('ARCHIVE ANNOUNCEMENT ERROR:', err);
-      showFeedback(
+      showAppToast(
         'error',
         'Archive failed',
         err.message || 'Failed to archive announcement'
@@ -1821,9 +1738,14 @@ export default function AnnouncementsManagement() {
       }
 
       await loadAnnouncements({ silent: true });
+      showAppToast(
+        'success',
+        'Announcement restored',
+        'The announcement was restored successfully.'
+      );
     } catch (err) {
       console.error('RESTORE ANNOUNCEMENT ERROR:', err);
-      showFeedback(
+      showAppToast(
         'error',
         'Restore failed',
         err.message || 'Failed to restore announcement'
@@ -1858,9 +1780,14 @@ export default function AnnouncementsManagement() {
       if (data?.data) {
         setItems((prev) => prev.map((a) => (a.id === id ? data.data : a)));
       }
+      showAppToast(
+        'success',
+        'Announcement published',
+        'The announcement is now visible to its intended audience.'
+      );
     } catch (err) {
       console.error('PUBLISH ANNOUNCEMENT ERROR:', err);
-      showFeedback(
+      showAppToast(
         'error',
         'Publish failed',
         err.message || 'Failed to publish announcement'
@@ -1917,18 +1844,7 @@ export default function AnnouncementsManagement() {
         selectedTemplate={selectedTemplate}
       />
 
-      <FeedbackModal
-        open={feedbackModal.open}
-        tone={feedbackModal.tone}
-        title={feedbackModal.title}
-        message={feedbackModal.message}
-        onClose={() =>
-          setFeedbackModal((prev) => ({
-            ...prev,
-            open: false,
-          }))
-        }
-      />
+
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">

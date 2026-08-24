@@ -464,6 +464,28 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
     }
 
     const partitioned = partitionQueue(queue, opening, occupiedBefore);
+
+    const openingStatus = String(opening.posting_status || '')
+      .trim()
+      .toLowerCase();
+
+    // Keep the semester opening active until its remaining scholarship slots
+    // are filled. The Admin can still manually close an underfilled opening,
+    // and a semester/year transition will close it automatically.
+    if (
+      openingStatus === 'open' &&
+      partitioned.available_slots > partitioned.selected_count
+    ) {
+      const stillAvailable =
+        partitioned.available_slots - partitioned.selected_count;
+
+      throw httpError(
+        409,
+        `This opening still has ${stillAvailable} available scholarship slot${stillAvailable === 1 ? '' : 's'}. Keep the opening active for more eligible applicants, or close it manually before finalizing early.`,
+        'OPENING_STILL_HAS_AVAILABLE_SLOTS'
+      );
+    }
+
     const batchResult = await client.query(
       `
         INSERT INTO application_selection_batches (

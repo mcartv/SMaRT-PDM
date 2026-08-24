@@ -14,7 +14,15 @@ import {
     Save,
     X,
 } from 'lucide-react';
-import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
+import {
+    C,
+    EmptyState,
+    FieldLabel,
+} from './components/MaintenanceShared';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 
@@ -378,11 +386,11 @@ export default function CoursesPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Course Records
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
-                                {currentCount} active · {archivedCount} archived
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                Course Management
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                                Manage academic course records and Program Director assignments.
                             </p>
                         </div>
 

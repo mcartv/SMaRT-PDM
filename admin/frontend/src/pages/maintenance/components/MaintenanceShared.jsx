@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Building2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { MAINTENANCE_CARD_TITLE_CLASS } from './maintenanceTypography';
 
 export const C = {
     brown: 'var(--portal-base)',
@@ -33,7 +34,7 @@ export function GroupCard({ title, icon: Icon = Building2, children }) {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-stone-200 bg-white">
                     <Icon className="h-3.5 w-3.5 text-stone-600" />
                 </div>
-                <p className="text-xs font-semibold text-stone-800">{title}</p>
+                <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{title}</h3>
             </div>
 
             <CardContent className="p-4 space-y-4">

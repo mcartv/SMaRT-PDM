@@ -3,14 +3,18 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Cpu, Activity, Database, RefreshCw, Settings } from 'lucide-react';
 import { GroupCard, Toggle } from './components/MaintenanceShared';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 export default function SystemPanel({ embedded = false }) {
     return (
         <div className="space-y-4">
             {!embedded ? (
                 <div>
-                    <h2 className="text-base font-semibold text-stone-900">System Efficiency & OCR</h2>
-                    <p className="mt-0.5 text-sm text-stone-500">Core services, engine health, and manual control</p>
+                    <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>System Efficiency & OCR</h2>
+                    <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>Core services, engine health, and manual control</p>
                 </div>
             ) : null}
 

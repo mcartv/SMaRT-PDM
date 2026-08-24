@@ -11,7 +11,7 @@ const ROLE_CONFIG = {
     admin: {
         dbRole: 'Admin',
         department: 'Office for Scholarship and Financial Assistance (OSFA)',
-        position: 'OSFA Administrator',
+        position: 'OSFA Coordinator',
     },
     pd: {
         dbRole: 'Admin',
@@ -21,12 +21,12 @@ const ROLE_CONFIG = {
     guidance: {
         dbRole: 'Admin',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Officer',
+        position: 'Guidance Counselor',
     },
     sdo: {
         dbRole: 'SDO',
         department: 'Student Welfare and Development Office',
-        position: 'SDO Officer',
+        position: 'Student Discipline Officer',
     },
     ro_coordinator: {
         dbRole: 'Admin',
@@ -58,17 +58,27 @@ const passwordSchema = z
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
     .regex(/[0-9]/, 'Password must contain at least one number.');
 
+const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
+const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
+const optionalPhoneNumberSchema = z
+    .string()
+    .trim()
+    .refine((value) => !value || PHONE_NUMBER_PATTERN.test(value), {
+        message: PHONE_NUMBER_ERROR,
+    })
+    .optional()
+    .default('');
+
 const staffAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
         last_name: z.string().trim().min(1, 'Last name is required.'),
         email: z.string().trim().toLowerCase().email('A valid email address is required.'),
-        phone_number: z.string().trim().optional().default(''),
+        phone_number: optionalPhoneNumberSchema,
         role: z.enum(OPERATIONAL_ROLE_VALUES, {
             error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
         }),
         department: z.string().trim().optional().default(''),
-        position: z.string().trim().optional().default(''),
         password: passwordSchema,
         confirm_password: z.string(),
     })
@@ -98,6 +108,16 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function validateOptionalPhoneNumber(value) {
+    const phoneNumber = safeText(value);
+
+    if (phoneNumber && !PHONE_NUMBER_PATTERN.test(phoneNumber)) {
+        throw createHttpError(400, PHONE_NUMBER_ERROR);
+    }
+
+    return phoneNumber || null;
 }
 
 function validateDepartment(role, value) {
@@ -471,9 +491,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
 
     const phoneNumber = safeText(phoneNumberInput) || null;
     let department = validateDepartment(role, rawPayload.department || parsedData.department || config.department);
-    const position = role === 'ro_coordinator'
-        ? config.position
-        : safeText(rawPayload.position || parsedData.position) || config.position;
+    const position = config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
     const client = await db.connect();
@@ -705,7 +723,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : safeText(current.email).toLowerCase();
 
         const phoneNumber = payload.phone_number !== undefined
-            ? safeText(payload.phone_number) || null
+            ? validateOptionalPhoneNumber(payload.phone_number)
             : safeText(current.phone_number) || null;
 
         const departmentInput = payload.department !== undefined
@@ -718,13 +736,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             department = await validateRoCoordinatorDepartment(department, client);
         }
 
-        const position = nextRole === 'ro_coordinator'
-            ? config.position
-            : payload.position !== undefined
-                ? safeText(payload.position) || config.position
-                : roleChanged
-                    ? config.position
-                    : safeText(current.position) || config.position;
+        const position = config.position;
 
         const nextIsArchived = payload.is_archived !== undefined
             ? payload.is_archived === true
@@ -732,6 +744,9 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
 
         const sessionIdentityChanged =
             roleChanged || nextIsArchived !== (current.is_archived === true);
+        const isSelfUpdate = Boolean(
+            actorUserId && String(actorUserId) === String(userId)
+        );
 
         if (
             currentRole === 'ro_coordinator' &&
@@ -833,7 +848,13 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             );
         }
 
-        if (sessionIdentityChanged || passwordChanged) {
+        // Keep the current Admin signed in when changing their own password.
+        // A password reset performed for another account still revokes every
+        // session for that target account immediately.
+        const shouldInvalidateSession =
+            sessionIdentityChanged || (passwordChanged && !isSelfUpdate);
+
+        if (shouldInvalidateSession) {
             await revokeStaffSessionVersion(client, userId);
         }
 
@@ -887,7 +908,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         await client.query('COMMIT');
 
         const updatedAccount = await getStaffAccountById(userId, true);
-        if (updatedAccount && (sessionIdentityChanged || passwordChanged)) {
+        if (updatedAccount && shouldInvalidateSession) {
             Object.defineProperty(updatedAccount, 'session_invalidated', {
                 value: true,
                 enumerable: false,

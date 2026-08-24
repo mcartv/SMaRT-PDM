@@ -84,16 +84,19 @@ function isRelevantPortalNotification(
 
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
-    const aUnread = a.is_read !== true ? 1 : 0;
-    const bUnread = b.is_read !== true ? 1 : 0;
-    if (aUnread !== bUnread) {
-      return bUnread - aUnread;
-    }
-
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bTime - aTime;
   });
+}
+
+function isRecentNotification(notification, now = Date.now()) {
+  if (!notification?.created_at) return false;
+
+  const createdAt = new Date(notification.created_at).getTime();
+  if (Number.isNaN(createdAt)) return false;
+
+  return now - createdAt < 24 * 60 * 60 * 1000;
 }
 
 function formatNotificationTime(value) {
@@ -193,19 +196,19 @@ export default function usePortalNotifications({
   portalRootPath,
   limit = 8,
 }) {
-  const openedStorageKey = `smartpdm-opened-notifications:${portalRootPath}:${tokenStorageKey}`;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+  const [sectionNow, setSectionNow] = useState(() => Date.now());
 
-  const readOpenedNotificationIds = useCallback(() => {
-    try {
-      return new Set(JSON.parse(sessionStorage.getItem(openedStorageKey) || '[]'));
-    } catch {
-      return new Set();
-    }
-  }, [openedStorageKey]);
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setSectionNow(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const syncItems = useCallback((updater) => {
     setItems((current) => {
@@ -279,11 +282,7 @@ export default function usePortalNotifications({
           isRelevantPortalNotification(portalRootPath, item, {
             hasRoCoordinatorAccess,
           })
-        )
-        .map((item) => ({
-          ...item,
-          is_recently_opened: readOpenedNotificationIds().has(item.notification_id),
-        }));
+        );
       setItems(sortNotifications(normalized));
     } catch (error) {
       console.error('NOTIFICATION LOAD ERROR:', error);
@@ -291,7 +290,7 @@ export default function usePortalNotifications({
     } finally {
       setLoading(false);
     }
-  }, [hasRoCoordinatorAccess, limit, portalRootPath, readOpenedNotificationIds, tokenStorageKey]);
+  }, [hasRoCoordinatorAccess, limit, portalRootPath, tokenStorageKey]);
 
   useEffect(() => {
     loadNotifications();
@@ -407,33 +406,18 @@ export default function usePortalNotifications({
   );
 
   const newNotifications = useMemo(
-    () => items.filter((item) => item.is_read !== true),
-    [items]
+    () => items.filter((item) => isRecentNotification(item, sectionNow)),
+    [items, sectionNow]
   );
 
   const earlierNotifications = useMemo(
-    () => items.filter((item) => item.is_read === true),
-    [items]
+    () => items.filter((item) => !isRecentNotification(item, sectionNow)),
+    [items, sectionNow]
   );
 
   const openNotification = useCallback(
     async (notification, navigate) => {
       if (!notification) return;
-
-      const openedIds = readOpenedNotificationIds();
-      openedIds.add(notification.notification_id);
-      try {
-        sessionStorage.setItem(openedStorageKey, JSON.stringify([...openedIds]));
-      } catch {
-        // The in-memory highlight still works when session storage is unavailable.
-      }
-      syncItems((current) =>
-        current.map((item) =>
-          item.notification_id === notification.notification_id
-            ? { ...item, is_read: true, is_recently_opened: true }
-            : item
-        )
-      );
 
       if (notification.is_read !== true) {
         await markAsRead(notification.notification_id);
@@ -457,7 +441,7 @@ export default function usePortalNotifications({
         }
       }
     },
-    [markAsRead, openedStorageKey, portalRootPath, readOpenedNotificationIds, syncItems]
+    [markAsRead, portalRootPath]
   );
 
   return {

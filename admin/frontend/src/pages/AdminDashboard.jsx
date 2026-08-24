@@ -289,12 +289,7 @@ export default function AdminDashboard() {
   useSocketEvent('opening:archived', refreshRealtime, [refreshRealtime]);
   useSocketEvent('opening:restored', refreshRealtime, [refreshRealtime]);
 
-  useSocketEvent('payout:created', refreshRealtime, [refreshRealtime]);
   useSocketEvent('payout:updated', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('payout:archived', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('payout:restored', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('scholar:released', refreshRealtime, [refreshRealtime]);
-
   useSocketEvent('renewal:created', refreshRealtime, [refreshRealtime]);
   useSocketEvent('renewal:updated', refreshRealtime, [refreshRealtime]);
   useSocketEvent('renewal:reviewed', refreshRealtime, [refreshRealtime]);

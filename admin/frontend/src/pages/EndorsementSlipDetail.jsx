@@ -396,7 +396,25 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             <DetailItem label="Program" value={slip.program_name || 'N/A'} />
             <DetailItem label="Semester" value={slip.semester || 'N/A'} />
             <DetailItem label="School Year" value={slip.school_year || 'N/A'} />
-            {isPdView ? <DetailItem label="GWA" value={slip.grade_summary?.gwa ?? 'N/A'} /> : null}
+            {isPdView ? <DetailItem label="OCR GWA" value={slip.grade_summary?.gwa ?? 'N/A'} /> : null}
+            {isPdView ? (
+              <DetailItem
+                label="Grade Validation"
+                value={
+                  slip.grade_summary?.grade_validation?.is_valid === true
+                    ? 'Passed'
+                    : slip.grade_summary?.grade_validation?.status
+                      ? String(slip.grade_summary.grade_validation.status).replaceAll('_', ' ')
+                      : 'Not validated'
+                }
+              />
+            ) : null}
+
+            {isPdView && slip.grade_summary?.grade_validation?.blocking_reason ? (
+              <div className="sm:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                {slip.grade_summary.grade_validation.blocking_reason}
+              </div>
+            ) : null}
 
             {slip.final_pdf_url ? (
               <div className="sm:col-span-2">

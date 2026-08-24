@@ -167,6 +167,15 @@ function hasUploadedGrade(row) {
   return row?.grade_document?.is_uploaded === true;
 }
 
+function getGradeValidation(row) {
+  const validation = row?.grade_summary?.grade_validation;
+  return validation && typeof validation === 'object' ? validation : null;
+}
+
+function hasValidGrade(row) {
+  return getGradeValidation(row)?.is_valid === true;
+}
+
 function ProfileAvatar({ row, size = 'md', onPreview }) {
   const [failed, setFailed] = useState(false);
   const src = failed ? null : row?.avatar_url;
@@ -497,7 +506,13 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
   }
 
   const standing = state.pdResult || '';
-  const gradeReady = hasUploadedGrade(row);
+  const gradeValidation = getGradeValidation(row);
+  const gradeReady = hasValidGrade(row);
+  const gradeBlockingReason =
+    gradeValidation?.blocking_reason ||
+    (!hasUploadedGrade(row)
+      ? 'A Grade Report is required before PD endorsement.'
+      : 'Grade Report OCR and GWA validation must pass before PD endorsement.');
   return (
     <div className="space-y-4">
       <div>
@@ -515,7 +530,15 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
         </SelectContent>
       </Select>
       <Textarea value={state.remarks || ''} onChange={(event) => onChange({ remarks: event.target.value })} rows={3} placeholder="Optional remarks" />
-      {!gradeReady ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">A Grade Report is required before PD endorsement.</p> : null}
+      {!gradeReady ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          {gradeBlockingReason}
+        </p>
+      ) : (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          Grade Report OCR and GWA validation passed.
+        </p>
+      )}
       <Button disabled={saving || !gradeReady || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
       </Button>
@@ -536,6 +559,7 @@ function confirmationMeta(queueKey, action, studentName) {
 function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClose, onViewFull, detailBasePath, onPreviewProfile, onPreviewGrade }) {
   if (!row) return null;
   const decision = getDecision(queueKey, row);
+  const gradeValidation = getGradeValidation(row);
   return (
     <Sheet open={Boolean(row)} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
@@ -572,9 +596,24 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
             <section className="rounded-xl border border-stone-200 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Academic Information</p>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-xs text-stone-500">GWA</p><p className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</p></div>
+                <div><p className="text-xs text-stone-500">OCR GWA</p><p className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</p></div>
                 <div><p className="text-xs text-stone-500">Academic Period</p><p className="font-semibold text-stone-900">{row.semester || 'N/A'} / {row.school_year || 'N/A'}</p></div>
+                <div>
+                  <p className="text-xs text-stone-500">Grade Validation</p>
+                  <p className={`font-semibold ${gradeValidation?.is_valid === true ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {gradeValidation?.is_valid === true
+                      ? 'Passed'
+                      : gradeValidation?.status
+                        ? String(gradeValidation.status).replaceAll('_', ' ')
+                        : 'Not validated'}
+                  </p>
+                </div>
               </div>
+              {gradeValidation?.blocking_reason ? (
+                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  {gradeValidation.blocking_reason}
+                </p>
+              ) : null}
               {row.grade_document?.url ? (
                 <div className="mt-4">
                   <Button
@@ -676,7 +715,21 @@ export default function EndorsementQueue({
   useEffect(() => { loadQueue(); }, [loadQueue]);
   useEffect(() => {
     if (!hasAccess) return undefined;
-    const id = window.setInterval(() => loadQueue({ soft: true }), 8000);
+
+    // Socket events are the primary refresh path. This low-frequency fallback
+    // only repairs a temporarily missed event while the tab is visible.
+    const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      loadQueue({ soft: true });
+    };
+
+    const id = window.setInterval(
+      refreshIfVisible,
+      FALLBACK_REFRESH_INTERVAL_MS
+    );
+
     return () => window.clearInterval(id);
   }, [hasAccess, loadQueue]);
   useSocketEvent('endorsement:updated', () => loadQueue({ soft: true }), [loadQueue]);

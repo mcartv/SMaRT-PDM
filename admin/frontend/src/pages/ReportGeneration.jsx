@@ -438,22 +438,6 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('payout:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
-  useSocketEvent('payout:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
-  useSocketEvent('payout:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
-  useSocketEvent('payout:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
   useSocketEvent('endorsement:updated', () => {
     refreshReportData();
   }, [refreshReportData]);

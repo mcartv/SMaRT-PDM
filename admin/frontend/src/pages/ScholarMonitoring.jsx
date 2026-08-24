@@ -443,12 +443,15 @@ function FilterModal({
   onClose,
   programOptions,
   yearOptions,
+  semesterOptions,
   statusOptions,
   sortOptions,
   draftProgram,
   setDraftProgram,
   draftYear,
   setDraftYear,
+  draftSemester,
+  setDraftSemester,
   draftStatus,
   setDraftStatus,
   draftSortBy,
@@ -523,6 +526,26 @@ function FilterModal({
               </SelectContent>
             </Select>
           </div>
+
+          {sectionMode === 'registry' ? (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                Semester
+              </label>
+              <Select value={draftSemester} onValueChange={setDraftSemester}>
+                <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[100]">
+                  {semesterOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
@@ -1370,6 +1393,7 @@ export default function ScholarMonitoring() {
   const [search, setSearch] = useState('');
   const [program, setProgram] = useState('All Programs');
   const [academicYear, setAcademicYear] = useState('All Years');
+  const [semester, setSemester] = useState('All Semesters');
   const [status, setStatus] = useState('All Statuses');
   const [sortBy, setSortBy] = useState('Name A-Z');
   const [page, setPage] = useState(1);
@@ -1389,6 +1413,7 @@ export default function ScholarMonitoring() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftProgram, setDraftProgram] = useState('All Programs');
   const [draftYear, setDraftYear] = useState('All Years');
+  const [draftSemester, setDraftSemester] = useState('All Semesters');
   const [draftStatus, setDraftStatus] = useState('All Statuses');
   const [draftSortBy, setDraftSortBy] = useState('Name A-Z');
 
@@ -1621,6 +1646,7 @@ export default function ScholarMonitoring() {
     setSearch('');
     setProgram('All Programs');
     setAcademicYear('All Years');
+    setSemester('All Semesters');
     setStatus('All Statuses');
     setSortBy('Name A-Z');
     setPage(1);
@@ -1674,6 +1700,10 @@ export default function ScholarMonitoring() {
         String(item.academic_year || item.batch_year || '') ===
         String(academicYear);
 
+      const matchSemester =
+        semester === 'All Semesters' ||
+        String(item.semester || '') === String(semester);
+
       const matchStatus =
         status === 'All Statuses' ||
         String(item.status || '') === status;
@@ -1682,6 +1712,7 @@ export default function ScholarMonitoring() {
         matchSearch &&
         matchProgram &&
         matchYear &&
+        matchSemester &&
         matchStatus
       );
     });
@@ -1712,7 +1743,7 @@ export default function ScholarMonitoring() {
           return nameA.localeCompare(nameB);
       }
     });
-  }, [scholars, search, program, academicYear, status, sortBy]);
+  }, [scholars, search, program, academicYear, semester, status, sortBy]);
 
   const filteredRenewals = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1796,6 +1827,7 @@ export default function ScholarMonitoring() {
     search,
     program,
     academicYear,
+    semester,
     status,
     sortBy,
     sectionMode,
@@ -1837,6 +1869,14 @@ export default function ScholarMonitoring() {
     ];
   }, [scholars, renewals, sectionMode]);
 
+  const semesterOptions = useMemo(
+    () => [
+      'All Semesters',
+      ...new Set(scholars.map((item) => item.semester).filter(Boolean)),
+    ],
+    [scholars]
+  );
+
   const statusOptions = useMemo(() => {
     const source =
       sectionMode === 'registry'
@@ -1859,12 +1899,14 @@ export default function ScholarMonitoring() {
   const hasActiveFilters =
     program !== 'All Programs' ||
     academicYear !== 'All Years' ||
+    semester !== 'All Semesters' ||
     status !== 'All Statuses' ||
     sortBy !== 'Name A-Z';
 
   const openFilterModal = () => {
     setDraftProgram(program);
     setDraftYear(academicYear);
+    setDraftSemester(semester);
     setDraftStatus(status);
     setDraftSortBy(sortBy);
     setFilterOpen(true);
@@ -1873,6 +1915,7 @@ export default function ScholarMonitoring() {
   const applyFilters = () => {
     setProgram(draftProgram);
     setAcademicYear(draftYear);
+    setSemester(draftSemester);
     setStatus(draftStatus);
     setSortBy(draftSortBy);
     setFilterOpen(false);
@@ -1882,11 +1925,13 @@ export default function ScholarMonitoring() {
   const clearFilters = () => {
     setDraftProgram('All Programs');
     setDraftYear('All Years');
+    setDraftSemester('All Semesters');
     setDraftStatus('All Statuses');
     setDraftSortBy('Name A-Z');
 
     setProgram('All Programs');
     setAcademicYear('All Years');
+    setSemester('All Semesters');
     setStatus('All Statuses');
     setSortBy('Name A-Z');
 
@@ -1949,12 +1994,15 @@ export default function ScholarMonitoring() {
         onClose={() => setFilterOpen(false)}
         programOptions={programOptions}
         yearOptions={yearOptions}
+        semesterOptions={semesterOptions}
         statusOptions={statusOptions}
         sortOptions={sortOptions}
         draftProgram={draftProgram}
         setDraftProgram={setDraftProgram}
         draftYear={draftYear}
         setDraftYear={setDraftYear}
+        draftSemester={draftSemester}
+        setDraftSemester={setDraftSemester}
         draftStatus={draftStatus}
         setDraftStatus={setDraftStatus}
         draftSortBy={draftSortBy}

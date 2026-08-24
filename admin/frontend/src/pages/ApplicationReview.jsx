@@ -52,6 +52,7 @@ const C = {
 const PAGE_SIZE = 8;
 
 const DEFAULT_FILTERS = {
+  academicYear: 'all',
   openingStatus: 'all',
   applicationStatus: 'all',
   documentStatus: 'all',
@@ -384,6 +385,7 @@ function Toolbar({
   hasNeedsAttention,
   refreshing,
   onRefresh,
+  academicYearOptions,
   filters,
   draftFilters,
   setDraftFilters,
@@ -393,6 +395,7 @@ function Toolbar({
   const [filterOpen, setFilterOpen] = useState(false);
 
   const hasActiveFilters =
+    filters.academicYear !== 'all' ||
     filters.openingStatus !== 'all' ||
     filters.applicationStatus !== 'all' ||
     filters.documentStatus !== 'all';
@@ -498,6 +501,30 @@ function Toolbar({
               </DialogHeader>
 
               <div className="grid gap-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-stone-700">
+                    Academic Year
+                  </label>
+                  <Select
+                    value={draftFilters.academicYear}
+                    onValueChange={(value) =>
+                      setDraftFilters((prev) => ({ ...prev, academicYear: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select academic year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Academic Years</SelectItem>
+                      {academicYearOptions.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {viewType === 'cards' ? (
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-stone-700">
@@ -1677,6 +1704,19 @@ export default function ApplicationReview() {
     }));
   }, [openings]);
 
+  const academicYearOptions = useMemo(() => {
+    const years = [
+      ...openingCards.map((item) => item.academic_year),
+      ...registryRows.map((item) => item.academic_year),
+    ]
+      .map((value) => String(value || '').trim())
+      .filter((value) => value && value !== '\u2014');
+
+    return [...new Set(years)].sort((a, b) =>
+      b.localeCompare(a, undefined, { numeric: true })
+    );
+  }, [openingCards, registryRows]);
+
   const openingCountsMap = useMemo(() => {
     const map = new Map();
 
@@ -1721,11 +1761,15 @@ export default function ApplicationReview() {
         (opening.program_name || '').toLowerCase().includes(q) ||
         (opening.academic_year || '').toLowerCase().includes(q);
 
+      const matchesAcademicYear =
+        filters.academicYear === 'all' ||
+        String(opening.academic_year || '') === String(filters.academicYear);
+
       const matchesOpening =
         filters.openingStatus === 'all' ||
         filters.openingStatus === openingGroup;
 
-      return matchesSearch && matchesOpening;
+      return matchesSearch && matchesAcademicYear && matchesOpening;
     });
   }, [openingCards, search, filters]);
 
@@ -1756,6 +1800,10 @@ export default function ApplicationReview() {
         (row.opening_title || '').toLowerCase().includes(q) ||
         (row.academic_year || '').toLowerCase().includes(q);
 
+      const matchesAcademicYear =
+        filters.academicYear === 'all' ||
+        String(row.academic_year || '') === String(filters.academicYear);
+
       const matchesApplication =
         filters.applicationStatus === 'all' ||
         filters.applicationStatus === applicationGroup;
@@ -1764,7 +1812,12 @@ export default function ApplicationReview() {
         filters.documentStatus === 'all' ||
         filters.documentStatus === documentGroup;
 
-      return matchesSearch && matchesApplication && matchesDocument;
+      return (
+        matchesSearch &&
+        matchesAcademicYear &&
+        matchesApplication &&
+        matchesDocument
+      );
     });
   }, [registryRows, search, filters]);
 
@@ -1933,6 +1986,7 @@ export default function ApplicationReview() {
         hasNeedsAttention={hasNeedsAttention}
         refreshing={refreshing}
         onRefresh={() => loadData({ soft: true })}
+        academicYearOptions={academicYearOptions}
         filters={filters}
         draftFilters={draftFilters}
         setDraftFilters={setDraftFilters}

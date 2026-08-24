@@ -248,9 +248,6 @@ export default function ProfilePhotoQueue() {
 
   useSocketEvent('profile-photo-review:created', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
   useSocketEvent('profile-photo-review:updated', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
-  useSocketEvent('profile-photo-review:approved', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
-  useSocketEvent('profile-photo-review:rejected', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
-
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return items;

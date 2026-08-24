@@ -31,13 +31,12 @@ function emitRoUpdated(req, action, payload = {}) {
       socketEvents.roUpdated(io, data);
     } else if (typeof socketEvents?.emitEvent === 'function') {
       socketEvents.emitEvent(io, 'ro:updated', data);
-      socketEvents.emitEvent(io, 'roUpdated', data);
     } else {
       io.emit('ro:updated', data);
-      io.emit('roUpdated', data);
     }
 
-    io.emit('ro:updated', data);
+    // Keep the legacy alias once for older clients while the canonical
+    // ro:updated event remains the single web refresh signal.
     io.emit('roUpdated', data);
 
     if (action === 'validate-log') {

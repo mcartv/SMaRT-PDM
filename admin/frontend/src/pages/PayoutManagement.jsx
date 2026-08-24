@@ -603,10 +603,6 @@ export default function PayoutManagement() {
     loadAll();
   }, []);
 
-  useSocketEvent('scholar:released', () => {
-    loadAll();
-  }, []);
-
   useEffect(() => {
     setPage(1);
   }, [activeSection, search]);

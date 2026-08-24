@@ -190,15 +190,32 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (!mounted) return;
     final chatSearchController = TextEditingController(text: _chatSearchTerm);
     var chatQuery = _chatSearchTerm;
+    var memberRevision = provider.roomMembershipRevision;
+    var refreshPending = false;
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
+      builder: (sheetContext) => Consumer<MessagingProvider>(
+        builder: (context, liveProvider, _) => StatefulBuilder(
           builder: (context, setSheetState) {
+            if (liveProvider.roomMembershipRevision != memberRevision) {
+              memberRevision = liveProvider.roomMembershipRevision;
+              if (!refreshPending) {
+                refreshPending = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  try {
+                    final refreshed = await liveProvider.fetchRoomMembers(roomId);
+                    if (!context.mounted) return;
+                    setSheetState(() => members = refreshed);
+                  } finally {
+                    refreshPending = false;
+                  }
+                });
+              }
+            }
             final isDark = Theme.of(context).brightness == Brightness.dark;
             final normalizedQuery = chatQuery.trim().toLowerCase();
             final matchCount = normalizedQuery.isEmpty
@@ -370,8 +387,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
               ),
             );
           },
-        );
-      },
+        ),
+      ),
     );
     chatSearchController.dispose();
   }

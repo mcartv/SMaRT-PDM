@@ -151,6 +151,23 @@ async function getReportMetadata() {
     };
 }
 
+const EXCEL_COLUMN_MAX_WIDTHS = {
+    student_name: 28,
+    email_address: 30,
+    program_name: 28,
+    benefactor_name: 24,
+    opening_title: 28,
+    remarks: 32,
+    sdo_remarks: 32,
+    guidance_remarks: 32,
+    pd_remarks: 32,
+    final_pdf_url: 32,
+};
+
+function normalizeExcelCellValue(value) {
+    return typeof value === 'string' ? value.trim() : value;
+}
+
 function styleSheet(sheet) {
     const header = sheet.getRow(1);
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -169,15 +186,26 @@ function styleSheet(sheet) {
     };
 
     sheet.columns.forEach((column) => {
-        const headerLength = String(column.header || '').length;
+        const key = String(column.key || '');
+        const headerLength = String(column.header || '').trim().length;
+        const maxWidth = EXCEL_COLUMN_MAX_WIDTHS[key] || 24;
+        const minWidth = Math.min(maxWidth, Math.max(9, headerLength + 1));
         let maxLength = headerLength;
-        column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+
+        column.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
             if (rowNumber === 1) return;
-            const text = cell.value === null || cell.value === undefined ? '' : String(cell.value);
-            maxLength = Math.max(maxLength, Math.min(text.length, 45));
+
+            const cellText = cell.value === null || cell.value === undefined
+                ? ''
+                : String(cell.value).replace(/\s+/g, ' ').trim();
+
+            maxLength = Math.max(maxLength, Math.min(cellText.length, maxWidth - 1));
             cell.alignment = { vertical: 'top', wrapText: true };
         });
-        column.width = Math.max(14, Math.min(maxLength + 2, 45));
+
+        // Keep downloaded reports compact instead of forcing every column to a
+        // wide minimum. Longer narrative fields still get enough room to wrap.
+        column.width = Math.min(maxWidth, Math.max(minWidth, maxLength + 1));
 
         if (/amount|total/i.test(String(column.key || ''))) {
             column.numFmt = '₱#,##0.00;[Red]-₱#,##0.00';
@@ -863,7 +891,12 @@ async function getRoRows({
 }
 
 function addRows(sheet, rows) {
-    rows.forEach((row) => sheet.addRow(row));
+    rows.forEach((row) => {
+        const normalizedRow = Object.fromEntries(
+            Object.entries(row || {}).map(([key, value]) => [key, normalizeExcelCellValue(value)])
+        );
+        sheet.addRow(normalizedRow);
+    });
 }
 
 function buildOfficeSummary(reportType, rows = []) {

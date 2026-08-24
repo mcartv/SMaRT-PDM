@@ -215,6 +215,12 @@ function emitToUsers(io, eventName, payload, targetUserIds = []) {
   });
 }
 
+function emitRoomEvent(io, eventName, payload, targetUserIds = []) {
+  const targets = uniqueIds(targetUserIds);
+  emitToUsers(io, eventName, payload, targets);
+  relayToStudentBackend(eventName, payload, targets);
+}
+
 function emitMessageCreated(io, message, targetUserIds = []) {
   if (!io) return;
 
@@ -421,6 +427,19 @@ async function createPrivateMessage({
   );
 
   const inserted = result.rows[0];
+  const restoredArchives = await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE thread_type = 'private'
+      AND (
+        (user_id = $1 AND counterparty_id = $2)
+        OR
+        (user_id = $2 AND counterparty_id = $1)
+      )
+    RETURNING user_id;
+    `,
+    [senderId, receiverId]
+  );
   const adminPhotoExpression = await hasAdminProfilePhotoColumn()
     ? 'ap.profile_photo_url'
     : 'NULL::text';
@@ -460,7 +479,12 @@ async function createPrivateMessage({
     [inserted.message_id]
   );
 
-  return toMessagePayload(withProfile.rows[0] || inserted);
+  return {
+    ...toMessagePayload(withProfile.rows[0] || inserted),
+    restored_archive_user_ids: restoredArchives.rows
+      .map((row) => row.user_id)
+      .filter(Boolean),
+  };
 }
 
 async function createRoomMessage({
@@ -532,6 +556,21 @@ async function createRoomMessage({
   );
 
   const inserted = result.rows[0];
+  const restoredArchives = await db.query(
+    `
+    DELETE FROM message_thread_archives mta
+    WHERE mta.thread_type = 'group'
+      AND mta.room_id = $1
+      AND EXISTS (
+        SELECT 1
+        FROM chat_room_members crm
+        WHERE crm.room_id = mta.room_id
+          AND crm.user_id = mta.user_id
+      )
+    RETURNING mta.user_id;
+    `,
+    [roomId]
+  );
   const adminPhotoExpression = await hasAdminProfilePhotoColumn()
     ? 'ap.profile_photo_url'
     : 'NULL::text';
@@ -571,7 +610,12 @@ async function createRoomMessage({
     [inserted.message_id]
   );
 
-  return toMessagePayload(withProfile.rows[0] || inserted);
+  return {
+    ...toMessagePayload(withProfile.rows[0] || inserted),
+    restored_archive_user_ids: restoredArchives.rows
+      .map((row) => row.user_id)
+      .filter(Boolean),
+  };
 }
 
 function getStatusCode(error) {
@@ -728,6 +772,25 @@ exports.sendThreadMessage = async (req, res) => {
     });
 
     const io = req.app.get('io');
+    const restoredArchiveUserIds = uniqueIds(
+      message.restored_archive_user_ids || []
+    );
+
+    for (const restoredUserId of restoredArchiveUserIds) {
+      const restoredCounterpartyId =
+        restoredUserId === senderId ? targetAdminId : senderId;
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'private',
+          counterparty_id: restoredCounterpartyId,
+          counterpartyId: restoredCounterpartyId,
+          auto_restored: true,
+          restored_at: new Date().toISOString(),
+        },
+        [restoredUserId]
+      );
+    }
 
     emitMessageCreated(io, message, [senderId, targetAdminId]);
 
@@ -1208,6 +1271,25 @@ exports.sendMessage = async (req, res) => {
     });
 
     const io = req.app.get('io');
+    const restoredArchiveUserIds = uniqueIds(
+      message.restored_archive_user_ids || []
+    );
+
+    for (const restoredUserId of restoredArchiveUserIds) {
+      const restoredCounterpartyId =
+        restoredUserId === senderId ? counterpartyId : senderId;
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'private',
+          counterparty_id: restoredCounterpartyId,
+          counterpartyId: restoredCounterpartyId,
+          auto_restored: true,
+          restored_at: new Date().toISOString(),
+        },
+        [restoredUserId]
+      );
+    }
 
     emitMessageCreated(io, message, [senderId, counterpartyId]);
 
@@ -1350,6 +1432,7 @@ exports.createRoom = async (req, res) => {
     } else {
       emitToUsers(io, 'room:created', payload, memberIds);
     }
+    relayToStudentBackend('room:created', payload, memberIds);
 
     return res.status(201).json(payload);
   } catch (err) {
@@ -1423,7 +1506,24 @@ exports.sendRoomMessage = async (req, res) => {
 
     const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, senderId);
+    const restoredArchiveUserIds = uniqueIds(
+      message.restored_archive_user_ids || []
+    );
     const io = req.app.get('io');
+
+    if (restoredArchiveUserIds.length) {
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'group',
+          room_id: roomId,
+          roomId,
+          auto_restored: true,
+          restored_at: new Date().toISOString(),
+        },
+        restoredArchiveUserIds
+      );
+    }
 
     emitMessageCreated(io, message, targetUserIds);
 
@@ -1497,7 +1597,7 @@ exports.addRoomMembers = async (req, res) => {
       const allRoomMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
       const io = req.app.get('io');
 
-      emitToUsers(io, 'room:member-promoted', {
+      emitRoomEvent(io, 'room:member-promoted', {
         room_id: roomId,
         roomId,
         member_id: memberId,
@@ -1533,7 +1633,7 @@ exports.addRoomMembers = async (req, res) => {
         memberId,
       });
       const io = req.app.get('io');
-      emitToUsers(io, 'room:members-removed', {
+      emitRoomEvent(io, 'room:members-removed', {
         room_id: roomId,
         roomId,
         member_id: memberId,
@@ -1562,7 +1662,8 @@ exports.addRoomMembers = async (req, res) => {
       const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
       const result = await messageService.leaveRoom(currentUserId, roomId);
       const io = req.app.get('io');
-      emitToUsers(io, 'room:member-left', {
+      const leaveTargets = uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id);
+      emitRoomEvent(io, 'room:member-left', {
         room_id: roomId,
         roomId,
         user_id: currentUserId,
@@ -1570,7 +1671,20 @@ exports.addRoomMembers = async (req, res) => {
         promoted_user_id: result.promoted_user_id || null,
         promotedUserId: result.promoted_user_id || null,
         updated_at: new Date().toISOString(),
-      }, uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id));
+      }, leaveTargets);
+
+      if (result.promoted_user_id) {
+        emitRoomEvent(io, 'room:member-promoted', {
+          room_id: roomId,
+          roomId,
+          member_id: result.promoted_user_id,
+          memberId: result.promoted_user_id,
+          promoted_by: 'system',
+          promotedBy: 'system',
+          reason: 'last_admin_left',
+          updated_at: new Date().toISOString(),
+        }, leaveTargets);
+      }
 
       emitThreadArchived(
         io,
@@ -1622,6 +1736,7 @@ exports.addRoomMembers = async (req, res) => {
     } else {
       emitToUsers(io, 'room:members-added', payload, targetUserIds);
     }
+    relayToStudentBackend('room:members-added', payload, targetUserIds);
 
     const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
     const members = refreshed?.items || [];
@@ -1663,7 +1778,7 @@ exports.removeRoomMember = async (req, res) => {
 
     const io = req.app.get('io');
     const targetUserIds = uniqueIds(beforeMemberIds, currentUserId, memberId);
-    emitToUsers(io, 'room:members-removed', {
+    emitRoomEvent(io, 'room:members-removed', {
       room_id: roomId,
       roomId,
       member_id: memberId,
@@ -1695,7 +1810,8 @@ exports.leaveRoom = async (req, res) => {
     const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const result = await messageService.leaveRoom(currentUserId, roomId);
     const io = req.app.get('io');
-    emitToUsers(io, 'room:member-left', {
+    const leaveTargets = uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id);
+    emitRoomEvent(io, 'room:member-left', {
       room_id: roomId,
       roomId,
       user_id: currentUserId,
@@ -1703,7 +1819,20 @@ exports.leaveRoom = async (req, res) => {
       promoted_user_id: result.promoted_user_id || null,
       promotedUserId: result.promoted_user_id || null,
       updated_at: new Date().toISOString(),
-    }, uniqueIds(beforeMemberIds, currentUserId));
+    }, leaveTargets);
+
+    if (result.promoted_user_id) {
+      emitRoomEvent(io, 'room:member-promoted', {
+        room_id: roomId,
+        roomId,
+        member_id: result.promoted_user_id,
+        memberId: result.promoted_user_id,
+        promoted_by: 'system',
+        promotedBy: 'system',
+        reason: 'last_admin_left',
+        updated_at: new Date().toISOString(),
+      }, leaveTargets);
+    }
 
     emitThreadArchived(
       io,

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
@@ -33,6 +34,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _refreshMessaging() async {
     final provider = context.read<MessagingProvider>();
     await provider.initializeChat();
+    await provider.fetchArchivedThreads(notify: false);
     await provider.fetchGroups(notify: false);
     await provider.refreshUnreadCount();
   }
@@ -46,6 +48,55 @@ class _ChatListScreenState extends State<ChatListScreen> {
       context,
       AppRoutes.chatThread,
       arguments: {'roomId': roomId, 'title': roomName},
+    );
+  }
+
+  Future<bool> _confirmArchive(String title) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Archive conversation?'),
+            content: Text('$title will be hidden from your conversation list. A new message will automatically bring it back.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Archive')),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _archivePrivateThread() async {
+    if (!await _confirmArchive('OSFA Administrator') || !mounted) return;
+    try {
+      await context.read<MessagingProvider>().archivePrivateThread();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to archive conversation.')));
+    }
+  }
+
+  Future<void> _archiveGroup(ChatRoom room) async {
+    if (!await _confirmArchive(room.roomName) || !mounted) return;
+    try {
+      await context.read<MessagingProvider>().archiveRoom(room.roomId);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to archive group conversation.')));
+    }
+  }
+
+  Future<void> _showArchivedThreads() async {
+    final provider = context.read<MessagingProvider>();
+    await provider.fetchArchivedThreads();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => ChangeNotifierProvider<MessagingProvider>.value(
+        value: provider,
+        child: const _ArchivedThreadsSheet(),
+      ),
     );
   }
 
@@ -73,6 +124,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
         scrolledUnderElevation: 0,
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: titleColor,
+        actions: [
+          IconButton(
+            tooltip: 'Archived messages',
+            onPressed: _showArchivedThreads,
+            icon: const Icon(Icons.archive_outlined),
+          ),
+        ],
       ),
       selectedIndex: 0,
       showBottomNav: false,
@@ -104,16 +162,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              _ConversationTile(
-                icon: Icons.support_agent_rounded,
-                title: 'OSFA Administrator',
-                subtitle: _messagePreview(
-                  provider.privatePreview?.messageBody,
-                  'Direct support conversation',
-                ),
-                unreadCount: provider.privateUnreadCount,
-                onTap: _openAdminThread,
-              ),
+              if (!provider.isPrivateThreadArchived)
+                _ConversationTile(
+                  icon: Icons.support_agent_rounded,
+                  title: 'OSFA Administrator',
+                  subtitle: _messagePreview(
+                    provider.privatePreview?.messageBody,
+                    'Direct support conversation',
+                  ),
+                  unreadCount: provider.privateUnreadCount,
+                  onTap: _openAdminThread,
+                  onArchive: _archivePrivateThread,
+                )
+              else
+                _ArchivedHint(onOpenArchived: _showArchivedThreads),
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -158,6 +220,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       subtitle: _messagePreview(room.lastMessage, 'Group chat'),
                       unreadCount: room.unreadCount,
                       onTap: () => _openGroupThread(room.roomId, room.roomName),
+                      onArchive: () => _archiveGroup(room),
                     ),
                   ),
                 ),
@@ -224,6 +287,7 @@ class _ConversationTile extends StatelessWidget {
     required this.subtitle,
     required this.unreadCount,
     required this.onTap,
+    this.onArchive,
   });
 
   final IconData icon;
@@ -231,6 +295,7 @@ class _ConversationTile extends StatelessWidget {
   final String subtitle;
   final int unreadCount;
   final VoidCallback onTap;
+  final Future<void> Function()? onArchive;
 
   @override
   Widget build(BuildContext context) {
@@ -317,8 +382,21 @@ class _ConversationTile extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
+                ),
+              if (onArchive != null)
+                PopupMenuButton<String>(
+                  tooltip: 'Conversation options',
+                  onSelected: (value) {
+                    if (value == 'archive') onArchive!();
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem<String>(
+                      value: 'archive',
+                      child: Row(children: [Icon(Icons.archive_outlined, size: 19), SizedBox(width: 10), Text('Archive')]),
+                    ),
+                  ],
                 )
-              else
+              else if (unreadCount == 0)
                 Icon(
                   Icons.chevron_right_rounded,
                   color: isDark
@@ -327,6 +405,79 @@ class _ConversationTile extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArchivedHint extends StatelessWidget {
+  const _ArchivedHint({required this.onOpenArchived});
+  final VoidCallback onOpenArchived;
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.archive_outlined),
+      title: const Text('Support conversation archived'),
+      subtitle: const Text('It will return automatically when a new message arrives.'),
+      trailing: TextButton(onPressed: onOpenArchived, child: const Text('View')),
+    );
+  }
+}
+
+class _ArchivedThreadsSheet extends StatelessWidget {
+  const _ArchivedThreadsSheet();
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<MessagingProvider>();
+    final items = provider.archivedThreads;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 18, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(child: Text('Archived Messages', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
+              IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
+            ]),
+            const SizedBox(height: 8),
+            if (items.isEmpty)
+              const Padding(padding: EdgeInsets.symmetric(vertical: 28), child: Center(child: Text('No archived conversations.')))
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.55),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(item.isGroup ? Icons.groups_rounded : Icons.support_agent_rounded),
+                      title: Text(item.name),
+                      subtitle: Text(item.isGroup ? 'Group conversation' : 'Private conversation'),
+                      trailing: TextButton(
+                        onPressed: () async {
+                          try {
+                            await provider.restoreArchivedThread(item);
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversation restored.')));
+                          } catch (_) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to restore conversation.')));
+                          }
+                        },
+                        child: const Text('Restore'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
         ),
       ),
     );

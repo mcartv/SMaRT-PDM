@@ -191,6 +191,28 @@ const ANNOUNCEMENT_TEMPLATES = {
   },
 };
 
+function resolveAnnouncementTemplate(announcement = {}) {
+  const savedTemplateKey = String(
+    announcement.templateKey || announcement.template_key || ''
+  ).trim();
+
+  if (savedTemplateKey && ANNOUNCEMENT_TEMPLATES[savedTemplateKey]) {
+    return savedTemplateKey;
+  }
+
+  const announcementTitle = String(announcement.title || '').trim();
+  const announcementContent = String(announcement.content || '').trim();
+
+  const matchedTemplate = Object.entries(ANNOUNCEMENT_TEMPLATES).find(
+    ([key, template]) =>
+      key !== 'blank' &&
+      ((announcementTitle && announcementTitle === template.title) ||
+        (announcementContent && announcementContent === template.content))
+  );
+
+  return matchedTemplate?.[0] || 'blank';
+}
+
 function toUtcIsoFromLocalInput(value) {
   if (!value) return null;
 
@@ -1460,7 +1482,7 @@ export default function AnnouncementsManagement() {
     );
     setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     setIsRoVoluntary(announcement.isRoVoluntary ? 'true' : 'false');
-    setSelectedTemplate('blank');
+    setSelectedTemplate(resolveAnnouncementTemplate(announcement));
     setValidationErrors({});
     setShowForm(true);
   };
@@ -1540,6 +1562,7 @@ export default function AnnouncementsManagement() {
       body: JSON.stringify({
         title: title.trim(),
         content: content.trim(),
+        templateKey: selectedTemplate,
         audience: audienceTarget.audience,
         programId: audienceTarget.programId,
         schedDate: schedDate ? toUtcIsoFromLocalInput(schedDate) : null,
@@ -1738,10 +1761,13 @@ export default function AnnouncementsManagement() {
       }
 
       await loadAnnouncements({ silent: true });
+      const publishedOnRestore = data?.data?.publishedNow === true;
       showAppToast(
         'success',
-        'Announcement restored',
-        'The announcement was restored successfully.'
+        publishedOnRestore ? 'Announcement restored and published' : 'Announcement restored',
+        publishedOnRestore
+          ? 'Its scheduled time already passed, so the announcement is now published.'
+          : 'The announcement was restored successfully.'
       );
     } catch (err) {
       console.error('RESTORE ANNOUNCEMENT ERROR:', err);

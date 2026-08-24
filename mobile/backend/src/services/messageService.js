@@ -112,10 +112,12 @@ function emitToGroup(roomId, eventName, payload) {
 }
 
 
-function relayToAdminBackend(message) {
-  adminRealtimeRelayService.relayMessageCreated(message).catch((error) => {
-    console.error('[Admin Realtime Relay] async error:', error.message);
-  });
+function relayToAdminBackend(message, targetUserIds = []) {
+  adminRealtimeRelayService
+    .relayMessageCreated(message, targetUserIds)
+    .catch((error) => {
+      console.error('[Admin Realtime Relay] async error:', error.message);
+    });
 }
 
 function mapMessageRow(row = {}, profiles = null) {
@@ -737,6 +739,86 @@ async function emitRoomMessageToMembers(roomId, eventName, payload) {
   }
 }
 
+
+async function fetchArchivedRoomIds(userId) {
+  const normalizedUserId = safeText(userId);
+  if (!normalizedUserId) return new Set();
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('message_thread_archives')
+    .select('room_id')
+    .eq('user_id', normalizedUserId)
+    .eq('thread_type', 'group');
+  if (error) throw new Error(error.message);
+  return new Set((data || []).map((row) => safeText(row.room_id)).filter(Boolean));
+}
+
+async function restorePrivateArchivesForParticipants(senderId, receiverId) {
+  const leftUserId = safeText(senderId);
+  const rightUserId = safeText(receiverId);
+  if (!leftUserId || !rightUserId) return [];
+  const supabase = getSupabase();
+  const restoredUserIds = [];
+  for (const [userId, counterpartyId] of [[leftUserId, rightUserId], [rightUserId, leftUserId]]) {
+    const { data, error } = await supabase
+      .from('message_thread_archives')
+      .delete()
+      .eq('user_id', userId)
+      .eq('thread_type', 'private')
+      .eq('counterparty_id', counterpartyId)
+      .select('user_id');
+    if (error) throw new Error(error.message);
+    if ((data || []).length) restoredUserIds.push(userId);
+  }
+  return Array.from(new Set(restoredUserIds));
+}
+
+async function restoreRoomArchivesForCurrentMembers(roomId) {
+  const normalizedRoomId = safeText(roomId);
+  if (!normalizedRoomId) return [];
+  const supabase = getSupabase();
+  const memberIds = await fetchRoomMemberIds(normalizedRoomId);
+  if (!memberIds.length) return [];
+  const { data, error } = await supabase
+    .from('message_thread_archives')
+    .delete()
+    .eq('thread_type', 'group')
+    .eq('room_id', normalizedRoomId)
+    .in('user_id', memberIds)
+    .select('user_id');
+  if (error) throw new Error(error.message);
+  return Array.from(new Set((data || []).map((row) => safeText(row.user_id)).filter(Boolean)));
+}
+
+function emitAutoRestoreEvents({ restoredUserIds = [], roomId = null, senderId = null, receiverId = null }) {
+  const targets = Array.from(new Set(restoredUserIds.map(safeText).filter(Boolean)));
+  if (!targets.length) return;
+  const restoredAt = new Date().toISOString();
+  const normalizedRoomId = safeText(roomId);
+  if (normalizedRoomId) {
+    const payload = {
+      thread_type: 'group', roomId: normalizedRoomId, room_id: normalizedRoomId,
+      counterpartyId: null, counterparty_id: null, auto_restored: true, restored_at: restoredAt,
+    };
+    for (const userId of targets) emitToUser(userId, 'message:thread-restored', payload);
+    adminRealtimeRelayService.relayMessageEvent('message:thread-restored', payload, targets)
+      .catch((error) => console.error('[Admin Realtime Relay] auto-restore event error:', error.message));
+    return;
+  }
+  const normalizedSenderId = safeText(senderId);
+  const normalizedReceiverId = safeText(receiverId);
+  for (const userId of targets) {
+    const counterpartyId = userId === normalizedSenderId ? normalizedReceiverId : normalizedSenderId;
+    const payload = {
+      thread_type: 'private', roomId: null, room_id: null,
+      counterpartyId, counterparty_id: counterpartyId, auto_restored: true, restored_at: restoredAt,
+    };
+    emitToUser(userId, 'message:thread-restored', payload);
+    adminRealtimeRelayService.relayMessageEvent('message:thread-restored', payload, [userId])
+      .catch((error) => console.error('[Admin Realtime Relay] auto-restore event error:', error.message));
+  }
+}
+
 async function createMessage({ senderId, receiverId, roomId, messageBody }) {
   const trimmedBody = validateConversationMessageBody(messageBody);
   console.log('[MessageService] createMessage called', {
@@ -792,6 +874,15 @@ async function createMessage({ senderId, receiverId, roomId, messageBody }) {
     ]);
   }
 
+  let restoredArchiveUserIds = [];
+  if (roomId) {
+    restoredArchiveUserIds = await restoreRoomArchivesForCurrentMembers(roomId);
+    emitAutoRestoreEvents({ restoredUserIds: restoredArchiveUserIds, roomId });
+  } else if (receiverId) {
+    restoredArchiveUserIds = await restorePrivateArchivesForParticipants(senderId, receiverId);
+    emitAutoRestoreEvents({ restoredUserIds: restoredArchiveUserIds, senderId, receiverId });
+  }
+
   const profilesResult = await fetchConversationProfiles([senderId]);
   const profileMap = buildProfileMap(profilesResult);
   const message = {
@@ -817,7 +908,10 @@ async function createMessage({ senderId, receiverId, roomId, messageBody }) {
     emitToUser(receiverId, 'message:created', message);
   }
 
-  relayToAdminBackend(message);
+  const adminRelayTargets = roomId
+    ? await fetchRoomMemberIds(roomId)
+    : [senderId, receiverId].filter(Boolean);
+  relayToAdminBackend(message, adminRelayTargets);
 
   return message;
 }
@@ -873,39 +967,24 @@ async function markThreadRead({ readerId, senderId }) {
 
 async function getUnreadCount(userId) {
   const normalizedUserId = safeText(userId);
-
-  if (!normalizedUserId) {
-    throw createHttpError(401, 'Authentication required.');
-  }
-
+  if (!normalizedUserId) throw createHttpError(401, 'Authentication required.');
   const supabase = getSupabase();
-
-  const { count: privateCount, error: privateError } = await supabase
-    .from('messages')
-    .select('message_id', { count: 'exact', head: true })
-    .eq('receiver_id', normalizedUserId)
-    .eq('is_read', false);
-
-  if (privateError) {
-    console.error('MESSAGE UNREAD COUNT ERROR:', privateError);
-    throw new Error(privateError.message);
+  const [privateMessagesResult, privateArchivesResult, membershipsResult, roomArchivesResult] = await Promise.all([
+    supabase.from('messages').select('sender_id').eq('receiver_id', normalizedUserId).eq('is_read', false).is('room_id', null),
+    supabase.from('message_thread_archives').select('counterparty_id').eq('user_id', normalizedUserId).eq('thread_type', 'private'),
+    supabase.from('chat_room_members').select('room_id').eq('user_id', normalizedUserId),
+    supabase.from('message_thread_archives').select('room_id').eq('user_id', normalizedUserId).eq('thread_type', 'group'),
+  ]);
+  for (const result of [privateMessagesResult, privateArchivesResult, membershipsResult, roomArchivesResult]) {
+    if (result.error) throw new Error(result.error.message);
   }
-
-  const { data: memberships, error: membershipError } = await supabase
-    .from('chat_room_members')
-    .select('room_id')
-    .eq('user_id', normalizedUserId);
-
-  if (membershipError) {
-    console.error('MESSAGE ROOM MEMBERSHIP COUNT ERROR:', membershipError);
-    throw new Error(membershipError.message);
-  }
-
-  const roomIds = (memberships || []).map((row) => row.room_id).filter(Boolean);
-  const roomUnread = await fetchRoomUnreadCounts(normalizedUserId, roomIds);
+  const archivedPrivateIds = new Set((privateArchivesResult.data || []).map((row) => safeText(row.counterparty_id)).filter(Boolean));
+  const privateCount = (privateMessagesResult.data || []).filter((row) => !archivedPrivateIds.has(safeText(row.sender_id))).length;
+  const archivedRoomIds = new Set((roomArchivesResult.data || []).map((row) => safeText(row.room_id)).filter(Boolean));
+  const activeRoomIds = (membershipsResult.data || []).map((row) => safeText(row.room_id)).filter((roomId) => roomId && !archivedRoomIds.has(roomId));
+  const roomUnread = await fetchRoomUnreadCounts(normalizedUserId, activeRoomIds);
   const groupCount = [...roomUnread.values()].reduce((sum, value) => sum + value, 0);
-
-  return (privateCount || 0) + groupCount;
+  return privateCount + groupCount;
 }
 
 async function fetchRoomUnreadCounts(userId, roomIds = []) {
@@ -1183,6 +1262,14 @@ async function createRoom(adminUserId, roomName, userIds = []) {
     emitToUser(memberId, 'room:created', payload);
   }
 
+  adminRealtimeRelayService.relayMessageEvent(
+    'room:created',
+    payload,
+    [admin.userId, ...selectedUserIds]
+  ).catch((relayError) => {
+    console.error('[Admin Realtime Relay] room created event error:', relayError.message);
+  });
+
   return payload;
 }
 
@@ -1248,6 +1335,15 @@ async function addGroupMembers(adminUserId, roomId, userIds = []) {
     emitToUser(memberId, 'room:members-added', payload);
   }
 
+  const currentMemberIds = await fetchRoomMemberIds(normalizedRoomId);
+  adminRealtimeRelayService.relayMessageEvent(
+    'room:members-added',
+    payload,
+    Array.from(new Set([...currentMemberIds, ...selectedUserIds, admin.userId]))
+  ).catch((relayError) => {
+    console.error('[Admin Realtime Relay] room members-added event error:', relayError.message);
+  });
+
   return fetchRoomMembers(admin.userId, normalizedRoomId);
 }
 
@@ -1287,6 +1383,8 @@ async function removeGroupMember(adminUserId, roomId, memberId) {
     throw createHttpError(403, 'Another group admin cannot be removed.');
   }
 
+  const beforeMemberIds = await fetchRoomMemberIds(normalizedRoomId);
+
   const { error } = await supabase
     .from('chat_room_members')
     .delete()
@@ -1309,6 +1407,13 @@ async function removeGroupMember(adminUserId, roomId, memberId) {
 
   emitToGroup(normalizedRoomId, 'room:members-removed', payload);
   emitToUser(normalizedMemberId, 'room:members-removed', payload);
+  adminRealtimeRelayService.relayMessageEvent(
+    'room:members-removed',
+    payload,
+    Array.from(new Set([...beforeMemberIds, admin.userId, normalizedMemberId]))
+  ).catch((relayError) => {
+    console.error('[Admin Realtime Relay] room members-removed event error:', relayError.message);
+  });
 
   return {
     success: true,
@@ -1342,6 +1447,8 @@ async function listRoomsForUser(userId) {
     throw new Error(error.message);
   }
 
+  const archivedRoomIds = await fetchArchivedRoomIds(normalizedUserId);
+
   const rooms = (data || [])
     .map((item) => {
       const room = Array.isArray(item.chat_rooms)
@@ -1358,7 +1465,12 @@ async function listRoomsForUser(userId) {
         isArchived: room?.is_archived === true,
       };
     })
-    .filter((room) => room.roomId && room.isArchived !== true);
+    .filter(
+      (room) =>
+        room.roomId &&
+        room.isArchived !== true &&
+        !archivedRoomIds.has(room.roomId)
+    );
 
   const roomIds = rooms.map((room) => room.roomId);
   const [unreadCounts, memberCountResult, latestMessageResult] = await Promise.all([
@@ -1614,6 +1726,45 @@ async function leaveRoom(userId, roomId) {
   const normalizedRoomId = safeText(roomId);
   const supabase = getSupabase();
 
+  const { data: existingArchive, error: existingArchiveError } = await supabase
+    .from('message_thread_archives')
+    .select('archive_id, user_id, thread_type, counterparty_id, room_id, archived_at')
+    .eq('user_id', normalizedUserId)
+    .eq('thread_type', 'group')
+    .eq('room_id', normalizedRoomId)
+    .maybeSingle();
+
+  if (existingArchiveError) {
+    console.error('MESSAGE ROOM ARCHIVE LOOKUP ERROR:', existingArchiveError);
+    throw new Error(existingArchiveError.message);
+  }
+
+  let archive = existingArchive || null;
+  let createdArchiveId = null;
+
+  if (!archive) {
+    const { data: createdArchive, error: archiveError } = await supabase
+      .from('message_thread_archives')
+      .insert([
+        {
+          user_id: normalizedUserId,
+          thread_type: 'group',
+          counterparty_id: null,
+          room_id: normalizedRoomId,
+        },
+      ])
+      .select('archive_id, user_id, thread_type, counterparty_id, room_id, archived_at')
+      .single();
+
+    if (archiveError) {
+      console.error('MESSAGE ROOM ARCHIVE CREATE ERROR:', archiveError);
+      throw new Error(archiveError.message);
+    }
+
+    archive = createdArchive;
+    createdArchiveId = createdArchive?.archive_id || null;
+  }
+
   const { error: deleteError } = await supabase
     .from('chat_room_members')
     .delete()
@@ -1622,6 +1773,18 @@ async function leaveRoom(userId, roomId) {
 
   if (deleteError) {
     console.error('MESSAGE ROOM LEAVE ERROR:', deleteError);
+
+    if (createdArchiveId) {
+      const { error: rollbackError } = await supabase
+        .from('message_thread_archives')
+        .delete()
+        .eq('archive_id', createdArchiveId);
+
+      if (rollbackError) {
+        console.error('MESSAGE ROOM ARCHIVE ROLLBACK ERROR:', rollbackError);
+      }
+    }
+
     throw new Error(deleteError.message);
   }
 
@@ -1641,11 +1804,11 @@ async function leaveRoom(userId, roomId) {
   const rows = remaining || [];
 
   if (!rows.length) {
-    const { error: archiveError } = await supabase
+    const { error: archiveRoomError } = await supabase
       .from('chat_rooms')
       .update({ is_archived: true })
       .eq('room_id', normalizedRoomId);
-    if (archiveError) throw new Error(archiveError.message);
+    if (archiveRoomError) throw new Error(archiveRoomError.message);
   } else if (membership.is_admin === true && !rows.some((row) => row.is_admin === true)) {
     promotedUserId = rows[0].user_id;
     const { error: promoteError } = await supabase
@@ -1663,7 +1826,16 @@ async function leaveRoom(userId, roomId) {
     user_id: normalizedUserId,
     promotedUserId,
     promoted_user_id: promotedUserId,
+    archivedAt: archive?.archived_at || null,
+    archived_at: archive?.archived_at || null,
+    archive,
   };
+
+  const leaveTargets = [
+    normalizedUserId,
+    ...rows.map((row) => row.user_id),
+    promotedUserId,
+  ].filter(Boolean);
 
   emitToGroup(normalizedRoomId, 'room:member-left', payload);
   emitToUser(normalizedUserId, 'room:member-left', payload);
@@ -1671,12 +1843,325 @@ async function leaveRoom(userId, roomId) {
   adminRealtimeRelayService.relayMessageEvent(
     'room:member-left',
     payload,
-    [normalizedUserId, ...rows.map((row) => row.user_id)]
+    leaveTargets
   ).catch((relayError) => {
     console.error('[Admin Realtime Relay] leave room event error:', relayError.message);
   });
 
+  if (promotedUserId) {
+    const promotionPayload = {
+      roomId: normalizedRoomId,
+      room_id: normalizedRoomId,
+      memberId: promotedUserId,
+      member_id: promotedUserId,
+      promotedBy: null,
+      promoted_by: null,
+      reason: 'last_admin_left',
+      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    emitToGroup(normalizedRoomId, 'room:member-promoted', promotionPayload);
+    for (const member of rows) {
+      emitToUser(member.user_id, 'room:member-promoted', promotionPayload);
+    }
+
+    adminRealtimeRelayService.relayMessageEvent(
+      'room:member-promoted',
+      promotionPayload,
+      rows.map((row) => row.user_id)
+    ).catch((relayError) => {
+      console.error('[Admin Realtime Relay] room member-promoted event error:', relayError.message);
+    });
+  }
+
   return { success: true, ...payload };
+}
+
+async function fetchArchivedThreads(userId) {
+  const normalizedUserId = safeText(userId);
+
+  if (!normalizedUserId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  const supabase = getSupabase();
+  const { data: archives, error } = await supabase
+    .from('message_thread_archives')
+    .select('archive_id, thread_type, counterparty_id, room_id, archived_at')
+    .eq('user_id', normalizedUserId)
+    .order('archived_at', { ascending: false });
+
+  if (error) {
+    console.error('MESSAGE ARCHIVED THREADS FETCH ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const rows = archives || [];
+  const roomIds = rows
+    .filter((row) => row.thread_type === 'group' && row.room_id)
+    .map((row) => row.room_id);
+
+  let roomMap = new Map();
+  let currentMemberRoomIds = new Set();
+
+  if (roomIds.length) {
+    const [roomsResult, membershipsResult] = await Promise.all([
+      supabase
+        .from('chat_rooms')
+        .select('room_id, room_name, created_at')
+        .in('room_id', roomIds),
+      supabase
+        .from('chat_room_members')
+        .select('room_id')
+        .eq('user_id', normalizedUserId)
+        .in('room_id', roomIds),
+    ]);
+
+    if (roomsResult.error) {
+      throw new Error(roomsResult.error.message);
+    }
+    if (membershipsResult.error) {
+      throw new Error(membershipsResult.error.message);
+    }
+
+    roomMap = new Map((roomsResult.data || []).map((room) => [room.room_id, room]));
+    currentMemberRoomIds = new Set(
+      (membershipsResult.data || []).map((membership) => membership.room_id)
+    );
+  }
+
+  const items = [];
+
+  for (const row of rows) {
+    if (row.thread_type === 'private' && row.counterparty_id) {
+      items.push({
+        archiveId: row.archive_id,
+        archive_id: row.archive_id,
+        threadType: 'private',
+        thread_type: 'private',
+        counterpartyId: row.counterparty_id,
+        counterparty_id: row.counterparty_id,
+        roomId: null,
+        room_id: null,
+        name: 'OSFA Administrator',
+        archivedAt: row.archived_at,
+        archived_at: row.archived_at,
+      });
+      continue;
+    }
+
+    if (
+      row.thread_type === 'group' &&
+      row.room_id &&
+      currentMemberRoomIds.has(row.room_id)
+    ) {
+      const room = roomMap.get(row.room_id);
+      items.push({
+        archiveId: row.archive_id,
+        archive_id: row.archive_id,
+        threadType: 'group',
+        thread_type: 'group',
+        counterpartyId: null,
+        counterparty_id: null,
+        roomId: row.room_id,
+        room_id: row.room_id,
+        name: room?.room_name || 'Group Chat',
+        archivedAt: row.archived_at,
+        archived_at: row.archived_at,
+      });
+    }
+  }
+
+  return items;
+}
+
+async function archiveFixedThread(userId) {
+  const normalizedUserId = safeText(userId);
+  const adminUserId = await ensureMobileThreadActor(normalizedUserId);
+  const supabase = getSupabase();
+
+  const { error: deleteError } = await supabase
+    .from('message_thread_archives')
+    .delete()
+    .eq('user_id', normalizedUserId)
+    .eq('thread_type', 'private')
+    .eq('counterparty_id', adminUserId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  const { data, error } = await supabase
+    .from('message_thread_archives')
+    .insert({
+      user_id: normalizedUserId,
+      thread_type: 'private',
+      counterparty_id: adminUserId,
+      room_id: null,
+    })
+    .select('archive_id, user_id, thread_type, counterparty_id, room_id, archived_at')
+    .single();
+
+  if (error) {
+    console.error('MESSAGE PRIVATE ARCHIVE ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const payload = {
+    thread_type: 'private',
+    counterpartyId: adminUserId,
+    counterparty_id: adminUserId,
+    archived_by: normalizedUserId,
+    archived_at: data.archived_at,
+  };
+
+  emitToUser(normalizedUserId, 'message:thread-archived', payload);
+  adminRealtimeRelayService.relayMessageEvent(
+    'message:thread-archived',
+    payload,
+    [normalizedUserId]
+  ).catch((relayError) => {
+    console.error('[Admin Realtime Relay] private archive event error:', relayError.message);
+  });
+
+  return data;
+}
+
+async function restoreFixedThread(userId) {
+  const normalizedUserId = safeText(userId);
+  const adminUserId = await ensureMobileThreadActor(normalizedUserId);
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('message_thread_archives')
+    .delete()
+    .eq('user_id', normalizedUserId)
+    .eq('thread_type', 'private')
+    .eq('counterparty_id', adminUserId)
+    .select('archive_id');
+
+  if (error) {
+    console.error('MESSAGE PRIVATE RESTORE ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const restored = (data || []).length > 0;
+
+  if (restored) {
+    const payload = {
+      thread_type: 'private',
+      counterpartyId: adminUserId,
+      counterparty_id: adminUserId,
+      restored_by: normalizedUserId,
+      restored_at: new Date().toISOString(),
+    };
+    emitToUser(normalizedUserId, 'message:thread-restored', payload);
+    adminRealtimeRelayService.relayMessageEvent(
+      'message:thread-restored',
+      payload,
+      [normalizedUserId]
+    ).catch((relayError) => {
+      console.error('[Admin Realtime Relay] private restore event error:', relayError.message);
+    });
+  }
+
+  return { restored };
+}
+
+async function archiveRoom(userId, roomId) {
+  const normalizedUserId = safeText(userId);
+  const normalizedRoomId = safeText(roomId);
+  await ensureRoomMember(normalizedUserId, normalizedRoomId);
+  const supabase = getSupabase();
+
+  const { error: deleteError } = await supabase
+    .from('message_thread_archives')
+    .delete()
+    .eq('user_id', normalizedUserId)
+    .eq('thread_type', 'group')
+    .eq('room_id', normalizedRoomId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  const { data, error } = await supabase
+    .from('message_thread_archives')
+    .insert({
+      user_id: normalizedUserId,
+      thread_type: 'group',
+      counterparty_id: null,
+      room_id: normalizedRoomId,
+    })
+    .select('archive_id, user_id, thread_type, counterparty_id, room_id, archived_at')
+    .single();
+
+  if (error) {
+    console.error('MESSAGE ROOM ARCHIVE ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const payload = {
+    thread_type: 'group',
+    roomId: normalizedRoomId,
+    room_id: normalizedRoomId,
+    archived_by: normalizedUserId,
+    archived_at: data.archived_at,
+  };
+
+  emitToUser(normalizedUserId, 'message:thread-archived', payload);
+  adminRealtimeRelayService.relayMessageEvent(
+    'message:thread-archived',
+    payload,
+    [normalizedUserId]
+  ).catch((relayError) => {
+    console.error('[Admin Realtime Relay] room archive event error:', relayError.message);
+  });
+
+  return data;
+}
+
+async function restoreRoom(userId, roomId) {
+  const normalizedUserId = safeText(userId);
+  const normalizedRoomId = safeText(roomId);
+  await ensureRoomMember(normalizedUserId, normalizedRoomId);
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('message_thread_archives')
+    .delete()
+    .eq('user_id', normalizedUserId)
+    .eq('thread_type', 'group')
+    .eq('room_id', normalizedRoomId)
+    .select('archive_id');
+
+  if (error) {
+    console.error('MESSAGE ROOM RESTORE ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const restored = (data || []).length > 0;
+
+  if (restored) {
+    const payload = {
+      thread_type: 'group',
+      roomId: normalizedRoomId,
+      room_id: normalizedRoomId,
+      restored_by: normalizedUserId,
+      restored_at: new Date().toISOString(),
+    };
+    emitToUser(normalizedUserId, 'message:thread-restored', payload);
+    adminRealtimeRelayService.relayMessageEvent(
+      'message:thread-restored',
+      payload,
+      [normalizedUserId]
+    ).catch((relayError) => {
+      console.error('[Admin Realtime Relay] room restore event error:', relayError.message);
+    });
+  }
+
+  return { restored };
 }
 
 async function fetchSharedConversationMessages(userId, counterpartyId) {
@@ -1727,6 +2212,11 @@ module.exports = {
   markRoomThreadRead,
   fetchRoomMembers,
   leaveRoom,
+  fetchArchivedThreads,
+  archiveFixedThread,
+  restoreFixedThread,
+  archiveRoom,
+  restoreRoom,
   fetchSharedConversationMessages,
   sendSharedConversationMessage,
   markSharedConversationRead,

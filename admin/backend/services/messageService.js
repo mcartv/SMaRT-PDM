@@ -515,7 +515,7 @@ exports.sendMessage = async ({
 
   await createPrivateReadStates(message.message_id, senderId, receiverId);
 
-  await db.query(
+  const restoredArchives = await db.query(
     `
     DELETE FROM message_thread_archives
     WHERE thread_type = 'private'
@@ -523,7 +523,8 @@ exports.sendMessage = async ({
         (user_id = $1 AND counterparty_id = $2)
         OR
         (user_id = $2 AND counterparty_id = $1)
-      );
+      )
+    RETURNING user_id;
     `,
     [senderId, receiverId]
   );
@@ -532,6 +533,9 @@ exports.sendMessage = async ({
 
   return {
     ...message,
+    restored_archive_user_ids: restoredArchives.rows
+      .map((row) => row.user_id)
+      .filter(Boolean),
     is_read: true,
     sender_name: senderSummary?.display_name || 'Unknown User',
     sender_profile_photo_url: senderSummary?.profile_photo_url || null,
@@ -776,11 +780,18 @@ exports.sendRoomMessage = async ({
 
   await createRoomReadStates(message.message_id, roomId, senderId);
 
-  await db.query(
+  const restoredArchives = await db.query(
     `
-    DELETE FROM message_thread_archives
-    WHERE thread_type = 'group'
-      AND room_id = $1;
+    DELETE FROM message_thread_archives mta
+    WHERE mta.thread_type = 'group'
+      AND mta.room_id = $1
+      AND EXISTS (
+        SELECT 1
+        FROM chat_room_members crm
+        WHERE crm.room_id = mta.room_id
+          AND crm.user_id = mta.user_id
+      )
+    RETURNING mta.user_id;
     `,
     [roomId]
   );
@@ -789,6 +800,9 @@ exports.sendRoomMessage = async ({
 
   return {
     ...message,
+    restored_archive_user_ids: restoredArchives.rows
+      .map((row) => row.user_id)
+      .filter(Boolean),
     is_read: true,
     sender_name: senderSummary?.display_name || 'Unknown User',
     sender_profile_photo_url: senderSummary?.profile_photo_url || null,

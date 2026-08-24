@@ -214,15 +214,26 @@ async function listAuditLogs({
 
     const whereSql = where.length ? `where ${where.join(' and ')}` : '';
 
-    const countResult = await db.query(
-        `
-        select count(*)::int as total
-        from audit_logs a
-        left join users u on u.user_id = a.user_id
-        ${whereSql}
-        `,
-        values
-    );
+    const [countResult, moduleResult] = await Promise.all([
+        db.query(
+            `
+            select count(*)::int as total
+            from audit_logs a
+            left join users u on u.user_id = a.user_id
+            ${whereSql}
+            `,
+            values
+        ),
+        db.query(
+            `
+            select distinct a.module
+            from audit_logs a
+            where (${VISIBLE_SYSTEM_LOG_SQL})
+              and nullif(btrim(a.module), '') is not null
+            order by a.module asc
+            `
+        ),
+    ]);
 
     values.push(safeLimit);
     values.push(safeOffset);
@@ -258,6 +269,9 @@ async function listAuditLogs({
         limit: safeLimit,
         offset: safeOffset,
         items: result.rows,
+        modules: moduleResult.rows
+            .map((row) => String(row.module || '').trim())
+            .filter(Boolean),
     };
 }
 

@@ -38,14 +38,17 @@ function emitNotificationCreated(req, notification) {
 
     const payload = normalizeNotification(notification);
 
-    io.emit('notification:new', payload);
-    io.emit('notification:created', payload);
-    io.emit('notification:updated', payload);
+    const userId = payload.user_id || payload.userId;
+    if (!userId) return;
+
+    io.to(`user:${userId}`).emit('notification:new', payload);
+    io.to(`user:${userId}`).emit('notification:created', payload);
+    io.to(`user:${userId}`).emit('notification:updated', payload);
 
     // Compatibility aliases
-    io.emit('notifications:updated', payload);
-    io.emit('notificationCreated', payload);
-    io.emit('notificationUpdated', payload);
+    io.to(`user:${userId}`).emit('notifications:updated', payload);
+    io.to(`user:${userId}`).emit('notificationCreated', payload);
+    io.to(`user:${userId}`).emit('notificationUpdated', payload);
 }
 
 function emitNotificationRead(req, payload = {}) {
@@ -59,10 +62,13 @@ function emitNotificationRead(req, payload = {}) {
         ...payload,
     };
 
-    io.emit('notification:read', data);
-    io.emit('notification:updated', data);
-    io.emit('notifications:updated', data);
-    io.emit('notificationUpdated', data);
+    const userId = data.user_id || data.userId;
+    if (!userId) return;
+
+    io.to(`user:${userId}`).emit('notification:read', data);
+    io.to(`user:${userId}`).emit('notification:updated', data);
+    io.to(`user:${userId}`).emit('notifications:updated', data);
+    io.to(`user:${userId}`).emit('notificationUpdated', data);
 }
 
 function emitNotificationReadAll(req, payload = {}) {
@@ -76,10 +82,13 @@ function emitNotificationReadAll(req, payload = {}) {
         ...payload,
     };
 
-    io.emit('notification:read-all', data);
-    io.emit('notification:updated', data);
-    io.emit('notifications:updated', data);
-    io.emit('notificationUpdated', data);
+    const userId = data.user_id || data.userId;
+    if (!userId) return;
+
+    io.to(`user:${userId}`).emit('notification:read-all', data);
+    io.to(`user:${userId}`).emit('notification:updated', data);
+    io.to(`user:${userId}`).emit('notifications:updated', data);
+    io.to(`user:${userId}`).emit('notificationUpdated', data);
 }
 
 module.exports = {

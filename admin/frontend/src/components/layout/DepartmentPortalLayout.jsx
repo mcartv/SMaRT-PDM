@@ -251,7 +251,7 @@ export default function DepartmentPortalLayout({
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="portal-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,

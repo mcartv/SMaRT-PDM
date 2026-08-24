@@ -363,9 +363,56 @@ function ThreadIcon({ item }) {
 
 function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState(null)
+  const menuButtonRef = useRef(null)
   const hasUnread = Number(item.unreadCount || 0) > 0
 
-  const closeMenu = () => setMenuOpen(false)
+  const closeMenu = () => {
+    setMenuOpen(false)
+    setMenuPosition(null)
+  }
+
+  const toggleMenu = (event) => {
+    event.stopPropagation()
+
+    if (menuOpen) {
+      closeMenu()
+      return
+    }
+
+    const rect = menuButtonRef.current?.getBoundingClientRect()
+    if (rect) {
+      const menuWidth = 192
+      const menuHeight = 82
+      const viewportPadding = 8
+      const gap = 4
+      const left = Math.min(
+        Math.max(viewportPadding, rect.right - menuWidth),
+        Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding),
+      )
+      const openAbove = rect.bottom + gap + menuHeight > window.innerHeight - viewportPadding
+      const top = openAbove
+        ? Math.max(viewportPadding, rect.top - menuHeight - gap)
+        : rect.bottom + gap
+
+      setMenuPosition({ top, left })
+    }
+
+    setMenuOpen(true)
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+
+    const handleViewportChange = () => closeMenu()
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [menuOpen])
 
   return (
     <div
@@ -430,13 +477,13 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
       {!item.isSearchResult && (
         <div className="absolute right-2 top-3">
           <button
+            ref={menuButtonRef}
             type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              setMenuOpen((current) => !current)
-            }}
+            onClick={toggleMenu}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
             title="Thread options"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
           >
             <MoreVertical className="h-4 w-4" />
           </button>
@@ -450,7 +497,14 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
                 aria-label="Close menu"
               />
 
-              <div className="absolute right-0 top-8 z-[80] w-48 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl">
+              <div
+                role="menu"
+                className="fixed z-[80] w-48 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl"
+                style={{
+                  top: menuPosition?.top ?? 0,
+                  left: menuPosition?.left ?? 0,
+                }}
+              >
                 <button
                   type="button"
                   onClick={(event) => {
@@ -483,7 +537,7 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 transition hover:bg-red-50"
                 >
                   <Archive className="h-3.5 w-3.5" />
-                  Archive thread
+                  Archive
                 </button>
               </div>
             </>
@@ -1322,6 +1376,8 @@ export default function AdminMessages({
   const [archivedItems, setArchivedItems] = useState([])
   const [loadingArchived, setLoadingArchived] = useState(false)
   const [restoringArchiveId, setRestoringArchiveId] = useState('')
+  const [pendingArchiveThread, setPendingArchiveThread] = useState(null)
+  const [archiveThreadBusy, setArchiveThreadBusy] = useState(false)
 
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
@@ -1949,15 +2005,14 @@ export default function AdminMessages({
     async (item) => {
       if (!item?.id || item.isSearchResult) return
 
-      const confirmed = window.confirm(`Archive "${item.name}"?`)
-      if (!confirmed) return
-
       const endpoint =
         item.type === 'group'
           ? `${MESSAGING_API_BASE}/api/messages/rooms/${item.id}/archive`
           : `${MESSAGING_API_BASE}/api/messages/conversations/${item.id}/archive`
 
       try {
+        setArchiveThreadBusy(true)
+
         const response = await fetch(endpoint, {
           method: 'PATCH',
           headers: buildMessagingHeaders(token, { json: true }),
@@ -1989,9 +2044,12 @@ export default function AdminMessages({
           await fetchArchivedThreads()
         }
 
+        setPendingArchiveThread(null)
         setError('')
       } catch (err) {
         setError(err.message || 'Failed to archive thread.')
+      } finally {
+        setArchiveThreadBusy(false)
       }
     },
     [
@@ -3017,6 +3075,17 @@ export default function AdminMessages({
       />
 
       <ConfirmActionModal
+        open={Boolean(pendingArchiveThread)}
+        title="Archive conversation?"
+        description={pendingArchiveThread ? `"${pendingArchiveThread.name}" will move to Archived Messages. If you are still a participant, a new message will bring it back automatically.` : ''}
+        confirmLabel="Archive"
+        busy={archiveThreadBusy}
+        variant="primary"
+        onCancel={() => { if (!archiveThreadBusy) setPendingArchiveThread(null) }}
+        onConfirm={() => archiveThread(pendingArchiveThread)}
+      />
+
+      <ConfirmActionModal
         open={Boolean(pendingRemoveMember)}
         title="Remove member?"
         description={pendingRemoveMember ? `${pendingRemoveMember.name} will lose access to this group and its future messages.` : ''}
@@ -3202,7 +3271,7 @@ export default function AdminMessages({
                           item={item}
                           isActive={isActive}
                           onToggleRead={toggleThreadReadState}
-                          onArchive={archiveThread}
+                          onArchive={setPendingArchiveThread}
                           onClick={() => {
                             setTransientPrivateContact(null)
                             if (item.type === 'group') {

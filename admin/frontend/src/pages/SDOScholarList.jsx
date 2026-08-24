@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
+import { toast } from 'sonner';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -60,10 +61,10 @@ const SDO_STYLE = {
 };
 
 const FILTER_OPTIONS = [
-  { value: 'all', label: 'All SDO' },
+  { value: 'all', label: 'All Statuses' },
   { value: 'clear', label: 'Clear' },
-  { value: 'minor', label: 'Minor' },
-  { value: 'major', label: 'Major' },
+  { value: 'minor', label: 'Minor Offense' },
+  { value: 'major', label: 'Major Offense' },
 ];
 
 const STATUS_OPTIONS = [
@@ -92,7 +93,10 @@ function normalizeStatus(status) {
 }
 
 function getEditableStatus(status) {
-  return status === 'minor' || status === 'major' ? status : 'clear';
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'minor' || normalized === 'minor offense') return 'minor';
+  if (normalized === 'major' || normalized === 'major offense') return 'major';
+  return 'clear';
 }
 
 function getSdoStyle(status) {
@@ -313,7 +317,6 @@ export default function SDOScholarList() {
 
   const [drafts, setDrafts] = useState({});
   const [savingId, setSavingId] = useState(null);
-  const [feedback, setFeedback] = useState('');
   const [viewScholar, setViewScholar] = useState(null);
 
   const loadScholars = async ({ soft = false } = {}) => {
@@ -475,7 +478,6 @@ export default function SDOScholarList() {
 
     try {
       setSavingId(scholar.scholar_id);
-      setFeedback('');
       setError('');
 
       const response = await fetch(`${API_BASE}/scholars/${scholar.scholar_id}/sdo-status`, {
@@ -508,7 +510,9 @@ export default function SDOScholarList() {
         )
       );
 
-      setFeedback(`Updated ${scholar.student_name}'s disciplinary standing.`);
+      toast.success('Disciplinary standing updated', {
+        description: `${scholar.student_name}'s disciplinary standing was saved.`,
+      });
     } catch (err) {
       setError(err.message || 'Failed to save scholar update.');
     } finally {
@@ -670,12 +674,6 @@ export default function SDOScholarList() {
                 </Select>
               </div>
             </div>
-
-            {feedback && (
-              <div className="rounded-lg px-4 py-3 text-sm border border-green-200 bg-green-50 text-green-700">
-                {feedback}
-              </div>
-            )}
 
             {error && (
               <div className="rounded-lg px-4 py-3 text-sm border border-red-200 bg-red-50 text-red-700">

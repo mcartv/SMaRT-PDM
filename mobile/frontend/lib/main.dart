@@ -1,5 +1,5 @@
 import 'package:smartpdm_mobileapp/app/bootstrap.dart';
 
-void main() {
-  bootstrapApp();
+Future<void> main() async {
+  await bootstrapApp();
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/config/api';
 import { useSocketListener } from './useSocket';
 
@@ -12,6 +12,7 @@ function normalizeNotification(raw = {}) {
     reference_id: raw.reference_id || raw.referenceId || null,
     reference_type: raw.reference_type || raw.referenceType || null,
     is_read: raw.is_read === true,
+    read_at: raw.read_at || raw.readAt || null,
     created_at: raw.created_at || raw.createdAt || null,
   };
 }
@@ -197,6 +198,8 @@ export default function usePortalNotifications({
   limit = 8,
 }) {
   const [items, setItems] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const knownNotificationIdsRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
@@ -213,9 +216,42 @@ export default function usePortalNotifications({
   const syncItems = useCallback((updater) => {
     setItems((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
-      return sortNotifications(next);
+      const sorted = sortNotifications(next);
+      knownNotificationIdsRef.current = new Set(
+        sorted.map((item) => item.notification_id).filter(Boolean)
+      );
+      return sorted;
     });
   }, []);
+
+  const loadUnreadCount = useCallback(async () => {
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token) {
+      setUnreadCount(0);
+      return null;
+    }
+
+    try {
+      const response = await fetch(buildApiUrl('/api/notifications/unread-count'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to load unread count.');
+      }
+
+      const nextCount = Math.max(0, Number(payload?.unreadCount ?? payload?.count ?? 0) || 0);
+      setUnreadCount(nextCount);
+      return nextCount;
+    } catch (error) {
+      console.error('NOTIFICATION UNREAD COUNT ERROR:', error);
+      return null;
+    }
+  }, [tokenStorageKey]);
 
   const loadRoCoordinatorAccess = useCallback(async () => {
     if (portalRootPath === '/admin') {
@@ -257,6 +293,8 @@ export default function usePortalNotifications({
     const token = sessionStorage.getItem(tokenStorageKey);
     if (!token) {
       setItems([]);
+      knownNotificationIdsRef.current = new Set();
+      setUnreadCount(0);
       setLoading(false);
       return;
     }
@@ -283,14 +321,26 @@ export default function usePortalNotifications({
             hasRoCoordinatorAccess,
           })
         );
-      setItems(sortNotifications(normalized));
+      syncItems(normalized);
+
+      const exactUnreadCount = await loadUnreadCount();
+      if (exactUnreadCount === null) {
+        setUnreadCount(normalized.filter((item) => item.is_read !== true).length);
+      }
     } catch (error) {
       console.error('NOTIFICATION LOAD ERROR:', error);
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [hasRoCoordinatorAccess, limit, portalRootPath, tokenStorageKey]);
+  }, [
+    hasRoCoordinatorAccess,
+    limit,
+    loadUnreadCount,
+    portalRootPath,
+    syncItems,
+    tokenStorageKey,
+  ]);
 
   useEffect(() => {
     loadNotifications();
@@ -303,11 +353,18 @@ export default function usePortalNotifications({
       const token = sessionStorage.getItem(tokenStorageKey);
       if (!token) return;
 
+      const wasUnread = items.some(
+        (item) => item.notification_id === notificationId && item.is_read !== true
+      );
+
       syncItems((current) =>
         current.map((item) =>
           item.notification_id === notificationId ? { ...item, is_read: true } : item
         )
       );
+      if (wasUnread) {
+        setUnreadCount((current) => Math.max(0, current - 1));
+      }
 
       try {
         const response = await fetch(buildApiUrl(`/api/notifications/${notificationId}/read`), {
@@ -331,14 +388,17 @@ export default function usePortalNotifications({
         );
       } catch (error) {
         console.error('MARK NOTIFICATION READ ERROR:', error);
-        syncItems((current) =>
-          current.map((item) =>
-            item.notification_id === notificationId ? { ...item, is_read: false } : item
-          )
-        );
+        if (wasUnread) {
+          syncItems((current) =>
+            current.map((item) =>
+              item.notification_id === notificationId ? { ...item, is_read: false } : item
+            )
+          );
+          setUnreadCount((current) => current + 1);
+        }
       }
     },
-    [syncItems, tokenStorageKey]
+    [items, syncItems, tokenStorageKey]
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -361,6 +421,7 @@ export default function usePortalNotifications({
       }
 
       syncItems((current) => current.map((item) => ({ ...item, is_read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error('MARK ALL NOTIFICATIONS READ ERROR:', error);
     } finally {
@@ -372,16 +433,36 @@ export default function usePortalNotifications({
     'notification:created': (raw) => {
       const next = normalizeNotification(raw);
       if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
+
+      const wasKnown = knownNotificationIdsRef.current.has(next.notification_id);
+      if (next.notification_id) {
+        knownNotificationIdsRef.current.add(next.notification_id);
+      }
+
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );
+
+      if (!wasKnown && next.is_read !== true) {
+        setUnreadCount((current) => current + 1);
+      }
     },
     'notification:new': (raw) => {
       const next = normalizeNotification(raw);
       if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
+
+      const wasKnown = knownNotificationIdsRef.current.has(next.notification_id);
+      if (next.notification_id) {
+        knownNotificationIdsRef.current.add(next.notification_id);
+      }
+
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );
+
+      if (!wasKnown && next.is_read !== true) {
+        setUnreadCount((current) => current + 1);
+      }
     },
     'notification:updated': (raw) => {
       const next = normalizeNotification(raw?.notification || raw);
@@ -390,20 +471,19 @@ export default function usePortalNotifications({
           item.notification_id === next.notification_id ? { ...item, ...next } : item
         )
       );
+      void loadUnreadCount();
     },
     'notification:read-all': () => {
       syncItems((current) => current.map((item) => ({ ...item, is_read: true })));
+      setUnreadCount(0);
     },
     'notification:deleted': (raw) => {
       const targetId = raw?.notificationId || raw?.notification_id;
+      knownNotificationIdsRef.current.delete(targetId);
       syncItems((current) => current.filter((item) => item.notification_id !== targetId));
+      void loadUnreadCount();
     },
   });
-
-  const unreadCount = useMemo(
-    () => items.filter((item) => item.is_read !== true).length,
-    [items]
-  );
 
   const newNotifications = useMemo(
     () => items.filter((item) => isRecentNotification(item, sectionNow)),

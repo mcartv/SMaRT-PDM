@@ -26,9 +26,9 @@ import {
 } from 'lucide-react';
 
 const C = {
-  brownMid: '#7c4a2e',
-  brownDark: '#5d3400',
-  brownSoft: '#f5ede2',
+  brownMid: 'var(--portal-base)',
+  brownDark: 'var(--portal-active)',
+  brownSoft: 'var(--portal-accent-soft)',
   amber: '#d97706',
   amberSoft: '#fff7ed',
   green: '#16a34a',
@@ -39,9 +39,9 @@ const C = {
   blueSoft: '#eff6ff',
   purple: '#7c3aed',
   purpleSoft: '#f5f3ff',
-  bg: '#faf7f2',
-  line: '#e7e5e4',
-  mutedText: '#78716c',
+  bg: 'var(--portal-main-bg)',
+  line: 'var(--portal-border)',
+  mutedText: 'var(--portal-muted)',
 };
 
 const TOP_TABS = [
@@ -53,6 +53,31 @@ const TOP_TABS = [
 
 function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function getPlacementApprovalState(scholar = {}) {
+  const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
+  const statuses = placements.map((placement) =>
+    normalizeStatus(placement?.placement_status || placement?.placementStatus)
+  );
+
+  return {
+    hasApproved: statuses.includes('approved'),
+    hasPending: statuses.includes('pending'),
+  };
+}
+
+function getDepartmentValidationStatus(log = {}) {
+  const raw = normalizeStatus(
+    log.departmentValidationStatus ||
+      log.department_validation_status ||
+      log.validationStatus ||
+      log.validation_status
+  );
+
+  if (raw === 'approved') return 'Approved';
+  if (raw === 'returned' || raw === 'rejected') return 'Returned';
+  return 'Pending';
 }
 
 function getScholarName(scholar) {
@@ -243,6 +268,7 @@ function getMainStatusCapsule(scholar) {
   );
 
   const roStatus = normalizeStatus(scholar.ro_status);
+  const { hasApproved, hasPending } = getPlacementApprovalState(scholar);
 
   const isCleared =
     scholar.is_cleared === true ||
@@ -257,8 +283,11 @@ function getMainStatusCapsule(scholar) {
     return { label: 'Conflict', tone: 'red' };
   }
 
-  if (assignmentStatus === 'pending coordinator approval') {
-    return { label: 'Coordinator Approval', tone: 'blue' };
+  if (
+    assignmentStatus === 'pending coordinator approval' ||
+    (hasPending && !hasApproved)
+  ) {
+    return { label: 'Pending Approval', tone: 'amber' };
   }
 
   if (assignmentStatus === 'coordinator rejected') {
@@ -462,6 +491,8 @@ function FilterModal({
                 className="h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
                 <option value="all">All Statuses</option>
+                <option value="pending_approval">Pending Approval</option>
+                <option value="assigned">Assigned</option>
                 <option value="in_progress">In Progress</option>
                 <option value="for_validation">For Validation</option>
                 <option value="conflict">Conflict</option>
@@ -552,6 +583,44 @@ function FilterModal({
               style={{ background: C.brownMid }}
             >
               Apply
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ConfirmClearModal({ open, scholar, loading, onClose, onConfirm }) {
+  if (!open || !scholar) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4 font-sans backdrop-blur-sm">
+      <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
+      <Card className="relative w-full max-w-sm rounded-2xl border-stone-200 bg-white shadow-xl">
+        <CardContent className="p-5">
+          <h3 className="text-base font-semibold text-stone-900">Mark as RO cleared?</h3>
+          <p className="mt-2 text-sm leading-6 text-stone-500">
+            {getScholarName(scholar)} will be marked as cleared for the current RO requirement.
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={onClose}
+              className="h-10 rounded-xl border-stone-200 px-4 text-sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={loading}
+              onClick={onConfirm}
+              className="h-10 rounded-xl bg-[var(--portal-base)] px-4 text-sm font-semibold text-white hover:brightness-95"
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Mark cleared
             </Button>
           </div>
         </CardContent>
@@ -911,10 +980,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
             </div>
           ) : (
             logs.map((log) => {
-              const status =
-                log.departmentValidationStatus ||
-                log.department_validation_status ||
-                'Pending';
+              const status = getDepartmentValidationStatus(log);
               const departmentRemarks =
                 log.departmentValidationRemarks ||
                 log.department_validation_remarks ||
@@ -935,7 +1001,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                           tone={
                             status === 'Approved'
                               ? 'green'
-                              : status === 'Rejected'
+                              : status === 'Returned'
                                 ? 'red'
                                 : 'amber'
                           }
@@ -1042,9 +1108,18 @@ function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) 
                       </div>
 
                       {departmentRemarks ? (
-                        <p className={`mt-4 rounded-lg px-3 py-2 text-xs ${status === 'Returned' ? 'bg-red-50 text-red-600' : 'bg-stone-50 text-stone-600'}`}>
-                          {departmentRemarks}
-                        </p>
+                        <div
+                          className={`mt-4 rounded-xl border px-3 py-2.5 text-xs ${
+                            status === 'Returned'
+                              ? 'border-red-100 bg-red-50 text-red-700'
+                              : status === 'Approved'
+                                ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                                : 'border-amber-100 bg-amber-50 text-amber-800'
+                          }`}
+                        >
+                          <p className="font-semibold">Validation Feedback</p>
+                          <p className="mt-1 leading-5">{departmentRemarks}</p>
+                        </div>
                       ) : null}
                     </div>
 
@@ -1416,6 +1491,7 @@ export default function ROAdmin() {
 
   const [selectedScholar, setSelectedScholar] = useState(null);
   const [detailsScholar, setDetailsScholar] = useState(null);
+  const [pendingClearScholar, setPendingClearScholar] = useState(null);
   const [actionError, setActionError] = useState('');
 
   const authHeaders = useMemo(
@@ -1482,6 +1558,22 @@ export default function ROAdmin() {
       if (topTab === 'unassigned' && scholar.ro_id) return false;
       if (topTab === 'assigned' && (!scholar.ro_id || isCleared)) return false;
       if (topTab === 'cleared' && !isCleared) return false;
+
+      const placementState = getPlacementApprovalState(scholar);
+
+      if (statusFilter === 'pending_approval') {
+        return (
+          assignmentStatus === 'pending coordinator approval' ||
+          (placementState.hasPending && !placementState.hasApproved)
+        );
+      }
+
+      if (statusFilter === 'assigned') {
+        return (
+          assignmentStatus === 'assigned' &&
+          (!placementState.hasPending || placementState.hasApproved)
+        );
+      }
 
       if (statusFilter === 'in_progress') {
         return (
@@ -1868,12 +1960,6 @@ export default function ROAdmin() {
   const handleClear = async (scholar) => {
     if (!scholar?.student_id) return;
 
-    const confirmed = window.confirm(
-      `Mark ${getScholarName(scholar)} as RO cleared?`
-    );
-
-    if (!confirmed) return;
-
     try {
       setActionLoading(true);
       setActionError('');
@@ -1895,6 +1981,7 @@ export default function ROAdmin() {
         throw new Error(data.error || data.message || 'Failed to clear scholar');
       }
 
+      setPendingClearScholar(null);
       setDetailsModalOpen(false);
       setLogsModalOpen(false);
       setSelectedScholar(null);
@@ -1980,7 +2067,21 @@ export default function ROAdmin() {
         onAssign={openAssignFromDetails}
         onLogs={openLogsFromDetails}
         onClear={() => {
-          if (detailsScholar) handleClear(detailsScholar);
+          if (!detailsScholar) return;
+          setActionError('');
+          setPendingClearScholar(detailsScholar);
+        }}
+      />
+
+      <ConfirmClearModal
+        open={Boolean(pendingClearScholar)}
+        scholar={pendingClearScholar}
+        loading={actionLoading}
+        onClose={() => {
+          if (!actionLoading) setPendingClearScholar(null);
+        }}
+        onConfirm={() => {
+          if (pendingClearScholar) handleClear(pendingClearScholar);
         }}
       />
 

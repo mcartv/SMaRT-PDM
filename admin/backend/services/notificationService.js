@@ -19,9 +19,20 @@ function dedupeAudienceUsers(users = []) {
 async function getApplicantAudienceUsers() {
     const { rows } = await db.query(
         `
-        SELECT u.user_id, u.role
+        SELECT DISTINCT u.user_id, u.role
         FROM users u
-        WHERE lower(coalesce(u.role, '')) = 'applicant'
+        LEFT JOIN students s ON s.user_id = u.user_id
+        WHERE lower(coalesce(u.role, '')) IN ('student', 'applicant')
+          AND (
+            lower(coalesce(u.role, '')) = 'applicant'
+            OR NOT (
+              coalesce(s.is_active_scholar, false) = true
+              OR lower(coalesce(s.scholarship_status, '')) = 'active'
+            )
+          )
+          AND coalesce(s.scholar_is_archived, false) = false
+          AND coalesce(s.is_archived, false) = false
+          AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
         `
     );
 
@@ -43,8 +54,10 @@ async function getActiveScholarAudienceUsers(programId = null) {
         FROM users u
         INNER JOIN students s ON s.user_id = u.user_id
         WHERE lower(coalesce(u.role, '')) = 'student'
-          AND coalesce(s.is_active_scholar, false) = true
-          AND lower(coalesce(s.scholarship_status, '')) = 'active'
+          AND (
+            coalesce(s.is_active_scholar, false) = true
+            OR lower(coalesce(s.scholarship_status, '')) = 'active'
+          )
           AND coalesce(s.scholar_is_archived, false) = false
           AND coalesce(s.is_archived, false) = false
           AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
@@ -232,6 +245,106 @@ async function createNotificationsForAudience({
     return data || [];
 }
 
+async function syncAnnouncementNotifications({
+    audience,
+    title,
+    message,
+    referenceId,
+    createdAt = null,
+    programId = null,
+}) {
+    if (!title || !message || !audience || !referenceId) {
+        throw new Error('Title, message, audience, and referenceId are required');
+    }
+
+    const users = await getAudienceUsers(audience, { programId });
+    const userIds = users
+        .map((targetUser) => String(targetUser?.user_id || '').trim())
+        .filter(Boolean);
+
+    if (!userIds.length) {
+        await db.query(
+            `
+            DELETE FROM notifications
+            WHERE reference_id = $1
+              AND lower(coalesce(reference_type, '')) = 'announcement'
+              AND lower(coalesce(type, '')) = 'announcement'
+            `,
+            [referenceId]
+        );
+
+        return { inserted: 0, updated: 0, removedStale: true };
+    }
+
+    await db.query(
+        `
+        DELETE FROM notifications
+        WHERE reference_id = $1
+          AND lower(coalesce(reference_type, '')) = 'announcement'
+          AND lower(coalesce(type, '')) = 'announcement'
+          AND NOT (user_id = ANY($2::uuid[]))
+        `,
+        [referenceId, userIds]
+    );
+
+    const { rowCount: updated = 0 } = await db.query(
+        `
+        UPDATE notifications
+        SET title = $2,
+            message = $3
+        WHERE reference_id = $1
+          AND lower(coalesce(reference_type, '')) = 'announcement'
+          AND lower(coalesce(type, '')) = 'announcement'
+          AND user_id = ANY($4::uuid[])
+        `,
+        [referenceId, title, message, userIds]
+    );
+
+    const timestamp = createdAt || new Date().toISOString();
+    const { rows: insertedRows } = await db.query(
+        `
+        INSERT INTO notifications (
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            push_sent,
+            created_at
+        )
+        SELECT
+            target.user_id,
+            'Announcement',
+            $2,
+            $3,
+            $4,
+            'announcement',
+            false,
+            false,
+            $5::timestamptz
+        FROM unnest($1::uuid[]) AS target(user_id)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM notifications existing
+            WHERE existing.user_id = target.user_id
+              AND existing.reference_id = $4
+              AND lower(coalesce(existing.reference_type, '')) = 'announcement'
+              AND lower(coalesce(existing.type, '')) = 'announcement'
+        )
+        RETURNING notification_id
+        `,
+        [userIds, title, message, referenceId, timestamp]
+    );
+
+    return {
+        inserted: insertedRows?.length || 0,
+        updated,
+        removedStale: true,
+    };
+}
+
 exports.createAnnouncementNotifications = async (payload) => {
     const {
         title,
@@ -261,6 +374,7 @@ exports.createAnnouncementNotifications = async (payload) => {
 
 exports.getAudienceUsers = getAudienceUsers;
 exports.createNotificationsForAudience = createNotificationsForAudience;
+exports.syncAnnouncementNotifications = syncAnnouncementNotifications;
 
 async function createUserNotification({
     userId,
@@ -325,6 +439,7 @@ async function createUserNotificationOnce({
             reference_id,
             reference_type,
             is_read,
+            read_at,
             push_sent,
             created_at
         )
@@ -347,6 +462,7 @@ async function createUserNotificationOnce({
             reference_id,
             reference_type,
             is_read,
+            read_at,
             push_sent,
             created_at
         `,
@@ -495,6 +611,7 @@ async function getMyNotifications(userId, query = {}) {
             reference_id,
             reference_type,
             is_read,
+            read_at,
             push_sent,
             created_at
         `,
@@ -546,7 +663,7 @@ async function markAsRead(userId, notificationId) {
 
     const { data, error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('notification_id', notificationId)
         .eq('user_id', userId)
         .select(
@@ -559,6 +676,7 @@ async function markAsRead(userId, notificationId) {
             reference_id,
             reference_type,
             is_read,
+            read_at,
             push_sent,
             created_at
         `
@@ -587,7 +705,7 @@ async function markAllAsRead(userId) {
 
     const { data, error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('is_read', false)
         .select('notification_id');

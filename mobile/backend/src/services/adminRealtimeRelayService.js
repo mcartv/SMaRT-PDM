@@ -70,10 +70,10 @@ async function relayRoUpdated(payload = {}) {
     });
 }
 
-async function relayMessageCreated(payload = {}) {
+async function relayMessageCreated(payload = {}, targetUserIds = []) {
     return postToAdminBackend(
         '/api/internal/realtime/message-created',
-        payload
+        { ...payload, targetUserIds }
     );
 }
 

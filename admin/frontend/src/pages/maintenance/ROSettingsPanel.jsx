@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import {
     AlertTriangle,
     Building2,
-    CheckCircle2,
     Clock3,
     Loader2,
     Pencil,
@@ -17,6 +16,7 @@ import {
     X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 import { useSocketEvent } from '@/hooks/useSocket';
 import {
     MAINTENANCE_CARD_SUBTITLE_CLASS,
@@ -185,7 +185,6 @@ export default function ROSettingsPanel() {
     const [departmentActionId, setDepartmentActionId] = useState('');
 
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
 
     const activeSettingId = activeSetting?.setting_id || null;
 
@@ -318,7 +317,6 @@ export default function ROSettingsPanel() {
         try {
             setSaving(true);
             setError('');
-            setSuccess('');
 
             const hours = Number.parseInt(requiredHours, 10);
 
@@ -358,7 +356,7 @@ export default function ROSettingsPanel() {
                 throw new Error(data.error || 'Failed to save RO setting.');
             }
 
-            setSuccess(data.message || 'RO setting saved successfully.');
+            showAppToast('success', 'RO setting saved', data.message || 'RO setting saved successfully.');
             await loadSettings();
         } catch (err) {
             console.error('SAVE RO SETTING ERROR:', err);
@@ -372,7 +370,6 @@ export default function ROSettingsPanel() {
         try {
             setDepartmentActionId(department.department_id);
             setError('');
-            setSuccess('');
 
             const response = await fetch(
                 buildApiUrl(`/api/ro-settings/departments/${department.department_id}/coordinator`),
@@ -387,7 +384,7 @@ export default function ROSettingsPanel() {
                 throw new Error(payload.error || 'Failed to update the RO Area coordinator.');
             }
 
-            setSuccess(payload.message || 'RO Area coordinator updated.');
+            showAppToast('success', 'Coordinator updated', payload.message || 'RO Area coordinator updated.');
             await loadSettings();
         } catch (actionError) {
             setError(actionError.message || 'Failed to update the RO Area coordinator.');
@@ -401,7 +398,6 @@ export default function ROSettingsPanel() {
         setEditingDepartmentId(null);
         setDepartmentName('');
         setError('');
-        setSuccess('');
         setModalOpen(true);
     };
 
@@ -410,7 +406,6 @@ export default function ROSettingsPanel() {
         setEditingDepartmentId(department.department_id);
         setDepartmentName(department.department_name || '');
         setError('');
-        setSuccess('');
         setModalOpen(true);
     };
 
@@ -427,7 +422,6 @@ export default function ROSettingsPanel() {
         try {
             setDepartmentSaving(true);
             setError('');
-            setSuccess('');
 
             const name = String(departmentName || '').trim();
 
@@ -458,7 +452,7 @@ export default function ROSettingsPanel() {
                 throw new Error(data.error || 'Failed to save RO Area.');
             }
 
-            setSuccess(data.message || 'RO Area saved successfully.');
+            showAppToast('success', 'RO area saved', data.message || 'RO Area saved successfully.');
             closeDepartmentModal();
             await loadSettings();
         } catch (err) {
@@ -473,7 +467,6 @@ export default function ROSettingsPanel() {
         try {
             setDepartmentActionId(department.department_id);
             setError('');
-            setSuccess('');
 
             const response = await fetch(
                 buildApiUrl(`/api/ro-settings/departments/${department.department_id}/toggle`),
@@ -489,7 +482,7 @@ export default function ROSettingsPanel() {
                 throw new Error(data.error || 'Failed to update RO Area status.');
             }
 
-            setSuccess(data.message || 'RO Area status updated successfully.');
+            showAppToast('success', 'RO area updated', data.message || 'RO Area status updated successfully.');
             await loadSettings();
         } catch (err) {
             console.error('TOGGLE RO DEPARTMENT ERROR:', err);
@@ -528,12 +521,6 @@ export default function ROSettingsPanel() {
                 </div>
             ) : null}
 
-            {success ? (
-                <div className="flex items-start gap-2 rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{success}</span>
-                </div>
-            ) : null}
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">

@@ -306,9 +306,21 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
               {meta.name} View
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">{slip.student_name}</h1>
-            <p className="mt-2 text-sm text-white/80">
-              {slip.pdm_id || 'No PDM ID'} • {slip.opening_title || 'Opening not set'} • {slip.semester || 'N/A'} / {slip.school_year || 'N/A'}
+            <p className="mt-2 text-sm font-medium text-white/90">
+              {slip.course_display || slip.course_code || slip.course_name || 'N/A'}
             </p>
+
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/80">
+              <span className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1">
+                {slip.pdm_id || 'No PDM ID'}
+              </span>
+              <span className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1">
+                {slip.opening_title || 'Opening not set'}
+              </span>
+              <span className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1">
+                {slip.semester || 'N/A'} / {slip.school_year || 'N/A'}
+              </span>
+            </div>
 
             <p className="mt-2 flex items-center gap-1.5 text-xs text-white/70">
               <Clock3 className="h-3.5 w-3.5" />

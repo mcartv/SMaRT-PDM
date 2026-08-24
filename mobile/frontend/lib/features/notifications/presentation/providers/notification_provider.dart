@@ -311,7 +311,7 @@ class NotificationProvider extends ChangeNotifier {
 
       case MobileRealtimeEvents.notificationDeleted:
       case MobileRealtimeEvents.notificationArchived:
-        _removeNotificationFromEvent(event);
+        await _removeNotificationFromEvent(event);
         return;
 
       case MobileRealtimeEvents.notificationRestored:
@@ -617,7 +617,9 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  void _removeNotificationFromEvent(MobileRealtimeEvent event) {
+  Future<void> _removeNotificationFromEvent(
+    MobileRealtimeEvent event,
+  ) async {
     final notificationId =
         event.payload['notificationId']?.toString() ??
         event.payload['notification_id']?.toString() ??
@@ -629,7 +631,7 @@ class NotificationProvider extends ChangeNotifier {
         .where((notification) => notification.notificationId != notificationId)
         .toList(growable: false);
 
-    _recalculateUnreadCount();
+    await _refreshUnreadCountFromServerOrLocal();
     notifyListeners();
   }
 

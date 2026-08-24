@@ -11,7 +11,7 @@ const isLocalDevelopment =
     ['localhost', '127.0.0.1'].includes(window.location.hostname));
 
 // Local development uses the Vite origin so /api requests are forwarded by
-// vite.config.js to the local backend on port 5000. Production uses VITE_API_URL.
+// vite.config.js to the developer's local backend. Production uses VITE_API_URL.
 const API_BASE_URL = isLocalDevelopment
   ? browserOrigin
   : configuredApiBaseUrl || browserOrigin;

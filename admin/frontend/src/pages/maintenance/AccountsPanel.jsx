@@ -140,7 +140,9 @@ const OPERATIONAL_ROLE_OPTIONS = ROLE_OPTIONS.filter((option) => option.value !=
 const DEFAULT_OPERATIONAL_ROLE = OPERATIONAL_ROLE_OPTIONS[0];
 const ACCOUNT_ROLE_GROUP_ORDER = ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'];
 const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
+const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
 const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
+const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
 
 function sanitizePhoneNumberInput(value) {
     return String(value || '').replace(/\D/g, '').slice(0, 11);
@@ -148,7 +150,10 @@ function sanitizePhoneNumberInput(value) {
 
 function validateOptionalPhoneNumber(value) {
     const phoneNumber = String(value || '').trim();
-    return phoneNumber && !PHONE_NUMBER_PATTERN.test(phoneNumber) ? PHONE_NUMBER_ERROR : '';
+    if (!phoneNumber) return '';
+    if (!PHONE_NUMBER_PATTERN.test(phoneNumber)) return PHONE_NUMBER_ERROR;
+    if (REPEATING_PHONE_NUMBER_PATTERN.test(phoneNumber)) return REPEATING_PHONE_NUMBER_ERROR;
+    return '';
 }
 
 const DEFAULT_FORM = {

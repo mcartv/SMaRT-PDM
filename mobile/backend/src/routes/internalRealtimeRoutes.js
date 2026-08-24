@@ -80,6 +80,8 @@ router.post('/message-event', requireInternalSecret, (req, res) => {
     'room:created',
     'room:members-added',
     'room:members-removed',
+    'room:member-left',
+    'room:member-promoted',
   ]);
 
   if (!allowedEvents.has(eventName)) {

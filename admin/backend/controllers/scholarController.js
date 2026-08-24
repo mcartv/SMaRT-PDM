@@ -1,6 +1,7 @@
 const scholarService = require('../services/scholarService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const notificationService = require('../services/notificationService');
 
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -77,6 +78,36 @@ function emitScholarUpdated(req, payload = {}) {
             source: 'scholars',
             ...data,
         });
+    }
+}
+
+async function notifyAdminsOfSdoStatusChange(req, scholar = {}) {
+    try {
+        if (typeof notificationService?.createStaffNotifications !== 'function') return;
+
+        const studentName = scholar.student_name || scholar.student_id || 'Scholar';
+        const statusLabel = scholar.sdo_status || 'Updated';
+        const notifications = await notificationService.createStaffNotifications({
+            roles: ['admin'],
+            type: 'Scholar Status',
+            title: 'Scholar probation status updated',
+            message: `SDO updated ${studentName}'s disciplinary standing to ${statusLabel}.`,
+            referenceId: scholar.student_id || scholar.scholar_id || null,
+            referenceType: 'scholar',
+        });
+
+        const io = req.app.get('io');
+        if (!io || !Array.isArray(notifications)) return;
+
+        for (const notification of notifications) {
+            const targetUserId = notification?.target_user_id || notification?.user_id;
+            if (!targetUserId) continue;
+            socketEvents.notificationCreated(io, targetUserId, notification);
+        }
+    } catch (err) {
+        // The scholar update is already committed. Notification delivery must
+        // never turn a successful SDO status update into a failed request.
+        console.error('SDO SCHOLAR STATUS ADMIN NOTIFICATION ERROR:', err.message);
     }
 }
 
@@ -180,6 +211,8 @@ exports.updateSdoStatus = async (req, res) => {
                 changes: req.body,
             }
         );
+
+        await notifyAdminsOfSdoStatusChange(req, updated);
 
         res.json({
             message: 'Scholar probation status updated successfully',

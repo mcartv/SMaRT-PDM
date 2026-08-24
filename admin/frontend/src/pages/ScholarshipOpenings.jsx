@@ -648,60 +648,62 @@ function OpeningModal({
                                 </div>
                             ) : (
                                 <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                                    <p className="text-xs font-medium text-stone-700">Capacity and budget are opening-specific.</p>
+                                    <p className="text-xs font-medium text-stone-700">Capacity, budget, and waiting-list settings are opening-specific.</p>
                                     <p className="mt-1 text-[11px] leading-5 text-stone-500">
-                                        Opening this template creates a draft. Configure capacity and budget from Current → Edit before publishing it.
+                                        Opening this template creates a draft. Configure these settings from Current → Edit before publishing it.
                                     </p>
                                 </div>
                             )}
 
-                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-                                <label className="flex cursor-pointer items-start gap-3">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.waiting_list_enabled !== false}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                waiting_list_enabled: e.target.checked,
-                                            }))
-                                        }
-                                        className="mt-0.5 h-4 w-4 rounded border-stone-300"
-                                    />
-                                    <span>
-                                        <span className="block text-sm font-semibold text-stone-800">
-                                            Enable Waiting List
-                                        </span>
-                                        <span className="mt-1 block text-xs leading-relaxed text-stone-500">
-                                            Applicants who complete valid requirements after the available slots are filled will be queued in first-come, first-served order.
-                                        </span>
-                                    </span>
-                                </label>
-
-                                {form.waiting_list_enabled !== false ? (
-                                    <div className="mt-3 space-y-1.5">
-                                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                            Waiting List Limit
-                                        </label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={form.waiting_list_limit ?? 0}
+                            {!isTemplateLaunch ? (
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                                    <label className="flex cursor-pointer items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.waiting_list_enabled !== false}
                                             onChange={(e) =>
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    waiting_list_limit: e.target.value,
+                                                    waiting_list_enabled: e.target.checked,
                                                 }))
                                             }
-                                            placeholder="0 = no limit"
-                                            className="h-10 rounded-lg border-stone-200 bg-white text-sm"
+                                            className="mt-0.5 h-4 w-4 rounded border-stone-300"
                                         />
-                                        <p className="text-[11px] text-stone-400">
-                                            Enter 0 to accept all qualified applicants into the waiting list.
-                                        </p>
-                                    </div>
-                                ) : null}
-                            </div>
+                                        <span>
+                                            <span className="block text-sm font-semibold text-stone-800">
+                                                Enable Waiting List
+                                            </span>
+                                            <span className="mt-1 block text-xs leading-relaxed text-stone-500">
+                                                Applicants who complete valid requirements after the available slots are filled will be queued in first-come, first-served order.
+                                            </span>
+                                        </span>
+                                    </label>
+
+                                    {form.waiting_list_enabled !== false ? (
+                                        <div className="mt-3 space-y-1.5">
+                                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                                Waiting List Limit
+                                            </label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                value={form.waiting_list_limit ?? 0}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        waiting_list_limit: e.target.value,
+                                                    }))
+                                                }
+                                                placeholder="0 = no limit"
+                                                className="h-10 rounded-lg border-stone-200 bg-white text-sm"
+                                            />
+                                            <p className="text-[11px] text-stone-400">
+                                                Enter 0 to accept all qualified applicants into the waiting list.
+                                            </p>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ) : null}
 
                         </div>
                     </div>
@@ -1499,7 +1501,7 @@ export default function ScholarshipOpenings() {
             allocated_slots: '',
             financial_allocation: '',
             filled_slots_preview: 0,
-            waiting_list_enabled: true,
+            waiting_list_enabled: false,
             waiting_list_limit: 0,
             announcement_text: template.description || '',
             posting_status: 'draft',
@@ -1592,8 +1594,14 @@ export default function ScholarshipOpenings() {
                 academic_year_id: form.academic_year_id || null,
                 allocated_slots: isTemplateLaunch && !isEdit ? 0 : allocatedSlots,
                 financial_allocation: isTemplateLaunch && !isEdit ? null : financialAllocation,
-                waiting_list_enabled: form.waiting_list_enabled !== false,
-                waiting_list_limit: Math.max(0, Number(form.waiting_list_limit || 0)),
+                waiting_list_enabled:
+                    isTemplateLaunch && !isEdit
+                        ? false
+                        : form.waiting_list_enabled !== false,
+                waiting_list_limit:
+                    isTemplateLaunch && !isEdit
+                        ? 0
+                        : Math.max(0, Number(form.waiting_list_limit || 0)),
                 announcement_text: form.announcement_text?.trim() || null,
                 posting_status: computedStatus,
             };

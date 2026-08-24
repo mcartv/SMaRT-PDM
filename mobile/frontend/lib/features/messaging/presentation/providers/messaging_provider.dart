@@ -25,10 +25,12 @@ class MessagingProvider extends ChangeNotifier {
 
   List<ChatMessage> _messages = [];
   List<ChatRoom> _rooms = [];
+  List<ArchivedMessageThread> _archivedThreads = [];
   ChatMessage? _privatePreview;
 
   int _unreadCount = 0;
   int _privateUnreadCount = 0;
+  int _roomMembershipRevision = 0;
 
   bool _isLoading = false;
   bool _isInitialized = false;
@@ -45,12 +47,19 @@ class MessagingProvider extends ChangeNotifier {
   VoidCallback? _stopRealtimeListener;
   Timer? _unreadDebounce;
 
+  static const int _maxRecentRealtimeMessageIds = 200;
+  final Set<String> _recentRealtimeMessageIds = <String>{};
+  final List<String> _recentRealtimeMessageOrder = <String>[];
+
   List<ChatMessage> get messages => _messages;
   List<ChatRoom> get rooms => _rooms;
+  List<ArchivedMessageThread> get archivedThreads => _archivedThreads;
+  bool get isPrivateThreadArchived => _archivedThreads.any((item) => !item.isGroup);
   ChatMessage? get privatePreview => _privatePreview;
 
   int get unreadCount => _unreadCount;
   int get privateUnreadCount => _privateUnreadCount;
+  int get roomMembershipRevision => _roomMembershipRevision;
 
   bool get isConnected => _isRealtimeConnected;
   bool get isLoading => _isLoading;
@@ -115,13 +124,20 @@ class MessagingProvider extends ChangeNotifier {
     if (!sameUser) {
       _messages = [];
       _rooms = [];
+      _archivedThreads = [];
       _privatePreview = null;
       _counterpartyId = '';
       _activeGroupId = null;
       _unreadCount = 0;
       _privateUnreadCount = 0;
+      _roomMembershipRevision = 0;
+      _recentRealtimeMessageIds.clear();
+      _recentRealtimeMessageOrder.clear();
 
       await _refreshThread(notify: false);
+      await fetchArchivedThreads(notify: false);
+      _roomMembershipRevision += 1;
+      await fetchArchivedThreads(notify: false);
       await fetchGroups(notify: false);
       await refreshUnreadCount(notify: false);
     }
@@ -180,8 +196,55 @@ class MessagingProvider extends ChangeNotifier {
   Future<void> refresh() async {
     await initializeChat();
     await _refreshThread();
+    await fetchArchivedThreads(notify: false);
     await fetchGroups(notify: false);
     await refreshUnreadCount();
+  }
+
+  Future<void> fetchArchivedThreads({bool notify = true}) async {
+    try {
+      _archivedThreads = await _messageService.fetchArchivedThreads();
+      _errorMessage = null;
+      if (notify) _notify();
+    } catch (error) {
+      _errorMessage = _readableError(error);
+      debugPrint('[MessagingProvider] fetch archived threads error: $error');
+      if (notify) _notify();
+    }
+  }
+
+  Future<void> archivePrivateThread() async {
+    await _messageService.archivePrivateThread();
+    await fetchArchivedThreads(notify: false);
+    await refreshUnreadCount(notify: false);
+    _notify();
+  }
+
+  Future<void> archiveRoom(String roomId) async {
+    await _messageService.archiveRoom(roomId);
+    if (_activeGroupId == roomId) {
+      _isViewingThread = false;
+      _activeGroupId = null;
+      _messages = [];
+    }
+    await fetchArchivedThreads(notify: false);
+    await fetchGroups(notify: false);
+    await refreshUnreadCount(notify: false);
+    _notify();
+  }
+
+  Future<void> restoreArchivedThread(ArchivedMessageThread thread) async {
+    if (thread.isGroup) {
+      final roomId = (thread.roomId ?? '').trim();
+      if (roomId.isEmpty) return;
+      await _messageService.restoreRoom(roomId);
+    } else {
+      await _messageService.restorePrivateThread();
+    }
+    await fetchArchivedThreads(notify: false);
+    await fetchGroups(notify: false);
+    await refreshUnreadCount(notify: false);
+    _notify();
   }
 
   Future<List<GroupMember>> fetchRoomMembers(String roomId) async {
@@ -425,9 +488,27 @@ class MessagingProvider extends ChangeNotifier {
 
       case MobileRealtimeEvents.messageThreadArchived:
       case MobileRealtimeEvents.messageThreadRestored:
+        await fetchArchivedThreads(notify: false);
+        await fetchGroups(notify: false);
+        await refreshUnreadCount(notify: false);
+        _notify();
+        return;
+
       case MobileRealtimeEvents.roomCreated:
       case MobileRealtimeEvents.roomMembersAdded:
+      case MobileRealtimeEvents.roomMembersRemoved:
+      case MobileRealtimeEvents.roomMemberLeft:
+      case MobileRealtimeEvents.roomMemberPromoted:
+        _roomMembershipRevision += 1;
+        await fetchArchivedThreads(notify: false);
         await fetchGroups(notify: false);
+        await refreshUnreadCount(notify: false);
+        final activeRoomId = _activeGroupId;
+        if (activeRoomId != null && !_rooms.any((room) => room.roomId == activeRoomId)) {
+          _isViewingThread = false;
+          _activeGroupId = null;
+          _messages = [];
+        }
         _notify();
         return;
 
@@ -450,6 +531,12 @@ class MessagingProvider extends ChangeNotifier {
       message = ChatMessage.fromJson(payload);
     } catch (error) {
       debugPrint('[MessagingProvider] message parse error: $error');
+      return;
+    }
+
+    if ((event.name == MobileRealtimeEvents.messageNew ||
+            event.name == MobileRealtimeEvents.messageCreated) &&
+        !_rememberRealtimeMessage(message.messageId)) {
       return;
     }
 
@@ -522,6 +609,19 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     _scheduleUnreadRefresh();
+  }
+
+  bool _rememberRealtimeMessage(String messageId) {
+    final normalizedMessageId = messageId.trim();
+    if (normalizedMessageId.isEmpty) return true;
+    if (_recentRealtimeMessageIds.contains(normalizedMessageId)) return false;
+    _recentRealtimeMessageIds.add(normalizedMessageId);
+    _recentRealtimeMessageOrder.add(normalizedMessageId);
+    while (_recentRealtimeMessageOrder.length > _maxRecentRealtimeMessageIds) {
+      final oldest = _recentRealtimeMessageOrder.removeAt(0);
+      _recentRealtimeMessageIds.remove(oldest);
+    }
+    return true;
   }
 
   void _handleMessageReadRealtime(MobileRealtimeEvent event) {

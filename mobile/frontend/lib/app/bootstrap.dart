@@ -11,7 +11,7 @@ import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/mes
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/offline_gate.dart';
 
-void bootstrapApp() {
+Future<void> bootstrapApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   debugPrint('Startup API base URL: ${AppConfig.apiBaseUrl}');
@@ -19,13 +19,15 @@ void bootstrapApp() {
   final connectivityController = ConnectivityController();
   unawaited(connectivityController.start());
 
+  final themeProvider = await ThemeProvider.loadFromPreferences();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => NewScholarProvider()),
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: themeProvider),
       ],
       child: OfflineGate(
         controller: connectivityController,

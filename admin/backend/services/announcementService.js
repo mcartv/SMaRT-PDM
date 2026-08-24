@@ -123,6 +123,7 @@ function mapAnnouncementRow(row, programName = null, viewCount = 0) {
         audienceKey,
         targetProgramId: row.target_program_id || null,
         targetProgramName: resolvedProgramName,
+        templateKey: row.template_key || 'blank',
         isRoVoluntary: !!row.is_ro_voluntary,
         is_archived: !!row.is_archived,
         scheduledAt: row.scheduled_at || null,
@@ -209,6 +210,25 @@ async function createAnnouncementNotifications(announcementRow) {
     }
 }
 
+async function syncPublishedAnnouncementNotifications(announcementRow) {
+    try {
+        return await notificationService.syncAnnouncementNotifications({
+            audience: announcementRow.target_audience,
+            programId: announcementRow.target_program_id || null,
+            title: announcementRow.subject,
+            message: announcementRow.content,
+            referenceId: announcementRow.announcement_id,
+            createdAt:
+                announcementRow.published_at ||
+                announcementRow.publish_date ||
+                new Date().toISOString(),
+        });
+    } catch (err) {
+        console.error('SYNC ANNOUNCEMENT NOTIFICATIONS ERROR:', err.message);
+        return { inserted: 0, updated: 0, removedStale: false };
+    }
+}
+
 async function publishAnnouncementInternal(announcementId) {
     const nowIso = new Date().toISOString();
 
@@ -278,6 +298,7 @@ exports.createAnnouncement = async (payload, user) => {
         programId,
         targetProgramId,
         schedDate,
+        templateKey = 'blank',
         isRoVoluntary = false,
         forceDraft = false,
     } = payload || {};
@@ -312,6 +333,7 @@ exports.createAnnouncement = async (payload, user) => {
         content: (content || '').trim(),
         target_audience: target.audience,
         target_program_id: target.programId,
+        template_key: String(templateKey || 'blank').trim() || 'blank',
         is_ro_voluntary: !!isRoVoluntary,
         publish_date: forceDraft ? null : isScheduled ? null : nowIso,
         status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
@@ -352,6 +374,7 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         programId,
         targetProgramId,
         schedDate,
+        templateKey = 'blank',
         isRoVoluntary = false,
         forceDraft = false,
     } = payload || {};
@@ -402,6 +425,7 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         content: (content || '').trim(),
         target_audience: target.audience,
         target_program_id: target.programId,
+        template_key: String(templateKey || 'blank').trim() || 'blank',
         is_ro_voluntary: !!isRoVoluntary,
         status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
         scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
@@ -436,14 +460,20 @@ exports.updateAnnouncement = async (announcementId, payload) => {
     }
 
     let notificationsInserted = 0;
+    let notificationsUpdated = 0;
 
     if (publishedNow && data.status === 'Published') {
         notificationsInserted = await createAnnouncementNotifications(data);
+    } else if (data.status === 'Published') {
+        const syncResult = await syncPublishedAnnouncementNotifications(data);
+        notificationsInserted = syncResult.inserted;
+        notificationsUpdated = syncResult.updated;
     }
 
     return {
         ...(await mapSingleAnnouncementRow(data)),
         notificationsInserted,
+        notificationsUpdated,
         publishedNow,
     };
 };
@@ -510,15 +540,46 @@ exports.archiveAnnouncement = async (announcementId) => {
     return mapSingleAnnouncementRow(data);
 };
 
+// Archived scheduled announcements remain archived even after their scheduled time.
+// The due-date conversion below runs only when an Admin explicitly restores one.
 exports.restoreAnnouncement = async (announcementId) => {
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    const { data: archived, error: archivedError } = await supabase
+        .from('announcements')
+        .select('announcement_id, status, scheduled_at, publish_date, published_at')
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', true)
+        .single();
+
+    if (archivedError) {
+        console.error('SUPABASE LOAD ARCHIVED ANNOUNCEMENT ERROR:', archivedError);
+        throw new Error(archivedError.message);
+    }
+
+    const scheduledAt = archived?.scheduled_at ? new Date(archived.scheduled_at) : null;
+    const scheduledIsDue =
+        String(archived?.status || '').trim().toLowerCase() === 'scheduled' &&
+        scheduledAt instanceof Date &&
+        !Number.isNaN(scheduledAt.getTime()) &&
+        scheduledAt.getTime() <= now.getTime();
+
+    const updateRow = {
+        is_archived: false,
+        updated_at: nowIso,
+    };
+
+    if (scheduledIsDue) {
+        updateRow.status = 'Published';
+        updateRow.scheduled_at = null;
+        updateRow.publish_date = archived.publish_date || archived.published_at || nowIso;
+        updateRow.published_at = archived.published_at || archived.publish_date || nowIso;
+    }
 
     const { data, error } = await supabase
         .from('announcements')
-        .update({
-            is_archived: false,
-            updated_at: nowIso,
-        })
+        .update(updateRow)
         .eq('announcement_id', announcementId)
         .eq('is_archived', true)
         .select()
@@ -529,5 +590,14 @@ exports.restoreAnnouncement = async (announcementId) => {
         throw new Error(error.message);
     }
 
-    return mapSingleAnnouncementRow(data);
+    let notificationsInserted = 0;
+    if (scheduledIsDue && data.status === 'Published') {
+        notificationsInserted = await createAnnouncementNotifications(data);
+    }
+
+    return {
+        ...(await mapSingleAnnouncementRow(data)),
+        notificationsInserted,
+        publishedNow: scheduledIsDue && data.status === 'Published',
+    };
 };

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -324,7 +325,8 @@ function useDepartmentAccountManager({
 
       storeProfile(savedProfile);
 
-      setAccountFeedback(`${config.shortName} profile photo updated successfully.`);
+      setAccountFeedback('');
+      showAppToast('success', 'Profile photo updated', `${config.shortName} profile photo updated successfully.`);
     } catch (err) {
       console.error(`${config.shortName.toUpperCase()} PROFILE PHOTO UPLOAD ERROR:`, err);
       setAccountFeedback(err.message || `Failed to upload ${config.shortName} profile photo.`);
@@ -369,7 +371,8 @@ function useDepartmentAccountManager({
 
       storeProfile(savedProfile);
 
-      setAccountFeedback(`${config.shortName} profile photo removed successfully.`);
+      setAccountFeedback('');
+      showAppToast('success', 'Profile photo removed', `${config.shortName} profile photo removed successfully.`);
     } catch (err) {
       console.error(`${config.shortName.toUpperCase()} PROFILE PHOTO REMOVE ERROR:`, err);
       setAccountFeedback(err.message || `Failed to remove ${config.shortName} profile photo.`);
@@ -418,7 +421,8 @@ function useDepartmentAccountManager({
       setAccount(updatedAccount);
       setInitialAccount(updatedAccount);
       storeProfile(savedProfile, updatedAccount);
-      setAccountFeedback(`${config.shortName} account updated successfully.`);
+      setAccountFeedback('');
+      showAppToast('success', 'Account updated', `${config.shortName} account updated successfully.`);
     } catch (err) {
       console.error(`${config.shortName.toUpperCase()} ACCOUNT SAVE ERROR:`, err);
       setAccountFeedback(err.message || `Failed to save ${config.shortName} account changes.`);

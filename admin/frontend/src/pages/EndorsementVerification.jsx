@@ -114,6 +114,10 @@ export default function EndorsementVerification() {
               <p className="font-medium text-stone-900">{payload.program_name}</p>
             </div>
             <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Course</p>
+              <p className="font-medium text-stone-900">{payload.course_display || payload.course_code || payload.course_name || 'N/A'}</p>
+            </div>
+            <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">Semester</p>
               <p className="font-medium text-stone-900">{payload.semester || 'N/A'}</p>
             </div>

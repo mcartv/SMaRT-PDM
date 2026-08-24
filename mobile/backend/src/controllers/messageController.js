@@ -262,6 +262,88 @@ exports.createRoom = async (req, res) => {
   }
 };
 
+exports.getArchivedThreads = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const items = await messageService.fetchArchivedThreads(currentUserId);
+    return res.status(200).json({ items, archived: items });
+  } catch (error) {
+    console.error('GET ARCHIVED MESSAGE THREADS ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to load archived conversations.',
+    });
+  }
+};
+
+exports.archiveThread = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const archive = await messageService.archiveFixedThread(currentUserId);
+    return res.status(200).json({ success: true, archive });
+  } catch (error) {
+    console.error('ARCHIVE MESSAGE THREAD ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to archive conversation.',
+    });
+  }
+};
+
+exports.restoreThread = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const result = await messageService.restoreFixedThread(currentUserId);
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.error('RESTORE MESSAGE THREAD ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to restore conversation.',
+    });
+  }
+};
+
+exports.archiveRoom = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const archive = await messageService.archiveRoom(currentUserId, roomId);
+    return res.status(200).json({ success: true, archive });
+  } catch (error) {
+    console.error('ARCHIVE MESSAGE ROOM ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to archive group conversation.',
+    });
+  }
+};
+
+exports.restoreRoom = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const result = await messageService.restoreRoom(currentUserId, roomId);
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.error('RESTORE MESSAGE ROOM ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to restore group conversation.',
+    });
+  }
+};
+
 exports.getRoomThread = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);

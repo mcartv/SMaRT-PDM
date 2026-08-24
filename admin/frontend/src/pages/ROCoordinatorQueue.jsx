@@ -401,14 +401,21 @@ export default function ROCoordinatorQueue({
           ? 'Attendance adjustment approved'
           : decision === 'approve'
             ? 'Attendance validated'
-            : 'Attendance returned',
-        { description: payload.message }
+            : 'Attendance evidence returned',
+        {
+          description:
+            decision === 'adjust'
+              ? 'The adjusted attendance was approved and recorded.'
+              : decision === 'approve'
+                ? 'The attendance evidence was validated and recorded.'
+                : 'The attendance evidence was returned with your validation feedback.',
+        }
       );
 
       await Promise.all([loadAttendance(), loadRequests({ soft: true })]);
     } catch (attendanceError) {
-      toast.error('Attendance decision was not saved', {
-        description: attendanceError.message,
+      toast.error('Validation was not saved', {
+        description: attendanceError.message || 'Failed to save the attendance validation.',
       });
     } finally {
       setAttendanceSavingId('');
@@ -651,6 +658,7 @@ export default function ROCoordinatorQueue({
           <h2 className="mt-1 text-xl font-semibold text-stone-900">Attendance Evidence</h2>
           <p className="mt-1 text-sm text-stone-500">Validate the scholar's time-in and time-out evidence before OSFA can mark the obligation cleared.</p>
         </div>
+
         {attendanceLoading ? (
           <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : attendance.length ? (

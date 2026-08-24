@@ -131,6 +131,45 @@ function formatDate(value) {
   });
 }
 
+function formatCourse(row) {
+  const code = String(row?.course_code || '').trim();
+  const name = String(row?.course_name || '').trim();
+  const display = String(row?.course_display || '').trim();
+
+  if (code && name) {
+    const normalizedCode = code.toLowerCase();
+    const normalizedName = name.toLowerCase();
+    if (normalizedName === normalizedCode || normalizedName.startsWith(`${normalizedCode} -`)) return name;
+    return `${code} - ${name}`;
+  }
+
+  return display || code || name || 'Course N/A';
+}
+
+function formatYearLevel(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const match = raw.match(/\d+/);
+  if (!match) return raw;
+
+  const year = Number(match[0]);
+  if (!Number.isFinite(year)) return raw;
+
+  const mod100 = year % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13
+    ? 'th'
+    : year % 10 === 1
+      ? 'st'
+      : year % 10 === 2
+        ? 'nd'
+        : year % 10 === 3
+          ? 'rd'
+          : 'th';
+
+  return `${year}${suffix} Year`;
+}
+
 function normalizeDecision(queueKey, value) {
   const raw = String(value || '').toLowerCase();
   if (!raw) return 'pending';
@@ -576,7 +615,7 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Applicant</p>
                 <h2 className="mt-1 truncate text-base font-semibold text-stone-900">{row.student_name}</h2>
                 <p className="mt-0.5 text-sm text-stone-600">{row.pdm_id || 'No PDM ID'}</p>
-                <p className="mt-0.5 text-sm font-medium text-stone-800">{row.course_code || 'Course N/A'}{row.year_level ? ` • Year ${row.year_level}` : ''}</p>
+                <p className="mt-0.5 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}</p>
                 <p className="mt-0.5 text-xs text-stone-500">{row.program_name || 'Scholarship N/A'}{row.opening_title ? ` • ${row.opening_title}` : ''}</p>
               </div>
             </div>
@@ -811,6 +850,11 @@ export default function EndorsementQueue({
       if (!response.ok) throw new Error(data.message || 'Failed to save endorsement');
       setConfirmAction(null);
       setActionState((current) => { const next = { ...current }; delete next[row.slip_id]; return next; });
+      if (queueKey === 'sdo') {
+        setSelectedRow(null);
+        setGradePreview(null);
+        setProfilePreview(null);
+      }
       toast.success('Endorsement saved', { description: `${row.student_name} was updated successfully.` });
       await loadQueue({ soft: true });
     } catch (err) {
@@ -979,7 +1023,7 @@ export default function EndorsementQueue({
               <SelectContent>
                 {years.map((year) => (
                   <SelectItem key={year} value={year}>
-                    {year === 'all' ? 'All Years' : `Year ${year}`}
+                    {year === 'all' ? 'All Years' : formatYearLevel(year)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1038,7 +1082,7 @@ export default function EndorsementQueue({
                       </div>
                       <Badge variant="outline" className={`${decisionTone(decision)} shrink-0`}>{decision === 'pending' ? 'Awaiting Review' : decisionLabel(queueKey, row)}</Badge>
                     </div>
-                    <p className="mt-2 text-sm font-medium text-stone-800">{row.course_code || 'Course N/A'}{row.year_level ? ` • Year ${row.year_level}` : ''}</p>
+                    <p className="mt-2 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}</p>
                     <p className="mt-0.5 truncate text-xs text-stone-500">{row.program_name || 'Scholarship N/A'}{row.opening_title ? ` • ${row.opening_title}` : ''}</p>
                   </div>
                 </div>

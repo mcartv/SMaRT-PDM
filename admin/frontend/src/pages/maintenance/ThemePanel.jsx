@@ -381,7 +381,6 @@ export default function ThemePanel({
         },
       }));
 
-      setFeedback({ type: 'success', message: `${PORTAL_LABELS[portalKey]} theme applied.` });
       return true;
     } catch (error) {
       setSettings((current) => ({ ...current, [portalKey]: previousPresetKey }));

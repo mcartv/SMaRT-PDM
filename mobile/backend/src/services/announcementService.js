@@ -50,6 +50,7 @@ async function getAudienceContext(userId) {
   }
 
   const role = normalizeText(user?.role);
+  const hasStudentRole = role === 'student' || role === 'applicant';
   const context = {
     role,
     isApplicant: role === 'applicant',
@@ -58,7 +59,7 @@ async function getAudienceContext(userId) {
     currentProgramName: '',
   };
 
-  if (role !== 'student') {
+  if (!hasStudentRole) {
     return context;
   }
 
@@ -79,13 +80,19 @@ async function getAudienceContext(userId) {
     throw studentError;
   }
 
-  context.currentProgramId = student?.current_program_id || null;
-  context.isActiveScholar =
-    student?.is_active_scholar === true &&
-    normalizeText(student?.scholarship_status) === 'active' &&
+  const canAccessStudentAnnouncements =
     student?.scholar_is_archived !== true &&
     student?.is_archived !== true &&
     normalizeText(student?.account_status) !== 'disabled';
+  const hasActiveScholarStatus =
+    student?.is_active_scholar === true ||
+    normalizeText(student?.scholarship_status) === 'active';
+
+  context.currentProgramId = student?.current_program_id || null;
+  context.isActiveScholar =
+    canAccessStudentAnnouncements && hasActiveScholarStatus;
+  context.isApplicant =
+    canAccessStudentAnnouncements && !context.isActiveScholar;
 
   if (context.currentProgramId) {
     const { data: program, error: programError } = await supabase

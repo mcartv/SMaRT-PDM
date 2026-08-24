@@ -1486,6 +1486,13 @@ class RoAssignment {
     return progressStatus.toLowerCase() == 'for validation';
   }
 
+  RoTimeLog? get latestValidationFeedbackLog {
+    for (final log in logs) {
+      if (log.validationRemarks.trim().isNotEmpty) return log;
+    }
+    return null;
+  }
+
   factory RoAssignment.fromJson(Map<String, dynamic> json) {
     return RoAssignment(
       roId: json['roId']?.toString() ?? json['id']?.toString() ?? '',
@@ -1613,10 +1620,19 @@ class RoTimeLog {
       timeOutAt: _toDate(json['timeOutAt']),
       durationMinutes: _toInt(json['durationMinutes']),
       logStatus: json['logStatus']?.toString() ?? '',
-      validationStatus:
-          json['validationStatus']?.toString() ?? 'Pending Validation',
+      validationStatus: _normalizeValidationStatus(
+        json['departmentValidationStatus'] ??
+            json['department_validation_status'] ??
+            json['validationStatus'] ??
+            json['validation_status'],
+      ),
       validatedMinutes: _toInt(json['validatedMinutes']),
-      validationRemarks: json['validationRemarks']?.toString() ?? '',
+      validationRemarks:
+          json['departmentValidationRemarks']?.toString() ??
+          json['department_validation_remarks']?.toString() ??
+          json['validationRemarks']?.toString() ??
+          json['validation_remarks']?.toString() ??
+          '',
       studentNote: json['studentNote']?.toString() ?? '',
       proofs: (json['proofs'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
@@ -1901,6 +1917,20 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
   Widget build(BuildContext context) {
     final activeLog = item.activeLog;
     final isTimedIn = activeLog != null;
+    final feedbackLog = item.latestValidationFeedbackLog;
+    final feedbackLogRemarks = feedbackLog?.validationRemarks.trim() ?? '';
+    final validationFeedback = feedbackLogRemarks.isNotEmpty
+        ? feedbackLogRemarks
+        : item.validationRemarks.trim();
+    final validationFeedbackStatus =
+        feedbackLog?.validationStatus.trim().toLowerCase() ?? '';
+    final validationFeedbackColor =
+        validationFeedbackStatus == 'returned' ||
+            validationFeedbackStatus == 'rejected'
+        ? const Color(0xFFB3261E)
+        : validationFeedbackStatus == 'approved'
+        ? Colors.green.shade700
+        : Colors.blue.shade700;
 
     final canAcknowledge =
         !item.isCleared && item.isAssignedOnly && !widget.isSubmitting;
@@ -2092,13 +2122,18 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       color: Colors.green,
                     ),
 
-                    if (item.validationRemarks.isNotEmpty) ...[
+                    if (validationFeedback.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _InfoBox(
                         icon: Icons.fact_check_outlined,
-                        title: 'Validation Remarks',
-                        message: item.validationRemarks,
-                        color: Colors.blue.shade700,
+                        title: validationFeedbackStatus == 'returned' ||
+                                validationFeedbackStatus == 'rejected'
+                            ? 'Validation Feedback - Returned'
+                            : validationFeedbackStatus == 'approved'
+                                ? 'Validation Feedback - Approved'
+                                : 'Validation Feedback',
+                        message: validationFeedback,
+                        color: validationFeedbackColor,
                       ),
                     ],
 
@@ -3084,6 +3119,13 @@ class _StateCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _normalizeValidationStatus(dynamic value) {
+  final normalized = value?.toString().trim().toLowerCase() ?? '';
+  if (normalized == 'approved') return 'Approved';
+  if (normalized == 'returned' || normalized == 'rejected') return 'Returned';
+  return 'Pending';
 }
 
 double? _toDouble(dynamic value) {

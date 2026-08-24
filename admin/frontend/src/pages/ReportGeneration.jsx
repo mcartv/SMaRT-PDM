@@ -27,9 +27,9 @@ import {
   Loader2,
   Eye,
   RotateCcw,
-  CheckCircle2,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
@@ -510,10 +510,8 @@ export default function ReportGeneration({
       link.remove();
 
       window.URL.revokeObjectURL(url);
-      setFeedback({
-        tone: 'success',
-        title: `${format === 'csv' ? 'CSV' : 'Excel'} download started`,
-        message: `${filename} is being downloaded.`,
+      toast.success(`${format === 'csv' ? 'CSV' : 'Excel'} download started`, {
+        description: `${filename} is being downloaded.`,
       });
     } catch (error) {
       console.error('REPORT GENERATE ERROR:', error);
@@ -534,25 +532,11 @@ export default function ReportGeneration({
   return (
     <div className="space-y-5 py-2">
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
-            ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
-            : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
-            }`}
-        >
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-4 text-red-900 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div
-                className={`rounded-2xl p-2 ${feedback.tone === 'success'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-                  }`}
-              >
-                {feedback.tone === 'success' ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : (
-                  <FileText className="h-5 w-5" />
-                )}
+              <div className="rounded-2xl bg-red-100 p-2 text-red-700">
+                <FileText className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-semibold">{feedback.title}</p>

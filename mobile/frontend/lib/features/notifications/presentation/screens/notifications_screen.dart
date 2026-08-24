@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
-import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
@@ -26,64 +24,31 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   _NotificationFilter _selectedFilter = _NotificationFilter.all;
 
-  VoidCallback? _stopRealtimeListener;
-  Timer? _realtimeRefreshDebounce;
-  bool _isRefreshingFromRealtime = false;
+  Timer? _sectionClock;
 
   @override
   void initState() {
     super.initState();
 
+    // New/Earlier is based on notification age, not read state. This timer
+    // only rebuilds the local UI; NotificationProvider remains the sole
+    // realtime/API owner.
+    _sectionClock = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-
-      final provider = context.read<NotificationProvider>();
-      await provider.initialize();
-
-      _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
-        MobileRealtimeEvents.notificationProviderEvents,
-        (event) {
-          debugPrint('[NotificationsScreen] realtime event: ${event.name}');
-          _scheduleRealtimeRefresh();
-        },
-      );
+      await context.read<NotificationProvider>().initialize();
     });
-  }
-
-  void _scheduleRealtimeRefresh() {
-    _realtimeRefreshDebounce?.cancel();
-
-    _realtimeRefreshDebounce = Timer(
-      const Duration(milliseconds: 450),
-      () async {
-        await _refreshFromRealtime();
-      },
-    );
-  }
-
-  Future<void> _refreshFromRealtime() async {
-    if (_isRefreshingFromRealtime) return;
-
-    _isRefreshingFromRealtime = true;
-
-    try {
-      if (!mounted) return;
-      await context.read<NotificationProvider>().refresh(silent: true);
-    } catch (error) {
-      debugPrint('NOTIFICATIONS SCREEN REALTIME REFRESH ERROR: $error');
-    } finally {
-      _isRefreshingFromRealtime = false;
-    }
   }
 
   @override
   void dispose() {
-    _realtimeRefreshDebounce?.cancel();
-    _realtimeRefreshDebounce = null;
-
-    _stopRealtimeListener?.call();
-    _stopRealtimeListener = null;
-
+    _sectionClock?.cancel();
+    _sectionClock = null;
     super.dispose();
   }
 
@@ -245,8 +210,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'Earlier': <AppNotification>[],
     };
 
+    final now = DateTime.now();
+
     for (final item in items) {
-      final label = item.isRead ? 'Earlier' : 'New';
+      final age = now.difference(item.createdAt);
+      final isRecent = age < const Duration(hours: 24);
+      final label = isRecent ? 'New' : 'Earlier';
       grouped[label]!.add(item);
     }
 

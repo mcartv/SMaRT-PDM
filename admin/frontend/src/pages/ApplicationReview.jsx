@@ -38,6 +38,7 @@ import {
   X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 
 const C = {
   brownMid: 'var(--portal-base)',
@@ -1235,22 +1236,26 @@ function RegistryTable({
         <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
       </div>
 
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         {rows.length === 0 ? (
           <div className="py-16 text-center text-sm text-stone-400">
             No applicants found.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-[1210px] w-full border-collapse text-left">
+          <div className="overflow-x-auto overscroll-x-contain [scrollbar-gutter:stable]">
+            <table
+              className={`w-full border-collapse text-left ${
+                isReadinessMode ? 'min-w-[1680px]' : 'min-w-[1035px]'
+              }`}
+            >
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50/70">
-                  <th className="min-w-[250px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Applicant</th>
-                  <th className="min-w-[165px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship</th>
-                  <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Opening</th>
-                  <th className="min-w-[135px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Submitted</th>
-                  <th className="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Requirements</th>
-                  <th className="min-w-[135px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Endorsement</th>
+                  <th className="min-w-[210px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Applicant</th>
+                  <th className="min-w-[135px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship</th>
+                  <th className="min-w-[170px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Opening</th>
+                  <th className="min-w-[110px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Submitted</th>
+                  <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Requirements</th>
+                  <th className="min-w-[120px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Endorsement</th>
                   {isReadinessMode ? (
                     <>
                       <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">FCFS</th>
@@ -1259,7 +1264,15 @@ function RegistryTable({
                       <th className="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Ready Status</th>
                     </>
                   ) : null}
-                  <th className="w-[180px] min-w-[180px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</th>
+                  <th
+                    className={`sticky right-0 z-20 border-l border-stone-200 bg-stone-50 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700 shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] ${
+                      isReadinessMode
+                        ? 'w-[390px] min-w-[390px]'
+                        : 'w-[160px] min-w-[160px]'
+                    }`}
+                  >
+                    Action
+                  </th>
                 </tr>
               </thead>
 
@@ -1284,7 +1297,7 @@ function RegistryTable({
                   return (
                     <tr
                       key={row.application_id}
-                      className="transition-colors hover:bg-stone-50/70"
+                      className="group transition-colors hover:bg-stone-50/70"
                     >
                       <td className="px-3 py-3.5 align-top">
                         <div className="max-w-[240px] min-w-0">
@@ -1352,7 +1365,13 @@ function RegistryTable({
                         </>
                       ) : null}
 
-                      <td className="w-[180px] min-w-[180px] px-3 py-3.5 align-top text-center">
+                      <td
+                        className={`sticky right-0 z-10 border-l border-stone-100 bg-white px-3 py-3.5 align-top text-center shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] transition-colors group-hover:bg-stone-50 ${
+                          isReadinessMode
+                            ? 'w-[390px] min-w-[390px]'
+                            : 'w-[160px] min-w-[160px]'
+                        }`}
+                      >
                         <div className="flex w-full flex-wrap justify-center gap-2 xl:flex-nowrap">
                           {isReadinessMode && row.endorsement_slip_id ? (
                             <Button
@@ -1515,7 +1534,11 @@ export default function ApplicationReview() {
     const incoming = location.state?.verificationFeedback;
     if (!incoming) return;
 
-    setFeedback(incoming);
+    if (incoming?.tone === 'success') {
+      showAppToast('success', incoming.title, incoming.message);
+    } else {
+      setFeedback(incoming);
+    }
     navigate(location.pathname, {
       replace: true,
       state: {
@@ -1548,11 +1571,11 @@ export default function ApplicationReview() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      setFeedback({
-        tone: 'success',
-        title: 'Slip download started',
-        message: `${row.endorsement_slip_code || 'Endorsement slip'} is being downloaded.`,
-      });
+      showAppToast(
+        'success',
+        'Slip download started',
+        `${row.endorsement_slip_code || 'Endorsement slip'} is being downloaded.`
+      );
     } catch (err) {
       alert(err.message || 'Failed to download endorsement slip PDF');
     }
@@ -1575,11 +1598,11 @@ export default function ApplicationReview() {
 
       await loadData({ soft: true });
       setActivationCandidate(null);
-      setFeedback({
-        tone: 'success',
-        title: 'Scholar activation completed',
-        message: `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`,
-      });
+      showAppToast(
+        'success',
+        'Scholar activation completed',
+        `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`
+      );
     } catch (err) {
       setFeedback({
         tone: 'error',
@@ -1945,21 +1968,11 @@ export default function ApplicationReview() {
       </Dialog>
 
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
-            ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
-            : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
-            }`}
-        >
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-4 text-red-900 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div
-                className={`rounded-2xl p-2 ${feedback.tone === 'success'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-                  }`}
-              >
-                <CheckCircle2 className="h-5 w-5" />
+              <div className="rounded-2xl bg-red-100 p-2 text-red-700">
+                <X className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-semibold">{feedback.title}</p>
@@ -2054,4 +2067,3 @@ export default function ApplicationReview() {
     </div>
   );
 }
-

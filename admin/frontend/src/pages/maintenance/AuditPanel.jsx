@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     AlertTriangle,
     ClipboardList,
@@ -98,19 +98,10 @@ export default function AuditPanel() {
 
     const [search, setSearch] = useState('');
     const [moduleFilter, setModuleFilter] = useState('all');
+    const [moduleOptions, setModuleOptions] = useState([]);
 
     const isFiltered = search.trim() || moduleFilter !== 'all';
     const canUnlock = password.trim().length > 0 && !unlocking;
-
-    const modules = useMemo(() => {
-        const unique = new Set();
-
-        logs.forEach((log) => {
-            if (log.module) unique.add(log.module);
-        });
-
-        return Array.from(unique).sort((a, b) => a.localeCompare(b));
-    }, [logs]);
 
     const loadLogs = useCallback(async () => {
         if (!auditToken) return;
@@ -152,6 +143,9 @@ export default function AuditPanel() {
 
             setLogs(Array.isArray(data.items) ? data.items : []);
             setTotal(Number(data.total || 0));
+            if (Array.isArray(data.modules)) {
+                setModuleOptions(data.modules);
+            }
         } catch (err) {
             const message = err.message || 'Failed to load system logs.';
             setError(message);
@@ -235,6 +229,7 @@ export default function AuditPanel() {
         setShowPassword(false);
         setLogs([]);
         setTotal(0);
+        setModuleOptions([]);
         setError('');
     };
 
@@ -356,9 +351,9 @@ export default function AuditPanel() {
                                     <SelectValue placeholder="Filter module" />
                                 </SelectTrigger>
 
-                                <SelectContent>
+                                <SelectContent position="popper" sideOffset={4} className="max-h-72">
                                     <SelectItem value="all">All Modules</SelectItem>
-                                    {modules.map((moduleName) => (
+                                    {moduleOptions.map((moduleName) => (
                                         <SelectItem key={moduleName} value={moduleName}>
                                             {moduleName}
                                         </SelectItem>

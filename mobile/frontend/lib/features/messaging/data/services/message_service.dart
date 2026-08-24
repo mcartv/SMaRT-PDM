@@ -23,6 +23,46 @@ class MessageReadResult {
   });
 }
 
+class ArchivedMessageThread {
+  final String archiveId;
+  final String threadType;
+  final String? counterpartyId;
+  final String? roomId;
+  final String name;
+  final DateTime? archivedAt;
+
+  const ArchivedMessageThread({
+    required this.archiveId,
+    required this.threadType,
+    required this.name,
+    this.counterpartyId,
+    this.roomId,
+    this.archivedAt,
+  });
+
+  bool get isGroup => threadType == 'group';
+
+  factory ArchivedMessageThread.fromJson(Map<String, dynamic> json) {
+    final archivedAtRaw =
+        json['archivedAt']?.toString() ?? json['archived_at']?.toString();
+
+    return ArchivedMessageThread(
+      archiveId:
+          json['archiveId']?.toString() ?? json['archive_id']?.toString() ?? '',
+      threadType:
+          json['threadType']?.toString() ??
+          json['thread_type']?.toString() ??
+          'private',
+      counterpartyId:
+          json['counterpartyId']?.toString() ??
+          json['counterparty_id']?.toString(),
+      roomId: json['roomId']?.toString() ?? json['room_id']?.toString(),
+      name: json['name']?.toString() ?? 'Conversation',
+      archivedAt: archivedAtRaw == null ? null : DateTime.tryParse(archivedAtRaw),
+    );
+  }
+}
+
 class ChatRoom {
   final String roomId;
   final String roomName;
@@ -269,25 +309,27 @@ class MessageService {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty) return const [];
 
-    // Use the existing room-thread contract. The deployed mobile backend already
-    // exposes /thread and /messages, while /members may not exist yet and causes
-    // a noisy 404 in Flutter web. The patched backend enriches this same response
-    // with membership/profile data.
     Map<String, dynamic> response;
     try {
       response = await _apiClient.getObject(
-        '/api/messages/rooms/$normalizedRoomId/thread',
+        '/api/messages/rooms/$normalizedRoomId/members',
       );
     } on ApiException catch (error) {
-      if (error.statusCode != 404 && error.statusCode != 405) {
-        rethrow;
+      if (error.statusCode != 404 && error.statusCode != 405) rethrow;
+      try {
+        response = await _apiClient.getObject(
+          '/api/messages/rooms/$normalizedRoomId/thread',
+        );
+      } on ApiException catch (fallbackError) {
+        if (fallbackError.statusCode != 404 && fallbackError.statusCode != 405) rethrow;
+        response = await _apiClient.getObject(
+          '/api/messages/rooms/$normalizedRoomId/messages',
+        );
       }
-      response = await _apiClient.getObject(
-        '/api/messages/rooms/$normalizedRoomId/messages',
-      );
     }
 
     final source =
+        response['items'] as List<dynamic>? ??
         response['members'] as List<dynamic>? ??
         response['roomMembers'] as List<dynamic>? ??
         response['room_members'] as List<dynamic>? ??
@@ -301,10 +343,17 @@ class MessageService {
   }
 
   Future<void> leaveGroup(String roomId) async {
-    await _apiClient.postJson(
-      '/api/messages/rooms/$roomId/members',
-      body: const {'action': 'leave'},
-    );
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return;
+    try {
+      await _apiClient.deleteJson('/api/messages/rooms/$normalizedRoomId/leave');
+    } on ApiException catch (error) {
+      if (error.statusCode != 404 && error.statusCode != 405) rethrow;
+      await _apiClient.postJson(
+        '/api/messages/rooms/$normalizedRoomId/members',
+        body: const {'action': 'leave'},
+      );
+    }
   }
 
   Future<List<ChatMessage>> fetchRoomThread(String roomId) async {
@@ -339,6 +388,28 @@ class MessageService {
 
   Future<void> markRoomThreadRead(String roomId) async {
     await _apiClient.patchJson('/api/messages/rooms/$roomId/read');
+  }
+
+  Future<List<ArchivedMessageThread>> fetchArchivedThreads() async {
+    final response = await _apiClient.getObject('/api/messages/archived');
+    final items = response['items'] as List<dynamic>? ?? const [];
+    return items.whereType<Map>().map((item) => ArchivedMessageThread.fromJson(Map<String, dynamic>.from(item))).where((item) => item.archiveId.isNotEmpty).toList();
+  }
+
+  Future<void> archivePrivateThread() async {
+    await _apiClient.patchJson('/api/messages/thread/archive');
+  }
+
+  Future<void> restorePrivateThread() async {
+    await _apiClient.patchJson('/api/messages/thread/restore');
+  }
+
+  Future<void> archiveRoom(String roomId) async {
+    await _apiClient.patchJson('/api/messages/rooms/$roomId/archive');
+  }
+
+  Future<void> restoreRoom(String roomId) async {
+    await _apiClient.patchJson('/api/messages/rooms/$roomId/restore');
   }
 
   List<ChatMessage> _parseItems(dynamic rawItems) {

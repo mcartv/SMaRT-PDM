@@ -110,6 +110,7 @@ class MobileRealtimeEvents {
   static const roomMembersAdded = 'room:members-added';
   static const roomMembersRemoved = 'room:members-removed';
   static const roomMemberLeft = 'room:member-left';
+  static const roomMemberPromoted = 'room:member-promoted';
 
   static final Set<String> notificationEvents = <String>{
     notificationNew,
@@ -212,6 +213,7 @@ class MobileRealtimeEvents {
     roomMembersAdded,
     roomMembersRemoved,
     roomMemberLeft,
+    roomMemberPromoted,
   };
 
   static final Set<String> dashboardEvents = <String>{

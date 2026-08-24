@@ -133,8 +133,6 @@ router.post('/message-created', requireInternalSecret, (req, res) => {
         io.to(`user:${userId}`).emit('message:created', payload);
     }
 
-    io.emit('message:new', payload);
-    io.emit('message:created', payload);
 
     return res.json({
         success: true,
@@ -161,6 +159,11 @@ router.post('/message-event', requireInternalSecret, (req, res) => {
         'message:unread',
         'message:thread-archived',
         'message:thread-restored',
+        'room:created',
+        'room:members-added',
+        'room:members-removed',
+        'room:member-left',
+        'room:member-promoted',
     ]);
 
     if (!allowedEvents.has(eventName)) {

@@ -10,6 +10,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -158,7 +159,8 @@ export default function DepartmentSettingsPage({
       }
 
       setCurrentPasswordVerified(true);
-      setFeedback('Current password verified.');
+      setFeedback('');
+      showAppToast('success', 'Password verified', 'Current password verified.');
     } catch (err) {
       setCurrentPasswordVerified(false);
       setPasswords((current) => ({
@@ -195,7 +197,8 @@ export default function DepartmentSettingsPage({
 
       setPasswords({ current_password: '', new_password: '', confirm_password: '' });
       setCurrentPasswordVerified(false);
-      setFeedback('Password changed successfully.');
+      setFeedback('');
+      showAppToast('success', 'Password changed', 'Your password was changed successfully.');
     } catch (err) {
       setFeedback(err.message || 'Failed to change password.');
     } finally {

@@ -235,13 +235,6 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
         Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]))
       );
       writeLandingThemeCache(savedPresetKey, savedCustomColors);
-      setFeedback({
-        type: 'success',
-        message:
-          (payload?.preset_key || nextPresetKey) === 'custom'
-            ? 'Landing custom colors saved.'
-            : 'Landing preset applied.',
-      });
       return true;
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to save landing theme.' });

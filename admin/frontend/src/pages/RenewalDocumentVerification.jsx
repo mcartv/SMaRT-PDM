@@ -27,6 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import {
@@ -315,7 +316,7 @@ export default function RenewalDocumentVerification() {
         throw new Error(result.error || 'Failed to save renewal review');
       }
 
-      window.alert('Renewal review saved successfully.');
+      showAppToast('success', 'Renewal review saved', 'The renewal review was saved successfully.');
       navigate('/admin/scholars?tab=renewals');
     } catch (err) {
       window.alert(err.message || 'Failed to save renewal review');

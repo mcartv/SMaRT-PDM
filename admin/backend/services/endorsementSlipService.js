@@ -110,6 +110,17 @@ function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+function formatCourseDisplay(row = {}) {
+    const code = safeText(row.course_code);
+    const name = safeText(row.course_name);
+
+    if (code && name && code.toLowerCase() !== name.toLowerCase()) {
+        return `${code} - ${name}`;
+    }
+
+    return code || name || 'N/A';
+}
+
 function parseJson(value, fallback = {}) {
     if (!value) return fallback;
     if (typeof value === 'object') return value;
@@ -377,6 +388,8 @@ function mapQueueRow(row, actorRole = '') {
         pdm_id: row.pdm_id || 'N/A',
         avatar_url: row.avatar_url || null,
         course_code: row.course_code || '',
+        course_name: row.course_name || '',
+        course_display: formatCourseDisplay(row),
         year_level: row.year_level || '',
         program_name: row.program_name || 'N/A',
         opening_title: row.opening_title || 'N/A',
@@ -463,7 +476,7 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
         conditions.push(`exists (
           select 1 from program_director_course_assignments assignment
           where assignment.pd_user_id = $${params.length}
-            and assignment.course_id = st.course_id
+            and assignment.course_id = coalesce(st.course_id, smr.course_id)
             and assignment.is_active = true
         )`);
     }
@@ -516,11 +529,12 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
             a.document_status,
             st.pdm_id,
             st.gwa,
-            st.course_id,
+            coalesce(st.course_id, smr.course_id) as course_id,
             st.year_level,
             st.profile_photo_url,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
             ac.course_code,
+            ac.course_name,
             sp.program_name,
             po.opening_title,
             ay.label as school_year,
@@ -533,7 +547,8 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
         from endorsement_slips es
         join applications a on a.application_id = es.application_id
         join students st on st.student_id = es.student_id
-        left join academic_course ac on ac.course_id = st.course_id
+        left join student_master_records smr on smr.master_student_id = st.master_student_id
+        left join academic_course ac on ac.course_id = coalesce(st.course_id, smr.course_id)
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
@@ -590,7 +605,7 @@ async function fetchSlipDetail(slipId, actor = null) {
             a.document_status,
             st.pdm_id,
             st.gwa,
-            st.course_id,
+            coalesce(st.course_id, smr.course_id) as course_id,
             st.year_level,
             st.profile_photo_url,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
@@ -598,6 +613,7 @@ async function fetchSlipDetail(slipId, actor = null) {
             st.last_name,
             u.email as student_email,
             ac.course_code,
+            ac.course_name,
             sp.program_name,
             po.opening_title,
             ay.label as school_year,
@@ -615,7 +631,8 @@ async function fetchSlipDetail(slipId, actor = null) {
         join applications a on a.application_id = es.application_id
         join students st on st.student_id = es.student_id
         left join users u on u.user_id = st.user_id
-        left join academic_course ac on ac.course_id = st.course_id
+        left join student_master_records smr on smr.master_student_id = st.master_student_id
+        left join academic_course ac on ac.course_id = coalesce(st.course_id, smr.course_id)
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
@@ -715,7 +732,9 @@ async function fetchSlipDetail(slipId, actor = null) {
         student_name: row.student_name || 'Unknown Student',
         pdm_id: row.pdm_id || 'N/A',
         avatar_url: avatarUrl || null,
-        course_code: row.course_code || 'N/A',
+        course_code: row.course_code || '',
+        course_name: row.course_name || '',
+        course_display: formatCourseDisplay(row),
         year_level: row.year_level || null,
         student_email: row.student_email || '',
         program_name: row.program_name || 'N/A',
@@ -1116,7 +1135,7 @@ async function buildCompletedSlipPdf(detail) {
             .text('YEAR:', left + courseWidth + 10, cursorY + 10)
             .text('SECTION:', left + courseWidth + yearWidth + 10, cursorY + 10);
         doc.font(baseFont).fontSize(10)
-            .text(detail.course_code || 'N/A', left + 68, cursorY + 10, { width: courseWidth - 78 })
+            .text(detail.course_display || formatCourseDisplay(detail), left + 68, cursorY + 10, { width: courseWidth - 78 })
             .text(String(detail.year_level || 'N/A'), left + courseWidth + 54, cursorY + 10, { width: yearWidth - 64 })
             .text(studentSection, left + courseWidth + yearWidth + 64, cursorY + 10, { width: sectionWidth - 74 });
         cursorY += 34;
@@ -1580,7 +1599,10 @@ async function fetchVerificationPayload(token) {
             es.sdo_remarks,
             st.pdm_id,
             st.gwa,
+            coalesce(st.course_id, smr.course_id) as course_id,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
+            ac.course_code,
+            ac.course_name,
             sp.program_name,
             ay.label as school_year,
             ap.term as semester,
@@ -1596,6 +1618,8 @@ async function fetchVerificationPayload(token) {
         from endorsement_slips es
         join students st on st.student_id = es.student_id
         left join applications a on a.application_id = es.application_id
+        left join student_master_records smr on smr.master_student_id = st.master_student_id
+        left join academic_course ac on ac.course_id = coalesce(st.course_id, smr.course_id)
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
@@ -1635,6 +1659,8 @@ async function fetchVerificationPayload(token) {
         student_name: row.student_name || 'Unknown Student',
         pdm_id: row.pdm_id || 'N/A',
         course_code: row.course_code || '',
+        course_name: row.course_name || '',
+        course_display: formatCourseDisplay(row),
         year_level: row.year_level || '',
         program_name: row.program_name || 'N/A',
         semester: row.semester || '',

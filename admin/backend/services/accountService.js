@@ -59,12 +59,17 @@ const passwordSchema = z
     .regex(/[0-9]/, 'Password must contain at least one number.');
 
 const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
+const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
 const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
+const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
 const optionalPhoneNumberSchema = z
     .string()
     .trim()
     .refine((value) => !value || PHONE_NUMBER_PATTERN.test(value), {
         message: PHONE_NUMBER_ERROR,
+    })
+    .refine((value) => !value || !REPEATING_PHONE_NUMBER_PATTERN.test(value), {
+        message: REPEATING_PHONE_NUMBER_ERROR,
     })
     .optional()
     .default('');
@@ -115,6 +120,10 @@ function validateOptionalPhoneNumber(value) {
 
     if (phoneNumber && !PHONE_NUMBER_PATTERN.test(phoneNumber)) {
         throw createHttpError(400, PHONE_NUMBER_ERROR);
+    }
+
+    if (phoneNumber && REPEATING_PHONE_NUMBER_PATTERN.test(phoneNumber)) {
+        throw createHttpError(400, REPEATING_PHONE_NUMBER_ERROR);
     }
 
     return phoneNumber || null;
@@ -1050,7 +1059,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     const firstName = safeText(payload.first_name);
     const lastName = safeText(payload.last_name);
     const email = safeText(payload.email).toLowerCase();
-    const phoneNumber = safeText(payload.phone_number) || null;
+    const phoneNumber = validateOptionalPhoneNumber(payload.phone_number);
     const position = safeText(payload.position);
 
     if (!firstName) {

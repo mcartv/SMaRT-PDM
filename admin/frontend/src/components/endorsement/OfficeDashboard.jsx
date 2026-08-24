@@ -424,6 +424,9 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                       <p className="mt-1 text-xs text-stone-500">
                         {row.pdm_id} • {row.opening_title || 'Opening not set'}
                       </p>
+                      <p className="mt-1 text-xs font-medium text-stone-700">
+                        {row.course_display || row.course_code || row.course_name || 'N/A'}
+                      </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Badge variant="outline" className="border-stone-200 text-stone-700">
                           {row.current_stage_label}
@@ -556,6 +559,9 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                     <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
                     <p className="text-xs text-stone-500">
                       {row.pdm_id} • {row.opening_title || 'Opening not set'}
+                    </p>
+                    <p className="mt-1 text-xs font-medium text-stone-700">
+                      {row.course_display || row.course_code || row.course_name || 'N/A'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">

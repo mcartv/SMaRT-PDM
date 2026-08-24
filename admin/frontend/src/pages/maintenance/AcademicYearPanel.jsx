@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { MAINTENANCE_CARD_TITLE_CLASS } from './components/maintenanceTypography';
 
@@ -372,6 +373,15 @@ export default function AcademicYearPanel() {
         message,
         details = [],
     }) => {
+        if (tone === 'success') {
+            showAppToast(
+                'success',
+                title,
+                [message, ...details].filter(Boolean).join(' ')
+            );
+            return;
+        }
+
         setActionModal({
             tone,
             title,

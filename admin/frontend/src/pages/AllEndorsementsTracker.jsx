@@ -286,6 +286,7 @@ export default function AllEndorsementsTracker({
           (row.student_name || '').toLowerCase().includes(query) ||
           (row.pdm_id || '').toLowerCase().includes(query) ||
           (row.program_name || '').toLowerCase().includes(query) ||
+          (row.course_display || row.course_code || row.course_name || '').toLowerCase().includes(query) ||
           (row.opening_title || '').toLowerCase().includes(query) ||
           (row.current_stage_label || '').toLowerCase().includes(query);
 
@@ -368,31 +369,11 @@ export default function AllEndorsementsTracker({
   ];
 
   const adminSummaryPills = [
-    {
-      label: 'In Progress',
-      value: summary.active,
-      tone: 'bg-blue-50 text-blue-700 border-blue-100',
-    },
-    {
-      label: 'SDO Review',
-      value: summary.sdo,
-      tone: 'bg-orange-50 text-orange-700 border-orange-100',
-    },
-    {
-      label: 'GCO',
-      value: summary.guidance,
-      tone: 'bg-sky-50 text-sky-700 border-sky-100',
-    },
-    {
-      label: 'PD Review',
-      value: summary.pd,
-      tone: 'bg-violet-50 text-violet-700 border-violet-100',
-    },
-    {
-      label: 'Completed',
-      value: summary.completed,
-      tone: 'bg-green-50 text-green-700 border-green-100',
-    },
+    { label: 'In Progress', value: summary.active },
+    { label: 'SDO Review', value: summary.sdo },
+    { label: 'GCO', value: summary.guidance },
+    { label: 'PD Review', value: summary.pd },
+    { label: 'Completed', value: summary.completed },
   ];
 
   if (loading) {
@@ -422,7 +403,12 @@ export default function AllEndorsementsTracker({
             {adminSummaryPills.map((item) => (
               <div
                 key={item.label}
-                className={`min-h-[76px] rounded-2xl border px-4 py-3 ${item.tone}`}
+                className="min-h-[76px] rounded-2xl border px-4 py-3"
+                style={{
+                  background: 'color-mix(in srgb, var(--portal-chart-primary) 10%, white)',
+                  borderColor: 'color-mix(in srgb, var(--portal-chart-primary) 24%, white)',
+                  color: 'var(--portal-chart-primary)',
+                }}
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">
                   {item.label}
@@ -464,7 +450,7 @@ export default function AllEndorsementsTracker({
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-9 w-full text-sm xl:w-56">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue>{statusFilter === 'all' ? 'All Statuses' : formatWorkflowStatus(statusFilter)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map((status) => (
@@ -550,7 +536,7 @@ export default function AllEndorsementsTracker({
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-9 w-full text-sm xl:w-56">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue>{statusFilter === 'all' ? 'All Statuses' : formatWorkflowStatus(statusFilter)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map((status) => (
@@ -633,6 +619,10 @@ export default function AllEndorsementsTracker({
                           {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
                         </p>
 
+                        <p className="text-xs font-medium text-stone-700">
+                          {row.course_display || row.course_code || row.course_name || 'N/A'}
+                        </p>
+
                         <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
                       </div>
 
@@ -690,6 +680,10 @@ export default function AllEndorsementsTracker({
 
                         <p className="text-sm text-stone-600">
                           {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
+                        </p>
+
+                        <p className="text-xs font-medium text-stone-700">
+                          {row.course_display || row.course_code || row.course_name || 'N/A'}
                         </p>
 
                         <p className="text-xs text-stone-500">

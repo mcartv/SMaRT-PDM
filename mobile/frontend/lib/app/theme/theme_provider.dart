@@ -11,8 +11,21 @@ class ThemeProvider extends ChangeNotifier {
   bool get isLoaded => _isLoaded;
   ThemeMode get themeMode => _isDarkMode ? ThemeMode.dark : ThemeMode.light;
 
-  ThemeProvider() {
+  ThemeProvider({bool? initialDarkMode}) {
+    if (initialDarkMode != null) {
+      _isDarkMode = initialDarkMode;
+      _isLoaded = true;
+      return;
+    }
+
     _load();
+  }
+
+  static Future<ThemeProvider> loadFromPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    return ThemeProvider(
+      initialDarkMode: prefs.getBool(_prefsKey) ?? false,
+    );
   }
 
   Future<void> _load() async {

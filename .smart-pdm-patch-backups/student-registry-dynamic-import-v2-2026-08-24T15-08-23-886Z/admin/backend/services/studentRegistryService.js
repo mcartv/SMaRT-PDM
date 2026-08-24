@@ -9,7 +9,6 @@ const MASTER_TABLE = 'student_master_records';
 const REGISTRY_VIEW = 'student_registry';
 const COURSE_TABLE = 'academic_course';
 const SDO_RECORD_TABLE = 'sdo_student_records';
-const HEADER_ORDER_META_KEY = '__smart_pdm_header_order';
 
 function buildError(message, statusCode = 500, details = null) {
   const err = new Error(message);
@@ -28,77 +27,6 @@ function normalizeLookupValue(value) {
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function parseCsvLine(line) {
-  const cells = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      cells.push(current);
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  cells.push(current);
-  return cells;
-}
-
-function parseCsvRows(text) {
-  const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const rows = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    const char = normalized[index];
-    const next = normalized[index + 1];
-
-    if (char === '"') {
-      current += char;
-      if (inQuotes && next === '"') {
-        current += next;
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === '\n' && !inQuotes) {
-      if (current.trim() !== '') rows.push(parseCsvLine(current));
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.trim() !== '') rows.push(parseCsvLine(current));
-  return rows;
-}
-
-function parseNullableBoolean(value) {
-  if (value === null || value === undefined || normalizeText(value) === '') return null;
-  return parseBoolean(value);
 }
 
 function normalizeYearLevel(value) {
@@ -212,7 +140,9 @@ async function readWorkbookRows(file) {
   const fileName = String(file.originalname || '').toLowerCase();
 
   if (fileName.endsWith('.csv')) {
-    return parseCsvRows(file.buffer.toString('utf8'));
+    const text = file.buffer.toString('utf8');
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    return lines.map((line) => line.split(','));
   }
 
   if (fileName.endsWith('.xls')) {
@@ -249,27 +179,27 @@ function mapHeaders(headerRow) {
     const header = normalizeLookupValue(rawHeader);
 
     if (
-      ['student number', 'student no', 'student id', 'student id no', 'student id number', 'pdm id', 'pdm no', 'pdm number'].includes(header)
+      ['student number', 'student_number', 'student no', 'pdm id', 'pdm_id'].includes(header)
     ) {
       map.set(index, 'student_number');
     } else if (
-      ['surname', 'last name', 'lastname', 'family name'].includes(header)
+      ['surname', 'last name', 'lastname', 'last_name'].includes(header)
     ) {
       map.set(index, 'last_name');
     } else if (
-      ['first name', 'firstname', 'given name', 'given names'].includes(header)
+      ['first name', 'firstname', 'first_name', 'given name', 'given_name'].includes(header)
     ) {
       map.set(index, 'given_name');
     } else if (
-      ['middle name', 'middlename', 'middle initial'].includes(header)
+      ['middle name', 'middlename', 'middle_name'].includes(header)
     ) {
       map.set(index, 'middle_name');
     } else if (
-      ['course', 'course code', 'degree program', 'program', 'program code', 'course/program'].includes(header)
+      ['course', 'course code', 'degree program', 'program'].includes(header)
     ) {
       map.set(index, 'degree_program');
     } else if (
-      ['year level', 'year', 'level'].includes(header)
+      ['year level', 'year_level', 'year'].includes(header)
     ) {
       map.set(index, 'year_level');
     } else if (
@@ -281,7 +211,7 @@ function mapHeaders(headerRow) {
     ) {
       map.set(index, 'email_address');
     } else if (
-      ['phone number', 'contact number', 'mobile number', 'personal number'].includes(header)
+      ['phone number', 'contact number', 'mobile number', 'phone_number'].includes(header)
     ) {
       map.set(index, 'phone_number');
     } else if (
@@ -374,72 +304,40 @@ function mapHeaders(headerRow) {
   return map;
 }
 
-function buildSourceColumns(headerRow = [], bodyRows = []) {
-  const maxColumns = Math.max(
-    headerRow.length,
-    ...bodyRows.map((row) => (Array.isArray(row) ? row.length : 0)),
-    0
-  );
-  const seen = new Map();
-  const columns = [];
-
-  for (let index = 0; index < maxColumns; index += 1) {
-    const rawHeader = normalizeText(headerRow[index]);
-    const columnHasData = bodyRows.some((row) => normalizeText(row?.[index]) !== '');
-    if (!rawHeader && !columnHasData) continue;
-
-    const baseLabel = rawHeader || `Column ${index + 1}`;
-    const key = normalizeLookupValue(baseLabel);
-    const occurrence = (seen.get(key) || 0) + 1;
-    seen.set(key, occurrence);
-
-    columns.push({
-      index,
-      label: occurrence === 1 ? baseLabel : `${baseLabel} (${occurrence})`,
-    });
+function parseRows(rows) {
+  if (!rows.length) {
+    return [];
   }
 
-  return columns;
-}
-
-function parseRows(rows) {
-  if (!rows.length) return [];
-
-  const headerRow = rows[0] || [];
-  const bodyRows = rows.slice(1);
+  const headerRow = rows[0];
   const headerMap = mapHeaders(headerRow);
-  const sourceColumns = buildSourceColumns(headerRow, bodyRows);
-  const sourceHeaders = sourceColumns.map((column) => column.label);
+
   const records = [];
 
   for (let i = 1; i < rows.length; i += 1) {
-    const row = rows[i] || [];
+    const row = rows[i];
     const obj = {
       row_number: i + 1,
-      raw_payload: { [HEADER_ORDER_META_KEY]: sourceHeaders },
+      raw_payload: {},
     };
 
-    sourceColumns.forEach(({ index, label }) => {
-      const value = row[index] ?? '';
+    row.forEach((value, index) => {
       const key = headerMap.get(index);
       if (key) obj[key] = value;
-      obj.raw_payload[label] = value;
+      obj.raw_payload[String(headerRow[index] || `col_${index + 1}`)] = value;
     });
 
     const studentNumber = normalizeText(obj.student_number).toUpperCase();
     const givenName = normalizeText(obj.given_name);
     const lastName = normalizeText(obj.last_name);
 
-    if (!studentNumber && !givenName && !lastName) continue;
-    if (!studentNumber || !givenName || !lastName) continue;
+    if (!studentNumber && !givenName && !lastName) {
+      continue;
+    }
 
-    const hasField = (field) => Object.prototype.hasOwnProperty.call(obj, field);
-    const explicitDisciplinary = hasField('has_disciplinary_action')
-      ? parseNullableBoolean(obj.has_disciplinary_action)
-      : null;
-    const hasOffenseDetails = Boolean(
-      normalizeText(obj.offense_type) || parseExcelDate(obj.offense_incident_date)
-    );
+    if (!studentNumber || !givenName || !lastName) {
+      continue;
+    }
 
     records.push({
       row_number: obj.row_number,
@@ -464,22 +362,14 @@ function parseRows(rows) {
       sibling_first_name: normalizeText(obj.sibling_first_name) || null,
       sibling_middle_name: normalizeText(obj.sibling_middle_name) || null,
       sibling_mobile_no: normalizeText(obj.sibling_mobile_no) || null,
-      financial_support_parents: hasField('financial_support_parents')
-        ? parseNullableBoolean(obj.financial_support_parents)
-        : null,
-      financial_support_scholarship: hasField('financial_support_scholarship')
-        ? parseNullableBoolean(obj.financial_support_scholarship)
-        : null,
-      financial_support_loan: hasField('financial_support_loan')
-        ? parseNullableBoolean(obj.financial_support_loan)
-        : null,
-      financial_support_other: hasField('financial_support_other')
-        ? parseNullableBoolean(obj.financial_support_other)
-        : null,
-      has_been_scholar: hasField('has_been_scholar')
-        ? parseNullableBoolean(obj.has_been_scholar)
-        : null,
-      has_disciplinary_action: hasOffenseDetails ? true : explicitDisciplinary,
+      financial_support_parents: parseBoolean(obj.financial_support_parents),
+      financial_support_scholarship: parseBoolean(obj.financial_support_scholarship),
+      financial_support_loan: parseBoolean(obj.financial_support_loan),
+      financial_support_other: parseBoolean(obj.financial_support_other),
+      has_been_scholar: parseBoolean(obj.has_been_scholar),
+      has_disciplinary_action:
+        parseBoolean(obj.has_disciplinary_action) ||
+        Boolean(normalizeText(obj.offense_type) || parseExcelDate(obj.offense_incident_date)),
       offense_type: normalizeText(obj.offense_type) || null,
       offense_incident_date: parseExcelDate(obj.offense_incident_date),
       raw_payload: obj.raw_payload,
@@ -670,20 +560,7 @@ async function importStudentRegistryFile({ file, adminId }) {
   }
 
   const rawRows = await readWorkbookRows(file);
-  const sourceHeaders = buildSourceColumns(rawRows[0] || [], rawRows.slice(1))
-    .map((column) => column.label);
   const parsedRows = parseRows(rawRows);
-
-  if (!sourceHeaders.length) {
-    throw buildError('No usable columns were found in the uploaded file.', 400);
-  }
-
-  if (!parsedRows.length) {
-    throw buildError(
-      'No importable student rows were found. The file must include PDM ID/Student Number, First Name/Given Name, and Surname/Last Name.',
-      400
-    );
-  }
 
   const importBatchId = await createBatch(file, adminId);
   const courseMap = await loadCourseMap();
@@ -703,7 +580,6 @@ async function importStudentRegistryFile({ file, adminId }) {
     imported: masterRows.length,
     total: parsedRows.length,
     failed_rows: Math.max(parsedRows.length - masterRows.length, 0),
-    source_headers: sourceHeaders,
   };
 }
 

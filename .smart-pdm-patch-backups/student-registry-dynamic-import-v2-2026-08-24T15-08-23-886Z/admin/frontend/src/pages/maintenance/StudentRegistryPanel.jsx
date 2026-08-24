@@ -128,134 +128,6 @@ function normalizeHeaderKey(header) {
     .replace(/\s+/g, ' ');
 }
 
-const REGISTRY_HEADER_ORDER_KEY = '__smart_pdm_header_order';
-
-const REGISTRY_HEADER_ALIASES = {
-  studentNumber: ['student number', 'student no', 'student id', 'pdm id', 'pdm no', 'pdm number'],
-  surname: ['surname', 'last name', 'family name'],
-  firstName: ['first name', 'given name', 'given names'],
-  middleName: ['middle name', 'middle initial'],
-  course: ['course', 'course code', 'degree program', 'program', 'program code', 'course/program'],
-  year: ['year level', 'year', 'level'],
-};
-
-function formatWorkbookCellValue(value) {
-  if (value === null || value === undefined) return '';
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
-  }
-  if (typeof value !== 'object') return String(value);
-  if (Array.isArray(value.richText)) {
-    return value.richText.map((part) => part?.text || '').join('');
-  }
-  if (value.result !== undefined && value.result !== null) {
-    return formatWorkbookCellValue(value.result);
-  }
-  if (value.text !== undefined && value.text !== null) {
-    return String(value.text);
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function buildDisplayColumns(headerRow = [], bodyRows = []) {
-  const maxColumns = Math.max(
-    headerRow.length,
-    ...bodyRows.map((row) => (Array.isArray(row) ? row.length : 0)),
-    0
-  );
-  const seen = new Map();
-  const columns = [];
-
-  for (let index = 0; index < maxColumns; index += 1) {
-    const rawHeader = formatWorkbookCellValue(headerRow[index]).trim();
-    const columnHasData = bodyRows.some((row) =>
-      formatWorkbookCellValue(row?.[index]).trim() !== ''
-    );
-
-    if (!rawHeader && !columnHasData) continue;
-
-    const baseLabel = rawHeader || `Column ${index + 1}`;
-    const key = normalizeHeaderKey(baseLabel);
-    const occurrence = (seen.get(key) || 0) + 1;
-    seen.set(key, occurrence);
-
-    columns.push({
-      index,
-      label: occurrence === 1 ? baseLabel : `${baseLabel} (${occurrence})`,
-    });
-  }
-
-  return columns;
-}
-
-function findHeaderByAliases(headers = [], aliases = []) {
-  const wanted = new Set(aliases.map(normalizeHeaderKey));
-  return headers.find((header) => wanted.has(normalizeHeaderKey(header))) || null;
-}
-
-function getSnapshotHeaders(row = {}) {
-  const snapshot = row?.raw_snapshot;
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return [];
-
-  const ordered = snapshot[REGISTRY_HEADER_ORDER_KEY];
-  if (Array.isArray(ordered)) {
-    return ordered
-      .map((header) => String(header || '').trim())
-      .filter(Boolean);
-  }
-
-  return Object.keys(snapshot).filter((key) => key !== REGISTRY_HEADER_ORDER_KEY);
-}
-
-function buildImportedHeaders(rows = [], preferredHeaders = []) {
-  const headers = [];
-  const seen = new Set();
-  const append = (header) => {
-    const label = String(header || '').trim();
-    const normalized = normalizeHeaderKey(label);
-    if (!label || !normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    headers.push(label);
-  };
-
-  preferredHeaders.forEach(append);
-
-  [...rows]
-    .sort((left, right) => {
-      const a = new Date(left?.imported_at || 0).getTime() || 0;
-      const b = new Date(right?.imported_at || 0).getTime() || 0;
-      return b - a;
-    })
-    .forEach((row) => getSnapshotHeaders(row).forEach(append));
-
-  return headers.length ? headers : EXCEL_HEADERS_FALLBACK;
-}
-
-function buildImportedDisplayRow(row, headers) {
-  const snapshot = row?.raw_snapshot;
-  const hasSnapshot =
-    snapshot &&
-    typeof snapshot === 'object' &&
-    !Array.isArray(snapshot) &&
-    Object.keys(snapshot).some((key) => key !== REGISTRY_HEADER_ORDER_KEY);
-
-  if (!hasSnapshot) {
-    const legacy = buildBackendRowForExcelShape(row);
-    return Object.fromEntries(headers.map((header) => [header, legacy[header] ?? '']));
-  }
-
-  return Object.fromEntries(
-    headers.map((header) => [
-      header,
-      Object.prototype.hasOwnProperty.call(snapshot, header) ? snapshot[header] ?? '' : '',
-    ])
-  );
-}
-
 function parseCsvLine(line) {
   const cells = [];
   let current = '';
@@ -725,8 +597,7 @@ export default function StudentRegistryPanel() {
   const [registry, setRegistry] = useState([]);
   const [total, setTotal] = useState(0);
 
-  const [excelHeaders, setExcelHeaders] = useState([]);
-  const [lastImportedHeaders, setLastImportedHeaders] = useState([]);
+  const [excelHeaders, setExcelHeaders] = useState(EXCEL_HEADERS_FALLBACK);
   const [excelRows, setExcelRows] = useState([]);
   const [excelSheetName, setExcelSheetName] = useState('Student Records');
   const [tableMode, setTableMode] = useState('imported');
@@ -801,7 +672,7 @@ export default function StudentRegistryPanel() {
       }
 
       worksheet.eachRow({ includeEmpty: false }, (row) => {
-        rows.push(row.values.slice(1).map(formatWorkbookCellValue));
+        rows.push(row.values.slice(1).map((value) => (value == null ? '' : String(value))));
       });
     } else {
       throw new Error('Only .xlsx and .csv files are allowed.');
@@ -811,36 +682,27 @@ export default function StudentRegistryPanel() {
       throw new Error('The uploaded file is empty.');
     }
 
-    const bodyRows = rows
+    const headers = rows[0]
+      .map((value) => String(value || '').trim())
+      .filter((value) => value !== '');
+
+    const body = rows
       .slice(1)
-      .filter((row) =>
-        Array.isArray(row) &&
-        row.some((cell) => formatWorkbookCellValue(cell).trim() !== '')
-      );
-    const columns = buildDisplayColumns(rows[0] || [], bodyRows);
-    const headers = columns.map((column) => column.label);
+      .filter((row) => Array.isArray(row) && row.some((cell) => String(cell || '').trim() !== ''))
+      .map((row) => {
+        const obj = {};
 
-    if (!headers.length) {
-      throw new Error('No usable columns were found in the uploaded file.');
-    }
+        headers.forEach((header, idx) => {
+          obj[header] = row[idx] ?? '';
+        });
 
-    const body = bodyRows.map((row) =>
-      Object.fromEntries(
-        columns.map((column) => [
-          column.label,
-          formatWorkbookCellValue(row[column.index]),
-        ])
-      )
-    );
+        return obj;
+      });
 
     setExcelSheetName(selectedFile.name);
-    setExcelHeaders(headers);
+    setExcelHeaders(headers.length ? headers : EXCEL_HEADERS_FALLBACK);
     setExcelRows(body);
     setTableMode('excel');
-    setCourseFilter('all');
-    setYearFilter('all');
-    setDraftCourseFilter('all');
-    setDraftYearFilter('all');
     setPage(1);
   };
 
@@ -868,7 +730,7 @@ export default function StudentRegistryPanel() {
   const clearSelectedFile = () => {
     setFile(null);
     setExcelRows([]);
-    setExcelHeaders([]);
+    setExcelHeaders(EXCEL_HEADERS_FALLBACK);
     setExcelSheetName('Student Records');
     setTableMode('imported');
     setPage(1);
@@ -897,11 +759,6 @@ export default function StudentRegistryPanel() {
       }
 
       await loadRegistry();
-      setLastImportedHeaders(
-        Array.isArray(data.source_headers) && data.source_headers.length
-          ? data.source_headers
-          : excelHeaders
-      );
 
       setTableMode('imported');
       setImportOpen(false);
@@ -913,88 +770,102 @@ export default function StudentRegistryPanel() {
     }
   };
 
-  const importedHeaders = useMemo(() => {
-    return buildImportedHeaders(registry, lastImportedHeaders);
-  }, [registry, lastImportedHeaders]);
-
-  const importedRows = useMemo(() => {
-    return registry.map((row) => buildImportedDisplayRow(row, importedHeaders));
-  }, [registry, importedHeaders]);
+  const importedRowsAsExcelShape = useMemo(() => {
+    return registry.map(buildBackendRowForExcelShape);
+  }, [registry]);
 
   const currentHeaders = useMemo(() => {
     if (tableMode === 'excel' && excelHeaders.length) return excelHeaders;
-    return importedHeaders;
-  }, [tableMode, excelHeaders, importedHeaders]);
+    return EXCEL_HEADERS_FALLBACK;
+  }, [tableMode, excelHeaders]);
 
   const currentRows = useMemo(() => {
-    return tableMode === 'excel' ? excelRows : importedRows;
-  }, [tableMode, excelRows, importedRows]);
+    return tableMode === 'excel' ? excelRows : importedRowsAsExcelShape;
+  }, [tableMode, excelRows, importedRowsAsExcelShape]);
 
   const courseOptions = useMemo(() => {
-    const courseHeader = findHeaderByAliases(
-      currentHeaders,
-      REGISTRY_HEADER_ALIASES.course
+    const courseHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'course'
     );
 
     if (!courseHeader) return [];
 
-    return Array.from(
+    const unique = Array.from(
       new Set(
         currentRows
           .map((row) => row[courseHeader])
           .filter((value) => String(value || '').trim() !== '')
           .map((value) => String(value).trim())
       )
-    ).sort((a, b) => a.localeCompare(b));
+    );
+
+    return unique.sort((a, b) => a.localeCompare(b));
   }, [currentHeaders, currentRows]);
 
   const yearOptions = useMemo(() => {
-    const yearHeader = findHeaderByAliases(
-      currentHeaders,
-      REGISTRY_HEADER_ALIASES.year
+    const yearHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'year level'
     );
 
     if (!yearHeader) return [];
 
-    return Array.from(
+    const unique = Array.from(
       new Set(
         currentRows
           .map((row) => row[yearHeader])
           .filter((value) => String(value || '').trim() !== '')
           .map((value) => String(value).trim())
       )
-    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    );
+
+    return unique.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [currentHeaders, currentRows]);
 
   const filteredRows = useMemo(() => {
     const q = normalizeText(search);
-    const courseHeader = findHeaderByAliases(
-      currentHeaders,
-      REGISTRY_HEADER_ALIASES.course
+
+    const studentNumberHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'student number'
     );
-    const yearHeader = findHeaderByAliases(
-      currentHeaders,
-      REGISTRY_HEADER_ALIASES.year
+    const surnameHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'surname'
+    );
+    const firstNameHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'first name'
+    );
+    const middleNameHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'middle name'
+    );
+    const courseHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'course'
+    );
+    const yearHeader = currentHeaders.find(
+      (header) => normalizeHeaderKey(header) === 'year level'
     );
 
     return currentRows.filter((row) => {
-      const searchableText = normalizeText(
-        currentHeaders.map((header) => row[header] ?? '').join(' ')
+      const fullName = normalizeText(
+        [
+          row[surnameHeader] || '',
+          row[firstNameHeader] || '',
+          row[middleNameHeader] || '',
+        ].join(' ')
       );
-      const courseCode = courseHeader
-        ? String(row[courseHeader] || '').trim()
-        : '';
-      const yearLevel = yearHeader
-        ? String(row[yearHeader] || '').trim()
-        : '';
 
-      const matchesSearch = !q || searchableText.includes(q);
+      const studentNumber = normalizeText(row[studentNumberHeader] || '');
+      const courseCode = String(row[courseHeader] || '').trim();
+      const yearLevel = String(row[yearHeader] || '').trim();
+
+      const matchesSearch =
+        !q ||
+        fullName.includes(q) ||
+        studentNumber.includes(q);
+
       const matchesCourse =
-        courseFilter === 'all' ||
-        (courseHeader && courseCode === courseFilter);
+        courseFilter === 'all' || courseCode === courseFilter;
+
       const matchesYear =
-        yearFilter === 'all' ||
-        (yearHeader && yearLevel === yearFilter);
+        yearFilter === 'all' || yearLevel === yearFilter;
 
       return matchesSearch && matchesCourse && matchesYear;
     });

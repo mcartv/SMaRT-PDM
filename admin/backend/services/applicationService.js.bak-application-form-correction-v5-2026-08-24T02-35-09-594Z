@@ -98,9 +98,9 @@ function deriveVerificationOutcome(reviews = []) {
 function buildReplacementNotification(applicationId) {
     return {
         type: 'Application',
-        title: 'Application Correction Required',
+        title: 'Document Replacement Required',
         message:
-            'One or more application requirements need correction. Open your application to review the administrator remarks. Re-upload affected documents or edit the Application Form when requested.',
+            'One or more scholarship documents need to be replaced. Open Required Documents to review the administrator remarks and upload corrected files.',
         referenceType: 'application',
         referenceId: applicationId,
     };

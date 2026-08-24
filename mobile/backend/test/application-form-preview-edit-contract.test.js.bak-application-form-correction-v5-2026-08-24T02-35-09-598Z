@@ -28,18 +28,27 @@ test('submitted application form preview endpoint is wired', () => {
   assert.match(service, /async function getMySubmittedFormData/);
 });
 
-test('submitted form editability is driven by the persisted Application Form review', () => {
-  assert.match(service, /\.from\('application_document_reviews'\)/);
-  assert.match(service, /applicationFormCorrectionRequested/);
-  assert.match(service, /correction_requested:/);
-  assert.match(service, /correction_comment:/);
+test('submitted application editing is explicitly requested and server guarded', () => {
+  assert.match(service, /edit_existing_application/);
+  assert.match(service, /can_edit/);
+  assert.match(
+    service,
+    /OSFA has already started reviewing this application/
+  );
+  assert.match(service, /iot_ocr_requests/);
 });
 
-test('corrected form submission preserves the existing application and returns it to review', () => {
+test('editing an existing application preserves workflow document state', () => {
   assert.match(
     service,
     /editExistingApplication[\s\S]*existingEditSnapshot/
   );
-  assert.match(service, /resetApplicationFormReviewError/);
-  assert.match(service, /application_status:\s*hasRemainingCorrections/);
+  assert.match(
+    service,
+    /document_status:[\s\S]*editExistingApplication/
+  );
+  assert.match(
+    service,
+    /verification_status:[\s\S]*editExistingApplication/
+  );
 });

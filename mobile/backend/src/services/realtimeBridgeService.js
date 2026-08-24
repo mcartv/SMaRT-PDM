@@ -1,4 +1,45 @@
 ﻿let realtimeChannel = null;
+let realtimeRetryTimer = null;
+const REALTIME_BRIDGE_RETRY_MS = 3000;
+
+function clearRealtimeRetry() {
+  if (!realtimeRetryTimer) return;
+  clearTimeout(realtimeRetryTimer);
+  realtimeRetryTimer = null;
+}
+
+function scheduleRealtimeBridgeRestart({ io, supabase, reason }) {
+  if (realtimeRetryTimer) return;
+
+  console.warn('[Realtime Bridge] scheduling reconnect:', {
+    reason: String(reason || 'unknown'),
+    retry_in_ms: REALTIME_BRIDGE_RETRY_MS,
+  });
+
+  realtimeRetryTimer = setTimeout(() => {
+    realtimeRetryTimer = null;
+
+    try {
+      configureRealtimeBridge({ io, supabase });
+    } catch (error) {
+      console.error(
+        '[Realtime Bridge] reconnect failed:',
+        error?.message || error
+      );
+
+      scheduleRealtimeBridgeRestart({
+        io,
+        supabase,
+        reason: error?.message || 'restart_failed',
+      });
+    }
+  }, REALTIME_BRIDGE_RETRY_MS);
+
+  if (typeof realtimeRetryTimer.unref === 'function') {
+    realtimeRetryTimer.unref();
+  }
+}
+
 
 // Exact-event suppression only. Genuine realtime changes are still delivered
 // immediately; only the same event/entity/version emitted twice is dropped.
@@ -597,12 +638,47 @@ function configureRealtimeBridge({ io, supabase }) {
       }
     )
     .subscribe((status, error) => {
+      const normalizedStatus = String(status || '')
+        .trim()
+        .toUpperCase();
+
       if (error) {
-        console.error('[Realtime Bridge] subscription error:', error);
+        console.error(
+          '[Realtime Bridge] subscription error:',
+          error
+        );
+
+        scheduleRealtimeBridgeRestart({
+          io,
+          supabase,
+          reason:
+            error?.message ||
+            normalizedStatus ||
+            'subscription_error',
+        });
         return;
       }
 
-      console.log('Realtime bridge status:', status);
+      console.log(
+        'Realtime bridge status:',
+        normalizedStatus || status
+      );
+
+      if (normalizedStatus === 'SUBSCRIBED') {
+        clearRealtimeRetry();
+        return;
+      }
+
+      if (
+        normalizedStatus === 'CHANNEL_ERROR' ||
+        normalizedStatus === 'TIMED_OUT'
+      ) {
+        scheduleRealtimeBridgeRestart({
+          io,
+          supabase,
+          reason: normalizedStatus,
+        });
+      }
     });
 
   return realtimeChannel;

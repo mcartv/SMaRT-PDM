@@ -84,6 +84,27 @@ class _StepSubmitState extends State<StepSubmit> {
 
   String _yesNo(bool value) => value ? 'Yes' : 'No';
 
+  String _residencyDurationLabel(String value) {
+    final raw = value.trim();
+    final years = int.tryParse(raw);
+    if (raw.toLowerCase() == 'less than a year' || years == 0) {
+      return 'Less than a year';
+    }
+    if (raw.toLowerCase() == '1-5 years' ||
+        (years != null && years >= 1 && years <= 5)) {
+      return '1-5 years';
+    }
+    if (raw.toLowerCase() == '6-10 years' ||
+        (years != null && years >= 6 && years <= 10)) {
+      return '6-10 years';
+    }
+    if (raw.toLowerCase() == 'more than 10 years' ||
+        (years != null && years > 10)) {
+      return 'More than 10 years';
+    }
+    return raw;
+  }
+
   String _parentNativeDetails() {
     final status = widget.data.parentNativeStatus.trim();
     if (status.isEmpty) return '-';
@@ -91,7 +112,9 @@ class _StepSubmitState extends State<StepSubmit> {
       final origin = widget.data.parentPreviousTownProvince.trim();
       return origin.isEmpty ? status : '$status, from $origin';
     }
-    final years = widget.data.parentMarilaoResidencyDuration.trim();
+    final years = _residencyDurationLabel(
+      widget.data.parentMarilaoResidencyDuration,
+    );
     return years.isEmpty ? status : '$status, resident for $years';
   }
 
@@ -130,7 +153,9 @@ class _StepSubmitState extends State<StepSubmit> {
 
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
-      backgroundColor: const Color(0xFFFFF2EE),
+      backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurfaceMuted
+          : const Color(0xFFFFF2EE),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -162,14 +187,16 @@ class _StepSubmitState extends State<StepSubmit> {
   Widget _infoListCard({required String title, required List<String> items}) {
     return IntakeCard(
       margin: const EdgeInsets.only(bottom: 16),
-      backgroundColor: const Color(0xFFFFF8EA),
+      backgroundColor: intakeIsDark(context)
+          ? AppColors.applicantDarkSurface
+          : const Color(0xFFFFF8EA),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: IntakePalette.text,
+              color: intakeTextColor(context),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -177,7 +204,7 @@ class _StepSubmitState extends State<StepSubmit> {
           Text(
             items.map((item) => '• $item').join('\n'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: IntakePalette.subtext,
+              color: intakeSubtextColor(context),
               height: 1.5,
             ),
           ),
@@ -209,11 +236,13 @@ class _StepSubmitState extends State<StepSubmit> {
         ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
-          backgroundColor: const Color(0xFFFFEFE4),
+          backgroundColor: intakeIsDark(context)
+              ? AppColors.applicantDarkSurfaceMuted
+              : const Color(0xFFFFEFE4),
           child: Text(
             'Certification: I certify that all answers given above are true and correct to the best of my knowledge. I understand that any false information will disqualify my application.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: IntakePalette.text,
+              color: intakeTextColor(context),
               fontWeight: FontWeight.w700,
               height: 1.5,
             ),
@@ -258,7 +287,7 @@ class _StepSubmitState extends State<StepSubmit> {
           title: RichText(
             text: TextSpan(
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: IntakePalette.subtext,
+                color: intakeSubtextColor(context),
                 height: 1.45,
               ),
               children: [

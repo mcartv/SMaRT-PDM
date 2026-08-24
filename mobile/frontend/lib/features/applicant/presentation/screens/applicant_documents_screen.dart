@@ -475,8 +475,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   Widget build(BuildContext context) {
     final package = _package;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final titleColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final subtitleColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : Colors.black54;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
 
     final documents = package == null
@@ -493,7 +497,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       appBar: AppBar(
         title: const Text('Required Documents'),
         backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.darkBrown,
       ),
       selectedIndex: 0,
       child: RefreshIndicator(

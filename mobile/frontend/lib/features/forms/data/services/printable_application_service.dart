@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
@@ -13,6 +14,38 @@ class PrintableApplicationService {
 
   final ApplicationService _applicationService;
   final ScholarshipFormPdfService _pdfService;
+
+  Future<Uint8List> generateBytesFromSubmissionPayload(
+    Map<String, dynamic> payload,
+  ) async {
+    final model = SavedApplicationPrintModel.fromSavedFormData(payload);
+    return _pdfService.generateBytesFromSavedApplication(model);
+  }
+
+  Future<Uint8List> generateBytesFromMySubmittedApplicationForm() async {
+    final response = await _applicationService
+        .fetchMySubmittedApplicationForm();
+    final payload = Map<String, dynamic>.from(
+      response['form_data'] as Map? ?? const {},
+    );
+
+    if (payload.isEmpty) {
+      throw Exception('Submitted application form is not available yet.');
+    }
+
+    final application = Map<String, dynamic>.from(
+      response['application'] as Map? ?? const {},
+    );
+
+    if (application.isNotEmpty) {
+      final existingApplication = Map<String, dynamic>.from(
+        payload['application'] as Map? ?? const {},
+      );
+      payload['application'] = {...existingApplication, ...application};
+    }
+
+    return generateBytesFromSubmissionPayload(payload);
+  }
 
   Future<File> generateFromSubmissionPayload(
     Map<String, dynamic> payload,

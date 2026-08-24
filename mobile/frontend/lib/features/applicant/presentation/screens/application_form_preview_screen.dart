@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
 class ApplicationFormPreviewScreen extends StatefulWidget {
@@ -15,13 +17,19 @@ class ApplicationFormPreviewScreen extends StatefulWidget {
 class _ApplicationFormPreviewScreenState
     extends State<ApplicationFormPreviewScreen> {
   final ApplicationService _service = ApplicationService();
+  final PrintableApplicationService _pdfService = PrintableApplicationService();
 
   ApplicationData? _data;
   Map<String, dynamic> _application = const {};
+  Map<String, dynamic> _submittedFormPayload = const {};
   bool _canEdit = false;
   bool _loading = true;
+  bool _isExportingPdf = false;
   String? _lockReason;
+  String? _pdfError;
+  String? _correctionComment;
   String? _error;
+  final Set<String> _expandedLongFields = <String>{};
 
   @override
   void initState() {
@@ -46,8 +54,10 @@ class _ApplicationFormPreviewScreenState
         setState(() {
           _data = null;
           _application = const {};
+          _submittedFormPayload = const {};
           _canEdit = false;
           _lockReason = null;
+          _correctionComment = null;
           _error = 'No submitted application is available yet.';
           _loading = false;
         });
@@ -70,8 +80,10 @@ class _ApplicationFormPreviewScreenState
       setState(() {
         _data = data;
         _application = rawApplication;
+        _submittedFormPayload = rawForm;
         _canEdit = editability['can_edit'] == true;
         _lockReason = _optional(editability['reason']);
+        _correctionComment = _optional(editability['correction_comment']);
         _loading = false;
       });
     } catch (error) {
@@ -102,10 +114,57 @@ class _ApplicationFormPreviewScreenState
 
     if (updated == true) {
       await _load();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Application form updated successfully.')),
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (_isExportingPdf) return;
+
+    final data = _data;
+    if (data == null) {
+      setState(() {
+        _pdfError = 'Application PDF is not available yet.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isExportingPdf = true;
+      _pdfError = null;
+    });
+
+    try {
+      final payload = Map<String, dynamic>.from(_submittedFormPayload);
+      final existingApplication = Map<String, dynamic>.from(
+        payload['application'] as Map? ?? const {},
       );
+      payload['application'] = {...existingApplication, ..._application};
+
+      final bytes = await _pdfService.generateBytesFromSubmissionPayload(
+        payload,
+      );
+
+      if (!mounted) return;
+
+      await Share.shareXFiles([
+        XFile.fromData(
+          bytes,
+          mimeType: 'application/pdf',
+          name: 'SMaRT-PDM_Application_Form.pdf',
+        ),
+      ], text: 'SMaRT-PDM Scholarship Application');
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _pdfError = error.toString().replaceFirst('Exception: ', '').trim();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExportingPdf = false;
+        });
+      }
     }
   }
 
@@ -120,6 +179,29 @@ class _ApplicationFormPreviewScreenState
   }
 
   String _yesNo(bool value) => value ? 'Yes' : 'No';
+
+  String _residencyDurationLabel(String value) {
+    final raw = value.trim();
+    final years = int.tryParse(raw);
+
+    if (raw.toLowerCase() == 'less than a year' || years == 0) {
+      return 'Less than a year';
+    }
+    if (raw.toLowerCase() == '1-5 years' ||
+        (years != null && years >= 1 && years <= 5)) {
+      return '1-5 years';
+    }
+    if (raw.toLowerCase() == '6-10 years' ||
+        (years != null && years >= 6 && years <= 10)) {
+      return '6-10 years';
+    }
+    if (raw.toLowerCase() == 'more than 10 years' ||
+        (years != null && years > 10)) {
+      return 'More than 10 years';
+    }
+
+    return raw.isEmpty ? 'Not provided' : raw;
+  }
 
   String _fullName(String first, String middle, String last) {
     final parts = [
@@ -196,6 +278,80 @@ class _ApplicationFormPreviewScreenState
           ),
         ],
       ),
+    );
+  }
+
+  Widget _expandableField(String label, String value) {
+    final displayValue = _text(value);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        );
+
+        final painter = TextPainter(
+          text: TextSpan(text: displayValue, style: textStyle),
+          maxLines: 3,
+          textDirection: Directionality.of(context),
+        )..layout(maxWidth: constraints.maxWidth);
+
+        final isLong = painter.didExceedMaxLines;
+        final expanded = _expandedLongFields.contains(label);
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.55,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.52),
+                ),
+              ),
+              const SizedBox(height: 4),
+              SelectableText(
+                displayValue,
+                maxLines: expanded ? null : 3,
+                style: textStyle,
+              ),
+              if (isLong || expanded) ...[
+                const SizedBox(height: 3),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      if (expanded) {
+                        _expandedLongFields.remove(label);
+                      } else {
+                        _expandedLongFields.add(label);
+                      }
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 0,
+                      vertical: 4,
+                    ),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: AppColors.gold,
+                  ),
+                  child: Text(
+                    expanded ? 'Show less' : 'Read more',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -304,6 +460,7 @@ class _ApplicationFormPreviewScreenState
   }
 
   Widget _content(ApplicationData data) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final applicationStatus =
         _optional(_application['application_status']) ?? 'Submitted';
     final openingTitle =
@@ -319,9 +476,16 @@ class _ApplicationFormPreviewScreenState
         children: [
           Card(
             elevation: 0,
+            color: isDark
+                ? AppColors.applicantDarkSurface
+                : const Color(0xFFFFFEFC),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
-              side: const BorderSide(color: Color(0xFFE9DED2)),
+              side: BorderSide(
+                color: isDark
+                    ? AppColors.applicantDarkOutline
+                    : const Color(0xFFE9DED2),
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -358,9 +522,11 @@ class _ApplicationFormPreviewScreenState
                       ),
                       _pill(
                         icon: _canEdit
-                            ? Icons.edit_outlined
+                            ? Icons.edit_note_outlined
                             : Icons.lock_outline_rounded,
-                        text: _canEdit ? 'Editing available' : 'Read only',
+                        text: _canEdit
+                            ? 'Correction requested'
+                            : 'Editing locked',
                       ),
                     ],
                   ),
@@ -458,7 +624,7 @@ class _ApplicationFormPreviewScreenState
               else
                 _field(
                   'Years as Marilao Resident',
-                  _text(data.parentMarilaoResidencyDuration),
+                  _residencyDurationLabel(data.parentMarilaoResidencyDuration),
                 ),
             ],
           ),
@@ -508,10 +674,10 @@ class _ApplicationFormPreviewScreenState
             title: 'Personal Statement',
             icon: Icons.edit_note_outlined,
             children: [
-              _field('Describe Yourself', _text(data.describeYourselfEssay)),
-              _field(
+              _expandableField('Describe Yourself', data.describeYourselfEssay),
+              _expandableField(
                 'Aims and Ambition After Graduation',
-                _text(data.aimsAndAmbitionEssay),
+                data.aimsAndAmbitionEssay,
               ),
             ],
           ),
@@ -558,11 +724,12 @@ class _ApplicationFormPreviewScreenState
 
   Widget _bottomAction() {
     final canEdit = _data != null && _canEdit;
+    final canExport = _data != null && !_isExportingPdf;
 
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           border: Border(
@@ -583,44 +750,135 @@ class _ApplicationFormPreviewScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: canEdit ? _openEditor : null,
-                icon: Icon(
-                  canEdit ? Icons.edit_outlined : Icons.lock_outline_rounded,
+            if (_data != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 9,
                 ),
-                label: Text(
-                  canEdit ? 'Edit Application Form' : 'Application Form Locked',
-                ),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(0, 52),
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: AppColors.darkBrown,
-                  disabledBackgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest,
-                  disabledForegroundColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                margin: const EdgeInsets.only(bottom: 9),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.28),
                   ),
-                  elevation: 0,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: AppColors.gold,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        canEdit
+                            ? _correctionComment == null
+                                  ? 'OSFA/Admin requested a correction to your application form. '
+                                        'Edit the requested information and save the updated form.'
+                                  : 'OSFA/Admin requested a correction to your application form. '
+                                        'Admin remark: $_correctionComment'
+                            : 'Your application form is locked while it is being checked. '
+                                  'Edit Form will become available only if OSFA/Admin requests '
+                                  'a correction.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: canEdit ? _openEditor : null,
+                    icon: const Icon(Icons.edit_outlined, size: 19),
+                    label: const Text(
+                      'Edit Form',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 52),
+                      foregroundColor: AppColors.gold,
+                      disabledForegroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.38),
+                      side: BorderSide(
+                        color: canEdit
+                            ? AppColors.gold
+                            : Theme.of(context).colorScheme.outlineVariant,
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: canExport ? _exportPdf : null,
+                    icon: _isExportingPdf
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.darkBrown,
+                            ),
+                          )
+                        : const Icon(Icons.picture_as_pdf_outlined, size: 19),
+                    label: const Text(
+                      'Export PDF',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 52),
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.darkBrown,
+                      disabledBackgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      disabledForegroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.48),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            if (!canEdit && _lockReason != null) ...[
+            if (_pdfError != null) ...[
               const SizedBox(height: 7),
               Text(
-                _lockReason!,
+                _pdfError!,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
                   height: 1.35,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.58),
                 ),
               ),
             ],

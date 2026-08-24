@@ -1,17 +1,36 @@
 const { Server } = require('socket.io');
 const { authenticateSocket } = require('../middleware/authMiddleware');
+const {
+    isAllowedSocketOrigin,
+} = require('./socketOriginPolicy');
 
 function configureSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: [
-                'http://localhost:3000',
-                'http://localhost:5173',
-                'http://localhost:5000',
-                'http://192.168.100.9:5000',
-                'https://smart-pdm-3tbv.onrender.com',
+            origin(origin, callback) {
+                if (isAllowedSocketOrigin(origin)) {
+                    return callback(null, true);
+                }
+
+                console.error(
+                    '[Socket.IO] CORS blocked origin:',
+                    origin
+                );
+
+                return callback(
+                    new Error(
+                        'Socket.IO CORS blocked origin: ' + origin
+                    )
+                );
+            },
+            methods: [
+                'GET',
+                'POST',
+                'PUT',
+                'PATCH',
+                'DELETE',
+                'OPTIONS',
             ],
-            methods: ['GET', 'POST'],
             credentials: true,
         },
         transports: ['websocket', 'polling'],
@@ -40,12 +59,16 @@ function configureSocket(server) {
             null;
 
         if (userId) {
-            socket.join(`user:${userId}`);
-            console.log(`Socket joined user room: user:${userId}`);
+            socket.join('user:' + userId);
+            console.log('Socket joined user room: user:' + userId);
         }
 
         socket.on('disconnect', (reason) => {
-            console.log('Socket disconnected:', socket.id, reason);
+            console.log(
+                'Socket disconnected:',
+                socket.id,
+                reason
+            );
         });
     });
 

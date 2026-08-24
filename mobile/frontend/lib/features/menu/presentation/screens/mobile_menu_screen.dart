@@ -167,12 +167,14 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark
-        ? const Color(0xFF17110B)
+        ? AppColors.applicantDarkBackground
         : const Color(0xFFF6F1EA);
-    final surface = isDark ? const Color(0xFF2B1D13) : Colors.white;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final surface = isDark ? AppColors.applicantDarkSurface : Colors.white;
+    final titleColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
     final mutedColor = isDark
-        ? Colors.white60
+        ? AppColors.applicantDarkTextMuted
         : AppColors.brown.withValues(alpha: 0.66);
 
     return ColoredBox(
@@ -478,7 +480,9 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
         : const Color(0xFFF6F1EA);
     final surface = isDark ? const Color(0xFF2B1D13) : Colors.white;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final bodyColor = isDark ? Colors.white70 : AppColors.brown;
+    final bodyColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : AppColors.brown;
 
     return Scaffold(
       backgroundColor: background,
@@ -631,7 +635,7 @@ class _MenuListTile extends StatelessWidget {
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: isDark ? Colors.white : AppColors.darkBrown,
+          color: isDark ? AppColors.applicantDarkText : AppColors.darkBrown,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -641,7 +645,7 @@ class _MenuListTile extends StatelessWidget {
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: isDark
-                ? Colors.white60
+                ? AppColors.applicantDarkTextMuted
                 : AppColors.brown.withValues(alpha: 0.63),
           ),
         ),
@@ -649,7 +653,7 @@ class _MenuListTile extends StatelessWidget {
       trailing: Icon(
         Icons.chevron_right_rounded,
         color: isDark
-            ? Colors.white38
+            ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.58)
             : AppColors.brown.withValues(alpha: 0.42),
       ),
     );

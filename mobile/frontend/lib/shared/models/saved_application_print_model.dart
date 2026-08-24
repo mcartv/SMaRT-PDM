@@ -43,6 +43,9 @@ class SavedApplicationPrintModel {
     required this.siblingFirstName,
     required this.siblingMiddleName,
     required this.siblingMobile,
+    required this.siblingEducationalAttainment,
+    required this.siblingOccupation,
+    required this.siblingCompanyNameAddress,
     required this.guardianLastName,
     required this.guardianFirstName,
     required this.guardianMiddleName,
@@ -89,6 +92,11 @@ class SavedApplicationPrintModel {
     required this.supportOther,
     required this.hadScholarship,
     required this.noScholarshipHistory,
+    this.scholarshipElementary = false,
+    this.scholarshipHighSchool = false,
+    this.scholarshipCollege = false,
+    this.scholarshipOthers = false,
+    this.scholarshipOthersSpecify = '',
     required this.scholarshipDetails,
     required this.hasDisciplinaryRecord,
     required this.noDisciplinaryRecord,
@@ -141,6 +149,9 @@ class SavedApplicationPrintModel {
   final String siblingFirstName;
   final String siblingMiddleName;
   final String siblingMobile;
+  final String siblingEducationalAttainment;
+  final String siblingOccupation;
+  final String siblingCompanyNameAddress;
   final String guardianLastName;
   final String guardianFirstName;
   final String guardianMiddleName;
@@ -187,6 +198,11 @@ class SavedApplicationPrintModel {
   final bool supportOther;
   final bool hadScholarship;
   final bool noScholarshipHistory;
+  final bool scholarshipElementary;
+  final bool scholarshipHighSchool;
+  final bool scholarshipCollege;
+  final bool scholarshipOthers;
+  final String scholarshipOthersSpecify;
   final String scholarshipDetails;
   final bool hasDisciplinaryRecord;
   final bool noDisciplinaryRecord;
@@ -227,6 +243,11 @@ class SavedApplicationPrintModel {
     final fatherNonNative = father['is_marilao_native'] == false;
     final motherNonNative = mother['is_marilao_native'] == false;
     final financialSupport = _string(profile['financial_support_type']);
+    final selectedFinancialSupport = financialSupport
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toSet();
     final currentYearLevel = _string(student['year_level']);
     final currentSection = _string(profile['current_section']);
     final dateOfBirthRaw = _string(profile['date_of_birth']);
@@ -282,6 +303,11 @@ class SavedApplicationPrintModel {
       siblingFirstName: _string(sibling['first_name']),
       siblingMiddleName: _string(sibling['middle_name']),
       siblingMobile: _string(sibling['mobile_number']),
+      siblingEducationalAttainment: _string(
+        sibling['highest_educational_attainment'],
+      ),
+      siblingOccupation: _string(sibling['occupation']),
+      siblingCompanyNameAddress: _string(sibling['company_name_address']),
       guardianLastName: _string(guardian['last_name']),
       guardianFirstName: _string(guardian['first_name']),
       guardianMiddleName: _string(guardian['middle_name']),
@@ -295,10 +321,12 @@ class SavedApplicationPrintModel {
       isMotherOnlyNative: motherNative && !fatherNative,
       isBothParentsNative: fatherNative && motherNative,
       isNotNative: fatherNonNative && motherNonNative,
-      yearsResident: _firstNonEmpty([
-        _string(father['years_as_resident']),
-        _string(mother['years_as_resident']),
-      ]),
+      yearsResident: _residencyDurationLabel(
+        _firstNonEmpty([
+          _string(father['years_as_resident']),
+          _string(mother['years_as_resident']),
+        ]),
+      ),
       originProvince: _firstNonEmpty([
         _string(father['origin_province']),
         _string(mother['origin_province']),
@@ -333,12 +361,17 @@ class SavedApplicationPrintModel {
       gwa: _firstNonEmpty([_string(student['gwa']), _string(profile['gwa'])]),
       financialSupport: financialSupport,
       financialSupportOther: _string(profile['financial_support_other']),
-      supportParents: financialSupport.toLowerCase() == 'parents',
-      supportScholarship: financialSupport.toLowerCase() == 'scholarship',
-      supportLoan: financialSupport.toLowerCase() == 'loan',
-      supportOther: financialSupport.toLowerCase() == 'other',
+      supportParents: selectedFinancialSupport.contains('parents'),
+      supportScholarship: selectedFinancialSupport.contains('scholarship'),
+      supportLoan: selectedFinancialSupport.contains('loan'),
+      supportOther: selectedFinancialSupport.contains('other'),
       hadScholarship: profile['has_prior_scholarship'] == true,
       noScholarshipHistory: profile['has_prior_scholarship'] != true,
+      scholarshipElementary: _boolValue(profile['scholarship_elementary']),
+      scholarshipHighSchool: _boolValue(profile['scholarship_high_school']),
+      scholarshipCollege: _boolValue(profile['scholarship_college']),
+      scholarshipOthers: _boolValue(profile['scholarship_others']),
+      scholarshipOthersSpecify: _string(profile['scholarship_others_specify']),
       scholarshipDetails: _string(profile['prior_scholarship_details']),
       hasDisciplinaryRecord: profile['has_disciplinary_record'] == true,
       noDisciplinaryRecord: profile['has_disciplinary_record'] != true,
@@ -375,6 +408,7 @@ class SavedApplicationPrintModel {
     Map<String, dynamic> payload,
   ) {
     final account = _map(payload['account']);
+    final application = _map(payload['application']);
     final personal = _map(payload['personal']);
     final address = _map(payload['address']);
     final contact = _map(payload['contact']);
@@ -394,6 +428,27 @@ class SavedApplicationPrintModel {
       _string(support['financial_support']),
       _string(support['financial_support_type']),
     ]);
+
+    final selectedFinancialSupport = <String>{};
+    final rawFinancialSupportChoices = support['financial_support_choices'];
+
+    if (rawFinancialSupportChoices is List) {
+      for (final value in rawFinancialSupportChoices) {
+        final normalized = _string(value).toLowerCase();
+        if (normalized.isNotEmpty) {
+          selectedFinancialSupport.add(normalized);
+        }
+      }
+    }
+
+    if (selectedFinancialSupport.isEmpty) {
+      for (final value in financialSupport.split(',')) {
+        final normalized = value.trim().toLowerCase();
+        if (normalized.isNotEmpty) {
+          selectedFinancialSupport.add(normalized);
+        }
+      }
+    }
     final hasPriorScholarship = _boolValue(
       support['scholarship_history'],
       fallback: _boolValue(support['has_prior_scholarship']),
@@ -403,6 +458,11 @@ class SavedApplicationPrintModel {
       fallback: _boolValue(discipline['has_disciplinary_record']),
     );
     final dateOfBirthRaw = _string(personal['date_of_birth']);
+    final submittedApplicationDate = _firstNonEmpty([
+      _string(application['submission_date']),
+      _string(application['submitted_at']),
+      _string(application['created_at']),
+    ]);
 
     return SavedApplicationPrintModel(
       lastName: _string(personal['last_name']),
@@ -488,6 +548,15 @@ class SavedApplicationPrintModel {
         _string(sibling['mobile']),
         _string(sibling['mobile_number']),
       ]),
+      siblingEducationalAttainment: _firstNonEmpty([
+        _string(sibling['educational_attainment']),
+        _string(sibling['highest_educational_attainment']),
+      ]),
+      siblingOccupation: _string(sibling['occupation']),
+      siblingCompanyNameAddress: _firstNonEmpty([
+        _string(sibling['company_name_and_address']),
+        _string(sibling['company_name_address']),
+      ]),
       guardianLastName: _string(guardian['last_name']),
       guardianFirstName: _string(guardian['first_name']),
       guardianMiddleName: _string(guardian['middle_name']),
@@ -510,8 +579,16 @@ class SavedApplicationPrintModel {
           nativeStatus.contains('mother') && !nativeStatus.contains('father'),
       isBothParentsNative: nativeStatus.contains('both'),
       isNotNative: nativeStatus == 'no' || nativeStatus.contains('not'),
-      yearsResident: _string(family['parent_marilao_residency_duration']),
-      originProvince: _string(family['parent_previous_town_province']),
+      yearsResident: _residencyDurationLabel(
+        _string(family['parent_marilao_residency_duration']),
+      ),
+      originProvince: _firstNonEmpty([
+        _string(family['parent_previous_town_province']),
+        _joinNonEmpty([
+          _string(family['parent_previous_town_municipality']),
+          _string(family['parent_previous_province']),
+        ], separator: ', '),
+      ]),
       collegeSchool: _string(academic['college_school']),
       collegeAddress: _string(academic['college_address']),
       collegeHonors: _string(academic['college_honors']),
@@ -553,14 +630,21 @@ class SavedApplicationPrintModel {
       financialSupport: financialSupport,
       financialSupportOther: _firstNonEmpty([
         _string(support['financial_support_other']),
-        _string(support['scholarship_others_specify']),
+        selectedFinancialSupport.contains('other')
+            ? _string(support['scholarship_others_specify'])
+            : '',
       ]),
-      supportParents: financialSupport.toLowerCase() == 'parents',
-      supportScholarship: financialSupport.toLowerCase() == 'scholarship',
-      supportLoan: financialSupport.toLowerCase() == 'loan',
-      supportOther: financialSupport.toLowerCase() == 'other',
+      supportParents: selectedFinancialSupport.contains('parents'),
+      supportScholarship: selectedFinancialSupport.contains('scholarship'),
+      supportLoan: selectedFinancialSupport.contains('loan'),
+      supportOther: selectedFinancialSupport.contains('other'),
       hadScholarship: hasPriorScholarship,
       noScholarshipHistory: !hasPriorScholarship,
+      scholarshipElementary: _boolValue(support['scholarship_elementary']),
+      scholarshipHighSchool: _boolValue(support['scholarship_high_school']),
+      scholarshipCollege: _boolValue(support['scholarship_college']),
+      scholarshipOthers: _boolValue(support['scholarship_others']),
+      scholarshipOthersSpecify: _string(support['scholarship_others_specify']),
       scholarshipDetails: _firstNonEmpty([
         _string(support['scholarship_details']),
         _string(support['prior_scholarship_details']),
@@ -601,7 +685,10 @@ class SavedApplicationPrintModel {
           _string(mother['last_name']),
         ]),
       ]),
-      printedDate: DateFormat('MM/dd/yyyy').format(DateTime.now()),
+      printedDate: _firstNonEmpty([
+        _formatDate(submittedApplicationDate),
+        DateFormat('MM/dd/yyyy').format(DateTime.now()),
+      ]),
     );
   }
 
@@ -639,6 +726,29 @@ class SavedApplicationPrintModel {
           level.toLowerCase(),
       orElse: () => <String, dynamic>{},
     );
+  }
+
+  static String _residencyDurationLabel(String value) {
+    final raw = value.trim();
+    final years = int.tryParse(raw);
+
+    if (raw.toLowerCase() == 'less than a year' || years == 0) {
+      return 'Less than a year';
+    }
+    if (raw.toLowerCase() == '1-5 years' ||
+        (years != null && years >= 1 && years <= 5)) {
+      return '1-5 years';
+    }
+    if (raw.toLowerCase() == '6-10 years' ||
+        (years != null && years >= 6 && years <= 10)) {
+      return '6-10 years';
+    }
+    if (raw.toLowerCase() == 'more than 10 years' ||
+        (years != null && years > 10)) {
+      return 'More than 10 years';
+    }
+
+    return raw;
   }
 
   static String _string(dynamic value) {

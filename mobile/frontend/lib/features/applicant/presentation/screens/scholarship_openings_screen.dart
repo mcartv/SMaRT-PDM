@@ -118,27 +118,17 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return cleaned.isEmpty ? fallback : cleaned;
   }
 
-  List<String> _scholarshipRules(ProgramOpening opening) {
-    final rules = <String>[];
-    if (opening.gwaThreshold != null) {
-      rules.add(
-        'Required GWA: ${opening.gwaThreshold!.toStringAsFixed(2)} or better',
-      );
+  String _availabilitySummary(ProgramOpening opening) {
+    if (opening.availableSlots > 0) {
+      return '${opening.availableSlots} scholarship '
+          'slot${opening.availableSlots == 1 ? '' : 's'} available';
     }
-    if (opening.targetAudience.trim().isNotEmpty) {
-      rules.add('For: ${opening.targetAudience.trim()}');
-    }
-    if (opening.renewalCycle.trim().isNotEmpty &&
-        opening.renewalCycle.toLowerCase() != 'none') {
-      rules.add('Renewal: ${opening.renewalCycle.trim()}');
-    }
-    rules.add(
-      '${opening.availableSlots} slot${opening.availableSlots == 1 ? '' : 's'} available',
-    );
+
     if (opening.waitingListEnabled) {
-      rules.add('Waiting list available when slots are filled');
+      return 'Waiting list available';
     }
-    return rules;
+
+    return 'No scholarship slots currently available';
   }
 
   Future<void> _openApplicationForm({
@@ -182,9 +172,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     }
 
     if (!opening.canApply) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(opening.applyLabel)));
       return;
     }
 
@@ -486,6 +473,15 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                             color: titleColor,
                           ),
                         ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _availabilitySummary(opening),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: subtitleColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
                         if (opening.announcementText.trim().isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -541,33 +537,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                             ),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _scholarshipRules(opening)
-                              .map(
-                                (rule) => Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: accentColor.withOpacity(0.10),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    rule,
-                                    style: TextStyle(
-                                      color: titleColor,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
                         if (showUploadProgress) ...[
                           const SizedBox(height: 14),
                           _buildUploadProgress(
@@ -587,6 +556,21 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentColor,
+                              foregroundColor: AppColors.darkBrown,
+                              disabledBackgroundColor: isDark
+                                  ? AppColors.applicantDarkSurfaceMuted
+                                  : Colors.grey.shade300,
+                              disabledForegroundColor: isDark
+                                  ? AppColors.applicantDarkTextMuted
+                                  : Colors.grey.shade600,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
                             onPressed: opening.hasApplied || opening.canApply
                                 ? () => _handleApply(opening)
                                 : null,

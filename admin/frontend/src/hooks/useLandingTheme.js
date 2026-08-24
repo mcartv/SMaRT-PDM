@@ -5,9 +5,37 @@ import { getDefaultLandingTheme, resolveLandingTheme } from '@/config/landingThe
 
 const STORAGE_KEY = 'smartpdm-theme-landing';
 const PUBLIC_SOCKET_NAMESPACE = '/public';
+let inFlightLandingThemeRequest = null;
 
 function getPublicSocketUrl() {
   return `${buildApiUrl('').replace(/\/+$/, '')}${PUBLIC_SOCKET_NAMESPACE}`;
+}
+
+function writeCachedLandingTheme(nextState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  } catch {
+    // The live theme still applies when browser storage is unavailable.
+  }
+}
+
+async function requestLandingTheme() {
+  if (inFlightLandingThemeRequest) return inFlightLandingThemeRequest;
+
+  inFlightLandingThemeRequest = (async () => {
+    const response = await fetch(buildApiUrl('/api/theme-settings/public/landing'));
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to load landing theme.');
+    }
+    return payload;
+  })();
+
+  try {
+    return await inFlightLandingThemeRequest;
+  } finally {
+    inFlightLandingThemeRequest = null;
+  }
 }
 
 export default function useLandingTheme() {
@@ -20,28 +48,23 @@ export default function useLandingTheme() {
     }
   });
 
+  const applyTheme = useCallback((presetKey, customColors) => {
+    const nextState = {
+      presetKey: String(presetKey || 'default').trim().toLowerCase() || 'default',
+      customColors: customColors && typeof customColors === 'object' ? customColors : null,
+    };
+    setState(nextState);
+    writeCachedLandingTheme(nextState);
+  }, []);
+
   const loadTheme = useCallback(async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/theme-settings/public/landing'));
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to load landing theme.');
-      }
-
-      const nextState = {
-        presetKey: String(payload?.preset_key || 'default').trim().toLowerCase() || 'default',
-        customColors: payload?.custom_colors && typeof payload.custom_colors === 'object' ? payload.custom_colors : null,
-      };
-
-      setState(nextState);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
-      } catch {}
+      const payload = await requestLandingTheme();
+      applyTheme(payload?.preset_key, payload?.custom_colors || null);
     } catch (error) {
       console.error('LANDING THEME LOAD ERROR:', error);
     }
-  }, []);
+  }, [applyTheme]);
 
   useEffect(() => {
     loadTheme();
@@ -58,6 +81,10 @@ export default function useLandingTheme() {
 
     const handleThemeUpdated = (payload = {}) => {
       if (String(payload?.portal_key || '').trim().toLowerCase() !== 'landing') return;
+      if (payload?.preset_key) {
+        applyTheme(payload.preset_key, payload?.custom_colors || null);
+        return;
+      }
       loadTheme();
     };
 
@@ -67,7 +94,7 @@ export default function useLandingTheme() {
       socket.off('landing-theme:updated', handleThemeUpdated);
       socket.disconnect();
     };
-  }, [loadTheme]);
+  }, [applyTheme, loadTheme]);
 
   const theme = useMemo(
     () => ({

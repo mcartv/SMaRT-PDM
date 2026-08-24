@@ -10,10 +10,10 @@ const LOGIN_ERROR_MESSAGES = {
     'This user account does not have configured access to SMaRT-PDM. Please contact an administrator.',
   NETWORK_ERROR:
     'The server cannot be reached. Check your connection and try again.',
-  ADMIN_ACTIVE_DEVICE_LIMIT_REACHED:
-    'This Admin account is already active on another device. Log out that session or recover the Admin account before trying again.',
   ADMIN_ACTIVE_SESSION_CONFLICT:
     'An Admin session is already active on this device. Refresh the page and try again.',
+  ADMIN_DEVICE_LIMIT_REACHED:
+    'This Admin account is already active on 3 devices. Log out from one device and try again.',
   SERVER_ERROR:
     'The server could not complete the sign-in request. Please try again shortly.',
 };

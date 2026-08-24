@@ -195,6 +195,21 @@ const MINOR_REUPLOAD_OPTIONS = [
   { code: 'OTHER_MINOR', label: 'Other minor issue' },
 ];
 
+const FORM_CORRECTION_OPTIONS = [
+  {
+    code: 'INCOMPLETE_APPLICATION_FORM',
+    label: 'Missing or incomplete application information',
+  },
+  {
+    code: 'MISMATCH_NEEDS_CORRECTION',
+    label: 'Information mismatch that can be corrected',
+  },
+  {
+    code: 'OTHER_MINOR',
+    label: 'Other application form correction',
+  },
+];
+
 const MAJOR_REJECTION_OPTIONS = [
   {
     code: 'DOCUMENT_TAMPERING',
@@ -242,6 +257,24 @@ function deriveRequirementsOutcome(documents = []) {
   }
 
   return 'pending';
+}
+
+function formatResidencyDuration(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'N/A';
+
+  const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
+  if (normalized === 'less than a year') return 'Less than a year';
+  if (normalized === '1-5 years') return '1-5 years';
+  if (normalized === '6-10 years') return '6-10 years';
+  if (normalized === 'more than 10 years') return 'More than 10 years';
+
+  const years = Number.parseInt(raw, 10);
+  if (!Number.isFinite(years)) return raw;
+  if (years < 1) return 'Less than a year';
+  if (years <= 5) return '1-5 years';
+  if (years <= 10) return '6-10 years';
+  return 'More than 10 years';
 }
 
 function normalizeKey(value = '') {
@@ -1106,7 +1139,7 @@ function ApplicationFormPreview({ application }) {
                         label="Marilao Native"
                         value={formatYesNo(member.is_marilao_native)}
                       />
-                      <InfoRow label="Years as Resident" value={member.years_as_resident} />
+                      <InfoRow label="Years as Resident" value={formatResidencyDuration(member.years_as_resident)} />
                       <InfoRow label="Origin Province" value={member.origin_province} />
                       <InfoRow label="Address" value={member.address} className="md:col-span-2" />
                     </div>
@@ -2420,9 +2453,12 @@ function ReviewIssueModal({
   activeDocName,
 }) {
   const isMajor = mode === 'major';
+  const isApplicationForm = activeDocName === 'Application Form';
   const options = isMajor
     ? MAJOR_REJECTION_OPTIONS
-    : MINOR_REUPLOAD_OPTIONS;
+    : isApplicationForm
+      ? FORM_CORRECTION_OPTIONS
+      : MINOR_REUPLOAD_OPTIONS;
 
   const [selectedCode, setSelectedCode] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -2463,7 +2499,9 @@ function ReviewIssueModal({
             <h3 className="text-base font-semibold text-stone-800">
               {isMajor
                 ? 'Reject Application'
-                : 'Request Document Re-upload'}
+                : isApplicationForm
+                  ? 'Request Application Form Re-edit'
+                  : 'Request Document Re-upload'}
             </h3>
             <p className="text-sm text-stone-500 mt-0.5">
               {activeDocName || 'Selected document'}
@@ -2489,12 +2527,18 @@ function ReviewIssueModal({
           >
             {isMajor
               ? 'Major action: saving this review will reject the entire scholarship application. Use this only for fraud, document tampering, deliberate falsification, or another serious disqualifying violation.'
-              : 'Minor issue: the application stays active. The applicant will be asked to replace this document and can continue after the corrected file is reviewed.'}
+              : isApplicationForm
+                ? 'Correctable issue: the application stays active. After the requirements review is saved, the applicant can re-edit the Application Form and submit it for review again.'
+                : 'Correctable issue: the application stays active. The applicant will be asked to replace this document and can continue after the corrected file is reviewed.'}
           </div>
 
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-stone-400 mb-2">
-              {isMajor ? 'Major violation' : 'Reason for re-upload'}
+              {isMajor
+                ? 'Major violation'
+                : isApplicationForm
+                  ? 'Reason for re-edit'
+                  : 'Reason for re-upload'}
             </p>
 
             <div className="space-y-2">
@@ -2564,7 +2608,9 @@ function ReviewIssueModal({
             ) : (
               <>
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                Request Re-upload
+                {isApplicationForm
+                  ? 'Request Re-edit'
+                  : 'Request Re-upload'}
               </>
             )}
           </Button>
@@ -2740,7 +2786,12 @@ function ChecklistCard({
 
       <CardContent className="space-y-1 p-2 sm:p-2.5">
         {docs.map((d) => {
-          const meta = getDocumentStatusMeta(d.status);
+          const baseMeta = getDocumentStatusMeta(d.status);
+          const meta =
+            d.id === 'application_form' &&
+            d.status === 'reupload_required'
+              ? { ...baseMeta, label: 'Re-edit Required' }
+              : baseMeta;
           const isActive = activeDocId === d.id;
           const available = isDocumentAvailable(d);
 
@@ -2849,9 +2900,7 @@ function VerificationActions({
     !isSaved &&
     !submitting;
 
-  const canRequestReupload =
-    canReviewActiveDocument &&
-    activeDoc?.id !== 'application_form';
+  const canRequestReupload = canReviewActiveDocument;
 
   let statusConfig;
 
@@ -2860,11 +2909,11 @@ function VerificationActions({
       icon: ShieldCheck,
       title:
         finalVerificationStatus === 'requires_reupload'
-          ? 'Waiting for replacement document'
+          ? 'Waiting for applicant correction'
           : 'Requirements review completed',
       description:
         finalVerificationStatus === 'requires_reupload'
-          ? 'The applicant has been asked to replace one or more documents. Review can continue after a replacement is uploaded.'
+          ? 'The applicant has been asked to correct one or more application items. Review can continue after the requested correction is submitted.'
           : 'The requirements review has already been saved.',
       container: 'border-emerald-200 bg-emerald-50/80',
       iconContainer: 'bg-emerald-100 text-emerald-700',
@@ -2888,7 +2937,7 @@ function VerificationActions({
       icon: AlertTriangle,
       title: 'Review remaining requirements',
       description:
-        'Verify each requirement, request a re-upload for a correctable minor issue, or reject the application only for a serious major violation.',
+        'Verify each requirement, request a correction for a correctable minor issue, or reject the application only for a serious major violation.',
       container: 'border-amber-200 bg-amber-50/80',
       iconContainer: 'bg-amber-100 text-amber-700',
       titleColor: 'text-amber-900',
@@ -2908,9 +2957,9 @@ function VerificationActions({
   } else if (finalVerificationStatus === 'requires_reupload') {
     statusConfig = {
       icon: AlertTriangle,
-      title: 'Replacement document required',
+      title: 'Corrections required',
       description:
-        'Saving will keep the application active and notify the applicant to replace the affected document.',
+        'Saving will keep the application active and notify the applicant to complete the requested correction or replacement.',
       container: 'border-amber-200 bg-amber-50/80',
       iconContainer: 'bg-amber-100 text-amber-700',
       titleColor: 'text-amber-900',
@@ -2935,7 +2984,7 @@ function VerificationActions({
     if (submitting) return 'Saving Requirements Review...';
     if (isSaved) {
       return finalVerificationStatus === 'requires_reupload'
-        ? 'Replacement Requested'
+        ? 'Correction Requested'
         : 'Requirements Review Saved';
     }
     if (!hasAnyUpload) return 'Waiting for Requirements';
@@ -2947,7 +2996,7 @@ function VerificationActions({
       return 'Reject Application';
     }
     if (finalVerificationStatus === 'requires_reupload') {
-      return 'Save Re-upload Request';
+      return 'Save Correction Request';
     }
     return 'Save Requirements Review';
   })();
@@ -3035,7 +3084,9 @@ function VerificationActions({
               className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:bg-stone-50 disabled:text-stone-400"
             >
               <AlertTriangle className="mr-2 h-4 w-4" />
-              Request Re-upload
+              {activeDoc?.id === 'application_form'
+                ? 'Request Re-edit'
+                : 'Request Re-upload'}
             </Button>
 
             <Button
@@ -3052,8 +3103,9 @@ function VerificationActions({
 
           {activeDoc?.id === 'application_form' && (
             <p className="mt-2 text-xs text-stone-500">
-              The application form is digital and cannot be re-uploaded.
-              Use Reject Application only for a serious disqualifying issue.
+              The application form is digital. Use Request Re-edit for
+              correctable information issues. The applicant's Edit Form button
+              unlocks only after this correction request is saved.
             </p>
           )}
 
@@ -4573,7 +4625,7 @@ export default function DocumentVerification() {
 
       const successMessage =
         savedStatus === 'requires_reupload'
-          ? 'Re-upload request saved. The application remains active and the applicant has been notified to replace the affected document.'
+          ? 'Correction request saved. The application remains active and the applicant has been notified to complete the requested correction.'
           : savedStatus === 'rejected'
             ? 'Major violation saved. The scholarship application has been rejected.'
             : readiness?.endorsement_complete
@@ -4586,7 +4638,7 @@ export default function DocumentVerification() {
             tone: 'success',
             title:
               savedStatus === 'requires_reupload'
-                ? 'Re-upload requested'
+                ? 'Correction requested'
                 : savedStatus === 'rejected'
                   ? 'Application rejected'
                   : 'Verification saved',

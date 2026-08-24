@@ -85,6 +85,57 @@ class AppTheme {
       textTheme: AppTypography.textTheme(textColor: darkTextColor),
       primaryTextTheme: AppTypography.textTheme(textColor: darkTextColor),
       hintColor: darkMutedTextColor,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.applicantDarkSurfaceMuted,
+        labelStyle: const TextStyle(color: AppColors.applicantDarkTextMuted),
+        hintStyle: const TextStyle(color: AppColors.applicantDarkTextMuted),
+        prefixIconColor: AppColors.applicantDarkTextMuted,
+        suffixIconColor: AppColors.applicantDarkTextMuted,
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: AppColors.applicantDarkOutline),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: AppColors.gold, width: 1.4),
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.applicantDarkSurface,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: AppColors.applicantDarkText,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+        ),
+        contentTextStyle: TextStyle(
+          color: AppColors.applicantDarkTextMuted,
+          fontSize: 14,
+          height: 1.45,
+        ),
+      ),
+      dropdownMenuTheme: const DropdownMenuThemeData(
+        textStyle: TextStyle(color: AppColors.applicantDarkText),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(
+            AppColors.applicantDarkSurface,
+          ),
+          surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      menuTheme: const MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(
+            AppColors.applicantDarkSurface,
+          ),
+          surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        textColor: AppColors.applicantDarkText,
+        iconColor: AppColors.applicantDarkTextMuted,
+      ),
     );
   }
 }

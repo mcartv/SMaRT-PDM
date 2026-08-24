@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' show Rect;
 
 import 'package:flutter/foundation.dart';
@@ -20,7 +21,7 @@ class ScholarshipFormPdfService {
     }
   }
 
-  Future<File> generateFromSavedApplication(
+  Future<Uint8List> generateBytesFromSavedApplication(
     SavedApplicationPrintModel model,
   ) async {
     ByteData templateBytes;
@@ -29,7 +30,7 @@ class ScholarshipFormPdfService {
         'assets/files/scholarship_app_form.pdf',
       );
     } catch (e) {
-      return _generateFallbackPdf(model);
+      return _generateFallbackPdfBytes(model);
     }
 
     final document = PdfDocument(
@@ -63,17 +64,6 @@ class ScholarshipFormPdfService {
       );
     }
 
-    // Format a MM/DD/YYYY date string into spaced digits "MM DD YYYY"
-    // so each character lands in its own box on the form.
-    String formatDob(String raw) {
-      // Strip any slashes or dashes and keep only digits
-      final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
-      if (digits.length != 8) return raw; // fallback if unexpected format
-      // MM  DD  YYYY with a space between each digit pair group
-      return '${digits[0]} ${digits[1]}  ${digits[2]} ${digits[3]}  '
-          '${digits[4]} ${digits[5]} ${digits[6]} ${digits[7]}';
-    }
-
     void drawText(
       String value,
       Rect bounds, {
@@ -92,6 +82,36 @@ class ScholarshipFormPdfService {
           lineAlignment: PdfVerticalAlignment.middle,
         ),
       );
+    }
+
+    void drawDateDigits(String value, Rect bounds) {
+      final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+
+      if (digits.length != 8) {
+        drawText(
+          value,
+          bounds,
+          textFont: smallFont,
+          align: PdfTextAlignment.center,
+        );
+        return;
+      }
+
+      final cellWidth = bounds.width / 8;
+
+      for (var index = 0; index < digits.length; index += 1) {
+        drawText(
+          digits[index],
+          Rect.fromLTWH(
+            bounds.left + (cellWidth * index),
+            bounds.top,
+            cellWidth,
+            bounds.height,
+          ),
+          textFont: smallFont,
+          align: PdfTextAlignment.center,
+        );
+      }
     }
 
     void drawFittingText(
@@ -181,9 +201,8 @@ class ScholarshipFormPdfService {
     // Row 2: Labels at Y≈935. Value area at Y≈970.
     // Age=99, DOB=253, PlaceOfBirth=696, Citizenship=1343, CivilStatus=1606, Religion=1889, Sex=2247
     drawText(model.age, r(99, 970, 150, 55));
-    // DOB: 8 individual boxes on the form (MM-DD-YYYY).
-    // We strip slashes and space the digits to land one-per-box.
-    drawText(formatDob(model.dateOfBirth), r(253, 970, 420, 55));
+    // DOB: draw one digit per printed box instead of relying on spaces.
+    drawDateDigits(model.dateOfBirth, r(253, 970, 420, 55));
     drawText(model.placeOfBirth, r(696, 970, 640, 55));
     drawText(model.citizenship, r(1343, 970, 255, 55));
     drawText(model.civilStatus, r(1606, 970, 275, 55));
@@ -209,7 +228,7 @@ class ScholarshipFormPdfService {
 
     // ── II. FAMILY DATA ──────────────────────────────────────────────
     // "Address of Parents/Guardian" label at Y≈1275. Content area below.
-    drawMultiLine(model.parentGuardianAddress, r(99, 1310, 440, 200));
+    drawMultiLine(model.parentGuardianAddress, r(99, 1310, 410, 190));
 
     // Family name sub-rows: label text like "Last Name___" is at the given Y.
     // The value goes AFTER the label text, so X is shifted right past the label width.
@@ -314,6 +333,11 @@ class ScholarshipFormPdfService {
       textFont: smallFont,
     );
     drawText(
+      model.siblingEducationalAttainment,
+      r(1501, 1510, 480, 60),
+      textFont: smallFont,
+    );
+    drawText(
       model.guardianEducationalAttainment,
       r(1989, 1510, 420, 60),
       textFont: smallFont,
@@ -331,6 +355,11 @@ class ScholarshipFormPdfService {
       textFont: smallFont,
     );
     drawText(
+      model.siblingOccupation,
+      r(1501, 1600, 480, 55),
+      textFont: smallFont,
+    );
+    drawText(
       model.guardianOccupation,
       r(1989, 1600, 420, 55),
       textFont: smallFont,
@@ -345,6 +374,11 @@ class ScholarshipFormPdfService {
     drawMultiLine(
       model.motherCompanyNameAddress,
       r(1015, 1700, 480, 80),
+      textFont: smallFont,
+    );
+    drawMultiLine(
+      model.siblingCompanyNameAddress,
+      r(1501, 1700, 480, 80),
       textFont: smallFont,
     );
     drawMultiLine(
@@ -367,136 +401,192 @@ class ScholarshipFormPdfService {
     // Header row labels at Y≈1870. Data rows below.
     // Column Xs: School=599, Address=1055, Honors=1399, Club=1866, YearGrad=2208
     // COLLEGE label at Y≈1918
-    drawText(model.collegeSchool, r(420, 1918, 500, 50), textFont: smallFont);
-    drawText(model.collegeAddress, r(958, 1918, 435, 50), textFont: smallFont);
-    drawText(model.collegeHonors, r(1399, 1918, 460, 50), textFont: smallFont);
-    drawText(model.collegeClub, r(1866, 1918, 335, 50), textFont: smallFont);
-    drawText(
-      model.collegeYearGraduated,
-      r(2208, 1918, 250, 50),
+    drawFittingText(
+      model.collegeSchool,
+      r(420, 1918, 455, 50),
       textFont: smallFont,
+    );
+    drawFittingText(
+      model.collegeAddress,
+      r(895, 1918, 445, 50),
+      textFont: smallFont,
+    );
+    drawFittingText(
+      model.collegeHonors,
+      r(1360, 1918, 455, 50),
+      textFont: smallFont,
+    );
+    drawFittingText(
+      model.collegeClub,
+      r(1835, 1918, 350, 50),
+      textFont: smallFont,
+    );
+    drawFittingText(
+      model.collegeYearGraduated,
+      r(2205, 1918, 220, 50),
+      textFont: smallFont,
+      align: PdfTextAlignment.center,
     );
 
     // HIGH SCHOOL label at Y≈1985
-    drawText(
+    drawFittingText(
       model.highSchoolSchool,
-      r(420, 1985, 500, 50),
+      r(420, 1985, 455, 50),
       textFont: smallFont,
     );
-    drawText(
+    drawFittingText(
       model.highSchoolAddress,
-      r(958, 1985, 435, 50),
+      r(895, 1985, 445, 50),
       textFont: smallFont,
     );
-    drawText(
+    drawFittingText(
       model.highSchoolHonors,
-      r(1399, 1985, 460, 50),
+      r(1360, 1985, 455, 50),
       textFont: smallFont,
     );
-    drawText(model.highSchoolClub, r(1866, 1985, 335, 50), textFont: smallFont);
-    drawText(
-      model.highSchoolYearGraduated,
-      r(2208, 1985, 250, 50),
+    drawFittingText(
+      model.highSchoolClub,
+      r(1835, 1985, 350, 50),
       textFont: smallFont,
+    );
+    drawFittingText(
+      model.highSchoolYearGraduated,
+      r(2205, 1985, 220, 50),
+      textFont: smallFont,
+      align: PdfTextAlignment.center,
     );
 
     // SENIOR HIGH SCHOOL label at Y≈2054
-    drawText(
+    drawFittingText(
       model.seniorHighSchool,
-      r(420, 2054, 500, 50),
+      r(420, 2054, 455, 50),
       textFont: smallFont,
     );
-    drawText(
+    drawFittingText(
       model.seniorHighAddress,
-      r(958, 2054, 435, 50),
+      r(895, 2054, 445, 50),
       textFont: smallFont,
     );
-    drawText(
+    drawFittingText(
       model.seniorHighHonors,
-      r(1399, 2054, 460, 50),
+      r(1360, 2054, 455, 50),
       textFont: smallFont,
     );
-    drawText(model.seniorHighClub, r(1866, 2054, 335, 50), textFont: smallFont);
-    drawText(
-      model.seniorHighYearGraduated,
-      r(2208, 2054, 250, 50),
+    drawFittingText(
+      model.seniorHighClub,
+      r(1835, 2054, 350, 50),
       textFont: smallFont,
+    );
+    drawFittingText(
+      model.seniorHighYearGraduated,
+      r(2205, 2054, 220, 50),
+      textFont: smallFont,
+      align: PdfTextAlignment.center,
     );
 
     // ELEMENTARY label at Y≈2121
-    drawText(
+    drawFittingText(
       model.elementarySchool,
-      r(420, 2121, 500, 50),
+      r(420, 2121, 455, 50),
       textFont: smallFont,
     );
-    drawText(
+    drawFittingText(
       model.elementaryAddress,
-      r(958, 2121, 435, 50),
+      r(895, 2121, 445, 50),
       textFont: smallFont,
     );
-    drawText(
+    drawFittingText(
       model.elementaryHonors,
-      r(1399, 2121, 460, 50),
+      r(1360, 2121, 455, 50),
       textFont: smallFont,
     );
-    drawText(model.elementaryClub, r(1866, 2121, 335, 50), textFont: smallFont);
-    drawText(
-      model.elementaryYearGraduated,
-      r(2208, 2121, 250, 50),
+    drawFittingText(
+      model.elementaryClub,
+      r(1835, 2121, 350, 50),
       textFont: smallFont,
+    );
+    drawFittingText(
+      model.elementaryYearGraduated,
+      r(2205, 2121, 220, 50),
+      textFont: smallFont,
+      align: PdfTextAlignment.center,
     );
 
-    // ── Course/Year Level/Section row at Y≈2180 ─────────────────────
+    // ── Current enrollment / support row ─────────────────────────────
+    // The printed row has three compact academic cells followed by the
+    // Financial Support options. Keep values below the printed labels.
+    final currentEnrollment = [
+      model.currentCourse.trim(),
+      model.currentYearSection.trim(),
+    ].where((value) => value.isNotEmpty).join(' / ');
+
     drawFittingText(
-      model.currentCourse,
-      r(99, 2180, 250, 50),
+      currentEnrollment,
+      r(80, 2230, 325, 55),
       textFont: smallFont,
-    );
-    drawFittingText(
-      model.currentYearSection,
-      r(355, 2180, 360, 50),
-      textFont: smallFont,
+      align: PdfTextAlignment.center,
+      minFontSize: 6.0,
     );
     drawFittingText(
       model.studentNumber,
-      r(721, 2180, 300, 50),
+      r(420, 2230, 445, 55),
       textFont: smallFont,
+      align: PdfTextAlignment.center,
+      minFontSize: 6.0,
     );
     drawFittingText(
       model.learnersReferenceNumber,
-      r(1027, 2180, 340, 50),
+      r(890, 2230, 445, 55),
       textFont: smallFont,
+      align: PdfTextAlignment.center,
+      minFontSize: 6.0,
     );
 
-    // Financial Support: label at X≈1372, checkboxes inline
-    // "Parents" ~X=1570, "Scholarship" ~X=1730, "Loan" ~X=1920, "Other" ~X=2100
-    drawCheck(model.supportParents, r(1555, 2185, 20, 20));
-    drawCheck(model.supportScholarship, r(1730, 2185, 20, 20));
-    drawCheck(model.supportLoan, r(1920, 2185, 20, 20));
-    drawCheck(model.supportOther, r(2120, 2185, 20, 20));
-    drawText(
-      model.financialSupportOther,
-      r(2260, 2180, 150, 50),
+    // Financial Support checkboxes are aligned to the printed Parents,
+    // Scholarship and Loan boxes. "Other, specify" is an underline, not
+    // a separate checkbox on the template.
+    drawCheck(model.supportParents, r(1755, 2238, 28, 28));
+    drawCheck(model.supportScholarship, r(1938, 2238, 28, 28));
+    drawCheck(model.supportLoan, r(2085, 2238, 28, 28));
+    drawFittingText(
+      model.supportOther ? model.financialSupportOther : '',
+      r(2205, 2230, 250, 55),
       textFont: smallFont,
+      minFontSize: 6.0,
     );
 
-    // ── Scholarship history – label row at Y≈2270 ────────────────────
-    // "Yes" checkbox ~X=157, "No" ~X=305
-    drawCheck(model.hadScholarship, r(157, 2318, 20, 20));
-    drawCheck(model.noScholarshipHistory, r(305, 2318, 20, 20));
-    drawMultiLine(
-      model.scholarshipDetails,
-      r(1293, 2270, 1120, 80),
+    // ── Scholarship history ──────────────────────────────────────────
+    // Yes / No plus the four printed scholarship-level checkboxes.
+    drawCheck(model.hadScholarship, r(157, 2342, 24, 24));
+    drawCheck(model.noScholarshipHistory, r(305, 2342, 24, 24));
+    drawCheck(model.scholarshipElementary, r(610, 2342, 24, 24));
+    drawCheck(model.scholarshipHighSchool, r(795, 2342, 24, 24));
+    drawCheck(model.scholarshipCollege, r(960, 2342, 24, 24));
+    drawCheck(model.scholarshipOthers, r(1110, 2342, 24, 24));
+
+    final scholarshipHistoryDetails = [
+      if (model.scholarshipOthers &&
+          model.scholarshipOthersSpecify.trim().isNotEmpty)
+        'Other: ${model.scholarshipOthersSpecify.trim()}',
+      if (model.scholarshipDetails.trim().isNotEmpty)
+        model.scholarshipDetails.trim(),
+    ].join(' | ');
+
+    drawFittingText(
+      scholarshipHistoryDetails,
+      r(1300, 2360, 1090, 32),
       textFont: smallFont,
+      minFontSize: 6.0,
     );
 
-    // ── Disciplinary record – label row at Y≈2362 ───────────────────
-    drawCheck(model.hasDisciplinaryRecord, r(157, 2406, 20, 20));
-    drawCheck(model.noDisciplinaryRecord, r(305, 2406, 20, 20));
-    drawMultiLine(
+    // ── Disciplinary record ──────────────────────────────────────────
+    drawCheck(model.hasDisciplinaryRecord, r(157, 2435, 24, 24));
+    drawCheck(model.noDisciplinaryRecord, r(305, 2435, 24, 24));
+    drawFittingText(
       model.disciplinaryDetails,
-      r(1295, 2362, 1120, 70),
+      r(1340, 2450, 1050, 32),
       textFont: smallFont,
+      minFontSize: 6.0,
     );
 
     // ── Essays ───────────────────────────────────────────────────────
@@ -514,23 +604,43 @@ class ScholarshipFormPdfService {
     );
 
     // ── Signatures ───────────────────────────────────────────────────
-    // "SIGNATURE OVER PRINTED NAME" label at Y≈2949. Name goes ABOVE at ~Y=2905.
-    drawText(
+    // Printed names/dates stay inside the signature row and shrink if needed.
+    drawFittingText(
       model.applicantPrintedName,
-      r(167, 2905, 660, 40),
+      r(90, 2905, 800, 45),
       textFont: smallFont,
+      align: PdfTextAlignment.center,
+      minFontSize: 6.0,
     );
-    drawText(model.printedDate, r(1027, 2905, 180, 40), textFont: smallFont);
-    drawText(
+    drawFittingText(
+      model.printedDate,
+      r(960, 2905, 260, 45),
+      textFont: smallFont,
+      align: PdfTextAlignment.center,
+    );
+    drawFittingText(
       model.parentGuardianPrintedName,
-      r(1286, 2905, 775, 40),
+      r(1250, 2905, 930, 45),
       textFont: smallFont,
+      align: PdfTextAlignment.center,
+      minFontSize: 6.0,
     );
-    drawText(model.printedDate, r(2257, 2905, 150, 40), textFont: smallFont);
+    drawFittingText(
+      model.printedDate,
+      r(2220, 2905, 260, 45),
+      textFont: smallFont,
+      align: PdfTextAlignment.center,
+    );
 
     final bytes = Uint8List.fromList(document.saveSync());
     document.dispose();
+    return bytes;
+  }
 
+  Future<File> generateFromSavedApplication(
+    SavedApplicationPrintModel model,
+  ) async {
+    final bytes = await generateBytesFromSavedApplication(model);
     final dir = await _resolveOutputDirectory();
     final file = File('${dir.path}/filled_scholarship_form.pdf');
     await file.writeAsBytes(bytes, flush: true);
@@ -558,7 +668,9 @@ class ScholarshipFormPdfService {
     }
   }
 
-  Future<File> _generateFallbackPdf(SavedApplicationPrintModel model) async {
+  Future<Uint8List> _generateFallbackPdfBytes(
+    SavedApplicationPrintModel model,
+  ) async {
     final document = PdfDocument();
     final page = document.pages.add();
     final font = PdfStandardFont(PdfFontFamily.helvetica, 12);
@@ -582,7 +694,11 @@ class ScholarshipFormPdfService {
 
     final bytes = Uint8List.fromList(document.saveSync());
     document.dispose();
+    return bytes;
+  }
 
+  Future<File> _generateFallbackPdf(SavedApplicationPrintModel model) async {
+    final bytes = await _generateFallbackPdfBytes(model);
     final dir = await _resolveOutputDirectory();
     final file = File('${dir.path}/fallback_scholarship_form.pdf');
     await file.writeAsBytes(bytes, flush: true);

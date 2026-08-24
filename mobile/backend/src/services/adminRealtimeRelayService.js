@@ -1,9 +1,16 @@
-const ADMIN_BACKEND_URL = String(process.env.ADMIN_BACKEND_URL || '').replace(/\/+$/, '');
-const INTERNAL_REALTIME_SECRET = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
+const ADMIN_BACKEND_URL = String(
+    process.env.ADMIN_BACKEND_URL || ''
+).replace(/\/+$/, '');
+
+const INTERNAL_REALTIME_SECRET = String(
+    process.env.INTERNAL_REALTIME_SECRET || ''
+).trim();
 
 async function postToAdminBackend(path, payload = {}) {
     if (!ADMIN_BACKEND_URL || !INTERNAL_REALTIME_SECRET) {
-        console.warn('[Admin Realtime Relay] skipped: missing ADMIN_BACKEND_URL or INTERNAL_REALTIME_SECRET');
+        console.warn(
+            '[Admin Realtime Relay] skipped direct same-environment relay: missing ADMIN_BACKEND_URL or INTERNAL_REALTIME_SECRET. Shared Supabase realtime remains available.'
+        );
 
         return {
             success: false,
@@ -12,14 +19,15 @@ async function postToAdminBackend(path, payload = {}) {
         };
     }
 
-    const url = `${ADMIN_BACKEND_URL}${path}`;
+    const url = ADMIN_BACKEND_URL + path;
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-internal-realtime-secret': INTERNAL_REALTIME_SECRET,
+                'x-internal-realtime-secret':
+                    INTERNAL_REALTIME_SECRET,
             },
             body: JSON.stringify(payload),
         });
@@ -40,19 +48,12 @@ async function postToAdminBackend(path, payload = {}) {
             };
         }
 
-        console.log('[Admin Realtime Relay] sent:', {
-            url,
-            action: payload.action,
-            ro_id: payload.ro_id || payload.roId || null,
-            student_id: payload.student_id || payload.studentId || null,
-        });
-
-        return {
-            success: true,
-            data,
-        };
+        return { success: true, data };
     } catch (error) {
-        console.error('[Admin Realtime Relay] request error:', error.message);
+        console.error(
+            '[Admin Realtime Relay] request error:',
+            error.message
+        );
 
         return {
             success: false,
@@ -70,7 +71,10 @@ async function relayRoUpdated(payload = {}) {
 }
 
 async function relayMessageCreated(payload = {}) {
-    return postToAdminBackend('/api/internal/realtime/message-created', payload);
+    return postToAdminBackend(
+        '/api/internal/realtime/message-created',
+        payload
+    );
 }
 
 async function relayMessageEvent(event, payload = {}, targetUserIds = []) {
@@ -82,7 +86,10 @@ async function relayMessageEvent(event, payload = {}, targetUserIds = []) {
 }
 
 async function relayNotificationCreated(payload = {}) {
-    return postToAdminBackend('/api/internal/realtime/notification-created', payload);
+    return postToAdminBackend(
+        '/api/internal/realtime/notification-created',
+        payload
+    );
 }
 
 module.exports = {

@@ -1338,10 +1338,29 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
   Widget build(BuildContext context) {
     final step = _steps[_index];
     final isLast = _index == _steps.length - 1;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogSurface = isDark
+        ? AppColors.applicantDarkSurface
+        : Colors.white;
+    final titleColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final bodyColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : AppColors.brown.withValues(alpha: 0.78);
+    final stepIconColor = isDark ? AppColors.gold : AppColors.brown;
 
     return AlertDialog(
+      backgroundColor: dialogSurface,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: Text('Getting started ${_index + 1}/${_steps.length}'),
+      title: Text(
+        'Getting started ${_index + 1}/${_steps.length}',
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          color: titleColor,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -1354,15 +1373,16 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
                 color: AppColors.gold.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
               ),
-              child: Icon(step.$1, size: 34, color: AppColors.brown),
+              child: Icon(step.$1, size: 34, color: stepIconColor),
             ),
             const SizedBox(height: 18),
             Text(
               step.$2,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: titleColor,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -1370,7 +1390,7 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(height: 1.5),
+              ).textTheme.bodyMedium?.copyWith(color: bodyColor, height: 1.5),
             ),
           ],
         ),
@@ -1379,9 +1399,18 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
         if (_index > 0)
           TextButton(
             onPressed: () => setState(() => _index -= 1),
+            style: TextButton.styleFrom(
+              foregroundColor: isDark
+                  ? AppColors.applicantDarkText
+                  : AppColors.brown,
+            ),
             child: const Text('Back'),
           ),
         FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.gold,
+            foregroundColor: AppColors.darkBrown,
+          ),
           onPressed: _isFinishing
               ? null
               : isLast
@@ -1489,8 +1518,8 @@ class _EndorsementProgressCard extends StatelessWidget {
                     color: i < active || (i == 3 && active == 3)
                         ? const Color(0xFF2E8B57)
                         : i == active
-                        ? AppColors.brown
-                        : Colors.grey,
+                        ? (isDark ? AppColors.gold : AppColors.brown)
+                        : (isDark ? Colors.white54 : Colors.grey),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1498,6 +1527,11 @@ class _EndorsementProgressCard extends StatelessWidget {
                   child: Text(
                     steps[i].$2,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark
+                          ? (i == active
+                                ? AppColors.applicantDarkText
+                                : AppColors.applicantDarkTextMuted)
+                          : AppColors.darkBrown,
                       fontWeight: i == active
                           ? FontWeight.w900
                           : FontWeight.w700,
@@ -1511,7 +1545,9 @@ class _EndorsementProgressCard extends StatelessWidget {
                       ? (stopped ? 'Stopped' : 'Current')
                       : 'Pending',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: i == active ? AppColors.brown : Colors.grey,
+                    color: i == active
+                        ? (isDark ? AppColors.gold : AppColors.brown)
+                        : (isDark ? Colors.white54 : Colors.grey),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1524,16 +1560,19 @@ class _EndorsementProgressCard extends StatelessWidget {
                 height: 10,
                 color: i < active
                     ? const Color(0xFF2E8B57)
-                    : Colors.grey.shade300,
+                    : (isDark ? Colors.white24 : Colors.grey.shade300),
               ),
           ],
           if (endorsement.currentOffice?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
             Text(
               'Currently with ${endorsement.currentOffice}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isDark
+                    ? AppColors.applicantDarkTextMuted
+                    : AppColors.brown,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ],
@@ -1952,102 +1991,98 @@ class _AnnouncementCard extends StatelessWidget {
   final AppNotification notification;
   final bool isDark;
   final String dateLabel;
+
+  // Retained only for call-site compatibility. Dashboard preview cards are
+  // intentionally informational; navigation is handled by "View all".
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: isDark ? const Color(0xFF2A1D13) : AppColors.white,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? Colors.white10 : const Color(0xFFEDE3D5),
-            ),
+    return Semantics(
+      container: true,
+      button: false,
+      label: 'Announcement preview',
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF241A12) : const Color(0xFFFFFCF7),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : const Color(0xFFE9E1D7),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: isDark ? 0.22 : 0.13),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(notification.icon, color: AppColors.gold, size: 23),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.11),
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            notification.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: isDark
-                                      ? Colors.white
-                                      : AppColors.darkBrown,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.2,
-                                ),
+              child: Icon(notification.icon, color: AppColors.gold, size: 23),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          notification.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: isDark
+                                    ? Colors.white
+                                    : AppColors.darkBrown,
+                                fontWeight: FontWeight.w900,
+                                height: 1.2,
+                              ),
+                        ),
+                      ),
+                      if (!notification.isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          margin: const EdgeInsets.only(left: 8, top: 3),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE53935),
+                            shape: BoxShape.circle,
                           ),
                         ),
-                        if (!notification.isRead)
-                          Container(
-                            width: 8,
-                            height: 8,
-                            margin: const EdgeInsets.only(left: 8, top: 3),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE53935),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    notification.previewText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark
+                          ? Colors.white70
+                          : AppColors.brown.withValues(alpha: 0.70),
+                      height: 1.4,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      notification.previewText,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? Colors.white70
-                            : AppColors.brown.withValues(alpha: 0.70),
-                        height: 1.4,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    dateLabel,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isDark ? Colors.white54 : const Color(0xFF958575),
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      dateLabel,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isDark
-                            ? Colors.white54
-                            : const Color(0xFF958575),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: isDark ? Colors.white38 : const Color(0xFF9A8B7B),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -2234,73 +2269,72 @@ class _OpeningCard extends StatelessWidget {
   final String programName;
   final String preview;
   final bool isDark;
+
+  // Retained only for call-site compatibility. Dashboard preview cards are
+  // intentionally informational; navigation is handled by "View all".
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: isDark ? const Color(0xFF2A1D13) : AppColors.white,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? Colors.white10 : const Color(0xFFEDE3D5),
+    return Semantics(
+      container: true,
+      button: false,
+      label: 'Scholarship opening preview',
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF241A12) : const Color(0xFFFFFCF7),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : const Color(0xFFE9E1D7),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _AccentIcon(icon: Icons.school_rounded),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    programName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark
+                          ? Colors.white60
+                          : AppColors.brown.withValues(alpha: 0.66),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              const _AccentIcon(icon: Icons.school_rounded),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      programName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.gold,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      preview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? Colors.white60
-                            : AppColors.brown.withValues(alpha: 0.66),
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: isDark ? Colors.white38 : const Color(0xFF9A8B7B),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );

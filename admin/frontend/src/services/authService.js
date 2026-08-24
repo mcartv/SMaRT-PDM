@@ -157,6 +157,17 @@ export const authService = {
     );
   },
 
+  logoutAdminSessionBeacon: (token) => {
+    if (!token || !navigator.sendBeacon) return false;
+
+    const body = new URLSearchParams({ token });
+
+    return navigator.sendBeacon(
+      buildApiUrl('/api/auth/session/logout-beacon'),
+      body
+    );
+  },
+
   getRecentAdminSessions: async (limit = 8) => {
     const active = getStoredPortalSession('admin');
     const token = active?.token || sessionStorage.getItem('adminToken') || '';
@@ -213,8 +224,18 @@ export const authService = {
     logoutInProgress = true;
     const active = getStoredPortalSession();
 
+    // Dispatch the server-side logout before clearing local storage/navigation.
+    // sendBeacon survives the redirect and frees this device slot even when the
+    // normal request would otherwise be interrupted by a slow network/backend.
+    let beaconQueued = false;
+    if (active?.portalName === 'admin' && active.token) {
+      beaconQueued = authService.logoutAdminSessionBeacon(active.token);
+    }
+
     try {
-      if (active?.portalName === 'admin' && active.token) {
+      // If Beacon is unavailable or could not be queued, fall back to the
+      // authenticated keepalive request and wait for the backend acknowledgement.
+      if (active?.portalName === 'admin' && active.token && !beaconQueued) {
         await requestJson('/api/auth/session/logout', {
           token: active.token,
           body: {},
@@ -223,7 +244,9 @@ export const authService = {
         });
       }
     } catch {
-      // Local logout still proceeds even if the network request fails.
+      // Local/cross-tab logout still proceeds. On supported browsers the beacon
+      // was already queued above; otherwise a same-device login replaces stale
+      // state without consuming an additional device slot.
     } finally {
       clearPortalSessionFeedback(active?.portalName || null);
       if (active?.portalName) {

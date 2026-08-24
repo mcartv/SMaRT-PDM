@@ -26,6 +26,65 @@ const PORTAL_HELPERS = {
   ro_coordinator: 'Your signed-in RO request queue and dashboard',
 };
 
+
+function decodeTokenPayload(token) {
+  try {
+    const encoded = String(token || '').split('.')[1];
+    if (!encoded) return {};
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    return JSON.parse(atob(padded)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function getUserIdFromToken(token) {
+  const payload = decodeTokenPayload(token);
+  return payload.user_id || payload.userId || payload.sub || payload.id || '';
+}
+
+function personalThemeCacheKey(portalKey, userId) {
+  return `smartpdm-theme-${portalKey}-${userId}`;
+}
+
+function readPersonalThemeCache(portalKeys, tokenStorageKey) {
+  const token = sessionStorage.getItem(tokenStorageKey) || '';
+  const userId = getUserIdFromToken(token);
+  const settings = {};
+  const customColors = {};
+  let hasAny = false;
+
+  if (!userId) return { settings, customColors, hasAny, userId };
+
+  portalKeys.forEach((portalKey) => {
+    try {
+      const raw = localStorage.getItem(personalThemeCacheKey(portalKey, userId));
+      if (!raw) return;
+      const parsed = raw.startsWith('{') ? JSON.parse(raw) : { presetKey: raw, customColors: null };
+      settings[portalKey] = parsed?.presetKey || 'default';
+      customColors[portalKey] = parsed?.customColors || null;
+      hasAny = true;
+    } catch {
+      // Ignore an unreadable cache and refresh silently from the API.
+    }
+  });
+
+  return { settings, customColors, hasAny, userId };
+}
+
+function writePersonalThemeCache(portalKey, userId, presetKey, colors) {
+  if (!portalKey || !userId) return;
+  try {
+    localStorage.setItem(
+      personalThemeCacheKey(portalKey, userId),
+      JSON.stringify({ presetKey: presetKey || 'default', customColors: colors || null })
+    );
+  } catch {
+    // Theme persistence still works server-side when browser storage is unavailable.
+  }
+}
+
 const CUSTOM_COLOR_FIELDS = [
   { key: 'base', label: 'Sidebar' },
   { key: 'active', label: 'Active navigation' },
@@ -161,12 +220,21 @@ export default function ThemePanel({
   title = 'Theme Presets',
   subtitle = 'Choose a personal color preset for your signed-in layout and dashboard charts.',
 }) {
-  const [settings, setSettings] = useState({});
-  const [customColors, setCustomColors] = useState({});
+  const normalizedPortals = useMemo(
+    () => (Array.isArray(allowedPortals) && allowedPortals.length ? allowedPortals : ['admin']).map((portalKey) => String(portalKey || '').trim().toLowerCase()),
+    [allowedPortals]
+  );
+  const cachedSnapshot = useMemo(
+    () => readPersonalThemeCache(normalizedPortals, tokenStorageKey),
+    [normalizedPortals, tokenStorageKey]
+  );
+
+  const [settings, setSettings] = useState(() => ({ ...cachedSnapshot.settings }));
+  const [customColors, setCustomColors] = useState(() => ({ ...cachedSnapshot.customColors }));
   const [customPortal, setCustomPortal] = useState('');
   const [customDraft, setCustomDraft] = useState({});
   const [savingPortal, setSavingPortal] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedSnapshot.hasAny);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
   const presetOptions = useMemo(() => {
@@ -178,33 +246,42 @@ export default function ThemePanel({
       return true;
     });
   }, []);
-  const normalizedPortals = useMemo(
-    () => (Array.isArray(allowedPortals) && allowedPortals.length ? allowedPortals : ['admin']).map((portalKey) => String(portalKey || '').trim().toLowerCase()),
-    [allowedPortals]
-  );
+  const loadSettings = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setLoading(true);
 
-  const loadSettings = useCallback(async () => {
     try {
-      setLoading(true);
-      const response = await fetch(buildApiUrl('/api/theme-settings'), {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
+      const token = sessionStorage.getItem(tokenStorageKey) || '';
+      const userId = getUserIdFromToken(token);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to load theme settings.');
+      let items = [];
+      if (normalizedPortals.length === 1) {
+        const portalKey = normalizedPortals[0];
+        const response = await fetch(buildApiUrl(`/api/theme-settings/current/${portalKey}`), { headers });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to load theme settings.');
+        }
+        items = [payload];
+      } else {
+        const response = await fetch(buildApiUrl('/api/theme-settings'), { headers });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to load theme settings.');
+        }
+        items = Array.isArray(payload?.items) ? payload.items : [];
       }
 
       const nextSettings = {};
       const nextCustomColors = {};
-      const items = Array.isArray(payload?.items) ? payload.items : [];
       normalizedPortals.forEach((portalKey) => {
         const match = items.find((item) => String(item?.portal_key || '').trim().toLowerCase() === portalKey);
         nextSettings[portalKey] = match?.preset_key || 'default';
         nextCustomColors[portalKey] = match?.custom_colors || null;
+        writePersonalThemeCache(portalKey, userId, nextSettings[portalKey], nextCustomColors[portalKey]);
       });
       setSettings(nextSettings);
       setCustomColors(nextCustomColors);
@@ -216,14 +293,30 @@ export default function ThemePanel({
   }, [normalizedPortals, tokenStorageKey]);
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    loadSettings({ showLoading: !cachedSnapshot.hasAny });
+  }, [cachedSnapshot.hasAny, loadSettings]);
 
   useSocketEvent('maintenance:updated', (event) => {
-    if (event?.source === 'theme_settings') {
-      loadSettings();
+    if (event?.source !== 'theme_settings') return;
+
+    const portalKey = String(event?.portal_key || '').trim().toLowerCase();
+    if (!normalizedPortals.includes(portalKey)) return;
+
+    const token = sessionStorage.getItem(tokenStorageKey) || '';
+    const userId = getUserIdFromToken(token);
+    if (event?.is_personal && event?.user_id && userId && event.user_id !== userId) return;
+
+    if (event?.preset_key) {
+      const nextPresetKey = String(event.preset_key || 'default').trim().toLowerCase() || 'default';
+      const nextColors = event?.custom_colors || null;
+      setSettings((current) => ({ ...current, [portalKey]: nextPresetKey }));
+      setCustomColors((current) => ({ ...current, [portalKey]: nextColors }));
+      writePersonalThemeCache(portalKey, userId, nextPresetKey, nextColors);
+      return;
     }
-  }, [loadSettings]);
+
+    loadSettings({ showLoading: false });
+  }, [loadSettings, normalizedPortals, tokenStorageKey]);
 
   useEffect(() => {
     if (!feedback.message) return undefined;
@@ -267,10 +360,17 @@ export default function ThemePanel({
         ...current,
         [portalKey]: nextPresetKey,
       }));
+      const savedCustomColors = payload?.custom_colors || null;
       setCustomColors((current) => ({
         ...current,
-        [portalKey]: payload?.custom_colors || null,
+        [portalKey]: savedCustomColors,
       }));
+      writePersonalThemeCache(
+        portalKey,
+        getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
+        nextPresetKey,
+        savedCustomColors
+      );
 
       window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
         detail: {
@@ -286,6 +386,12 @@ export default function ThemePanel({
     } catch (error) {
       setSettings((current) => ({ ...current, [portalKey]: previousPresetKey }));
       setCustomColors((current) => ({ ...current, [portalKey]: previousCustomColors }));
+      writePersonalThemeCache(
+        portalKey,
+        getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
+        previousPresetKey,
+        previousCustomColors
+      );
       window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
         detail: {
           portal_key: portalKey,

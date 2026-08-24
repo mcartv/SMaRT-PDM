@@ -28,15 +28,24 @@ class ChatRoom {
   final String roomName;
   final int unreadCount;
   final int memberCount;
+  final String lastMessage;
+  final DateTime? lastSentAt;
 
   const ChatRoom({
     required this.roomId,
     required this.roomName,
     this.unreadCount = 0,
     this.memberCount = 0,
+    this.lastMessage = '',
+    this.lastSentAt,
   });
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
+    final rawLastSentAt =
+        json['lastSentAt']?.toString() ??
+        json['last_sent_at']?.toString() ??
+        '';
+
     return ChatRoom(
       roomId: json['roomId']?.toString() ?? json['room_id']?.toString() ?? '',
       roomName:
@@ -51,6 +60,11 @@ class ChatRoom {
           (json['memberCount'] as num?)?.toInt() ??
           (json['member_count'] as num?)?.toInt() ??
           0,
+      lastMessage:
+          json['lastMessage']?.toString() ??
+          json['last_message']?.toString() ??
+          '',
+      lastSentAt: rawLastSentAt.isEmpty ? null : DateTime.tryParse(rawLastSentAt),
     );
   }
 }

@@ -52,6 +52,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   bool _isAutosaving = false;
   bool _hasDraftLoaded = false;
   String? _autosaveError;
+  String? _formFeedbackError;
   final ApplicationSubmissionValidator _submissionValidator =
       const ApplicationSubmissionValidator();
 
@@ -325,11 +326,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   void _next() {
     final validationError = _validateCurrentForm();
     if (validationError != null) {
-      setState(() => _showValidationErrors = true);
+      setState(() {
+        _showValidationErrors = true;
+        _formFeedbackError = validationError;
+      });
       _scrollToFormTop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
@@ -337,6 +338,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       setState(() {
         _step++;
         _showValidationErrors = false;
+        _formFeedbackError = null;
       });
       _queueAutosave();
       _scrollToFormTop();
@@ -348,6 +350,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       setState(() {
         _step--;
         _showValidationErrors = false;
+        _formFeedbackError = null;
       });
       _queueAutosave();
       _scrollToFormTop();
@@ -356,11 +359,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   Future<void> _submitApplication() async {
     if (!_hasSelectedOpening) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Choose a scholarship before submitting.'),
-        ),
-      );
+      setState(() {
+        _formFeedbackError = 'Choose a scholarship before submitting.';
+      });
       return;
     }
 
@@ -372,13 +373,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       setState(() {
         _step = _stepForSection(firstIssue.section);
         _showValidationErrors = true;
+        _formFeedbackError = firstIssue.message;
       });
       _scrollToFormTop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(firstIssue.message)));
       return;
     }
+
+    setState(() {
+      _formFeedbackError = null;
+    });
 
     final submissionPayload = _data.toSubmissionPayload();
     final provider = context.read<NewScholarProvider>();
@@ -395,8 +398,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       await _syncAccountHolderCache();
       if (!mounted) return;
 
-      final successMessage =
-          provider.successMessage ?? 'Application submitted successfully.';
       final application =
           provider.lastSubmissionResponse?['application']
               as Map<String, dynamic>?;
@@ -410,10 +411,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           application?['application_id']?.toString() ??
           provider.lastSubmissionResponse?['application_id']?.toString() ??
           '';
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(successMessage)));
 
       provider.resetApplication();
 
@@ -437,13 +434,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          provider.submissionError ?? 'Failed to submit application.',
-        ),
-      ),
-    );
+    setState(() {
+      _formFeedbackError =
+          provider.submissionError ?? 'Failed to submit application.';
+    });
   }
 
   String? _validateCurrentForm() {
@@ -970,7 +964,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    widget.editExistingApplication
+                    _formFeedbackError != null
+                        ? _formFeedbackError!
+                        : widget.editExistingApplication
                         ? 'Changes are saved only when you tap Save Updated Application.'
                         : _isAutosaving
                         ? 'Saving draft...'
@@ -978,7 +974,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                         ? 'Draft autosaves as you complete the form.'
                         : _autosaveError!,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: mutedColor,
+                      color: _formFeedbackError != null
+                          ? Theme.of(context).colorScheme.error
+                          : mutedColor,
+                      fontWeight: _formFeedbackError != null
+                          ? FontWeight.w700
+                          : FontWeight.w400,
                       height: 1.35,
                     ),
                   ),

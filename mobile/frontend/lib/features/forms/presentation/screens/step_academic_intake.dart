@@ -586,6 +586,15 @@ class _StepAcademicState extends State<StepAcademic> {
                   'Academic Status *',
                   DropdownButtonFormField<String>(
                     isExpanded: true,
+                    dropdownColor: intakeSurfaceColor(context),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: intakeTextColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    iconEnabledColor: intakeSubtextColor(context),
+                    iconDisabledColor: intakeSubtextColor(
+                      context,
+                    ).withValues(alpha: 0.45),
                     initialValue: selectedCollegeStatus,
                     decoration: _dec(
                       'Select status',
@@ -624,6 +633,15 @@ class _StepAcademicState extends State<StepAcademic> {
                 _field(
                   'Year Graduated${selectedCollegeStatus == 'Graduated' ? ' *' : ''}',
                   DropdownButtonFormField<String>(
+                    dropdownColor: intakeSurfaceColor(context),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: intakeTextColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    iconEnabledColor: intakeSubtextColor(context),
+                    iconDisabledColor: intakeSubtextColor(
+                      context,
+                    ).withValues(alpha: 0.45),
                     key: ValueKey(
                       'college-year-${selectedCollegeStatus ?? 'unset'}-${year.text}',
                     ),
@@ -653,7 +671,10 @@ class _StepAcademicState extends State<StepAcademic> {
                         .map(
                           (value) => DropdownMenuItem(
                             value: value,
-                            child: Text(value),
+                            child: Text(
+                              value,
+                              style: TextStyle(color: intakeTextColor(context)),
+                            ),
                           ),
                         )
                         .toList(),
@@ -675,6 +696,15 @@ class _StepAcademicState extends State<StepAcademic> {
               'Year Graduated *',
               DropdownButtonFormField<String>(
                 isExpanded: true,
+                dropdownColor: intakeSurfaceColor(context),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: intakeTextColor(context),
+                  fontWeight: FontWeight.w600,
+                ),
+                iconEnabledColor: intakeSubtextColor(context),
+                iconDisabledColor: intakeSubtextColor(
+                  context,
+                ).withValues(alpha: 0.45),
                 initialValue:
                     _academicYearOptions(title).contains(year.text.trim())
                     ? year.text.trim()
@@ -922,6 +952,15 @@ class _StepAcademicState extends State<StepAcademic> {
                   _field(
                     'Year Level *',
                     DropdownButtonFormField<String>(
+                      dropdownColor: intakeSurfaceColor(context),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: intakeTextColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      iconEnabledColor: intakeSubtextColor(context),
+                      iconDisabledColor: intakeSubtextColor(
+                        context,
+                      ).withValues(alpha: 0.45),
                       initialValue: selectedYearLevel,
                       decoration: _dec(
                         'Year Level',
@@ -931,7 +970,12 @@ class _StepAcademicState extends State<StepAcademic> {
                           .map(
                             (item) => DropdownMenuItem(
                               value: item,
-                              child: Text(item),
+                              child: Text(
+                                item,
+                                style: TextStyle(
+                                  color: intakeTextColor(context),
+                                ),
+                              ),
                             ),
                           )
                           .toList(),
@@ -945,13 +989,27 @@ class _StepAcademicState extends State<StepAcademic> {
                   _field(
                     'Section',
                     DropdownButtonFormField<String>(
+                      dropdownColor: intakeSurfaceColor(context),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: intakeTextColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      iconEnabledColor: intakeSubtextColor(context),
+                      iconDisabledColor: intakeSubtextColor(
+                        context,
+                      ).withValues(alpha: 0.45),
                       initialValue: selectedSection,
                       decoration: _dec('Section'),
                       items: sectionOptions
                           .map(
                             (item) => DropdownMenuItem(
                               value: item,
-                              child: Text(item),
+                              child: Text(
+                                item,
+                                style: TextStyle(
+                                  color: intakeTextColor(context),
+                                ),
+                              ),
                             ),
                           )
                           .toList(),

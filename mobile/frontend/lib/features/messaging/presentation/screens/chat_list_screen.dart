@@ -7,6 +7,11 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
+String _messagePreview(String? value, String fallback) {
+  final normalized = (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  return normalized.isEmpty ? fallback : normalized;
+}
+
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
@@ -102,9 +107,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
               _ConversationTile(
                 icon: Icons.support_agent_rounded,
                 title: 'OSFA Administrator',
-                subtitle: provider.privateUnreadCount > 0
-                    ? '${provider.privateUnreadCount} unread message${provider.privateUnreadCount == 1 ? '' : 's'}'
-                    : 'Direct support conversation',
+                subtitle: _messagePreview(
+                  provider.privatePreview?.messageBody,
+                  'Direct support conversation',
+                ),
                 unreadCount: provider.privateUnreadCount,
                 onTap: _openAdminThread,
               ),
@@ -149,9 +155,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     child: _ConversationTile(
                       icon: Icons.groups_rounded,
                       title: room.roomName,
-                      subtitle: room.unreadCount > 0
-                          ? '${room.unreadCount} unread message${room.unreadCount == 1 ? '' : 's'}'
-                          : 'Group chat',
+                      subtitle: _messagePreview(room.lastMessage, 'Group chat'),
                       unreadCount: room.unreadCount,
                       onTap: () => _openGroupThread(room.roomId, room.roomName),
                     ),
@@ -232,8 +236,12 @@ class _ConversationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final hasUnread = unreadCount > 0;
+
     return Material(
-      color: isDark ? const Color(0xFF2B1D13) : Colors.white,
+      color: hasUnread
+          ? AppColors.gold.withValues(alpha: isDark ? 0.12 : 0.09)
+          : (isDark ? const Color(0xFF2B1D13) : Colors.white),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -265,7 +273,7 @@ class _ConversationTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: hasUnread ? FontWeight.w900 : FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -274,9 +282,12 @@ class _ConversationTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? Colors.white60
-                            : AppColors.brown.withValues(alpha: 0.64),
+                        color: hasUnread
+                            ? (isDark ? Colors.white : AppColors.darkBrown)
+                            : (isDark
+                                  ? Colors.white60
+                                  : AppColors.brown.withValues(alpha: 0.64)),
+                        fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
                         height: 1.3,
                       ),
                     ),

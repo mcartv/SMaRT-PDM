@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Search,
   SendHorizontal,
+  ShieldCheck,
   UserMinus,
   UserPlus,
   UserRound,
@@ -147,6 +148,7 @@ function normalizeArchivedThread(raw = {}) {
     lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
     archivedAt: raw.archivedAt?.toString() || raw.archived_at?.toString() || '',
     isDisabled: raw.isDisabled === true || raw.is_disabled === true,
+    canRestore: type !== 'group' || raw.canRestore === true || raw.can_restore === true,
   }
 }
 
@@ -287,6 +289,57 @@ function formatMessageTime(value) {
   }).format(new Date(value))
 }
 
+function messageDayKey(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function formatMessageDay(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const difference = Math.round((today.getTime() - target.getTime()) / 86400000)
+
+  if (difference === 0) return 'Today'
+  if (difference === 1) return 'Yesterday'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+  }).format(date)
+}
+
+function messagesBelongTogether(older, newer) {
+  if (!older || !newer) return false
+  if (!older.senderId || older.senderId !== newer.senderId) return false
+  if (messageDayKey(older.sentAt) !== messageDayKey(newer.sentAt)) return false
+
+  const olderTime = new Date(older.sentAt).getTime()
+  const newerTime = new Date(newer.sentAt).getTime()
+  if (Number.isNaN(olderTime) || Number.isNaN(newerTime)) return false
+
+  return newerTime - olderTime <= 5 * 60 * 1000
+}
+
+function MessageDateDivider({ value }) {
+  return (
+    <div className="my-4 flex items-center gap-3">
+      <div className="h-px flex-1 bg-stone-200/80" />
+      <span className="shrink-0 text-xs font-medium text-stone-500">
+        {formatMessageDay(value)}
+      </span>
+      <div className="h-px flex-1 bg-stone-200/80" />
+    </div>
+  )
+}
+
 function ThreadIcon({ item }) {
   const initials = (item.name || 'User')
     .split(/\s+/)
@@ -316,12 +369,12 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
 
   return (
     <div
-      className={`group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${hasUnread
-        ? 'bg-[var(--portal-accent-soft)]'
-        : isActive
-          ? 'bg-stone-100'
+      className={`group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${isActive
+        ? 'bg-white hover:bg-stone-50'
+        : hasUnread
+          ? 'bg-[var(--portal-accent-soft)]'
           : 'bg-white hover:bg-stone-50'
-        }`}
+        } ${isActive ? 'before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]' : ''}`}
     >
       <button
         type="button"
@@ -510,15 +563,22 @@ function ArchivedThreadsModal({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={restoringId === itemKey}
-                    onClick={() => onRestore(item)}
-                    className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-green-200 bg-white px-3 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {restoringId === itemKey ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
-                    Restore
-                  </button>
+                  {item.canRestore ? (
+                    <button
+                      type="button"
+                      disabled={restoringId === itemKey}
+                      onClick={() => onRestore(item)}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-green-200 bg-white px-3 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {restoringId === itemKey ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
+                      Restore
+                    </button>
+                  ) : (
+                    <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs font-medium text-stone-500">
+                      <LogOut className="h-3.5 w-3.5" />
+                      Left group
+                    </span>
+                  )}
                 </div>
               )
             })}
@@ -566,28 +626,44 @@ function MessageAvatar({ message, isMine = false }) {
   )
 }
 
-function MessageBubble({ message, isMine, isGroup = false, searchTerm = '' }) {
+function MessageBubble({
+  message,
+  isMine,
+  isGroup = false,
+  searchTerm = '',
+  showAvatar = true,
+  showSenderName = true,
+  groupedWithPrevious = false,
+  groupedWithNext = false,
+}) {
   const query = searchTerm.trim().toLowerCase()
   const isMatch = Boolean(query && message.messageBody.toLowerCase().includes(query))
+  const incomingCornerClass = `${groupedWithPrevious ? 'rounded-tl-md' : ''} ${groupedWithNext ? 'rounded-bl-md' : ''}`
+  const outgoingCornerClass = `${groupedWithPrevious ? 'rounded-tr-md' : ''} ${groupedWithNext ? 'rounded-br-md' : ''}`
 
   return (
-    <div className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-      {!isMine && isGroup ? <MessageAvatar message={message} /> : null}
+    <div className={`flex items-end gap-2 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine ? 'justify-end' : 'justify-start'}`}>
+      {!isMine && isGroup ? (
+        showAvatar ? <MessageAvatar message={message} /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+      ) : null}
+
       <div className={`flex max-w-[82%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[72%]`}>
-        {isGroup && message.senderName ? (
-          <p className={`mb-1 px-1 text-xs font-semibold ${isMine ? 'text-stone-500' : 'text-stone-500'}`}>
-            {isMine ? 'You' : message.senderName}
+        {isGroup && !isMine && showSenderName && message.senderName ? (
+          <p className="mb-1 px-1 text-xs font-semibold text-stone-500">
+            {message.senderName}
           </p>
         ) : null}
+
         <div className="group/message relative">
           <div
             className={`rounded-2xl px-3.5 py-2.5 shadow-sm transition ${isMine
-              ? 'bg-[var(--portal-base)] text-white'
-              : 'border border-stone-200 bg-white text-stone-800'
+              ? `bg-[var(--portal-base)] text-white ${outgoingCornerClass}`
+              : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
               } ${isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
           >
             <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
           </div>
+
           {message.sentAt ? (
             <div
               className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden whitespace-nowrap rounded-lg bg-stone-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg group-hover/message:block group-focus-within/message:block ${isMine ? 'right-0' : 'left-0'}`}
@@ -598,7 +674,10 @@ function MessageBubble({ message, isMine, isGroup = false, searchTerm = '' }) {
           ) : null}
         </div>
       </div>
-      {isMine && isGroup ? <MessageAvatar message={message} isMine /> : null}
+
+      {isMine && isGroup ? (
+        showAvatar ? <MessageAvatar message={message} isMine /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+      ) : null}
     </div>
   )
 }
@@ -666,7 +745,7 @@ function MemberProfileModal({ member, onClose, onMessage }) {
   )
 }
 
-function ConfirmActionModal({ open, title, description, confirmLabel, busy, onCancel, onConfirm }) {
+function ConfirmActionModal({ open, title, description, confirmLabel, busy, onCancel, onConfirm, variant = 'danger' }) {
   if (!open) return null
 
   return (
@@ -676,7 +755,16 @@ function ConfirmActionModal({ open, title, description, confirmLabel, busy, onCa
         <p className="mt-2 text-sm leading-6 text-stone-500">{description}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" disabled={busy} onClick={onCancel} className="h-10 rounded-xl border border-stone-200 px-4 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60">Cancel</button>
-          <button type="button" disabled={busy} onClick={onConfirm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-60 ${
+              variant === 'primary'
+                ? 'bg-[var(--portal-base)] hover:brightness-95'
+                : 'bg-red-600 hover:bg-red-700'
+            }`}
+          >
             {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {confirmLabel}
           </button>
@@ -699,6 +787,7 @@ function GroupInfoModal({
   onViewProfile,
   onMessage,
   onRemove,
+  onPromote,
   onAddMember,
   onLeave,
 }) {
@@ -718,9 +807,14 @@ function GroupInfoModal({
     <aside className="flex min-h-0 flex-col border-l border-stone-200 bg-white">
       <div className="border-b border-stone-100 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-stone-900">{room.name}</p>
-            <p className="mt-1 text-xs text-stone-500">Group chat</p>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-stone-900">{room.name}</p>
+              <p className="mt-0.5 text-xs text-stone-500">Group chat</p>
+            </div>
           </div>
           <button type="button" onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100" title="Close group info">
             <X className="h-4 w-4" />
@@ -763,6 +857,7 @@ function GroupInfoModal({
         ) : filteredMembers.length ? (
           <div className="space-y-2">
             {filteredMembers.map((member) => {
+              const canPromote = room.viewerIsAdmin && !member.isCurrentUser && !member.isAdmin
               const canRemove = room.viewerIsAdmin && !member.isCurrentUser && !member.isAdmin
               return (
                 <div key={member.userId} className="relative flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-stone-50">
@@ -781,6 +876,7 @@ function GroupInfoModal({
                     <div className="absolute right-2 top-10 z-20 w-44 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl">
                       <button type="button" onClick={() => { setMenuMemberId(''); onViewProfile(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><Eye className="h-3.5 w-3.5" /> View profile</button>
                       {!member.isCurrentUser ? <button type="button" onClick={() => { setMenuMemberId(''); onMessage(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><MessageSquareMore className="h-3.5 w-3.5" /> Message</button> : null}
+                      {canPromote ? <button type="button" onClick={() => { setMenuMemberId(''); onPromote(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[var(--portal-base)] hover:bg-[var(--portal-accent-soft)]"><ShieldCheck className="h-3.5 w-3.5" /> Make group admin</button> : null}
                       {canRemove ? <button type="button" onClick={() => { setMenuMemberId(''); onRemove(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"><UserMinus className="h-3.5 w-3.5" /> Remove member</button> : null}
                     </div>
                   ) : null}
@@ -793,12 +889,19 @@ function GroupInfoModal({
             {Number(room.memberCount || 0) > 0 ? 'Member details could not be loaded.' : 'No members in this group.'}
           </div>
         )}
-      </div>
 
-      <div className="border-t border-stone-100 p-4">
-        <button type="button" onClick={onLeave} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-700 hover:bg-red-50">
-          <LogOut className="h-4 w-4" /> Leave group
-        </button>
+        <div className="mt-6 border-t border-stone-100 pt-4">
+          <button
+            type="button"
+            onClick={onLeave}
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50"
+          >
+            <LogOut className="h-4 w-4" /> Leave group
+          </button>
+          <p className="mt-2 text-center text-xs leading-5 text-stone-400">
+            Leaving removes you from the group and moves it to your personal Archived Messages.
+          </p>
+        </div>
       </div>
     </aside>
   )
@@ -935,7 +1038,7 @@ function CreateGroupModal({
   )
 }
 
-function AddMembersModal({
+function AddMembersView({
   open,
   onClose,
   onAdd,
@@ -1012,201 +1115,158 @@ function AddMembersModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-stone-900">Add Contacts To Group</h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Search students or authorized users, then add them to the selected group chat.
-            </p>
-          </div>
-
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:bg-stone-50"
+            title="Back to group chat"
           >
-            <X className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </button>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-stone-900">Add Contacts To Group</h3>
+            <p className="mt-1 text-xs text-stone-500">
+              Search students or authorized users, then add them to this group chat.
+            </p>
+          </div>
         </div>
+        <span className="text-xs font-medium text-stone-500">{selectedMembers.length} selected</span>
+      </div>
 
-        <div className="border-b border-stone-100 px-5 py-4">
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
+      <div className="border-b border-stone-100 px-5 py-4">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px_200px]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search by name, ID, program, office, or role"
-              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+              className="h-10 w-full rounded-xl border border-stone-200 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             />
-
-            <select
-              value={programFilter}
-              onChange={(event) => setProgramFilter(event.target.value)}
-              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
-            >
-              {programOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-
-            <select
-              value={benefactorFilter}
-              onChange={(event) => setBenefactorFilter(event.target.value)}
-              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
-            >
-              {benefactorOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            {loadingScholars ? (
-              <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading contacts
-              </div>
-            ) : filteredScholars.length ? (
-              <div className="space-y-2">
-                {filteredScholars.map((item) => {
-                  const checked = selectedMembers.includes(item.userId)
-
-                  return (
-                    <label
-                      key={item.userId}
-                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${checked
-                        ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)]'
-                        : 'border-stone-200 bg-white hover:bg-stone-50'
-                        }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleMember(item.userId)}
-                        className="mt-1 h-4 w-4 accent-[var(--portal-base)]"
-                      />
-
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-100 text-xs font-semibold text-stone-600">
-                        {item.avatarUrl ? (
-                          <img src={item.avatarUrl} alt={`${item.studentName} profile`} className="h-full w-full object-cover" />
-                        ) : (
-                          (item.studentName || 'U').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-sm font-semibold text-stone-900">
-                            {item.studentName}
-                          </p>
-
-                          {checked && (
-                            <span className="inline-flex items-center rounded-full bg-[var(--portal-base)] px-2 py-0.5 text-xs font-semibold text-white">
-                              <Check className="mr-1 h-3 w-3" />
-                              Selected
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="mt-1 text-xs text-stone-500">
-                          {item.studentNumber || 'No student number'}
-                        </p>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
-                            {item.programName}
-                          </span>
-                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
-                            {item.benefactorName}
-                          </span>
-                        </div>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-stone-500">
-                No contacts match the current filters.
-              </div>
-            )}
           </div>
 
-          <div className="w-[260px] border-l border-stone-100 bg-stone-50/70 px-5 py-4">
-            <p className="text-sm font-semibold text-stone-900">Selected Contacts</p>
-            <p className="mt-1 text-xs text-stone-500">
-              {selectedMembers.length} selected
-            </p>
-
-            <div className="mt-4 space-y-2">
-              {selectedMembers.length ? (
-                selectedMembers.map((userId) => {
-                  const scholar = scholars.find((item) => item.userId === userId)
-                  if (!scholar) return null
-
-                  return (
-                    <div
-                      key={userId}
-                      className="rounded-2xl border border-stone-200 bg-white px-3 py-2"
-                    >
-                      <p className="text-sm font-medium text-stone-900">
-                        {scholar.studentName}
-                      </p>
-                      <p className="mt-1 text-xs text-stone-500">
-                        {scholar.studentNumber || 'No student number'}
-                      </p>
-                    </div>
-                  )
-                })
-              ) : (
-                <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
-                  No contacts selected yet.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-11 items-center rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+          <select
+            value={programFilter}
+            onChange={(event) => setProgramFilter(event.target.value)}
+            className="h-10 rounded-xl border border-stone-200 px-3 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
           >
-            Cancel
-          </button>
+            {programOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
 
-          <button
-            type="button"
-            disabled={adding || !selectedMembers.length}
-            onClick={() => onAdd(selectedMembers)}
-            className="inline-flex h-11 items-center rounded-2xl bg-[var(--portal-base)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+          <select
+            value={benefactorFilter}
+            onChange={(event) => setBenefactorFilter(event.target.value)}
+            className="h-10 rounded-xl border border-stone-200 px-3 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
           >
-            {adding ? (
-              <>
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                Adding
-              </>
-            ) : (
-              <>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add To Group
-              </>
-            )}
-          </button>
+            {benefactorOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
         </div>
       </div>
-    </div>
+
+      <div className="flex min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loadingScholars ? (
+            <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading contacts
+            </div>
+          ) : filteredScholars.length ? (
+            <div className="space-y-2">
+              {filteredScholars.map((item) => {
+                const checked = selectedMembers.includes(item.userId)
+                const initials = (item.studentName || 'U').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+
+                return (
+                  <label
+                    key={item.userId}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${checked
+                      ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)]'
+                      : 'border-stone-200 bg-white hover:bg-stone-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleMember(item.userId)}
+                      className="h-4 w-4 accent-[var(--portal-base)]"
+                    />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-100 text-xs font-semibold text-stone-600">
+                      {item.avatarUrl ? (
+                        <img src={item.avatarUrl} alt={`${item.studentName} profile`} className="h-full w-full object-cover" />
+                      ) : initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-medium text-stone-900">{item.studentName}</p>
+                        {checked ? (
+                          <span className="inline-flex items-center rounded-full bg-[var(--portal-base)] px-2 py-0.5 text-xs font-semibold text-white">
+                            <Check className="mr-1 h-3 w-3" /> Selected
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-stone-500">
+                        {item.studentNumber || item.position || item.role || 'Authorized user'}
+                      </p>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-stone-500">
+              No contacts match the current filters.
+            </div>
+          )}
+        </div>
+
+        <div className="hidden w-[250px] border-l border-stone-100 bg-stone-50/70 px-4 py-4 lg:block">
+          <p className="text-sm font-semibold text-stone-900">Selected Contacts</p>
+          <p className="mt-1 text-xs text-stone-500">{selectedMembers.length} selected</p>
+          <div className="mt-4 space-y-2">
+            {selectedMembers.length ? selectedMembers.map((userId) => {
+              const scholar = scholars.find((item) => item.userId === userId)
+              if (!scholar) return null
+              return (
+                <div key={userId} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
+                  <p className="truncate text-sm font-medium text-stone-900">{scholar.studentName}</p>
+                  <p className="mt-0.5 truncate text-xs text-stone-500">{scholar.studentNumber || scholar.position || scholar.role}</p>
+                </div>
+              )
+            }) : (
+              <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
+                No contacts selected yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={adding || !selectedMembers.length}
+          onClick={() => onAdd(selectedMembers)}
+          className="inline-flex h-10 items-center rounded-xl bg-[var(--portal-base)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {adding ? (
+            <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding</>
+          ) : (
+            <><UserPlus className="mr-2 h-4 w-4" /> Add To Group</>
+          )}
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -1232,6 +1292,7 @@ export default function AdminMessages({
   const [activeType, setActiveType] = useState('private')
   const [activeConversationId, setActiveConversationId] = useState('')
   const [activeRoomId, setActiveRoomId] = useState('')
+  const [transientPrivateContact, setTransientPrivateContact] = useState(null)
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
@@ -1250,6 +1311,8 @@ export default function AdminMessages({
   const [selectedMemberProfile, setSelectedMemberProfile] = useState(null)
   const [pendingRemoveMember, setPendingRemoveMember] = useState(null)
   const [removeMemberBusy, setRemoveMemberBusy] = useState(false)
+  const [pendingPromoteMember, setPendingPromoteMember] = useState(null)
+  const [promoteMemberBusy, setPromoteMemberBusy] = useState(false)
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false)
   const [leaveGroupBusy, setLeaveGroupBusy] = useState(false)
   const [chatSearchOpen, setChatSearchOpen] = useState(false)
@@ -1263,6 +1326,10 @@ export default function AdminMessages({
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
   const messagesEndRef = useRef(null)
+  const messagesScrollRef = useRef(null)
+  const composerRef = useRef(null)
+  const shouldAutoScrollRef = useRef(true)
+  const forceScrollToBottomRef = useRef(true)
   const processedRealtimeMessageIdsRef = useRef(new Set())
 
   const totalUnreadCount = useMemo(
@@ -1383,9 +1450,10 @@ export default function AdminMessages({
 
     return (
       filteredItems.find((item) => item.type === 'private' && item.id === activeConversationId) ||
-      mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId)
+      mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId) ||
+      (transientPrivateContact?.id === activeConversationId ? transientPrivateContact : null)
     )
-  }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId])
+  }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId, transientPrivateContact])
 
   const chatMatchCount = useMemo(() => {
     const query = chatSearchTerm.trim().toLowerCase()
@@ -1401,9 +1469,47 @@ export default function AdminMessages({
     activeRoomRef.current = activeRoomId
   }, [activeRoomId])
 
+  const scrollMessagesToBottom = useCallback((behavior = 'auto') => {
+    window.requestAnimationFrame(() => {
+      const container = messagesScrollRef.current
+      if (!container) return
+      container.scrollTo({ top: container.scrollHeight, behavior })
+      shouldAutoScrollRef.current = true
+    })
+  }, [])
+
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesScrollRef.current
+    if (!container) return
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    shouldAutoScrollRef.current = distanceFromBottom < 120
+  }, [])
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages])
+    forceScrollToBottomRef.current = true
+    shouldAutoScrollRef.current = true
+  }, [activeType, activeConversationId, activeRoomId])
+
+  useEffect(() => {
+    if (!messages.length) return
+
+    if (forceScrollToBottomRef.current) {
+      scrollMessagesToBottom('auto')
+      forceScrollToBottomRef.current = false
+      return
+    }
+
+    if (shouldAutoScrollRef.current) {
+      scrollMessagesToBottom('smooth')
+    }
+  }, [messages, scrollMessagesToBottom])
+
+  useEffect(() => {
+    const composer = composerRef.current
+    if (!composer) return
+    composer.style.height = 'auto'
+    composer.style.height = `${Math.min(composer.scrollHeight, 128)}px`
+  }, [draft])
 
   const fetchConversations = useCallback(
     async (preferredConversationId = activeConversationRef.current) => {
@@ -1834,6 +1940,7 @@ export default function AdminMessages({
     setMainView('archived')
     setArchivedOpen(true)
     setCreateGroupOpen(false)
+    setAddMembersOpen(false)
     setGroupInfoOpen(false)
     fetchArchivedThreads()
   }, [fetchArchivedThreads])
@@ -1957,6 +2064,7 @@ export default function AdminMessages({
       return
     }
 
+    shouldAutoScrollRef.current = true
     setSending(true)
 
     try {
@@ -2016,6 +2124,7 @@ export default function AdminMessages({
                 type: 'private',
                 name: selectedItem?.name || 'Unknown user',
                 studentNumber: selectedItem?.studentNumber || '',
+                avatarUrl: selectedItem?.avatarUrl || '',
                 lastMessage: message.messageBody,
                 lastSentAt: message.sentAt,
                 createdAt: message.sentAt,
@@ -2039,6 +2148,9 @@ export default function AdminMessages({
         })
       }
 
+      if (activeType === 'private') {
+        setTransientPrivateContact(null)
+      }
       setDraft('')
       setError('')
     } catch (err) {
@@ -2100,12 +2212,53 @@ export default function AdminMessages({
       ))
 
       setAddMembersOpen(false)
+      setMainView('chats')
+      setGroupInfoOpen(true)
       setError('')
       await Promise.all([fetchRooms(activeRoomId), fetchRoomMembers(activeRoomId)])
     } catch (err) {
       setError(err.message || 'Failed to add members to group chat.')
     } finally {
       setAddingMembers(false)
+    }
+  }
+
+  async function handlePromoteMember(member) {
+    if (!activeRoomId || !member?.userId) return
+
+    try {
+      setPromoteMemberBusy(true)
+      const response = await fetch(
+        `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/members`,
+        {
+          method: 'POST',
+          headers: buildMessagingHeaders(token, { json: true }),
+          body: JSON.stringify({ action: 'promote_admin', memberId: member.userId }),
+        }
+      )
+      const memberPayload = await parseApiResponse(response, 'Failed to make member a group admin.')
+      const refreshedMembers = (memberPayload.members || memberPayload.roomMembers || []).map(normalizeRoomMember)
+      const refreshedCount = Number(memberPayload.member_count ?? memberPayload.memberCount ?? refreshedMembers.length)
+
+      if (Array.isArray(memberPayload.members) || Array.isArray(memberPayload.roomMembers)) {
+        setGroupMembers(refreshedMembers)
+      }
+      setRooms((current) => current.map((room) =>
+        room.id === activeRoomId
+          ? {
+              ...room,
+              memberCount: refreshedCount,
+              studentNumber: `${refreshedCount} member${refreshedCount === 1 ? '' : 's'}`,
+            }
+          : room
+      ))
+      setPendingPromoteMember(null)
+      await Promise.all([fetchRoomMembers(activeRoomId), fetchRooms(activeRoomId)])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to make member a group admin.')
+    } finally {
+      setPromoteMemberBusy(false)
     }
   }
 
@@ -2184,24 +2337,24 @@ export default function AdminMessages({
     setActiveConversationId(member.userId)
     setActiveRoomId('')
 
-    const exists = conversations.some((item) => item.id === member.userId)
-    if (!exists) {
-      setConversations((current) => sortItems([
-        ...current,
-        {
-          id: member.userId,
-          type: 'private',
-          name: member.name || 'Unknown user',
-          studentNumber: member.studentNumber || member.subtitle || '',
-          avatarUrl: member.avatarUrl || '',
-          lastMessage: '',
-          lastSentAt: '',
-          createdAt: '',
-          unreadCount: 0,
-          isDisabled: false,
-        },
-      ]))
-    }
+    const existingConversation = conversations.find((item) => item.id === member.userId)
+    setTransientPrivateContact(
+      existingConversation
+        ? null
+        : {
+            id: member.userId,
+            type: 'private',
+            name: member.name || 'Unknown user',
+            studentNumber: member.studentNumber || member.subtitle || '',
+            avatarUrl: member.avatarUrl || '',
+            lastMessage: '',
+            lastSentAt: '',
+            createdAt: '',
+            unreadCount: 0,
+            isDisabled: false,
+            isTransient: true,
+          }
+    )
   }
 
   useEffect(() => {
@@ -2697,6 +2850,34 @@ export default function AdminMessages({
   )
 
   useSocketEvent(
+    'room:member-promoted',
+    async (data) => {
+      const roomId = data?.room_id?.toString?.() || data?.roomId?.toString?.() || ''
+
+      await fetchRooms(activeRoomRef.current || activeRoomId)
+
+      if (
+        isOpen &&
+        activeType === 'group' &&
+        roomId &&
+        (activeRoomRef.current === roomId || activeRoomId === roomId)
+      ) {
+        await fetchRoomMessages(roomId, { silent: true })
+        if (groupInfoOpen) await fetchRoomMembers(roomId)
+      }
+    },
+    [
+      isOpen,
+      activeType,
+      activeRoomId,
+      groupInfoOpen,
+      fetchRooms,
+      fetchRoomMessages,
+      fetchRoomMembers,
+    ]
+  )
+
+  useSocketEvent(
     'room:members-removed',
     async (data) => {
       const roomId = data?.room_id?.toString?.() || data?.roomId?.toString?.() || ''
@@ -2815,7 +2996,7 @@ export default function AdminMessages({
     <>
       <button
         type="button"
-        onClick={() => { setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setGroupInfoOpen(false); setIsOpen(true) }}
+        onClick={() => { setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setIsOpen(true) }}
         className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
           }`}
         title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
@@ -2828,16 +3009,6 @@ export default function AdminMessages({
           </span>
         )}
       </button>
-
-      <AddMembersModal
-        open={addMembersOpen}
-        onClose={() => setAddMembersOpen(false)}
-        onAdd={handleAddMembers}
-        adding={addingMembers}
-        scholars={scholars}
-        loadingScholars={loadingScholars}
-        existingMemberIds={groupMembers.map((member) => member.userId)}
-      />
 
       <MemberProfileModal
         member={selectedMemberProfile}
@@ -2856,9 +3027,20 @@ export default function AdminMessages({
       />
 
       <ConfirmActionModal
+        open={Boolean(pendingPromoteMember)}
+        title="Make group admin?"
+        description={pendingPromoteMember ? `${pendingPromoteMember.name} will be able to add members, remove regular members, and promote other members to group admin.` : ''}
+        confirmLabel="Make admin"
+        busy={promoteMemberBusy}
+        variant="primary"
+        onCancel={() => setPendingPromoteMember(null)}
+        onConfirm={() => handlePromoteMember(pendingPromoteMember)}
+      />
+
+      <ConfirmActionModal
         open={leaveGroupOpen}
         title="Leave group?"
-        description="You will no longer receive messages from this group. If you are the group admin, management will transfer to the oldest remaining member."
+        description="You will be removed from this group and it will move to your personal Archived Messages. You will no longer receive new group messages. If you are the group admin, management will transfer to the oldest remaining member."
         confirmLabel="Leave group"
         busy={leaveGroupBusy}
         onCancel={() => setLeaveGroupOpen(false)}
@@ -2895,6 +3077,7 @@ export default function AdminMessages({
                     setMainView('create-group')
                     setCreateGroupOpen(true)
                     setArchivedOpen(false)
+                    setAddMembersOpen(false)
                     setGroupInfoOpen(false)
                   }}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'create-group' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
@@ -2916,7 +3099,7 @@ export default function AdminMessages({
 
                 <button
                   type="button"
-                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setGroupInfoOpen(false) }}
+                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setTransientPrivateContact(null) }}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
                 >
                   <X className="h-4 w-4" />
@@ -2949,6 +3132,20 @@ export default function AdminMessages({
                 scholars={scholars}
                 loadingScholars={loadingScholars}
                 currentUserId={currentUserId}
+              />
+            ) : mainView === 'add-members' ? (
+              <AddMembersView
+                open={addMembersOpen}
+                onClose={() => {
+                  setAddMembersOpen(false)
+                  setMainView('chats')
+                  setGroupInfoOpen(true)
+                }}
+                onAdd={handleAddMembers}
+                adding={addingMembers}
+                scholars={scholars}
+                loadingScholars={loadingScholars}
+                existingMemberIds={groupMembers.map((member) => member.userId)}
               />
             ) : (
             <div className={`grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'xl:grid-cols-[320px_minmax(0,1fr)_320px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
@@ -3007,6 +3204,7 @@ export default function AdminMessages({
                           onToggleRead={toggleThreadReadState}
                           onArchive={archiveThread}
                           onClick={() => {
+                            setTransientPrivateContact(null)
                             if (item.type === 'group') {
                               setActiveType('group')
                               setActiveRoomId(item.id)
@@ -3089,25 +3287,40 @@ export default function AdminMessages({
                       ) : null}
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5">
+                    <div
+                      ref={messagesScrollRef}
+                      onScroll={handleMessagesScroll}
+                      className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5"
+                    >
                       {loadingMessages ? (
-                        <div className="flex items-center justify-center gap-2 py-12 text-sm text-stone-500">
+                        <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">
                           <LoaderCircle className="h-4 w-4 animate-spin" />
                           Loading thread
                         </div>
                       ) : messages.length ? (
-                        <div className="space-y-3">
-                          {messages.map((message) => {
+                        <div className="flex min-h-full flex-col justify-end">
+                          {messages.map((message, index) => {
                             const isMine = message.senderId === currentUserId
+                            const previousMessage = index > 0 ? messages[index - 1] : null
+                            const nextMessage = index + 1 < messages.length ? messages[index + 1] : null
+                            const groupedWithPrevious = messagesBelongTogether(previousMessage, message)
+                            const groupedWithNext = messagesBelongTogether(message, nextMessage)
+                            const showDateDivider = !previousMessage || messageDayKey(previousMessage.sentAt) !== messageDayKey(message.sentAt)
 
                             return (
-                              <MessageBubble
-                                key={message.messageId}
-                                message={message}
-                                isMine={isMine}
-                                isGroup={selectedItem.type === 'group'}
-                                searchTerm={selectedItem.type === 'group' ? chatSearchTerm : ''}
-                              />
+                              <div key={message.messageId}>
+                                {showDateDivider ? <MessageDateDivider value={message.sentAt} /> : null}
+                                <MessageBubble
+                                  message={message}
+                                  isMine={isMine}
+                                  isGroup={selectedItem.type === 'group'}
+                                  searchTerm={selectedItem.type === 'group' ? chatSearchTerm : ''}
+                                  groupedWithPrevious={groupedWithPrevious}
+                                  groupedWithNext={groupedWithNext}
+                                  showSenderName={!groupedWithPrevious}
+                                  showAvatar={!groupedWithPrevious}
+                                />
+                              </div>
                             )
                           })}
                           <div ref={messagesEndRef} />
@@ -3133,8 +3346,21 @@ export default function AdminMessages({
                     >
                       <div className="flex items-end gap-2">
                         <textarea
+                          ref={composerRef}
                           value={draft}
                           onChange={(event) => setDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' || event.nativeEvent?.isComposing) return
+
+                            // Shift + Enter keeps the textarea's normal newline behavior.
+                            if (event.shiftKey) return
+
+                            // Enter sends the current message instead of adding a newline.
+                            event.preventDefault()
+                            if (!sending && draft.trim()) {
+                              event.currentTarget.form?.requestSubmit()
+                            }
+                          }}
                           rows={1}
                           placeholder={
                             selectedItem.type === 'group'
@@ -3194,7 +3420,12 @@ export default function AdminMessages({
                 onViewProfile={setSelectedMemberProfile}
                 onMessage={handleMessageMember}
                 onRemove={setPendingRemoveMember}
-                onAddMember={() => setAddMembersOpen(true)}
+                onPromote={setPendingPromoteMember}
+                onAddMember={() => {
+                  setAddMembersOpen(true)
+                  setGroupInfoOpen(false)
+                  setMainView('add-members')
+                }}
                 onLeave={() => setLeaveGroupOpen(true)}
               />
             </div>

@@ -379,7 +379,12 @@ class _OtpScreenState extends State<OtpScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: accentColor,
                               foregroundColor: AppColors.darkBrown,
-                              disabledBackgroundColor: Colors.grey.shade300,
+                              disabledBackgroundColor: isDark
+                                  ? AppColors.applicantDarkSurfaceMuted
+                                  : Colors.grey.shade300,
+                              disabledForegroundColor: isDark
+                                  ? AppColors.applicantDarkTextMuted
+                                  : Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
                                   borderRadius,

@@ -460,6 +460,8 @@ exports.getRecentAdminSessions = async (req, res) => {
             session_scope: adminSessionService.sessionConfig.scope,
             max_active_devices:
                 adminSessionService.sessionConfig.maxActiveDevices,
+            multi_device_enabled:
+                adminSessionService.sessionConfig.multiDeviceEnabled === true,
         });
     } catch (err) {
         if (err instanceof adminSessionService.AdminSessionError) {
@@ -498,6 +500,44 @@ exports.logoutAdminSession = async (req, res) => {
         }
 
         console.error('ADMIN SESSION LOGOUT ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to log out the Admin session.',
+        });
+    }
+};
+
+// Beacon logout is used when the browser is clearing the local session and
+// navigating away. It verifies the signed JWT itself instead of requiring an
+// already-active managed session, making logout idempotent even if the normal
+// logout request and beacon arrive in either order.
+exports.logoutAdminSessionBeacon = async (req, res) => {
+    try {
+        const rawToken = String(req.body?.token || '').trim();
+        const decoded = adminSessionService.verifyAdminToken(rawToken);
+
+        // Populate req.user so realtime/audit helpers can identify the account
+        // even though this beacon route intentionally does not require the
+        // active-session middleware.
+        req.user = decoded;
+
+        await adminSessionService.logoutAdminSession({ decoded });
+
+        emitAdminSessionUpdated(req, 'logout', {
+            session_id: decoded.sid || decoded.session_id || null,
+        });
+
+        return res.status(200).json({
+            logged_out: true,
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION BEACON LOGOUT ERROR:', err);
         return res.status(500).json({
             message: 'Unable to log out the Admin session.',
         });
@@ -944,6 +984,7 @@ exports.resetAdminPassword = async (req, res) => {
         'heartbeatAdminSession',
         'releaseAdminSessionPage',
         'releaseAdminSessionBeacon',
+        'logoutAdminSessionBeacon',
     ]);
 
     Object.entries(module.exports).forEach(([functionName, handler]) => {

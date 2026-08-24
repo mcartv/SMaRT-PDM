@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -38,52 +36,29 @@ class _SuccessScreenState extends State<SuccessScreen> {
     required String applicationId,
     required Map<String, dynamic>? submissionPayload,
   }) async {
+    if (_isGeneratingPdf) return;
+
     setState(() => _isGeneratingPdf = true);
 
     try {
-      File generatedFile;
-      if (submissionPayload != null) {
-        debugPrint('Generating PDF from raw submission payload...');
-        generatedFile = await _printableApplicationService
-            .generateFromSubmissionPayload(submissionPayload);
-      } else {
-        debugPrint('Generating PDF from application ID: $applicationId...');
-        generatedFile = await _printableApplicationService
-            .generateFromApplicationId(applicationId);
-      }
-      debugPrint('PDF generation successful. Copying to downloads...');
-
-      final safeAppId = applicationId.isNotEmpty ? applicationId : 'Guest';
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      String fileName = 'Scholarship_Application_${safeAppId}_$timestamp.pdf';
-
-      final directory = await getApplicationDocumentsDirectory();
-
-      final exportFile = File('${directory.path}/$fileName');
-      await generatedFile.copy(exportFile.path);
-
-      // Cleanup temporary file
-      if (generatedFile.existsSync()) {
-        await generatedFile.delete();
-      }
+      final bytes = submissionPayload != null
+          ? await _printableApplicationService
+                .generateBytesFromSubmissionPayload(submissionPayload)
+          : await _printableApplicationService
+                .generateBytesFromMySubmittedApplicationForm();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Application form saved to downloads.'),
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Share',
-            onPressed: () async {
-              await Share.shareXFiles([
-                XFile(exportFile.path),
-              ], text: 'SMaRT-PDM Scholarship Application');
-            },
-          ),
+
+      await Share.shareXFiles([
+        XFile.fromData(
+          bytes,
+          mimeType: 'application/pdf',
+          name: 'SMaRT-PDM_Application_Form.pdf',
         ),
-      );
+      ], text: 'SMaRT-PDM Scholarship Application');
     } catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to export PDF: $error')));
@@ -161,6 +136,24 @@ class _SuccessScreenState extends State<SuccessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageColor = isDark
+        ? AppColors.applicantDarkBackground
+        : const Color(0xFFF7F1E8);
+    final surfaceColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
+    final secondarySurface = isDark
+        ? AppColors.applicantDarkSurfaceMuted
+        : Colors.white;
+    final outlineColor = isDark
+        ? AppColors.applicantDarkOutline
+        : const Color(0xFFF0D59A);
+    final titleColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final bodyColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : const Color(0xFF6A5B4B);
+
     final args = ModalRoute.of(context)?.settings.arguments;
     final payload = args is Map<String, dynamic> ? args : const {};
     final rawTitle =
@@ -186,17 +179,17 @@ class _SuccessScreenState extends State<SuccessScreen> {
         applicationId.trim().isNotEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F1E8),
+      backgroundColor: pageColor,
       appBar: AppBar(
         title: Text(
           appBarTitle,
-          style: const TextStyle(
-            color: Colors.black,
+          style: TextStyle(
+            color: titleColor,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
         ),
-        backgroundColor: const Color(0xFFF7F1E8),
+        backgroundColor: pageColor,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
@@ -229,9 +222,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       MediaQuery.sizeOf(context).width < 360 ? 18 : 26,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: surfaceColor,
                       borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: const Color(0xFFF0D59A)),
+                      border: Border.all(color: outlineColor),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.06),
@@ -273,7 +266,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
                                       color: AppColors.gold,
                                       width: 5,
                                     ),
-                                    color: Colors.white,
+                                    color: isDark
+                                        ? AppColors.applicantDarkSurfaceMuted
+                                        : Colors.white,
                                   ),
                                   child: const Center(
                                     child: Icon(
@@ -341,10 +336,10 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         const SizedBox(height: 18),
                         Text(
                           title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 30,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.darkBrown,
+                            color: titleColor,
                             height: 1.2,
                           ),
                           textAlign: TextAlign.center,
@@ -353,9 +348,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         Text(
                           message,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 17,
-                            color: Color(0xFF6A5B4B),
+                            color: bodyColor,
                             height: 1.55,
                           ),
                         ),
@@ -387,10 +382,12 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     _buildActionTile(
                       icon: Icons.description_outlined,
                       title: 'View Documents',
-                      backgroundColor: Colors.white,
-                      textColor: Colors.black,
+                      backgroundColor: secondarySurface,
+                      textColor: titleColor,
                       iconColor: AppColors.gold,
-                      borderColor: Colors.grey.shade200,
+                      borderColor: isDark
+                          ? AppColors.applicantDarkOutline
+                          : Colors.grey.shade200,
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -427,11 +424,16 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFFF9E6), Color(0xFFFFF0C2)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: isDark
+                          ? AppColors.applicantDarkSurfaceMuted
+                          : null,
+                      gradient: isDark
+                          ? null
+                          : const LinearGradient(
+                              colors: [Color(0xFFFFF9E6), Color(0xFFFFF0C2)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: AppColors.gold.withOpacity(0.3),
@@ -445,9 +447,11 @@ class _SuccessScreenState extends State<SuccessScreen> {
                             Container(
                               width: 20,
                               height: 20,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Colors.white,
+                                color: isDark
+                                    ? AppColors.applicantDarkSurface
+                                    : Colors.white,
                               ),
                             ),
                             const Icon(
@@ -462,7 +466,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
                           child: Text(
                             "You can track your application status anytime in your dashboard.",
                             style: TextStyle(
-                              color: Colors.grey.shade800,
+                              color: isDark
+                                  ? AppColors.applicantDarkTextMuted
+                                  : Colors.grey.shade800,
                               fontSize: 15,
                               height: 1.4,
                             ),

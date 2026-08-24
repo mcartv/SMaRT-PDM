@@ -107,6 +107,7 @@ class ApplicationData {
   String currentYearLevel = '';
   String currentSection = '';
   String studentNumber = '';
+  String learnersReferenceNumber = '';
   String gwa = '';
 
   String financialSupport = '';
@@ -350,6 +351,10 @@ class ApplicationData {
     if (studentNumber.trim().isEmpty && accountStudentId.trim().isNotEmpty) {
       studentNumber = accountStudentId;
     }
+    _setIfPresent(
+      (value) => learnersReferenceNumber = value,
+      _firstSavedString(academic, ['lrn', 'learners_reference_number']),
+    );
 
     final savedOpeningId = _savedString(opening['opening_id']);
     if (savedOpeningId.isNotEmpty) {
@@ -940,9 +945,12 @@ class ApplicationData {
         'elementary_club': _title(elementaryClub),
         'elementary_year_graduated': elementaryYearGraduated.trim(),
         'current_course_code': currentCourse.trim(),
-        'current_year_level': _parseInt(currentYearLevel),
+        'current_year_level': currentYearLevel.trim(),
+        'year_level': currentYearLevel.trim(),
         'current_section': _title(currentSection),
         'student_number': studentNumber.trim(),
+        'lrn': learnersReferenceNumber.trim(),
+        'learners_reference_number': learnersReferenceNumber.trim(),
         'gwa': gwa.trim(),
       },
       'support': {

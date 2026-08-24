@@ -91,7 +91,7 @@ const WORKFLOW_STAGE_LABELS = Object.freeze({
 const REQUIREMENTS_LABELS = Object.freeze({
     verified: 'Verified',
     rejected: 'Rejected',
-    reupload_required: 'Re-upload Required',
+    reupload_required: 'Correction Required',
     missing: 'Missing Requirements',
     under_review: 'Under Review',
 });
@@ -116,7 +116,7 @@ const BLOCKER_MESSAGES = Object.freeze({
     'endorsement.held':
         'Your endorsement review is on hold with Guidance.',
     'requirements.reupload_required':
-        'One or more requirements need to be re-uploaded before review can continue.',
+        'One or more application requirements need correction before review can continue.',
     'requirements.missing':
         'Upload all required scholarship documents to continue review.',
     'endorsement.grade_document_missing':
@@ -907,11 +907,12 @@ async function getOpening(openingId) {
     return data || null;
 }
 
-async function getMyFormData(userId) {
+async function getMyFormData(userId, options = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
     }
 
+    const includeDraft = options?.includeDraft !== false;
     const user = await getUser(userId);
     if (!user) {
         throw createHttpError(404, 'User account not found.');
@@ -928,7 +929,9 @@ async function getMyFormData(userId) {
             }
         }
     }
-    const draft = await getDraft(userId);
+    const draft = includeDraft
+        ? await getDraft(userId)
+        : null;
     const draftPayload = draft?.payload && typeof draft.payload === 'object'
         ? draft.payload
         : {};
@@ -1628,6 +1631,7 @@ function normalizeReviewDecision(value) {
     }
 
     if (
+        normalized === 'reupload required' ||
         normalized === 'requires reupload' ||
         normalized === 'requires re upload' ||
         normalized === 'reupload' ||
@@ -3073,10 +3077,10 @@ function validateApplicationSubmissionPayload(payload = {}) {
             ? Number.parseInt(residencyRaw, 10)
             : Number.NaN;
 
-        if (!Number.isInteger(residencyYears) || residencyYears < 1 || residencyYears > 120) {
+        if (!Number.isInteger(residencyYears) || residencyYears < 0 || residencyYears > 120) {
             throw createHttpError(
                 400,
-                'Years as resident must be a whole number between 1 and 120.'
+                'Residency duration is invalid.'
             );
         }
     }
@@ -3256,8 +3260,10 @@ async function getMySubmittedFormData(userId) {
                 .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
         supabase
-            .from('application_documents')
-            .select('document_id, review_status, reviewed_at')
+            .from('application_document_reviews')
+            .select(
+                'document_key, review_status, admin_comment, reason_code, reviewed_at'
+            )
             .eq('application_id', application.application_id),
         supabase
             .from('iot_ocr_requests')
@@ -3269,7 +3275,25 @@ async function getMySubmittedFormData(userId) {
     if (documentReviewResult.error) throw documentReviewResult.error;
     if (ocrResult.error) throw ocrResult.error;
 
-    const documentReviewStarted = (documentReviewResult.data || []).some(
+    const reviewRows = documentReviewResult.data || [];
+
+    const applicationFormReview =
+        reviewRows.find(
+            (review) =>
+                normalizeDocumentReviewKey(review.document_key) ===
+                'application_form'
+        ) || null;
+
+    const applicationFormReviewStatus = safeText(
+        applicationFormReview?.review_status
+    )
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+
+    const applicationFormCorrectionRequested =
+        applicationFormReviewStatus === 'reupload_required';
+
+    const documentReviewStarted = reviewRows.some(
         (document) => {
             if (document.reviewed_at) return true;
 
@@ -3323,24 +3347,35 @@ async function getMySubmittedFormData(userId) {
 
     const activated = !!application.activated_at;
 
+    const terminalApplicationStatus =
+        applicationStatus === 'rejected' ||
+        applicationStatus === 'approved';
+
     const canEdit =
-        pendingReview &&
-        !reviewStarted &&
+        applicationFormCorrectionRequested &&
+        !terminalApplicationStatus &&
         !selectionStarted &&
         !activated;
 
     let reason = null;
 
-    if (!pendingReview) {
+    if (terminalApplicationStatus) {
         reason =
-            'Editing is unavailable because this application is no longer in Pending Review.';
+            'Editing is unavailable because this application is already finalized.';
     } else if (activated || selectionStarted) {
         reason =
             'Editing is unavailable after FCFS selection or scholar activation begins.';
-    } else if (reviewStarted) {
+    } else if (!applicationFormCorrectionRequested) {
         reason =
-            'Editing is unavailable because OSFA has already started reviewing this application.';
+            applicationFormReviewStatus === 'verified'
+                ? 'The application form has been reviewed and no correction was requested.'
+                : 'Editing is locked until OSFA/Admin requests a correction to the application form.';
     }
+
+    const normalizedFormData = await getMyFormData(
+        userId,
+        { includeDraft: false }
+    );
 
     let formData = application.application_payload;
 
@@ -3349,8 +3384,33 @@ async function getMySubmittedFormData(userId) {
         typeof formData !== 'object' ||
         Array.isArray(formData)
     ) {
-        formData = await getMyFormData(userId);
+        formData = normalizedFormData || {};
+    } else {
+        formData = mergeMissingSubmissionValues(
+            formData,
+            normalizedFormData || {}
+        );
     }
+
+    const formApplication =
+        formData.application &&
+        typeof formData.application === 'object' &&
+        !Array.isArray(formData.application)
+            ? formData.application
+            : {};
+
+    formData = {
+        ...formData,
+        application: {
+            ...formApplication,
+            application_id: application.application_id,
+            application_status: application.application_status || null,
+            document_status: application.document_status || null,
+            verification_status: application.verification_status || null,
+            submission_date: application.submission_date || null,
+            selection_status: application.selection_status || null,
+        },
+    };
 
     const opening = openingResult.data || {};
 
@@ -3371,6 +3431,14 @@ async function getMySubmittedFormData(userId) {
         form_data: formData,
         editability: {
             can_edit: canEdit,
+            correction_requested:
+                applicationFormCorrectionRequested,
+            correction_comment:
+                applicationFormCorrectionRequested
+                    ? safeText(applicationFormReview?.admin_comment) || null
+                    : null,
+            application_form_review_status:
+                applicationFormReviewStatus || 'pending',
             review_started: reviewStarted,
             selection_started: selectionStarted,
             ocr_started: ocrStarted,
@@ -3524,8 +3592,11 @@ async function submitMyApplicationForm(userId, payload = {}) {
     }
 
     if (
-        opening.is_archived === true ||
-        opening.posting_status !== 'open'
+        !editExistingApplication &&
+        (
+            opening.is_archived === true ||
+            opening.posting_status !== 'open'
+        )
     ) {
         throw createHttpError(
             400,
@@ -4193,6 +4264,80 @@ async function submitMyApplicationForm(userId, payload = {}) {
             draftDeleteError.message
         );
     }
+
+    // A corrected digital Application Form is now a new review version.
+    // Lock editing again and return only this review item to pending.
+    if (editExistingApplication && application?.application_id) {
+        const correctionSubmittedAt = new Date().toISOString();
+
+        const { error: resetApplicationFormReviewError } = await supabase
+            .from('application_document_reviews')
+            .update({
+                review_status: 'pending',
+                admin_comment: '',
+                issue_severity: null,
+                reason_code: null,
+                reviewed_by: null,
+                reviewed_at: null,
+                updated_at: correctionSubmittedAt,
+            })
+            .eq('application_id', application.application_id)
+            .eq('document_key', 'application_form');
+
+        if (resetApplicationFormReviewError) {
+            throw resetApplicationFormReviewError;
+        }
+
+        const {
+            data: remainingCorrectionRows,
+            error: remainingCorrectionError,
+        } = await supabase
+            .from('application_document_reviews')
+            .select('document_key')
+            .eq('application_id', application.application_id)
+            .eq('review_status', 'reupload_required');
+
+        if (remainingCorrectionError) {
+            throw remainingCorrectionError;
+        }
+
+        const hasRemainingCorrections =
+            (remainingCorrectionRows || []).length > 0;
+
+        const {
+            data: correctedApplication,
+            error: correctedApplicationError,
+        } = await supabase
+            .from('applications')
+            .update({
+                application_status:
+                    hasRemainingCorrections
+                        ? 'Requires Reupload'
+                        : 'Pending Review',
+                verification_status:
+                    hasRemainingCorrections
+                        ? 'requires_reupload'
+                        : 'pending',
+                document_status:
+                    hasRemainingCorrections
+                        ? 'Requires Reupload'
+                        : 'Under Review',
+                is_disqualified: false,
+                rejection_reason: null,
+                requirements_verified_at: null,
+                updated_at: correctionSubmittedAt,
+            })
+            .eq('application_id', application.application_id)
+            .select('*')
+            .single();
+
+        if (correctedApplicationError) {
+            throw correctedApplicationError;
+        }
+
+        application = correctedApplication;
+    }
+
 
     return {
         message:

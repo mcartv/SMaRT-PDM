@@ -453,6 +453,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildEmptyState(NotificationProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final title = provider.isLoading
         ? 'Loading notifications...'
         : 'No notifications found';
@@ -500,7 +501,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.black,
+                        color: isDark
+                            ? AppColors.applicantDarkText
+                            : AppColors.black,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -508,7 +511,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       message,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF8A8378),
+                        color: isDark
+                            ? AppColors.applicantDarkTextMuted
+                            : const Color(0xFF8A8378),
                         height: 1.4,
                         fontWeight: FontWeight.w600,
                       ),
@@ -533,12 +538,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationProvider provider,
     AppNotification notification,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = _accentFor(notification);
     final icon = _iconFor(notification);
     final isUnread = !notification.isRead;
 
     return Material(
-      color: isUnread ? const Color(0xFFFFFBEB) : Colors.white,
+      color: isDark
+          ? (isUnread
+                ? AppColors.applicantDarkSurfaceMuted
+                : AppColors.applicantDarkSurface)
+          : (isUnread ? const Color(0xFFFFFBEB) : Colors.white),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: () => _openNotification(notification),
@@ -603,7 +613,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.black,
+                        color: isDark
+                            ? AppColors.applicantDarkText
+                            : AppColors.black,
                         fontSize: 15,
                         fontWeight: isUnread
                             ? FontWeight.w900
@@ -619,7 +631,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF8A8378),
+                        color: isDark
+                            ? AppColors.applicantDarkTextMuted
+                            : const Color(0xFF8A8378),
                         fontSize: 13,
                         height: 1.35,
                         fontWeight: FontWeight.w600,
@@ -697,6 +711,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationProvider provider,
     List<AppNotification> items,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (items.isEmpty) {
       return _buildEmptyState(provider);
     }
@@ -719,7 +735,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Text(
                       section,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.black,
+                        color: isDark
+                            ? AppColors.applicantDarkText
+                            : AppColors.black,
                         fontWeight: FontWeight.w900,
                         fontSize: 14,
                       ),
@@ -760,6 +778,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SmartPdmPageScaffold(
       selectedIndex: 0,
       showBottomNav: widget.showBottomNav,
@@ -767,8 +787,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         elevation: 0,
         centerTitle: false,
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.black,
+        backgroundColor: isDark ? AppColors.applicantDarkSurface : Colors.white,
+        foregroundColor: isDark ? AppColors.applicantDarkText : AppColors.black,
         surfaceTintColor: Colors.transparent,
         titleSpacing: 0,
         leading: IconButton(
@@ -806,7 +826,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           final items = _filteredItems(provider);
 
           return Container(
-            color: const Color(0xFFF7F7F6),
+            color: isDark
+                ? AppColors.applicantDarkBackground
+                : const Color(0xFFF7F7F6),
             child: Column(
               children: [
                 if (provider.errorMessage != null &&
@@ -854,15 +876,18 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = selected
         ? AppColors.gold.withOpacity(0.75)
-        : const Color(0xFFE8E2D8);
+        : (isDark ? AppColors.applicantDarkOutline : const Color(0xFFE8E2D8));
 
     final backgroundColor = selected
-        ? AppColors.gold.withOpacity(0.26)
-        : Colors.white;
+        ? AppColors.gold.withOpacity(isDark ? 0.20 : 0.26)
+        : (isDark ? AppColors.applicantDarkSurface : Colors.white);
 
-    final textColor = selected ? AppColors.darkBrown : const Color(0xFF625B52);
+    final textColor = selected
+        ? (isDark ? AppColors.applicantDarkText : AppColors.darkBrown)
+        : (isDark ? AppColors.applicantDarkTextMuted : const Color(0xFF625B52));
 
     return Material(
       color: backgroundColor,

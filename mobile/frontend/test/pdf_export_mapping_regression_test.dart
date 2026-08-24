@@ -162,7 +162,7 @@ void main() {
       source,
       contains(
         'model.studentNumber,\n'
-        '      r(721, 2180, 300, 50),\n'
+        '      r(420, 2230, 445, 55),\n'
         '      textFont: smallFont,\n'
         '      align: PdfTextAlignment.center,',
       ),

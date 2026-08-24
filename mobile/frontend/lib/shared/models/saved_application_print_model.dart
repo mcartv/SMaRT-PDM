@@ -92,6 +92,11 @@ class SavedApplicationPrintModel {
     required this.supportOther,
     required this.hadScholarship,
     required this.noScholarshipHistory,
+    this.scholarshipElementary = false,
+    this.scholarshipHighSchool = false,
+    this.scholarshipCollege = false,
+    this.scholarshipOthers = false,
+    this.scholarshipOthersSpecify = '',
     required this.scholarshipDetails,
     required this.hasDisciplinaryRecord,
     required this.noDisciplinaryRecord,
@@ -193,6 +198,11 @@ class SavedApplicationPrintModel {
   final bool supportOther;
   final bool hadScholarship;
   final bool noScholarshipHistory;
+  final bool scholarshipElementary;
+  final bool scholarshipHighSchool;
+  final bool scholarshipCollege;
+  final bool scholarshipOthers;
+  final String scholarshipOthersSpecify;
   final String scholarshipDetails;
   final bool hasDisciplinaryRecord;
   final bool noDisciplinaryRecord;
@@ -352,6 +362,11 @@ class SavedApplicationPrintModel {
       supportOther: financialSupport.toLowerCase() == 'other',
       hadScholarship: profile['has_prior_scholarship'] == true,
       noScholarshipHistory: profile['has_prior_scholarship'] != true,
+      scholarshipElementary: _boolValue(profile['scholarship_elementary']),
+      scholarshipHighSchool: _boolValue(profile['scholarship_high_school']),
+      scholarshipCollege: _boolValue(profile['scholarship_college']),
+      scholarshipOthers: _boolValue(profile['scholarship_others']),
+      scholarshipOthersSpecify: _string(profile['scholarship_others_specify']),
       scholarshipDetails: _string(profile['prior_scholarship_details']),
       hasDisciplinaryRecord: profile['has_disciplinary_record'] == true,
       noDisciplinaryRecord: profile['has_disciplinary_record'] != true,
@@ -577,7 +592,9 @@ class SavedApplicationPrintModel {
       financialSupport: financialSupport,
       financialSupportOther: _firstNonEmpty([
         _string(support['financial_support_other']),
-        _string(support['scholarship_others_specify']),
+        financialSupport.toLowerCase() == 'other'
+            ? _string(support['scholarship_others_specify'])
+            : '',
       ]),
       supportParents: financialSupport.toLowerCase() == 'parents',
       supportScholarship: financialSupport.toLowerCase() == 'scholarship',
@@ -585,6 +602,11 @@ class SavedApplicationPrintModel {
       supportOther: financialSupport.toLowerCase() == 'other',
       hadScholarship: hasPriorScholarship,
       noScholarshipHistory: !hasPriorScholarship,
+      scholarshipElementary: _boolValue(support['scholarship_elementary']),
+      scholarshipHighSchool: _boolValue(support['scholarship_high_school']),
+      scholarshipCollege: _boolValue(support['scholarship_college']),
+      scholarshipOthers: _boolValue(support['scholarship_others']),
+      scholarshipOthersSpecify: _string(support['scholarship_others_specify']),
       scholarshipDetails: _firstNonEmpty([
         _string(support['scholarship_details']),
         _string(support['prior_scholarship_details']),

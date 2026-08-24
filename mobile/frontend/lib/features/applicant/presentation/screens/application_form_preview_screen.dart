@@ -21,6 +21,7 @@ class _ApplicationFormPreviewScreenState
 
   ApplicationData? _data;
   Map<String, dynamic> _application = const {};
+  Map<String, dynamic> _submittedFormPayload = const {};
   bool _canEdit = false;
   bool _loading = true;
   bool _isExportingPdf = false;
@@ -53,6 +54,7 @@ class _ApplicationFormPreviewScreenState
         setState(() {
           _data = null;
           _application = const {};
+          _submittedFormPayload = const {};
           _canEdit = false;
           _lockReason = null;
           _correctionComment = null;
@@ -78,6 +80,7 @@ class _ApplicationFormPreviewScreenState
       setState(() {
         _data = data;
         _application = rawApplication;
+        _submittedFormPayload = rawForm;
         _canEdit = editability['can_edit'] == true;
         _lockReason = _optional(editability['reason']);
         _correctionComment = _optional(editability['correction_comment']);
@@ -131,8 +134,14 @@ class _ApplicationFormPreviewScreenState
     });
 
     try {
+      final payload = Map<String, dynamic>.from(_submittedFormPayload);
+      final existingApplication = Map<String, dynamic>.from(
+        payload['application'] as Map? ?? const {},
+      );
+      payload['application'] = {...existingApplication, ..._application};
+
       final bytes = await _pdfService.generateBytesFromSubmissionPayload(
-        data.toSubmissionPayload(),
+        payload,
       );
 
       if (!mounted) return;

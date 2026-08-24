@@ -907,11 +907,12 @@ async function getOpening(openingId) {
     return data || null;
 }
 
-async function getMyFormData(userId) {
+async function getMyFormData(userId, options = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
     }
 
+    const includeDraft = options?.includeDraft !== false;
     const user = await getUser(userId);
     if (!user) {
         throw createHttpError(404, 'User account not found.');
@@ -928,7 +929,9 @@ async function getMyFormData(userId) {
             }
         }
     }
-    const draft = await getDraft(userId);
+    const draft = includeDraft
+        ? await getDraft(userId)
+        : null;
     const draftPayload = draft?.payload && typeof draft.payload === 'object'
         ? draft.payload
         : {};
@@ -3369,6 +3372,11 @@ async function getMySubmittedFormData(userId) {
                 : 'Editing is locked until OSFA/Admin requests a correction to the application form.';
     }
 
+    const normalizedFormData = await getMyFormData(
+        userId,
+        { includeDraft: false }
+    );
+
     let formData = application.application_payload;
 
     if (
@@ -3376,8 +3384,33 @@ async function getMySubmittedFormData(userId) {
         typeof formData !== 'object' ||
         Array.isArray(formData)
     ) {
-        formData = await getMyFormData(userId);
+        formData = normalizedFormData || {};
+    } else {
+        formData = mergeMissingSubmissionValues(
+            formData,
+            normalizedFormData || {}
+        );
     }
+
+    const formApplication =
+        formData.application &&
+        typeof formData.application === 'object' &&
+        !Array.isArray(formData.application)
+            ? formData.application
+            : {};
+
+    formData = {
+        ...formData,
+        application: {
+            ...formApplication,
+            application_id: application.application_id,
+            application_status: application.application_status || null,
+            document_status: application.document_status || null,
+            verification_status: application.verification_status || null,
+            submission_date: application.submission_date || null,
+            selection_status: application.selection_status || null,
+        },
+    };
 
     const opening = openingResult.data || {};
 

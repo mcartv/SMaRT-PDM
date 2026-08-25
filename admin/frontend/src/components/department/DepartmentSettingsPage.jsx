@@ -242,10 +242,10 @@ export default function DepartmentSettingsPage({
         ) : profile ? (
           <div className="grid overflow-hidden rounded-2xl border border-stone-200 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['Username', profile.username || '—'],
-              ['Email', profile.email || '—'],
+              ['Sign-in email', profile.email || '—'],
               ['Role', roleLabel(profile.role)],
-              ['Department', profile.department || profile.position || '—'],
+              ['Position', profile.position || '—'],
+              ['Department', profile.department || '—'],
             ].map(([label, value], index) => (
               <div
                 key={label}

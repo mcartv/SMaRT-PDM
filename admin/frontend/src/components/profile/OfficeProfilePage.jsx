@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
+import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 
 function DetailItem({ icon, label, value }) {
   return (
@@ -92,6 +93,21 @@ export default function OfficeProfilePage({
             className="relative overflow-hidden px-5 py-7 sm:px-7"
             style={{ background: `linear-gradient(135deg, ${avatarTone}16 0%, #fafaf9 52%, #ffffff 100%)` }}
           >
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 hidden w-[58%] md:block"
+              style={{
+                WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.22) 24%, #000 62%)',
+                maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.22) 24%, #000 62%)',
+              }}
+              aria-hidden="true"
+            >
+              <img
+                src={pdmFacade}
+                alt=""
+                className="h-full w-full object-cover object-center opacity-30"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/35" />
+            </div>
             <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-10" style={{ backgroundColor: avatarTone }} />
             <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center">

@@ -483,3 +483,28 @@ class ApiClient:
         except (requests.RequestException, ValueError) as exc:
             self._log_transport_error(f"Complete Grade V2 extraction for {request_id[:8]}", str(exc))
             return None
+
+    def submit_indigency_v2_artifact(self, request_id: str, content: bytes, mime_type: str) -> Optional[Dict[str, Any]]:
+        """Upload one private original for server-side Indigency Enhanced OCR."""
+        manifest = [{
+            "artifact_kind": "original",
+            "cell_key": None,
+            "mime_type": mime_type,
+            "byte_count": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }]
+        authorized = self.authorize_grade_v2_uploads(request_id, manifest)
+        if not authorized or len(authorized.get("artifacts") or []) != 1:
+            return None
+        authorization = authorized["artifacts"][0]
+        if not self.upload_signed_artifact(authorization, content, mime_type):
+            return None
+        url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/capture-artifacts/complete"
+        try:
+            response = self.session.post(url, headers=self._headers(), json={}, timeout=self.birth_v2_completion_timeout)
+            response.raise_for_status()
+            payload = response.json()
+            return payload.get("data") if isinstance(payload, dict) else None
+        except (requests.RequestException, ValueError) as exc:
+            self._log_transport_error(f"Complete Indigency V2 extraction for {request_id[:8]}", str(exc))
+            return None

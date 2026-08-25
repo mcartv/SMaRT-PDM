@@ -35,6 +35,12 @@ class BirthVersionRoutingContractTest(unittest.TestCase):
         self.assertIn("BIRTH_V2_COMPLETION_TIMEOUT_SECONDS", module_source)
         self.assertIn("timeout=self.birth_v2_completion_timeout", module_source)
 
+    def test_indigency_v2_uses_the_private_backend_extraction_path(self):
+        source = inspect.getsource(job_worker._run_indigency_v2_scan)
+        self.assertNotIn("_run_generic_document_scan", source)
+        self.assertIn("submit_indigency_v2_artifact", source)
+        self.assertIn("indigency_enhanced_backend", source)
+
 
 if __name__ == "__main__":
     unittest.main()

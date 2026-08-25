@@ -1753,6 +1753,8 @@ function OCRPanel({
   onBirthOcrVersionChange,
   gradeOcrVersion,
   onGradeOcrVersionChange,
+  indigencyOcrVersion,
+  onIndigencyOcrVersionChange,
   birthReviewImageUrl,
   birthReviewImageStatus,
   birthReviewImageError,
@@ -1765,7 +1767,7 @@ function OCRPanel({
   const canRunIotOcr = Boolean(
     activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
   );
-  const isVersionedOcrHub = ['birth_certificate', 'student_grade_forms'].includes(activeDoc?.id);
+  const isVersionedOcrHub = ['birth_certificate', 'student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id);
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
   const isIndigencyReview = activeDoc?.id === 'certificate_of_indigency' && reviewCandidate;
   const isBirthReview = activeDoc?.id === 'birth_certificate' && reviewCandidate;
@@ -1821,10 +1823,16 @@ function OCRPanel({
                   <label className="flex shrink-0 flex-col gap-1.5">
                     <span className="pl-1 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400">Mode</span>
                     <select
-                      value={activeDoc?.id === 'birth_certificate' ? birthOcrVersion : gradeOcrVersion}
+                      value={activeDoc?.id === 'birth_certificate'
+                        ? birthOcrVersion
+                        : activeDoc?.id === 'student_grade_forms'
+                          ? gradeOcrVersion
+                          : indigencyOcrVersion}
                       onChange={(event) => activeDoc?.id === 'birth_certificate'
                         ? onBirthOcrVersionChange(event.target.value)
-                        : onGradeOcrVersionChange(event.target.value)}
+                        : activeDoc?.id === 'student_grade_forms'
+                          ? onGradeOcrVersionChange(event.target.value)
+                          : onIndigencyOcrVersionChange(event.target.value)}
                       className="h-10 w-full min-w-[210px] max-w-[232px] rounded-xl border border-stone-200 bg-white px-3 text-[13px] font-semibold text-stone-700 shadow-sm outline-none transition-colors focus:border-stone-400"
                       aria-label={`${activeDoc?.name || 'Document'} OCR version`}
                     >
@@ -3265,6 +3273,7 @@ export default function DocumentVerification() {
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
   const [birthOcrVersion, setBirthOcrVersion] = useState('v2');
   const [gradeOcrVersion, setGradeOcrVersion] = useState('v2');
+  const [indigencyOcrVersion, setIndigencyOcrVersion] = useState('v2');
   const [birthReviewImageUrl, setBirthReviewImageUrl] = useState('');
   const [birthReviewImageStatus, setBirthReviewImageStatus] = useState('idle');
   const [birthReviewImageError, setBirthReviewImageError] = useState('');
@@ -4253,8 +4262,14 @@ export default function DocumentVerification() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(
-            ['birth_certificate', 'student_grade_forms'].includes(targetDocumentId)
-              ? { ocr_version: targetDocumentId === 'birth_certificate' ? birthOcrVersion : gradeOcrVersion }
+            ['birth_certificate', 'student_grade_forms', 'certificate_of_indigency'].includes(targetDocumentId)
+              ? {
+                  ocr_version: targetDocumentId === 'birth_certificate'
+                    ? birthOcrVersion
+                    : targetDocumentId === 'student_grade_forms'
+                      ? gradeOcrVersion
+                      : indigencyOcrVersion,
+                }
               : {}
           ),
           cache: 'no-store',
@@ -4992,6 +5007,8 @@ export default function DocumentVerification() {
                   onBirthOcrVersionChange={setBirthOcrVersion}
                   gradeOcrVersion={gradeOcrVersion}
                   onGradeOcrVersionChange={setGradeOcrVersion}
+                  indigencyOcrVersion={indigencyOcrVersion}
+                  onIndigencyOcrVersionChange={setIndigencyOcrVersion}
                   birthReviewImageUrl={birthReviewImageUrl}
                   birthReviewImageStatus={birthReviewImageStatus}
                   birthReviewImageError={birthReviewImageError}
@@ -5026,6 +5043,8 @@ export default function DocumentVerification() {
                     onBirthOcrVersionChange={setBirthOcrVersion}
                     gradeOcrVersion={gradeOcrVersion}
                     onGradeOcrVersionChange={setGradeOcrVersion}
+                    indigencyOcrVersion={indigencyOcrVersion}
+                    onIndigencyOcrVersionChange={setIndigencyOcrVersion}
                     birthReviewImageUrl={birthReviewImageUrl}
                     birthReviewImageStatus={birthReviewImageStatus}
                     birthReviewImageError={birthReviewImageError}

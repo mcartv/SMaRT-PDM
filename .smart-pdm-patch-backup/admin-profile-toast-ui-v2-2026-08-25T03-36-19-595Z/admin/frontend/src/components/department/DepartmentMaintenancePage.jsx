@@ -240,14 +240,6 @@ function useDepartmentAccountManager({
   const currentProfileImage = photoPreview || resolveProfileImage(profileData);
   const displayName = `${account.first_name} ${account.last_name}`.trim() || config.shortName;
   const feedbackIsError = /failed|please|expired|already|valid|required|unable/i.test(accountFeedback);
-  const hasAccountChanges = useMemo(() => {
-    if (!initialAccount) return false;
-
-    const editableFields = ['first_name', 'last_name', 'email', 'phone_number', 'position'];
-    return editableFields.some((field) =>
-      String(account?.[field] ?? '').trim() !== String(initialAccount?.[field] ?? '').trim()
-    );
-  }, [account, initialAccount]);
   const initials = useMemo(() => {
     const parts = displayName.split(' ').filter(Boolean);
     if (parts.length <= 1) return (parts[0]?.[0] || config.shortName[0] || 'S').toUpperCase();
@@ -390,9 +382,6 @@ function useDepartmentAccountManager({
   };
 
   const handleSaveAccount = async () => {
-    if (config.shortName === 'Admin' && !hasAccountChanges) {
-      return;
-    }
     try {
       setSavingAccount(true);
       setAccountFeedback('');
@@ -458,7 +447,6 @@ function useDepartmentAccountManager({
     handleRemovePhoto,
     handleUploadPhoto,
     handleSaveAccount,
-    hasAccountChanges,
     handleFieldChange,
     resetAccount,
     photoFile,
@@ -580,7 +568,6 @@ export function DepartmentAccountPanel({
     handleRemovePhoto,
     handleUploadPhoto,
     handleSaveAccount,
-    hasAccountChanges,
     handleFieldChange,
     resetAccount,
     photoFile,
@@ -832,9 +819,9 @@ export function DepartmentAccountPanel({
             </Button>
             <Button
               onClick={handleSaveAccount}
-              className="h-9 rounded-lg border-none text-xs text-white disabled:cursor-not-allowed disabled:text-stone-500 disabled:opacity-100"
-              style={{ background: config.shortName === 'Admin' && !hasAccountChanges ? '#e7e5e4' : palette.base }}
-              disabled={loadingProfile || savingAccount || (config.shortName === 'Admin' && !hasAccountChanges)}
+              className="h-9 rounded-lg border-none text-xs text-white"
+              style={{ background: palette.base }}
+              disabled={loadingProfile || savingAccount}
             >
               {savingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save {config.shortName} Account

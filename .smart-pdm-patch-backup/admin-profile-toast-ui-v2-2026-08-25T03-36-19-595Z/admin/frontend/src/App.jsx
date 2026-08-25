@@ -377,7 +377,6 @@ export default function App() {
       </Routes>
       <Toaster
         position="top-right"
-        offset={{ top: '72px', right: '16px' }}
         closeButton
         richColors
         duration={3600}

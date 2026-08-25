@@ -1751,6 +1751,8 @@ function OCRPanel({
   cancelSupported,
   birthOcrVersion,
   onBirthOcrVersionChange,
+  gradeOcrVersion,
+  onGradeOcrVersionChange,
   birthReviewImageUrl,
   birthReviewImageStatus,
   birthReviewImageError,
@@ -1776,7 +1778,7 @@ function OCRPanel({
   const birthV2Review = Boolean(isBirthReview && reviewCandidate?.ocr_version === 'v2');
   const birthFullPageRecovery = Boolean(
     birthV2Review
-    && reviewCandidate?.processing?.structured_value_source === 'birth_v2_full_page_gemini_recovery'
+    && reviewCandidate?.processing?.structured_value_source === 'birth_v2_full_page_enhanced_recovery'
   );
   const birthRawUnavailable = Boolean(
     birthV2Review && !String(rawOcrSnapshot || '').trim()
@@ -1809,17 +1811,19 @@ function OCRPanel({
         </div>
 
         <div className="flex items-center gap-2">
-          {activeDoc?.id === 'birth_certificate' && !runningIotOcr && !reviewCandidate && (
+          {['birth_certificate', 'student_grade_forms'].includes(activeDoc?.id) && !runningIotOcr && !reviewCandidate && (
             <label className="flex items-center gap-1 text-xs text-stone-600">
               <span>Mode</span>
               <select
-                value={birthOcrVersion}
-                onChange={(event) => onBirthOcrVersionChange(event.target.value)}
+                value={activeDoc?.id === 'birth_certificate' ? birthOcrVersion : gradeOcrVersion}
+                onChange={(event) => activeDoc?.id === 'birth_certificate'
+                  ? onBirthOcrVersionChange(event.target.value)
+                  : onGradeOcrVersionChange(event.target.value)}
                 className="h-8 rounded-lg border border-stone-200 bg-white px-2"
-                aria-label="Birth OCR version"
+                aria-label={`${activeDoc?.name || 'Document'} OCR version`}
               >
-                <option value="v2">V2 Gemini review</option>
-                <option value="v1">V1 local Tesseract</option>
+                <option value="v1">Version 1 - Local OCR</option>
+                <option value="v2">Version 2 - Enhanced OCR</option>
               </select>
             </label>
           )}
@@ -2040,7 +2044,7 @@ function OCRPanel({
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 {reviewCandidate.ocr_version === 'v2'
                   ? reviewCandidate?.processing?.private_capture_available
-                    ? 'Gemini could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
+                ? 'Enhanced OCR could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
                     : 'This earlier Birth V2 attempt did not upload its private capture. The candidate cannot be confirmed; request a rescan to capture and display a review image.'
                   : 'The Birth rows were not safely identified. The raw snapshot below is diagnostic full-page OCR only and cannot be confirmed as parent information. Reposition the complete form and retry OCR.'}
               </div>
@@ -2414,8 +2418,8 @@ function OCRPanel({
           <p className="mb-1 text-xs uppercase tracking-wide text-stone-400">
             {isBirthReview
               ? reviewCandidate?.ocr_version === 'v2'
-                ? 'Full-Page Gemini Transcription'
-                : 'Raw Tesseract OCR Snapshot'
+                ? 'Full-Page Transcription'
+                : 'Raw OCR Snapshot'
               : 'Raw OCR Snapshot'}
           </p>
 
@@ -2427,7 +2431,7 @@ function OCRPanel({
 
           {birthRawUnavailable ? (
             <div className="min-h-[120px] rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
-              Full-page Gemini transcription is unavailable
+              Full-page transcription is unavailable
               {reviewCandidate?.processing?.raw_text_error_code || reviewCandidate?.processing?.diagnostic_raw_error_code
                 ? ` (${reviewCandidate.processing.raw_text_error_code || reviewCandidate.processing.diagnostic_raw_error_code})`
                 : ''}. Request a rescan; no OCR text was fabricated.
@@ -3208,6 +3212,7 @@ export default function DocumentVerification() {
   const [correctedFields, setCorrectedFields] = useState({});
   const [reviewingCandidate, setReviewingCandidate] = useState(false);
   const [birthOcrVersion, setBirthOcrVersion] = useState('v2');
+  const [gradeOcrVersion, setGradeOcrVersion] = useState('v2');
   const [birthReviewImageUrl, setBirthReviewImageUrl] = useState('');
   const [birthReviewImageStatus, setBirthReviewImageStatus] = useState('idle');
   const [birthReviewImageError, setBirthReviewImageError] = useState('');
@@ -4196,8 +4201,8 @@ export default function DocumentVerification() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(
-            targetDocumentId === 'birth_certificate'
-              ? { ocr_version: birthOcrVersion }
+            ['birth_certificate', 'student_grade_forms'].includes(targetDocumentId)
+              ? { ocr_version: targetDocumentId === 'birth_certificate' ? birthOcrVersion : gradeOcrVersion }
               : {}
           ),
           cache: 'no-store',
@@ -4933,6 +4938,8 @@ export default function DocumentVerification() {
                   cancelSupported={iotOcrCapabilities.admin_cancel === true}
                   birthOcrVersion={birthOcrVersion}
                   onBirthOcrVersionChange={setBirthOcrVersion}
+                  gradeOcrVersion={gradeOcrVersion}
+                  onGradeOcrVersionChange={setGradeOcrVersion}
                   birthReviewImageUrl={birthReviewImageUrl}
                   birthReviewImageStatus={birthReviewImageStatus}
                   birthReviewImageError={birthReviewImageError}
@@ -4965,6 +4972,8 @@ export default function DocumentVerification() {
                     cancelSupported={iotOcrCapabilities.admin_cancel === true}
                     birthOcrVersion={birthOcrVersion}
                     onBirthOcrVersionChange={setBirthOcrVersion}
+                    gradeOcrVersion={gradeOcrVersion}
+                    onGradeOcrVersionChange={setGradeOcrVersion}
                     birthReviewImageUrl={birthReviewImageUrl}
                     birthReviewImageStatus={birthReviewImageStatus}
                     birthReviewImageError={birthReviewImageError}

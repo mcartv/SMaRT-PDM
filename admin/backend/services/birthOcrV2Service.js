@@ -779,7 +779,7 @@ function proposalDisagreementIssues(cellFields, fullPageFields) {
         .map(([fieldKey]) => ({
             code: 'BIRTH_V2_SOURCE_DISAGREEMENT',
             field: fieldKey,
-            message: 'Exact-cell and full-page Gemini proposals differ. Review this field against the private capture.',
+            message: 'Exact-cell and full-page Enhanced OCR proposals differ. Review this field against the private capture.',
         }));
 }
 
@@ -801,10 +801,10 @@ function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult =
         validationIssues.push(...proposalDisagreementIssues(cellFields, fullPageFields));
     } else if (fullPageFields) {
         selectedFields = buildCandidate(fullPageFields).fields;
-        structuredValueSource = 'birth_v2_full_page_gemini_recovery';
+        structuredValueSource = 'birth_v2_full_page_enhanced_recovery';
         validationIssues.push({
             code: 'BIRTH_V2_FULL_PAGE_RECOVERY_USED',
-            message: 'Name fields were recovered from the full-page Gemini reading and require administrator review.',
+            message: 'Name fields were recovered from the full-page Enhanced OCR reading and require administrator review.',
         });
         if (cellGemini?.code) {
             validationIssues.push({
@@ -815,7 +815,7 @@ function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult =
     } else {
         validationIssues.push({
             code: cellGemini?.code || 'BIRTH_V2_STRUCTURED_EXTRACTION_FAILED',
-            message: diagnosticResult?.message || 'Gemini could not produce the required Child and Mother names.',
+            message: diagnosticResult?.message || 'Enhanced OCR could not produce the required Child and Mother names.',
         });
         if (fullPageGemini?.ok) {
             validationIssues.push({
@@ -828,7 +828,7 @@ function selectBirthV2Candidate({ cellGemini, fullPageGemini, diagnosticResult =
     if (!fullPageGemini?.ok) {
         validationIssues.push({
             code: fullPageGemini?.code || 'GEMINI_FULL_PAGE_UNAVAILABLE',
-            message: 'The immutable full-page Gemini transcription is unavailable; no replacement text was fabricated.',
+            message: 'The immutable full-page transcription is unavailable; no replacement text was fabricated.',
         });
     }
 

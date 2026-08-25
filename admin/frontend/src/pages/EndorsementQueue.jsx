@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
+import { canPdEndorse } from '@/utils/endorsementEligibility';
 import {
   Select,
   SelectContent,
@@ -203,16 +204,7 @@ function decisionTone(value) {
 }
 
 function hasUploadedGrade(row) {
-  return row?.grade_document?.is_uploaded === true;
-}
-
-function getGradeValidation(row) {
-  const validation = row?.grade_summary?.grade_validation;
-  return validation && typeof validation === 'object' ? validation : null;
-}
-
-function hasValidGrade(row) {
-  return getGradeValidation(row)?.is_valid === true;
+  return canPdEndorse({ gradeUploaded: row?.grade_document?.is_uploaded === true });
 }
 
 function ProfileAvatar({ row, size = 'md', onPreview }) {
@@ -545,13 +537,7 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
   }
 
   const standing = state.pdResult || '';
-  const gradeValidation = getGradeValidation(row);
-  const gradeReady = hasValidGrade(row);
-  const gradeBlockingReason =
-    gradeValidation?.blocking_reason ||
-    (!hasUploadedGrade(row)
-      ? 'A Grade Report is required before PD endorsement.'
-      : 'Grade Report OCR and GWA validation must pass before PD endorsement.');
+  const gradeDocumentReady = hasUploadedGrade(row);
   return (
     <div className="space-y-4">
       <div>
@@ -560,7 +546,7 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
       </div>
       <Select value={standing}
         onValueChange={(value) => onChange({ pdResult: value })}
-        disabled={!gradeReady || saving}
+        disabled={!gradeDocumentReady || saving}
       >
         <SelectTrigger className="bg-white"><SelectValue placeholder="Select scholastic standing" /></SelectTrigger>
         <SelectContent>
@@ -569,16 +555,12 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
         </SelectContent>
       </Select>
       <Textarea value={state.remarks || ''} onChange={(event) => onChange({ remarks: event.target.value })} rows={3} placeholder="Optional remarks" />
-      {!gradeReady ? (
+      {!gradeDocumentReady ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-          {gradeBlockingReason}
+          A Grade Report is required for Program Director review.
         </p>
-      ) : (
-        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-          Grade Report OCR and GWA validation passed.
-        </p>
-      )}
-      <Button disabled={saving || !gradeReady || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
+      ) : null}
+      <Button disabled={saving || !gradeDocumentReady || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
       </Button>
     </div>
@@ -598,7 +580,6 @@ function confirmationMeta(queueKey, action, studentName) {
 function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClose, onViewFull, detailBasePath, onPreviewProfile, onPreviewGrade }) {
   if (!row) return null;
   const decision = getDecision(queueKey, row);
-  const gradeValidation = getGradeValidation(row);
   return (
     <Sheet open={Boolean(row)} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
@@ -638,21 +619,10 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
                 <div><p className="text-xs text-stone-500">OCR GWA</p><p className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</p></div>
                 <div><p className="text-xs text-stone-500">Academic Period</p><p className="font-semibold text-stone-900">{row.semester || 'N/A'} / {row.school_year || 'N/A'}</p></div>
                 <div>
-                  <p className="text-xs text-stone-500">Grade Validation</p>
-                  <p className={`font-semibold ${gradeValidation?.is_valid === true ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {gradeValidation?.is_valid === true
-                      ? 'Passed'
-                      : gradeValidation?.status
-                        ? String(gradeValidation.status).replaceAll('_', ' ')
-                        : 'Not validated'}
-                  </p>
+                  <p className="text-xs text-stone-500">Grade OCR Evidence</p>
+                  <p className="font-semibold text-stone-900">Informational only</p>
                 </div>
               </div>
-              {gradeValidation?.blocking_reason ? (
-                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                  {gradeValidation.blocking_reason}
-                </p>
-              ) : null}
               {row.grade_document?.url ? (
                 <div className="mt-4">
                   <Button
@@ -818,7 +788,7 @@ export default function EndorsementQueue({
     const { row, action } = confirmAction;
     if (queueKey === 'pd' && !hasUploadedGrade(row)) {
       setConfirmAction(null);
-      setError('A Grade Report must be uploaded before PD endorsement.');
+      setError('A Grade Report is required for Program Director review.');
       return;
     }
     const state = actionState[row.slip_id] || {};
@@ -868,9 +838,9 @@ export default function EndorsementQueue({
   if (loading) return <PageLoadingSkeleton label="Loading endorsement queue" showStats />;
 
   const confirm = confirmAction ? confirmationMeta(queueKey, confirmAction.action, confirmAction.row.student_name) : null;
+  const selectedState = selectedRow ? actionState[selectedRow.slip_id] || {} : {};
   const confirmBlockedByMissingGrade =
     queueKey === 'pd' && Boolean(confirmAction) && !hasUploadedGrade(confirmAction.row);
-  const selectedState = selectedRow ? actionState[selectedRow.slip_id] || {} : {};
 
   return (
     <div className="space-y-5 py-2">
@@ -933,7 +903,7 @@ export default function EndorsementQueue({
         onSubmit={(action) => {
           if (!selectedRow) return;
           if (queueKey === 'pd' && !hasUploadedGrade(selectedRow)) {
-            setError('A Grade Report must be uploaded before PD endorsement.');
+            setError('A Grade Report is required for Program Director review.');
             return;
           }
           setConfirmAction({ row: selectedRow, action });

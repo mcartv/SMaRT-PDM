@@ -1649,6 +1649,20 @@ def _run_grade_form_scan(request: Dict, capture_path: str) -> Tuple[bool, Dict]:
     }
 
 
+def _run_grade_form_v2_scan(request: Dict, capture_path: str, api: ApiClient | None) -> Tuple[bool, Dict]:
+    """Upload the private original; enhanced Grade interpretation stays server-side."""
+    if api is None:
+        return False, {"status": "failed", "error_code": "GRADE_V2_API_UNAVAILABLE", "error_message": "Enhanced Grade OCR requires the backend API."}
+    try:
+        content = Path(capture_path).read_bytes()
+        result = api.submit_grade_v2_artifact(get_request_id(request), content, "image/jpeg")
+    except OSError:
+        result = None
+    if not result:
+        return False, {"status": "failed", "error_code": "GRADE_V2_UPLOAD_FAILED", "error_message": "Private Grade V2 upload or backend extraction failed."}
+    return True, {"status": "review_required", "_v2_backend_completed": True, "source_payload": {"ocr_version": "v2", "mode": "grade_form_enhanced_backend"}}
+
+
 def _configure_camera_for_document(camera: CameraController, document_key: str) -> None:
     if document_key == "student_grade_forms":
         camera.focus_mode = "continuous"
@@ -1730,7 +1744,11 @@ def run_scan(request: Dict, status_callback=None, request_stop=None, api: ApiCli
                 "error_message": "Birth OCR version is unsupported.",
             }
     elif document_key == "student_grade_forms":
-        success, payload = _run_grade_form_scan(request, capture_result.capture_path)
+        ocr_version = str(request.get("ocr_version") or "v1").strip().lower()
+        if ocr_version == "v2":
+            success, payload = _run_grade_form_v2_scan(request, capture_result.capture_path, api)
+        else:
+            success, payload = _run_grade_form_scan(request, capture_result.capture_path)
     else:
         success, payload = _run_generic_document_scan(request, capture_result.capture_path)
     payload["_workspace"] = str(workspace)

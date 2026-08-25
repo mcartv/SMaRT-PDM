@@ -3,6 +3,7 @@ const documentTypes = require('../utils/documentTypes');
 const { normalizeDeviceId, normalizeUserId } = require('../utils/iotOcrIdentity');
 const { isMarilaoLocation } = require('../utils/marilaoResidency');
 const { ensureIotOcrSchema } = require('./iotOcrSchemaService');
+const { OCR_VERSION, isSupportedOcrVersion } = require('../utils/ocrVersions');
 
 const PI_ACTIVE_STATUSES = Object.freeze([
     'pending', 'claimed', 'previewing', 'focusing', 'capturing', 'processing',
@@ -135,9 +136,13 @@ function normalizeReviewReason(value, { required = false } = {}) {
 
 function normalizeOcrVersion(documentKey, value, defaultBirthVersion = 'v2') {
     const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
-    if (!['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)) return 'v1';
-    const normalized = String(value || defaultBirthVersion).trim().toLowerCase();
-    if (!['v1', 'v2'].includes(normalized)) throw buildHttpError(400, 'ocr_version must be v1 or v2');
+    const defaultVersion = ['birth_certificate', 'certificate_of_live_birth'].includes(normalizedDocumentKey)
+        ? defaultBirthVersion
+        : OCR_VERSION.V1;
+    const normalized = String(value || defaultVersion).trim().toLowerCase();
+    if (!isSupportedOcrVersion(normalizedDocumentKey, normalized)) {
+        throw buildHttpError(400, `ocr_version ${normalized} is not supported for ${normalizedDocumentKey}`);
+    }
     return normalized;
 }
 

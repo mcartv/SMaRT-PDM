@@ -178,8 +178,11 @@ exports.submitIotOcrRequestResult = async (req, res) => {
 exports.authorizeBirthV2Uploads = async (req, res) => {
     try {
         iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
-        const birthV2 = require('../services/birthOcrV2Service');
-        const data = await birthV2.authorizeUploads({
+        const request = await iotOcrRequestService.getRequestById({ requestId: req.params.requestId });
+        const service = request?.document_key === 'student_grade_forms' && request?.ocr_version === 'v2'
+            ? require('../services/gradeOcrV2Service')
+            : require('../services/birthOcrV2Service');
+        const data = await service.authorizeUploads({
             requestId: req.params.requestId,
             deviceId: req.piAuth?.deviceId,
             artifacts: req.body?.artifacts,
@@ -202,8 +205,12 @@ exports.authorizeBirthV2Uploads = async (req, res) => {
 exports.completeBirthV2Uploads = async (req, res) => {
     try {
         iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
-        const birthV2 = require('../services/birthOcrV2Service');
-        const data = await birthV2.completeUploads({
+        const requestRow = await iotOcrRequestService.getRequestById({ requestId: req.params.requestId });
+        const isGradeV2 = requestRow?.document_key === 'student_grade_forms' && requestRow?.ocr_version === 'v2';
+        const service = isGradeV2
+            ? require('../services/gradeOcrV2Service')
+            : require('../services/birthOcrV2Service');
+        const data = await service.completeUploads({
             requestId: req.params.requestId,
             deviceId: req.piAuth?.deviceId,
             diagnostic: req.body?.diagnostic || null,
@@ -218,7 +225,7 @@ exports.completeBirthV2Uploads = async (req, res) => {
             expires_at: request.expires_at,
             updated_at: request.updated_at,
         });
-        return res.status(200).json({ message: 'Birth V2 extraction completed', data });
+        return res.status(200).json({ message: isGradeV2 ? 'Grade V2 extraction completed' : 'Birth V2 extraction completed', data });
     } catch (error) {
         console.error('BIRTH_V2_UPLOAD_COMPLETION_ERROR', {
             request_id: String(req.params?.requestId || '').slice(0, 8),

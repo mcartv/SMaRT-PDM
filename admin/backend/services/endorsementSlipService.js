@@ -1468,15 +1468,11 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
         }
         const isCurrentQueueStage = currentSlip.current_stage === config.stage;
 
-        if (
-            queueKey === 'pd' &&
-            normalizePdAction(action, {
-                scholasticStanding: payload?.scholastic_standing,
-                gwa: currentSlip.gwa,
-            })
-        ) {
-            const gradeDocumentResult = await client.query(
-                `
+        if (queueKey === 'pd' && normalizePdAction(action, {
+            scholasticStanding: payload?.scholastic_standing,
+            gwa: currentSlip.gwa,
+        })) {
+            const gradeDocumentResult = await client.query(`
                 select ad.document_id
                 from application_documents ad
                 where ad.application_id = $1
@@ -1487,15 +1483,9 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
                     or nullif(trim(coalesce(ad.file_url, '')), '') is not null
                   )
                 limit 1
-                `,
-                [currentSlip.application_id]
-            );
-
+            `, [currentSlip.application_id]);
             if (!gradeDocumentResult.rows.length) {
-                throw createHttpError(
-                    409,
-                    'Program Director cannot endorse this slip until the applicant uploads the Grade Report.'
-                );
+                throw createHttpError(409, 'A Grade Report is required for Program Director review.');
             }
         }
 

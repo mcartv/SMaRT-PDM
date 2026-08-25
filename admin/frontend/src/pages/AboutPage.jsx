@@ -330,7 +330,7 @@ const projectTechnologyGroups = [
     description: 'Application services, authentication, records, messaging, and integrations.',
     rows: [
       { label: 'Server & Database', items: ['Node.js', 'Express.js', 'Supabase', 'PostgreSQL', 'SQL'] },
-      { label: 'Authentication & Services', items: ['JWT', 'bcrypt', 'reCAPTCHA Enterprise', 'Twilio', 'Nodemailer', 'Google Gemini API'] },
+      { label: 'Authentication & Services', items: ['JWT', 'bcrypt', 'reCAPTCHA Enterprise', 'Twilio', 'Nodemailer', 'Enhanced OCR provider'] },
     ],
   },
   {

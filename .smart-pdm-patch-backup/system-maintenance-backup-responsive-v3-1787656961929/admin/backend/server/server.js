@@ -2,7 +2,6 @@
 const fs = require('fs');
 const http = require('http');
 const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
-const { ensureSystemMaintenanceMigration } = require('../services/systemMaintenanceMigrationService'); // SMART-PDM_SYSTEM_MAINTENANCE_SERVER_V1
 const socketIO = require('socket.io');
 
 if (process.env.NODE_ENV !== 'production') {
@@ -71,7 +70,6 @@ const reportRoutes = require('../routes/reportRoutes');
 const roSettingRoutes = require('../routes/roSettingRoutes');
 const themeSettingRoutes = require('../routes/themeSettingRoutes');
 const generalSettingRoutes = require('../routes/generalSettingRoutes');
-const systemMaintenanceRoutes = require('../routes/systemMaintenanceRoutes');
 const personalToolRoutes = require('../routes/personalToolRoutes');
 
 const piRoutes = require('../routes/piRoutes');
@@ -303,7 +301,6 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/ro-settings', roSettingRoutes);
 app.use('/api/theme-settings', themeSettingRoutes);
 app.use('/api/general-settings', generalSettingRoutes);
-app.use('/api/system-maintenance', systemMaintenanceRoutes);
 app.use('/api/personal-tools', personalToolRoutes);
 
 app.use('/api/pi', piRoutes);
@@ -653,7 +650,6 @@ if (!global._announcementSchedulerRunning) {
 async function startServer() {
   try {
     await ensureCanonicalIotOcrMigration();
-    await ensureSystemMaintenanceMigration();
     require('../services/birthOcrV2Service').cleanupPendingArtifacts().catch((error) => {
       console.warn('IOT_OCR_ARTIFACT_CLEANUP_RETRY_FAILED', { code: error.code || 'CLEANUP_FAILED' });
     });

@@ -1752,8 +1752,9 @@ export default function GeneralPanel() {
                         title="System"
                         description="Review core service status and access system maintenance tools from General settings."
                     >
-                        {/* SMART-PDM_SYSTEM_PANEL_LIVE_V1 */}
-                        <SystemPanel embedded editing={generalEditing} />
+                        <EditableRegion editing={generalEditing}>
+                            <SystemPanel embedded />
+                        </EditableRegion>
                     </SectionFrame>
                 ) : null}
             </div>

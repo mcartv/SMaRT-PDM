@@ -42,7 +42,7 @@ const TABS = [
 
 function TopNav({ tabs, active, onChange }) {
   return (
-    <div className="sticky top-0 z-20 shrink-0 bg-transparent px-2 py-2">
+    <div className="sticky top-0 z-20 bg-transparent px-2 py-2">
       <div className="overflow-x-auto">
         <div className="mx-auto flex w-max min-w-max items-center gap-1 rounded-xl bg-stone-100 p-1">
           {tabs.map((item) => {
@@ -54,7 +54,7 @@ function TopNav({ tabs, active, onChange }) {
                 key={item.key}
                 type="button"
                 onClick={() => onChange(item.key)}
-                className={`flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 font-sans text-sm font-semibold leading-tight tracking-[-0.01em] transition-colors ${
+                className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 font-sans text-sm font-semibold leading-none tracking-[-0.01em] transition-colors ${
                   isActive
                     ? 'bg-white text-stone-900 shadow-sm'
                     : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
@@ -71,7 +71,6 @@ function TopNav({ tabs, active, onChange }) {
   );
 }
 
-// SMART-PDM_MAINTENANCE_VIEWPORT_FIT_V1
 export default function Maintenance() {
   const [tab, setTab] = useState('general');
   const [themeView, setThemeView] = useState('landing');
@@ -173,16 +172,22 @@ export default function Maintenance() {
 
   return (
     <div
-      className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden"
-      style={{ background: theme.mainBg }}
-      data-maintenance-viewport-fit="true"
+      className="flex flex-col"
+      style={{
+        background: theme.mainBg,
+        minHeight: 'calc(100dvh - 120px)',
+      }}
     >
       <TopNav tabs={TABS} active={tab} onChange={setTab} />
 
-      <div className="min-h-0 min-w-0 flex-1 p-2.5">
-        <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border-stone-200 shadow-none">
+      <div className="flex-1 p-2.5">
+        <Card className="flex h-full flex-col overflow-hidden rounded-xl border-stone-200 shadow-none">
           <div
-            className={`min-h-0 min-w-0 flex-1 overflow-auto ${isRegistry ? 'p-2.5' : 'p-3'}`}
+            className={`flex-1 overflow-auto ${
+              isRegistry
+                ? 'max-h-[calc(100vh-132px)] p-2.5'
+                : 'max-h-[calc(100vh-132px)] p-3'
+            }`}
           >
             {renderActiveTab()}
           </div>

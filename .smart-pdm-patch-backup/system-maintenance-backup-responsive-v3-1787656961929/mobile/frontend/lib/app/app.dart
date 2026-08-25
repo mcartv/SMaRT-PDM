@@ -4,7 +4,6 @@ import 'package:smartpdm_mobileapp/app/routes/app_router.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_theme.dart';
 import 'package:smartpdm_mobileapp/app/theme/theme_provider.dart';
-import 'package:smartpdm_mobileapp/core/maintenance/maintenance_mode_gate.dart'; // SMART-PDM_MOBILE_MAINTENANCE_GATE_V1
 
 class SmartPdmApp extends StatelessWidget {
   const SmartPdmApp({super.key});
@@ -50,9 +49,7 @@ class SmartPdmApp extends StatelessWidget {
               data: mediaQuery.copyWith(
                 textScaler: TextScaler.linear(effectiveTextScale),
               ),
-              child: MaintenanceModeGate(
-                child: child ?? const SizedBox.shrink(),
-              ),
+              child: child ?? const SizedBox.shrink(),
             );
           },
           debugShowCheckedModeBanner: false,

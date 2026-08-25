@@ -1,0 +1,7 @@
+# Birth Certificate Items 1, 6, and 13 only. The worker falls back safely to
+# its existing Tesseract reader when this optional runtime is unavailable.
+# Paddle's official CPU index supplies the Linux aarch64 wheel used by Pi 5.
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
+paddlepaddle==3.3.0
+paddleocr>=3.7,<4
+onnxruntime>=1.22,<2

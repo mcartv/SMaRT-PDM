@@ -13,14 +13,9 @@ import SystemLogIcon from '@/components/system/SystemLogIcon';
 import {
     Building2,
     Shield,
-    Clock3,
     Activity,
-    MapPin,
-    Monitor,
-    Smartphone,
     BadgeCheck,
     Settings,
-    ChevronRight,
     Loader2,
     AlertCircle,
     Mail,
@@ -164,7 +159,6 @@ export default function AdminProfile() {
         department: savedProfile?.department || 'Office for Scholarship and Financial Assistance',
         role: savedProfile?.role || 'Super Admin',
         status: savedProfile?.is_active === false ? 'Inactive' : 'Active',
-        bio: 'Oversees scholarship records, scholar compliance, announcements, and administrative coordination for the SMaRT-PDM platform.',
         avatarUrl:
             savedProfile?.avatar_url ||
             savedProfile?.profile_photo_url ||
@@ -173,12 +167,9 @@ export default function AdminProfile() {
             '',
     });
 
-    const [recentSessions, setRecentSessions] = useState([]);
     const [recentActivity, setRecentActivity] = useState([]);
     const [activityLoading, setActivityLoading] = useState(true);
-    const [sessionsLoading, setSessionsLoading] = useState(true);
     const [activityError, setActivityError] = useState('');
-    const [sessionsError, setSessionsError] = useState('');
 
     const handleProfileUpdated = useCallback((profile = {}) => {
         setAdminData((current) => ({
@@ -206,7 +197,7 @@ export default function AdminProfile() {
             setActivityError('');
 
             const response = await fetch(
-                buildApiUrl('/api/audit-logs/recent-activity?limit=8'),
+                buildApiUrl('/api/audit-logs/recent-activity?limit=5'),
                 {
                     headers: {
                         Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -232,50 +223,13 @@ export default function AdminProfile() {
         }
     }, []);
 
-    const loadRecentSessions = useCallback(async () => {
-        try {
-            setSessionsLoading(true);
-            setSessionsError('');
-
-            const response = await fetch(
-                buildApiUrl('/api/auth/session/recent?limit=8'),
-                {
-                    headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                    },
-                }
-            );
-
-            const payload = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                throw new Error(
-                    payload.message ||
-                    payload.error ||
-                    'Failed to load recent sessions.'
-                );
-            }
-
-            setRecentSessions(Array.isArray(payload.items) ? payload.items : []);
-        } catch (error) {
-            setSessionsError(error.message || 'Failed to load recent sessions.');
-        } finally {
-            setSessionsLoading(false);
-        }
-    }, []);
-
     useEffect(() => {
         loadRecentActivity();
-        loadRecentSessions();
-    }, [loadRecentActivity, loadRecentSessions]);
+    }, [loadRecentActivity]);
 
     useSocketEvent('audit:created', () => {
         loadRecentActivity();
     }, [loadRecentActivity]);
-
-    useSocketEvent('admin-session:updated', () => {
-        loadRecentSessions();
-    }, [loadRecentSessions]);
 
     const fullName = `${adminData.firstName} ${adminData.lastName}`.trim();
 
@@ -326,10 +280,6 @@ export default function AdminProfile() {
                                     {adminData.department}
                                 </p>
 
-                                <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">
-                                    {adminData.bio}
-                                </p>
-
                                 <div className="mt-4 flex flex-wrap gap-2">
                                     {adminData.email ? (
                                         <a href={`mailto:${adminData.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
@@ -368,53 +318,6 @@ export default function AdminProfile() {
                         profileStorageKey="adminProfile"
                         onProfileUpdated={handleProfileUpdated}
                     />
-
-                    <SectionCard
-                        title="Recent Activity"
-                        subtitle="Latest actions recorded in System Logs for this admin account."
-                        icon={Activity}
-                    >
-                        {activityLoading ? (
-                            <div className="flex items-center justify-center gap-2 py-8 text-sm text-stone-500">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading recent activity...
-                            </div>
-                        ) : activityError ? (
-                            <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>{activityError}</span>
-                            </div>
-                        ) : recentActivity.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-500">
-                                No system log activity has been recorded for this account yet.
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {recentActivity.map((item) => (
-                                    <div
-                                        key={item.log_id}
-                                        className="flex flex-col gap-2 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                                    >
-                                        <div className="flex min-w-0 items-start gap-3">
-                                            <SystemLogIcon item={item} />
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium text-stone-700">
-                                                    {formatAuditAction(item)}
-                                                </p>
-                                                <p className="mt-1 text-[11px] uppercase tracking-wide text-stone-400">
-                                                    {item.module || 'System activity'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <p className="whitespace-nowrap text-xs text-stone-400">
-                                            {formatDateTime(item.timestamp)}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </SectionCard>
                 </div>
 
                 <div className="space-y-5">
@@ -431,103 +334,47 @@ export default function AdminProfile() {
                     </SectionCard>
 
                     <SectionCard
-                        title="Recent Sessions"
-                        subtitle="Current and previous sign-ins recorded for this admin account."
-                        icon={Clock3}
+                        title="Recent Activity"
+                        subtitle="Latest actions recorded in System Logs."
+                        icon={Activity}
                     >
-                        {sessionsLoading ? (
-                            <div className="flex items-center justify-center gap-2 py-8 text-sm text-stone-500">
+                        {activityLoading ? (
+                            <div className="flex items-center justify-center gap-2 py-6 text-sm text-stone-500">
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading recent sessions...
+                                Loading activity...
                             </div>
-                        ) : sessionsError ? (
+                        ) : activityError ? (
                             <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
                                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>{sessionsError}</span>
+                                <span>{activityError}</span>
                             </div>
-                        ) : recentSessions.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-500">
-                                No recent sessions were found.
+                        ) : recentActivity.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-500">
+                                No recent activity has been recorded yet.
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {recentSessions.map((session) => {
-                                    const device = parseDevice(session.user_agent);
-                                    const Icon =
-                                        device.type === 'mobile'
-                                            ? Smartphone
-                                            : Monitor;
-
-                                    return (
-                                        <div
-                                            key={session.session_id}
-                                            className="rounded-xl border border-stone-100 bg-stone-50/40 p-4"
-                                        >
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="flex min-w-0 items-start gap-3">
-                                                    <div
-                                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${session.is_current
-                                                                ? 'border-green-100 bg-green-50 text-green-700'
-                                                                : 'border-stone-200 bg-white text-stone-500'
-                                                            }`}
-                                                    >
-                                                        <Icon className="h-4 w-4" />
-                                                    </div>
-
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-semibold text-stone-800">
-                                                            {device.label}
-                                                        </p>
-
-                                                        <div className="mt-1 flex items-center gap-1.5 text-xs text-stone-500">
-                                                            <MapPin className="h-3.5 w-3.5" />
-                                                            <span className="truncate">
-                                                                {session.ip_address || 'IP unavailable'}
-                                                            </span>
-                                                        </div>
-
-                                                        <p className="mt-1 text-xs text-stone-400">
-                                                            Last seen {formatDateTime(session.last_seen_at || session.created_at)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <Badge
-                                                    className={
-                                                        session.is_current
-                                                            ? 'border border-green-100 bg-green-50 text-green-700 hover:bg-green-50'
-                                                            : session.is_active
-                                                                ? 'border border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50'
-                                                                : 'border border-stone-200 bg-white text-stone-500 hover:bg-white'
-                                                    }
-                                                >
-                                                    {session.status || 'Ended'}
-                                                </Badge>
+                            <div className="space-y-2">
+                                {recentActivity.map((item) => (
+                                    <div
+                                        key={item.log_id}
+                                        className="flex min-w-0 items-start gap-3 rounded-xl border border-stone-100 bg-stone-50/40 px-3 py-3"
+                                    >
+                                        <SystemLogIcon item={item} />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="line-clamp-2 text-xs font-semibold leading-5 text-stone-700">
+                                                {formatAuditAction(item)}
+                                            </p>
+                                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-stone-400">
+                                                <span className="font-semibold uppercase tracking-wide">
+                                                    {item.module || 'System activity'}
+                                                </span>
+                                                <span>{formatDateTime(item.timestamp)}</span>
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                    </div>
+                                ))}
                             </div>
                         )}
-                    </SectionCard>
-
-                    <SectionCard
-                        title="Administrative Actions"
-                        subtitle="Open system-wide configuration and maintenance tools."
-                        icon={Settings}
-                    >
-                        <button
-                            onClick={() => (window.location.href = '/admin/maintenance')}
-                            className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-white px-4 py-3 text-left transition-colors hover:bg-stone-50"
-                        >
-                            <div>
-                                <p className="text-sm font-semibold text-stone-800">Open Maintenance</p>
-                                <p className="mt-0.5 text-xs text-stone-500">
-                                    Manage system settings, themes, accounts, and maintenance records.
-                                </p>
-                            </div>
-                            <ChevronRight className="h-4 w-4 text-stone-400" />
-                        </button>
                     </SectionCard>
                 </div>
             </div>

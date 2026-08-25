@@ -875,12 +875,12 @@ function MessageBubble({
   )
 
   return (
-    <div className={`group/message-row flex items-end gap-1.5 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`group/message-row flex items-end gap-1.5 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine && isLatestOutgoing ? 'mb-5' : ''} ${isMine ? 'justify-end' : 'justify-start'}`}>
       {!isMine && isGroup ? (
         showAvatar ? <MessageAvatar message={message} /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
       ) : null}
 
-      <div className={`flex max-w-[88%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[76%] lg:max-w-[68%]`}>
+      <div className={`relative flex max-w-[88%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[76%] lg:max-w-[68%]`}>
         {isGroup && !isMine && showSenderName && message.senderName && !message.replyToMessageId ? (
           <p className="mb-1 px-1 text-xs font-semibold text-stone-500">
             {message.senderName}
@@ -934,7 +934,7 @@ function MessageBubble({
         </div>
 
         {isMine && isLatestOutgoing ? (
-          <div className="mt-1 px-1 text-[11px] font-medium text-stone-400" aria-live="polite">
+          <div className="absolute right-0 top-full mt-1 whitespace-nowrap px-1 text-[11px] font-medium text-stone-400" aria-live="polite">
             {message.deliveryStatus === 'sending' ? (
               <span>Sending…</span>
             ) : message.deliveryStatus === 'failed' ? (
@@ -3805,37 +3805,46 @@ export default function AdminMessages({
   return (
     <>
       {!isOpen && (
-      <button
-          type="button"
-          onClick={() => {
-            activeConversationRef.current = ''
-            activeRoomRef.current = ''
-            setActiveConversationId('')
-            setActiveRoomId('')
-            setMessages([])
-            setSearchTerm('')
-            setShowUnreadOnly(false)
-            setMainView('chats')
-            setArchivedOpen(false)
-            setCreateGroupOpen(false)
-            setAddMembersOpen(false)
-            setGroupInfoOpen(false)
-            setCompactPane('list')
-            setIsOpen(true)
-          }}
-          className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
-            }`}
-          aria-label={totalUnreadCount > 0 ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
-        >
-          <MessageSquareMore className="h-6 w-6" />
-  
-          {totalUnreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold leading-none text-white shadow-md">
-              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-            </span>
-          )}
-        </button>
-        )}
+        <div className="group fixed bottom-6 right-6 z-40">
+          <div className="pointer-events-none absolute bottom-full right-0 mb-3 translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
+            <div className="relative whitespace-nowrap rounded-xl bg-stone-900 px-3 py-2 text-xs font-medium text-white shadow-lg">
+              Open messages
+              <div className="absolute right-5 top-full h-0 w-0 border-l-[6px] border-r-[6px] border-t-[7px] border-l-transparent border-r-transparent border-t-stone-900" />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              activeConversationRef.current = ''
+              activeRoomRef.current = ''
+              setActiveConversationId('')
+              setActiveRoomId('')
+              setMessages([])
+              setSearchTerm('')
+              setShowUnreadOnly(false)
+              setMainView('chats')
+              setArchivedOpen(false)
+              setCreateGroupOpen(false)
+              setAddMembersOpen(false)
+              setGroupInfoOpen(false)
+              setCompactPane('list')
+              setIsOpen(true)
+            }}
+            className={`relative inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
+              }`}
+            aria-label={totalUnreadCount > 0 ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
+          >
+            <MessageSquareMore className="h-6 w-6" />
+
+            {totalUnreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold leading-none text-white shadow-md">
+                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       <MemberProfileModal
         member={selectedMemberProfile}

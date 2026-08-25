@@ -536,16 +536,7 @@ export default function AdminLayout() {
         </main>
       </div>
 
-      <div className="group">
-        <div className="pointer-events-none fixed bottom-24 right-6 z-[60] translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
-          <div className="relative rounded-xl bg-stone-900 px-3 py-2 text-xs font-medium text-white shadow-lg">
-            Open messages
-            <div className="absolute right-6 top-full h-0 w-0 border-l-[6px] border-r-[6px] border-t-[7px] border-l-transparent border-r-transparent border-t-stone-900" />
-          </div>
-        </div>
-
-        <AdminMessages />
-      </div>
+      <AdminMessages />
 
       <ProfilePhotoPreviewDialog
         open={profilePhotoPreviewOpen}

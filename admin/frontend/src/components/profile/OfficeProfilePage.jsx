@@ -2,7 +2,6 @@ import { createElement, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   BadgeCheck,
@@ -13,7 +12,6 @@ import {
   LockKeyhole,
   Mail,
   Phone,
-  Settings,
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
@@ -36,7 +34,6 @@ function DetailItem({ icon, label, value }) {
 
 export default function OfficeProfilePage({
   storageKey,
-  heading,
   maintenancePath,
   portalName,
   positionFallback,
@@ -44,7 +41,6 @@ export default function OfficeProfilePage({
   roleFallback,
   avatarTone = '#475569',
   responsibilities = [],
-  bio,
   accountConfig,
   palette,
   tokenStorageKey,
@@ -89,23 +85,7 @@ export default function OfficeProfilePage({
   const isActive = account.status === 'Active';
 
   return (
-    <main className="space-y-6 py-2" aria-labelledby="profile-page-title">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Account center</p>
-          <h1 id="profile-page-title" className="mt-1 text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">
-            {heading}
-          </h1>
-          <p className="mt-1 text-sm text-stone-500">Review your identity, contact details, and office access.</p>
-        </div>
-        <Button asChild variant="outline" className="w-fit rounded-xl border-stone-200 bg-white">
-          <Link to={maintenancePath}>
-            <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
-            Account settings
-          </Link>
-        </Button>
-      </header>
-
+    <main className="space-y-6 py-2">
       <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
         <CardContent className="p-0">
           <div
@@ -143,8 +123,6 @@ export default function OfficeProfilePage({
                   </div>
                   <p className="mt-2 text-sm font-semibold text-stone-700">{account.position}</p>
                   <p className="mt-1 text-sm text-stone-500">{account.department}</p>
-                  <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">{bio}</p>
-
                   <div className="mt-4 flex flex-wrap gap-2">
                     {account.email ? (
                       <a href={`mailto:${account.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">
@@ -225,7 +203,7 @@ export default function OfficeProfilePage({
 
           <Link to={maintenancePath} className="group flex items-center justify-between rounded-2xl border border-stone-200 bg-stone-950 p-5 text-white shadow-sm transition hover:bg-stone-800">
             <div>
-              <p className="text-sm font-bold">Manage account settings</p>
+              <p className="text-sm font-bold">Account</p>
               <p className="mt-1 text-xs text-stone-300">Update profile and portal preferences.</p>
             </div>
             <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />

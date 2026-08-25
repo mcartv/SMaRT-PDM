@@ -785,30 +785,32 @@ export function DepartmentAccountPanel({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-stone-200 bg-white p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50">
-                <PenTool className="h-4 w-4 text-stone-600" />
+          {['SDO', 'Guidance', 'PD'].includes(config.shortName) ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50">
+                  <PenTool className="h-4 w-4 text-stone-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-stone-900">Endorsement Slip Identity</p>
+                  <p className="mt-1 text-xs leading-5 text-stone-500">
+                    These are the office details that should appear on endorsement slips and office-side records.
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-stone-900">Endorsement Slip Identity</p>
-                <p className="mt-1 text-xs leading-5 text-stone-500">
-                  These are the office details that should appear on endorsement slips and office-side records.
-                </p>
-              </div>
-            </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wide text-stone-400">Name on Slip</p>
-                <p className="mt-1 text-sm font-semibold text-stone-800">{displayName}</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wide text-stone-400">Office / Department</p>
-                <p className="mt-1 text-sm font-semibold text-stone-800">{account.department || config.account.department}</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wide text-stone-400">Name on Slip</p>
+                  <p className="mt-1 text-sm font-semibold text-stone-800">{displayName}</p>
+                </div>
+                <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wide text-stone-400">Office / Department</p>
+                  <p className="mt-1 text-sm font-semibold text-stone-800">{account.department || config.account.department}</p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="flex items-center justify-end gap-2 pt-1">
             <Button variant="outline" className="h-9 rounded-lg border-stone-200 text-xs" onClick={resetAccount}>

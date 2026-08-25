@@ -17,3 +17,8 @@ test('PD database migration removes only the blocking trigger', () => {
     assert.match(migration, /drop trigger if exists trg_enforce_pd_grade_validation/i);
     assert.doesNotMatch(migration, /delete from|truncate|drop table/i);
 });
+
+test('PD does not receive a duplicate applicant-entered GWA field', () => {
+    const service = read('services/endorsementSlipService.js');
+    assert.doesNotMatch(service, /applicant_gwa:/);
+});

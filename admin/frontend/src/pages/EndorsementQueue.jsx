@@ -496,7 +496,7 @@ function legacyPdPayload(action, remarks) {
   };
 }
 
-function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
+function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving, gradePreviewed = false }) {
   if (queueKey === 'sdo') {
     const selected = state.sdoResult || '';
     return (
@@ -546,7 +546,7 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
       </div>
       <Select value={standing}
         onValueChange={(value) => onChange({ pdResult: value })}
-        disabled={!gradeDocumentReady || saving}
+        disabled={!gradeDocumentReady || !gradePreviewed || saving}
       >
         <SelectTrigger className="bg-white"><SelectValue placeholder="Select scholastic standing" /></SelectTrigger>
         <SelectContent>
@@ -559,8 +559,12 @@ function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
           A Grade Report is required for Program Director review.
         </p>
+      ) : !gradePreviewed ? (
+        <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
+          Preview the applicant's Grade Report before recording a scholastic standing.
+        </p>
       ) : null}
-      <Button disabled={saving || !gradeDocumentReady || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
+      <Button disabled={saving || !gradeDocumentReady || !gradePreviewed || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
       </Button>
     </div>
@@ -577,7 +581,7 @@ function confirmationMeta(queueKey, action, studentName) {
   return { tone: action === 'average_scholastic_standing' ? 'amber' : 'green', title: 'Confirm Scholastic Standing', description: `Record ${action === 'average_scholastic_standing' ? 'Average' : 'Good'} Scholastic Standing for ${studentName} and complete the endorsement?` };
 }
 
-function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClose, onViewFull, detailBasePath, onPreviewProfile, onPreviewGrade }) {
+function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClose, onViewFull, detailBasePath, onPreviewProfile, onPreviewGrade, gradePreviewed }) {
   if (!row) return null;
   const decision = getDecision(queueKey, row);
   return (
@@ -616,11 +620,10 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
             <section className="rounded-xl border border-stone-200 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Academic Information</p>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-xs text-stone-500">OCR GWA</p><p className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</p></div>
                 <div><p className="text-xs text-stone-500">Academic Period</p><p className="font-semibold text-stone-900">{row.semester || 'N/A'} / {row.school_year || 'N/A'}</p></div>
                 <div>
-                  <p className="text-xs text-stone-500">Grade OCR Evidence</p>
-                  <p className="font-semibold text-stone-900">Informational only</p>
+                  <p className="text-xs text-stone-500">Grade Report</p>
+                  <p className="font-semibold text-stone-900">{hasUploadedGrade(row) ? 'Uploaded' : 'Not uploaded'}</p>
                 </div>
               </div>
               {row.grade_document?.url ? (
@@ -631,6 +634,7 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
                     variant="outline"
                     onClick={() =>
                       onPreviewGrade?.({
+                        slipId: row.slip_id,
                         url: row.grade_document.url,
                         fileName: row.grade_document.file_name || 'grade-report',
                       })
@@ -651,7 +655,7 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
 
           {decision === 'pending' ? (
             <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-              <ActionPanel queueKey={queueKey} row={row} state={state} onChange={onChange} onSubmit={onSubmit} saving={saving} />
+              <ActionPanel queueKey={queueKey} row={row} state={state} onChange={onChange} onSubmit={onSubmit} saving={saving} gradePreviewed={gradePreviewed} />
             </section>
           ) : (
             <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -699,6 +703,7 @@ export default function EndorsementQueue({
   const [selectedRow, setSelectedRow] = useState(null);
   const [profilePreview, setProfilePreview] = useState(null);
   const [gradePreview, setGradePreview] = useState(null);
+  const [previewedGradeSlipIds, setPreviewedGradeSlipIds] = useState(() => new Set());
 
   const hasAccess = meta?.allowedRoles.includes(profile.role);
 
@@ -791,6 +796,11 @@ export default function EndorsementQueue({
       setError('A Grade Report is required for Program Director review.');
       return;
     }
+    if (queueKey === 'pd' && !previewedGradeSlipIds.has(row.slip_id)) {
+      setConfirmAction(null);
+      setError("Preview the applicant's Grade Report before Program Director endorsement.");
+      return;
+    }
     const state = actionState[row.slip_id] || {};
     try {
       setSavingSlipId(row.slip_id);
@@ -820,11 +830,9 @@ export default function EndorsementQueue({
       if (!response.ok) throw new Error(data.message || 'Failed to save endorsement');
       setConfirmAction(null);
       setActionState((current) => { const next = { ...current }; delete next[row.slip_id]; return next; });
-      if (queueKey === 'sdo') {
-        setSelectedRow(null);
-        setGradePreview(null);
-        setProfilePreview(null);
-      }
+      setSelectedRow(null);
+      setGradePreview(null);
+      setProfilePreview(null);
       toast.success('Endorsement saved', { description: `${row.student_name} was updated successfully.` });
       await loadQueue({ soft: true });
     } catch (err) {
@@ -841,6 +849,8 @@ export default function EndorsementQueue({
   const selectedState = selectedRow ? actionState[selectedRow.slip_id] || {} : {};
   const confirmBlockedByMissingGrade =
     queueKey === 'pd' && Boolean(confirmAction) && !hasUploadedGrade(confirmAction.row);
+  const confirmBlockedByUnviewedGrade =
+    queueKey === 'pd' && Boolean(confirmAction) && !previewedGradeSlipIds.has(confirmAction.row.slip_id);
 
   return (
     <div className="space-y-5 py-2">
@@ -881,7 +891,7 @@ export default function EndorsementQueue({
               <AlertDialogAction
                 className={`${confirmationButtonClass()} min-w-24 border-emerald-600 font-semibold shadow-sm`}
                 style={{ backgroundColor: '#059669', color: '#ffffff', borderColor: '#059669' }}
-                disabled={Boolean(savingSlipId) || confirmBlockedByMissingGrade}
+                disabled={Boolean(savingSlipId) || confirmBlockedByMissingGrade || confirmBlockedByUnviewedGrade}
                 onClick={(event) => {
                   event.preventDefault();
                   executeAction();
@@ -906,6 +916,10 @@ export default function EndorsementQueue({
             setError('A Grade Report is required for Program Director review.');
             return;
           }
+          if (queueKey === 'pd' && !previewedGradeSlipIds.has(selectedRow.slip_id)) {
+            setError("Preview the applicant's Grade Report before Program Director endorsement.");
+            return;
+          }
           setConfirmAction({ row: selectedRow, action });
         }}
         saving={selectedRow ? savingSlipId === selectedRow.slip_id : false}
@@ -913,7 +927,12 @@ export default function EndorsementQueue({
         onViewFull={navigate}
         detailBasePath={detailBasePath}
         onPreviewProfile={(url, name) => setProfilePreview({ url, name })}
-        onPreviewGrade={(preview) => setGradePreview(preview)}
+        onPreviewGrade={(preview) => {
+          setPreviewedGradeSlipIds((current) => new Set(current).add(preview.slipId));
+          setGradePreview(preview);
+          setError('');
+        }}
+        gradePreviewed={selectedRow ? previewedGradeSlipIds.has(selectedRow.slip_id) : false}
       />
 
       <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,11 +82,11 @@ function formatAuditAction(item = {}) {
 
 function SectionCard({ title, subtitle, icon, children, action }) {
     return (
-        <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
-            <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-4 py-4">
+        <Card className="overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-none">
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--portal-border)] bg-[var(--portal-accent-soft)] px-4 py-4">
                 <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white">
-                        {React.createElement(icon, { className: 'h-4 w-4 text-stone-600' })}
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--portal-border)] bg-white">
+                        {React.createElement(icon, { className: 'h-4 w-4 text-[var(--portal-base)]' })}
                     </div>
 
                     <div>
@@ -106,10 +107,10 @@ function SectionCard({ title, subtitle, icon, children, action }) {
 
 function InfoRow({ icon, label, value }) {
     return (
-        <div className="rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3">
+        <div className="rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
             <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white">
-                    {React.createElement(icon, { className: 'h-4 w-4 text-stone-500' })}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--portal-border)] bg-white">
+                    {React.createElement(icon, { className: 'h-4 w-4 text-[var(--portal-base)]' })}
                 </div>
 
                 <div className="min-w-0">
@@ -243,6 +244,21 @@ export default function AdminProfile() {
         <main className="space-y-6 py-2" aria-labelledby="admin-profile-title">
             <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
                 <CardContent className="relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-stone-50 to-white p-6 sm:p-7">
+                    <div
+                        className="pointer-events-none absolute inset-y-0 right-0 hidden w-[58%] md:block"
+                        style={{
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.22) 24%, #000 62%)',
+                            maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.22) 24%, #000 62%)',
+                        }}
+                        aria-hidden="true"
+                    >
+                        <img
+                            src={pdmFacade}
+                            alt=""
+                            className="h-full w-full object-cover object-center opacity-30"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/35" />
+                    </div>
                     <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-amber-900/5" />
                     <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
@@ -357,7 +373,7 @@ export default function AdminProfile() {
                                 {recentActivity.map((item) => (
                                     <div
                                         key={item.log_id}
-                                        className="flex min-w-0 items-start gap-3 rounded-xl border border-stone-100 bg-stone-50/40 px-3 py-3"
+                                        className="flex min-w-0 items-start gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3 shadow-sm"
                                     >
                                         <SystemLogIcon item={item} />
                                         <div className="min-w-0 flex-1">

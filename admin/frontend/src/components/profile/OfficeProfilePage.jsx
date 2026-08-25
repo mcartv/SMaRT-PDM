@@ -20,8 +20,8 @@ import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewD
 
 function DetailItem({ icon, label, value }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-stone-200/80 bg-stone-50/70 p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white bg-white text-stone-500 shadow-sm">
+    <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-stone-200 bg-white/90 p-4 shadow-sm">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white bg-white text-[var(--portal-base)] shadow-sm">
         {createElement(icon, { className: 'h-4 w-4', 'aria-hidden': true })}
       </div>
       <div className="min-w-0">
@@ -167,10 +167,10 @@ export default function OfficeProfilePage({
         </section>
 
         <aside className="space-y-5">
-          <Card className="rounded-2xl border-stone-200 bg-white shadow-none">
+          <Card className="relative overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[var(--portal-base)]">
             <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)] ring-1 ring-[var(--portal-border)]">
                   <UserRound className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div>
@@ -186,14 +186,14 @@ export default function OfficeProfilePage({
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-stone-200 bg-white shadow-none">
+          <Card className="relative overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[var(--portal-base)]">
             <CardContent className="p-5">
               <h3 className="text-sm font-bold text-stone-900">Role responsibilities</h3>
               <p className="mt-1 text-xs text-stone-500">Primary tasks available in this portal.</p>
               <ul className="mt-4 space-y-3">
                 {responsibilities.map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm leading-5 text-stone-600">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--portal-base)]" aria-hidden="true" />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -201,7 +201,7 @@ export default function OfficeProfilePage({
             </CardContent>
           </Card>
 
-          <Link to={maintenancePath} className="group flex items-center justify-between rounded-2xl border border-stone-200 bg-stone-950 p-5 text-white shadow-sm transition hover:bg-stone-800">
+          <Link to={maintenancePath} className="group flex items-center justify-between rounded-2xl border border-[var(--portal-base)] bg-[var(--portal-base)] p-5 text-white shadow-sm transition hover:brightness-95">
             <div>
               <p className="text-sm font-bold">Account</p>
               <p className="mt-1 text-xs text-stone-300">Update profile and portal preferences.</p>

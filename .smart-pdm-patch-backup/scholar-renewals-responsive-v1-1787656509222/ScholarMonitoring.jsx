@@ -370,7 +370,7 @@ function getRenewalDocumentStatusMeta(raw) {
 function StatusPill({ meta, compact = false }) {
   return (
     <span
-      className={`inline-flex max-w-full items-center justify-center whitespace-normal break-words text-center leading-4 rounded-full font-semibold ${compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
+      className={`inline-flex items-center rounded-full font-semibold ${compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
         }`}
       style={{
         color: meta.color,
@@ -2075,7 +2075,7 @@ export default function ScholarMonitoring() {
         </div>
       </section>
 
-      <section className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
         <div className="border-b border-stone-100 px-5 py-4">
           <h2 className="truncate text-sm font-semibold leading-5 text-stone-900">
             {sectionMode === 'registry'
@@ -2185,16 +2185,16 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
   const [photoPreview, setPhotoPreview] = useState(null);
 
   return (
-    <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
-      <div className="w-full min-w-0">
-      <Table className="w-full table-fixed [&_th]:whitespace-normal [&_td]:whitespace-normal [&_th]:break-words [&_td]:break-words [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:break-words [&_button]:h-auto [&_button]:min-h-8">
+    <div className="overflow-x-auto">
+      <div className="min-w-[980px]">
+      <Table>
         <TableHeader>
           <TableRow className="bg-stone-50 hover:bg-stone-50">
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Program</TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</TableHead>
-            <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
+            <TableHead className="min-w-[230px] text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</TableHead>
+            <TableHead className="min-w-[240px] text-xs font-semibold uppercase tracking-wide text-stone-700">Program</TableHead>
+            <TableHead className="min-w-[170px] text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</TableHead>
+            <TableHead className="min-w-[155px] text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</TableHead>
+            <TableHead className="min-w-[230px] text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -2246,7 +2246,7 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                     </button>
 
                     <div className="min-w-0">
-                      <p className="break-words text-sm font-semibold leading-5 text-stone-900">
+                      <p className="truncate text-sm font-semibold leading-5 text-stone-900">
                         {scholar.student_name}
                       </p>
                       <p className="mt-0.5 text-xs font-mono text-stone-400">
@@ -2326,18 +2326,18 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
 
 function RenewalTable({ rows, navigate }) {
   return (
-    <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
-      <div className="w-full min-w-0">
-      <Table className="w-full table-fixed [&_th]:whitespace-normal [&_td]:whitespace-normal [&_th]:break-words [&_td]:break-words [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:break-words [&_button]:h-auto [&_button]:min-h-8">
+    <div className="overflow-x-auto">
+      <div className="min-w-[1120px]">
+      <Table>
         <TableHeader>
           <TableRow className="bg-stone-50 hover:bg-stone-50">
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">SCHOLAR</TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">PROGRAM</TableHead>
+            <TableHead className="min-w-[210px] text-xs font-semibold uppercase tracking-wide text-stone-700">SCHOLAR</TableHead>
+            <TableHead className="min-w-[220px] text-xs font-semibold uppercase tracking-wide text-stone-700">PROGRAM</TableHead>
             <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">CYCLE</TableHead>
             <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">DOCUMENT STATUS</TableHead>
             <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">RENEWAL STATUS</TableHead>
             <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">SUBMITTED</TableHead>
-            <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-stone-700">ACTION</TableHead>
+            <TableHead className="min-w-[220px] text-center text-xs font-semibold uppercase tracking-wide text-stone-700">ACTION</TableHead>
           </TableRow>
         </TableHeader>
 

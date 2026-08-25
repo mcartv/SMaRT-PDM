@@ -2185,124 +2185,133 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
   const [photoPreview, setPhotoPreview] = useState(null);
 
   return (
-    <div className="w-full min-w-0 overflow-hidden">
-      <div className="hidden grid-cols-12 gap-2 border-b border-stone-200 bg-stone-50 px-3 py-3 xl:grid">
-        <div className="col-span-3 text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Program</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</div>
-        <div className="col-span-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-700">Action</div>
-      </div>
+    <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+      <div className="w-full min-w-0">
+      <Table className="w-full table-fixed [&_th]:whitespace-normal [&_td]:whitespace-normal [&_th]:break-words [&_td]:break-words [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:break-words [&_button]:h-auto [&_button]:min-h-8">
+        <TableHeader>
+          <TableRow className="bg-stone-50 hover:bg-stone-50">
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Program</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</TableHead>
+            <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-stone-700">Action</TableHead>
+          </TableRow>
+        </TableHeader>
 
-      <div className="divide-y divide-stone-100">
-        {rows.map((scholar) => {
-          const scholarshipMeta = getScholarshipStatusMeta(scholar.status);
-          const cycle = [
-            scholar.semester,
-            scholar.academic_year ? `AY ${scholar.academic_year}` : '',
-          ]
-            .filter(Boolean)
-            .join(' · ');
+        <TableBody>
+          {rows.map((scholar) => {
+            const scholarshipMeta =
+              getScholarshipStatusMeta(scholar.status);
 
-          return (
-            <div
-              key={scholar.scholar_id}
-              className="grid min-w-0 grid-cols-1 gap-3 px-3 py-3 transition hover:bg-stone-50/70 sm:grid-cols-2 xl:grid-cols-12 xl:items-center xl:gap-2"
-            >
-              <div className="min-w-0 sm:col-span-2 xl:col-span-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (scholar.avatar_url) {
-                        setPhotoPreview({
-                          src: scholar.avatar_url,
-                          name: scholar.student_name || 'Scholar',
-                        });
-                      }
-                    }}
-                    disabled={!scholar.avatar_url}
-                    className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--portal-base)] focus:ring-offset-2 disabled:cursor-default"
-                    aria-label={scholar.avatar_url ? `Enlarge ${scholar.student_name || 'scholar'} profile photo` : 'No profile photo available'}
-                  >
-                    <Avatar className={`h-10 w-10 rounded-full border border-stone-200 ${scholar.avatar_url ? 'cursor-zoom-in' : ''}`}>
-                      <AvatarImage
-                        src={scholar.avatar_url || undefined}
-                        alt={scholar.student_name}
-                        className="rounded-full"
-                      />
-                      <AvatarFallback className="rounded-full text-xs font-bold">
-                        {getInitials(scholar.student_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </button>
+            const cycle = [
+              scholar.semester,
+              scholar.academic_year
+                ? `AY ${scholar.academic_year}`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' · ');
 
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-sm font-semibold leading-5 text-stone-900">
-                      {scholar.student_name}
+            return (
+              <TableRow
+                key={scholar.scholar_id}
+                className="hover:bg-stone-50/70"
+              >
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (scholar.avatar_url) {
+                          setPhotoPreview({
+                            src: scholar.avatar_url,
+                            name: scholar.student_name || 'Scholar',
+                          });
+                        }
+                      }}
+                      disabled={!scholar.avatar_url}
+                      className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--portal-base)] focus:ring-offset-2 disabled:cursor-default"
+                      aria-label={scholar.avatar_url ? `Enlarge ${scholar.student_name || 'scholar'} profile photo` : 'No profile photo available'}
+                    >
+                      <Avatar className={`h-10 w-10 rounded-full border border-stone-200 ${scholar.avatar_url ? 'cursor-zoom-in' : ''}`}>
+                        <AvatarImage
+                          src={scholar.avatar_url || undefined}
+                          alt={scholar.student_name}
+                          className="rounded-full"
+                        />
+                        <AvatarFallback className="rounded-full text-xs font-bold">
+                          {getInitials(scholar.student_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
+
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold leading-5 text-stone-900">
+                        {scholar.student_name}
+                      </p>
+                      <p className="mt-0.5 text-xs font-mono text-stone-400">
+                        {scholar.student_number}
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+
+                <TableCell>
+                  <p className="max-w-[240px] text-sm leading-5 text-stone-700">
+                    {scholar.program_name || 'N/A'}
+                  </p>
+                </TableCell>
+
+                <TableCell>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-700">
+                      {scholar.semester || 'Not set'}
                     </p>
-                    <p className="mt-0.5 break-all font-mono text-xs text-stone-400">
-                      {scholar.student_number}
+                    <p className="mt-0.5 text-[10px] text-stone-400">
+                      {scholar.academic_year
+                        ? `AY ${scholar.academic_year}`
+                        : cycle || 'No active period'}
                     </p>
                   </div>
-                </div>
-              </div>
+                </TableCell>
 
-              <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Program</p>
-                <p className="break-words text-sm leading-5 text-stone-700">
-                  {scholar.program_name || 'N/A'}
-                </p>
-              </div>
+                <TableCell>
+                  <StatusPill meta={scholarshipMeta} compact />
+                </TableCell>
 
-              <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Current Semester</p>
-                <p className="break-words text-sm font-semibold leading-5 text-stone-700">
-                  {scholar.semester || 'Not set'}
-                </p>
-                <p className="mt-0.5 break-words text-[10px] leading-4 text-stone-400">
-                  {scholar.academic_year
-                    ? `AY ${scholar.academic_year}`
-                    : cycle || 'No active period'}
-                </p>
-              </div>
+                <TableCell className="text-center">
+                  <div className="flex flex-wrap justify-center gap-2 xl:flex-nowrap">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        onView(scholar.scholar_id)
+                      }
+                      className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      View Profile
+                    </Button>
 
-              <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Scholarship Status</p>
-                <StatusPill meta={scholarshipMeta} compact />
-              </div>
-
-              <div className="min-w-0 sm:col-span-2 xl:col-span-3">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Action</p>
-                <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onView(scholar.scholar_id)}
-                    className="min-w-0 flex-1 rounded-lg border-stone-200 px-3 text-xs sm:flex-none"
-                  >
-                    <Eye className="mr-1.5 h-3.5 w-3.5" />
-                    View Profile
-                  </Button>
-
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onRemove(scholar)}
-                    className="min-w-0 flex-1 rounded-lg border-red-200 px-3 text-xs text-red-700 hover:bg-red-50 sm:flex-none"
-                  >
-                    <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
-                    Remove Privilege
-                  </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRemove(scholar)}
+                      className="h-9 rounded-lg border-red-200 px-3.5 text-xs whitespace-nowrap text-red-700 hover:bg-red-50"
+                    >
+                      <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
+                      Remove Privilege
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
       </div>
-
       <ProfilePhotoPreviewDialog
         open={Boolean(photoPreview?.src)}
         onOpenChange={(open) => {
@@ -2317,105 +2326,117 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
 
 function RenewalTable({ rows, navigate }) {
   return (
-    <div className="w-full min-w-0 overflow-hidden">
-      <div className="hidden grid-cols-12 gap-2 border-b border-stone-200 bg-stone-50 px-3 py-3 xl:grid">
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Program</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Cycle</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Document Status</div>
-        <div className="col-span-1 text-xs font-semibold uppercase tracking-wide text-stone-700">Renewal Status</div>
-        <div className="col-span-1 text-xs font-semibold uppercase tracking-wide text-stone-700">Submitted</div>
-        <div className="col-span-2 text-right text-xs font-semibold uppercase tracking-wide text-stone-700">Action</div>
-      </div>
+    <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+      <div className="w-full min-w-0">
+      <Table className="w-full table-fixed [&_th]:whitespace-normal [&_td]:whitespace-normal [&_th]:break-words [&_td]:break-words [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:break-words [&_button]:h-auto [&_button]:min-h-8">
+        <TableHeader>
+          <TableRow className="bg-stone-50 hover:bg-stone-50">
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">SCHOLAR</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">PROGRAM</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">CYCLE</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">DOCUMENT STATUS</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">RENEWAL STATUS</TableHead>
+            <TableHead className="text-xs font-semibold uppercase tracking-wide text-stone-700">SUBMITTED</TableHead>
+            <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-stone-700">ACTION</TableHead>
+          </TableRow>
+        </TableHeader>
 
-      <div className="divide-y divide-stone-100">
-        {rows.map((renewal) => {
-          const renewalMeta = getRenewalStatusMeta(renewal.renewal_status);
-          const documentMeta = getRenewalDocumentStatusMeta(renewal.document_status);
-          const cycle = [
-            renewal.semester_label,
-            renewal.school_year_label ? `AY ${renewal.school_year_label}` : '',
-          ]
-            .filter(Boolean)
-            .join(' · ');
+        <TableBody>
+          {rows.map((renewal) => {
+            const renewalMeta =
+              getRenewalStatusMeta(renewal.renewal_status);
 
-          return (
-            <div
-              key={`renewal-${renewal.renewal_id || renewal.id}`}
-              className="grid min-w-0 grid-cols-1 gap-3 px-3 py-3 transition hover:bg-stone-50/70 sm:grid-cols-2 xl:grid-cols-12 xl:items-center xl:gap-2"
-            >
-              <div className="min-w-0 sm:col-span-2 xl:col-span-2">
-                <p className="break-words text-sm font-medium leading-5 text-stone-800">
-                  {renewal.student_name}
-                </p>
-                <p className="mt-0.5 break-all text-xs text-stone-400">
-                  {renewal.student_number}
-                </p>
-              </div>
+            const documentMeta =
+              getRenewalDocumentStatusMeta(
+                renewal.document_status
+              );
 
-              <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Program</p>
-                <p className="break-words text-sm leading-5 text-stone-700">
+            const cycle = [
+              renewal.semester_label,
+              renewal.school_year_label
+                ? `AY ${renewal.school_year_label}`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' · ');
+
+            return (
+              <TableRow
+                key={`renewal-${renewal.renewal_id || renewal.id}`}
+                className="hover:bg-stone-50/70"
+              >
+                <TableCell>
+                  <div>
+                    <p className="text-sm font-medium text-stone-800">
+                      {renewal.student_name}
+                    </p>
+                    <p className="text-xs text-stone-400">
+                      {renewal.student_number}
+                    </p>
+                  </div>
+                </TableCell>
+
+                <TableCell>
                   {renewal.program_name || 'N/A'}
-                </p>
-              </div>
+                </TableCell>
 
-              <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Cycle</p>
-                <p className="break-words text-xs leading-5 text-stone-600">
+                <TableCell className="text-xs text-stone-600">
                   {cycle || 'Current Period'}
-                </p>
-              </div>
+                </TableCell>
 
-              <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Document Status</p>
-                <span
-                  className="inline-flex max-w-full whitespace-normal break-words rounded-full px-2.5 py-1 text-xs font-medium leading-4"
-                  style={{ background: documentMeta.bg, color: documentMeta.color }}
-                >
-                  {renewal.document_status || 'Missing Docs'}
-                </span>
-              </div>
+                <TableCell>
+                  <span
+                    className="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                    style={{
+                      background: documentMeta.bg,
+                      color: documentMeta.color,
+                    }}
+                  >
+                    {renewal.document_status || 'Missing Docs'}
+                  </span>
+                </TableCell>
 
-              <div className="min-w-0 xl:col-span-1">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Renewal Status</p>
-                <span
-                  className="inline-flex max-w-full whitespace-normal break-words rounded-full px-2.5 py-1 text-xs font-medium leading-4"
-                  style={{ background: renewalMeta.bg, color: renewalMeta.color }}
-                >
-                  {renewalMeta.label}
-                </span>
-              </div>
+                <TableCell>
+                  <span
+                    className="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                    style={{
+                      background: renewalMeta.bg,
+                      color: renewalMeta.color,
+                    }}
+                  >
+                    {renewalMeta.label}
+                  </span>
+                </TableCell>
 
-              <div className="min-w-0 xl:col-span-1">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Submitted</p>
-                <p className="break-words text-xs leading-5 text-stone-500">
-                  {formatDate(renewal.submitted_at, 'Not yet submitted')}
-                </p>
-              </div>
+                <TableCell className="text-xs text-stone-500">
+                  {formatDate(
+                    renewal.submitted_at,
+                    'Not yet submitted'
+                  )}
+                </TableCell>
 
-              <div className="min-w-0 sm:col-span-2 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Action</p>
-                <div className="flex min-w-0 flex-wrap xl:justify-end">
+                <TableCell className="text-center">
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="min-w-0 max-w-full rounded-lg border-stone-200 px-3 text-xs"
+                    className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap"
                     onClick={() =>
                       navigate(
-                        `/admin/scholars/renewals/${renewal.renewal_id || renewal.id}`
+                        `/admin/scholars/renewals/${renewal.renewal_id || renewal.id
+                        }`
                       )
                     }
                   >
                     <FileCheck2 className="mr-1.5 h-3.5 w-3.5" />
                     Review Renewal
                   </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
       </div>
     </div>
   );

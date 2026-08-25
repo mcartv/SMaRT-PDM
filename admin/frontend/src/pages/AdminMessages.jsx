@@ -28,6 +28,7 @@ import { useSocketEvent } from '@/hooks/useSocket'
 import API_BASE_URL from '@/api'
 
 const MESSAGING_API_BASE = API_BASE_URL
+// SMART-PDM_ADMIN_MESSAGES_RESPONSIVE_V1
 
 function parseMessagingToken(token) {
   try {
@@ -361,7 +362,7 @@ function ThreadIcon({ item }) {
   )
 }
 
-function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
+function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyle = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState(null)
   const menuButtonRef = useRef(null)
@@ -416,17 +417,26 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
 
   return (
     <div
-      className={`group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${isActive
-        ? 'bg-white hover:bg-stone-50'
-        : hasUnread
-          ? 'bg-[var(--portal-accent-soft)]'
-          : 'bg-white hover:bg-stone-50'
-        } ${isActive ? 'before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]' : ''}`}
+      className={inboxStyle
+        ? `group relative border-b border-stone-100 transition ${isActive
+          ? 'bg-[var(--portal-accent-soft)] before:absolute before:bottom-2 before:left-0 before:top-2 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]'
+          : hasUnread
+            ? 'bg-white hover:bg-stone-50'
+            : 'bg-white hover:bg-stone-50'
+          }`
+        : `group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${isActive
+          ? 'bg-white hover:bg-stone-50'
+          : hasUnread
+            ? 'bg-[var(--portal-accent-soft)]'
+            : 'bg-white hover:bg-stone-50'
+          } ${isActive ? 'before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]' : ''}`}
     >
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center gap-3 px-3 py-3 text-left"
+        className={inboxStyle
+          ? 'flex w-full items-center gap-3 px-3.5 py-3.5 text-left'
+          : 'flex w-full items-center gap-3 px-3 py-3 text-left'}
       >
         <ThreadIcon item={item} />
 
@@ -453,7 +463,9 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
             </div>
 
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="text-xs text-stone-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              <span className={inboxStyle
+                ? 'text-[11px] font-medium text-stone-400'
+                : 'text-xs text-stone-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'}>
                 {formatConversationTime(item.lastSentAt)}
               </span>
 
@@ -844,6 +856,7 @@ function GroupInfoModal({
   onPromote,
   onAddMember,
   onLeave,
+  overlay = false,
 }) {
   const [menuMemberId, setMenuMemberId] = useState('')
 
@@ -858,7 +871,11 @@ function GroupInfoModal({
   const filteredMembers = members
 
   return (
-    <aside className="flex min-h-0 flex-col border-l border-stone-200 bg-white">
+    <aside
+      className={overlay
+        ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl'
+        : 'flex min-h-0 flex-col border-l border-stone-200 bg-white'}
+    >
       <div className="border-b border-stone-100 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -1337,6 +1354,8 @@ export default function AdminMessages({
   const [mainView, setMainView] = useState('chats')
   const [searchTerm, setSearchTerm] = useState('')
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+  const isAdminMessaging = portalKey === 'admin'
+  const [compactPane, setCompactPane] = useState('list')
 
   const [conversations, setConversations] = useState([])
   const [rooms, setRooms] = useState([])
@@ -2391,6 +2410,7 @@ export default function AdminMessages({
     setGroupInfoOpen(false)
     setChatSearchOpen(false)
     setChatSearchTerm('')
+    if (isAdminMessaging) setCompactPane('thread')
     setActiveType('private')
     setActiveConversationId(member.userId)
     setActiveRoomId('')
@@ -3054,7 +3074,15 @@ export default function AdminMessages({
     <>
       <button
         type="button"
-        onClick={() => { setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setIsOpen(true) }}
+        onClick={() => {
+          setMainView('chats')
+          setArchivedOpen(false)
+          setCreateGroupOpen(false)
+          setAddMembersOpen(false)
+          setGroupInfoOpen(false)
+          if (isAdminMessaging) setCompactPane('list')
+          setIsOpen(true)
+        }}
         className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
           }`}
         title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
@@ -3117,27 +3145,39 @@ export default function AdminMessages({
       />
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
-          <div className="flex h-[88vh] w-full max-w-7xl flex-col overflow-hidden rounded-[26px] border border-stone-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5">
+        <div
+          className={isAdminMessaging
+            ? 'fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 sm:p-3 md:p-5 lg:items-center lg:p-6'
+            : 'fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6'}
+        >
+          <div
+            className={isAdminMessaging
+              ? 'flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100dvh-24px)] sm:rounded-[24px] sm:border sm:border-stone-200 md:h-[calc(100dvh-40px)] lg:h-[92dvh] lg:max-h-[860px] lg:max-w-6xl'
+              : 'flex h-[88vh] w-full max-w-7xl flex-col overflow-hidden rounded-[26px] border border-stone-200 bg-white shadow-2xl'}
+          >
+            <div
+              className={isAdminMessaging
+                ? 'flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-stone-100 px-3 py-3 sm:px-4 lg:px-5'
+                : 'flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5'}
+            >
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
                   <MessageSquareMore className="h-4.5 w-4.5" />
                 </div>
                 <div>
                   <div className="text-base font-semibold text-stone-900">Messages</div>
-                  <div className="text-xs text-stone-500">Private and group conversations</div>
+                  <div className="text-xs text-stone-500">{isAdminMessaging ? 'Admin inbox' : 'Private and group conversations'}</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className={isAdminMessaging ? 'flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2' : 'flex items-center gap-2'}>
                 <button
                   type="button"
                   onClick={openArchivedThreads}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'archived' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
                 >
                   <Archive className="h-4 w-4" />
-                  Archived
+                  <span className={isAdminMessaging ? 'hidden sm:inline' : ''}>Archived</span>
                 </button>
 
                 <button
@@ -3152,7 +3192,7 @@ export default function AdminMessages({
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'create-group' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
                 >
                   <Users className="h-4 w-4" />
-                  Group
+                  <span className={isAdminMessaging ? 'hidden sm:inline' : ''}>Group</span>
                 </button>
 
                 <button
@@ -3168,7 +3208,7 @@ export default function AdminMessages({
 
                 <button
                   type="button"
-                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setTransientPrivateContact(null) }}
+                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setTransientPrivateContact(null); if (isAdminMessaging) setCompactPane('list') }}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
                 >
                   <X className="h-4 w-4" />
@@ -3217,11 +3257,19 @@ export default function AdminMessages({
                 existingMemberIds={groupMembers.map((member) => member.userId)}
               />
             ) : (
-            <div className={`grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'xl:grid-cols-[320px_minmax(0,1fr)_320px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
-              <section className="flex min-h-0 flex-col border-b border-stone-200 xl:border-b-0 xl:border-r">
-                <div className="space-y-3 border-b border-stone-100 px-4 py-4">
+            <div
+              className={isAdminMessaging
+                ? 'grid min-h-0 flex-1 grid-cols-1 gap-0 md:grid-cols-[300px_minmax(0,1fr)]'
+                : `grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'xl:grid-cols-[320px_minmax(0,1fr)_320px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}
+            >
+              <section
+                className={isAdminMessaging
+                  ? `${compactPane === 'thread' ? 'hidden md:flex' : 'flex'} min-h-0 flex-col border-r border-stone-200 bg-stone-50/40`
+                  : 'flex min-h-0 flex-col border-b border-stone-200 xl:border-b-0 xl:border-r'}
+              >
+                <div className={isAdminMessaging ? 'space-y-3 border-b border-stone-100 bg-white px-3 py-3.5 sm:px-4' : 'space-y-3 border-b border-stone-100 px-4 py-4'}>
                   <div className="flex items-center justify-between">
-                    <p className="text-base font-semibold text-stone-900">Chats</p>
+                    <p className="text-base font-semibold text-stone-900">{isAdminMessaging ? 'Inbox' : 'Chats'}</p>
                     <p className="text-xs text-stone-400">{filteredItems.length}</p>
                   </div>
 
@@ -3231,8 +3279,10 @@ export default function AdminMessages({
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search conversations"
-                      className="h-10 w-full rounded-full border-0 bg-stone-100 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+                      placeholder={isAdminMessaging ? 'Search people or conversations' : 'Search conversations'}
+                      className={isAdminMessaging
+                        ? 'h-10 w-full rounded-xl border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]'
+                        : 'h-10 w-full rounded-full border-0 bg-stone-100 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]'}
                     />
                   </div>
 
@@ -3272,6 +3322,7 @@ export default function AdminMessages({
                           isActive={isActive}
                           onToggleRead={toggleThreadReadState}
                           onArchive={setPendingArchiveThread}
+                          inboxStyle={isAdminMessaging}
                           onClick={() => {
                             setTransientPrivateContact(null)
                             if (item.type === 'group') {
@@ -3283,6 +3334,8 @@ export default function AdminMessages({
                               setActiveConversationId(item.id)
                               setActiveRoomId('')
                             }
+
+                            if (isAdminMessaging) setCompactPane('thread')
 
                             if (Number(item.unreadCount || 0) > 0) {
                               toggleThreadReadState(item)
@@ -3301,12 +3354,27 @@ export default function AdminMessages({
                 </div>
               </section>
 
-              <section className="flex min-h-0 flex-col bg-white">
+              <section
+                className={isAdminMessaging
+                  ? `${compactPane === 'thread' ? 'flex' : 'hidden md:flex'} min-h-0 flex-col bg-white`
+                  : 'flex min-h-0 flex-col bg-white'}
+              >
                 {selectedItem ? (
                   <>
-                    <div className="border-b border-stone-100 bg-white px-5 py-3.5">
+                    <div className={isAdminMessaging ? 'border-b border-stone-100 bg-white px-3 py-3 sm:px-4 lg:px-5' : 'border-b border-stone-100 bg-white px-5 py-3.5'}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
+                          {isAdminMessaging ? (
+                            <button
+                              type="button"
+                              onClick={() => setCompactPane('list')}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:bg-stone-50 md:hidden"
+                              title="Back to inbox"
+                              aria-label="Back to inbox"
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                            </button>
+                          ) : null}
                           <ThreadIcon item={selectedItem} />
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
@@ -3359,7 +3427,9 @@ export default function AdminMessages({
                     <div
                       ref={messagesScrollRef}
                       onScroll={handleMessagesScroll}
-                      className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5"
+                      className={isAdminMessaging
+                        ? 'min-h-0 flex-1 overflow-y-auto bg-stone-50 px-3 py-4 sm:px-5 sm:py-5 lg:px-6'
+                        : 'min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5'}
                     >
                       {loadingMessages ? (
                         <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">
@@ -3411,7 +3481,9 @@ export default function AdminMessages({
                     ) : (
                     <form
                       onSubmit={handleSendMessage}
-                      className="border-t border-stone-100 bg-white px-4 py-3"
+                      className={isAdminMessaging
+                        ? 'border-t border-stone-100 bg-white px-3 py-3 sm:px-4'
+                        : 'border-t border-stone-100 bg-white px-4 py-3'}
                     >
                       <div className="flex items-end gap-2">
                         <textarea
@@ -3496,6 +3568,7 @@ export default function AdminMessages({
                   setMainView('add-members')
                 }}
                 onLeave={() => setLeaveGroupOpen(true)}
+                overlay={isAdminMessaging}
               />
             </div>
             )}

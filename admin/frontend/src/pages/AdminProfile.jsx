@@ -73,8 +73,8 @@ function parseDevice(userAgent = '') {
         label: `${browser} · ${platform}`,
         type:
             ua.includes('android') ||
-            ua.includes('iphone') ||
-            ua.includes('ipad')
+                ua.includes('iphone') ||
+                ua.includes('ipad')
                 ? 'mobile'
                 : 'desktop',
     };
@@ -287,14 +287,6 @@ export default function AdminProfile() {
 
     return (
         <main className="space-y-6 py-2" aria-labelledby="admin-profile-title">
-            <header>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Account center</p>
-                <h1 id="admin-profile-title" className="mt-1 text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">
-                    Administrator Profile
-                </h1>
-                <p className="mt-1 text-sm text-stone-500">Manage your identity and review protected account activity.</p>
-            </header>
-
             <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
                 <CardContent className="relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-stone-50 to-white p-6 sm:p-7">
                     <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-amber-900/5" />
@@ -474,11 +466,10 @@ export default function AdminProfile() {
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="flex min-w-0 items-start gap-3">
                                                     <div
-                                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
-                                                            session.is_current
+                                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${session.is_current
                                                                 ? 'border-green-100 bg-green-50 text-green-700'
                                                                 : 'border-stone-200 bg-white text-stone-500'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         <Icon className="h-4 w-4" />
                                                     </div>

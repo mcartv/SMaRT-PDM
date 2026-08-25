@@ -231,10 +231,9 @@ export default function SystemPanel({ embedded = false, editing = true }) {
     };
 
     const jobs = status.ocr?.jobs || DEFAULT_STATUS.ocr.jobs;
-    const ocrStack = `${status.ocr?.primary || 'Tesseract + OpenCV'} + ${status.ocr?.review || 'Gemini V2'}`;
     const geminiSubtitle = status.ocr?.gemini_configured
-        ? `${status.ocr.gemini_model || 'Gemini model'} configured`
-        : `${status.ocr?.gemini_model || 'Gemini model'} · key not detected by backend`;
+        ? 'Tesseract + OpenCV · Gemini ready'
+        : 'Tesseract + OpenCV · Gemini not configured';
     const backupDescription = status.backup?.pg_dump_available
         ? status.backup?.pg_dump_version || 'Full PostgreSQL pg_dump available'
         : 'pg_dump unavailable · SQL data fallback ready';
@@ -248,18 +247,18 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                 </div>
             ) : null}
 
-            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="flex min-w-0 items-center gap-3 border-stone-200 p-4 shadow-none">
+            <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="flex min-h-28 min-w-0 flex-row items-center gap-3 border-stone-200 px-5 py-4 text-left shadow-none">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-stone-100">
                         <Cpu className="h-5 w-5 text-stone-500" />
                     </div>
                     <div className="min-w-0">
-                        <p className="break-words text-base font-semibold leading-tight text-stone-900">{ocrStack}</p>
+                        <p className="break-words text-base font-semibold leading-tight text-stone-900">OCR Processing</p>
                         <p className="mt-1 break-words text-xs font-medium text-stone-500">{geminiSubtitle}</p>
                     </div>
                 </Card>
 
-                <Card className="flex min-w-0 items-center gap-3 border-stone-200 p-4 shadow-none">
+                <Card className="flex min-h-28 min-w-0 flex-row items-center gap-3 border-stone-200 px-5 py-4 text-left shadow-none">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
                         <Activity className="h-5 w-5 text-emerald-600" />
                     </div>
@@ -273,7 +272,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                     </div>
                 </Card>
 
-                <Card className="flex min-w-0 items-center gap-3 border-stone-200 p-4 shadow-none">
+                <Card className="flex min-h-28 min-w-0 flex-row items-center gap-3 border-stone-200 px-5 py-4 text-left shadow-none">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
                         <Database className="h-5 w-5 text-blue-600" />
                     </div>
@@ -285,7 +284,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                     </div>
                 </Card>
 
-                <Card className="flex min-w-0 items-center gap-3 border-stone-200 p-4 shadow-none">
+                <Card className="flex min-h-28 min-w-0 flex-row items-center gap-3 border-stone-200 px-5 py-4 text-left shadow-none">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50">
                         <HardDrive className="h-5 w-5 text-violet-600" />
                     </div>

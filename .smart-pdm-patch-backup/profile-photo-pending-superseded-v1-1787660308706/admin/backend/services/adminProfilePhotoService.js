@@ -11,8 +11,6 @@ function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
-// SMART-PDM_PROFILE_PHOTO_PENDING_SUPERSEDED_V2
-
 async function getAdminProfileId(adminUserId) {
   if (!adminUserId) {
     throw createHttpError(401, 'Authentication required.');
@@ -104,12 +102,6 @@ async function serializeReview(row, student = null) {
 
   const studentRecord = student || {};
   const course = studentRecord.academic_course || {};
-  const currentProfilePath = safeText(studentRecord.profile_photo_url);
-  const reviewStoragePath = safeText(row.storage_path);
-  const isCurrentProfilePhoto =
-    safeText(row.status).toLowerCase() === 'approved' &&
-    !!currentProfilePath &&
-    currentProfilePath === reviewStoragePath;
 
   return {
     review_id: row.review_id,
@@ -118,7 +110,6 @@ async function serializeReview(row, student = null) {
     storage_path: row.storage_path,
     submitted_url: await resolveAvatarUrl(row.storage_path),
     status: row.status,
-    is_current_profile_photo: isCurrentProfilePhoto,
     submitted_at: row.submitted_at,
     reviewed_at: row.reviewed_at,
     reviewed_by_admin_id: row.reviewed_by_admin_id,
@@ -181,33 +172,11 @@ async function getProfilePhotoReviews({ adminUserId, query = {} }) {
     request = request.eq('status', status);
   }
 
-  const [queueResult, statusResult] = await Promise.all([
-    request,
-    supabase
-      .from('profile_photo_reviews')
-      .select('status'),
-  ]);
-
-  if (queueResult.error) throw queueResult.error;
-  if (statusResult.error) throw statusResult.error;
-
-  const statusCounts = {
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-    superseded: 0,
-  };
-
-  for (const row of statusResult.data || []) {
-    const rowStatus = safeText(row.status).toLowerCase();
-    if (Object.prototype.hasOwnProperty.call(statusCounts, rowStatus)) {
-      statusCounts[rowStatus] += 1;
-    }
-  }
+  const { data, error } = await request;
+  if (error) throw error;
 
   return {
-    items: await hydrateReviews(queueResult.data || []),
-    status_counts: statusCounts,
+    items: await hydrateReviews(data || []),
   };
 }
 
@@ -287,19 +256,6 @@ async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
     .neq('review_id', review.review_id);
 
   if (supersedeError) throw supersedeError;
-
-  // Once a newer submission becomes the active photo, any older approved
-  // submission is historical and must be shown as Superseded rather than
-  // remaining indistinguishable from the current approved photo. Preserve
-  // its original review metadata; only its lifecycle status changes.
-  const { error: previousApprovedSupersedeError } = await supabase
-    .from('profile_photo_reviews')
-    .update({ status: 'superseded' })
-    .eq('student_id', review.student_id)
-    .eq('status', 'approved')
-    .neq('review_id', review.review_id);
-
-  if (previousApprovedSupersedeError) throw previousApprovedSupersedeError;
 
   const { error: studentError } = await supabase
     .from('students')

@@ -11,104 +11,24 @@ function toRequiredNumber(value, fallback = 0) {
     return Number.isNaN(num) ? fallback : num;
 }
 
-// SMART-PDM_OPENINGS_STATUS_WORKFLOW_V3
-const OPENING_ALLOWED_STATUSES = new Set(['draft', 'open', 'closed', 'archived']);
-
-const OPENING_STATUS_TRANSITIONS = Object.freeze({
-    draft: new Set(['draft', 'open', 'archived']),
-    open: new Set(['open', 'draft', 'closed', 'archived']),
-    closed: new Set(['closed', 'draft', 'open', 'archived']),
-    archived: new Set(['archived', 'draft', 'open', 'closed']),
-});
-
-function openingWorkflowError(message) {
-    const error = new Error(message);
-    error.statusCode = 400;
-    error.code = 'OPENING_WORKFLOW_INVALID';
-    return error;
-}
-
-function hasOpeningIdentity(opening = {}) {
-    return (
-        !!String(opening.opening_title || '').trim() &&
-        !!String(opening.program_id || '').trim() &&
-        !!String(opening.academic_year_id || '').trim()
-    );
-}
-
-function getOpeningFilledSlots(opening = {}) {
-    return Math.max(0, toRequiredNumber(opening.filled_slots, 0));
-}
-
-function getOpeningAllocatedSlots(opening = {}) {
-    return Math.max(0, toRequiredNumber(opening.allocated_slots, 0));
-}
-
-function canPersistOpeningAsOpen(opening = {}) {
-    const allocatedSlots = getOpeningAllocatedSlots(opening);
-    const filledSlots = getOpeningFilledSlots(opening);
-
-    return (
-        hasOpeningIdentity(opening) &&
-        !!String(opening.period_id || '').trim() &&
-        allocatedSlots > 0 &&
-        filledSlots < allocatedSlots &&
-        opening.is_archived !== true
-    );
-}
-
-function resolveStoredOpeningStatus(opening = {}) {
-    if (opening.is_archived === true) return 'archived';
-
-    const normalized = normalizeStatus(opening.posting_status || 'draft');
-    return OPENING_ALLOWED_STATUSES.has(normalized) ? normalized : 'draft';
-}
-
-function assertKnownOpeningStatus(status) {
-    if (!OPENING_ALLOWED_STATUSES.has(status)) {
-        throw openingWorkflowError(
-            `Invalid scholarship opening status: ${status || 'empty'}.`
-        );
-    }
-}
-
-function assertOpeningTransition(currentStatus, nextStatus, opening = {}) {
-    assertKnownOpeningStatus(currentStatus);
-    assertKnownOpeningStatus(nextStatus);
-
-    const allowed = OPENING_STATUS_TRANSITIONS[currentStatus];
-
-    if (!allowed?.has(nextStatus)) {
-        throw openingWorkflowError(
-            `Invalid scholarship opening status transition: ${currentStatus} -> ${nextStatus}.`
-        );
-    }
-
-    if (
-        nextStatus === 'draft' &&
-        currentStatus !== 'draft' &&
-        getOpeningFilledSlots(opening) > 0
-    ) {
-        throw openingWorkflowError(
-            'An opening with approved/filled slots cannot be moved back to Draft.'
-        );
-    }
-
-    if (nextStatus === 'open' && !canPersistOpeningAsOpen(opening)) {
-        throw openingWorkflowError(
-            'Opening cannot become Open until the title, program, academic year, academic period, and at least one available slot are configured.'
-        );
-    }
-}
-
 function derivePostingStatus(opening) {
-    const existing = resolveStoredOpeningStatus(opening);
+    const existing = normalizeStatus(opening.posting_status || 'draft');
+    const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
+    const isArchived = !!opening.is_archived;
 
-    if (existing === 'archived') return 'archived';
+    if (isArchived || existing === 'archived') return 'archived';
     if (existing === 'closed') return 'closed';
     if (existing === 'draft') return 'draft';
 
-    return canPersistOpeningAsOpen(opening) ? 'open' : 'draft';
+    const hasRequiredFields =
+        !!opening.opening_title &&
+        !!opening.program_id &&
+        !!opening.academic_year_id &&
+        allocatedSlots > 0;
+
+    if (!hasRequiredFields) return 'draft';
+
+    return 'open';
 }
 
 async function resolvePeriodIdFromAcademicYear(academicYearId) {
@@ -639,16 +559,7 @@ exports.createProgramOpening = async (payload = {}) => {
         period_id || (await resolvePeriodIdFromAcademicYear(academic_year_id));
 
     const normalizedStatus = normalizeStatus(posting_status || 'draft');
-
-    assertKnownOpeningStatus(normalizedStatus);
-
-    if (!['draft', 'open'].includes(normalizedStatus)) {
-        throw openingWorkflowError(
-            'A new scholarship opening can only be created as Draft or Open.'
-        );
-    }
-
-    const isArchived = false;
+    const isArchived = normalizedStatus === 'archived';
 
     const insertData = {
         program_id,
@@ -679,10 +590,6 @@ exports.createProgramOpening = async (payload = {}) => {
 
     if (insertData.filled_slots > insertData.allocated_slots) {
         throw new Error('Filled slots cannot be greater than allocated slots');
-    }
-
-    if (insertData.posting_status === 'open') {
-        assertOpeningTransition('draft', 'open', insertData);
     }
 
     const { data, error } = await supabase
@@ -805,17 +712,17 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         resolvedPeriodId = await resolvePeriodIdFromAcademicYear(merged.academic_year_id);
     }
 
-    const currentStatus = resolveStoredOpeningStatus(existing);
-    const normalizedStatus = normalizeStatus(merged.posting_status || currentStatus);
+    const normalizedStatus = normalizeStatus(merged.posting_status || 'draft');
 
-    assertKnownOpeningStatus(normalizedStatus);
+    const effectiveArchived = merged.is_archived === true || normalizedStatus === 'archived';
 
-    const effectiveStatus =
-        merged.is_archived === true || normalizedStatus === 'archived'
-            ? 'archived'
-            : normalizedStatus;
-
-    const effectiveArchived = effectiveStatus === 'archived';
+    const effectiveStatus = effectiveArchived
+        ? 'archived'
+        : normalizedStatus === 'closed'
+            ? 'closed'
+            : normalizedStatus === 'draft'
+                ? 'draft'
+                : 'open';
 
     const updateData = {
         program_id: merged.program_id,
@@ -853,18 +760,6 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
     if (updateData.filled_slots > updateData.allocated_slots) {
         throw new Error('Filled slots cannot be greater than allocated slots');
     }
-
-    const transitionApplications = await fetchApplicationsForCounts(openingId);
-    const transitionCounts = buildCounts(existing, transitionApplications);
-    const transitionCandidate = {
-        ...updateData,
-        filled_slots: Math.max(
-            Number(updateData.filled_slots || 0),
-            Number(transitionCounts.qualified_count || 0)
-        ),
-    };
-
-    assertOpeningTransition(currentStatus, effectiveStatus, transitionCandidate);
 
     const { data, error } = await supabase
         .from('program_openings')
@@ -938,26 +833,6 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
 };
 
 exports.closeProgramOpening = async (openingId) => {
-    const { data: existing, error: existingError } = await supabase
-        .from('program_openings')
-        .select('opening_id, posting_status, is_archived')
-        .eq('opening_id', openingId)
-        .maybeSingle();
-
-    if (existingError) {
-        throw new Error(existingError.message);
-    }
-
-    if (!existing) return null;
-
-    const currentStatus = resolveStoredOpeningStatus(existing);
-
-    if (currentStatus !== 'open') {
-        throw openingWorkflowError(
-            `Only an Open scholarship opening can be closed. Current status: ${currentStatus}.`
-        );
-    }
-
     const { data, error } = await supabase
         .from('program_openings')
         .update({

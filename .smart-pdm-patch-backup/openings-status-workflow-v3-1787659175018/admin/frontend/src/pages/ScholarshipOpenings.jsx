@@ -211,19 +211,11 @@ function derivePersistedOpeningStatus(payload, existingStatus = '') {
 }
 
 function canOpeningBeOpened(openingLike = {}) {
-    // SMART-PDM_OPENINGS_STATUS_WORKFLOW_V3
-    const status = String(openingLike.posting_status || '').trim().toLowerCase();
-    const allocatedSlots = getAllocatedSlots(openingLike);
-    const filledSlots = getFilledSlots(openingLike);
-
     return (
-        openingLike.is_archived !== true &&
-        status !== 'archived' &&
         !!String(openingLike.opening_title || '').trim() &&
         !!String(openingLike.program_id || '').trim() &&
         !!String(openingLike.academic_year_id || '').trim() &&
-        allocatedSlots > 0 &&
-        filledSlots < allocatedSlots
+        Number(openingLike.allocated_slots || 0) > 0
     );
 }
 
@@ -380,7 +372,8 @@ function OpeningModal({
     const canSubmit =
         !!form.opening_title?.trim() &&
         !!form.program_id &&
-        !!form.academic_year_id;
+        !!form.academic_year_id &&
+        (isTemplateLaunch || Number(form.allocated_slots || 0) > 0);
 
     return (
         <div
@@ -970,7 +963,7 @@ function OpeningCard({
     const isClosed = computedStatus === 'closed';
     const isDraft = computedStatus === 'draft';
     const canBeOpened = canOpeningBeOpened(opening);
-    const canReopen = isClosed && canBeOpened;
+    const canReopen = isClosed && availableSlots > 0;
     const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
     const isBusy = actionLoadingId === opening.opening_id;
 
@@ -1584,6 +1577,8 @@ export default function ScholarshipOpenings() {
                 return;
             }
 
+            setSaving(true);
+
             const computedStatus = isTemplateLaunch
                 ? 'draft'
                 : forcedStatus
@@ -1592,24 +1587,6 @@ export default function ScholarshipOpenings() {
                         form,
                         isEdit ? form.posting_status : ''
                     );
-
-            if (
-                computedStatus === 'open' &&
-                !canOpeningBeOpened({
-                    ...form,
-                    allocated_slots: allocatedSlots,
-                    filled_slots: Number(form.filled_slots_preview || 0),
-                    posting_status: 'open',
-                    is_archived: false,
-                })
-            ) {
-                alert(
-                    'This opening cannot be opened yet. Complete the required configuration and make sure at least one scholarship slot is available.'
-                );
-                return;
-            }
-
-            setSaving(true);
 
             const payload = {
                 program_id: form.program_id,
@@ -1730,17 +1707,8 @@ export default function ScholarshipOpenings() {
     };
 
     const handleRestoreOpening = async (opening) => {
-        const restoredCandidate = {
-            ...opening,
-            posting_status: 'open',
-            is_archived: false,
-        };
-
-        const nextStatus = canOpeningBeOpened(restoredCandidate)
-            ? 'open'
-            : getFilledSlots(opening) > 0
-                ? 'closed'
-                : 'draft';
+        const availableSlots = getAvailableSlots(opening);
+        const nextStatus = availableSlots > 0 ? 'open' : 'closed';
 
         await updateOpeningStatus(opening.opening_id, nextStatus, {
             is_archived: false,
@@ -1780,16 +1748,10 @@ export default function ScholarshipOpenings() {
     };
 
     const handleReopenOpening = async (opening) => {
-        const reopenCandidate = {
-            ...opening,
-            posting_status: 'open',
-            is_archived: false,
-        };
+        const availableSlots = getAvailableSlots(opening);
 
-        if (!canOpeningBeOpened(reopenCandidate)) {
-            alert(
-                'This opening cannot be reopened yet. Check its title, program, academic year, capacity, and available scholarship slots.'
-            );
+        if (availableSlots <= 0) {
+            alert('This opening cannot be reopened because no slots are available.');
             return;
         }
 

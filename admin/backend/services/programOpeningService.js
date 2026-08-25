@@ -1,4 +1,6 @@
 const supabase = require('../config/supabase');
+const pool = require('../config/db');
+const readinessQueueService = require('./readinessQueueService');
 
 function normalizeStatus(value) {
     return (value || '').toString().trim().toLowerCase();
@@ -45,6 +47,22 @@ async function resolvePeriodIdFromAcademicYear(academicYearId) {
     }
 
     return data?.[0]?.period_id || null;
+}
+
+async function resolveActiveAcademicPeriodId() {
+    const { data, error } = await supabase
+        .from('academic_period')
+        .select('period_id')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error('RESOLVE ACTIVE ACADEMIC PERIOD ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return data?.period_id || null;
 }
 
 function mapOpening(opening, counts = {}) {
@@ -267,12 +285,18 @@ exports.fetchAllProgramOpenings = async () => {
 };
 
 exports.fetchMobileOpenings = async () => {
+    const activePeriodId = await resolveActiveAcademicPeriodId();
+
+    if (!activePeriodId) {
+        return [];
+    }
     const { data, error } = await baseOpeningSelectQuery().in('posting_status', [
         'open',
         'draft',
         'closed',
         'archived',
-    ]);
+    ])
+        .eq('period_id', activePeriodId);
 
     if (error) {
         console.error('SUPABASE FETCH MOBILE OPENINGS ERROR:', error);
@@ -336,6 +360,8 @@ exports.fetchProgramOpeningById = async (openingId) => {
 };
 
 exports.fetchApplicationsByOpeningId = async (openingId) => {
+    await readinessQueueService.syncOpeningFcfsQueue(openingId);
+
     const { data, error } = await supabase
         .from('applications')
         .select(`
@@ -404,10 +430,43 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
         throw new Error(error.message);
     }
 
+    const readinessResult = await pool.query(
+        `
+          SELECT
+            a.application_id,
+            a.fcfs_completed_at,
+            a.queue_position,
+            a.waitlist_position,
+            a.selection_status,
+            a.requirements_completed_at,
+            a.requirements_verified_at,
+            es.slip_id AS endorsement_slip_id,
+            es.overall_status AS endorsement_status,
+            es.current_stage AS endorsement_current_stage,
+            CASE
+              WHEN LOWER(COALESCE(a.verification_status, '')) = 'verified'
+               AND LOWER(COALESCE(es.overall_status, '')) = 'completed'
+              THEN true ELSE false
+            END AS scholar_activation_ready
+          FROM applications a
+          LEFT JOIN endorsement_slips es
+            ON es.application_id = a.application_id
+          WHERE a.opening_id = $1
+        `,
+        [openingId]
+    );
+
+    const readinessByApplication = new Map(
+        readinessResult.rows.map((row) => [row.application_id, row])
+    );
+
     return (data || [])
         .filter((app) => app.is_archived !== true)
         .filter((app) => app.students && app.students.is_archived !== true)
-        .map((app) => ({
+        .map((app) => {
+            const readiness = readinessByApplication.get(app.application_id) || {};
+
+            return {
             id: app.application_id,
             application_id: app.application_id,
             student_id: app.student_id,
@@ -454,10 +513,24 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             is_disqualified: !!app.is_disqualified,
             disqReason: app.rejection_reason || null,
             rejection_reason: app.rejection_reason || null,
+            endorsement_status: readiness.endorsement_status || null,
+            normalized_endorsement_status: readiness.endorsement_status || null,
+            endorsement_current_stage: readiness.endorsement_current_stage || null,
+            endorsement_slip_id: readiness.endorsement_slip_id || null,
+            scholar_activation_ready: readiness.scholar_activation_ready === true,
+            fcfs_completed_at: readiness.fcfs_completed_at || null,
+            queue_position: readiness.queue_position ?? app.queue_position ?? null,
+            waitlist_position: readiness.waitlist_position ?? app.waitlist_position ?? null,
+            selection_status: readiness.selection_status || app.selection_status || 'Unranked',
+            requirements_completed_at:
+                readiness.requirements_completed_at || app.requirements_completed_at || null,
+            requirements_verified_at:
+                readiness.requirements_verified_at || app.requirements_verified_at || null,
             is_scholar:
                 ['approved', 'accepted'].includes(normalizeStatus(app.application_status)) ||
-                ['selected', 'promoted'].includes(normalizeStatus(app.selection_status)),
-        }));
+                ['selected', 'promoted'].includes(normalizeStatus(readiness.selection_status || app.selection_status)),
+        };
+        });
 };
 
 exports.createProgramOpening = async (payload = {}) => {

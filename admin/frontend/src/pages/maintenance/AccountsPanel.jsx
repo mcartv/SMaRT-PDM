@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { createPortal } from 'react-dom';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,6 +15,7 @@ import {
     Archive,
     ArchiveRestore,
     Building2,
+    CalendarDays,
     ChevronDown,
     Edit,
     Eye,
@@ -51,33 +53,42 @@ import {
 } from '@/components/ui/tooltip';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
-import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
+import {
+    C,
+    EmptyState,
+    FieldLabel,
+} from './components/MaintenanceShared';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 import { toast } from 'sonner';
 
 const ROLE_OPTIONS = [
     {
         value: 'admin',
-        label: 'Admin',
+        label: 'OSFA Coordinator',
         department: 'Office for Scholarship and Financial Assistance (OSFA)',
-        position: 'OSFA Administrator',
     },
     {
         value: 'pd',
         label: 'Program Director',
         department: 'Office of the College of Hospitality and Tourism Management',
-        position: 'Program Director',
     },
     {
         value: 'guidance',
-        label: 'GCO',
+        label: 'Guidance Counselor',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Staff',
     },
     {
         value: 'sdo',
-        label: 'SDO',
+        label: 'Student Discipline Officer',
         department: 'Student Welfare and Development Office',
-        position: 'SDO Officer',
+    },
+    {
+        value: 'ro_coordinator',
+        label: 'RO Coordinator',
+        department: '',
     },
 ];
 
@@ -122,19 +133,47 @@ const DEPARTMENT_OPTIONS = {
             label: 'Student Welfare and Development Office',
         },
     ],
+    ro_coordinator: [],
 };
+
+const OPERATIONAL_ROLE_OPTIONS = ROLE_OPTIONS.filter((option) => option.value !== 'admin');
+const DEFAULT_OPERATIONAL_ROLE = OPERATIONAL_ROLE_OPTIONS[0];
+const ACCOUNT_ROLE_GROUP_ORDER = ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'];
+const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
+const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
+const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
+const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
+
+function sanitizePhoneNumberInput(value) {
+    return String(value || '').replace(/\D/g, '').slice(0, 11);
+}
+
+function validateOptionalPhoneNumber(value) {
+    const phoneNumber = String(value || '').trim();
+    if (!phoneNumber) return '';
+    if (!PHONE_NUMBER_PATTERN.test(phoneNumber)) return PHONE_NUMBER_ERROR;
+    if (REPEATING_PHONE_NUMBER_PATTERN.test(phoneNumber)) return REPEATING_PHONE_NUMBER_ERROR;
+    return '';
+}
 
 const DEFAULT_FORM = {
     first_name: '',
     last_name: '',
     email: '',
     phone_number: '',
-    role: 'admin',
-    department: ROLE_OPTIONS[0].department,
-    position: ROLE_OPTIONS[0].position,
+    role: DEFAULT_OPERATIONAL_ROLE.value,
+    department: DEFAULT_OPERATIONAL_ROLE.department,
     password: '',
     confirm_password: '',
     course_ids: [],
+};
+
+const DEFAULT_ADMIN_FORM = {
+    first_name: '',
+    last_name: '',
+    email: '',
+    password: '',
+    confirm_password: '',
 };
 
 function inferPdDepartment(assignedCourses = []) {
@@ -167,19 +206,37 @@ function normalizeDepartment(role, department, assignedCourses = []) {
     const options = DEPARTMENT_OPTIONS[role] || [];
     const current = String(department || '').trim();
 
+    if (role === 'ro_coordinator') return current;
     if (options.some((option) => option.value === current)) return current;
     if (role === 'pd') return inferPdDepartment(assignedCourses);
     return options[0]?.value || '';
 }
 
-function DepartmentField({ role, value, onChange, disabled = false }) {
-    const options = DEPARTMENT_OPTIONS[role] || [];
+function DepartmentField({
+    role,
+    value,
+    onChange,
+    disabled = false,
+    roAreas = [],
+    showPdCourseGroup = true,
+}) {
+    const options = role === 'ro_coordinator'
+        ? roAreas
+            .filter((area) => area.is_active !== false)
+            .map((area) => ({
+                value: area.department_name,
+                label: area.department_name,
+                hint: area.coordinator?.name
+                    ? `Assigned to ${area.coordinator.name}`
+                    : 'Available',
+            }))
+        : DEPARTMENT_OPTIONS[role] || [];
     const selectedOption = options.find((option) => option.value === value);
 
     return (
         <div className="min-w-0">
             <FieldLabel>Department / Office</FieldLabel>
-            <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+            <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
                 <SelectTrigger
                     className="h-9 w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
                     title={selectedOption?.value || ''}
@@ -198,11 +255,15 @@ function DepartmentField({ role, value, onChange, disabled = false }) {
                     ))}
                 </SelectContent>
             </Select>
-            {role === 'pd' ? (
+            {role === 'pd' && showPdCourseGroup ? (
                 <p className="mt-1 text-[11px] text-stone-500">
                     {selectedOption?.hint
                         ? `Course group: ${selectedOption.hint}`
                         : 'Choose the office that supervises the assigned courses.'}
+                </p>
+            ) : role === 'ro_coordinator' ? (
+                <p className="mt-1 text-[11px] text-stone-500">
+                    Select an active RO Area managed in Maintenance &gt; Obligation.
                 </p>
             ) : null}
         </div>
@@ -346,15 +407,32 @@ function roleTone(role) {
     if (role === 'pd') return 'bg-purple-50 text-purple-700 border-purple-100';
     if (role === 'guidance') return 'bg-blue-50 text-blue-700 border-blue-100';
     if (role === 'sdo') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    if (role === 'ro_coordinator') return 'bg-cyan-50 text-cyan-700 border-cyan-100';
 
     return 'bg-stone-50 text-stone-700 border-stone-100';
 }
 
+function formatAccountCreatedDate(value) {
+    if (!value) return 'Not available';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Not available';
+
+    return new Intl.DateTimeFormat('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    }).format(date);
+}
+
+function accountCreatedTimestamp(value) {
+    const timestamp = new Date(value).getTime();
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 function accountMatchesRoleGroup(account, roleFilter) {
-    if (roleFilter === 'all') return true;
-    if (roleFilter === 'admin') return account.role === 'admin';
-    if (roleFilter === 'office') return ['sdo', 'guidance'].includes(account.role);
-    if (roleFilter === 'pd') return account.role === 'pd';
+    if (roleFilter === 'grouped' || roleFilter === 'all') return true;
+    if (ACCOUNT_ROLE_GROUP_ORDER.includes(roleFilter)) return account.role === roleFilter;
 
     return true;
 }
@@ -377,7 +455,7 @@ function validatePasswordFields(password, confirmPassword, required = true) {
     return '';
 }
 
-function validateCreateForm(form) {
+function validateCreateForm(form, roAreas = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
@@ -386,10 +464,20 @@ function validateCreateForm(form) {
         return 'Enter a valid email address.';
     }
 
+    const phoneNumberError = validateOptionalPhoneNumber(form.phone_number);
+    if (phoneNumberError) return phoneNumberError;
+
     if (!form.role) {
         return 'Select an account role.';
     }
-    if (!(DEPARTMENT_OPTIONS[form.role] || []).some((option) => option.value === form.department)) {
+
+    if (!OPERATIONAL_ROLE_OPTIONS.some((option) => option.value === form.role)) {
+        return 'Create Account is only for Program Director, SDO, Guidance, or RO Coordinator.';
+    }
+    const departmentOptions = form.role === 'ro_coordinator'
+        ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
+        : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
+    if (!departmentOptions.includes(form.department)) {
         return 'Select a valid department or office.';
     }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
@@ -397,7 +485,7 @@ function validateCreateForm(form) {
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
 
-function validateEditForm(form) {
+function validateAdminCreateForm(form) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
@@ -406,10 +494,28 @@ function validateEditForm(form) {
         return 'Enter a valid email address.';
     }
 
+    return validatePasswordFields(form.password, form.confirm_password, true);
+}
+
+function validateEditForm(form, roAreas = []) {
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
+        return 'First name, last name, and email are required.';
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        return 'Enter a valid email address.';
+    }
+
+    const phoneNumberError = validateOptionalPhoneNumber(form.phone_number);
+    if (phoneNumberError) return phoneNumberError;
+
     if (!form.role) {
         return 'Select an account role.';
     }
-    if (!(DEPARTMENT_OPTIONS[form.role] || []).some((option) => option.value === form.department)) {
+    const departmentOptions = form.role === 'ro_coordinator'
+        ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
+        : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
+    if (!departmentOptions.includes(form.department)) {
         return 'Select a valid department or office.';
     }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
@@ -460,7 +566,42 @@ function PasswordInput({ label, value, onChange, placeholder = '', disabled = fa
     );
 }
 
-function StaffCreateModal({
+function AccountModalPortal({ children }) {
+    if (typeof document === 'undefined') return null;
+
+    // Account modals render under document.body, while portal theme variables
+    // live on the authenticated layout wrapper. Copy the active variables into
+    // the portal so primary actions keep the same visible theme color.
+    const themeSource = document.querySelector('[style*="--portal-base"]');
+    const portalThemeStyle = {};
+
+    if (themeSource && typeof window !== 'undefined') {
+        const computed = window.getComputedStyle(themeSource);
+        [
+            '--portal-base',
+            '--portal-accent',
+            '--portal-accent-soft',
+            '--portal-main-bg',
+            '--portal-surface',
+            '--portal-surface-soft',
+            '--portal-border',
+            '--portal-muted',
+            '--portal-text',
+        ].forEach((variable) => {
+            const value = computed.getPropertyValue(variable).trim();
+            if (value) portalThemeStyle[variable] = value;
+        });
+    }
+
+    return createPortal(
+        <div className="contents" style={portalThemeStyle}>
+            {children}
+        </div>,
+        document.body
+    );
+}
+
+function AccountCreateModal({
     open,
     form,
     saving,
@@ -470,30 +611,33 @@ function StaffCreateModal({
     onClose,
     onSubmit,
     courses,
+    roAreas,
 }) {
     if (!open) return null;
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-            onClick={onClose}
-        >
-            <div
-                className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
-                onClick={(event) => event.stopPropagation()}
-            >
+        <AccountModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+            <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl">
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
-                    <h3 className="text-sm font-semibold text-stone-800">
-                        Create Staff Account
-                    </h3>
+                    <div>
+                        <h3 className="text-sm font-semibold text-stone-800">
+                            Create Account
+                        </h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Create a Program Director, SDO, Guidance, or RO Coordinator account.
+                        </p>
+                    </div>
 
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={saving}
-                        className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                        aria-label="Close Create Account"
+                        title="Close"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        <X size={14} />
+                        <X className="h-[18px] w-[18px]" strokeWidth={2.5} />
                     </button>
                 </div>
 
@@ -520,17 +664,40 @@ function StaffCreateModal({
                         </div>
                     </div>
 
-                    <div>
-                        <FieldLabel>Email Address</FieldLabel>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                            <Input
-                                type="email"
-                                value={form.email}
-                                onChange={(event) => setField('email', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                disabled={saving}
-                            />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel>Email Address</FieldLabel>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="email"
+                                    autoComplete="email"
+                                    value={form.email}
+                                    onChange={(event) => setField('email', event.target.value)}
+                                    placeholder="name@example.com"
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <FieldLabel>Mobile / Contact Number</FieldLabel>
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={11}
+                                    value={form.phone_number}
+                                    onChange={(event) =>
+                                        setField('phone_number', sanitizePhoneNumberInput(event.target.value))
+                                    }
+                                    placeholder="09XXXXXXXXX"
+                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                    disabled={saving}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -547,7 +714,7 @@ function StaffCreateModal({
                                 </SelectTrigger>
 
                                 <SelectContent>
-                                    {ROLE_OPTIONS.map((option) => (
+                                    {OPERATIONAL_ROLE_OPTIONS.map((option) => (
                                         <SelectItem key={option.value} value={option.value}>
                                             {option.label}
                                         </SelectItem>
@@ -556,40 +723,22 @@ function StaffCreateModal({
                             </Select>
                         </div>
 
-                        <div>
-                            <FieldLabel>Phone Number</FieldLabel>
-                            <div className="relative">
-                                <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-                                <Input
-                                    value={form.phone_number}
-                                    onChange={(event) => setField('phone_number', event.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
-                                    disabled={saving}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <CourseAssignmentField form={form} setField={setField} courses={courses} disabled={saving} />
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                         <DepartmentField
                             role={form.role}
                             value={form.department}
                             onChange={(value) => setField('department', value)}
                             disabled={saving}
+                            roAreas={roAreas}
+                            showPdCourseGroup={false}
                         />
-
-                        <div>
-                            <FieldLabel>Position</FieldLabel>
-                            <Input
-                                value={form.position}
-                                onChange={(event) => setField('position', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
                     </div>
+
+                    <CourseAssignmentField
+                        form={form}
+                        setField={setField}
+                        courses={courses}
+                        disabled={saving}
+                    />
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <PasswordInput
@@ -646,10 +795,150 @@ function StaffCreateModal({
                 </form>
             </div>
         </div>
+        </AccountModalPortal>
     );
 }
 
-function StaffEditModal({
+function AdminCreateModal({
+    open,
+    form,
+    saving,
+    error,
+    setField,
+    onClose,
+    onSubmit,
+}) {
+    if (!open) return null;
+
+    return (
+        <AccountModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+            <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl">
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+                    <div>
+                        <h3 className="text-sm font-semibold text-stone-800">
+                            Create Admin Account
+                        </h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Creates a high-privilege OSFA Coordinator account.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={saving}
+                        aria-label="Close Create Admin Account"
+                        title="Close"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <X className="h-[18px] w-[18px]" strokeWidth={2.5} />
+                    </button>
+                </div>
+
+                <form className="space-y-3 p-4" onSubmit={onSubmit}>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                        Admin role and OSFA office assignment are fixed at creation and cannot be converted into a department account later.
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel>First Name</FieldLabel>
+                            <Input
+                                value={form.first_name}
+                                onChange={(event) => setField('first_name', event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
+                            />
+                        </div>
+
+                        <div>
+                            <FieldLabel>Last Name</FieldLabel>
+                            <Input
+                                value={form.last_name}
+                                onChange={(event) => setField('last_name', event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <FieldLabel>Email Address</FieldLabel>
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                type="email"
+                                autoComplete="email"
+                                value={form.email}
+                                onChange={(event) => setField('email', event.target.value)}
+                                placeholder="name@example.com"
+                                className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
+                                disabled={saving}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <PasswordInput
+                            label="Password"
+                            value={form.password}
+                            onChange={(event) => setField('password', event.target.value)}
+                            disabled={saving}
+                        />
+
+                        <div>
+                            <FieldLabel>Confirm Password</FieldLabel>
+                            <Input
+                                type="password"
+                                value={form.confirm_password}
+                                onChange={(event) => setField('confirm_password', event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
+                            />
+                        </div>
+                    </div>
+
+                    {error ? (
+                        <p className="flex items-start gap-1.5 text-xs font-medium text-red-600">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>{error}</span>
+                        </p>
+                    ) : null}
+
+                    <div className="flex items-center justify-end gap-2 border-t border-stone-100 pt-3">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={saving}
+                            className="h-8 rounded-lg border-stone-200 text-xs"
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            type="submit"
+                            disabled={saving}
+                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            {saving ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Create Admin Account
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        </AccountModalPortal>
+    );
+}
+
+function AccountEditModal({
     open,
     form,
     setForm,
@@ -659,9 +948,14 @@ function StaffEditModal({
     onClose,
     onSave,
     courses,
+    roAreas,
     currentUserId,
 }) {
     if (!open) return null;
+
+    const editRoleOptions = form.role === 'admin'
+        ? ROLE_OPTIONS.filter((option) => option.value === 'admin')
+        : OPERATIONAL_ROLE_OPTIONS;
 
     const setField = (field, value) => {
         setForm((current) => ({
@@ -678,12 +972,14 @@ function StaffEditModal({
             ...current,
             role,
             course_ids: role === 'pd' ? current.course_ids : [],
-            department: defaults?.department || current.department,
-            position: defaults?.position || current.position,
+            department: role === 'ro_coordinator'
+                ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
+                : defaults?.department || current.department,
         }));
     };
 
     return (
+        <AccountModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
             onClick={onClose}
@@ -694,7 +990,7 @@ function StaffEditModal({
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">
-                        Update Staff Account
+                        Update Account
                     </h3>
 
                     <button
@@ -736,8 +1032,10 @@ function StaffEditModal({
                             <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
                             <Input
                                 type="email"
+                                autoComplete="email"
                                 value={form.email}
                                 onChange={(event) => setField('email', event.target.value)}
+                                placeholder="name@example.com"
                                 className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
                                 disabled={saving}
                             />
@@ -750,20 +1048,25 @@ function StaffEditModal({
                             <Select
                                 value={form.role}
                                 onValueChange={handleRoleChange}
-                                disabled={saving}
+                                disabled={saving || form.role === 'admin'}
                             >
                                 <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm">
                                     <SelectValue />
                                 </SelectTrigger>
 
                                 <SelectContent>
-                                    {ROLE_OPTIONS.map((option) => (
+                                    {editRoleOptions.map((option) => (
                                         <SelectItem key={option.value} value={option.value}>
                                             {option.label}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <p className="mt-1 text-[11px] text-stone-500">
+                                {form.role === 'admin'
+                                    ? 'Admin accounts stay Admin. Archive and create a department account instead of converting it.'
+                                    : 'Department roles can change among PD, SDO, Guidance, and RO Coordinator, but cannot become Admin.'}
+                            </p>
                         </div>
 
                         <div>
@@ -771,8 +1074,14 @@ function StaffEditModal({
                             <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
                                 <Input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={11}
                                     value={form.phone_number}
-                                    onChange={(event) => setField('phone_number', event.target.value)}
+                                    onChange={(event) =>
+                                        setField('phone_number', sanitizePhoneNumberInput(event.target.value))
+                                    }
+                                    placeholder="09XXXXXXXXX"
                                     className="h-9 rounded-lg border-stone-200 pl-8 text-sm"
                                     disabled={saving}
                                 />
@@ -786,17 +1095,9 @@ function StaffEditModal({
                             value={form.department}
                             onChange={(value) => setField('department', value)}
                             disabled={saving}
+                            roAreas={roAreas}
                         />
 
-                        <div>
-                            <FieldLabel>Position</FieldLabel>
-                            <Input
-                                value={form.position}
-                                onChange={(event) => setField('position', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
                     </div>
 
                     <CourseAssignmentField form={form} setField={setField} courses={courses} currentUserId={currentUserId} disabled={saving} />
@@ -850,8 +1151,8 @@ function StaffEditModal({
                     <Button
                         onClick={onSave}
                         disabled={saving}
-                        className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                        style={{ background: C.brownMid }}
+                        className="h-8 rounded-lg border-none px-3 text-xs font-medium text-white hover:brightness-95 disabled:opacity-60"
+                        style={{ background: 'var(--portal-base, #6f4b33)' }}
                     >
                         {saving ? (
                             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -863,16 +1164,18 @@ function StaffEditModal({
                 </div>
             </div>
         </div>
+        </AccountModalPortal>
     );
 }
 
-function StaffProfileModal({ account, onClose, onEdit }) {
+function AccountProfileModal({ account, onClose, onEdit }) {
     if (!account) return null;
 
     const roleLabel = ROLE_OPTIONS.find((role) => role.value === account.role)?.label || account.role;
     const initials = `${account.first_name?.[0] || ''}${account.last_name?.[0] || ''}`.toUpperCase() || account.name?.[0]?.toUpperCase() || 'S';
 
     return (
+        <AccountModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
             onClick={onClose}
@@ -883,13 +1186,13 @@ function StaffProfileModal({ account, onClose, onEdit }) {
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
-                        <p className="text-sm font-semibold text-stone-900">Staff Profile</p>
+                        <p className="text-sm font-semibold text-stone-900">Account Profile</p>
                         <p className="mt-0.5 text-xs text-stone-500">Account and assignment information</p>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
-                        aria-label="Close staff profile"
+                        aria-label="Close account profile"
                         className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
                     >
                         <X className="h-4 w-4" />
@@ -898,15 +1201,13 @@ function StaffProfileModal({ account, onClose, onEdit }) {
 
                 <div className="p-4">
                     <div className="flex items-center gap-3 border-b border-stone-100 pb-4">
-                        <Avatar className="h-12 w-12">
-                            <AvatarImage
-                                src={account.avatar_url || account.profile_photo_url || undefined}
-                                alt={`${account.name} profile`}
-                            />
-                            <AvatarFallback className="bg-stone-900 text-sm font-bold text-white">
-                                {initials}
-                            </AvatarFallback>
-                        </Avatar>
+                        <PreviewableProfileAvatar
+                            src={account.avatar_url || account.profile_photo_url || ''}
+                            name={`${account.name || 'Account'} profile photo`}
+                            fallback={initials}
+                            avatarClassName="h-12 w-12"
+                            fallbackClassName="bg-stone-900 text-sm font-bold text-white"
+                        />
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="truncate text-base font-semibold text-stone-900">{account.name}</h3>
@@ -915,6 +1216,10 @@ function StaffProfileModal({ account, onClose, onEdit }) {
                                 </span>
                             </div>
                             <p className="mt-1 truncate text-sm text-stone-500">{account.email}</p>
+                            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-400">
+                                <CalendarDays className="h-3.5 w-3.5" />
+                                <span>Date Created: {formatAccountCreatedDate(account.created_at)}</span>
+                            </p>
                         </div>
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${account.is_archived ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
                             {account.is_archived ? 'Archived' : 'Active'}
@@ -987,30 +1292,36 @@ function StaffProfileModal({ account, onClose, onEdit }) {
                 </div>
             </div>
         </div>
+        </AccountModalPortal>
     );
 }
 
 export default function AccountsPanel() {
     const [accounts, setAccounts] = useState([]);
     const [courses, setCourses] = useState([]);
+    const [roAreas, setRoAreas] = useState([]);
     const [form, setForm] = useState(DEFAULT_FORM);
+    const [adminForm, setAdminForm] = useState(DEFAULT_ADMIN_FORM);
     const [editForm, setEditForm] = useState(DEFAULT_FORM);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingAdmin, setSavingAdmin] = useState(false);
     const [updating, setUpdating] = useState(false);
     const [actionLoadingId, setActionLoadingId] = useState(null);
 
     const [createOpen, setCreateOpen] = useState(false);
+    const [adminCreateOpen, setAdminCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [editingAccountId, setEditingAccountId] = useState(null);
     const [profileAccount, setProfileAccount] = useState(null);
 
     const [error, setError] = useState('');
+    const [adminError, setAdminError] = useState('');
     const [editError, setEditError] = useState('');
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
-    const [roleFilter, setRoleFilter] = useState('all');
+    const [roleFilter, setRoleFilter] = useState('grouped');
     const [courseFilter, setCourseFilter] = useState('all');
 
     const currentCount = useMemo(
@@ -1022,15 +1333,6 @@ export default function AccountsPanel() {
         () => accounts.filter((account) => account.is_archived === true).length,
         [accounts]
     );
-    const activePdCount = useMemo(
-        () => accounts.filter((account) => account.role === 'pd' && !account.is_archived).length,
-        [accounts]
-    );
-    const assignedCourseCount = useMemo(
-        () => courses.filter((course) => course.assigned_pd).length,
-        [courses]
-    );
-
     const filteredAccounts = useMemo(() => {
         const q = search.trim().toLowerCase();
 
@@ -1054,34 +1356,72 @@ export default function AccountsPanel() {
                 String(account.position || '').toLowerCase().includes(q) ||
                 (account.assigned_courses || []).some((course) => String(course.course_code || '').toLowerCase().includes(q))
             );
-        });
+        }).sort(
+            (left, right) => accountCreatedTimestamp(right.created_at) - accountCreatedTimestamp(left.created_at)
+        );
     }, [accounts, search, pageTab, roleFilter, courseFilter]);
+
+    const accountListItems = useMemo(() => {
+        if (roleFilter !== 'grouped') {
+            return filteredAccounts.map((account) => ({
+                type: 'account',
+                key: account.user_id,
+                account,
+            }));
+        }
+
+        return ACCOUNT_ROLE_GROUP_ORDER.flatMap((role) => {
+            const roleAccounts = filteredAccounts.filter((account) => account.role === role);
+            if (!roleAccounts.length) return [];
+
+            const label = ROLE_OPTIONS.find((option) => option.value === role)?.label || role;
+
+            return [
+                {
+                    type: 'group',
+                    key: `group-${role}`,
+                    role,
+                    label: role === 'guidance' ? `${label} (GCO)` : label,
+                    count: roleAccounts.length,
+                },
+                ...roleAccounts.map((account) => ({
+                    type: 'account',
+                    key: account.user_id,
+                    account,
+                })),
+            ];
+        });
+    }, [filteredAccounts, roleFilter]);
 
     const loadAccounts = useCallback(async () => {
         try {
             setLoading(true);
             setError('');
 
-            const [response, courseResponse] = await Promise.all([
+            const [response, courseResponse, roAreaResponse] = await Promise.all([
                 fetch(buildApiUrl('/api/accounts/staff'), { headers: getAuthHeaders() }),
                 fetch(buildApiUrl('/api/courses'), { headers: getAuthHeaders() }),
+                fetch(buildApiUrl('/api/ro-settings/departments'), { headers: getAuthHeaders() }),
             ]);
             const data = await response.json().catch(() => ({}));
             const courseData = await courseResponse.json().catch(() => []);
+            const roAreaData = await roAreaResponse.json().catch(() => ({}));
 
             if (!response.ok || data.success === false) {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to load staff accounts.'
+                    'Failed to load accounts.'
                 );
             }
             if (!courseResponse.ok) throw new Error(courseData.message || 'Failed to load courses.');
+            if (!roAreaResponse.ok) throw new Error(roAreaData.error || 'Failed to load RO Areas.');
 
             setAccounts(Array.isArray(data.data) ? data.data : []);
             setCourses((Array.isArray(courseData) ? courseData : []).filter((course) => !course.is_archived));
+            setRoAreas(Array.isArray(roAreaData.items) ? roAreaData.items : []);
         } catch (err) {
-            setError(err.message || 'Failed to load staff accounts.');
+            setError(err.message || 'Failed to load accounts.');
         } finally {
             setLoading(false);
         }
@@ -1109,14 +1449,23 @@ export default function AccountsPanel() {
         setError('');
     };
 
+    const setAdminField = (field, value) => {
+        setAdminForm((current) => ({
+            ...current,
+            [field]: value,
+        }));
+        setAdminError('');
+    };
+
     const handleRoleChange = (role) => {
         const defaults = ROLE_OPTIONS.find((option) => option.value === role);
 
         setForm((current) => ({
             ...current,
             role,
-            department: defaults?.department || current.department,
-            position: defaults?.position || current.position,
+            department: role === 'ro_coordinator'
+                ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
+                : defaults?.department || current.department,
             course_ids: role === 'pd' ? current.course_ids : [],
         }));
 
@@ -1124,13 +1473,12 @@ export default function AccountsPanel() {
     };
 
     const openCreateModal = () => {
-        const defaults = ROLE_OPTIONS[0];
+        const defaults = DEFAULT_OPERATIONAL_ROLE;
 
         setForm({
             ...DEFAULT_FORM,
             role: defaults.value,
             department: defaults.department,
-            position: defaults.position,
         });
 
         setError('');
@@ -1142,6 +1490,19 @@ export default function AccountsPanel() {
 
         setCreateOpen(false);
         setError('');
+    };
+
+    const openAdminCreateModal = () => {
+        setAdminForm(DEFAULT_ADMIN_FORM);
+        setAdminError('');
+        setAdminCreateOpen(true);
+    };
+
+    const closeAdminCreateModal = () => {
+        if (savingAdmin) return;
+
+        setAdminCreateOpen(false);
+        setAdminError('');
     };
 
     const openEditModal = (account) => {
@@ -1159,7 +1520,6 @@ export default function AccountsPanel() {
                 account.department,
                 account.assigned_courses || []
             ),
-            position: account.position || '',
             password: '',
             confirm_password: '',
             course_ids: account.course_ids || [],
@@ -1180,7 +1540,7 @@ export default function AccountsPanel() {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        const validationError = validateCreateForm(form);
+        const validationError = validateCreateForm(form, roAreas);
 
         if (validationError) {
             setError(validationError);
@@ -1206,36 +1566,82 @@ export default function AccountsPanel() {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to create staff account.'
+                    'Failed to create account.'
                 );
             }
 
             const createdAccount = data.data;
             const defaults =
-                ROLE_OPTIONS.find((option) => option.value === form.role) ||
-                ROLE_OPTIONS[0];
+                OPERATIONAL_ROLE_OPTIONS.find((option) => option.value === form.role) ||
+                DEFAULT_OPERATIONAL_ROLE;
 
             setAccounts((current) => [createdAccount, ...current]);
             setForm({
                 ...DEFAULT_FORM,
                 role: form.role,
                 department: defaults.department,
-                position: defaults.position,
             });
             setPageTab('current');
             setCreateOpen(false);
-            toast.success('Staff account created', {
+            toast.success('Account created', {
                 description: form.role === 'pd' ? 'The Program Director and course assignments are active.' : 'The account is ready to use.',
             });
         } catch (err) {
-            setError(err.message || 'Failed to create staff account.');
+            setError(err.message || 'Failed to create account.');
         } finally {
             setSaving(false);
         }
     };
 
+    const handleAdminSubmit = async (event) => {
+        event.preventDefault();
+
+        const validationError = validateAdminCreateForm(adminForm);
+
+        if (validationError) {
+            setAdminError(validationError);
+            return;
+        }
+
+        try {
+            setSavingAdmin(true);
+            setAdminError('');
+
+            const response = await fetch(buildApiUrl('/api/accounts/admin'), {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    ...adminForm,
+                    email: adminForm.email.trim().toLowerCase(),
+                }),
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.success === false) {
+                throw new Error(
+                    data.error?.message ||
+                    data.message ||
+                    'Failed to create Admin account.'
+                );
+            }
+
+            setAccounts((current) => [data.data, ...current]);
+            setAdminForm(DEFAULT_ADMIN_FORM);
+            setPageTab('current');
+            setAdminCreateOpen(false);
+            toast.success('Admin account created', {
+                description: 'The new OSFA Coordinator account is ready to sign in.',
+            });
+        } catch (err) {
+            setAdminError(err.message || 'Failed to create Admin account.');
+        } finally {
+            setSavingAdmin(false);
+        }
+    };
+
     const handleUpdate = async () => {
-        const validationError = validateEditForm(editForm);
+        const validationError = validateEditForm(editForm, roAreas);
 
         if (validationError) {
             setEditError(validationError);
@@ -1271,7 +1677,7 @@ export default function AccountsPanel() {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to update staff account.'
+                    'Failed to update account.'
                 );
             }
 
@@ -1281,7 +1687,7 @@ export default function AccountsPanel() {
             setEditForm(DEFAULT_FORM);
             toast.success('Account updated', { description: 'Account details and course assignments were saved.' });
         } catch (err) {
-            setEditError(err.message || 'Failed to update staff account.');
+            setEditError(err.message || 'Failed to update account.');
         } finally {
             setUpdating(false);
         }
@@ -1332,7 +1738,7 @@ export default function AccountsPanel() {
 
     return (
         <div className="space-y-4">
-            <StaffCreateModal
+            <AccountCreateModal
                 open={createOpen}
                 form={form}
                 saving={saving}
@@ -1342,9 +1748,20 @@ export default function AccountsPanel() {
                 onClose={closeCreateModal}
                 onSubmit={handleSubmit}
                 courses={courses}
+                roAreas={roAreas}
             />
 
-            <StaffEditModal
+            <AdminCreateModal
+                open={adminCreateOpen}
+                form={adminForm}
+                saving={savingAdmin}
+                error={adminError}
+                setField={setAdminField}
+                onClose={closeAdminCreateModal}
+                onSubmit={handleAdminSubmit}
+            />
+
+            <AccountEditModal
                 open={editOpen}
                 form={editForm}
                 setForm={setEditForm}
@@ -1354,10 +1771,11 @@ export default function AccountsPanel() {
                 onClose={closeEditModal}
                 onSave={handleUpdate}
                 courses={courses}
+                roAreas={roAreas}
                 currentUserId={editingAccountId}
             />
 
-            <StaffProfileModal
+            <AccountProfileModal
                 account={profileAccount}
                 onClose={() => setProfileAccount(null)}
                 onEdit={(account) => {
@@ -1371,14 +1789,11 @@ export default function AccountsPanel() {
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Staff Account Records
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-stone-900">
-                                    {currentCount} active · {archivedCount} archived
-                                </p>
-                                <p className="mt-1 text-[11px] text-stone-500">
-                                    {activePdCount} Program Director{activePdCount === 1 ? '' : 's'} · {assignedCourseCount} assigned course{assignedCourseCount === 1 ? '' : 's'} · {Math.max(courses.length - assignedCourseCount, 0)} unassigned
+                                <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                    Account Management
+                                </h2>
+                                <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                                    Manage authorized staff accounts, role assignments, and Program Director course access.
                                 </p>
                             </div>
 
@@ -1399,7 +1814,7 @@ export default function AccountsPanel() {
                                     type="button"
                                     onClick={() => setPageTab('current')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
-                                            ? 'bg-[#7c4a2e] text-white'
+                                            ? 'bg-[var(--portal-base)] text-white'
                                             : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                         }`}
                                 >
@@ -1410,7 +1825,7 @@ export default function AccountsPanel() {
                                     type="button"
                                     onClick={() => setPageTab('archived')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
-                                            ? 'bg-[#7c4a2e] text-white'
+                                            ? 'bg-[var(--portal-base)] text-white'
                                             : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                         }`}
                                 >
@@ -1423,10 +1838,10 @@ export default function AccountsPanel() {
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" className="h-8 rounded-lg border-stone-200 px-3 text-xs">
                                             <Filter className="mr-1.5 h-3.5 w-3.5" />
-                                            Filter
-                                            {(roleFilter !== 'all' || courseFilter !== 'all') ? (
+                                            Filter &amp; Group
+                                            {(roleFilter !== 'grouped' || courseFilter !== 'all') ? (
                                                 <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-stone-900 px-1 text-[9px] font-bold text-white">
-                                                    {(roleFilter !== 'all' ? 1 : 0) + (courseFilter !== 'all' ? 1 : 0)}
+                                                    {(roleFilter !== 'grouped' ? 1 : 0) + (courseFilter !== 'all' ? 1 : 0)}
                                                 </span>
                                             ) : null}
                                         </Button>
@@ -1434,14 +1849,14 @@ export default function AccountsPanel() {
                                     <PopoverContent align="end" className="w-72 gap-0 border border-stone-200 bg-white p-3 shadow-xl">
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
-                                                <p className="text-sm font-semibold text-stone-900">Filter Accounts</p>
-                                                <p className="mt-0.5 text-xs text-stone-500">Narrow the staff registry.</p>
+                                                <p className="text-sm font-semibold text-stone-900">Filter &amp; Group Accounts</p>
+                                                <p className="mt-0.5 text-xs text-stone-500">Narrow or organize the account registry.</p>
                                             </div>
-                                            {(roleFilter !== 'all' || courseFilter !== 'all') ? (
+                                            {(roleFilter !== 'grouped' || courseFilter !== 'all') ? (
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        setRoleFilter('all');
+                                                        setRoleFilter('grouped');
                                                         setCourseFilter('all');
                                                     }}
                                                     className="text-xs font-semibold text-stone-600 hover:text-stone-900"
@@ -1458,19 +1873,25 @@ export default function AccountsPanel() {
                                                     value={roleFilter}
                                                     onValueChange={(value) => {
                                                         setRoleFilter(value);
-                                                        if (!['all', 'pd'].includes(value)) setCourseFilter('all');
+                                                        if (value !== 'pd') setCourseFilter('all');
                                                     }}
                                                 >
                                                     <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 bg-white text-xs">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="all">All Staff</SelectItem>
-                                                        <SelectItem value="admin">Admin</SelectItem>
-                                                        <SelectItem value="office">Office (SDO/GCO)</SelectItem>
+                                                        <SelectItem value="grouped">Group by Role</SelectItem>
+                                                        <SelectItem value="all">All Accounts</SelectItem>
+                                                        <SelectItem value="admin">OSFA Coordinator</SelectItem>
+                                                        <SelectItem value="sdo">Student Discipline Officer</SelectItem>
+                                                        <SelectItem value="guidance">Guidance Counselor (GCO)</SelectItem>
                                                         <SelectItem value="pd">Program Director</SelectItem>
+                                                        <SelectItem value="ro_coordinator">RO Coordinator</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+                                                <p className="mt-1.5 text-[11px] leading-4 text-stone-500">
+                                                    The default view groups roles and orders each group by Date Created, newest first.
+                                                </p>
                                             </div>
 
                                             <div>
@@ -1499,13 +1920,13 @@ export default function AccountsPanel() {
                                     </PopoverContent>
                                 </Popover>
 
-                                {(search || roleFilter !== 'all' || courseFilter !== 'all') && (
+                                {(search || roleFilter !== 'grouped' || courseFilter !== 'all') && (
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() => {
                                             setSearch('');
-                                            setRoleFilter('all');
+                                            setRoleFilter('grouped');
                                             setCourseFilter('all');
                                         }}
                                         className="h-8 rounded-lg border-stone-200 text-xs"
@@ -1529,13 +1950,23 @@ export default function AccountsPanel() {
                                 </Button>
 
                                 <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={openAdminCreateModal}
+                                    className="h-8 rounded-lg border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-100 hover:text-amber-900"
+                                >
+                                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                    Create Admin Account
+                                </Button>
+
+                                <Button
                                     size="sm"
                                     onClick={openCreateModal}
                                     className="h-8 rounded-lg border-none text-xs text-white"
                                     style={{ background: C.brownMid }}
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
-                                    Add
+                                    Create Account
                                 </Button>
                             </div>
                         </div>
@@ -1546,7 +1977,7 @@ export default function AccountsPanel() {
                     {loading ? (
                         <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
                             <Loader2 className="h-5 w-5 animate-spin" />
-                            Loading staff accounts...
+                            Loading accounts...
                         </div>
                     ) : error ? (
                         <div className="m-4 flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-4 py-6 text-center text-xs text-red-700">
@@ -1559,13 +1990,13 @@ export default function AccountsPanel() {
                                 icon={UsersRound}
                                 title={
                                     pageTab === 'archived'
-                                        ? 'No archived staff accounts'
-                                        : 'No staff accounts found'
+                                        ? 'No archived accounts'
+                                        : 'No accounts found'
                                 }
                                 subtitle={
                                     pageTab === 'archived'
-                                        ? 'Archived staff accounts will appear here.'
-                                        : 'Create the first role-based account using the Add button.'
+                                        ? 'Archived accounts will appear here.'
+                                        : 'Create the first department account using Create Account.'
                                 }
                             />
                         </div>
@@ -1580,25 +2011,38 @@ export default function AccountsPanel() {
                             </div>
 
                             <div className="divide-y divide-stone-100">
-                                {filteredAccounts.map((account) => {
+                                {accountListItems.map((item) => {
+                                    if (item.type === 'group') {
+                                        return (
+                                            <div
+                                                key={item.key}
+                                                className="flex items-center justify-between gap-3 bg-stone-50/90 px-4 py-2.5"
+                                            >
+                                                <span className="text-xs font-semibold">{item.label}</span>
+                                                <span className="text-xs font-medium text-stone-500">
+                                                    {item.count} account{item.count === 1 ? '' : 's'}
+                                                </span>
+                                            </div>
+                                        );
+                                    }
+
+                                    const account = item.account;
                                     const isBusy = actionLoadingId === account.user_id;
                                     const roleLabel = ROLE_OPTIONS.find((role) => role.value === account.role)?.label || account.role;
 
                                     return (
                                         <div
-                                            key={account.user_id}
+                                            key={item.key}
                                             className={`grid gap-3 px-4 py-3 transition-colors lg:grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] lg:items-center lg:gap-4 ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
                                         >
                                             <div className="flex min-w-0 items-center gap-2.5">
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage
-                                                        src={account.avatar_url || account.profile_photo_url || undefined}
-                                                        alt={`${account.name} profile`}
-                                                    />
-                                                    <AvatarFallback className="bg-stone-100 text-xs font-bold text-stone-600">
-                                                        {(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <PreviewableProfileAvatar
+                                                    src={account.avatar_url || account.profile_photo_url || ''}
+                                                    name={`${account.name || 'Account'} profile photo`}
+                                                    fallback={(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
+                                                    avatarClassName="h-9 w-9"
+                                                    fallbackClassName="bg-stone-100 text-xs font-bold text-stone-600"
+                                                />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <p className="truncate text-sm font-semibold text-stone-900">{account.name}</p>
@@ -1607,6 +2051,10 @@ export default function AccountsPanel() {
                                                         ) : null}
                                                     </div>
                                                     <p className="mt-0.5 truncate text-xs text-stone-500">{account.email}</p>
+                                                    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-400">
+                                                        <CalendarDays className="h-3 w-3" />
+                                                        <span>Date Created: {formatAccountCreatedDate(account.created_at)}</span>
+                                                    </p>
                                                 </div>
                                             </div>
 

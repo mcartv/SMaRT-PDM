@@ -15,6 +15,7 @@ const {
   APPLICANT_IDENTITY_UNCONFIRMED,
   buildExtractedData,
   buildRawOcrSnapshot,
+  normalizeReviewFields,
   reviewBirthApplicantIdentity,
 } = await vite.ssrLoadModule('/src/pages/DocumentVerification.jsx');
 
@@ -80,15 +81,60 @@ test('structured birth OCR renders three provisional fields without raw text', (
     'Structured row OCR completed.\nNo combined raw OCR snapshot was supplied.'
   );
   assert.notEqual(buildRawOcrSnapshot(activeDoc), '(No OCR text yet)');
-  assert.equal(
-    mapped.applicationMetadata[0].value,
-    'APPLICATION PROFILE NAME'
-  );
+  assert.equal(mapped.applicationMetadata, undefined);
   assert.ok(
     mapped.extractedFields.every(
       (field) => field.value !== 'APPLICATION PROFILE NAME'
     )
   );
+});
+
+test('canonical live-birth candidate populates all nested name components', () => {
+  const normalized = normalizeReviewFields({
+    document_key: 'certificate_of_live_birth',
+    fields: {
+      child_name: {
+        components: {
+          first_name: 'JUAN',
+          middle_name: 'SANTOS',
+          last_name: 'DELA CRUZ',
+        },
+      },
+      mother_maiden_name: {
+        components: {
+          first_name: 'MARIA',
+          middle_name: 'REYES',
+          last_name: 'SARMIENTO',
+        },
+      },
+      father_name: {
+        components: {
+          first_name: 'PEDRO',
+          middle_name: 'GOMEZ',
+          last_name: 'DELA CRUZ',
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(normalized.child_name, {
+    first_name: 'JUAN',
+    middle_name: 'SANTOS',
+    last_name: 'DELA CRUZ',
+    section_status: 'present',
+  });
+  assert.deepEqual(normalized.mother_maiden_name, {
+    first_name: 'MARIA',
+    middle_name: 'REYES',
+    last_name: 'SARMIENTO',
+    section_status: 'present',
+  });
+  assert.deepEqual(normalized.father_name, {
+    first_name: 'PEDRO',
+    middle_name: 'GOMEZ',
+    last_name: 'DELA CRUZ',
+    section_status: 'present',
+  });
 });
 
 test('missing individual birth text renders Not extracted', () => {

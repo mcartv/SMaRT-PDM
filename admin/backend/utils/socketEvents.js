@@ -37,6 +37,17 @@ const emitEvent = (io, eventName, data = {}) => {
     io.emit(eventName, payload);
 };
 
+const emitPublicEvent = (io, eventName, data = {}) => {
+    if (!io || typeof io.of !== 'function') {
+        console.warn(`[Socket] No io instance available for public event: ${eventName}`);
+        return;
+    }
+
+    const payload = addMeta(data);
+    console.log(`[Socket] Emitting public: ${eventName}`, payload);
+    io.of('/public').emit(eventName, payload);
+};
+
 const emitToUser = (io, userId, eventName, data = {}) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
@@ -106,6 +117,7 @@ function emitMessageEvent(io, eventName, data = {}, options = {}) {
 const socketEvents = {
     /** Base emitters. */
     emitEvent,
+    emitPublicEvent,
     emitToUser,
     emitToUsers,
     emitToRoom,
@@ -113,7 +125,7 @@ const socketEvents = {
     /** Dashboard-wide refresh channels. */
     dashboardUpdated: (io, data) => emitEvent(io, 'dashboard:updated', data),
     maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
-    sdoRecordsUpdated: (io, data) => emitEvent(io, 'sdo-records:updated', data),
+    landingThemeUpdated: (io, data) => emitPublicEvent(io, 'landing-theme:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
     auditCreated: (io, data) => emitEvent(io, 'audit:created', data),
 
@@ -141,7 +153,9 @@ const socketEvents = {
     applicationDocumentUploaded: (io, data) => emitEvent(io, 'application-document:uploaded', data),
     applicationDocumentReviewed: (io, data) => emitEvent(io, 'application-document:reviewed', data),
     applicationOcrQueued: (io, data) => emitEvent(io, 'application-ocr:queued', data),
+    applicationOcrStatus: (io, data) => emitEvent(io, 'application-ocr:status', data),
     applicationOcrSnapshotSaved: (io, data) => emitEvent(io, 'application-ocr:snapshot-saved', data),
+    piAvailability: (io, data) => emitEvent(io, 'pi:availability', data),
 
     /** Scholars and renewals. */
     scholarCreated: (io, data) => emitEvent(io, 'scholar:created', data),
@@ -181,8 +195,31 @@ const socketEvents = {
     personalToolsUpdated: (io, userId, data) =>
         emitToUser(io, userId, 'personal-tools:updated', data),
 
+    /** Current portal profile/header avatar. */
+    profileUpdated: (io, userId, data) =>
+        emitToUser(io, userId, 'profile:updated', data),
+
     /** Messages and rooms. */
-    messageCreated: (io, data, options = {}) => emitMessageEvent(io, 'message:created', data, options),
+    messageCreated: (io, data, options = {}) => {
+        const targetUserIds = normalizeUserIds(options.targetUserIds || []);
+
+        const emitExact = (eventName) => {
+            if (targetUserIds.length) {
+                targetUserIds.forEach((userId) => {
+                    io.to(`user:${userId}`).emit(eventName, data);
+                });
+                return;
+            }
+
+            io.emit(eventName, data);
+        };
+
+        // Current mobile clients consume message:new while the admin web side
+        // also supports message:created. Both events must carry the exact same
+        // normalized payload and must be emitted only once per target.
+        emitExact('message:new');
+        emitExact('message:created');
+    },
     messageRead: (io, data, options = {}) => emitMessageEvent(io, 'message:read', data, options),
     messageUnread: (io, data, options = {}) => emitMessageEvent(io, 'message:unread', data, options),
     conversationUpdated: (io, data, options = {}) => emitMessageEvent(io, 'conversation:updated', data, options),

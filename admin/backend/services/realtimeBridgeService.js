@@ -1,5 +1,60 @@
-let bridgeStarted = false;
-let bridgeChannel = null;
+﻿let bridgeStarted = false;
+let bridgeChannels = [];
+let bridgeRetryTimer = null;
+let bridgeGeneration = 0;
+const REALTIME_BRIDGE_RETRY_MS = 3000;
+
+// Prevent the exact same Realtime payload from causing repeated Socket.IO
+// refreshes while preserving immediate delivery of genuine changes.
+const PUBLIC_EVENT_DEDUPE_TTL_MS = 1500;
+const PUBLIC_EVENT_DEDUPE_MAX_ENTRIES = 1000;
+const recentPublicEvents = new Map();
+
+function buildPublicEventDedupeKey(eventName, payload = {}) {
+  const entityId =
+    payload.application_id ||
+    payload.document_id ||
+    payload.review_id ||
+    payload.slip_id ||
+    payload.renewal_id ||
+    payload.message_id ||
+    '';
+
+  const version =
+    payload.updated_at ||
+    payload.reviewed_at ||
+    payload.created_at ||
+    payload.event_type ||
+    '';
+
+  if (!entityId || !version) return '';
+  return `${eventName}:${entityId}:${version}`;
+}
+
+function shouldSuppressDuplicatePublicEvent(eventName, payload = {}) {
+  const key = buildPublicEventDedupeKey(eventName, payload);
+  if (!key) return false;
+
+  const now = Date.now();
+  const previous = recentPublicEvents.get(key);
+
+  if (previous && now - previous < PUBLIC_EVENT_DEDUPE_TTL_MS) {
+    return true;
+  }
+
+  recentPublicEvents.set(key, now);
+
+  if (recentPublicEvents.size > PUBLIC_EVENT_DEDUPE_MAX_ENTRIES) {
+    for (const [storedKey, storedAt] of recentPublicEvents.entries()) {
+      if (now - storedAt >= PUBLIC_EVENT_DEDUPE_TTL_MS) {
+        recentPublicEvents.delete(storedKey);
+      }
+      if (recentPublicEvents.size <= PUBLIC_EVENT_DEDUPE_MAX_ENTRIES) break;
+    }
+  }
+
+  return false;
+}
 
 function safeText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
@@ -26,6 +81,7 @@ function uniqueIds(...values) {
 
 function emitPublic(io, eventName, payload) {
   if (!io) return;
+  if (shouldSuppressDuplicatePublicEvent(eventName, payload)) return;
 
   const finalPayload = {
     ...payload,
@@ -170,13 +226,42 @@ function handleApplicationDocumentChange(io, payload = {}) {
     event_type: eventType,
   });
 
-  emitPublic(io, 'application:updated', {
-    application_id: document.application_id,
-    updated_at: document.updated_at,
-    source: 'application_document',
-    document_type: document.document_type,
-    review_status: document.review_status,
-    is_submitted: document.is_submitted,
+}
+
+function buildApplicationDocumentReviewPayload(row = {}) {
+  return {
+    review_id: row.review_id?.toString() || '',
+    application_id: row.application_id?.toString() || '',
+    document_key: row.document_key?.toString() || '',
+    document_name: row.document_name?.toString() || '',
+    review_status: row.review_status?.toString() || '',
+    issue_severity: row.issue_severity?.toString() || null,
+    reason_code: row.reason_code?.toString() || null,
+    reviewed_at:
+      row.reviewed_at?.toString() ||
+      row.updated_at?.toString() ||
+      row.created_at?.toString() ||
+      new Date().toISOString(),
+  };
+}
+
+function handleApplicationDocumentReviewChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const nextRow = payload.new || {};
+  const previousRow = payload.old || {};
+  const review = buildApplicationDocumentReviewPayload(
+    nextRow.review_id ? nextRow : previousRow
+  );
+
+  if (!review.application_id) {
+    return;
+  }
+
+  // This is intentionally a single purpose-built event. Consumers that care
+  // about document review state subscribe to this event and refresh once.
+  emitPublic(io, 'application-document:reviewed', {
+    ...review,
+    source: 'application_document_review',
     event_type: eventType,
   });
 }
@@ -198,14 +283,6 @@ function handleEndorsementSlipChange(io, payload = {}) {
     event_type: eventType,
   });
 
-  emitPublic(io, 'application:updated', {
-    application_id: endorsement.application_id,
-    updated_at: endorsement.updated_at,
-    source: 'endorsement',
-    current_stage: endorsement.current_stage,
-    overall_status: endorsement.overall_status,
-    event_type: eventType,
-  });
 }
 
 async function fetchRoomMemberIds(supabase, roomId) {
@@ -419,84 +496,269 @@ async function handleMessageChange(io, supabase, payload = {}) {
   }
 }
 
+async function disposeRealtimeBridgeChannels(supabase) {
+  const channels = bridgeChannels;
+  bridgeChannels = [];
+
+  if (!supabase?.removeChannel || !channels.length) return;
+
+  await Promise.allSettled(
+    channels.map((channel) => {
+      try {
+        return supabase.removeChannel(channel);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    })
+  );
+}
+
+function scheduleRealtimeBridgeRestart({ io, supabase, reason }) {
+  if (bridgeRetryTimer) return;
+
+  console.warn('[Realtime Bridge] scheduling reconnect', {
+    reason: String(reason || 'unknown'),
+    retry_in_ms: REALTIME_BRIDGE_RETRY_MS,
+  });
+
+  bridgeRetryTimer = setTimeout(async () => {
+    bridgeRetryTimer = null;
+
+    try {
+      bridgeStarted = false;
+      await disposeRealtimeBridgeChannels(supabase);
+      configureRealtimeBridge({ io, supabase });
+    } catch (error) {
+      console.error('[Realtime Bridge] reconnect failed:', error);
+      scheduleRealtimeBridgeRestart({
+        io,
+        supabase,
+        reason: error?.message || 'restart_failed',
+      });
+    }
+  }, REALTIME_BRIDGE_RETRY_MS);
+
+  bridgeRetryTimer.unref?.();
+}
+
+function createRealtimeDomainChannel({
+  io,
+  supabase,
+  generation,
+  domain,
+  bindings,
+}) {
+  let channel = supabase.channel(
+    `admin-realtime-${domain}-${generation}`
+  );
+
+  for (const binding of bindings) {
+    channel = channel.on(
+      'postgres_changes',
+      binding.filter,
+      binding.handler
+    );
+  }
+
+  channel.subscribe((status, error) => {
+    const normalizedStatus = String(status || '').toUpperCase();
+
+    if (error) {
+      console.error(`[Realtime Bridge:${domain}] subscribe error:`, error);
+    }
+
+    console.log(`[Realtime Bridge:${domain}] status:`, status);
+
+    if (
+      normalizedStatus === 'CHANNEL_ERROR' ||
+      normalizedStatus === 'TIMED_OUT'
+    ) {
+      scheduleRealtimeBridgeRestart({
+        io,
+        supabase,
+        reason: `${domain}:${normalizedStatus}`,
+      });
+    }
+  });
+
+  bridgeChannels.push(channel);
+  return channel;
+}
+
 function configureRealtimeBridge({ io, supabase }) {
-  if (bridgeStarted) {
-    return bridgeChannel;
+  if (bridgeStarted && bridgeChannels.length > 0) {
+    return bridgeChannels[0];
   }
 
   if (!io || !supabase?.channel) {
-    console.warn('Realtime bridge skipped: missing io or supabase channel support.');
+    console.warn(
+      'Realtime bridge skipped: missing io or supabase channel support.'
+    );
     return null;
   }
 
   bridgeStarted = true;
+  bridgeGeneration += 1;
+  const generation = bridgeGeneration;
 
   console.log('[Realtime Bridge Boot Check]', {
-    bridgeStarted,
+    generation,
     hasIo: Boolean(io),
     hasSupabase: Boolean(supabase),
     hasChannel: Boolean(supabase?.channel),
   });
 
+  /*
+   * Keep critical application workflow traffic isolated from optional domains.
+   * One optional table/channel problem must never prevent document/application
+   * realtime from subscribing.
+   */
+  createRealtimeDomainChannel({
+    io,
+    supabase,
+    generation,
+    domain: 'applications',
+    bindings: [
+      {
+        filter: { event: '*', schema: 'public', table: 'applications' },
+        handler: (payload) => handleApplicationChange(io, payload),
+      },
+      {
+        filter: { event: '*', schema: 'public', table: 'application_documents' },
+        handler: (payload) => handleApplicationDocumentChange(io, payload),
+      },
+      {
+        filter: {
+          event: '*',
+          schema: 'public',
+          table: 'application_document_reviews',
+        },
+        handler: (payload) =>
+          handleApplicationDocumentReviewChange(io, payload),
+      },
+      {
+        filter: { event: '*', schema: 'public', table: 'endorsement_slips' },
+        handler: (payload) => handleEndorsementSlipChange(io, payload),
+      },
+    ],
+  });
+
+  createRealtimeDomainChannel({
+    io,
+    supabase,
+    generation,
+    domain: 'workflow',
+    bindings: [
+      {
+        filter: { event: '*', schema: 'public', table: 'renewals' },
+        handler: (payload) => {
+          emitPublic(io, 'renewal:updated', {
+            renewal_id:
+              payload.new?.renewal_id ||
+              payload.old?.renewal_id ||
+              null,
+            action: String(
+              payload.eventType || 'UPDATE'
+            ).toLowerCase(),
+            updated_at:
+              payload.new?.updated_at ||
+              payload.old?.updated_at ||
+              new Date().toISOString(),
+          });
+        },
+      },
+      {
+        filter: {
+          event: '*',
+          schema: 'public',
+          table: 'renewal_documents',
+        },
+        handler: (payload) => {
+          emitPublic(io, 'renewal:updated', {
+            renewal_id:
+              payload.new?.renewal_id ||
+              payload.old?.renewal_id ||
+              null,
+            action: 'document_updated',
+            updated_at:
+              payload.new?.updated_at ||
+              payload.old?.updated_at ||
+              new Date().toISOString(),
+          });
+        },
+      },
+      {
+        filter: {
+          event: '*',
+          schema: 'public',
+          table: 'profile_photo_reviews',
+        },
+        handler: (payload) => {
+          const action = String(
+            payload.eventType || 'UPDATE'
+          ).toLowerCase();
+
+          emitPublic(
+            io,
+            `profile-photo-review:${
+              action === 'insert' ? 'created' : 'updated'
+            }`,
+            {
+              review_id:
+                payload.new?.review_id ||
+                payload.old?.review_id ||
+                null,
+              status:
+                payload.new?.status ||
+                payload.old?.status ||
+                null,
+              updated_at:
+                payload.new?.updated_at ||
+                payload.old?.updated_at ||
+                new Date().toISOString(),
+            }
+          );
+        },
+      },
+    ],
+  });
+
+  createRealtimeDomainChannel({
+    io,
+    supabase,
+    generation,
+    domain: 'messages',
+    bindings: [
+      {
+        filter: { event: '*', schema: 'public', table: 'messages' },
+        handler: async (payload) => {
+          try {
+            await handleMessageChange(io, supabase, payload);
+          } catch (error) {
+            console.error(
+              '[Realtime Bridge] message handler error:',
+              error
+            );
+          }
+        },
+      },
+    ],
+  });
+
+  // Lightweight connectivity proof. It does not poll.
   supabase
-    .from('messages')
-    .select('message_id, sender_id, receiver_id, room_id, sent_at')
-    .order('sent_at', { ascending: false })
+    .from('applications')
+    .select('application_id')
     .limit(1)
-    .then(({ data, error }) => {
+    .then(({ error }) => {
       console.log('[Realtime Bridge DB Check]', {
+        generation,
         error: error?.message || null,
-        latestMessage: data?.[0] || null,
       });
     });
 
-  bridgeChannel = supabase
-    .channel('admin-realtime-bridge')
-
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'applications' },
-      (payload) => {
-        handleApplicationChange(io, payload);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'application_documents' },
-      (payload) => {
-        handleApplicationDocumentChange(io, payload);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'endorsement_slips' },
-      (payload) => {
-        handleEndorsementSlipChange(io, payload);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'messages' },
-      async (payload) => {
-        try {
-          await handleMessageChange(io, supabase, payload);
-        } catch (error) {
-          console.error('[Realtime Bridge] message handler error:', error);
-        }
-      }
-    )
-    .subscribe((status, error) => {
-      if (error) {
-        console.error('ADMIN REALTIME BRIDGE SUBSCRIBE ERROR:', error);
-        return;
-      }
-
-      console.log('Admin realtime bridge status:', status);
-    });
-
-  return bridgeChannel;
+  return bridgeChannels[0] || null;
 }
-
 module.exports = {
   configureRealtimeBridge,
 };

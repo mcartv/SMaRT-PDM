@@ -1,5 +1,6 @@
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const { installStorageSignedUrlCache } = require('./storageSignedUrlCache');
 
 require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
@@ -21,7 +22,6 @@ if (!supabaseServiceRoleKey) {
 console.log('[Supabase Admin Client]', {
     url: supabaseUrl,
     hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
-    keyPrefix: supabaseServiceRoleKey.slice(0, 12),
 });
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -35,5 +35,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
         },
     },
 });
+
+installStorageSignedUrlCache(supabase, { label: 'admin-backend' });
 
 module.exports = supabase;

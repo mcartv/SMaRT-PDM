@@ -1,14 +1,69 @@
 const express = require('express');
 const router = express.Router();
 
-const { protect } = require('../middleware/authMiddleware');
+const {
+    protect,
+    authorizeRoles,
+} = require('../middleware/authMiddleware');
 const academicYearController = require('../controllers/academicYearController');
 
-router.get('/', protect, academicYearController.getAcademicYears);
-router.post('/', protect, academicYearController.createAcademicYear);
-router.patch('/:id', protect, academicYearController.updateAcademicYear);
-router.patch('/:id/activate', protect, academicYearController.activateAcademicYear);
-router.patch('/:id/archive', protect, academicYearController.archiveAcademicYear);
-router.patch('/:id/restore', protect, academicYearController.restoreAcademicYear);
+const adminOnly = [
+    protect,
+    authorizeRoles('admin'),
+];
+
+router.get(
+    '/periods',
+    ...adminOnly,
+    academicYearController.getAcademicPeriods
+);
+
+router.patch(
+    '/periods/:periodId/activate',
+    ...adminOnly,
+    academicYearController.activateAcademicPeriod
+);
+
+router.post(
+    '/periods/:periodId/reset-test',
+    ...adminOnly,
+    academicYearController.resetAcademicPeriodForTesting
+);
+
+router.get(
+    '/',
+    ...adminOnly,
+    academicYearController.getAcademicYears
+);
+
+router.post(
+    '/',
+    ...adminOnly,
+    academicYearController.createAcademicYear
+);
+
+router.patch(
+    '/:id',
+    ...adminOnly,
+    academicYearController.updateAcademicYear
+);
+
+router.patch(
+    '/:id/activate',
+    ...adminOnly,
+    academicYearController.activateAcademicYear
+);
+
+router.patch(
+    '/:id/archive',
+    ...adminOnly,
+    academicYearController.archiveAcademicYear
+);
+
+router.patch(
+    '/:id/restore',
+    ...adminOnly,
+    academicYearController.restoreAcademicYear
+);
 
 module.exports = router;

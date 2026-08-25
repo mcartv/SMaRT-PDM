@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import {
-  Building2,
   BookOpen,
-  Cpu,
   ClipboardList,
   Database,
   Settings,
@@ -16,10 +14,8 @@ import {
 
 import GeneralPanel from './GeneralPanel';
 import StudentRegistryPanel from './StudentRegistryPanel';
-import BenefactorsPanel from './BenefactorsPanel';
-import ProgramsPanel from './ProgramsPanel';
+import ScholarshipProgramsPanel from './ScholarshipProgramsPanel';
 import CoursesPanel from './CoursesPanel';
-import SystemPanel from './SystemPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
 import AccountsPanel from './AccountsPanel';
@@ -27,51 +23,49 @@ import ThemePanel from './ThemePanel';
 import LandingThemePanel from './LandingThemePanel';
 import ROSettingsPanel from './ROSettingsPanel';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
   { key: 'accounts', label: 'Accounts', icon: UsersRound },
   { key: 'theme', label: 'Theme', icon: Palette },
-  { key: 'benefactors', label: 'Benefactors', icon: Building2 },
-  { key: 'programs', label: 'Programs', icon: GraduationCap },
+  { key: 'scholarship-programs', label: 'Scholarship Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
   { key: 'courses', label: 'Courses', icon: BookOpen },
   { key: 'ro-settings', label: 'Obligation', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
-  { key: 'system', label: 'System', icon: Cpu },
-  { key: 'audit', label: 'Audit', icon: ClipboardList },
+  { key: 'audit', label: 'System Logs', icon: ClipboardList },
 ];
 
-function TopNav({ tabs, active, onChange, accentColor }) {
+function TopNav({ tabs, active, onChange }) {
   return (
-    <div className="sticky top-0 z-20 border-b border-stone-200 bg-white">
-      <div className="flex items-center gap-6 overflow-x-auto px-4">
-        {tabs.map((item) => {
-          const Icon = item.icon;
-          const isActive = active === item.key;
+    <div className="sticky top-0 z-20 border-b border-stone-200 bg-white px-2 py-2">
+      <div className="overflow-x-auto">
+        <div className="mx-auto flex w-max min-w-max items-center gap-1 rounded-xl bg-stone-100 p-1">
+          {tabs.map((item) => {
+            const Icon = item.icon;
+            const isActive = active === item.key;
 
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onChange(item.key)}
-              className={`relative flex items-center gap-2 whitespace-nowrap py-3 text-sm font-medium transition ${isActive
-                  ? 'text-stone-900'
-                  : 'text-stone-400 hover:text-stone-700'
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onChange(item.key)}
+                className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 font-sans text-sm font-semibold leading-none tracking-[-0.01em] transition-colors ${
+                  isActive
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
                 }`}
-            >
-              <Icon size={14} />
-              {item.label}
-
-              {isActive ? (
-                <span
-                  className="absolute bottom-0 left-0 h-[2px] w-full"
-                  style={{ background: accentColor }}
-                />
-              ) : null}
-            </button>
-          );
-        })}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -94,22 +88,27 @@ export default function Maintenance() {
         return (
           <div className="space-y-5">
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+              <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                 Theme Presets
-              </p>
-              <p className="mt-1 text-sm text-stone-500">
+              </h2>
+              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                 Choose which theme area you want to manage.
               </p>
 
-              <div className="mt-4 inline-flex rounded-full border border-stone-200 bg-stone-50 p-1">
+              <div className="mt-4 inline-flex rounded-xl bg-stone-100 p-1">
                 <button
                   type="button"
                   onClick={() => setThemeView('landing')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${themeView === 'landing'
+                  className={`h-9 rounded-lg px-3 text-sm font-medium transition ${
+                    themeView === 'landing'
                       ? 'text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  style={themeView === 'landing' ? { background: theme.base } : undefined}
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                  }`}
+                  style={
+                    themeView === 'landing'
+                      ? { background: 'var(--portal-base)' }
+                      : undefined
+                  }
                 >
                   Landing Page
                 </button>
@@ -117,11 +116,16 @@ export default function Maintenance() {
                 <button
                   type="button"
                   onClick={() => setThemeView('admin')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${themeView === 'admin'
+                  className={`h-9 rounded-lg px-3 text-sm font-medium transition ${
+                    themeView === 'admin'
                       ? 'text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  style={themeView === 'admin' ? { background: theme.base } : undefined}
+                      : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                  }`}
+                  style={
+                    themeView === 'admin'
+                      ? { background: 'var(--portal-base)' }
+                      : undefined
+                  }
                 >
                   Admin Theme
                 </button>
@@ -133,20 +137,16 @@ export default function Maintenance() {
             ) : (
               <ThemePanel
                 tokenStorageKey="adminToken"
-                allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
-                editablePortals={['admin']}
+                allowedPortals={['admin']}
                 title="Admin Theme"
-                subtitle="Manage your personal Admin theme here. Other office login defaults are shown as quick previews only."
+                subtitle="Manage the theme saved specifically for your Admin account."
               />
             )}
           </div>
         );
 
-      case 'benefactors':
-        return <BenefactorsPanel />;
-
-      case 'programs':
-        return <ProgramsPanel />;
+      case 'scholarship-programs':
+        return <ScholarshipProgramsPanel />;
 
       case 'academic-years':
         return <AcademicYearPanel />;
@@ -159,9 +159,6 @@ export default function Maintenance() {
 
       case 'registry':
         return <StudentRegistryPanel />;
-
-      case 'system':
-        return <SystemPanel />;
 
       case 'audit':
         return <AuditPanel />;
@@ -181,20 +178,16 @@ export default function Maintenance() {
         minHeight: 'calc(100dvh - 120px)',
       }}
     >
-      <TopNav
-        tabs={TABS}
-        active={tab}
-        onChange={setTab}
-        accentColor={theme.base}
-      />
+      <TopNav tabs={TABS} active={tab} onChange={setTab} />
 
-      <div className="flex-1 p-4">
-        <Card className="flex h-full flex-col overflow-hidden rounded-2xl border-stone-200 shadow-none">
+      <div className="flex-1 p-2.5">
+        <Card className="flex h-full flex-col overflow-hidden rounded-xl border-stone-200 shadow-none">
           <div
-            className={`flex-1 overflow-auto ${isRegistry
-                ? 'max-h-[calc(100vh-140px)] p-3'
-                : 'max-h-[calc(100vh-140px)] p-5'
-              }`}
+            className={`flex-1 overflow-auto ${
+              isRegistry
+                ? 'max-h-[calc(100vh-132px)] p-2.5'
+                : 'max-h-[calc(100vh-132px)] p-3'
+            }`}
           >
             {renderActiveTab()}
           </div>

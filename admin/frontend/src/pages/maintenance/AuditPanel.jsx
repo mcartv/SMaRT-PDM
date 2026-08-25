@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     AlertTriangle,
     ClipboardList,
@@ -23,6 +23,15 @@ import {
 } from '@/components/ui/select';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+    formatSystemLogActionLabel,
+    formatSystemLogDescription,
+} from '@/utils/systemLogText';
+import SystemLogIcon from '@/components/system/SystemLogIcon';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 function getAuthHeaders(extra = {}) {
     return {
@@ -48,11 +57,20 @@ function formatDateTime(value) {
     }
 }
 
+
+function formatActionLabel(action = '') {
+    return formatSystemLogActionLabel(action);
+}
+
 function actionTone(action = '') {
     const text = String(action).toLowerCase();
 
     if (text.includes('create') || text.includes('import') || text.includes('restore')) {
         return 'bg-green-50 text-green-700 border-green-100';
+    }
+
+    if (text.includes('password') || text.includes('reset')) {
+        return 'bg-amber-50 text-amber-800 border-amber-100';
     }
 
     if (text.includes('archive') || text.includes('reject')) {
@@ -80,19 +98,10 @@ export default function AuditPanel() {
 
     const [search, setSearch] = useState('');
     const [moduleFilter, setModuleFilter] = useState('all');
+    const [moduleOptions, setModuleOptions] = useState([]);
 
     const isFiltered = search.trim() || moduleFilter !== 'all';
     const canUnlock = password.trim().length > 0 && !unlocking;
-
-    const modules = useMemo(() => {
-        const unique = new Set();
-
-        logs.forEach((log) => {
-            if (log.module) unique.add(log.module);
-        });
-
-        return Array.from(unique).sort((a, b) => a.localeCompare(b));
-    }, [logs]);
 
     const loadLogs = useCallback(async () => {
         if (!auditToken) return;
@@ -128,14 +137,17 @@ export default function AuditPanel() {
                 throw new Error(
                     data.error?.message ||
                     data.message ||
-                    'Failed to load audit logs.'
+                    'Failed to load system logs.'
                 );
             }
 
             setLogs(Array.isArray(data.items) ? data.items : []);
             setTotal(Number(data.total || 0));
+            if (Array.isArray(data.modules)) {
+                setModuleOptions(data.modules);
+            }
         } catch (err) {
-            const message = err.message || 'Failed to load audit logs.';
+            const message = err.message || 'Failed to load system logs.';
             setError(message);
 
             if (
@@ -204,7 +216,7 @@ export default function AuditPanel() {
             setPassword('');
             setShowPassword(false);
         } catch (err) {
-            setError(err.message || 'Failed to unlock audit trail.');
+            setError(err.message || 'Failed to unlock system logs.');
         } finally {
             setUnlocking(false);
         }
@@ -217,6 +229,7 @@ export default function AuditPanel() {
         setShowPassword(false);
         setLogs([]);
         setTotal(0);
+        setModuleOptions([]);
         setError('');
     };
 
@@ -233,10 +246,10 @@ export default function AuditPanel() {
                         </div>
 
                         <div>
-                            <h2 className="text-sm font-semibold text-stone-900">
-                                Audit Trail Access Restricted
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                System Logs Access Restricted
                             </h2>
-                            <p className="mt-0.5 text-xs text-stone-500">
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 Enter your current account password to continue.
                             </p>
                         </div>
@@ -287,14 +300,14 @@ export default function AuditPanel() {
                     <button
                         type="submit"
                         disabled={!password.trim() || unlocking}
-                        className="mt-5 flex h-9 w-full items-center justify-center rounded-lg bg-[#7c4a2e] px-3 text-xs font-semibold text-white transition hover:bg-[#6b3f27] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="mt-5 flex h-9 w-full items-center justify-center rounded-lg bg-[var(--portal-base)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {unlocking ? (
                             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         ) : (
                             <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        {unlocking ? 'Unlocking...' : 'Unlock Audit Trail'}
+                        {unlocking ? 'Unlocking...' : 'Unlock System Logs'}
                     </button>
                 </form>
             </div>
@@ -307,10 +320,10 @@ export default function AuditPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Audit Trail Records
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                System Log Records
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {total} logged actions
                             </p>
                         </div>
@@ -338,9 +351,9 @@ export default function AuditPanel() {
                                     <SelectValue placeholder="Filter module" />
                                 </SelectTrigger>
 
-                                <SelectContent>
+                                <SelectContent position="popper" sideOffset={4} className="max-h-72">
                                     <SelectItem value="all">All Modules</SelectItem>
-                                    {modules.map((moduleName) => (
+                                    {moduleOptions.map((moduleName) => (
                                         <SelectItem key={moduleName} value={moduleName}>
                                             {moduleName}
                                         </SelectItem>
@@ -395,7 +408,7 @@ export default function AuditPanel() {
                 {loading ? (
                     <div className="flex min-h-[280px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        Loading audit trail...
+                        Loading system logs...
                     </div>
                 ) : error ? (
                     <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 bg-red-50 px-4 text-center text-xs text-red-700">
@@ -405,7 +418,7 @@ export default function AuditPanel() {
                 ) : logs.length === 0 ? (
                     <div className="flex min-h-[260px] flex-col items-center justify-center px-4 text-center text-stone-400">
                         <ClipboardList size={42} className="mb-4 opacity-50" />
-                        <p className="text-sm font-medium">No audit logs found</p>
+                        <p className="text-sm font-medium">No system logs found</p>
                         <p className="mt-1 text-xs">System actions will appear here once logged.</p>
                     </div>
                 ) : (
@@ -460,16 +473,19 @@ export default function AuditPanel() {
                                         </td>
 
                                         <td className="whitespace-nowrap px-4 py-3">
-                                            <span
-                                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
-                                            >
-                                                {log.action_taken}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <SystemLogIcon item={log} size="sm" />
+                                                <span
+                                                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${actionTone(log.action_taken)}`}
+                                                >
+                                                    {formatActionLabel(log.action_taken)}
+                                                </span>
+                                            </div>
                                         </td>
 
                                         <td className="px-4 py-3 text-stone-600">
                                             <div className="max-w-[360px] truncate">
-                                                {log.description || '-'}
+                                                {formatSystemLogDescription(log)}
                                             </div>
                                         </td>
 

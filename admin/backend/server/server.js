@@ -1,14 +1,42 @@
-const path = require('path');
+﻿const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
 const socketIO = require('socket.io');
-const jwt = require('jsonwebtoken');
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
+    quiet: true,
   });
 }
+
+const LOG_STARTUP_DETAILS =
+  String(process.env.LOG_STARTUP_DETAILS || 'false').toLowerCase() === 'true';
+
+const LOG_REALTIME_DETAILS =
+  String(process.env.LOG_REALTIME_DETAILS || 'false').toLowerCase() === 'true';
+
+const LOG_SOCKET_DETAILS =
+  String(process.env.LOG_SOCKET_DETAILS || 'false').toLowerCase() === 'true';
+
+const startupLog = (...args) => {
+  if (LOG_STARTUP_DETAILS) {
+    console.log(...args);
+  }
+};
+
+const realtimeLog = (...args) => {
+  if (LOG_REALTIME_DETAILS) {
+    console.log(...args);
+  }
+};
+
+const socketLog = (...args) => {
+  if (LOG_SOCKET_DETAILS) {
+    console.log(...args);
+  }
+};
 
 const express = require('express');
 const cors = require('cors');
@@ -23,6 +51,7 @@ const messageRoutes = require('../routes/messageRoutes');
 const notificationRoutes = require('../routes/notificationRoutes');
 const announcementRoutes = require('../routes/announcementRoutes');
 const roRoutes = require('../routes/roRoutes');
+const roCoordinatorRoutes = require('../routes/roCoordinatorRoutes');
 const scholarshipProgramRoutes = require('../routes/scholarshipProgramRoutes');
 const programOpeningRoutes = require('../routes/programOpeningRoutes');
 const courseRoutes = require('../routes/courseRoutes');
@@ -54,11 +83,15 @@ const internalRealtimeRoutes = require('../routes/internalRealtimeRoutes');
 
 const announcementService = require('../services/announcementService');
 const personalToolService = require('../services/personalToolService');
+const iotOcrPresenceService = require('../services/iotOcrPresenceService');
 const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
 const socketEvents = require('../utils/socketEvents');
+const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
 const supabase = require('../config/supabase');
+const pool = require('../config/db');
 
 const app = express();
+
 app.set('trust proxy', 1);
 
 // =========================
@@ -193,9 +226,15 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 
-console.log('Frontend build path:', frontendBuildPath);
-console.log('Index.html exists:', fs.existsSync(path.join(frontendBuildPath, 'index.html')));
-console.log('Assets directory exists:', fs.existsSync(path.join(frontendBuildPath, 'assets')));
+startupLog('Frontend build path:', frontendBuildPath);
+startupLog(
+  'Index.html exists:',
+  fs.existsSync(path.join(frontendBuildPath, 'index.html'))
+);
+startupLog(
+  'Assets directory exists:',
+  fs.existsSync(path.join(frontendBuildPath, 'assets'))
+);
 
 app.use(express.static(frontendBuildPath));
 
@@ -207,6 +246,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     socket: 'enabled',
+    iot_ocr_fix: 'immutable-snapshot-provenance-v2',
+    iot_ocr_schema_fix: 'name-array-cast-rollback-v1',
     time: new Date().toISOString(),
   });
 });
@@ -239,6 +280,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/ro', roRoutes);
+app.use('/api/ro-coordinator', roCoordinatorRoutes);
 app.use('/api/scholarship-program', scholarshipProgramRoutes);
 app.use('/api/program-openings', programOpeningRoutes);
 app.use('/api/courses', courseRoutes);
@@ -330,70 +372,19 @@ app.use((err, req, res, next) => {
 // SOCKET HELPERS
 // =========================
 
-function verifySocketToken(token) {
-  const rawToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
+function joinSocketToUserRoom(socket) {
+  const userId = String(socket.data?.userId || '').trim();
 
-  if (!rawToken || !process.env.JWT_SECRET) return {};
-
-  try {
-    return jwt.verify(rawToken, process.env.JWT_SECRET) || {};
-  } catch (error) {
-    console.warn('[Socket] JWT verify failed:', error.message);
-    return {};
-  }
-}
-
-function extractUserIdFromPayload(payload = {}) {
-  if (typeof payload === 'string') {
-    return payload.trim();
-  }
-
-  return (
-    payload.userId ||
-    payload.user_id ||
-    payload.id ||
-    payload.sub ||
-    ''
-  )
-    .toString()
-    .trim();
-}
-
-function extractTokenFromSocket(socket) {
-  const auth = socket.handshake?.auth || {};
-  const query = socket.handshake?.query || {};
-  const headers = socket.handshake?.headers || {};
-
-  return (
-    auth.token ||
-    query.token ||
-    headers.authorization ||
-    headers.Authorization ||
-    ''
-  );
-}
-
-function extractUserIdFromSocket(socket) {
-  const token = extractTokenFromSocket(socket);
-  const decoded = verifySocketToken(token);
-
-  return extractUserIdFromPayload(decoded);
-}
-
-function joinSocketToUserRoom(socket, rawUserId) {
-  const userId = String(rawUserId || '').trim();
-
-  if (!userId) {
-    console.warn(`[Socket] Cannot join user room for socket ${socket.id}: missing userId`);
+  if (!socket.data?.authenticated || !userId) {
+    console.warn(`[Socket] Cannot join user room for socket ${socket.id}: unauthenticated socket`);
     return false;
   }
 
   const roomName = `user:${userId}`;
 
   socket.join(roomName);
-  socket.data.userId = userId;
 
-  console.log(`[Socket] Socket ${socket.id} joined ${roomName}`);
+  socketLog(`[Socket] Socket ${socket.id} joined ${roomName}`);
 
   socket.emit('socket:joined', {
     userId,
@@ -405,20 +396,18 @@ function joinSocketToUserRoom(socket, rawUserId) {
   return true;
 }
 
-function handleJoinPayload(socket, payload = {}) {
-  const suppliedToken =
-    payload && typeof payload === 'object' ? payload.token : '';
-  const decoded = verifySocketToken(suppliedToken || extractTokenFromSocket(socket));
-  const userId = extractUserIdFromPayload(decoded);
-
-  return joinSocketToUserRoom(socket, userId);
+function handleJoinPayload(socket) {
+  // Legacy clients still emit several join aliases after connecting. Never
+  // trust a userId/token supplied in those events; the authenticated handshake
+  // identity is the only identity allowed to join a private user room.
+  return joinSocketToUserRoom(socket);
 }
 
 // =========================
 // SERVER START WITH SOCKET.IO
 // =========================
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
 
@@ -440,7 +429,29 @@ const io = socketIO(server, {
   pingInterval: 25000,
 });
 
+// Every authenticated application realtime connection must prove a valid,
+// current user session before Socket.IO accepts it on the default namespace.
+io.use(createStaffSocketAuthMiddleware());
+
+// Public landing/login pages use a separate receive-only namespace for safe
+// public UI refresh events such as landing-theme updates. It does not join
+// authenticated user rooms and has no server-side mutation handlers.
+const publicIo = io.of('/public');
+publicIo.on('connection', (socket) => {
+  socketLog(`[Socket] Public client connected: ${socket.id}`);
+  socket.on('disconnect', () => {
+    socketLog(`[Socket] Public client disconnected: ${socket.id}`);
+  });
+});
+
 app.set('io', io);
+
+iotOcrPresenceService.setAvailabilityListener((availability) => {
+  socketEvents.piAvailability(io, {
+    ...availability,
+    source: 'iot_ocr_presence',
+  });
+});
 
 configureRealtimeBridge({
   io,
@@ -448,15 +459,11 @@ configureRealtimeBridge({
 });
 
 io.on('connection', (socket) => {
-  console.log(`[Socket] User connected: ${socket.id}`);
+  socketLog(
+    `[Socket] Authenticated user connected: ${socket.id} (${socket.data?.role || 'unknown'})`
+  );
 
-  const handshakeUserId = extractUserIdFromSocket(socket);
-
-  if (handshakeUserId) {
-    joinSocketToUserRoom(socket, handshakeUserId);
-  } else {
-    console.warn(`[Socket] ${socket.id} connected without userId in handshake`);
-  }
+  joinSocketToUserRoom(socket);
 
   socket.on('user-join', (payload) => {
     handleJoinPayload(socket, payload);
@@ -487,16 +494,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', (reason) => {
-    console.log(`[Socket] User disconnected: ${socket.id}`, reason);
+    socketLog(`[Socket] User disconnected: ${socket.id}`, reason);
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`WebSocket enabled at ws://localhost:${PORT}`);
-  console.log('Allowed origins:', allowedOrigins);
-  console.log('Allowed origin suffixes:', allowedOriginSuffixes);
-});
+global._applicationStartupReady = false;
 
 // =========================
 // SCHEDULER
@@ -519,17 +521,63 @@ function emitScheduledAnnouncementRealtime(announcement) {
   socketEvents.announcementRefresh(io, payload);
 }
 
+const SCHEDULER_INTERVAL_MS = 60 * 1000;
+const SCHEDULER_LEADER_LOCK_KEY = 'smart-pdm:admin:scheduler-leader';
+
+let schedulerLeaderClient = null;
+let schedulerLeadershipPromise = null;
+
+async function ensureSchedulerLeadership() {
+  if (schedulerLeaderClient) return true;
+  if (schedulerLeadershipPromise) return schedulerLeadershipPromise;
+
+  schedulerLeadershipPromise = (async () => {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'SELECT pg_try_advisory_lock(hashtext($1)::bigint) AS acquired',
+        [SCHEDULER_LEADER_LOCK_KEY]
+      );
+      const acquired = result.rows?.[0]?.acquired === true;
+      if (!acquired) {
+        client.release();
+        return false;
+      }
+      schedulerLeaderClient = client;
+      client.on('error', (error) => {
+        console.error('Scheduler leader database connection lost:', error.message);
+        schedulerLeaderClient = null;
+      });
+      console.log('[Scheduler] This admin backend is the scheduler leader.');
+      return true;
+    } catch (error) {
+      client.release();
+      throw error;
+    }
+  })();
+
+  try {
+    return await schedulerLeadershipPromise;
+  } finally {
+    schedulerLeadershipPromise = null;
+  }
+}
+
 if (!global._announcementSchedulerRunning) {
   global._announcementSchedulerRunning = true;
 
-  let schedulerBusy = false;
+  let announcementSchedulerBusy = false;
+  let reminderSchedulerBusy = false;
+  let digestSchedulerBusy = false;
 
-  const runSchedulers = async () => {
-    if (schedulerBusy) return;
+  const runAnnouncementScheduler = async () => {
+    if (!global._applicationStartupReady) return;
+    if (announcementSchedulerBusy) return;
 
-    schedulerBusy = true;
+    announcementSchedulerBusy = true;
 
     try {
+      if (!(await ensureSchedulerLeadership())) return;
       const publishedAnnouncements =
         await announcementService.publishDueAnnouncements();
 
@@ -545,21 +593,78 @@ if (!global._announcementSchedulerRunning) {
           `[Scheduler] Published ${publishedAnnouncements.length} scheduled announcement(s).`
         );
       }
+    } catch (err) {
+      console.error('Announcement Scheduler Error:', err.message);
+    } finally {
+      announcementSchedulerBusy = false;
+    }
+  };
 
-      await runDepartmentDigestScheduler();
+  const runReminderScheduler = async () => {
+    if (!global._applicationStartupReady) return;
+    if (reminderSchedulerBusy) return;
 
+    reminderSchedulerBusy = true;
+
+    try {
+      if (!(await ensureSchedulerLeadership())) return;
       const dueReminders = await personalToolService.processDueReminders();
+
       dueReminders.forEach(({ userId, notification }) => {
         socketEvents.notificationCreated(io, userId, notification);
       });
     } catch (err) {
-      console.error('Scheduler Error:', err.message);
+      console.error('Reminder Scheduler Error:', err.message);
     } finally {
-      schedulerBusy = false;
+      reminderSchedulerBusy = false;
     }
   };
 
-  runSchedulers();
+  const runDigestScheduler = async () => {
+    if (!global._applicationStartupReady) return;
+    if (digestSchedulerBusy) return;
 
-  setInterval(runSchedulers, 10000);
+    digestSchedulerBusy = true;
+
+    try {
+      if (!(await ensureSchedulerLeadership())) return;
+      await runDepartmentDigestScheduler();
+    } catch (err) {
+      console.error('Department Digest Scheduler Error:', err.message);
+    } finally {
+      digestSchedulerBusy = false;
+    }
+  };
+
+  runAnnouncementScheduler();
+  runReminderScheduler();
+  runDigestScheduler();
+
+  // Realtime delivery remains handled by configureRealtimeBridge()/Socket.IO.
+  // These timers only perform clock-based work.
+  setInterval(runAnnouncementScheduler, SCHEDULER_INTERVAL_MS);
+  setInterval(runReminderScheduler, SCHEDULER_INTERVAL_MS);
+  setInterval(runDigestScheduler, SCHEDULER_INTERVAL_MS);
 }
+
+async function startServer() {
+  try {
+    await ensureCanonicalIotOcrMigration();
+    require('../services/birthOcrV2Service').cleanupPendingArtifacts().catch((error) => {
+      console.warn('IOT_OCR_ARTIFACT_CLEANUP_RETRY_FAILED', { code: error.code || 'CLEANUP_FAILED' });
+    });
+    global._applicationStartupReady = true;
+
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`WebSocket enabled at ws://localhost:${PORT}`);
+      console.log('Allowed origins:', allowedOrigins);
+      console.log('Allowed origin suffixes:', allowedOriginSuffixes);
+    });
+  } catch (error) {
+    console.error('SERVER_START_BLOCKED_BY_MIGRATION', { message: error.message });
+    process.exit(1);
+  }
+}
+
+startServer();

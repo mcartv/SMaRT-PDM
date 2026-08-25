@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { AlertCircle, BarChart3, CheckCircle2, Loader2, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getThemePresetOptions, resolvePortalTheme } from '@/config/portalThemes';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const PORTAL_LABELS = {
   admin: 'Admin',
   sdo: 'SDO',
   guidance: 'Guidance',
   pd: 'Program Director',
+  ro_coordinator: 'RO Coordinator',
 };
 
 const PORTAL_HELPERS = {
@@ -17,7 +23,67 @@ const PORTAL_HELPERS = {
   sdo: 'Your signed-in SDO queue, dashboard, and reports',
   guidance: 'Your signed-in Guidance queue, dashboard, and reports',
   pd: 'Your signed-in PD queue, dashboard, and reports',
+  ro_coordinator: 'Your signed-in RO request queue and dashboard',
 };
+
+
+function decodeTokenPayload(token) {
+  try {
+    const encoded = String(token || '').split('.')[1];
+    if (!encoded) return {};
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    return JSON.parse(atob(padded)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function getUserIdFromToken(token) {
+  const payload = decodeTokenPayload(token);
+  return payload.user_id || payload.userId || payload.sub || payload.id || '';
+}
+
+function personalThemeCacheKey(portalKey, userId) {
+  return `smartpdm-theme-${portalKey}-${userId}`;
+}
+
+function readPersonalThemeCache(portalKeys, tokenStorageKey) {
+  const token = sessionStorage.getItem(tokenStorageKey) || '';
+  const userId = getUserIdFromToken(token);
+  const settings = {};
+  const customColors = {};
+  let hasAny = false;
+
+  if (!userId) return { settings, customColors, hasAny, userId };
+
+  portalKeys.forEach((portalKey) => {
+    try {
+      const raw = localStorage.getItem(personalThemeCacheKey(portalKey, userId));
+      if (!raw) return;
+      const parsed = raw.startsWith('{') ? JSON.parse(raw) : { presetKey: raw, customColors: null };
+      settings[portalKey] = parsed?.presetKey || 'default';
+      customColors[portalKey] = parsed?.customColors || null;
+      hasAny = true;
+    } catch {
+      // Ignore an unreadable cache and refresh silently from the API.
+    }
+  });
+
+  return { settings, customColors, hasAny, userId };
+}
+
+function writePersonalThemeCache(portalKey, userId, presetKey, colors) {
+  if (!portalKey || !userId) return;
+  try {
+    localStorage.setItem(
+      personalThemeCacheKey(portalKey, userId),
+      JSON.stringify({ presetKey: presetKey || 'default', customColors: colors || null })
+    );
+  } catch {
+    // Theme persistence still works server-side when browser storage is unavailable.
+  }
+}
 
 const CUSTOM_COLOR_FIELDS = [
   { key: 'base', label: 'Sidebar' },
@@ -66,7 +132,7 @@ function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
         </div>
 
         <div className="rounded-2xl border border-stone-200/80 bg-white/80 p-3">
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
             <BarChart3 className="h-3.5 w-3.5" />
             Sample Chart Palette
           </div>
@@ -148,91 +214,74 @@ function CustomThemeModal({ portalKey, colors, saving, onChange, onClose, onSave
   );
 }
 
-function CompactPortalDisplayCard({ portalKey, presetKey }) {
-  const theme = resolvePortalTheme(portalKey, presetKey);
-
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
-            {PORTAL_LABELS[portalKey]}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-stone-900">{theme.label}</p>
-        </div>
-        <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-medium text-stone-500">
-          View only
-        </span>
-      </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        {[theme.base, theme.chartSecondary, theme.chartTertiary, theme.chartQuaternary].map((color) => (
-          <span
-            key={`${portalKey}-${color}`}
-            className="h-5 w-5 rounded-full border border-black/5"
-            style={{ background: color }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function ThemePanel({
   tokenStorageKey = 'adminToken',
   allowedPortals = ['admin', 'sdo', 'guidance', 'pd'],
-  editablePortals = null,
   title = 'Theme Presets',
   subtitle = 'Choose a personal color preset for your signed-in layout and dashboard charts.',
 }) {
-  const [settings, setSettings] = useState({});
-  const [customColors, setCustomColors] = useState({});
-  const [customPortal, setCustomPortal] = useState('');
-  const [customDraft, setCustomDraft] = useState({});
-  const [savingPortal, setSavingPortal] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState({ type: '', message: '' });
-
-  const presetOptions = useMemo(() => getThemePresetOptions(), []);
   const normalizedPortals = useMemo(
     () => (Array.isArray(allowedPortals) && allowedPortals.length ? allowedPortals : ['admin']).map((portalKey) => String(portalKey || '').trim().toLowerCase()),
     [allowedPortals]
   );
-  const normalizedEditablePortals = useMemo(
-    () =>
-      (Array.isArray(editablePortals) && editablePortals.length ? editablePortals : normalizedPortals).map((portalKey) =>
-        String(portalKey || '').trim().toLowerCase()
-      ),
-    [editablePortals, normalizedPortals]
-  );
-  const editablePortalSet = useMemo(() => new Set(normalizedEditablePortals), [normalizedEditablePortals]);
-  const readOnlyPortals = useMemo(
-    () => normalizedPortals.filter((portalKey) => !editablePortalSet.has(portalKey)),
-    [editablePortalSet, normalizedPortals]
+  const cachedSnapshot = useMemo(
+    () => readPersonalThemeCache(normalizedPortals, tokenStorageKey),
+    [normalizedPortals, tokenStorageKey]
   );
 
-  const loadSettings = useCallback(async () => {
+  const [settings, setSettings] = useState(() => ({ ...cachedSnapshot.settings }));
+  const [customColors, setCustomColors] = useState(() => ({ ...cachedSnapshot.customColors }));
+  const [customPortal, setCustomPortal] = useState('');
+  const [customDraft, setCustomDraft] = useState({});
+  const [savingPortal, setSavingPortal] = useState('');
+  const [loading, setLoading] = useState(() => !cachedSnapshot.hasAny);
+  const [feedback, setFeedback] = useState({ type: '', message: '' });
+
+  const presetOptions = useMemo(() => {
+    const seen = new Set();
+    return getThemePresetOptions().filter((preset) => {
+      const key = String(preset?.key || '').trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, []);
+  const loadSettings = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setLoading(true);
+
     try {
-      setLoading(true);
-      const response = await fetch(buildApiUrl('/api/theme-settings'), {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
+      const token = sessionStorage.getItem(tokenStorageKey) || '';
+      const userId = getUserIdFromToken(token);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to load theme settings.');
+      let items = [];
+      if (normalizedPortals.length === 1) {
+        const portalKey = normalizedPortals[0];
+        const response = await fetch(buildApiUrl(`/api/theme-settings/current/${portalKey}`), { headers });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to load theme settings.');
+        }
+        items = [payload];
+      } else {
+        const response = await fetch(buildApiUrl('/api/theme-settings'), { headers });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to load theme settings.');
+        }
+        items = Array.isArray(payload?.items) ? payload.items : [];
       }
 
       const nextSettings = {};
       const nextCustomColors = {};
-      const items = Array.isArray(payload?.items) ? payload.items : [];
       normalizedPortals.forEach((portalKey) => {
         const match = items.find((item) => String(item?.portal_key || '').trim().toLowerCase() === portalKey);
         nextSettings[portalKey] = match?.preset_key || 'default';
         nextCustomColors[portalKey] = match?.custom_colors || null;
+        writePersonalThemeCache(portalKey, userId, nextSettings[portalKey], nextCustomColors[portalKey]);
       });
       setSettings(nextSettings);
       setCustomColors(nextCustomColors);
@@ -244,8 +293,30 @@ export default function ThemePanel({
   }, [normalizedPortals, tokenStorageKey]);
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    loadSettings({ showLoading: !cachedSnapshot.hasAny });
+  }, [cachedSnapshot.hasAny, loadSettings]);
+
+  useSocketEvent('maintenance:updated', (event) => {
+    if (event?.source !== 'theme_settings') return;
+
+    const portalKey = String(event?.portal_key || '').trim().toLowerCase();
+    if (!normalizedPortals.includes(portalKey)) return;
+
+    const token = sessionStorage.getItem(tokenStorageKey) || '';
+    const userId = getUserIdFromToken(token);
+    if (event?.is_personal && event?.user_id && userId && event.user_id !== userId) return;
+
+    if (event?.preset_key) {
+      const nextPresetKey = String(event.preset_key || 'default').trim().toLowerCase() || 'default';
+      const nextColors = event?.custom_colors || null;
+      setSettings((current) => ({ ...current, [portalKey]: nextPresetKey }));
+      setCustomColors((current) => ({ ...current, [portalKey]: nextColors }));
+      writePersonalThemeCache(portalKey, userId, nextPresetKey, nextColors);
+      return;
+    }
+
+    loadSettings({ showLoading: false });
+  }, [loadSettings, normalizedPortals, tokenStorageKey]);
 
   useEffect(() => {
     if (!feedback.message) return undefined;
@@ -289,10 +360,17 @@ export default function ThemePanel({
         ...current,
         [portalKey]: nextPresetKey,
       }));
+      const savedCustomColors = payload?.custom_colors || null;
       setCustomColors((current) => ({
         ...current,
-        [portalKey]: payload?.custom_colors || null,
+        [portalKey]: savedCustomColors,
       }));
+      writePersonalThemeCache(
+        portalKey,
+        getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
+        nextPresetKey,
+        savedCustomColors
+      );
 
       window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
         detail: {
@@ -303,11 +381,16 @@ export default function ThemePanel({
         },
       }));
 
-      setFeedback({ type: 'success', message: `${PORTAL_LABELS[portalKey]} theme applied.` });
       return true;
     } catch (error) {
       setSettings((current) => ({ ...current, [portalKey]: previousPresetKey }));
       setCustomColors((current) => ({ ...current, [portalKey]: previousCustomColors }));
+      writePersonalThemeCache(
+        portalKey,
+        getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
+        previousPresetKey,
+        previousCustomColors
+      );
       window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
         detail: {
           portal_key: portalKey,
@@ -379,16 +462,11 @@ export default function ThemePanel({
             <Palette className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
-            <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+            <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{title}</h3>
+            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>{subtitle}</p>
             <p className="mt-1 text-xs text-stone-500">
               Click a preset to save it immediately. Use Restore Default anytime.
             </p>
-            {normalizedEditablePortals.length < normalizedPortals.length ? (
-              <p className="mt-1 text-xs text-stone-500">
-              This page edits only your signed-in account theme. Other office defaults are shown for reference.
-              </p>
-            ) : null}
             {feedback.message ? (
               <div
                 className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
@@ -406,7 +484,7 @@ export default function ThemePanel({
       </div>
 
       <div className="space-y-5">
-        {normalizedEditablePortals.map((portalKey) => {
+        {normalizedPortals.map((portalKey) => {
           const savedPresetKey = settings[portalKey] || 'default';
           const savedCustomColors = customColors[portalKey] || null;
 
@@ -415,8 +493,8 @@ export default function ThemePanel({
               <div className="border-b border-stone-100 px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-base font-semibold text-stone-900">{PORTAL_LABELS[portalKey]} Theme</h4>
-                    <p className="mt-1 text-sm text-stone-500">
+                    <h4 className={MAINTENANCE_CARD_TITLE_CLASS}>{PORTAL_LABELS[portalKey]} Theme</h4>
+                    <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                       Saved preset: <span className="font-medium text-stone-700">{resolvePortalTheme(portalKey, savedPresetKey, savedCustomColors).label}</span>
                     </p>
                     <p className="mt-1 text-xs text-stone-500">{PORTAL_HELPERS[portalKey]}</p>
@@ -482,9 +560,9 @@ export default function ThemePanel({
                         </div>
 
                         <div className="mt-3 flex gap-2">
-                          {preset.swatches.map((color) => (
+                          {preset.swatches.map((color, swatchIndex) => (
                             <span
-                              key={`${portalKey}-${preset.key}-${color}`}
+                              key={`${portalKey}-${preset.key}-${swatchIndex}`}
                               className="h-6 w-6 rounded-full border border-black/5"
                               style={{ background: color }}
                             />
@@ -500,25 +578,6 @@ export default function ThemePanel({
         })}
       </div>
 
-      {readOnlyPortals.length > 0 ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-            <h4 className="text-sm font-semibold text-stone-900">Other Office Themes</h4>
-            <p className="mt-1 text-xs text-stone-500">
-              Display only. These are shared login defaults; signed-in staff can choose their own portal theme.
-            </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {readOnlyPortals.map((portalKey) => (
-                <CompactPortalDisplayCard
-                  key={`overview-${portalKey}`}
-                  portalKey={portalKey}
-                  presetKey={settings[portalKey] || 'default'}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

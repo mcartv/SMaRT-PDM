@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import {
   Select,
   SelectContent,
@@ -10,6 +11,15 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import {
   FileText,
   Download,
   Calendar,
@@ -17,40 +27,46 @@ import {
   Loader2,
   Eye,
   RotateCcw,
-  CheckCircle2,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 const API_BASE = buildApiUrl('/api');
 
-const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
-};
-
 const OFFICE_REPORT_FILTERS = {
+  endorsements: [
+    { value: 'all', label: 'All Endorsements' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'major_offense', label: 'Stopped — Major Offense' },
+  ],
   sdo: [
     { value: 'all', label: 'All SDO Results' },
     { value: 'pending', label: 'Pending' },
-    { value: 'cleared', label: 'No Offense' },
-    { value: 'disqualified_minor', label: 'Minor Offense' },
-    { value: 'disqualified_major', label: 'Major Offense' },
+    { value: 'no_offense', label: 'No Disciplinary Offense' },
+    { value: 'minor_offense', label: 'With Minor Offense/s' },
+    { value: 'major_offense', label: 'With Major Offense/s' },
   ],
   guidance: [
     { value: 'all', label: 'All Guidance Results' },
     { value: 'pending', label: 'Pending' },
-    { value: 'cleared', label: 'Good Moral Standing' },
-    { value: 'held', label: 'For Counseling / Hold' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'good_moral_standing', label: 'Good Moral Standing' },
   ],
   pd: [
     { value: 'all', label: 'All PD Results' },
     { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'good_scholastic_standing', label: 'Good Scholastic Standing' },
+    { value: 'average_scholastic_standing', label: 'Average Scholastic Standing' },
     { value: 'completed', label: 'Completed Slip' },
+  ],
+  ro: [
+    { value: 'all', label: 'All RO Records' },
+    { value: 'pending_validation', label: 'Pending Validation' },
+    { value: 'assigned', label: 'Assigned Scholars' },
+    { value: 'completed', label: 'Cleared RO' },
   ],
 };
 
@@ -61,31 +77,30 @@ function getAuthHeaders(tokenStorageKey = 'adminToken') {
   };
 }
 
-function TemplateCard({ report, active, onClick }) {
+function TemplateCard({ report, active, onClick, theme }) {
   return (
     <button
       type="button"
       onClick={() => onClick(report.id)}
       className={`w-full rounded-2xl border p-4 text-left transition-all ${active
-        ? 'border-[#7c4a2e] bg-amber-50'
+        ? ''
         : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
         }`}
+      style={active ? { borderColor: theme.base, background: theme.accentSoft } : undefined}
     >
       <div className="flex items-start gap-4">
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active
-            ? 'border-[#7c4a2e] bg-[#7c4a2e] text-white'
+            ? 'text-white'
             : 'border-stone-200 bg-stone-50 text-stone-500'
             }`}
+          style={active ? { borderColor: theme.base, background: theme.base } : undefined}
         >
           <FileText className="h-4 w-4" />
         </div>
 
         <div className="min-w-0">
-          <p
-            className={`truncate text-sm font-semibold ${active ? 'text-[#5c2d0e]' : 'text-stone-900'
-              }`}
-          >
+          <p className="truncate text-sm font-semibold" style={{ color: active ? theme.base : '#1c1917' }}>
             {report.name}
           </p>
           <p className="mt-1 text-xs text-stone-500">{report.sub}</p>
@@ -136,6 +151,16 @@ export default function ReportGeneration({
   allowedReportTypes = null,
   defaultReportType = '',
 }) {
+  const portalKey = tokenStorageKey === 'sdoToken'
+    ? 'sdo'
+    : tokenStorageKey === 'guidanceToken'
+      ? 'guidance'
+      : tokenStorageKey === 'pdToken'
+        ? 'pd'
+        : tokenStorageKey === 'roCoordinatorToken'
+          ? 'ro_coordinator'
+          : 'admin';
+  const { theme } = usePortalTheme(portalKey);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -156,7 +181,6 @@ export default function ReportGeneration({
 
   const [previewRows, setPreviewRows] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
-  const [previewSummary, setPreviewSummary] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
   const [feedback, setFeedback] = useState(null);
@@ -172,7 +196,6 @@ export default function ReportGeneration({
   useEffect(() => {
     setPreviewRows([]);
     setPreviewTotal(0);
-    setPreviewSummary(null);
     setHasPreviewed(false);
   }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
 
@@ -197,14 +220,44 @@ export default function ReportGeneration({
   );
 
   const isOfficeEndorsementReport = useMemo(
-    () => ['sdo', 'guidance', 'pd'].includes(selected),
+    () => ['endorsements', 'sdo', 'guidance', 'pd', 'ro'].includes(selected),
     [selected]
   );
+  const isScholarCountReport = useMemo(
+    () => selected === 'scholars_by_benefactor',
+    [selected]
+  );
+  const supportsPeriodFilters = true;
+  const supportsProgramFilter = true;
+  const supportsBenefactorFilter = selected !== 'payouts';
 
   const previewColumns = useMemo(() => {
     if (!previewRows.length) return [];
     return Object.keys(previewRows[0] || {});
   }, [previewRows]);
+
+  const scholarCountXAxisKey = useMemo(() => {
+    if (!isScholarCountReport) return 'label';
+    return benefactorId === 'all' ? 'benefactor_name' : 'program_name';
+  }, [benefactorId, isScholarCountReport]);
+
+  const scholarCountChartData = useMemo(() => {
+    if (!isScholarCountReport || previewRows.length === 0) return [];
+
+    return previewRows
+      .map((row) => ({
+        name:
+          row[scholarCountXAxisKey] ||
+          (benefactorId === 'all' ? 'Unassigned Benefactor' : 'Unassigned Program'),
+        count: Number(row.scholar_count || 0),
+      }))
+      .filter((row) => Number.isFinite(row.count));
+  }, [benefactorId, isScholarCountReport, previewRows, scholarCountXAxisKey]);
+
+  const scholarCountChartHeight = useMemo(
+    () => Math.max(300, scholarCountChartData.length * 54),
+    [scholarCountChartData.length]
+  );
 
   const selectedLabels = useMemo(() => {
     const year =
@@ -278,7 +331,7 @@ export default function ReportGeneration({
     loadMetadata();
   }, [loadMetadata]);
 
-  function buildParams() {
+  const buildParams = useCallback(() => {
     return new URLSearchParams({
       reportType: selected,
       academicYearId,
@@ -289,7 +342,7 @@ export default function ReportGeneration({
       dateFrom,
       dateTo,
     });
-  }
+  }, [academicYearId, benefactorId, dateFrom, dateTo, programId, reviewResult, selected, semester]);
 
   function resetFilters() {
     setAcademicYearId('all');
@@ -301,7 +354,6 @@ export default function ReportGeneration({
     setDateTo('');
     setPreviewRows([]);
     setPreviewTotal(0);
-    setPreviewSummary(null);
     setHasPreviewed(false);
   }
 
@@ -321,13 +373,8 @@ export default function ReportGeneration({
 
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
-      setPreviewSummary(data.summary || null);
       setHasPreviewed(true);
-      setFeedback({
-        tone: 'success',
-        title: 'Preview updated',
-        message: `Showing ${Number(data.total || data.rows?.length || 0)} matching record(s) for ${selectedReport?.name || 'this report'}.`,
-      });
+      setFeedback(null);
     } catch (error) {
       console.error('REPORT PREVIEW ERROR:', error);
       setFeedback({
@@ -339,15 +386,7 @@ export default function ReportGeneration({
       setPreviewLoading(false);
     }
   }, [
-    academicYearId,
-    benefactorId,
-    dateFrom,
-    dateTo,
-    programId,
-    reviewResult,
-    selected,
-    selectedReport?.name,
-    semester,
+    buildParams,
     tokenStorageKey,
   ]);
 
@@ -399,22 +438,6 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('payout:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
-  useSocketEvent('payout:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
-  useSocketEvent('payout:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
-  useSocketEvent('payout:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
-
   useSocketEvent('endorsement:updated', () => {
     refreshReportData();
   }, [refreshReportData]);
@@ -423,17 +446,8 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('ticket:created', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
-  useSocketEvent('ticket:updated', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
-  useSocketEvent('ticket:resolved', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
   useSocketEvent('announcement:created', () => {
     refreshReportData();
@@ -459,13 +473,7 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('ticket:archived', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
-  useSocketEvent('ticket:restored', () => {
-    refreshReportData();
-  }, [refreshReportData]);
 
   async function handleGenerateReport() {
     await handleDownloadByFormat('xlsx');
@@ -502,10 +510,8 @@ export default function ReportGeneration({
       link.remove();
 
       window.URL.revokeObjectURL(url);
-      setFeedback({
-        tone: 'success',
-        title: `${format === 'csv' ? 'CSV' : 'Excel'} download started`,
-        message: `${filename} is being downloaded.`,
+      toast.success(`${format === 'csv' ? 'CSV' : 'Excel'} download started`, {
+        description: `${filename} is being downloaded.`,
       });
     } catch (error) {
       console.error('REPORT GENERATE ERROR:', error);
@@ -519,68 +525,18 @@ export default function ReportGeneration({
     }
   }
 
-  const summaryEntries = useMemo(() => {
-    if (!previewSummary || !isOfficeEndorsementReport) return [];
-
-    if (selected === 'sdo') {
-      return [
-        { label: 'Total', value: previewSummary.total ?? 0 },
-        { label: 'Pending', value: previewSummary.pending ?? 0 },
-        { label: 'No Offense', value: previewSummary.cleared ?? 0 },
-        { label: 'Minor', value: previewSummary.minor ?? 0 },
-        { label: 'Major', value: previewSummary.major ?? 0 },
-      ];
-    }
-
-    if (selected === 'guidance') {
-      return [
-        { label: 'Total', value: previewSummary.total ?? 0 },
-        { label: 'Pending', value: previewSummary.pending ?? 0 },
-        { label: 'Good Moral', value: previewSummary.cleared ?? 0 },
-        { label: 'Hold', value: previewSummary.held ?? 0 },
-        { label: 'Rejected', value: previewSummary.rejected ?? 0 },
-      ];
-    }
-
-    return [
-      { label: 'Total', value: previewSummary.total ?? 0 },
-      { label: 'Pending', value: previewSummary.pending ?? 0 },
-      { label: 'Approved', value: previewSummary.approved ?? 0 },
-      { label: 'Rejected', value: previewSummary.rejected ?? 0 },
-      { label: 'Completed', value: previewSummary.completed ?? 0 },
-    ];
-  }, [isOfficeEndorsementReport, previewSummary, selected]);
-
   if (loading) {
-    return (
-      <div className="flex h-[300px] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading reports" variant="cards" />;
   }
 
   return (
     <div className="space-y-5 py-2">
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
-            ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
-            : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
-            }`}
-        >
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-4 text-red-900 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div
-                className={`rounded-2xl p-2 ${feedback.tone === 'success'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-                  }`}
-              >
-                {feedback.tone === 'success' ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : (
-                  <FileText className="h-5 w-5" />
-                )}
+              <div className="rounded-2xl bg-red-100 p-2 text-red-700">
+                <FileText className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-semibold">{feedback.title}</p>
@@ -617,6 +573,7 @@ export default function ReportGeneration({
                 report={report}
                 active={selected === report.id}
                 onClick={setSelected}
+                theme={theme}
               />
             ))}
           </CardContent>
@@ -634,16 +591,12 @@ export default function ReportGeneration({
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-[11px] text-stone-500">
-                <Filter className="h-3.5 w-3.5" />
-                Live database export
-              </div>
             </div>
           </div>
 
           <CardContent className="space-y-6 p-5">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <div className="space-y-2">
+              {supportsPeriodFilters ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Academic Year
                 </label>
@@ -662,9 +615,9 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
-              <div className="space-y-2">
+              {supportsBenefactorFilter ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Benefactor
                 </label>
@@ -683,9 +636,9 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
-              <div className="space-y-2">
+              {supportsProgramFilter ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Program
                 </label>
@@ -704,9 +657,9 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
-              <div className="space-y-2">
+              {supportsPeriodFilters ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Semester
                 </label>
@@ -722,7 +675,7 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
               {isOfficeEndorsementReport ? (
                 <div className="space-y-2">
@@ -798,7 +751,8 @@ export default function ReportGeneration({
             <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row">
               <Button
                 variant="outline"
-                className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                className="h-11 rounded-xl text-sm font-semibold"
+                style={{ borderColor: theme.border, color: theme.base }}
                 disabled={previewLoading || generating}
                 onClick={handlePreviewReport}
               >
@@ -813,7 +767,7 @@ export default function ReportGeneration({
               <div className="flex flex-1 gap-3">
                 <Button
                   className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
-                  style={{ background: C.brown }}
+                  style={{ background: theme.base }}
                   disabled={generating}
                   onClick={handleGenerateReport}
                 >
@@ -826,7 +780,8 @@ export default function ReportGeneration({
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                  className="h-11 rounded-xl text-sm font-semibold"
+                  style={{ borderColor: theme.border, color: theme.base }}
                   disabled={generating}
                   onClick={() => handleDownloadByFormat('csv')}
                 >
@@ -837,7 +792,8 @@ export default function ReportGeneration({
 
               <Button
                 variant="outline"
-                className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                className="h-11 rounded-xl text-sm font-semibold"
+                style={{ borderColor: theme.border, color: theme.base }}
                 disabled={previewLoading || generating}
                 onClick={resetFilters}
               >
@@ -859,7 +815,9 @@ export default function ReportGeneration({
                 </h2>
                 <p className="mt-0.5 text-xs text-stone-500">
                   {previewRows.length > 0
-                    ? `Showing ${previewRows.length} of ${previewTotal} matching records.`
+                    ? isScholarCountReport
+                      ? `${previewTotal} active scholar(s) across ${previewRows.length} ${benefactorId === 'all' ? 'benefactor(s)' : 'program(s)'}.`
+                      : `Showing ${previewRows.length} of ${previewTotal} matching records.`
                     : 'No matching records found for the selected filters.'}
                 </p>
               </div>
@@ -873,14 +831,41 @@ export default function ReportGeneration({
           </div>
 
           <CardContent className="p-0">
-            {summaryEntries.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 border-b border-stone-100 p-4 md:grid-cols-5">
-                {summaryEntries.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-wide text-stone-400">{item.label}</p>
-                    <p className="mt-1 text-lg font-semibold text-stone-900">{item.value}</p>
+            {isScholarCountReport && previewRows.length > 0 ? (
+              <div className="border-b border-stone-100 p-4">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-stone-900">Scholar Count Chart</p>
+                    <p className="text-xs text-stone-500">
+                      {benefactorId === 'all'
+                        ? 'Counting active scholars for each benefactor.'
+                        : 'Counting active scholars by program for the selected benefactor.'}
+                    </p>
                   </div>
-                ))}
+                </div>
+                <div className="max-h-[520px] min-h-0 min-w-0 overflow-y-auto">
+                  <div style={{ height: `${scholarCountChartHeight}px`, minWidth: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                      <BarChart
+                        data={scholarCountChartData}
+                        layout="vertical"
+                        margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={180}
+                          tick={{ fontSize: 12 }}
+                          interval={0}
+                        />
+                        <Tooltip formatter={(value) => [Number(value || 0), 'Scholars']} />
+                        <Bar dataKey="count" fill={theme.base} radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             ) : null}
             {previewLoading ? (
@@ -949,7 +934,7 @@ export default function ReportGeneration({
 
         <CardContent className="p-5 text-sm text-stone-500">
           Reports are generated directly from applications, active scholars,
-          payout batches, and support tickets based on the filters above.
+          payout batches, and endorsement records based on the filters above.
         </CardContent>
       </Card>
     </div>

@@ -23,7 +23,7 @@ backups/
 *.backup
 
 # Project-specific local assets
-mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
+mobile/frontend/lib/shared/widgets/oracleJdk-26/
 
 # Flutter generated files
 **/generated_plugin_registrant.cc
@@ -44,4 +44,14 @@ supabase/**/gotrue-version
 supabase/**/rest-version
 supabase/**/storage-version
 supabase/**/postgres-version
-backend/.env
+mobile/backend/.env
+
+*.backup-*
+*.bak
+**/test-results.txt
+mobile/smartpdm_mobileapp/
+**/.dart_tool/
+**/.pub-cache/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages

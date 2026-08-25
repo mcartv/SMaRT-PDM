@@ -14,8 +14,12 @@ import {
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = buildApiUrl('/api');
+const EM_DASH = '\u2014';
+const MIDDLE_DOT = '\u00B7';
+const MANILA_TIME_ZONE = 'Asia/Manila';
 
 const STATUS_META = {
   'Pending Review': {
@@ -40,15 +44,16 @@ function authHeaders() {
 }
 
 function formatDate(value) {
-  if (!value) return '—';
+  if (!value) return EM_DASH;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return EM_DASH;
   return date.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: MANILA_TIME_ZONE,
   });
 }
 
@@ -197,9 +202,7 @@ export default function PayoutProofReviewPanel() {
 
       <CardContent className="p-4">
         {loading ? (
-          <div className="flex min-h-32 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
-          </div>
+          <SectionLoadingSkeleton label="Loading payout proofs" rows={3} />
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-sm text-stone-400">
             No payout proofs match the selected filter.
@@ -244,7 +247,7 @@ export default function PayoutProofReviewPanel() {
                         View File
                       </Button>
                       <Button
-                        className="flex-1 rounded-xl bg-[#7c4a2e] text-white hover:bg-[#693e27]"
+                        className="flex-1 rounded-xl bg-[var(--portal-base)] text-white hover:brightness-95"
                         onClick={() => {
                           setSelected(item);
                           setComment(item.admin_comment || '');
@@ -272,7 +275,7 @@ export default function PayoutProofReviewPanel() {
             <div className="border-b border-stone-100 px-5 py-4">
               <h3 className="font-semibold text-stone-900">Review Payout Proof</h3>
               <p className="mt-1 text-xs text-stone-500">
-                {proofName(selected)} · {selected.payout_title || 'Scholarship Payout'}
+                {proofName(selected)} {MIDDLE_DOT} {selected.payout_title || 'Scholarship Payout'}
               </p>
             </div>
             <CardContent className="space-y-4 p-5">

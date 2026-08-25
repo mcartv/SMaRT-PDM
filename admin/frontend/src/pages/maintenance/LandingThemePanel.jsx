@@ -4,16 +4,48 @@ import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
+import {
   LANDING_COLOR_FIELDS,
-  getDefaultLandingTheme,
   getLandingThemePresetOptions,
   resolveLandingTheme,
 } from '@/config/landingThemes';
 
+
+const LANDING_THEME_CACHE_KEY = 'smartpdm-theme-landing';
+
+function readLandingThemeCache() {
+  try {
+    const raw = localStorage.getItem(LANDING_THEME_CACHE_KEY);
+    if (!raw) return { hasCache: false, presetKey: 'default', customColors: null };
+    const parsed = JSON.parse(raw);
+    return {
+      hasCache: true,
+      presetKey: parsed?.presetKey || 'default',
+      customColors: parsed?.customColors || null,
+    };
+  } catch {
+    return { hasCache: false, presetKey: 'default', customColors: null };
+  }
+}
+
+function writeLandingThemeCache(presetKey, customColors) {
+  try {
+    localStorage.setItem(
+      LANDING_THEME_CACHE_KEY,
+      JSON.stringify({ presetKey: presetKey || 'default', customColors: customColors || null })
+    );
+  } catch {
+    // Server persistence remains authoritative when browser storage is unavailable.
+  }
+}
+
 function ColorInput({ label, value, onChange }) {
   return (
     <label className="rounded-2xl border border-stone-200 bg-white p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">{label}</p>
       <div className="mt-3 flex items-center gap-3">
         <input
           type="color"
@@ -40,7 +72,7 @@ function LandingThemePreview({ theme }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
               Landing Preview
             </p>
             <p className="mt-1 text-lg font-semibold">Scholarship platform entry page</p>
@@ -120,14 +152,15 @@ function LandingCustomThemeModal({ open, colors, saving, onChange, onClose, onSa
 }
 
 export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
-  const [presetKey, setPresetKey] = useState('default');
+  const cachedTheme = useMemo(() => readLandingThemeCache(), []);
+  const [presetKey, setPresetKey] = useState(() => cachedTheme.presetKey);
   const [customColors, setCustomColors] = useState(() => {
-    const defaults = getDefaultLandingTheme();
-    return Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, defaults[field.key]]));
+    const resolved = resolveLandingTheme(cachedTheme.presetKey, cachedTheme.customColors);
+    return Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]));
   });
   const [customDraft, setCustomDraft] = useState(() => ({ ...customColors }));
   const [customOpen, setCustomOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedTheme.hasCache);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
@@ -137,40 +170,36 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     [customColors, presetKey]
   );
 
-  const loadLandingTheme = useCallback(async () => {
+  const loadLandingTheme = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setLoading(true);
+
     try {
-      setLoading(true);
-      const response = await fetch(buildApiUrl('/api/theme-settings'), {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(buildApiUrl('/api/theme-settings/public/landing'));
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to load theme settings.');
+        throw new Error(payload?.error || 'Failed to load landing theme.');
       }
 
-      const items = Array.isArray(payload?.items) ? payload.items : [];
-      const landing = items.find((item) => String(item?.portal_key || '').trim().toLowerCase() === 'landing');
-      const nextPreset = landing?.preset_key || 'default';
-      const resolved = resolveLandingTheme(nextPreset, landing?.custom_colors || null);
+      const nextPreset = payload?.preset_key || 'default';
+      const nextCustomColors = payload?.custom_colors || null;
+      const resolved = resolveLandingTheme(nextPreset, nextCustomColors);
 
       setPresetKey(nextPreset);
       setCustomColors(
         Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]))
       );
+      writeLandingThemeCache(nextPreset, nextCustomColors);
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to load landing theme.' });
     } finally {
       setLoading(false);
     }
-  }, [tokenStorageKey]);
+  }, []);
 
   useEffect(() => {
-    loadLandingTheme();
-  }, [loadLandingTheme]);
+    loadLandingTheme({ showLoading: !cachedTheme.hasCache });
+  }, [cachedTheme.hasCache, loadLandingTheme]);
 
   useEffect(() => {
     if (!feedback.message) return undefined;
@@ -199,17 +228,13 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
       }
 
       const resolved = resolveLandingTheme(payload?.preset_key || nextPresetKey, payload?.custom_colors || null);
-      setPresetKey(payload?.preset_key || nextPresetKey);
+      const savedPresetKey = payload?.preset_key || nextPresetKey;
+      const savedCustomColors = payload?.custom_colors || null;
+      setPresetKey(savedPresetKey);
       setCustomColors(
         Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, resolved[field.key]]))
       );
-      setFeedback({
-        type: 'success',
-        message:
-          (payload?.preset_key || nextPresetKey) === 'custom'
-            ? 'Landing custom colors saved.'
-            : 'Landing preset applied.',
-      });
+      writeLandingThemeCache(savedPresetKey, savedCustomColors);
       return true;
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to save landing theme.' });
@@ -274,9 +299,9 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
             <Palette className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-stone-900">Landing Page Theme</h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Adjust the public landing page colors separately from the admin and office portal themes.
+            <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>Landing Page Theme</h3>
+            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+              Adjust the public landing page and unified login colors separately from each user's portal theme.
             </p>
             <p className="mt-1 text-xs text-stone-500">
               You can apply a preset quickly, or use manual color pickers and save a custom landing palette.
@@ -301,8 +326,8 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
         <div className="border-b border-stone-100 px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-base font-semibold text-stone-900">Landing Color Controls</h4>
-              <p className="mt-1 text-sm text-stone-500">
+              <h4 className={MAINTENANCE_CARD_TITLE_CLASS}>Landing Color Controls</h4>
+              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                 Current mode: <span className="font-medium text-stone-700">{previewTheme.label}</span>
               </p>
             </div>

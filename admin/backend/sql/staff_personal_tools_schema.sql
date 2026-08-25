@@ -1,3 +1,4 @@
+
 CREATE TABLE IF NOT EXISTS public.staff_personal_tools (
   user_id text PRIMARY KEY,
   note_content text NOT NULL DEFAULT '',

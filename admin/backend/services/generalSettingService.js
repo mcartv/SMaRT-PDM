@@ -1,12 +1,21 @@
 const supabase = require('../config/supabase');
 
 const TABLE_NAME = 'general_settings';
+const LEGACY_HERO_TITLE = 'Scholarship access, tracking, and updates in one system.';
 
 const DEFAULT_LANDING_CONTENT = {
+  about_title: 'One connected platform for every scholarship journey.',
+  about_description:
+    'SMaRT-PDM brings PDM scholarship services into one secure and organized platform. It helps applicants submit requirements, follow application progress, receive official updates, and move through coordinated office reviews, while giving OSFA the tools to manage records and support scholars with greater clarity, accountability, and efficiency.',
+  about_items: [
+    { title: 'Centralized Scholarship Monitoring', description: 'Applications, requirements, updates, and scholar records stay organized in one reliable system.' },
+    { title: 'Guided Multi-office Review', description: 'OSFA, Guidance, Student Discipline, and Program Director reviews follow a clear and accountable process.' },
+    { title: 'Transparent Application Tracking', description: 'Applicants can follow progress and receive official updates throughout their scholarship journey.' },
+  ],
   hero_badge: 'OSFA Digital Scholarship Platform',
-  hero_title: 'Scholarship access, tracking, and updates in one system.',
+  hero_title: 'Your scholarship journey, connected from application to success.',
   hero_description:
-    'SMaRT-PDM helps applicants, scholars, and authorized staff manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
+    'SMaRT-PDM helps applicants, scholars, and authorized users manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
   mobile_app_title: 'Scholar Mobile App',
   mobile_app_description:
     'Install the APK to track application updates and scholarship activity from your phone.',
@@ -33,7 +42,7 @@ const DEFAULT_LANDING_CONTENT = {
   ],
   requirement_notices: [
     'The applicant must be a resident of Marilao, Bulacan.',
-    'The applicant must not be receiving another scholarship grant.',
+    'The applicant must not be receiving another scholarship grant, such as Pondo/Iskolar ng Bayan, Garcia/Villarica, TES, or TDP.',
     'The applicant must have no derogatory or disciplinary record from SDO.',
     'Applications are processed on a first-come, first-served basis.',
     'Available slots depend on the allocation provided by each benefactor.',
@@ -41,7 +50,7 @@ const DEFAULT_LANDING_CONTENT = {
   ],
   features_title: 'Built for scholarship operations',
   features_description:
-    'Designed for applicants, scholars, and OSFA staff who need a clean, direct, and reliable workflow.',
+    'Designed for applicants, scholars, and authorized OSFA users who need a clean, direct, and reliable workflow.',
   feature_items: [
     { title: 'Application Tracking', description: 'Applicants can monitor submission progress and requirements.' },
     { title: 'Live Announcements', description: 'Scholars receive updates from OSFA and department offices.' },
@@ -76,7 +85,7 @@ const DEFAULT_POLICY_CONTENT = {
     'Certain scholarship and institutional records may still be processed or retained when another lawful or institutional basis applies. Contact OSFA using the details published on the landing page for questions or requests.',
   terms_icon: 'file-text',
   terms_intro:
-    'These terms govern access to and use of SMaRT-PDM. They are intended to protect applicants, scholars, staff, institutional records, and the integrity of scholarship processes.',
+    'These terms govern access to and use of SMaRT-PDM. They are intended to protect applicants, scholars, authorized users, institutional records, and the integrity of scholarship processes.',
   terms_sections: [
     { title: 'Purpose and acceptance', body: 'SMaRT-PDM supports scholarship applications, document review, endorsement, communication, monitoring, and related OSFA services. By using the platform, you agree to use it only for legitimate PDM scholarship activities and to follow these terms and applicable institutional policies.' },
     { title: 'Account responsibility', body: 'Users must provide accurate information, protect their credentials, and promptly report suspected unauthorized access. Actions performed through an account may be treated as actions of the registered user unless reported and verified otherwise.' },
@@ -200,9 +209,13 @@ function sanitizeLandingTextItems(items, defaults, maxLength = 500) {
 
 function sanitizeLandingContent(content = {}) {
   const defaults = DEFAULT_LANDING_CONTENT;
+  const heroTitle = safeText(content.hero_title, 180);
   return {
+    about_title: safeText(content.about_title, 180) || defaults.about_title,
+    about_description: safeText(content.about_description, 1200) || defaults.about_description,
+    about_items: sanitizeLandingItems(content.about_items, defaults.about_items),
     hero_badge: safeText(content.hero_badge, 80) || defaults.hero_badge,
-    hero_title: safeText(content.hero_title, 180) || defaults.hero_title,
+    hero_title: heroTitle === LEGACY_HERO_TITLE ? defaults.hero_title : heroTitle || defaults.hero_title,
     hero_description: safeText(content.hero_description, 600) || defaults.hero_description,
     mobile_app_title: safeText(content.mobile_app_title, 100) || defaults.mobile_app_title,
     mobile_app_description:

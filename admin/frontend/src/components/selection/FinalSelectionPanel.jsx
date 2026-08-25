@@ -11,6 +11,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -130,12 +131,7 @@ export default function FinalSelectionPanel({ openingId, onFinalized }) {
   const summary = data?.summary || {};
 
   if (loading) {
-    return (
-      <div className="flex min-h-[260px] items-center justify-center gap-2 text-sm text-stone-500">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Preparing the FCFS list...
-      </div>
-    );
+    return <SectionLoadingSkeleton label="Preparing the FCFS list" rows={5} />;
   }
 
   return (

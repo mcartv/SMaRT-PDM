@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,9 +38,10 @@ import {
   X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 
 const C = {
-  brownMid: '#7c4a2e',
+  brownMid: 'var(--portal-base)',
   green: '#16a34a',
   greenSoft: '#F0FDF4',
   blueMid: '#2563EB',
@@ -51,13 +53,65 @@ const C = {
 const PAGE_SIZE = 8;
 
 const DEFAULT_FILTERS = {
+  academicYear: 'all',
   openingStatus: 'all',
   applicationStatus: 'all',
   documentStatus: 'all',
 };
 
+const READINESS_SEEN_STORAGE_PREFIX = 'smart-pdm:admin:readiness-seen:v1';
+
+function getReadinessSeenStorageKey() {
+  try {
+    const profile = JSON.parse(sessionStorage.getItem('adminProfile') || '{}');
+    const userId = profile?.user_id || profile?.userId || profile?.id || 'admin';
+    return `${READINESS_SEEN_STORAGE_PREFIX}:${userId}`;
+  } catch {
+    return `${READINESS_SEEN_STORAGE_PREFIX}:admin`;
+  }
+}
+
+function readReadinessSeenState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getReadinessSeenStorageKey()) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeReadinessSeenState(value) {
+  try {
+    localStorage.setItem(getReadinessSeenStorageKey(), JSON.stringify(value || {}));
+  } catch {
+    // The readiness indicator remains session-functional even if browser storage is unavailable.
+  }
+}
+
+function buildReadinessOpeningSignature(rows = []) {
+  return rows
+    .map((row) =>
+      [
+        row.application_id || '',
+        normalizeStatus(row.selection_status),
+        Number(row.queue_position || 0),
+        Number(row.waitlist_position || 0),
+        row.fcfs_completed_at || '',
+      ].join(':')
+    )
+    .sort()
+    .join('|');
+}
+
 function normalizeStatus(value = '') {
   return String(value).trim().toLowerCase();
+}
+
+function normalizePdmSearchValue(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
 function formatDate(value) {
@@ -197,7 +251,7 @@ function getDocumentStatusMeta(row) {
   }
 
   return {
-    label: row?.document_status || 'â€”',
+    label: row?.document_status || '\u2014',
     bg: '#f5f5f4',
     color: '#57534e',
   };
@@ -258,13 +312,13 @@ function normalizeApplicantRow(app) {
       app.student_name ||
       [app.first_name, app.last_name].filter(Boolean).join(' ') ||
       'Unnamed Applicant',
-    pdm_id: app.pdm_id || 'â€”',
+    pdm_id: app.pdm_id || '\u2014',
     program_name: app.program_name || 'No Program',
     application_status: app.application_status || 'Pending',
-    document_status: app.document_status || app.deficiency_status || 'â€”',
+    document_status: app.document_status || app.deficiency_status || '\u2014',
     submitted_at: app.submission_date || null,
     opening_title: app.opening_title || 'Untitled Opening',
-    academic_year: app.academic_year || 'â€”',
+    academic_year: app.academic_year || '\u2014',
     posting_status: app.posting_status || app.opening_status || 'open',
     allocated_slots: app.allocated_slots || 0,
     filled_slots: app.filled_slots || 0,
@@ -313,7 +367,7 @@ function isApplicantAtRisk(app) {
 function StatusPill({ meta }) {
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap"
       style={{ background: meta.bg, color: meta.color }}
     >
       {meta.label}
@@ -376,6 +430,7 @@ function Toolbar({
   hasNeedsAttention,
   refreshing,
   onRefresh,
+  academicYearOptions,
   filters,
   draftFilters,
   setDraftFilters,
@@ -385,6 +440,7 @@ function Toolbar({
   const [filterOpen, setFilterOpen] = useState(false);
 
   const hasActiveFilters =
+    filters.academicYear !== 'all' ||
     filters.openingStatus !== 'all' ||
     filters.applicationStatus !== 'all' ||
     filters.documentStatus !== 'all';
@@ -424,7 +480,7 @@ function Toolbar({
           />
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
               type="button"
@@ -472,7 +528,7 @@ function Toolbar({
                 variant="outline"
                 size="sm"
                 onClick={openModal}
-                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
               >
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
                 Filters
@@ -490,6 +546,30 @@ function Toolbar({
               </DialogHeader>
 
               <div className="grid gap-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-stone-700">
+                    Academic Year
+                  </label>
+                  <Select
+                    value={draftFilters.academicYear}
+                    onValueChange={(value) =>
+                      setDraftFilters((prev) => ({ ...prev, academicYear: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select academic year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Academic Years</SelectItem>
+                      {academicYearOptions.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {viewType === 'cards' ? (
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-stone-700">
@@ -587,7 +667,7 @@ function Toolbar({
             variant="outline"
             size="sm"
             onClick={onRefresh}
-            className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+            className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
           >
             {refreshing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -602,9 +682,15 @@ function Toolbar({
   );
 }
 
-function OpeningsGrid({ rows, countsMap, navigate }) {
+function OpeningsGrid({
+  rows,
+  countsMap,
+  navigate,
+  unseenOpeningIds = new Set(),
+  onOpeningViewed = () => {},
+}) {
   return (
-    <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <section className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
       {rows.map((opening) => {
         const statusMeta = getOpeningStatusMeta(opening);
         const allocatedSlots = Number(opening.allocated_slots || opening.slot_count || 0);
@@ -617,19 +703,29 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
         const readyCount = summary.scholarReady || 0;
         const fcfsCount = summary.fcfsQueued || 0;
         const nextFcfsApplicant = summary.nextFcfsApplicant || null;
+        const hasUnseenReadiness = unseenOpeningIds.has(String(opening.opening_id));
 
         return (
           <Card
             key={opening.opening_id}
             className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300"
           >
-            <CardContent className="p-4">
+            <CardContent className="p-4 sm:p-5">
               <div className="flex h-full flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-lg font-semibold leading-tight text-stone-900">
-                      {opening.opening_title || opening.title || 'Untitled Opening'}
-                    </h2>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h2 className="min-w-0 truncate text-lg font-semibold leading-tight text-stone-900">
+                        {opening.opening_title || opening.title || 'Untitled Opening'}
+                      </h2>
+                      {hasUnseenReadiness ? (
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
+                          title="New readiness activity"
+                          aria-label="New readiness activity"
+                        />
+                      ) : null}
+                    </div>
                     <p className="mt-1 text-sm text-stone-500">
                       {opening.program_name || 'No Program'}
                       {opening.academic_year ? ` ${opening.academic_year}` : ''}
@@ -639,7 +735,7 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                   <StatusPill meta={statusMeta} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <MetricItem label="Slots" value={allocatedSlots} />
                   <MetricItem label="Filled" value={filledSlots} />
                   <MetricItem label="Applicants" value={applicationCount} />
@@ -670,20 +766,22 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                     size="sm"
                     variant="outline"
                     className="h-8 rounded-lg border-amber-200 px-3 text-xs text-amber-800"
-                    onClick={() =>
-                      navigate(`/admin/openings/${opening.opening_id}/applications?view=final-selection`)
-                    }
+                    onClick={() => {
+                      onOpeningViewed(opening.opening_id);
+                      navigate(`/admin/openings/${opening.opening_id}/applications`);
+                    }}
                   >
                     <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
-                    FCFS & Finalize
+                    View FCFS Queue
                   </Button>
                   <Button
                     size="sm"
-                    className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                    className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                     style={{ background: C.brownMid }}
-                    onClick={() =>
-                      navigate(`/admin/openings/${opening.opening_id}/applications`)
-                    }
+                    onClick={() => {
+                      onOpeningViewed(opening.opening_id);
+                      navigate(`/admin/openings/${opening.opening_id}/applications`);
+                    }}
                   >
                     View Applicants
                     <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -697,6 +795,495 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
     </section>
   );
 }
+
+
+function ReadinessOpeningCards({
+  openings,
+  rows,
+  navigate,
+  onApproveScholar,
+  approvalLoadingId = '',
+  unseenOpeningIds = new Set(),
+  onOpeningViewed = () => {},
+}) {
+  const grouped = useMemo(() => {
+    const map = new Map();
+
+    openings.forEach((opening) => {
+      map.set(opening.opening_id, {
+        opening,
+        reserved: [],
+        waiting: [],
+      });
+    });
+
+    rows.forEach((row) => {
+      if (!row.opening_id) return;
+
+      if (!map.has(row.opening_id)) {
+        map.set(row.opening_id, {
+          opening: {
+            opening_id: row.opening_id,
+            opening_title: row.opening_title || 'Scholarship Opening',
+            program_name: row.program_name || 'Scholarship Program',
+            academic_year: row.academic_year || '',
+            allocated_slots: 0,
+            filled_slots: 0,
+          },
+          reserved: [],
+          waiting: [],
+        });
+      }
+
+      const group = map.get(row.opening_id);
+      const status = normalizeStatus(row.selection_status);
+
+      if (status === 'waitlisted') {
+        group.waiting.push(row);
+      } else {
+        group.reserved.push(row);
+      }
+    });
+
+    return [...map.values()]
+      .map((group) => ({
+        ...group,
+        reserved: [...group.reserved].sort(compareFcfs),
+        waiting: [...group.waiting].sort((a, b) => {
+          const waitA = Number(
+            a.waitlist_position || Number.MAX_SAFE_INTEGER
+          );
+          const waitB = Number(
+            b.waitlist_position || Number.MAX_SAFE_INTEGER
+          );
+
+          if (waitA !== waitB) return waitA - waitB;
+          return compareFcfs(a, b);
+        }),
+      }))
+      .filter((group) => {
+        const statusGroup = getOpeningGroup(
+          group.opening?.posting_status ||
+            group.opening?.status ||
+            ''
+        );
+
+        return statusGroup === 'open';
+      })
+      .sort((a, b) =>
+        String(a.opening?.opening_title || '').localeCompare(
+          String(b.opening?.opening_title || '')
+        )
+      );
+  }, [openings, rows]);
+
+  const [selectedOpeningId, setSelectedOpeningId] =
+    useState('');
+
+  useEffect(() => {
+    if (!grouped.length) {
+      if (selectedOpeningId) {
+        setSelectedOpeningId('');
+      }
+      return;
+    }
+
+    const stillExists = grouped.some(
+      (group) =>
+        String(group.opening?.opening_id) ===
+        String(selectedOpeningId)
+    );
+
+    if (!stillExists) {
+      setSelectedOpeningId(
+        String(grouped[0].opening?.opening_id || '')
+      );
+    }
+  }, [grouped, selectedOpeningId]);
+
+  if (!grouped.length) {
+    return (
+      <Card className="rounded-2xl border-stone-200 shadow-none">
+        <CardContent className="py-16 text-center">
+          <p className="text-base font-semibold text-stone-700">
+            No available scholarship openings.
+          </p>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-stone-500">
+            Readiness shows every currently open scholarship
+            opening, including openings that do not have ready
+            or waitlisted applicants yet.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const selectedGroup =
+    grouped.find(
+      (group) =>
+        String(group.opening?.opening_id) ===
+        String(selectedOpeningId)
+    ) || grouped[0];
+
+  const { opening, reserved, waiting } = selectedGroup;
+
+  const allocated = Number(
+    opening.allocated_slots || opening.slot_count || 0
+  );
+
+  const active = Number(opening.filled_slots || 0);
+  const reservedCount = reserved.length;
+
+  const available = Math.max(
+    0,
+    allocated - active - reservedCount
+  );
+
+  return (
+    <div className="space-y-3">
+      <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-none">
+        <div className="mb-2 flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-stone-900">
+              Scholarship Opening
+            </p>
+            <p className="text-xs text-stone-500">
+              Switch openings without hiding the readiness list.
+            </p>
+          </div>
+
+          <span className="text-xs text-stone-400">
+            {grouped.length} open
+            {grouped.length === 1 ? ' opening' : ' openings'}
+          </span>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {grouped.map((group) => {
+            const itemOpening = group.opening || {};
+            const itemId = String(
+              itemOpening.opening_id || ''
+            );
+
+            const selected =
+              itemId ===
+              String(
+                selectedGroup.opening?.opening_id || ''
+              );
+            const hasUnseenReadiness = unseenOpeningIds.has(itemId);
+
+            return (
+              <button
+                key={itemId}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  setSelectedOpeningId(itemId);
+                  onOpeningViewed(itemId);
+                }}
+                className={`min-w-[210px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition sm:min-w-[240px] ${
+                  selected
+                    ? 'border-stone-300 bg-stone-900 text-white shadow-sm'
+                    : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p
+                        className={`min-w-0 truncate text-sm font-semibold ${
+                          selected
+                            ? 'text-white'
+                            : 'text-stone-900'
+                        }`}
+                      >
+                        {itemOpening.opening_title ||
+                          'Scholarship Opening'}
+                      </p>
+                      {hasUnseenReadiness ? (
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
+                          title="New readiness activity"
+                          aria-label="New readiness activity"
+                        />
+                      ) : null}
+                    </div>
+
+                    <p
+                      className={`mt-0.5 truncate text-xs ${
+                        selected
+                          ? 'text-white/70'
+                          : 'text-stone-500'
+                      }`}
+                    >
+                      {itemOpening.program_name ||
+                        'Scholarship Program'}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      selected
+                        ? 'bg-white/15 text-white'
+                        : 'bg-green-50 text-green-700'
+                    }`}
+                  >
+                    {group.reserved.length} ready
+                  </span>
+                </div>
+
+                <div
+                  className={`mt-2 flex items-center gap-3 text-[11px] ${
+                    selected
+                      ? 'text-white/70'
+                      : 'text-stone-500'
+                  }`}
+                >
+                  <span>
+                    {group.reserved.length} reserved
+                  </span>
+                  <span>
+                    {group.waiting.length} waiting
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
+        <div className="border-b border-stone-100 px-4 py-3.5 sm:px-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-semibold text-stone-900 sm:text-lg">
+                {opening.opening_title ||
+                  'Scholarship Opening'}
+              </h2>
+
+              <p className="mt-0.5 text-sm text-stone-500">
+                {opening.program_name ||
+                  'Scholarship Program'}
+                {opening.academic_year
+                  ? ` · ${opening.academic_year}`
+                  : ''}
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 rounded-lg border-stone-200 text-sm"
+              onClick={() => {
+                onOpeningViewed(opening.opening_id);
+                navigate(
+                  `/admin/openings/${opening.opening_id}/applications`
+                );
+              }}
+            >
+              Open Queue
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <MetricItem
+              label="Slots"
+              value={allocated}
+            />
+            <MetricItem
+              label="Active Scholars"
+              value={active}
+            />
+            <MetricItem
+              label="Reserved"
+              value={reservedCount}
+            />
+            <MetricItem
+              label="Waiting"
+              value={waiting.length}
+            />
+            <MetricItem
+              label="Available"
+              value={available}
+            />
+          </div>
+        </div>
+
+        <CardContent className="grid gap-5 p-4 sm:p-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="min-w-0">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold leading-5 text-stone-900">
+                  Ready for Activation
+                </h3>
+                <p className="mt-0.5 text-xs leading-5 text-stone-500 sm:text-sm">
+                  FCFS applicants currently holding a scholarship
+                  slot.
+                </p>
+              </div>
+
+              <StatusPill
+                meta={{
+                  label: `${reserved.length} reserved`,
+                  bg: C.greenSoft,
+                  color: C.green,
+                }}
+              />
+            </div>
+
+            {reserved.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-400">
+                No applicants are currently reserved for
+                activation.
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
+                {reserved.map((row) => (
+                  <div
+                    key={row.application_id}
+                    className="flex flex-col gap-3 bg-white px-3.5 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
+                        {getFcfsLabel(row)}
+                      </span>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-stone-900">
+                          {row.applicant_name}
+                        </p>
+
+                        <p className="mt-1 text-sm text-stone-500">
+                          {row.pdm_id} {'·'} Ready{' '}
+                          {formatDate(
+                            row.fcfs_completed_at
+                          )}
+                        </p>
+
+                        <p className="mt-1 text-xs font-medium text-green-700">
+                          {normalizeStatus(
+                            row.selection_status
+                          ) === 'promoted'
+                            ? 'Promoted from waiting list'
+                            : 'Reserved by FCFS'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 rounded-lg border-stone-200 text-sm"
+                        onClick={() =>
+                          navigate(
+                            `/admin/applications/${row.application_id}/documents`
+                          )
+                        }
+                      >
+                        View Application
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-lg border-none px-4 text-sm text-white"
+                        style={{
+                          background: C.green,
+                        }}
+                        disabled={
+                          approvalLoadingId ===
+                          row.application_id
+                        }
+                        onClick={() =>
+                          onApproveScholar(row)
+                        }
+                      >
+                        {approvalLoadingId ===
+                        row.application_id ? (
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                        )}
+
+                        Activate Scholar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="min-w-0">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">
+                  Waiting List
+                </h3>
+
+                <p className="mt-0.5 text-xs leading-5 text-stone-500 sm:text-sm">
+                  Position changes only when a real scholarship
+                  slot is released.
+                </p>
+              </div>
+
+              <StatusPill
+                meta={{
+                  label: `${waiting.length} waiting`,
+                  bg: '#FFF7ED',
+                  color: '#b45309',
+                }}
+              />
+            </div>
+
+            {waiting.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-400">
+                No applicants are currently waiting for a slot.
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
+                {waiting.map((row) => (
+                  <div
+                    key={row.application_id}
+                    className="flex flex-col gap-3 bg-stone-50/40 px-3.5 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-stone-200 bg-white px-2 text-sm font-bold text-stone-700">
+                        {getFcfsLabel(row)}
+                      </span>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-stone-900">
+                          {row.applicant_name}
+                        </p>
+
+                        <p className="mt-1 text-sm text-stone-500">
+                          {row.pdm_id} {'·'} Ready{' '}
+                          {formatDate(
+                            row.fcfs_completed_at
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
+                      Waiting #
+                      {Number(
+                        row.waitlist_position || 0
+                      ) || '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 
 function RegistryTable({
   rows,
@@ -721,36 +1308,47 @@ function RegistryTable({
       style={{ borderColor: C.line }}
     >
       <div className="border-b border-stone-100 px-5 py-4">
-        <h2 className="text-sm font-semibold text-stone-800">{title}</h2>
-        <p className="mt-1 text-xs text-stone-500">{subtitle}</p>
+        <h2 className="text-base font-semibold text-stone-900">{title}</h2>
+        <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
       </div>
 
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         {rows.length === 0 ? (
           <div className="py-16 text-center text-sm text-stone-400">
             No applicants found.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-left">
+          <div className="overflow-x-auto overscroll-x-contain [scrollbar-gutter:stable]">
+            <table
+              className={`w-full border-collapse text-left ${
+                isReadinessMode ? 'min-w-[1680px]' : 'min-w-[1035px]'
+              }`}
+            >
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50/70">
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Applicant</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">PDM ID</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Scholarship</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Opening</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Submitted</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Requirements</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Endorsement</th>
+                  <th className="min-w-[210px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Applicant</th>
+                  <th className="min-w-[135px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship</th>
+                  <th className="min-w-[170px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Opening</th>
+                  <th className="min-w-[110px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Submitted</th>
+                  <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Requirements</th>
+                  <th className="min-w-[120px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Endorsement</th>
                   {isReadinessMode ? (
                     <>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">FCFS</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Completed</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Slip</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Ready Status</th>
+                      <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">FCFS</th>
+                      <th className="min-w-[110px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Completed</th>
+                      <th className="min-w-[165px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Slip</th>
+                      <th className="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-700">Ready Status</th>
                     </>
                   ) : null}
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">Action</th>
+                  <th
+                    className={`sticky right-0 z-20 border-l border-stone-200 bg-stone-50 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700 shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] ${
+                      isReadinessMode
+                        ? 'w-[390px] min-w-[390px]'
+                        : 'w-[160px] min-w-[160px]'
+                    }`}
+                  >
+                    Action
+                  </th>
                 </tr>
               </thead>
 
@@ -775,52 +1373,51 @@ function RegistryTable({
                   return (
                     <tr
                       key={row.application_id}
-                      className="transition-colors hover:bg-stone-50/70"
+                      className="group transition-colors hover:bg-stone-50/70"
                     >
-                      <td className="px-3 py-3 align-top">
-                        <div className="max-w-[220px]">
-                          <p className="text-sm font-semibold text-stone-900">
+                      <td className="px-3 py-3.5 align-top">
+                        <div className="max-w-[240px] min-w-0">
+                          <p className="truncate text-sm font-semibold leading-5 text-stone-900">
                             {row.applicant_name}
+                          </p>
+                          <p className="mt-1 font-mono text-xs leading-4 text-stone-500">
+                            {row.pdm_id}
                           </p>
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 align-top whitespace-nowrap font-mono text-xs text-stone-700">
-                        {row.pdm_id}
+                      <td className="px-3 py-3.5 align-top text-sm font-semibold leading-5 text-stone-900">
+                        <div className="max-w-[180px] leading-5">{row.program_name}</div>
                       </td>
 
-                      <td className="px-3 py-3 align-top text-xs font-semibold leading-5 text-stone-900">
-                        <div className="max-w-[220px]">{row.program_name}</div>
-                      </td>
-
-                      <td className="px-3 py-3 align-top text-xs text-stone-600">
-                        <div className="max-w-[220px] font-medium text-stone-700">{row.opening_title}</div>
+                      <td className="px-3 py-3.5 align-top text-sm leading-5 text-stone-600">
+                        <div className="max-w-[190px] font-medium leading-5 text-stone-700">{row.opening_title}</div>
                         <p className="mt-0.5 text-[11px] text-stone-400">{row.academic_year}</p>
                       </td>
 
-                      <td className="px-3 py-3 align-top whitespace-nowrap text-xs font-medium text-stone-700">
+                      <td className="px-3 py-3.5 align-top whitespace-nowrap text-xs font-medium text-stone-700">
                         {formatDate(row.submitted_at)}
                       </td>
 
-                      <td className="px-3 py-3 align-top">
+                      <td className="px-3 py-3.5 align-top">
                         <StatusPill meta={requirementsMeta} />
                       </td>
 
-                      <td className="px-3 py-3 align-top">
+                      <td className="px-3 py-3.5 align-top">
                         <StatusPill meta={endorsementMeta} />
                       </td>
 
                       {isReadinessMode ? (
                         <>
-                          <td className="px-3 py-3 align-top">
-                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                          <td className="px-3 py-3.5 align-top">
+                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
                               {getFcfsLabel(row)}
                             </span>
                           </td>
-                          <td className="px-3 py-3 align-top whitespace-nowrap text-xs text-stone-600">
+                          <td className="px-3 py-3.5 align-top whitespace-nowrap text-xs text-stone-600">
                             {formatDate(row.fcfs_completed_at)}
                           </td>
-                          <td className="px-3 py-3 align-top">
+                          <td className="px-3 py-3.5 align-top">
                             {row.endorsement_slip_id ? (
                               <div className="space-y-2">
                                 <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
@@ -838,19 +1435,25 @@ function RegistryTable({
                               <span className="text-xs text-stone-400">No slip yet</span>
                             )}
                           </td>
-                          <td className="px-3 py-3 align-top">
+                          <td className="px-3 py-3.5 align-top">
                             <StatusPill meta={readinessMeta} />
                           </td>
                         </>
                       ) : null}
 
-                      <td className="px-3 py-3 align-top text-right">
-                        <div className="flex justify-end gap-2">
+                      <td
+                        className={`sticky right-0 z-10 border-l border-stone-100 bg-white px-3 py-3.5 align-top text-center shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] transition-colors group-hover:bg-stone-50 ${
+                          isReadinessMode
+                            ? 'w-[390px] min-w-[390px]'
+                            : 'w-[160px] min-w-[160px]'
+                        }`}
+                      >
+                        <div className="flex w-full flex-wrap justify-center gap-2 xl:flex-nowrap">
                           {isReadinessMode && row.endorsement_slip_id ? (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                              className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap text-stone-700"
                               onClick={() => navigate(`/admin/endorsements/${row.endorsement_slip_id}`)}
                             >
                               View Slip
@@ -860,7 +1463,7 @@ function RegistryTable({
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                              className="h-9 rounded-lg border-stone-200 px-3.5 text-xs whitespace-nowrap text-stone-700"
                               onClick={() => onDownloadSlip(row)}
                             >
                               <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -870,7 +1473,7 @@ function RegistryTable({
                           {isReadinessMode ? (
                             <Button
                               size="sm"
-                              className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                              className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                               style={{ background: C.green }}
                               onClick={() => onApproveScholar(row)}
                               disabled={approvalLoadingId === row.application_id}
@@ -885,7 +1488,7 @@ function RegistryTable({
                           ) : null}
                           <Button
                             size="sm"
-                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                             style={{ background: C.brownMid }}
                             onClick={() =>
                               navigate(`/admin/applications/${row.application_id}/documents`)
@@ -942,7 +1545,7 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
   return (
     <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm text-stone-500">
-        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}â€“
+        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}{'\u2013'}
         {Math.min(page * PAGE_SIZE, totalItems)} of {totalItems}
       </span>
 
@@ -992,6 +1595,9 @@ export default function ApplicationReview() {
   const [approvalLoadingId, setApprovalLoadingId] = useState('');
   const [activationCandidate, setActivationCandidate] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [readinessSeenSignatures, setReadinessSeenSignatures] = useState(() =>
+    readReadinessSeenState()
+  );
 
   useEffect(() => {
     if (!feedback) return undefined;
@@ -1007,7 +1613,11 @@ export default function ApplicationReview() {
     const incoming = location.state?.verificationFeedback;
     if (!incoming) return;
 
-    setFeedback(incoming);
+    if (incoming?.tone === 'success') {
+      showAppToast('success', incoming.title, incoming.message);
+    } else {
+      setFeedback(incoming);
+    }
     navigate(location.pathname, {
       replace: true,
       state: {
@@ -1040,11 +1650,11 @@ export default function ApplicationReview() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      setFeedback({
-        tone: 'success',
-        title: 'Slip download started',
-        message: `${row.endorsement_slip_code || 'Endorsement slip'} is being downloaded.`,
-      });
+      showAppToast(
+        'success',
+        'Slip download started',
+        `${row.endorsement_slip_code || 'Endorsement slip'} is being downloaded.`
+      );
     } catch (err) {
       alert(err.message || 'Failed to download endorsement slip PDF');
     }
@@ -1067,11 +1677,11 @@ export default function ApplicationReview() {
 
       await loadData({ soft: true });
       setActivationCandidate(null);
-      setFeedback({
-        tone: 'success',
-        title: 'Scholar activation completed',
-        message: `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`,
-      });
+      showAppToast(
+        'success',
+        'Scholar activation completed',
+        `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`
+      );
     } catch (err) {
       setFeedback({
         tone: 'error',
@@ -1155,9 +1765,19 @@ export default function ApplicationReview() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    // Realtime events are the primary refresh path. This visible-tab fallback
+    // only self-heals a temporarily missed socket event.
+    const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       loadData({ soft: true });
-    }, 8000);
+    };
+
+    const timer = window.setInterval(
+      refreshIfVisible,
+      FALLBACK_REFRESH_INTERVAL_MS
+    );
 
     return () => window.clearInterval(timer);
   }, []);
@@ -1166,6 +1786,7 @@ export default function ApplicationReview() {
   useSocketEvent('application:approved', () => loadData({ soft: true }), []);
   useSocketEvent('application:rejected', () => loadData({ soft: true }), []);
   useSocketEvent('application-document:uploaded', () => loadData({ soft: true }), []);
+  useSocketEvent('application-document:reviewed', () => loadData({ soft: true }), []);
   useSocketEvent('endorsement:updated', () => loadData({ soft: true }), []);
 
   useEffect(() => {
@@ -1177,13 +1798,26 @@ export default function ApplicationReview() {
       opening_id: opening.opening_id,
       opening_title: opening.opening_title || opening.title || 'Untitled Opening',
       program_name: opening.program_name || 'No Program',
-      academic_year: opening.academic_year || opening.academic_year_label || opening.label || 'â€”',
+      academic_year: opening.academic_year || opening.academic_year_label || opening.label || '\u2014',
       posting_status: opening.posting_status || opening.status || 'open',
       allocated_slots: Number(opening.allocated_slots || opening.slot_count || 0),
       filled_slots: Number(opening.filled_slots || 0),
       qualified_count: Number(opening.qualified_count || opening.filled_slots || 0),
     }));
   }, [openings]);
+
+  const academicYearOptions = useMemo(() => {
+    const years = [
+      ...openingCards.map((item) => item.academic_year),
+      ...registryRows.map((item) => item.academic_year),
+    ]
+      .map((value) => String(value || '').trim())
+      .filter((value) => value && value !== '\u2014');
+
+    return [...new Set(years)].sort((a, b) =>
+      b.localeCompare(a, undefined, { numeric: true })
+    );
+  }, [openingCards, registryRows]);
 
   const openingCountsMap = useMemo(() => {
     const map = new Map();
@@ -1229,30 +1863,48 @@ export default function ApplicationReview() {
         (opening.program_name || '').toLowerCase().includes(q) ||
         (opening.academic_year || '').toLowerCase().includes(q);
 
+      const matchesAcademicYear =
+        filters.academicYear === 'all' ||
+        String(opening.academic_year || '') === String(filters.academicYear);
+
       const matchesOpening =
         filters.openingStatus === 'all' ||
         filters.openingStatus === openingGroup;
 
-      return matchesSearch && matchesOpening;
+      return matchesSearch && matchesAcademicYear && matchesOpening;
     });
   }, [openingCards, search, filters]);
 
   const filteredRegistryRows = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const normalizedPdmQuery = normalizePdmSearchValue(search);
 
     return registryRows.filter((row) => {
       const applicationGroup = getStatusGroup(row.application_status);
       const documentGroup = getDocumentGroup(row.document_status);
+      const pdmId = String(row.pdm_id || '').toLowerCase();
+      const normalizedPdmId = normalizePdmSearchValue(row.pdm_id);
+
+      const matchesPdmId =
+        pdmId.includes(q) ||
+        (
+          normalizedPdmQuery.length > 0 &&
+          normalizedPdmId.includes(normalizedPdmQuery)
+        );
 
       const matchesSearch =
         !q ||
         (row.applicant_name || '').toLowerCase().includes(q) ||
-        (row.pdm_id || '').toLowerCase().includes(q) ||
+        matchesPdmId ||
         (row.program_name || '').toLowerCase().includes(q) ||
         (row.application_status || '').toLowerCase().includes(q) ||
         (row.document_status || '').toLowerCase().includes(q) ||
         (row.opening_title || '').toLowerCase().includes(q) ||
         (row.academic_year || '').toLowerCase().includes(q);
+
+      const matchesAcademicYear =
+        filters.academicYear === 'all' ||
+        String(row.academic_year || '') === String(filters.academicYear);
 
       const matchesApplication =
         filters.applicationStatus === 'all' ||
@@ -1262,24 +1914,90 @@ export default function ApplicationReview() {
         filters.documentStatus === 'all' ||
         filters.documentStatus === documentGroup;
 
-      return matchesSearch && matchesApplication && matchesDocument;
+      return (
+        matchesSearch &&
+        matchesAcademicYear &&
+        matchesApplication &&
+        matchesDocument
+      );
     });
   }, [registryRows, search, filters]);
 
+  const isReadyForScholarHandling = (row) => {
+    const status = normalizeStatus(row.selection_status);
+    const isQueueStatus = ['reserved', 'promoted', 'waitlisted'].includes(status);
+    const hasFcfsRank = Number(row.queue_position || 0) > 0 && Boolean(row.fcfs_completed_at);
+    const isApproved = normalizeStatus(row.application_status) === 'approved';
+
+    return (
+      row.requirements_complete === true &&
+      row.endorsement_complete === true &&
+      hasFcfsRank &&
+      isQueueStatus &&
+      !isApproved
+    );
+  };
+
   const pendingRegistryRows = useMemo(
-    () => filteredRegistryRows.filter((row) => !row.scholar_activation_ready),
+    () => filteredRegistryRows.filter((row) => !isReadyForScholarHandling(row)),
     [filteredRegistryRows]
+  );
+
+  const allReadinessRows = useMemo(
+    () => registryRows.filter(isReadyForScholarHandling).sort(compareFcfs),
+    [registryRows]
   );
 
   const readinessRows = useMemo(
     () =>
       filteredRegistryRows
-        .filter((row) => row.scholar_activation_ready)
+        .filter(isReadyForScholarHandling)
         .sort(compareFcfs),
     [filteredRegistryRows]
   );
 
-  const hasNeedsAttention = readinessRows.length > 0;
+  const readinessAttentionSignatures = useMemo(() => {
+    const grouped = new Map();
+
+    allReadinessRows.forEach((row) => {
+      const openingId = String(row.opening_id || '');
+      if (!openingId) return;
+      if (!grouped.has(openingId)) grouped.set(openingId, []);
+      grouped.get(openingId).push(row);
+    });
+
+    return new Map(
+      [...grouped.entries()].map(([openingId, rows]) => [
+        openingId,
+        buildReadinessOpeningSignature(rows),
+      ])
+    );
+  }, [allReadinessRows]);
+
+  const unseenReadinessOpeningIds = useMemo(() => {
+    return new Set(
+      [...readinessAttentionSignatures.entries()]
+        .filter(([openingId, signature]) =>
+          readinessSeenSignatures[openingId] !== signature
+        )
+        .map(([openingId]) => openingId)
+    );
+  }, [readinessAttentionSignatures, readinessSeenSignatures]);
+
+  const markReadinessOpeningSeen = (openingId) => {
+    const key = String(openingId || '');
+    const signature = readinessAttentionSignatures.get(key);
+    if (!key || !signature) return;
+
+    setReadinessSeenSignatures((current) => {
+      if (current[key] === signature) return current;
+      const next = { ...current, [key]: signature };
+      writeReadinessSeenState(next);
+      return next;
+    });
+  };
+
+  const hasNeedsAttention = unseenReadinessOpeningIds.size > 0;
 
   const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
@@ -1308,12 +2026,7 @@ export default function ApplicationReview() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading application review data...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading application review" showStats />;
   }
 
   if (error) {
@@ -1335,34 +2048,34 @@ export default function ApplicationReview() {
   }
 
   return (
-    <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
+    <div className="space-y-3 py-2" style={{ background: C.bg }}>
       <Dialog
         open={Boolean(activationCandidate)}
         onOpenChange={(open) => {
           if (!open && !approvalLoadingId) setActivationCandidate(null);
         }}
       >
-        <DialogContent className="max-w-lg rounded-3xl border-stone-200 p-0">
-          <DialogHeader className="border-b border-stone-100 px-6 py-5 text-left">
+        <DialogContent className="sm:max-w-xl rounded-2xl border-stone-200 p-0">
+          <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left sm:px-6">
             <DialogTitle className="text-lg">Confirm scholar activation</DialogTitle>
             <p className="mt-1 text-sm leading-6 text-stone-500">
               Activate {activationCandidate?.applicant_name || 'this applicant'} only after the system passes every final check.
             </p>
           </DialogHeader>
-          <div className="space-y-3 px-6 py-5">
+          <div className="space-y-2.5 px-5 py-4 sm:px-6">
             {[
               'All required documents are uploaded and verified',
               'SDO, Guidance, and Program Director endorsement is complete',
               'The scholarship opening still has an available slot',
               'The student has no other active scholar record',
             ].map((label) => (
-              <div key={label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
+              <div key={label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-700">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                 {label}
               </div>
             ))}
           </div>
-          <DialogFooter className="border-t border-stone-100 px-6 py-4">
+          <DialogFooter className="border-t border-stone-100 px-5 py-3 sm:px-6">
             <Button variant="outline" disabled={Boolean(approvalLoadingId)} onClick={() => setActivationCandidate(null)}>
               Cancel
             </Button>
@@ -1373,28 +2086,18 @@ export default function ApplicationReview() {
               onClick={() => approveScholar(activationCandidate)}
             >
               {approvalLoadingId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-              Run Checks & Activate
+              Activate Scholar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
-            ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
-            : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
-            }`}
-        >
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-4 text-red-900 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div
-                className={`rounded-2xl p-2 ${feedback.tone === 'success'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-                  }`}
-              >
-                <CheckCircle2 className="h-5 w-5" />
+              <div className="rounded-2xl bg-red-100 p-2 text-red-700">
+                <X className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-semibold">{feedback.title}</p>
@@ -1421,6 +2124,7 @@ export default function ApplicationReview() {
         hasNeedsAttention={hasNeedsAttention}
         refreshing={refreshing}
         onRefresh={() => loadData({ soft: true })}
+        academicYearOptions={academicYearOptions}
         filters={filters}
         draftFilters={draftFilters}
         setDraftFilters={setDraftFilters}
@@ -1441,6 +2145,8 @@ export default function ApplicationReview() {
               rows={cardsPageData}
               countsMap={openingCountsMap}
               navigate={navigate}
+              unseenOpeningIds={unseenReadinessOpeningIds}
+              onOpeningViewed={markReadinessOpeningSeen}
             />
 
             <Pagination
@@ -1453,32 +2159,15 @@ export default function ApplicationReview() {
           </>
         )
       ) : viewType === 'action' ? (
-        readinessRows.length === 0 ? (
-          <Card className="rounded-2xl border-stone-200 shadow-none">
-            <CardContent className="py-16 text-center text-sm text-stone-400">
-              No applicants are ready for final scholar handling yet. Once both requirements and endorsement are complete, they will move here automatically.
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <ReadinessSummary rows={readinessRows} />
-            <RegistryTable
-              rows={readinessPageData}
-              navigate={navigate}
-              onDownloadSlip={downloadSlipPdf}
-              onApproveScholar={setActivationCandidate}
-              approvalLoadingId={approvalLoadingId}
-              title="Activation Readiness Queue"
-              subtitle="FCFS order is based on the exact time both verified requirements and endorsement became complete. Application submission is used only as a tie-breaker."
-              mode="readiness"
-              page={page}
-              totalPages={readinessTotalPages}
-              totalItems={readinessRows.length}
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(readinessTotalPages, p + 1))}
-            />
-          </>
-        )
+        <ReadinessOpeningCards
+          openings={openingCards}
+          rows={readinessRows}
+          navigate={navigate}
+          onApproveScholar={setActivationCandidate}
+          approvalLoadingId={approvalLoadingId}
+          unseenOpeningIds={unseenReadinessOpeningIds}
+          onOpeningViewed={markReadinessOpeningSeen}
+        />
       ) : pendingRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">
@@ -1507,4 +2196,3 @@ export default function ApplicationReview() {
     </div>
   );
 }
-

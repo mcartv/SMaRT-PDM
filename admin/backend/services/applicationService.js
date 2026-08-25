@@ -1,13 +1,230 @@
-const path = require('path');
+﻿const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const _ = require('lodash');
 const iotOcrRequestService = require('./iotOcrRequestService');
 const documentTypes = require('../utils/documentTypes');
+const readinessQueueService = require('./readinessQueueService');
+const { resolveMarilaoResidency } = require('../utils/marilaoResidency');
+const {
+    isRequestBoundSnapshotFresh,
+} = require('../utils/iotOcrSnapshotFreshness');
 
-const STORAGE_BUCKET =
-    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
+const MINOR_DOCUMENT_REVIEW_STATUS = 'reupload_required';
+const MAJOR_DOCUMENT_REVIEW_STATUS = 'rejected';
+
+function normalizeDocumentReviewStatus(value = 'pending') {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+
+    if (['verified', 'approved', 'accepted'].includes(normalized)) {
+        return 'verified';
+    }
+
+    if (
+        [
+            'reupload_required',
+            'requires_reupload',
+            'needs_reupload',
+            'needs_re_upload',
+            'reupload',
+            're_upload',
+            'flagged',
+        ].includes(normalized)
+    ) {
+        return MINOR_DOCUMENT_REVIEW_STATUS;
+    }
+
+    if (['rejected', 'denied', 'declined'].includes(normalized)) {
+        return MAJOR_DOCUMENT_REVIEW_STATUS;
+    }
+
+    if (['uploaded', 'under_review', 'review'].includes(normalized)) {
+        return 'uploaded';
+    }
+
+    return 'pending';
+}
+
+function normalizeIssueSeverity(value, reviewStatus) {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (normalized === 'minor' || normalized === 'major') {
+        return normalized;
+    }
+
+    if (reviewStatus === MINOR_DOCUMENT_REVIEW_STATUS) return 'minor';
+    if (reviewStatus === MAJOR_DOCUMENT_REVIEW_STATUS) return 'major';
+
+    return null;
+}
+
+function normalizeReasonCode(value) {
+    const normalized = String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return normalized || null;
+}
+
+function deriveVerificationOutcome(reviews = []) {
+    const hasMajorViolation = reviews.some(
+        (review) =>
+            review.reviewStatus === MAJOR_DOCUMENT_REVIEW_STATUS &&
+            review.issueSeverity === 'major'
+    );
+
+    if (hasMajorViolation) return 'rejected';
+
+    const hasMinorIssue = reviews.some(
+        (review) => review.reviewStatus === MINOR_DOCUMENT_REVIEW_STATUS
+    );
+
+    if (hasMinorIssue) return 'requires_reupload';
+
+    const allVerified =
+        reviews.length > 0 &&
+        reviews.every((review) => review.reviewStatus === 'verified');
+
+    return allVerified ? 'verified' : 'pending';
+}
+
+function buildReplacementNotification(applicationId) {
+    return {
+        type: 'Application',
+        title: 'Application Correction Required',
+        message:
+            'One or more application requirements need correction. Open your application to review the administrator remarks. Re-upload affected documents or edit the Application Form when requested.',
+        referenceType: 'application',
+        referenceId: applicationId,
+    };
+}
+
+function normalizeStorageBucketName(value, fallback = 'documents') {
+    const normalized = String(value || fallback)
+        .trim()
+        .replace(/^\/+|\/+$/g, '');
+
+    if (!normalized) return fallback;
+
+    // Supabase Storage accepts a bucket name only. A value such as
+    // "documents/applications" means bucket "documents" and folder
+    // "applications"; the folder must remain in the object path.
+    return normalized.split('/').filter(Boolean)[0] || fallback;
+}
+
+const STORAGE_BUCKET = normalizeStorageBucketName(
+    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET,
+    'documents'
+);
+
+// Signed URLs are stable credentials for the same private object until they expire.
+// Reusing them prevents repeated Storage signing calls and lets browsers reuse the
+// same URL from cache instead of receiving a new token on every API refresh.
+const SIGNED_URL_CACHE_MAX_ENTRIES = 1000;
+const SIGNED_URL_CACHE_TTL_MS = 50 * 60 * 1000;
+const SIGNED_URL_EXPIRY_SAFETY_MS = 5 * 60 * 1000;
+const signedUrlCache = new Map();
+const signedUrlInFlight = new Map();
+
+const DOCUMENT_VIEW_METADATA_CACHE_TTL_MS = Math.max(
+    5000,
+    Number(process.env.DOCUMENT_VIEW_METADATA_CACHE_TTL_MS || 30000)
+);
+const DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES = Math.max(
+    100,
+    Number(process.env.DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES || 1000)
+);
+const documentViewMetadataCache = new Map();
+const documentViewMetadataInFlight = new Map();
+
+function pruneDocumentViewMetadataCache(now = Date.now()) {
+    for (const [key, entry] of documentViewMetadataCache.entries()) {
+        if (!entry || entry.expiresAt <= now) documentViewMetadataCache.delete(key);
+    }
+    while (documentViewMetadataCache.size > DOCUMENT_VIEW_METADATA_CACHE_MAX_ENTRIES) {
+        const oldestKey = documentViewMetadataCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        documentViewMetadataCache.delete(oldestKey);
+    }
+}
+
+function pruneSignedUrlCache(now = Date.now()) {
+    for (const [key, entry] of signedUrlCache.entries()) {
+        if (!entry || entry.expiresAt <= now) {
+            signedUrlCache.delete(key);
+        }
+    }
+
+    while (signedUrlCache.size > SIGNED_URL_CACHE_MAX_ENTRIES) {
+        const oldestKey = signedUrlCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        signedUrlCache.delete(oldestKey);
+    }
+}
+
+async function createCachedSignedUrl({
+    bucket,
+    filePath,
+    expiresInSeconds,
+    download = false,
+}) {
+    if (!bucket || !filePath) return null;
+
+    const normalizedPath = String(filePath).replace(/^\/+/, '');
+    const cacheKey = `${bucket}:${normalizedPath}:${download ? 'download' : 'preview'}`;
+    const now = Date.now();
+    const cached = signedUrlCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > now) {
+        // Refresh insertion order so frequently used entries are retained.
+        signedUrlCache.delete(cacheKey);
+        signedUrlCache.set(cacheKey, cached);
+        return cached.url;
+    }
+
+    if (signedUrlInFlight.has(cacheKey)) {
+        return signedUrlInFlight.get(cacheKey);
+    }
+
+    const request = (async () => {
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(normalizedPath, expiresInSeconds, { download });
+
+        if (error) {
+            throw error;
+        }
+
+        const maximumReusableMs = Math.max(
+            60 * 1000,
+            (expiresInSeconds * 1000) - SIGNED_URL_EXPIRY_SAFETY_MS
+        );
+        const cacheTtlMs = Math.min(SIGNED_URL_CACHE_TTL_MS, maximumReusableMs);
+
+        signedUrlCache.set(cacheKey, {
+            url: data?.signedUrl || null,
+            expiresAt: now + cacheTtlMs,
+        });
+        pruneSignedUrlCache(now);
+
+        return data?.signedUrl || null;
+    })();
+
+    signedUrlInFlight.set(cacheKey, request);
+
+    try {
+        return await request;
+    } finally {
+        signedUrlInFlight.delete(cacheKey);
+    }
+}
 const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
 const IOT_OCR_ENDPOINT_URL =
@@ -110,6 +327,9 @@ const DOCUMENT_TYPE_ALIASES = {
 
     certificate_of_indigency: 'certificate_of_indigency',
     indigency: 'certificate_of_indigency',
+    barangay_certificate: 'certificate_of_indigency',
+    certificate_of_residency: 'certificate_of_indigency',
+    barangay_clearance: 'certificate_of_indigency',
 
     lor: 'letter_of_request',
     letter_of_request: 'letter_of_request',
@@ -251,15 +471,17 @@ async function resolveAvatarUrl(value) {
         return rawValue;
     }
 
-    const { data, error } = await supabase.storage
-        .from('avatars')
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-    if (error) {
+    try {
+        return (
+            await createCachedSignedUrl({
+                bucket: 'avatars',
+                filePath: storagePath,
+                expiresInSeconds: 60 * 60 * 24 * 7,
+            })
+        ) || rawValue;
+    } catch (_error) {
         return rawValue;
     }
-
-    return data?.signedUrl || rawValue;
 }
 
 function getOrdinalSuffix(n) {
@@ -289,6 +511,11 @@ function buildReadinessFlags(row = {}) {
     const applicationStatus = normalizeLookupValue(row.application_status);
     const documentStatus = normalizeLookupValue(row.document_status);
     const endorsementStatusRaw = String(row.endorsement_overall_status || row.overall_status || '').trim().toLowerCase();
+    // Downstream readiness trusts the coordinator's final requirements review.
+    // Individual document-review counts are still surfaced for diagnostics, but
+    // once verification_status is "verified" we do not re-litigate every
+    // document row here.
+    const requirementsVerifiedByCoordinator = verificationStatus === 'verified';
     const requirementsVerifiedByReviews =
         Number(row.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
         Number(row.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
@@ -309,14 +536,23 @@ function buildReadinessFlags(row = {}) {
         documentStatus === 'requires reupload'
     ) {
         requirementsStatus = 'reupload_required';
+    } else if (requirementsVerifiedByCoordinator) {
+        requirementsStatus = 'verified';
     } else if (Number(row.uploaded_required_count || 0) < REQUIRED_UPLOAD_DOCUMENT_NAMES.length) {
         requirementsStatus = 'missing';
     } else if (requirementsVerifiedByReviews) {
-        requirementsStatus = 'verified';
+        requirementsStatus = 'under_review';
     }
 
     const requirementsComplete = requirementsStatus === 'verified';
-    const scholarActivationReady = requirementsComplete && endorsementComplete;
+    const workflowComplete = requirementsComplete && endorsementComplete;
+    const selectionStatus = normalizeLookupValue(row.selection_status);
+    const queuePosition = row.queue_position == null ? null : Number(row.queue_position);
+    const waitlistPosition = row.waitlist_position == null ? null : Number(row.waitlist_position);
+    const fcfsQueued = workflowComplete && Number.isFinite(queuePosition) && queuePosition > 0;
+    const waitlisted = selectionStatus === 'waitlisted';
+    const holdsReservedSlot = ['reserved', 'promoted', 'selected'].includes(selectionStatus);
+    const scholarActivationReady = fcfsQueued && holdsReservedSlot && !waitlisted;
 
     if (endorsementStatusRaw === 'disqualified_major') {
         endorsementStatus = 'major_offense';
@@ -336,10 +572,14 @@ function buildReadinessFlags(row = {}) {
     return {
         requirements_complete: requirementsComplete,
         endorsement_complete: endorsementComplete,
+        workflow_complete: workflowComplete,
+        fcfs_queued: fcfsQueued,
+        is_waitlisted: waitlisted,
+        holds_reserved_slot: holdsReservedSlot,
         scholar_activation_ready: scholarActivationReady,
         requirements_incomplete: !requirementsComplete,
         endorsement_pending: !endorsementComplete,
-        needs_activation_attention: !scholarActivationReady,
+        needs_activation_attention: workflowComplete && !scholarActivationReady,
         blockers,
         verified_review_count: Number(row.verified_review_count || 0),
         uploaded_required_count: Number(row.uploaded_required_count || 0),
@@ -349,6 +589,12 @@ function buildReadinessFlags(row = {}) {
         endorsement_slip_id: row.endorsement_slip_id || row.slip_id || null,
         endorsement_slip_code: deriveSlipCode(row.endorsement_slip_id || row.slip_id || null),
         endorsement_current_stage: row.endorsement_current_stage || row.current_stage || null,
+        selection_status: row.selection_status || null,
+        queue_position: queuePosition,
+        waitlist_position: waitlistPosition,
+        fcfs_completed_at: row.fcfs_completed_at || null,
+        requirements_completed_at: row.requirements_completed_at || null,
+        requirements_verified_at: row.requirements_verified_at || null,
     };
 }
 
@@ -393,6 +639,12 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
             a.application_status,
             a.document_status,
             a.verification_status,
+            a.selection_status,
+            a.queue_position,
+            a.waitlist_position,
+            a.fcfs_completed_at,
+            a.requirements_completed_at,
+            a.requirements_verified_at,
             es.slip_id as endorsement_slip_id,
             es.overall_status as endorsement_overall_status,
             es.current_stage as endorsement_current_stage,
@@ -457,6 +709,10 @@ function buildVerificationOutcomeNotification({
             ...REJECTED_APPLICATION_NOTIFICATION,
             referenceId: applicationId,
         };
+    }
+
+    if (outcome === 'reupload_required') {
+        return buildReplacementNotification(applicationId);
     }
 
     return null;
@@ -623,11 +879,14 @@ async function deliverVerificationOutcomeNotification({
 }
 
 function normalizeDocumentType(value) {
-    const normalized = (value || '')
-        .toString()
+    const normalized = String(value || '')
         .trim()
         .toLowerCase()
-        .replace(/[\s-]+/g, '_');
+        // Treat every punctuation/separator consistently. This is important
+        // for labels such as "Birth Certificate / PSA", which previously
+        // became "birth_certificate_/_psa" and failed REQUIRED_REVIEW checks.
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
 
     return DOCUMENT_TYPE_ALIASES[normalized] || normalized;
 }
@@ -643,13 +902,37 @@ function getDocumentKey(document = {}) {
 }
 
 function deriveReviewStatus(document = {}, review = null) {
-    const preferredStatus = normalizeLookupValue(review?.review_status);
+    const preferredStatus = normalizeLookupValue(
+        review?.review_status || document?.review_status
+    );
 
     if (preferredStatus === 'verified') return 'verified';
-    if (preferredStatus === 'rejected' || preferredStatus === 're upload') return 'rejected';
-    if (preferredStatus === 'uploaded' || preferredStatus === 'under review') return 'uploaded';
 
-    return document.is_submitted || document.file_path || document.file_url ? 'uploaded' : 'pending';
+    if (
+        preferredStatus === 'reupload required' ||
+        preferredStatus === 'requires reupload' ||
+        preferredStatus === 'needs reupload' ||
+        preferredStatus === 're upload' ||
+        preferredStatus === 'flagged'
+    ) {
+        return 'reupload_required';
+    }
+
+    if (preferredStatus === 'rejected') return 'rejected';
+
+    if (
+        preferredStatus === 'uploaded' ||
+        preferredStatus === 'under review' ||
+        preferredStatus === 'pending'
+    ) {
+        return document.is_submitted || document.file_path || document.file_url
+            ? 'uploaded'
+            : 'pending';
+    }
+
+    return document.is_submitted || document.file_path || document.file_url
+        ? 'uploaded'
+        : 'pending';
 }
 
 function deriveAggregateDocumentStatus(summary = {}) {
@@ -1051,13 +1334,14 @@ function isAsyncIotOcrStart(response, payload = {}) {
 async function getSignedFileUrl(filePath) {
     if (!filePath) return null;
 
-    const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(filePath, 60 * 60, {
+    try {
+        return await createCachedSignedUrl({
+            bucket: STORAGE_BUCKET,
+            filePath,
+            expiresInSeconds: 60 * 60,
             download: false,
         });
-
-    if (error) {
+    } catch (error) {
         console.error(
             'SUPABASE SIGNED URL ERROR:',
             `bucket=${STORAGE_BUCKET}`,
@@ -1066,9 +1350,76 @@ async function getSignedFileUrl(filePath) {
         );
         return null;
     }
-
-    return data?.signedUrl || null;
 }
+
+async function getCachedApplicationDocumentForView(applicationId, documentKey) {
+    const key = normalizeDocumentType(documentKey);
+    const cacheKey = `${applicationId}:${key}`;
+    const now = Date.now();
+    const cached = documentViewMetadataCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+        documentViewMetadataCache.delete(cacheKey);
+        documentViewMetadataCache.set(cacheKey, cached);
+        return cached.document;
+    }
+    if (documentViewMetadataInFlight.has(cacheKey)) {
+        return documentViewMetadataInFlight.get(cacheKey);
+    }
+
+    const request = (async () => {
+        const { data: rows, error } = await supabase
+            .from('application_documents')
+            .select('document_id, application_id, document_type, file_name, file_path, preview_path, is_submitted')
+            .eq('application_id', applicationId);
+        if (error) throw buildHttpError(500, error.message);
+        const document = (rows || []).find((row) => getDocumentKey(row) === key) || null;
+        documentViewMetadataCache.set(cacheKey, {
+            document,
+            expiresAt: Date.now() + DOCUMENT_VIEW_METADATA_CACHE_TTL_MS,
+        });
+        pruneDocumentViewMetadataCache();
+        return document;
+    })();
+
+    documentViewMetadataInFlight.set(cacheKey, request);
+    try {
+        return await request;
+    } finally {
+        documentViewMetadataInFlight.delete(cacheKey);
+    }
+}
+
+exports.fetchApplicationDocumentViewUrl = async ({ applicationId, documentKey, source = 'preview' } = {}) => {
+    if (!applicationId) throw buildHttpError(400, 'Application ID is required.');
+    const key = normalizeDocumentType(documentKey);
+    if (!key || key === 'application_form') {
+        throw buildHttpError(400, 'A stored application document is required.');
+    }
+
+    const document = await getCachedApplicationDocumentForView(
+        applicationId,
+        key
+    );
+    if (!document || document.is_submitted !== true || !document.file_path) {
+        throw buildHttpError(404, 'Uploaded document not found.');
+    }
+
+    const wantsOriginal = String(source || '').trim().toLowerCase() === 'original';
+    const previewPath = document.preview_path || null;
+    const path = wantsOriginal ? document.file_path : (previewPath || document.file_path);
+    const selectedSource = wantsOriginal || !previewPath ? 'original' : 'preview';
+    const url = await getSignedFileUrl(path);
+    if (!url) throw buildHttpError(502, `Failed to create ${selectedSource} document URL.`);
+
+    return {
+        document_id: document.document_id,
+        document_key: key,
+        file_name: document.file_name || null,
+        source: selectedSource,
+        url,
+        fallback_available: selectedSource === 'preview' && Boolean(document.file_path),
+    };
+};
 
 async function buildApplicationDetails(applicationId) {
     const { data: applicationRecord, error: applicationError } = await supabase
@@ -1077,11 +1428,31 @@ async function buildApplicationDetails(applicationId) {
         application_id,
         student_id,
         program_id,
+        opening_id,
+
         application_status,
         document_status,
+
+        verification_status,
+        requirements_completed_at,
+        requirements_verified_at,
+
+        selection_status,
+        queue_position,
+        waitlist_position,
+        fcfs_completed_at,
+
+        activation_status,
+        activated_at,
+
         submission_date,
+        created_at,
+        updated_at,
+
+        is_archived,
         is_disqualified,
         rejection_reason,
+        remarks,
         evaluator_id,
 
         students!applications_student_id_fkey (
@@ -1110,26 +1481,42 @@ async function buildApplicationDetails(applicationId) {
         .single();
 
     if (applicationError) {
-        console.error('Supabase Application Detail Error:', applicationError);
+        console.error(
+            'Supabase Application Detail Error:',
+            applicationError
+        );
         throw new Error(applicationError.message);
     }
 
     if (applicationRecord?.student_id) {
-        const { data: studentScholarState, error: studentScholarError } = await supabase
+        const {
+            data: studentScholarState,
+            error: studentScholarError,
+        } = await supabase
             .from('students')
-            .select('scholarship_status, current_application_id')
-            .eq('student_id', applicationRecord.student_id)
+            .select(
+                'scholarship_status, current_application_id'
+            )
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
             .maybeSingle();
 
         if (studentScholarError) {
-            console.error('Supabase Student Scholar State Error:', studentScholarError);
+            console.error(
+                'Supabase Student Scholar State Error:',
+                studentScholarError
+            );
             throw new Error(studentScholarError.message);
         }
 
         if (
-            studentScholarState?.scholarship_status === 'Active' &&
+            studentScholarState?.scholarship_status ===
+            'Active' &&
             studentScholarState?.current_application_id &&
-            studentScholarState.current_application_id !== applicationId
+            studentScholarState.current_application_id !==
+            applicationId
         ) {
             throw new Error(
                 'This student already has another active scholarship application.'
@@ -1145,31 +1532,58 @@ async function buildApplicationDetails(applicationId) {
         reviewsResult,
         ocrResult,
         iotOcrRequestsResult,
+        iotOcrReviewsResult,
     ] = await Promise.all([
         supabase
             .from('student_profiles')
             .select('*')
-            .eq('student_id', applicationRecord.student_id)
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
             .maybeSingle(),
+
         supabase
             .from('student_family')
             .select('*')
-            .eq('student_id', applicationRecord.student_id)
-            .order('relation', { ascending: true }),
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
+            .order('relation', {
+                ascending: true,
+            }),
+
         supabase
             .from('student_education')
             .select('*')
-            .eq('student_id', applicationRecord.student_id)
-            .order('education_level', { ascending: true }),
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
+            .order('education_level', {
+                ascending: true,
+            }),
+
         supabase
             .from('application_documents')
             .select('*')
-            .eq('application_id', applicationId)
-            .order('submitted_at', { ascending: true }),
+            .eq(
+                'application_id',
+                applicationId
+            )
+            .order('submitted_at', {
+                ascending: true,
+            }),
+
         supabase
             .from('application_document_reviews')
             .select('*')
-            .eq('application_id', applicationId),
+            .eq(
+                'application_id',
+                applicationId
+            ),
+
         supabase
             .from('ocr_extracted_documents')
             .select(`
@@ -1192,9 +1606,25 @@ async function buildApplicationDetails(applicationId) {
                 scanned_at,
                 updated_at
             `)
-            .eq('linked_record_id', applicationId)
-            .eq('student_id', applicationRecord.student_id)
-            .eq('linked_record_type', 'application'),
+            .eq(
+                'linked_record_id',
+                applicationId
+            )
+            .eq(
+                'student_id',
+                applicationRecord.student_id
+            )
+            .eq(
+                'linked_record_type',
+                'application'
+            )
+            .order('scanned_at', {
+                ascending: false,
+            })
+            .order('updated_at', {
+                ascending: false,
+            }),
+
         supabase
             .from('iot_ocr_requests')
             .select(`
@@ -1213,8 +1643,27 @@ async function buildApplicationDetails(applicationId) {
                 completed_at,
                 updated_at
             `)
-            .eq('application_id', applicationId)
-            .order('created_at', { ascending: false }),
+            .eq(
+                'application_id',
+                applicationId
+            )
+            .order('created_at', {
+                ascending: false,
+            }),
+
+        supabase
+            .from('iot_ocr_reviews')
+            .select(
+                'document_key, verified_fields, reviewed_at'
+            )
+            .eq(
+                'application_id',
+                applicationId
+            )
+            .order('reviewed_at', {
+                ascending: false,
+            }),
+
     ]);
 
     const resultErrors = [
@@ -1225,214 +1674,815 @@ async function buildApplicationDetails(applicationId) {
         reviewsResult.error,
         ocrResult.error,
         iotOcrRequestsResult.error,
+        iotOcrReviewsResult.error,
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
-        console.error('Supabase Application Detail Relation Error:', resultErrors[0]);
-        throw new Error(resultErrors[0].message);
+        console.error(
+            'Supabase Application Detail Relation Error:',
+            resultErrors[0]
+        );
+
+        throw new Error(
+            resultErrors[0].message
+        );
     }
 
-    const student = applicationRecord.students || {};
-    const scholarshipProgram = applicationRecord.scholarship_program || {};
-    const benefactor = scholarshipProgram.benefactors || {};
-    const profile = profileResult.data || null;
+    const student =
+        applicationRecord.students || {};
 
-    let userContact = { email: 'N/A', phone_number: 'N/A' };
+    const scholarshipProgram =
+        applicationRecord.scholarship_program || {};
+
+    const benefactor =
+        scholarshipProgram.benefactors || {};
+
+    const profile =
+        profileResult.data || null;
+
+    let userContact = {
+        email: 'N/A',
+        phone_number: 'N/A',
+    };
 
     if (student.user_id) {
-        const { data: userData, error: userError } = await supabase
+        const {
+            data: userData,
+            error: userError,
+        } = await supabase
             .from('users')
-            .select('email, phone_number')
-            .eq('user_id', student.user_id)
+            .select(
+                'email, phone_number'
+            )
+            .eq(
+                'user_id',
+                student.user_id
+            )
             .maybeSingle();
 
         if (userError) {
-            console.error('Supabase User Fetch Error:', userError);
-            throw new Error(userError.message);
+            console.error(
+                'Supabase User Fetch Error:',
+                userError
+            );
+
+            throw new Error(
+                userError.message
+            );
         }
 
-        if (userData) userContact = userData;
+        if (userData) {
+            userContact = userData;
+        }
     }
 
     let courseCode = 'N/A';
+
     if (student.course_id) {
-        const { data: courseData, error: courseError } = await supabase
+        const {
+            data: courseData,
+            error: courseError,
+        } = await supabase
             .from('academic_course')
             .select('course_code')
-            .eq('course_id', student.course_id)
+            .eq(
+                'course_id',
+                student.course_id
+            )
             .maybeSingle();
 
         if (courseError) {
-            console.error('Supabase Course Fetch Error:', courseError);
-            throw new Error(courseError.message);
+            console.error(
+                'Supabase Course Fetch Error:',
+                courseError
+            );
+
+            throw new Error(
+                courseError.message
+            );
         }
 
-        if (courseData) courseCode = courseData.course_code;
+        if (courseData) {
+            courseCode =
+                courseData.course_code;
+        }
     }
 
     const reviewByKey = new Map(
-        (reviewsResult.data || []).map((review) => [review.document_key, review])
+        (reviewsResult.data || []).map(
+            (review) => [
+                review.document_key,
+                review,
+            ]
+        )
     );
-    const ocrByKey = new Map(
-        (ocrResult.data || []).map((ocrRow) => {
-            const resolvedKey = normalizeDocumentType(
-                ocrRow.document_key || ocrRow.document_type || ''
+
+    const ocrByKey = new Map();
+
+    (ocrResult.data || []).forEach(
+        (ocrRow) => {
+            const resolvedKey =
+                normalizeDocumentType(
+                    ocrRow.document_key ||
+                    ocrRow.document_type ||
+                    ''
+                );
+
+            if (
+                !resolvedKey ||
+                ocrByKey.has(resolvedKey)
+            ) {
+                return;
+            }
+
+            ocrByKey.set(
+                resolvedKey,
+                buildOcrProjection(ocrRow)
+            );
+        }
+    );
+
+    const latestIotOcrRequestByKey =
+        new Map();
+
+    (
+        iotOcrRequestsResult.data || []
+    ).forEach((requestRow) => {
+        const resolvedKey =
+            normalizeDocumentType(
+                requestRow.document_key ||
+                requestRow.document_type ||
+                ''
             );
 
-            return [resolvedKey, buildOcrProjection(ocrRow)];
-        })
-    );
-    const latestIotOcrRequestByKey = new Map();
-
-    (iotOcrRequestsResult.data || []).forEach((requestRow) => {
-        const resolvedKey = normalizeDocumentType(
-            requestRow.document_key || requestRow.document_type || ''
-        );
-
-        if (!resolvedKey || latestIotOcrRequestByKey.has(resolvedKey)) {
+        if (
+            !resolvedKey ||
+            latestIotOcrRequestByKey.has(
+                resolvedKey
+            )
+        ) {
             return;
         }
 
-        latestIotOcrRequestByKey.set(resolvedKey, {
-            request_id: requestRow.request_id,
-            document_key: resolvedKey,
-            document_type: requestRow.document_type || null,
-            status: requestRow.status || 'pending',
-            requested_by: requestRow.requested_by || null,
-            claimed_by: requestRow.claimed_by || null,
-            error_message: requestRow.error_message || null,
-            created_at: requestRow.created_at || null,
-            claimed_at: requestRow.claimed_at || null,
-            completed_at: requestRow.completed_at || null,
-            updated_at: requestRow.updated_at || null,
-        });
+        latestIotOcrRequestByKey.set(
+            resolvedKey,
+            {
+                request_id:
+                    requestRow.request_id,
+
+                document_key:
+                    resolvedKey,
+
+                document_type:
+                    requestRow.document_type ||
+                    null,
+
+                status:
+                    requestRow.status ||
+                    'pending',
+
+                requested_by:
+                    requestRow.requested_by ||
+                    null,
+
+                claimed_by:
+                    requestRow.claimed_by ||
+                    null,
+
+                error_message:
+                    requestRow.error_message ||
+                    null,
+
+                created_at:
+                    requestRow.created_at ||
+                    null,
+
+                claimed_at:
+                    requestRow.claimed_at ||
+                    null,
+
+                completed_at:
+                    requestRow.completed_at ||
+                    null,
+
+                updated_at:
+                    requestRow.updated_at ||
+                    null,
+            }
+        );
     });
 
-    const rawDocuments = documentsResult.data || [];
+    const rawDocuments =
+        documentsResult.data || [];
 
-    const normalizedDocuments = await Promise.all(
-        rawDocuments
-            .map(async (document) => {
-            const documentKey = getDocumentKey(document);
-            const review = reviewByKey.get(documentKey) || null;
-            const ocr = ocrByKey.get(documentKey) || null;
-            const latestIotOcrRequest = latestIotOcrRequestByKey.get(documentKey) || null;
-            const filePath = document.file_path || null;
-            const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
+    const normalizedDocuments =
+        await Promise.all(
+            rawDocuments.map(
+                async (document) => {
+                    const documentKey =
+                        getDocumentKey(
+                            document
+                        );
 
-            return {
-                id: documentKey,
-                document_key: documentKey,
-                name: DOCUMENT_TYPE_TO_NAME[documentKey] || document.document_type || 'Document',
-                document_type: document.document_type || null,
-                file_name: document.file_name || null,
-                file_path: filePath,
-                url: signedUrl || document.file_url || null,
-                file_url: signedUrl || document.file_url || null,
-                signed_url: signedUrl || null,
-                status: deriveReviewStatus(document, review),
-                admin_comment: review?.admin_comment || document.notes || '',
-                notes: document.notes || null,
-                ocr: ocr || {},
-                ocr_confidence: ocr?.confidence ?? null,
-                iot_ocr_request: latestIotOcrRequest,
-                ocr_job: latestIotOcrRequest,
-                uploaded_at: document.submitted_at || null,
-                submitted_at: document.submitted_at || null,
-                reviewed_at: review?.reviewed_at || null,
-            };
-        })
-    );
-    const projectedDocumentKeys = new Set(
-        normalizedDocuments.map((document) => document.document_key)
-    );
+                    const review =
+                        reviewByKey.get(
+                            documentKey
+                        ) || null;
 
-    for (const [documentKey, ocr] of ocrByKey) {
+                    const ocr =
+                        ocrByKey.get(
+                            documentKey
+                        ) || null;
+
+                    const latestIotOcrRequest =
+                        latestIotOcrRequestByKey.get(
+                            documentKey
+                        ) || null;
+
+                    const filePath =
+                        document.file_path ||
+                        null;
+
+                    // Phase 6D: sign only when this document is actually opened.
+                    const originalSignedUrl = null;
+                    const previewSignedUrl = null;
+                    const signedUrl = null;
+
+                    return {
+                        id: documentKey,
+
+                        document_key:
+                            documentKey,
+
+                        name:
+                            DOCUMENT_TYPE_TO_NAME[
+                            documentKey
+                            ] ||
+                            document.document_type ||
+                            'Document',
+
+                        document_type:
+                            document.document_type ||
+                            null,
+
+                        file_name:
+                            document.file_name ||
+                            null,
+
+                        file_path:
+                            filePath,
+
+                        url:
+                            null,
+
+                        file_url:
+                            null,
+
+                        signed_url:
+                            signedUrl ||
+                            null,
+
+                        preview_path:
+                            document.preview_path ||
+                            null,
+
+                        preview_url:
+                            previewSignedUrl ||
+                            null,
+
+                        original_url:
+                            originalSignedUrl ||
+                            null,
+
+                        status:
+                            deriveReviewStatus(
+                                document,
+                                review
+                            ),
+
+                        admin_comment:
+                            review?.admin_comment ||
+                            document.remarks ||
+                            document.notes ||
+                            '',
+
+                        issue_severity:
+                            review?.issue_severity ||
+                            null,
+
+                        reason_code:
+                            review?.reason_code ||
+                            null,
+
+                        notes:
+                            document.notes ||
+                            null,
+
+                        ocr:
+                            ocr || {},
+
+                        ocr_confidence:
+                            ocr?.confidence ??
+                            null,
+
+                        iot_ocr_request:
+                            latestIotOcrRequest,
+
+                        ocr_job:
+                            latestIotOcrRequest,
+
+                        uploaded_at:
+                            document.submitted_at ||
+                            null,
+
+                        submitted_at:
+                            document.submitted_at ||
+                            null,
+
+                        reviewed_at:
+                            review?.reviewed_at ||
+                            null,
+                    };
+                }
+            )
+        );
+
+    const projectedDocumentKeys =
+        new Set(
+            normalizedDocuments.map(
+                (document) =>
+                    document.document_key
+            )
+        );
+
+    for (
+        const [documentKey, ocr]
+        of ocrByKey
+    ) {
         if (
             !documentKey ||
-            projectedDocumentKeys.has(documentKey)
-        ) continue;
+            projectedDocumentKeys.has(
+                documentKey
+            )
+        ) {
+            continue;
+        }
 
-        normalizedDocuments.push(buildOcrOnlyDocument({
-            documentKey,
-            ocr,
-            latestIotOcrRequest: latestIotOcrRequestByKey.get(documentKey) || null,
-        }));
+        normalizedDocuments.push(
+            buildOcrOnlyDocument({
+                documentKey,
+                ocr,
+
+                latestIotOcrRequest:
+                    latestIotOcrRequestByKey.get(
+                        documentKey
+                    ) || null,
+            })
+        );
     }
 
     normalizedDocuments.push({
         id: 'application_form',
-        document_key: 'application_form',
-        name: 'Application Form',
-        document_type: 'Application Form',
-        file_name: null,
-        file_path: null,
-        url: null,
-        file_url: null,
-        signed_url: null,
-        status: reviewByKey.get('application_form')?.review_status || 'pending',
-        admin_comment: reviewByKey.get('application_form')?.admin_comment || '',
-        notes: null,
-        ocr: {},
-        ocr_confidence: null,
-        iot_ocr_request: latestIotOcrRequestByKey.get('application_form') || null,
-        ocr_job: latestIotOcrRequestByKey.get('application_form') || null,
-        uploaded_at: applicationRecord.submission_date || null,
-        submitted_at: applicationRecord.submission_date || null,
-        reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
+
+        document_key:
+            'application_form',
+
+        name:
+            'Application Form',
+
+        document_type:
+            'Application Form',
+
+        file_name:
+            null,
+
+        file_path:
+            null,
+
+        url:
+            null,
+
+        file_url:
+            null,
+
+        signed_url:
+            null,
+
+        status:
+            reviewByKey.get(
+                'application_form'
+            )?.review_status ||
+            'pending',
+
+        admin_comment:
+            reviewByKey.get(
+                'application_form'
+            )?.admin_comment ||
+            '',
+
+        notes:
+            null,
+
+        ocr:
+            {},
+
+        ocr_confidence:
+            null,
+
+        iot_ocr_request:
+            latestIotOcrRequestByKey.get(
+                'application_form'
+            ) || null,
+
+        ocr_job:
+            latestIotOcrRequestByKey.get(
+                'application_form'
+            ) || null,
+
+        uploaded_at:
+            applicationRecord.submission_date ||
+            null,
+
+        submitted_at:
+            applicationRecord.submission_date ||
+            null,
+
+        reviewed_at:
+            reviewByKey.get(
+                'application_form'
+            )?.reviewed_at ||
+            null,
     });
 
-    const documents = ensureDocumentCoverage(normalizedDocuments);
+    const documents =
+        ensureDocumentCoverage(
+            normalizedDocuments
+        );
 
-    const readiness = await fetchApplicationReadiness(applicationId);
+    const readiness =
+        await fetchApplicationReadiness(
+            applicationId
+        );
+
+    const marilaoResident =
+        resolveMarilaoResidency(
+            iotOcrReviewsResult.data || []
+        );
 
     return {
-        id: applicationRecord.application_id,
+        /*
+         * Keep the important application workflow fields
+         * at the TOP LEVEL because the admin frontend
+         * consumes the response returned by
+         * GET /api/applications/:id/documents directly.
+         */
+        id:
+            applicationRecord.application_id,
+
+        application_id:
+            applicationRecord.application_id,
+
+        student_id:
+            applicationRecord.student_id,
+
+        program_id:
+            applicationRecord.program_id,
+
+        opening_id:
+            applicationRecord.opening_id ||
+            null,
+
+        application_status:
+            applicationRecord.application_status,
+
+        document_status:
+            applicationRecord.document_status,
+
+        /*
+         * CRITICAL:
+         * DocumentVerification.jsx reads this field to
+         * determine whether "Save Requirements Review"
+         * has already been finalized.
+         */
+        verification_status:
+            applicationRecord.verification_status ||
+            'pending',
+
+        requirements_completed_at:
+            applicationRecord.requirements_completed_at ||
+            null,
+
+        requirements_verified_at:
+            applicationRecord.requirements_verified_at ||
+            null,
+
+        selection_status:
+            applicationRecord.selection_status ||
+            'Unranked',
+
+        queue_position:
+            applicationRecord.queue_position ??
+            null,
+
+        waitlist_position:
+            applicationRecord.waitlist_position ??
+            null,
+
+        fcfs_completed_at:
+            applicationRecord.fcfs_completed_at ||
+            null,
+
+        activation_status:
+            applicationRecord.activation_status ||
+            'Not Activated',
+
+        activated_at:
+            applicationRecord.activated_at ||
+            null,
+
+        submitted:
+            applicationRecord.submission_date,
+
+        submission_date:
+            applicationRecord.submission_date,
+
+        created_at:
+            applicationRecord.created_at ||
+            null,
+
+        updated_at:
+            applicationRecord.updated_at ||
+            null,
+
+        is_archived:
+            applicationRecord.is_archived ===
+            true,
+
+        disqualified:
+            !!applicationRecord.is_disqualified,
+
+        is_disqualified:
+            !!applicationRecord.is_disqualified,
+
+        rejection_reason:
+            applicationRecord.rejection_reason ||
+            null,
+
+        remarks:
+            applicationRecord.remarks ||
+            null,
+
+        evaluator_id:
+            applicationRecord.evaluator_id ||
+            null,
+
+        /*
+         * Keep the same values nested too. Other
+         * consumers may use response.application.*
+         */
         application: {
-            application_id: applicationRecord.application_id,
-            student_id: applicationRecord.student_id,
-            program_id: applicationRecord.program_id,
-            application_status: applicationRecord.application_status,
-            document_status: applicationRecord.document_status,
-            submission_date: applicationRecord.submission_date,
-            is_disqualified: !!applicationRecord.is_disqualified,
-            rejection_reason: applicationRecord.rejection_reason || null,
-            evaluator_id: applicationRecord.evaluator_id || null,
+            application_id:
+                applicationRecord.application_id,
+
+            student_id:
+                applicationRecord.student_id,
+
+            program_id:
+                applicationRecord.program_id,
+
+            opening_id:
+                applicationRecord.opening_id ||
+                null,
+
+            application_status:
+                applicationRecord.application_status,
+
+            document_status:
+                applicationRecord.document_status,
+
+            verification_status:
+                applicationRecord.verification_status ||
+                'pending',
+
+            requirements_completed_at:
+                applicationRecord.requirements_completed_at ||
+                null,
+
+            requirements_verified_at:
+                applicationRecord.requirements_verified_at ||
+                null,
+
+            selection_status:
+                applicationRecord.selection_status ||
+                'Unranked',
+
+            queue_position:
+                applicationRecord.queue_position ??
+                null,
+
+            waitlist_position:
+                applicationRecord.waitlist_position ??
+                null,
+
+            fcfs_completed_at:
+                applicationRecord.fcfs_completed_at ||
+                null,
+
+            activation_status:
+                applicationRecord.activation_status ||
+                'Not Activated',
+
+            activated_at:
+                applicationRecord.activated_at ||
+                null,
+
+            submission_date:
+                applicationRecord.submission_date,
+
+            created_at:
+                applicationRecord.created_at ||
+                null,
+
+            updated_at:
+                applicationRecord.updated_at ||
+                null,
+
+            is_archived:
+                applicationRecord.is_archived ===
+                true,
+
+            is_disqualified:
+                !!applicationRecord.is_disqualified,
+
+            rejection_reason:
+                applicationRecord.rejection_reason ||
+                null,
+
+            remarks:
+                applicationRecord.remarks ||
+                null,
+
+            evaluator_id:
+                applicationRecord.evaluator_id ||
+                null,
         },
-        application_status: applicationRecord.application_status,
-        document_status: applicationRecord.document_status,
-        submitted: applicationRecord.submission_date,
-        disqualified: !!applicationRecord.is_disqualified,
-        rejection_reason: applicationRecord.rejection_reason || null,
+
         student: {
             name:
-                `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+                `${student.first_name || ''
+                    } ${student.last_name || ''
+                    }`
+                    .trim() ||
                 'Unknown Student',
+
             initials:
-                `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase() ||
+                `${student.first_name?.[0] ||
+                    ''
+                    }${student.last_name?.[0] ||
+                    ''
+                    }`
+                    .toUpperCase() ||
                 'NA',
-            avatar_url: await resolveAvatarUrl(student.profile_photo_url),
-            pdm_id: student.pdm_id || 'N/A',
-            email: userContact.email || 'N/A',
-            phone: userContact.phone_number || 'N/A',
-            year: student.year_level
-                ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
-                : 'N/A',
-            gwa: student.gwa ?? 'N/A',
-            program: scholarshipProgram.program_name || 'General',
-            benefactor_name: benefactor.benefactor_name || 'N/A',
-            course: courseCode,
-            barangay: profile?.barangay || 'N/A',
+
+            avatar_url:
+                await resolveAvatarUrl(
+                    student.profile_photo_url
+                ),
+
+            pdm_id:
+                student.pdm_id ||
+                'N/A',
+
+            email:
+                userContact.email ||
+                'N/A',
+
+            phone:
+                userContact.phone_number ||
+                'N/A',
+
+            year:
+                student.year_level
+                    ? `${student.year_level
+                    }${getOrdinalSuffix(
+                        student.year_level
+                    )} Year`
+                    : 'N/A',
+
+            academic_year:
+                student.year_level
+                    ? `${student.year_level}${getOrdinalSuffix(student.year_level)}`
+                    : 'N/A',
+
+            gwa:
+                student.gwa ??
+                'N/A',
+
+            program:
+                scholarshipProgram.program_name ||
+                'General',
+
+            benefactor_name:
+                benefactor.benefactor_name ||
+                'N/A',
+
+            course:
+                courseCode,
+
+            barangay:
+                profile?.barangay ||
+                'N/A',
+
+            marilao_resident:
+                marilaoResident,
         },
-        student_profile: profile,
-        family_members: familyMembersResult.data || [],
-        education_records: educationRecordsResult.data || [],
+
+        student_profile:
+            profile,
+
+        family_members:
+            familyMembersResult.data || [],
+
+        education_records:
+            educationRecordsResult.data || [],
+
         documents,
+
         readiness,
     };
 }
 
+function dedupeOperationalApplicationRows(rows = []) {
+    const grouped = new Map();
+
+    for (const row of rows || []) {
+        if (!row?.application_id) continue;
+
+        const key = [
+            row.student_id || 'unknown-student',
+            row.opening_id || 'unknown-opening',
+        ].join(':');
+
+        const existing = grouped.get(key);
+
+        if (!existing) {
+            grouped.set(key, row);
+            continue;
+        }
+
+        const currentApplicationId =
+            row.current_application_id ||
+            existing.current_application_id ||
+            null;
+
+        const rowIsCurrent =
+            !!currentApplicationId &&
+            String(row.application_id) === String(currentApplicationId);
+
+        const existingIsCurrent =
+            !!currentApplicationId &&
+            String(existing.application_id) === String(currentApplicationId);
+
+        if (rowIsCurrent && !existingIsCurrent) {
+            grouped.set(key, row);
+            continue;
+        }
+
+        if (existingIsCurrent && !rowIsCurrent) {
+            continue;
+        }
+
+        const rowSubmittedAt = new Date(
+            row.submission_date || 0
+        ).getTime();
+
+        const existingSubmittedAt = new Date(
+            existing.submission_date || 0
+        ).getTime();
+
+        if (rowSubmittedAt > existingSubmittedAt) {
+            grouped.set(key, row);
+            continue;
+        }
+
+        if (
+            rowSubmittedAt === existingSubmittedAt &&
+            String(row.application_id).localeCompare(
+                String(existing.application_id)
+            ) > 0
+        ) {
+            grouped.set(key, row);
+        }
+    }
+
+    return [...grouped.values()];
+}
+
 exports.fetchApplications = async () => {
+    // Self-heal the FCFS readiness queue so previously completed
+    // requirements and endorsements appear immediately in Readiness.
+    await readinessQueueService.syncAllReadyApplications();
+
     const primaryQuery = `
     SELECT
       a.application_id,
@@ -1470,8 +2520,10 @@ exports.fetchApplications = async () => {
       sp.program_name
 
     FROM applications a
-    LEFT JOIN students st
+    INNER JOIN students st
       ON a.student_id = st.student_id
+    INNER JOIN users u
+      ON st.user_id = u.user_id
     LEFT JOIN program_openings po
       ON a.opening_id = po.opening_id
     LEFT JOIN academic_years ay
@@ -1483,6 +2535,11 @@ exports.fetchApplications = async () => {
 
     WHERE
       COALESCE(a.is_archived, FALSE) = FALSE
+      AND COALESCE(st.is_archived, FALSE) = FALSE
+      AND st.user_id IS NOT NULL
+      AND COALESCE(u.is_otp_verified, FALSE) = TRUE
+      AND LOWER(COALESCE(u.username, '')) NOT LIKE 'deleted-%'
+      AND LOWER(COALESCE(u.email, '')) NOT LIKE 'deleted-%'
       AND COALESCE(po.is_archived, FALSE) = FALSE
       AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
       AND COALESCE(a.is_disqualified, FALSE) = FALSE
@@ -1531,8 +2588,10 @@ exports.fetchApplications = async () => {
       sp.program_name
 
     FROM applications a
-    LEFT JOIN students st
+    INNER JOIN students st
       ON a.student_id = st.student_id
+    INNER JOIN users u
+      ON st.user_id = u.user_id
     LEFT JOIN program_openings po
       ON a.opening_id = po.opening_id
     LEFT JOIN academic_years ay
@@ -1544,6 +2603,11 @@ exports.fetchApplications = async () => {
 
     WHERE
       COALESCE(a.is_archived, FALSE) = FALSE
+      AND COALESCE(st.is_archived, FALSE) = FALSE
+      AND st.user_id IS NOT NULL
+      AND COALESCE(u.is_otp_verified, FALSE) = TRUE
+      AND LOWER(COALESCE(u.username, '')) NOT LIKE 'deleted-%'
+      AND LOWER(COALESCE(u.email, '')) NOT LIKE 'deleted-%'
       AND COALESCE(po.is_archived, FALSE) = FALSE
       AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
       AND COALESCE(a.is_disqualified, FALSE) = FALSE
@@ -1571,7 +2635,14 @@ exports.fetchApplications = async () => {
         ({ rows } = await pool.query(fallbackQuery));
     }
 
-    const mappedRows = rows.map((row) => {
+    // A student can have stale legacy application rows from an earlier
+    // application attempt in the same opening. The Applicant Registry must
+    // show only the canonical current application. Prefer
+    // students.current_application_id; if legacy data has no pointer, keep
+    // the newest submitted application for that student/opening.
+    const operationalRows = dedupeOperationalApplicationRows(rows);
+
+    const mappedRows = operationalRows.map((row) => {
         const firstName = row.first_name || '';
         const lastName = row.last_name || '';
         const fullName =
@@ -1636,6 +2707,7 @@ exports.runApplicationDocumentIotOcr = async ({
     applicationId,
     documentKey,
     requestedBy = null,
+    ocrVersion = null,
 }) => {
     if (!applicationId) {
         throw new Error('applicationId is required');
@@ -1647,8 +2719,19 @@ exports.runApplicationDocumentIotOcr = async ({
         throw new Error('documentKey is required');
     }
 
-    if (normalizedDocumentKey === 'application_form') {
-        throw new Error('IoT OCR is only available for camera-scannable documents');
+    if (!iotOcrRequestService.isIotOcrDocumentEnabled(normalizedDocumentKey)) {
+        const error = new Error('IoT OCR is unavailable for this document');
+        error.statusCode = 400;
+        error.code = 'IOT_OCR_DOCUMENT_DISABLED';
+        throw error;
+    }
+
+    const availability = require('./iotOcrPresenceService').getAvailability();
+    if (!availability.online) {
+        const error = new Error('Raspberry Pi OCR scanner is offline. Start the Pi worker and try again.');
+        error.statusCode = 503;
+        error.code = 'PI_OFFLINE';
+        throw error;
     }
 
     const documentTypeName =
@@ -1699,6 +2782,7 @@ exports.runApplicationDocumentIotOcr = async ({
         application_id: applicationId,
         document_key: normalizedDocumentKey,
         requested_by: requestedBy,
+        ocr_version: ocrVersion,
     });
 
     const request = result.request || result.data || result;
@@ -1716,9 +2800,53 @@ exports.runApplicationDocumentIotOcr = async ({
     };
 };
 
+exports.getApplicationDocumentIotOcr = async ({ applicationId, documentKey, requestId = null }) =>
+    iotOcrRequestService.getCandidate({ applicationId, documentKey, requestId });
+
+exports.confirmApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+    correctedFields,
+    reviewedBy,
+    reasonCode = null,
+}) => iotOcrRequestService.confirmCandidate({
+    applicationId,
+    documentKey,
+    requestId,
+    correctedFields,
+    reviewedBy,
+    reasonCode,
+});
+
+exports.retryApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+    requestedBy,
+}) => iotOcrRequestService.retryRequest({
+    applicationId,
+    documentKey,
+    requestId,
+    requestedBy,
+});
+
+exports.cancelApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId,
+}) => iotOcrRequestService.cancelRequest({ applicationId, documentKey, requestId });
+
+exports.rejectApplicationDocumentIotOcr = async (input) =>
+    iotOcrRequestService.rejectCandidate(input);
+
+exports.rescanApplicationDocumentIotOcr = async (input) =>
+    iotOcrRequestService.requestRescan(input);
+
 exports.fetchApplicationDocumentOcrSnapshot = async ({
     applicationId,
     documentKey,
+    requestId = null,
 }) => {
     if (!applicationId) {
         throw new Error('applicationId is required');
@@ -1792,6 +2920,8 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .order('scanned_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1);
 
     if (ocrError) {
@@ -1800,25 +2930,51 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
     }
 
     const ocrRow = ocrRows?.[0] || null;
-    const latestRequest = await iotOcrRequestService.getLatestRequestForDocument({
-        applicationId,
-        documentKey: normalizedDocumentKey,
-    });
+    const requestedRequest = requestId
+        ? await iotOcrRequestService.getRequestById({
+            requestId,
+            applicationId,
+            documentKey: normalizedDocumentKey,
+        })
+        : null;
+
+    if (requestId && !requestedRequest) {
+        throw buildHttpError(
+            404,
+            'IoT OCR request not found for this application document'
+        );
+    }
+
+    const latestRequest =
+        requestedRequest ||
+        await iotOcrRequestService.getLatestRequestForDocument({
+            applicationId,
+            documentKey: normalizedDocumentKey,
+        });
+    const snapshotFresh = requestId
+        ? isRequestBoundSnapshotFresh({
+            request: latestRequest,
+            ocrRow,
+        })
+        : !!ocrRow;
+    const visibleOcrRow = snapshotFresh ? ocrRow : null;
 
     return {
-        document_id: ocrRow?.document_id || null,
+        document_id: visibleOcrRow?.document_id || null,
         application_id: applicationId,
         student_id: applicationRow.student_id,
         student_name: studentName || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_type: documentTypeName,
-        ocr: buildOcrProjection(ocrRow || {}),
-        ocr_confidence: ocrRow?.ocr_confidence ?? null,
-        raw_text: ocrRow?.ocr_raw_text || '',
-        scanned_via_iot: !!ocrRow?.scanned_via_iot,
-        iot_device_id: ocrRow?.iot_device_id || null,
-        scanned_at: ocrRow?.scanned_at || null,
-        updated_at: ocrRow?.updated_at || null,
+        ocr: buildOcrProjection(visibleOcrRow || {}),
+        ocr_confidence: visibleOcrRow?.ocr_confidence ?? null,
+        raw_text: visibleOcrRow?.ocr_raw_text || '',
+        scanned_via_iot: !!visibleOcrRow?.scanned_via_iot,
+        iot_device_id: visibleOcrRow?.iot_device_id || null,
+        scanned_at: visibleOcrRow?.scanned_at || null,
+        updated_at: visibleOcrRow?.updated_at || null,
+        requested_request_id: requestId ? String(requestId) : null,
+        snapshot_fresh: snapshotFresh,
         iot_ocr_request: latestRequest,
     };
 };
@@ -1832,6 +2988,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     sourcePayload = null,
     scannedViaIot = null,
     iotDeviceId = null,
+    iotRequestId = null,
     scannedAt = null,
 }) => {
     if (!applicationId) {
@@ -1891,6 +3048,17 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     const now = new Date().toISOString();
     const normalizedRawText = String(rawText || '');
     const normalizedIotDeviceId = isUuid(iotDeviceId) ? String(iotDeviceId).trim() : null;
+    const normalizedIotRequestId = isUuid(iotRequestId)
+        ? String(iotRequestId).trim()
+        : null;
+
+    if (scannedViaIot === true && !normalizedIotDeviceId) {
+        throw new Error('A valid IoT device UUID is required for an IoT OCR snapshot');
+    }
+
+    if (scannedViaIot === true && !normalizedIotRequestId) {
+        throw new Error('A valid IoT request UUID is required for an IoT OCR snapshot');
+    }
     const normalizedExtractedFields =
         extractedFields && typeof extractedFields === 'object'
             ? extractedFields
@@ -1932,6 +3100,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
             scanned_via_iot,
             file_url,
             iot_device_id,
+            iot_request_id,
             scanned_at,
             ocr_extracted_name,
             ocr_extracted_gwa,
@@ -1944,6 +3113,8 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .order('scanned_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1);
 
     if (existingOcrError) {
@@ -1952,6 +3123,35 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     }
 
     const existingRow = existingOcrRows?.[0] || null;
+
+    if (normalizedIotRequestId) {
+        const { data: requestSnapshot, error: requestSnapshotError } = await supabase
+            .from('ocr_extracted_documents')
+            .select('*')
+            .eq('iot_request_id', normalizedIotRequestId)
+            .maybeSingle();
+
+        if (requestSnapshotError) {
+            console.error('SUPABASE OCR SNAPSHOT REQUEST FETCH ERROR:', requestSnapshotError);
+            throw new Error(requestSnapshotError.message);
+        }
+
+        if (requestSnapshot) {
+            return {
+                document_id: requestSnapshot.document_id,
+                application_id: applicationId,
+                student_id: applicationRow.student_id,
+                student_name: studentName || 'Unknown Student',
+                document_key: normalizedDocumentKey,
+                document_type: documentTypeName,
+                ocr: buildOcrProjection(requestSnapshot),
+                ocr_confidence: requestSnapshot.ocr_confidence ?? null,
+                raw_text: requestSnapshot.ocr_raw_text || '',
+                idempotent: true,
+            };
+        }
+    }
+
     const structuredPersistence = buildStructuredOcrPersistence({
         documentKey: normalizedDocumentKey,
         extractedFields,
@@ -1974,6 +3174,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         iot_device_id:
             normalizedIotDeviceId ||
             (isUuid(existingRow?.iot_device_id) ? existingRow.iot_device_id : null),
+        iot_request_id: normalizedIotRequestId,
         ocr_extracted_name: resolveStoredExtractedName({
             extractedFields: normalizedExtractedFields,
             scannedViaIot,
@@ -1994,35 +3195,38 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         updated_at: now,
     };
 
-    let result;
+    const { data: result, error: insertError } = await supabase
+        .from('ocr_extracted_documents')
+        .insert(payload)
+        .select()
+        .single();
 
-    if (existingRow?.document_id) {
-        const { data, error } = await supabase
-            .from('ocr_extracted_documents')
-            .update(payload)
-            .eq('document_id', existingRow.document_id)
-            .select()
-            .single();
+    if (insertError) {
+        if (insertError.code === '23505' && normalizedIotRequestId) {
+            const { data: duplicateSnapshot, error: duplicateError } = await supabase
+                .from('ocr_extracted_documents')
+                .select('*')
+                .eq('iot_request_id', normalizedIotRequestId)
+                .maybeSingle();
 
-        if (error) {
-            console.error('SUPABASE OCR SNAPSHOT UPDATE ERROR:', error);
-            throw new Error(error.message);
+            if (!duplicateError && duplicateSnapshot) {
+                return {
+                    document_id: duplicateSnapshot.document_id,
+                    application_id: applicationId,
+                    student_id: applicationRow.student_id,
+                    student_name: studentName || 'Unknown Student',
+                    document_key: normalizedDocumentKey,
+                    document_type: documentTypeName,
+                    ocr: buildOcrProjection(duplicateSnapshot),
+                    ocr_confidence: duplicateSnapshot.ocr_confidence ?? null,
+                    raw_text: duplicateSnapshot.ocr_raw_text || '',
+                    idempotent: true,
+                };
+            }
         }
 
-        result = data;
-    } else {
-        const { data, error } = await supabase
-            .from('ocr_extracted_documents')
-            .insert(payload)
-            .select()
-            .single();
-
-        if (error) {
-            console.error('SUPABASE OCR SNAPSHOT INSERT ERROR:', error);
-            throw new Error(error.message);
-        }
-
-        result = data;
+        console.error('SUPABASE OCR SNAPSHOT INSERT ERROR:', insertError);
+        throw new Error(insertError.message);
     }
 
     return {
@@ -2073,7 +3277,7 @@ exports.uploadStudentApplicationDocument = async ({
 
     const { data: applicationRecord, error: applicationError } = await supabase
         .from('applications')
-        .select('application_id, student_id')
+        .select('application_id, student_id, application_status, verification_status, document_status')
         .eq('application_id', applicationId)
         .single();
 
@@ -2104,7 +3308,6 @@ exports.uploadStudentApplicationDocument = async ({
         throw new Error('Invalid file type. Allowed types: PDF, JPG, JPEG, PNG, WEBP');
     }
 
-    const now = new Date().toISOString();
     const storageFileName = `${Date.now()}_${normalizedDocumentType}${fileExt}`;
     const storagePath = `applications/${applicationId}/${normalizedDocumentType}/${storageFileName}`;
     const resolvedContentType = resolveStorageContentType(fileExt, file.mimetype);
@@ -2121,34 +3324,108 @@ exports.uploadStudentApplicationDocument = async ({
         throw new Error(uploadError.message);
     }
 
+    const documentName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentType];
+    const { data: documentSlot, error: documentSlotError } = await supabase
+        .from('application_documents')
+        .select('document_id, file_path')
+        .eq('application_id', applicationId)
+        .eq('document_type', documentName)
+        .maybeSingle();
+
+    if (documentSlotError) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+        throw new Error(documentSlotError.message);
+    }
+
+    if (!documentSlot?.document_id) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+        throw new Error('Document slot not found. Refresh the application and try again.');
+    }
+
+    const contentSha256 = crypto
+        .createHash('sha256')
+        .update(file.buffer)
+        .digest('hex');
+
+    const { error: finalizeError } = await supabase.rpc(
+        'finalize_application_document_upload',
+        {
+            p_document_id: documentSlot.document_id,
+            p_uploaded_by: studentRecord.student_id,
+            p_created_by: uploaderId,
+            p_file_path: storagePath,
+            p_file_url: null,
+            p_file_name: file.originalname,
+            p_content_sha256: contentSha256,
+            p_file_size_bytes: file.buffer.length,
+        }
+    );
+
+    if (finalizeError) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+        console.error('SUPABASE APPLICATION DOCUMENT FINALIZE ERROR:', finalizeError);
+        throw new Error(finalizeError.message);
+    }
+
+    if (documentSlot.file_path && documentSlot.file_path !== storagePath) {
+        const { error: oldFileDeleteError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .remove([documentSlot.file_path]);
+
+        if (oldFileDeleteError) {
+            console.warn('OLD APPLICATION DOCUMENT CLEANUP ERROR:', oldFileDeleteError);
+        }
+    }
+
     const signedUrl = await getSignedFileUrl(storagePath);
 
-    const documentRow = {
-        application_id: applicationId,
-        document_type: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
-        file_name: file.originalname,
-        file_path: storagePath,
-        file_url: signedUrl,
-        is_submitted: true,
-        submitted_at: now,
-        notes: null,
-        uploaded_by: studentRecord.student_id,
-        updated_at: now,
-    };
+    // A replacement upload resolves the previous minor-review request for this
+    // document only. The replacement must be reviewed again by OSFA.
+    const replacementUploadedAt = new Date().toISOString();
 
-    const { error: documentUpsertError } = await supabase
+    const { error: resetDocumentReviewError } = await supabase
         .from('application_documents')
-        .upsert(documentRow, {
-            onConflict: 'application_id,document_type',
-        });
+        .update({
+            review_status: 'pending',
+            remarks: null,
+            notes: null,
+            reviewed_by: null,
+            reviewed_at: null,
+            updated_at: replacementUploadedAt,
+        })
+        .eq('application_id', applicationId)
+        .eq('document_type', documentName);
 
-    if (documentUpsertError) {
+    if (resetDocumentReviewError) {
         console.error(
-            'SUPABASE APPLICATION DOCUMENT UPSERT ERROR:',
-            documentUpsertError
+            'SUPABASE REPLACEMENT DOCUMENT REVIEW RESET ERROR:',
+            resetDocumentReviewError
         );
-        throw new Error(documentUpsertError.message);
+        throw new Error(resetDocumentReviewError.message);
     }
+
+    const { error: resetReviewRowError } = await supabase
+        .from('application_document_reviews')
+        .update({
+            review_status: 'pending',
+            admin_comment: '',
+            issue_severity: null,
+            reason_code: null,
+            reviewed_by: null,
+            reviewed_at: null,
+            updated_at: replacementUploadedAt,
+        })
+        .eq('application_id', applicationId)
+        .eq('document_key', normalizedDocumentType);
+
+    if (resetReviewRowError) {
+        console.error(
+            'SUPABASE REPLACEMENT REVIEW ROW RESET ERROR:',
+            resetReviewRowError
+        );
+        throw new Error(resetReviewRowError.message);
+    }
+
 
     const { data: existingDocuments, error: docsError } = await supabase
         .from('application_documents')
@@ -2173,11 +3450,26 @@ exports.uploadStudentApplicationDocument = async ({
     const allUploaded = requiredDocumentNames.every((name) => uploadedNames.has(name));
     const nextDocumentStatus = allUploaded ? 'Under Review' : 'Missing Docs';
 
+    const applicationUploadStatusPatch = {
+        document_status: nextDocumentStatus,
+    };
+
+    const wasWaitingForReplacement =
+        normalizeLookupValue(applicationRecord.application_status) === 'requires reupload' ||
+        normalizeLookupValue(applicationRecord.verification_status) === 'requires reupload';
+
+    if (wasWaitingForReplacement) {
+        applicationUploadStatusPatch.application_status = 'Pending Review';
+        applicationUploadStatusPatch.verification_status = 'pending';
+        applicationUploadStatusPatch.document_status = 'Under Review';
+        applicationUploadStatusPatch.is_disqualified = false;
+        applicationUploadStatusPatch.rejection_reason = null;
+        applicationUploadStatusPatch.requirements_verified_at = null;
+    }
+
     const { error: applicationUpdateError } = await supabase
         .from('applications')
-        .update({
-            document_status: nextDocumentStatus,
-        })
+        .update(applicationUploadStatusPatch)
         .eq('application_id', applicationId);
 
     if (applicationUpdateError) {
@@ -2191,7 +3483,7 @@ exports.uploadStudentApplicationDocument = async ({
     return {
         application_id: applicationId,
         document_key: normalizedDocumentType,
-        document_name: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
+        document_name: documentName,
         file_name: file.originalname,
         file_path: storagePath,
         file_url: signedUrl,
@@ -2237,13 +3529,11 @@ exports.attemptScholarActivationIfReady = async (applicationId) => {
 exports.saveApplicationVerification = async (applicationId, payload, user) => {
     const {
         document_reviews = [],
-        summary = {},
         final_comment = '',
-        verification_status = null,
     } = payload || {};
 
     if (!Array.isArray(document_reviews)) {
-        throw new Error('document_reviews must be an array');
+        throw buildHttpError(400, 'document_reviews must be an array');
     }
 
     let reviewedBy = user?.admin_id || null;
@@ -2263,58 +3553,153 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
         reviewedBy = adminProfile?.admin_id || null;
     }
+
     const reviewedAt = new Date().toISOString();
 
-    const reviewRows = document_reviews
-        .map((doc) => ({
+    const normalizedReviews = document_reviews.map((doc) => {
+        const documentKey = normalizeDocumentType(
+            doc.document_key ||
+            doc.document_type ||
+            doc.document_id ||
+            doc.id ||
+            doc.name
+        );
+
+        const reviewStatus = normalizeDocumentReviewStatus(
+            doc.status || 'pending'
+        );
+
+        const issueSeverity = normalizeIssueSeverity(
+            doc.issue_severity,
+            reviewStatus
+        );
+
+        const reasonCode = normalizeReasonCode(doc.reason_code);
+
+        if (!documentKey || !REQUIRED_REVIEW_DOCUMENT_KEYS.includes(documentKey)) {
+            throw buildHttpError(
+                400,
+                `Unsupported review document: ${
+                    doc.name || doc.document_key || 'unknown'
+                }`
+            );
+        }
+
+        if (reviewStatus === 'rejected' && issueSeverity !== 'major') {
+            throw buildHttpError(
+                400,
+                `Major severity is required before rejecting the entire application for ${
+                    doc.name || documentKey
+                }.`
+            );
+        }
+
+        return {
+            source: doc,
+            documentKey,
+            documentName:
+                DOCUMENT_TYPE_TO_NAME[documentKey] ||
+                doc.document_type ||
+                doc.name ||
+                documentKey,
+            reviewStatus,
+            issueSeverity,
+            reasonCode,
+            comment: String(doc.comment || '').trim(),
+            url: doc.url || null,
+        };
+    });
+
+    const reviewByKey = new Map(
+        normalizedReviews.map((review) => [
+            review.documentKey,
+            review,
+        ])
+    );
+
+    const missingReviewKeys = REQUIRED_REVIEW_DOCUMENT_KEYS.filter(
+        (documentKey) => !reviewByKey.has(documentKey)
+    );
+
+    if (missingReviewKeys.length > 0) {
+        throw buildHttpError(
+            400,
+            `Review all required items before saving: ${missingReviewKeys.join(', ')}`
+        );
+    }
+
+    const requiredReviews = REQUIRED_REVIEW_DOCUMENT_KEYS.map(
+        (documentKey) => reviewByKey.get(documentKey)
+    );
+
+    const incompleteReviews = requiredReviews.filter(
+        (review) =>
+            review.reviewStatus === 'pending' ||
+            review.reviewStatus === 'uploaded'
+    );
+
+    if (incompleteReviews.length > 0) {
+        throw buildHttpError(
+            400,
+            'Review every required item before saving the requirements review.'
+        );
+    }
+
+    const derivedVerificationStatus =
+        deriveVerificationOutcome(requiredReviews);
+
+    if (derivedVerificationStatus === 'pending') {
+        throw buildHttpError(
+            400,
+            'The requirements review is incomplete.'
+        );
+    }
+
+    const reviewRows = normalizedReviews.map((review) => ({
         application_id: applicationId,
-        document_key: doc.document_key || doc.document_id || doc.id,
-        document_name: doc.name,
-        review_status: doc.status || 'pending',
-        admin_comment: doc.comment || '',
-        file_url: doc.url || null,
+        document_key: review.documentKey,
+        document_name: review.documentName,
+        review_status: review.reviewStatus,
+        issue_severity: review.issueSeverity,
+        reason_code: review.reasonCode,
+        admin_comment: review.comment,
+        file_url: review.url,
         reviewed_by: reviewedBy,
         reviewed_at: reviewedAt,
         updated_at: reviewedAt,
     }));
 
-    if (reviewRows.length > 0) {
-        const { error: reviewError } = await supabase
-            .from('application_document_reviews')
-            .upsert(reviewRows, {
-                onConflict: 'application_id,document_key',
-            });
+    const { error: reviewError } = await supabase
+        .from('application_document_reviews')
+        .upsert(reviewRows, {
+            onConflict: 'application_id,document_key',
+        });
 
-        if (reviewError) {
-            console.error('Supabase Review Upsert Error:', reviewError);
-            throw new Error(reviewError.message);
-        }
+    if (reviewError) {
+        console.error('Supabase Review Upsert Error:', reviewError);
+        throw new Error(reviewError.message);
     }
 
-    for (const doc of document_reviews) {
-        const normalizedDocumentType = normalizeDocumentType(
-            doc.document_key || doc.document_type || doc.id || doc.name
-        );
-
-        if (normalizedDocumentType === 'application_form') {
+    for (const review of normalizedReviews) {
+        if (review.documentKey === 'application_form') {
             continue;
         }
-
-        const documentTypeName =
-            DOCUMENT_TYPE_TO_NAME[normalizedDocumentType] || doc.document_type || doc.name;
-
-        if (!documentTypeName) continue;
 
         const { error: submittedDocumentError } = await supabase
             .from('application_documents')
             .update({
-                is_submitted: !!doc.url,
-                file_url: doc.url || null,
-                notes: doc.comment || null,
+                // Verification changes review metadata only.
+                // The permanent upload state comes from file_path/current_version_id,
+                // not from a temporary signed preview URL.
+                review_status: review.reviewStatus,
+                notes: review.comment || null,
+                remarks: review.comment || null,
+                reviewed_by: reviewedBy,
+                reviewed_at: reviewedAt,
                 updated_at: reviewedAt,
             })
             .eq('application_id', applicationId)
-            .eq('document_type', documentTypeName);
+            .eq('document_type', review.documentName);
 
         if (submittedDocumentError) {
             console.error(
@@ -2323,83 +3708,144 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             );
             throw new Error(submittedDocumentError.message);
         }
+
+        // Force the next Preview request to reread the document metadata.
+        documentViewMetadataCache.delete(
+            `${applicationId}:${review.documentKey}`
+        );
     }
 
-    const nextDocumentStatus = deriveAggregateDocumentStatus(summary);
+    const majorReviews = requiredReviews.filter(
+        (review) =>
+            review.reviewStatus === 'rejected' &&
+            review.issueSeverity === 'major'
+    );
+
+    const minorReviews = requiredReviews.filter(
+        (review) => review.reviewStatus === 'reupload_required'
+    );
+
+    const verifiedCount = requiredReviews.filter(
+        (review) => review.reviewStatus === 'verified'
+    ).length;
 
     const applicationUpdatePayload = {
-        document_status: nextDocumentStatus,
+        verification_status: derivedVerificationStatus,
     };
 
-    if (verification_status) {
-        applicationUpdatePayload.verification_status = verification_status;
-    }
+    if (derivedVerificationStatus === 'verified') {
+        applicationUpdatePayload.application_status = 'Pending Review';
+        applicationUpdatePayload.document_status = 'Documents Ready';
+        applicationUpdatePayload.is_disqualified = false;
+        applicationUpdatePayload.rejection_reason = null;
+    } else if (derivedVerificationStatus === 'requires_reupload') {
+        applicationUpdatePayload.application_status = 'Requires Reupload';
+        applicationUpdatePayload.document_status = 'Requires Reupload';
+        applicationUpdatePayload.is_disqualified = false;
+        applicationUpdatePayload.rejection_reason = null;
+        applicationUpdatePayload.requirements_verified_at = null;
+    } else if (derivedVerificationStatus === 'rejected') {
+        const majorReason =
+            String(final_comment || '').trim() ||
+            majorReviews
+                .map((review) => review.comment)
+                .filter(Boolean)
+                .join(' | ') ||
+            'Major document violation';
 
-    if (verification_status === 'rejected') {
         applicationUpdatePayload.application_status = 'Rejected';
+        applicationUpdatePayload.document_status = 'Under Review';
         applicationUpdatePayload.is_disqualified = true;
-        applicationUpdatePayload.rejection_reason = final_comment || null;
+        applicationUpdatePayload.rejection_reason = majorReason;
+        applicationUpdatePayload.requirements_verified_at = null;
     }
 
-    const { data: updatedApplication, error: applicationUpdateError } = await supabase
-        .from('applications')
-        .update(applicationUpdatePayload)
-        .eq('application_id', applicationId)
-        .select()
-        .single();
-
-    if (applicationUpdateError) {
-        console.error('Supabase Application Update Error:', applicationUpdateError);
-        throw new Error(applicationUpdateError.message);
-    }
-
-    let finalOutcome = verification_status;
-    let finalizedApplication = updatedApplication;
-    let scholar = null;
-    let notification = null;
-    let activation = null;
-
-    if (verification_status === 'verified') {
-        const requirementsCompletedAt = await resolveRequirementsCompletedAt(applicationId);
-
-        const { data: qualifiedApplication, error: qualifiedUpdateError } = await supabase
+    const { data: updatedApplication, error: applicationUpdateError } =
+        await supabase
             .from('applications')
-            .update({
-                requirements_completed_at:
-                    requirementsCompletedAt || updatedApplication?.submission_date || reviewedAt,
-                requirements_verified_at: reviewedAt,
-                selection_status: 'Requirements Verified',
-                queue_position: null,
-                waitlist_position: null,
-                activation_status: 'Not Activated',
-            })
+            .update(applicationUpdatePayload)
             .eq('application_id', applicationId)
             .select()
             .single();
 
+    if (applicationUpdateError) {
+        console.error(
+            'Supabase Application Update Error:',
+            applicationUpdateError
+        );
+        throw new Error(applicationUpdateError.message);
+    }
+
+    let finalOutcome = derivedVerificationStatus;
+    let finalizedApplication = updatedApplication;
+    let notification = null;
+
+    if (derivedVerificationStatus === 'verified') {
+        const requirementsCompletedAt =
+            await resolveRequirementsCompletedAt(applicationId);
+
+        const { data: qualifiedApplication, error: qualifiedUpdateError } =
+            await supabase
+                .from('applications')
+                .update({
+                    requirements_completed_at:
+                        requirementsCompletedAt ||
+                        updatedApplication?.submission_date ||
+                        reviewedAt,
+                    requirements_verified_at: reviewedAt,
+                    selection_status: 'Requirements Verified',
+                    queue_position: null,
+                    waitlist_position: null,
+                    activation_status: 'Not Activated',
+                })
+                .eq('application_id', applicationId)
+                .select()
+                .single();
+
         if (qualifiedUpdateError) {
-            console.error('SUPABASE QUALIFIED APPLICATION UPDATE ERROR:', qualifiedUpdateError);
+            console.error(
+                'SUPABASE QUALIFIED APPLICATION UPDATE ERROR:',
+                qualifiedUpdateError
+            );
             throw new Error(qualifiedUpdateError.message);
         }
 
         finalizedApplication = qualifiedApplication;
         finalOutcome = 'requirements_complete';
-    } else if (verification_status === 'rejected') {
-        if (updatedApplication?.student_id) {
-            const { data: studentRow } = await supabase
-                .from('students')
-                .select('user_id')
-                .eq('student_id', updatedApplication.student_id)
-                .maybeSingle();
 
-            if (studentRow?.user_id) {
-                notification = await deliverVerificationOutcomeNotification({
-                    outcome: 'rejected',
-                    applicationId,
-                    userId: studentRow.user_id,
-                    scholarId: null,
-                });
-            }
+        await readinessQueueService.syncApplicationReadiness(applicationId);
+    }
+
+    if (
+        (
+            derivedVerificationStatus === 'rejected' ||
+            derivedVerificationStatus === 'requires_reupload'
+        ) &&
+        updatedApplication?.student_id
+    ) {
+        const { data: studentRow, error: studentError } = await supabase
+            .from('students')
+            .select('user_id')
+            .eq('student_id', updatedApplication.student_id)
+            .maybeSingle();
+
+        if (studentError) {
+            console.error(
+                'SUPABASE VERIFICATION STUDENT LOOKUP ERROR:',
+                studentError
+            );
+        }
+
+        if (studentRow?.user_id) {
+            notification = await deliverVerificationOutcomeNotification({
+                outcome:
+                    derivedVerificationStatus === 'requires_reupload'
+                        ? 'reupload_required'
+                        : 'rejected',
+                applicationId,
+                userId: studentRow.user_id,
+                scholarId: null,
+            });
         }
     }
 
@@ -2410,17 +3856,35 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         application: finalizedApplication,
         application_detail: detailedApplication,
         readiness,
-        activation,
-        verification_status,
+        activation: null,
+        verification_status: derivedVerificationStatus,
         final_outcome: finalOutcome,
-        scholar,
+        scholar: null,
         notification,
         summary: {
-            verified: Number(summary?.verified || 0),
-            uploaded: Number(summary?.uploaded || 0),
-            rejected: Number(summary?.rejected || summary?.reupload || 0),
-            pending: Number(summary?.pending || 0),
-            progress: Number(summary?.progress || 0),
+            verified: verifiedCount,
+            uploaded: requiredReviews.filter(
+                (review) =>
+                    !!review.url ||
+                    review.documentKey === 'application_form'
+            ).length,
+            rejected: majorReviews.length,
+            reupload: minorReviews.length,
+            pending: incompleteReviews.length,
+            progress:
+                requiredReviews.length === 0
+                    ? 0
+                    : Math.round(
+                        (
+                            (
+                                verifiedCount +
+                                majorReviews.length +
+                                minorReviews.length
+                            ) /
+                            requiredReviews.length
+                        ) *
+                        100
+                    ),
         },
         final_comment,
     };
@@ -2578,7 +4042,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
             );
         }
 
-        if (selectionStatus === 'waitlisted' || (capacity > 0 && queuePosition > capacity)) {
+        if (selectionStatus === 'waitlisted') {
             throw buildHttpError(
                 409,
                 `This applicant is waitlisted at FCFS position #${queuePosition}.`
@@ -2701,9 +4165,16 @@ module.exports = {
     fetchApplications: exports.fetchApplications,
     fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
     fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,
+    fetchApplicationDocumentViewUrl: exports.fetchApplicationDocumentViewUrl,
     runApplicationDocumentIotOcr: exports.runApplicationDocumentIotOcr,
     fetchApplicationDocumentOcrSnapshot: exports.fetchApplicationDocumentOcrSnapshot,
     saveApplicationDocumentOcrSnapshot: exports.saveApplicationDocumentOcrSnapshot,
+    getApplicationDocumentIotOcr: exports.getApplicationDocumentIotOcr,
+    confirmApplicationDocumentIotOcr: exports.confirmApplicationDocumentIotOcr,
+    retryApplicationDocumentIotOcr: exports.retryApplicationDocumentIotOcr,
+    cancelApplicationDocumentIotOcr: exports.cancelApplicationDocumentIotOcr,
+    rejectApplicationDocumentIotOcr: exports.rejectApplicationDocumentIotOcr,
+    rescanApplicationDocumentIotOcr: exports.rescanApplicationDocumentIotOcr,
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,

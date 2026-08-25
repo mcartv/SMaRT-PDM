@@ -1,23 +1,58 @@
-import { useEffect, useRef, useCallback } from 'react';
+﻿import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
+import {
+  PORTAL_CONFIG,
+  invalidateStoredPortalSession,
+} from '@/utils/authStorage';
 
 const SOCKET_URL = buildApiUrl('').replace(/\/+$/, '');
+
+const SESSION_INVALID_CODES = new Set([
+  'ACCOUNT_DEACTIVATED',
+  'SESSION_REVOKED',
+  'SESSION_ROLE_CHANGED',
+  'STAFF_ACCOUNT_NOT_FOUND',
+  'STAFF_SESSION_INVALID',
+  'ADMIN_SESSION_MIGRATION_REQUIRED',
+  'ADMIN_SESSION_INVALID',
+  'ADMIN_SESSION_TOKEN_MISSING',
+  'ADMIN_SESSION_USER_MISSING',
+  'ADMIN_SESSION_DEVICE_MISMATCH',
+  'ADMIN_SESSION_INACTIVE',
+  'ADMIN_SESSION_EXPIRED',
+  'ADMIN_SESSION_LOGGED_OUT',
+  'ADMIN_SESSION_NOT_FOUND',
+  'ADMIN_SESSION_TOKEN_MISMATCH',
+  'ADMIN_SESSION_SCOPE_MISMATCH',
+  'SOCKET_AUTH_INVALID',
+  'SOCKET_AUTH_REQUIRED',
+  'NOT_ADMIN_ACCOUNT',
+]);
 
 let globalSocket = null;
 let joinedUserId = '';
 
-function getStoredSocketToken() {
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-  const portalTokenKey = [
-    ['/admin', 'adminToken'],
-    ['/sdo', 'sdoToken'],
-    ['/guidance', 'guidanceToken'],
-    ['/pd', 'pdToken'],
-  ].find(([portalPath]) => pathname.startsWith(portalPath))?.[1];
+function getPortalFromPathname() {
+  if (typeof window === 'undefined') return null;
 
-  if (portalTokenKey) {
-    const portalToken = sessionStorage.getItem(portalTokenKey);
+  const pathname = window.location.pathname;
+
+  if (pathname.startsWith('/admin')) return 'admin';
+  if (pathname.startsWith('/sdo')) return 'sdo';
+  if (pathname.startsWith('/guidance')) return 'guidance';
+  if (pathname.startsWith('/pd')) return 'pd';
+  if (pathname.startsWith('/ro-coordinator')) return 'ro_coordinator';
+
+  return null;
+}
+
+function getStoredSocketToken() {
+  const portalName = getPortalFromPathname();
+  const portal = portalName ? PORTAL_CONFIG[portalName] : null;
+
+  if (portal?.tokenKey) {
+    const portalToken = sessionStorage.getItem(portal.tokenKey);
     if (portalToken) return portalToken;
   }
 
@@ -26,6 +61,7 @@ function getStoredSocketToken() {
     sessionStorage.getItem('pdToken') ||
     sessionStorage.getItem('guidanceToken') ||
     sessionStorage.getItem('sdoToken') ||
+    sessionStorage.getItem('roCoordinatorToken') ||
     ''
   );
 }
@@ -50,60 +86,84 @@ function decodeJwtPayload(token) {
   }
 }
 
-function getSocketUserId() {
-  const token = getStoredSocketToken();
+function getSocketIdentity(token = getStoredSocketToken()) {
   const decoded = decodeJwtPayload(token);
 
-  return (
-    decoded?.userId?.toString?.() ||
-    decoded?.user_id?.toString?.() ||
-    decoded?.sub?.toString?.() ||
-    decoded?.id?.toString?.() ||
-    ''
-  );
+  return {
+    userId:
+      decoded?.userId?.toString?.() ||
+      decoded?.user_id?.toString?.() ||
+      decoded?.sub?.toString?.() ||
+      decoded?.id?.toString?.() ||
+      '',
+    role:
+      decoded?.role?.toString?.().trim().toLowerCase() ||
+      decoded?.userRole?.toString?.().trim().toLowerCase() ||
+      decoded?.user_role?.toString?.().trim().toLowerCase() ||
+      '',
+  };
 }
 
-function getSocketRole() {
-  const token = getStoredSocketToken();
-  const decoded = decodeJwtPayload(token);
+function resolvePortalNameFromIdentity(role) {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  return PORTAL_CONFIG[normalizedRole] ? normalizedRole : getPortalFromPathname();
+}
 
-  return (
-    decoded?.role?.toString?.() ||
-    decoded?.userRole?.toString?.() ||
-    decoded?.user_role?.toString?.() ||
-    ''
+function stopSocket(socket = globalSocket) {
+  if (!socket) return;
+
+  try {
+    socket.io.reconnection(false);
+  } catch {
+    // Socket manager may already be torn down.
+  }
+
+  socket.disconnect();
+}
+
+function invalidatePortalSession(error) {
+  const token = globalSocket?.auth?.token || getStoredSocketToken();
+  const { role } = getSocketIdentity(token);
+  const portalName = resolvePortalNameFromIdentity(role);
+  const code = String(error?.data?.code || 'SESSION_REVOKED');
+  const message = String(
+    error?.message || 'Your session is no longer active. Please sign in again.'
   );
+
+  if (portalName && PORTAL_CONFIG[portalName]) {
+    invalidateStoredPortalSession({
+      portalName,
+      code,
+      message,
+    });
+  }
+
+  stopSocket(globalSocket);
+  globalSocket = null;
+  joinedUserId = '';
+
 }
 
 function emitUserJoin(socket) {
   if (!socket || !socket.connected) return;
 
-  const userId = getSocketUserId();
-  const role = getSocketRole();
+  const token = socket.auth?.token || getStoredSocketToken();
+  const { userId, role } = getSocketIdentity(token);
 
-  if (!userId) {
-    console.warn('[Socket] Cannot join user room: missing userId');
-    return;
-  }
-
-  if (joinedUserId === userId) {
-    return;
-  }
+  if (!userId) return;
+  if (joinedUserId === userId) return;
 
   joinedUserId = userId;
 
+  // Kept for transition compatibility with older deployed backends. The
+  // hardened backend ignores these claimed IDs and uses only the authenticated
+  // handshake identity when joining user rooms.
   const payload = {
     userId,
     user_id: userId,
     role,
   };
 
-  console.log('[Socket] Joining user room:', payload);
-
-  /*
-    Keep all aliases. Unknown socket events are ignored by the backend.
-    This makes the admin compatible with whichever join event your backend uses.
-  */
   socket.emit('user-join', payload);
   socket.emit('join:user', payload);
   socket.emit('joinUser', payload);
@@ -111,10 +171,175 @@ function emitUserJoin(socket) {
   socket.emit('joinUserRoom', payload);
 }
 
-export const initializeSocket = () => {
+function refreshSocketAuthFromStorage(socket) {
+  if (!socket) return false;
+
   const token = getStoredSocketToken();
-  const userId = getSocketUserId();
-  const role = getSocketRole();
+  if (!token) return false;
+
+  const { userId, role } = getSocketIdentity(token);
+
+  socket.auth = {
+    token,
+    userId,
+    role,
+  };
+
+  if (socket.io?.opts) {
+    socket.io.opts.query = {
+      userId,
+      role,
+    };
+  }
+
+  return true;
+}
+
+let socketRecoveryHooksInstalled = false;
+let socketRecoveryTimer = null;
+
+function recoverSocketConnection() {
+  if (!globalSocket) {
+    initializeSocket();
+    return;
+  }
+
+  if (globalSocket.connected) {
+    return;
+  }
+
+  if (!refreshSocketAuthFromStorage(globalSocket)) {
+    return;
+  }
+
+  try {
+    globalSocket.io.reconnection(true);
+    globalSocket.connect();
+  } catch (error) {
+    console.warn(
+      '[Socket] Recovery connect failed:',
+      error?.message || error
+    );
+  }
+}
+
+function installSocketRecoveryHooks() {
+  if (
+    socketRecoveryHooksInstalled ||
+    typeof window === 'undefined'
+  ) {
+    return;
+  }
+
+  socketRecoveryHooksInstalled = true;
+
+  window.addEventListener('online', recoverSocketConnection);
+  window.addEventListener('focus', recoverSocketConnection);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      recoverSocketConnection();
+    }
+  });
+
+  // Local connection watchdog only. When the socket is healthy this sends
+  // no HTTP request and no application API traffic.
+  socketRecoveryTimer = window.setInterval(() => {
+    if (!globalSocket?.connected && getStoredSocketToken()) {
+      recoverSocketConnection();
+    }
+  }, 15000);
+}
+
+function attachSocketLifecycle(socket) {
+  socket.on('connect', () => {
+    console.log('[Socket] Connected:', socket.id);
+    joinedUserId = '';
+    emitUserJoin(socket);
+  });
+
+  socket.on('socket:joined', (payload = {}) => {
+    console.log('[Socket] Server room joined:', payload.room || '');
+  });
+
+  socket.io.on('reconnect_attempt', () => {
+    refreshSocketAuthFromStorage(socket);
+  });
+
+  socket.io.on('reconnect', () => {
+    console.log('[Socket] Manager reconnected');
+    refreshSocketAuthFromStorage(socket);
+    joinedUserId = '';
+    emitUserJoin(socket);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('[Socket] Disconnected:', reason);
+    joinedUserId = '';
+
+    if (
+      reason !== 'io client disconnect' &&
+      getStoredSocketToken()
+    ) {
+      window.setTimeout(recoverSocketConnection, 500);
+    }
+  });
+
+  socket.on('session:invalidated', (payload = {}, acknowledge) => {
+    if (typeof acknowledge === 'function') {
+      acknowledge({
+        received: true,
+        user_id:
+          getSocketIdentity(socket.auth?.token || '').userId ||
+          null,
+        received_at: new Date().toISOString(),
+      });
+    }
+
+    invalidatePortalSession({
+      message:
+        payload?.message ||
+        'Your session is no longer active. Please sign in again.',
+      data: {
+        code: payload?.code || 'SESSION_REVOKED',
+      },
+    });
+  });
+
+  socket.on('connect_error', (error) => {
+    const code = String(error?.data?.code || '');
+
+    if (SESSION_INVALID_CODES.has(code)) {
+      console.warn('[Socket] Session rejected:', code);
+      invalidatePortalSession(error);
+      return;
+    }
+
+    console.error(
+      '[Socket] Connect error:',
+      error?.message || error
+    );
+
+    // A transient network/backend restart should not permanently strand the
+    // global socket. Refresh auth before Socket.IO retries.
+    refreshSocketAuthFromStorage(socket);
+  });
+}
+export const initializeSocket = () => {
+  installSocketRecoveryHooks();
+  const token = getStoredSocketToken();
+
+  // Public pages intentionally do not open the authenticated staff socket.
+  // Their content continues to load through the existing public HTTP APIs.
+  if (!token) {
+    if (globalSocket) {
+      stopSocket(globalSocket);
+      globalSocket = null;
+      joinedUserId = '';
+    }
+    return null;
+  }
+
+  const { userId, role } = getSocketIdentity(token);
 
   if (globalSocket) {
     const connectedToken = globalSocket.auth?.token || '';
@@ -123,10 +348,13 @@ export const initializeSocket = () => {
       joinedUserId = '';
       globalSocket.auth = { token, userId, role };
       globalSocket.io.opts.query = { userId, role };
+      globalSocket.io.reconnection(true);
       globalSocket.disconnect();
       globalSocket.connect();
       return globalSocket;
     }
+
+    globalSocket.io.reconnection(true);
 
     if (globalSocket.connected) {
       emitUserJoin(globalSocket);
@@ -154,57 +382,29 @@ export const initializeSocket = () => {
     },
   });
 
-  globalSocket.on('connect', () => {
-    console.log('[Socket] Connected:', globalSocket.id);
-    emitUserJoin(globalSocket);
-  });
-
-  globalSocket.on('reconnect', () => {
-    console.log('[Socket] Reconnected:', globalSocket.id);
-    joinedUserId = '';
-    emitUserJoin(globalSocket);
-  });
-
-  globalSocket.io.on('reconnect', () => {
-    console.log('[Socket] Manager reconnected');
-    joinedUserId = '';
-    emitUserJoin(globalSocket);
-  });
-
-  globalSocket.on('disconnect', (reason) => {
-    console.log('[Socket] Disconnected:', reason);
-    joinedUserId = '';
-  });
-
-  globalSocket.on('connect_error', (error) => {
-    console.error('[Socket] Connect error:', error?.message || error);
-  });
-
+  attachSocketLifecycle(globalSocket);
   return globalSocket;
 };
 
 export const reconnectSocketWithLatestToken = () => {
+  const token = getStoredSocketToken();
+
+  if (!token) {
+    disconnectSocket();
+    return null;
+  }
+
   if (!globalSocket) {
     return initializeSocket();
   }
 
-  const token = getStoredSocketToken();
-  const userId = getSocketUserId();
-  const role = getSocketRole();
+  const { userId, role } = getSocketIdentity(token);
   const tokenChanged = (globalSocket.auth?.token || '') !== token;
 
   joinedUserId = '';
-
-  globalSocket.auth = {
-    token,
-    userId,
-    role,
-  };
-
-  globalSocket.io.opts.query = {
-    userId,
-    role,
-  };
+  globalSocket.auth = { token, userId, role };
+  globalSocket.io.opts.query = { userId, role };
+  globalSocket.io.reconnection(true);
 
   if (tokenChanged && globalSocket.connected) {
     globalSocket.disconnect();
@@ -220,7 +420,7 @@ export const reconnectSocketWithLatestToken = () => {
 
 export const disconnectSocket = () => {
   if (globalSocket) {
-    globalSocket.disconnect();
+    stopSocket(globalSocket);
   }
 
   globalSocket = null;
@@ -243,25 +443,21 @@ export const useSocketEvent = (event, callback, deps = []) => {
   }, [callback]);
 
   useEffect(() => {
-    socketRef.current = initializeSocket();
+    const socket = initializeSocket();
+    socketRef.current = socket;
 
-    /*
-      Important:
-      If the socket connected before adminToken was saved,
-      this forces it to join again using the latest token.
-    */
-    emitUserJoin(socketRef.current);
+    if (!socket) return undefined;
+
+    emitUserJoin(socket);
 
     const handler = (...args) => {
       callbackRef.current?.(...args);
     };
 
-    socketRef.current.on(event, handler);
+    socket.on(event, handler);
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.off(event, handler);
-      }
+      socket.off(event, handler);
     };
   }, [event, ...deps]);
 
@@ -284,11 +480,11 @@ export const useSocketEmit = () => {
       socketRef.current = initializeSocket();
     }
 
-    emitUserJoin(socketRef.current);
+    if (!socketRef.current) return false;
 
-    if (socketRef.current) {
-      socketRef.current.emit(event, data);
-    }
+    emitUserJoin(socketRef.current);
+    socketRef.current.emit(event, data);
+    return true;
   }, []);
 };
 
@@ -304,27 +500,26 @@ export const useSocketListener = (events = {}) => {
   }, [events]);
 
   useEffect(() => {
-    socketRef.current = initializeSocket();
-    emitUserJoin(socketRef.current);
+    const socket = initializeSocket();
+    socketRef.current = socket;
+
+    if (!socket) return undefined;
+
+    emitUserJoin(socket);
 
     const handlers = Object.entries(eventsRef.current).map(([event, callback]) => {
       const handler = (...args) => {
         callback?.(...args);
       };
 
-      socketRef.current.on(event, handler);
+      socket.on(event, handler);
 
-      return {
-        event,
-        handler,
-      };
+      return { event, handler };
     });
 
     return () => {
       handlers.forEach(({ event, handler }) => {
-        if (socketRef.current) {
-          socketRef.current.off(event, handler);
-        }
+        socket.off(event, handler);
       });
     };
   }, [events]);

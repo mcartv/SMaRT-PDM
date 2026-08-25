@@ -33,6 +33,12 @@ router.patch(
     roSettingController.toggleDepartment
 );
 
+router.put(
+    '/departments/:departmentId/coordinator',
+    adminOnly,
+    roSettingController.setDepartmentCoordinator
+);
+
 router.post('/', adminOnly, roSettingController.createSetting);
 router.patch('/:settingId', adminOnly, roSettingController.updateSetting);
 router.patch('/:settingId/activate', adminOnly, roSettingController.activateSetting);

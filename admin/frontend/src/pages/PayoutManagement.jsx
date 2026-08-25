@@ -25,12 +25,57 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import PayoutProofReviewPanel from '@/components/payout/PayoutProofReviewPanel';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = buildApiUrl('/api');
 const PAGE_SIZE = 6;
+const BULLET = '\u2022';
+const EM_DASH = '\u2014';
+const MANILA_TIME_ZONE = 'Asia/Manila';
+
+function getManilaDateInputValue(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: MANILA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function formatPayoutDate(value) {
+  if (!value) return EM_DASH;
+
+  const raw = String(value).trim();
+  const dateOnlyMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const dateOnly = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+
+    return new Intl.DateTimeFormat('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC',
+    }).format(dateOnly);
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return EM_DASH;
+
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: MANILA_TIME_ZONE,
+  }).format(parsed);
+}
 
 const C = {
-  brownMid: '#7c4a2e',
+  brownMid: 'var(--portal-base)',
   green: '#16a34a',
   greenSoft: '#F0FDF4',
   blue: '#2563EB',
@@ -51,7 +96,7 @@ const EMPTY_FORM = {
   academic_year_id: '',
   school_year: '',
   payout_title: '',
-  payout_date: new Date().toISOString().slice(0, 10),
+  payout_date: getManilaDateInputValue(),
   payment_mode: 'Cash',
   amount_per_scholar: '',
   remarks: '',
@@ -108,7 +153,25 @@ function filterScholarsByOpening(scholars = [], openingId) {
 }
 
 function getBatchScholars(batch) {
-  return filterScholarsByOpening(batch?.scholars, batch?.opening_id);
+  const scholars = Array.isArray(batch?.scholars) ? batch.scholars : [];
+  const openingId = normalizeId(batch?.opening_id);
+
+  if (!openingId || !scholars.length) return scholars;
+
+  const hasOpeningMetadata = scholars.some((scholar) =>
+    [
+      scholar?.opening_id,
+      scholar?.openingId,
+      scholar?.program_opening_id,
+      scholar?.programOpeningId,
+      scholar?.opening?.opening_id,
+      scholar?.batch_opening_id,
+    ].some((value) => Boolean(normalizeId(value)))
+  );
+
+  return hasOpeningMetadata
+    ? filterScholarsByOpening(scholars, openingId)
+    : scholars;
 }
 
 function isTerminalPayoutStatus(status) {
@@ -133,7 +196,7 @@ function hasManageablePayoutEntries(batch) {
 }
 
 function formatMoney(value) {
-  return `₱${Number(value || 0).toLocaleString()}`;
+  return `\u20B1${Number(value || 0).toLocaleString()}`;
 }
 
 function getEntryId(entry) {
@@ -174,7 +237,7 @@ function ReadOnlyField({ label, value }) {
   return (
     <div className="rounded-xl border bg-stone-50 p-3">
       <p className="text-[11px] text-stone-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value || '—'}</p>
+      <p className="mt-1 text-sm font-semibold">{value || EM_DASH}</p>
     </div>
   );
 }
@@ -270,12 +333,12 @@ function PostPayoutCreatePrompt({
             </p>
             <p className="mt-1 text-xs text-stone-500">
               {payout.program_name || 'No Program'}
-              {payout.benefactor_name ? ` • ${payout.benefactor_name}` : ''}
+              {payout.benefactor_name ? ` ${BULLET} ${payout.benefactor_name}` : ''}
             </p>
             <p className="mt-1 text-xs text-stone-500">
               {payout.scholar_count || 0} scholar(s) selected
               {payout.amount_per_scholar
-                ? ` • ${formatMoney(payout.amount_per_scholar)} per scholar`
+                ? ` ${BULLET} ${formatMoney(payout.amount_per_scholar)} per scholar`
                 : ''}
             </p>
           </div>
@@ -304,6 +367,189 @@ function PostPayoutCreatePrompt({
   );
 }
 
+function ArchiveBatchModal({
+  batch,
+  open,
+  working,
+  onCancel,
+  onConfirm,
+}) {
+  if (!open || !batch) return null;
+
+  const counts = getPayoutCounts(batch);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+      onClick={() => {
+        if (!working) onCancel();
+      }}
+    >
+      <Card
+        className="w-full max-w-md overflow-hidden rounded-2xl border-stone-200 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-stone-100 px-5 py-4">
+          <h3 className="text-base font-semibold text-stone-900">
+            Archive payout batch?
+          </h3>
+          <p className="mt-1 text-sm leading-5 text-stone-500">
+            {batch.payout_title || 'This payout batch'} will move to Archived.
+            Payout records and scholar history are preserved.
+          </p>
+        </div>
+
+        <CardContent className="space-y-4 p-5">
+          <div className="grid grid-cols-3 gap-2">
+            <SmallMetric label="Released" value={counts.released} />
+            <SmallMetric label="Absent" value={counts.absent} />
+            <SmallMetric label="Cancelled" value={counts.cancelled} />
+          </div>
+
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-xs leading-5 text-stone-600">
+            Archive is available only when every scholar has a final payout
+            status: Released, Absent, or Cancelled.
+          </div>
+        </CardContent>
+
+        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={working}
+            onClick={onCancel}
+            className="h-9 rounded-lg border-stone-200 text-xs"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={working}
+            onClick={onConfirm}
+            className="h-9 rounded-lg border-none text-xs text-white"
+            style={{ background: C.brownMid }}
+          >
+            {working ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Archive className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            Archive Batch
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function PayoutStatusModal({
+  candidate,
+  remarks,
+  checkNumber,
+  error,
+  working,
+  onRemarksChange,
+  onCheckNumberChange,
+  onCancel,
+  onConfirm,
+}) {
+  if (!candidate) return null;
+
+  const nextStatus = normalizeReleaseStatus(candidate.nextStatus);
+  const isOnHold = nextStatus === 'On Hold';
+  const isReleased = nextStatus === 'Released';
+  const scholarName = candidate.entry?.student_name || 'Selected scholar';
+  const canSubmit = !working && (!isOnHold || remarks.trim().length > 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+      onClick={() => {
+        if (!working) onCancel();
+      }}
+    >
+      <Card
+        className="w-full max-w-md overflow-hidden rounded-2xl border-stone-200 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-stone-100 px-5 py-4">
+          <h3 className="text-base font-semibold text-stone-900">
+            Update payout status
+          </h3>
+          <p className="mt-1 text-sm leading-5 text-stone-500">
+            {scholarName} will be marked as {nextStatus}.
+          </p>
+        </div>
+
+        <CardContent className="space-y-4 p-5">
+          {isReleased ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-stone-700">
+                Check / Reference Number <span className="font-normal text-stone-400">(optional)</span>
+              </label>
+              <Input
+                value={checkNumber}
+                onChange={(event) => onCheckNumberChange(event.target.value)}
+                maxLength={100}
+                placeholder="Enter check or reference number"
+                className="h-10 rounded-xl border-stone-200"
+                disabled={working}
+              />
+            </div>
+          ) : null}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-stone-700">
+              Remarks {isOnHold ? <span className="text-red-600">*</span> : <span className="font-normal text-stone-400">(optional)</span>}
+            </label>
+            <textarea
+              value={remarks}
+              onChange={(event) => onRemarksChange(event.target.value)}
+              maxLength={500}
+              rows={4}
+              placeholder={isOnHold ? 'Reason for placing this payout on hold' : 'Add a note for this status update'}
+              className="w-full resize-none rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-400 disabled:cursor-not-allowed disabled:bg-stone-50"
+              disabled={working}
+            />
+            <div className="flex items-center justify-between gap-3 text-[11px] text-stone-400">
+              <span>{isOnHold ? 'Remarks are required for On Hold.' : 'Optional record note.'}</span>
+              <span>{remarks.length}/500</span>
+            </div>
+          </div>
+
+          {error ? (
+            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </CardContent>
+
+        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={working}
+            onClick={onCancel}
+            className="h-9 rounded-lg border-stone-200 text-xs"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={!canSubmit}
+            onClick={onConfirm}
+            className="h-9 rounded-lg border-none text-xs text-white"
+            style={{ background: C.brownMid }}
+          >
+            {working ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+            Confirm {nextStatus}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function PayoutManagement() {
   const navigate = useNavigate();
 
@@ -319,6 +565,11 @@ export default function PayoutManagement() {
   const [workingEntryId, setWorkingEntryId] = useState(null);
   const [archivingBatchId, setArchivingBatchId] = useState(null);
   const [restoringBatchId, setRestoringBatchId] = useState(null);
+  const [archiveCandidate, setArchiveCandidate] = useState(null);
+  const [statusCandidate, setStatusCandidate] = useState(null);
+  const [statusRemarks, setStatusRemarks] = useState('');
+  const [statusCheckNumber, setStatusCheckNumber] = useState('');
+  const [statusError, setStatusError] = useState('');
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -349,10 +600,6 @@ export default function PayoutManagement() {
   }, []);
 
   useSocketEvent('payout:restored', () => {
-    loadAll();
-  }, []);
-
-  useSocketEvent('scholar:released', () => {
     loadAll();
   }, []);
 
@@ -601,7 +848,7 @@ export default function PayoutManagement() {
   const resetCreateForm = () => {
     setForm({
       ...EMPTY_FORM,
-      payout_date: new Date().toISOString().slice(0, 10),
+      payout_date: getManilaDateInputValue(),
     });
     setEligiblePayload({ opening: null, scholars: [] });
   };
@@ -610,8 +857,9 @@ export default function PayoutManagement() {
     if (!newPayoutForPrompt) return;
 
     const amountPerScholar = Number(newPayoutForPrompt.amount_per_scholar || 0);
-    const payoutDate =
-      newPayoutForPrompt.payout_date || new Date().toISOString().slice(0, 10);
+    const payoutDate = formatPayoutDate(
+      newPayoutForPrompt.payout_date || getManilaDateInputValue()
+    );
 
     const openingTitle =
       newPayoutForPrompt.opening_title ||
@@ -756,17 +1004,45 @@ export default function PayoutManagement() {
     }
   };
 
-  const handleStatusUpdate = async (entry, nextStatus) => {
-    const entryId = getEntryId(entry);
-
-    if (!entryId) {
+  const openStatusUpdate = (entry, nextStatus) => {
+    if (!getEntryId(entry)) {
       alert('Missing payout entry ID.');
       return;
     }
 
-    const finalStatus = normalizeReleaseStatus(nextStatus);
+    setStatusCandidate({ entry, nextStatus: normalizeReleaseStatus(nextStatus) });
+    setStatusRemarks('');
+    setStatusCheckNumber('');
+    setStatusError('');
+  };
+
+  const closeStatusUpdate = () => {
+    if (workingEntryId) return;
+    setStatusCandidate(null);
+    setStatusRemarks('');
+    setStatusCheckNumber('');
+    setStatusError('');
+  };
+
+  const submitStatusUpdate = async () => {
+    const entry = statusCandidate?.entry;
+    const entryId = getEntryId(entry);
+    const finalStatus = normalizeReleaseStatus(statusCandidate?.nextStatus);
+    const remarks = statusRemarks.trim();
+    const checkNumber = statusCheckNumber.trim();
+
+    if (!entryId) {
+      setStatusError('Missing payout entry ID.');
+      return;
+    }
+
+    if (finalStatus === 'On Hold' && !remarks) {
+      setStatusError('Remarks are required when placing a payout on hold.');
+      return;
+    }
 
     try {
+      setStatusError('');
       setWorkingEntryId(entryId);
 
       const res = await fetch(`${API_BASE}/payouts/entries/${entryId}/status`, {
@@ -775,6 +1051,8 @@ export default function PayoutManagement() {
         body: JSON.stringify({
           release_status: finalStatus,
           status: finalStatus,
+          remarks: remarks || null,
+          check_number: finalStatus === 'Released' ? checkNumber || null : null,
         }),
       });
 
@@ -797,16 +1075,25 @@ export default function PayoutManagement() {
             const scholarEntryId = getEntryId(scholar);
 
             return String(scholarEntryId) === String(entryId)
-              ? { ...scholar, release_status: finalStatus }
+              ? {
+                  ...scholar,
+                  release_status: finalStatus,
+                  remarks: remarks || null,
+                  check_number: finalStatus === 'Released' ? checkNumber || null : null,
+                }
               : scholar;
           }),
         };
       });
 
       await loadAll();
+      setStatusCandidate(null);
+      setStatusRemarks('');
+      setStatusCheckNumber('');
+      setStatusError('');
     } catch (err) {
       console.error('UPDATE PAYOUT STATUS ERROR:', err);
-      alert(err.message || 'Failed to update payout status');
+      setStatusError(err.message || 'Failed to update payout status');
     } finally {
       setWorkingEntryId(null);
     }
@@ -818,7 +1105,7 @@ export default function PayoutManagement() {
 
       if (!isBatchFinished(batch)) {
         alert(
-          'This payout batch cannot be archived yet. All scholars must be marked Released, Absent, or Cancelled first.'
+          'This payout batch is not ready to archive. Resolve every Pending or On Hold scholar first. Final statuses are Released, Absent, or Cancelled.'
         );
         return;
       }
@@ -836,9 +1123,20 @@ export default function PayoutManagement() {
         throw new Error(data?.message || data?.error || 'Failed to archive payout batch');
       }
 
-      await loadAll();
+      setBatches((previous) =>
+        previous.map((item) =>
+          String(item?.payout_batch_id) === String(batch.payout_batch_id)
+            ? { ...item, is_archived: true, batch_status: 'Archived' }
+            : item
+        )
+      );
+
+      setArchiveCandidate(null);
       setSelectedBatch(null);
       setActiveSection('archived');
+      setPage(1);
+
+      await loadAll();
     } catch (err) {
       console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
       alert(err.message || 'Failed to archive payout batch');
@@ -850,6 +1148,11 @@ export default function PayoutManagement() {
   const handleRestoreBatch = async (batch) => {
     try {
       if (!batch?.payout_batch_id) return;
+
+      const confirmed = window.confirm(
+        `Restore "${batch.payout_title || 'this payout batch'}" to active payout records?`
+      );
+      if (!confirmed) return;
 
       setRestoringBatchId(batch.payout_batch_id);
 
@@ -983,11 +1286,11 @@ export default function PayoutManagement() {
 
                 <p className="mt-1 text-sm text-stone-500">
                   {b.program_name || 'No Program'}
-                  {b.benefactor_name ? ` • ${b.benefactor_name}` : ''}
+                  {b.benefactor_name ? ` ${BULLET} ${b.benefactor_name}` : ''}
                 </p>
 
                 <p className="mt-1 text-xs text-stone-400">
-                  {b.school_year || b.academic_year || '—'} • {b.payout_date || '—'}
+                  {b.school_year || b.academic_year || EM_DASH} {BULLET} {formatPayoutDate(b.payout_date)}
                 </p>
               </div>
 
@@ -999,7 +1302,7 @@ export default function PayoutManagement() {
                     color: b.payment_mode === 'Cash' ? C.green : C.blue,
                   }}
                 >
-                  {b.payment_mode || '—'}
+                  {b.payment_mode || EM_DASH}
                 </Badge>
 
                 {b.is_archived ? (
@@ -1064,11 +1367,7 @@ export default function PayoutManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="flex h-[300px] items-center justify-center">
-        <Loader2 className="animate-spin text-stone-400" />
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading payout management" showStats />;
   }
 
   return (
@@ -1081,6 +1380,37 @@ export default function PayoutManagement() {
           setNewPayoutForPrompt(null);
         }}
         onCreateAnnouncement={handleCreatePayoutAnnouncementRedirect}
+      />
+
+      <ArchiveBatchModal
+        batch={archiveCandidate}
+        open={Boolean(archiveCandidate)}
+        working={
+          Boolean(archiveCandidate?.payout_batch_id) &&
+          archivingBatchId === archiveCandidate?.payout_batch_id
+        }
+        onCancel={() => {
+          if (!archivingBatchId) setArchiveCandidate(null);
+        }}
+        onConfirm={() => handleArchiveBatch(archiveCandidate)}
+      />
+
+      <PayoutStatusModal
+        candidate={statusCandidate}
+        remarks={statusRemarks}
+        checkNumber={statusCheckNumber}
+        error={statusError}
+        working={Boolean(workingEntryId)}
+        onRemarksChange={(value) => {
+          setStatusRemarks(value);
+          if (statusError) setStatusError('');
+        }}
+        onCheckNumberChange={(value) => {
+          setStatusCheckNumber(value);
+          if (statusError) setStatusError('');
+        }}
+        onCancel={closeStatusUpdate}
+        onConfirm={submitStatusUpdate}
       />
 
       <PayoutProofReviewPanel />
@@ -1186,7 +1516,7 @@ export default function PayoutManagement() {
               {sectionMeta.empty}
             </div>
           ) : (
-            <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <section className="grid gap-4 2xl:grid-cols-2">
               {pageData.map(renderBatchCard)}
             </section>
           )}
@@ -1253,7 +1583,7 @@ export default function PayoutManagement() {
                         <option value="">Select opening</option>
                         {openings.map((o) => (
                           <option key={o.opening_id} value={o.opening_id}>
-                            {o.opening_title} — {o.benefactor_name || 'No Benefactor'}
+                            {o.opening_title} {EM_DASH} {o.benefactor_name || 'No Benefactor'}
                           </option>
                         ))}
                       </select>
@@ -1262,18 +1592,18 @@ export default function PayoutManagement() {
                     <div className="grid gap-3 md:grid-cols-2">
                       <ReadOnlyField
                         label="Program"
-                        value={selectedOpeningDetails?.program_name || '—'}
+                        value={selectedOpeningDetails?.program_name || EM_DASH}
                       />
                       <ReadOnlyField
                         label="Benefactor"
-                        value={selectedOpeningDetails?.benefactor_name || '—'}
+                        value={selectedOpeningDetails?.benefactor_name || EM_DASH}
                       />
                       <ReadOnlyField
                         label="Opening Status"
                         value={
                           selectedOpeningDetails?.status ||
                           selectedOpeningDetails?.posting_status ||
-                          '—'
+                          EM_DASH
                         }
                       />
                       <ReadOnlyField
@@ -1281,7 +1611,7 @@ export default function PayoutManagement() {
                         value={
                           form.amount_per_scholar !== ''
                             ? formatMoney(form.amount_per_scholar)
-                            : '—'
+                            : EM_DASH
                         }
                       />
                     </div>
@@ -1454,7 +1784,7 @@ export default function PayoutManagement() {
                                   {s.student_name}
                                 </p>
                                 <p className="text-xs text-stone-500">
-                                  {s.pdm_id || '—'} • Batch {s.batch_year || '—'}
+                                  {s.pdm_id || EM_DASH} {BULLET} Batch {s.batch_year || EM_DASH}
                                 </p>
                               </div>
                             </div>
@@ -1506,9 +1836,9 @@ export default function PayoutManagement() {
                   {selectedBatch.payout_title || 'Payout Batch'}
                 </h2>
                 <p className="text-sm text-stone-500">
-                  {selectedBatch.program_name || 'No Program'} •{' '}
-                  {selectedBatch.benefactor_name || 'No Benefactor'} •{' '}
-                  {selectedBatch.payout_date || '—'}
+                  {selectedBatch.program_name || 'No Program'} {BULLET}{' '}
+                  {selectedBatch.benefactor_name || 'No Benefactor'} {BULLET}{' '}
+                  {formatPayoutDate(selectedBatch.payout_date)}
                 </p>
               </div>
 
@@ -1517,11 +1847,14 @@ export default function PayoutManagement() {
                   <Button
                     variant="outline"
                     className="rounded-xl border-stone-300"
-                    disabled={
-                      !isBatchFinished(selectedBatch) ||
-                      archivingBatchId === selectedBatch.payout_batch_id
-                    }
-                    onClick={() => handleArchiveBatch(selectedBatch)}
+                    disabled={archivingBatchId === selectedBatch.payout_batch_id}
+                    onClick={() => {
+                      if (!isBatchFinished(selectedBatch)) {
+                        handleArchiveBatch(selectedBatch);
+                        return;
+                      }
+                      setArchiveCandidate(selectedBatch);
+                    }}
                   >
                     {archivingBatchId === selectedBatch.payout_batch_id ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1602,7 +1935,7 @@ export default function PayoutManagement() {
                           </div>
 
                           <p className="mt-1 text-xs text-stone-500">
-                            {entry.pdm_id || '—'} • {formatMoney(entry.amount_received)}
+                            {entry.pdm_id || EM_DASH} {BULLET} {formatMoney(entry.amount_received)}
                           </p>
 
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -1638,7 +1971,7 @@ export default function PayoutManagement() {
                                 variant="outline"
                                 className={`h-8 rounded-lg text-xs ${getActionButtonClass(action.tone)}`}
                                 disabled={isWorking}
-                                onClick={() => handleStatusUpdate(entry, action.status)}
+                                onClick={() => openStatusUpdate(entry, action.status)}
                               >
                                 {isWorking ? (
                                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

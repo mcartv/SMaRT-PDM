@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { normalizeDeviceId } = require('../utils/iotOcrIdentity');
 
 function verifyPiToken(req, res, next) {
     const expectedToken = String(process.env.PI_SHARED_TOKEN || '').trim();
@@ -6,12 +7,14 @@ function verifyPiToken(req, res, next) {
 
     if (!expectedToken) {
         return res.status(500).json({
+            code: 'PI_SHARED_TOKEN_NOT_CONFIGURED',
             message: 'PI_SHARED_TOKEN is not configured',
         });
     }
 
     if (!providedToken) {
         return res.status(401).json({
+            code: 'PI_TOKEN_REQUIRED',
             message: 'Pi token is required',
         });
     }
@@ -24,15 +27,23 @@ function verifyPiToken(req, res, next) {
         !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
     ) {
         return res.status(401).json({
+            code: 'PI_TOKEN_INVALID',
             message: 'Pi token is not valid',
         });
     }
 
-    req.piAuth = {
-        deviceId: String(req.headers['x-pi-device-id'] || '').trim() || null,
-    };
+    const rawDeviceId = String(req.headers['x-pi-device-id'] || '').trim();
+    const deviceId = normalizeDeviceId(rawDeviceId);
 
-    next();
+    if (!deviceId) {
+        return res.status(400).json({
+            code: 'PI_DEVICE_ID_INVALID',
+            message: 'x-pi-device-id is required and must be a UUID',
+        });
+    }
+
+    req.piAuth = { deviceId };
+    return next();
 }
 
 module.exports = {

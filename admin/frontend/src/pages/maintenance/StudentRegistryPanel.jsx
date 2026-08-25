@@ -30,6 +30,10 @@ import ExcelJS from 'exceljs';
 
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+  MAINTENANCE_CARD_SUBTITLE_CLASS,
+  MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const API_BASE = buildApiUrl('/api');
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.csv'];
@@ -122,6 +126,134 @@ function normalizeHeaderKey(header) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+const REGISTRY_HEADER_ORDER_KEY = '__smart_pdm_header_order';
+
+const REGISTRY_HEADER_ALIASES = {
+  studentNumber: ['student number', 'student no', 'student id', 'pdm id', 'pdm no', 'pdm number'],
+  surname: ['surname', 'last name', 'family name'],
+  firstName: ['first name', 'given name', 'given names'],
+  middleName: ['middle name', 'middle initial'],
+  course: ['course', 'course code', 'degree program', 'program', 'program code', 'course/program'],
+  year: ['year level', 'year', 'level'],
+};
+
+function formatWorkbookCellValue(value) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value !== 'object') return String(value);
+  if (Array.isArray(value.richText)) {
+    return value.richText.map((part) => part?.text || '').join('');
+  }
+  if (value.result !== undefined && value.result !== null) {
+    return formatWorkbookCellValue(value.result);
+  }
+  if (value.text !== undefined && value.text !== null) {
+    return String(value.text);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function buildDisplayColumns(headerRow = [], bodyRows = []) {
+  const maxColumns = Math.max(
+    headerRow.length,
+    ...bodyRows.map((row) => (Array.isArray(row) ? row.length : 0)),
+    0
+  );
+  const seen = new Map();
+  const columns = [];
+
+  for (let index = 0; index < maxColumns; index += 1) {
+    const rawHeader = formatWorkbookCellValue(headerRow[index]).trim();
+    const columnHasData = bodyRows.some((row) =>
+      formatWorkbookCellValue(row?.[index]).trim() !== ''
+    );
+
+    if (!rawHeader && !columnHasData) continue;
+
+    const baseLabel = rawHeader || `Column ${index + 1}`;
+    const key = normalizeHeaderKey(baseLabel);
+    const occurrence = (seen.get(key) || 0) + 1;
+    seen.set(key, occurrence);
+
+    columns.push({
+      index,
+      label: occurrence === 1 ? baseLabel : `${baseLabel} (${occurrence})`,
+    });
+  }
+
+  return columns;
+}
+
+function findHeaderByAliases(headers = [], aliases = []) {
+  const wanted = new Set(aliases.map(normalizeHeaderKey));
+  return headers.find((header) => wanted.has(normalizeHeaderKey(header))) || null;
+}
+
+function getSnapshotHeaders(row = {}) {
+  const snapshot = row?.raw_snapshot;
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return [];
+
+  const ordered = snapshot[REGISTRY_HEADER_ORDER_KEY];
+  if (Array.isArray(ordered)) {
+    return ordered
+      .map((header) => String(header || '').trim())
+      .filter(Boolean);
+  }
+
+  return Object.keys(snapshot).filter((key) => key !== REGISTRY_HEADER_ORDER_KEY);
+}
+
+function buildImportedHeaders(rows = [], preferredHeaders = []) {
+  const headers = [];
+  const seen = new Set();
+  const append = (header) => {
+    const label = String(header || '').trim();
+    const normalized = normalizeHeaderKey(label);
+    if (!label || !normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    headers.push(label);
+  };
+
+  preferredHeaders.forEach(append);
+
+  [...rows]
+    .sort((left, right) => {
+      const a = new Date(left?.imported_at || 0).getTime() || 0;
+      const b = new Date(right?.imported_at || 0).getTime() || 0;
+      return b - a;
+    })
+    .forEach((row) => getSnapshotHeaders(row).forEach(append));
+
+  return headers.length ? headers : EXCEL_HEADERS_FALLBACK;
+}
+
+function buildImportedDisplayRow(row, headers) {
+  const snapshot = row?.raw_snapshot;
+  const hasSnapshot =
+    snapshot &&
+    typeof snapshot === 'object' &&
+    !Array.isArray(snapshot) &&
+    Object.keys(snapshot).some((key) => key !== REGISTRY_HEADER_ORDER_KEY);
+
+  if (!hasSnapshot) {
+    const legacy = buildBackendRowForExcelShape(row);
+    return Object.fromEntries(headers.map((header) => [header, legacy[header] ?? '']));
+  }
+
+  return Object.fromEntries(
+    headers.map((header) => [
+      header,
+      Object.prototype.hasOwnProperty.call(snapshot, header) ? snapshot[header] ?? '' : '',
+    ])
+  );
 }
 
 function parseCsvLine(line) {
@@ -593,7 +725,8 @@ export default function StudentRegistryPanel() {
   const [registry, setRegistry] = useState([]);
   const [total, setTotal] = useState(0);
 
-  const [excelHeaders, setExcelHeaders] = useState(EXCEL_HEADERS_FALLBACK);
+  const [excelHeaders, setExcelHeaders] = useState([]);
+  const [lastImportedHeaders, setLastImportedHeaders] = useState([]);
   const [excelRows, setExcelRows] = useState([]);
   const [excelSheetName, setExcelSheetName] = useState('Student Records');
   const [tableMode, setTableMode] = useState('imported');
@@ -668,7 +801,7 @@ export default function StudentRegistryPanel() {
       }
 
       worksheet.eachRow({ includeEmpty: false }, (row) => {
-        rows.push(row.values.slice(1).map((value) => (value == null ? '' : String(value))));
+        rows.push(row.values.slice(1).map(formatWorkbookCellValue));
       });
     } else {
       throw new Error('Only .xlsx and .csv files are allowed.');
@@ -678,27 +811,36 @@ export default function StudentRegistryPanel() {
       throw new Error('The uploaded file is empty.');
     }
 
-    const headers = rows[0]
-      .map((value) => String(value || '').trim())
-      .filter((value) => value !== '');
-
-    const body = rows
+    const bodyRows = rows
       .slice(1)
-      .filter((row) => Array.isArray(row) && row.some((cell) => String(cell || '').trim() !== ''))
-      .map((row) => {
-        const obj = {};
+      .filter((row) =>
+        Array.isArray(row) &&
+        row.some((cell) => formatWorkbookCellValue(cell).trim() !== '')
+      );
+    const columns = buildDisplayColumns(rows[0] || [], bodyRows);
+    const headers = columns.map((column) => column.label);
 
-        headers.forEach((header, idx) => {
-          obj[header] = row[idx] ?? '';
-        });
+    if (!headers.length) {
+      throw new Error('No usable columns were found in the uploaded file.');
+    }
 
-        return obj;
-      });
+    const body = bodyRows.map((row) =>
+      Object.fromEntries(
+        columns.map((column) => [
+          column.label,
+          formatWorkbookCellValue(row[column.index]),
+        ])
+      )
+    );
 
     setExcelSheetName(selectedFile.name);
-    setExcelHeaders(headers.length ? headers : EXCEL_HEADERS_FALLBACK);
+    setExcelHeaders(headers);
     setExcelRows(body);
     setTableMode('excel');
+    setCourseFilter('all');
+    setYearFilter('all');
+    setDraftCourseFilter('all');
+    setDraftYearFilter('all');
     setPage(1);
   };
 
@@ -726,7 +868,7 @@ export default function StudentRegistryPanel() {
   const clearSelectedFile = () => {
     setFile(null);
     setExcelRows([]);
-    setExcelHeaders(EXCEL_HEADERS_FALLBACK);
+    setExcelHeaders([]);
     setExcelSheetName('Student Records');
     setTableMode('imported');
     setPage(1);
@@ -755,6 +897,11 @@ export default function StudentRegistryPanel() {
       }
 
       await loadRegistry();
+      setLastImportedHeaders(
+        Array.isArray(data.source_headers) && data.source_headers.length
+          ? data.source_headers
+          : excelHeaders
+      );
 
       setTableMode('imported');
       setImportOpen(false);
@@ -766,102 +913,88 @@ export default function StudentRegistryPanel() {
     }
   };
 
-  const importedRowsAsExcelShape = useMemo(() => {
-    return registry.map(buildBackendRowForExcelShape);
-  }, [registry]);
+  const importedHeaders = useMemo(() => {
+    return buildImportedHeaders(registry, lastImportedHeaders);
+  }, [registry, lastImportedHeaders]);
+
+  const importedRows = useMemo(() => {
+    return registry.map((row) => buildImportedDisplayRow(row, importedHeaders));
+  }, [registry, importedHeaders]);
 
   const currentHeaders = useMemo(() => {
     if (tableMode === 'excel' && excelHeaders.length) return excelHeaders;
-    return EXCEL_HEADERS_FALLBACK;
-  }, [tableMode, excelHeaders]);
+    return importedHeaders;
+  }, [tableMode, excelHeaders, importedHeaders]);
 
   const currentRows = useMemo(() => {
-    return tableMode === 'excel' ? excelRows : importedRowsAsExcelShape;
-  }, [tableMode, excelRows, importedRowsAsExcelShape]);
+    return tableMode === 'excel' ? excelRows : importedRows;
+  }, [tableMode, excelRows, importedRows]);
 
   const courseOptions = useMemo(() => {
-    const courseHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'course'
+    const courseHeader = findHeaderByAliases(
+      currentHeaders,
+      REGISTRY_HEADER_ALIASES.course
     );
 
     if (!courseHeader) return [];
 
-    const unique = Array.from(
+    return Array.from(
       new Set(
         currentRows
           .map((row) => row[courseHeader])
           .filter((value) => String(value || '').trim() !== '')
           .map((value) => String(value).trim())
       )
-    );
-
-    return unique.sort((a, b) => a.localeCompare(b));
+    ).sort((a, b) => a.localeCompare(b));
   }, [currentHeaders, currentRows]);
 
   const yearOptions = useMemo(() => {
-    const yearHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'year level'
+    const yearHeader = findHeaderByAliases(
+      currentHeaders,
+      REGISTRY_HEADER_ALIASES.year
     );
 
     if (!yearHeader) return [];
 
-    const unique = Array.from(
+    return Array.from(
       new Set(
         currentRows
           .map((row) => row[yearHeader])
           .filter((value) => String(value || '').trim() !== '')
           .map((value) => String(value).trim())
       )
-    );
-
-    return unique.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [currentHeaders, currentRows]);
 
   const filteredRows = useMemo(() => {
     const q = normalizeText(search);
-
-    const studentNumberHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'student number'
+    const courseHeader = findHeaderByAliases(
+      currentHeaders,
+      REGISTRY_HEADER_ALIASES.course
     );
-    const surnameHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'surname'
-    );
-    const firstNameHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'first name'
-    );
-    const middleNameHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'middle name'
-    );
-    const courseHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'course'
-    );
-    const yearHeader = currentHeaders.find(
-      (header) => normalizeHeaderKey(header) === 'year level'
+    const yearHeader = findHeaderByAliases(
+      currentHeaders,
+      REGISTRY_HEADER_ALIASES.year
     );
 
     return currentRows.filter((row) => {
-      const fullName = normalizeText(
-        [
-          row[surnameHeader] || '',
-          row[firstNameHeader] || '',
-          row[middleNameHeader] || '',
-        ].join(' ')
+      const searchableText = normalizeText(
+        currentHeaders.map((header) => row[header] ?? '').join(' ')
       );
+      const courseCode = courseHeader
+        ? String(row[courseHeader] || '').trim()
+        : '';
+      const yearLevel = yearHeader
+        ? String(row[yearHeader] || '').trim()
+        : '';
 
-      const studentNumber = normalizeText(row[studentNumberHeader] || '');
-      const courseCode = String(row[courseHeader] || '').trim();
-      const yearLevel = String(row[yearHeader] || '').trim();
-
-      const matchesSearch =
-        !q ||
-        fullName.includes(q) ||
-        studentNumber.includes(q);
-
+      const matchesSearch = !q || searchableText.includes(q);
       const matchesCourse =
-        courseFilter === 'all' || courseCode === courseFilter;
-
+        courseFilter === 'all' ||
+        (courseHeader && courseCode === courseFilter);
       const matchesYear =
-        yearFilter === 'all' || yearLevel === yearFilter;
+        yearFilter === 'all' ||
+        (yearHeader && yearLevel === yearFilter);
 
       return matchesSearch && matchesCourse && matchesYear;
     });
@@ -941,10 +1074,10 @@ export default function StudentRegistryPanel() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                 Student Registry Records
-              </p>
-              <p className="mt-1 text-sm font-semibold text-stone-900">
+              </h2>
+              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                 {total} imported records · {currentRows.length} current rows
               </p>
             </div>
@@ -969,7 +1102,7 @@ export default function StudentRegistryPanel() {
                   setPage(1);
                 }}
                 className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'excel'
-                    ? 'bg-[#7c4a2e] text-white'
+                    ? 'bg-[var(--portal-base)] text-white'
                     : 'text-stone-500 hover:text-stone-700'
                   }`}
                 disabled={excelRows.length === 0}
@@ -985,7 +1118,7 @@ export default function StudentRegistryPanel() {
                   setPage(1);
                 }}
                 className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'imported'
-                    ? 'bg-[#7c4a2e] text-white'
+                    ? 'bg-[var(--portal-base)] text-white'
                     : 'text-stone-500 hover:text-stone-700'
                   }`}
               >

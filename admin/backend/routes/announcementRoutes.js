@@ -2,47 +2,48 @@ const express = require('express');
 const router = express.Router();
 
 const announcementController = require('../controllers/announcementController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get(
     '/',
-    protect,
+    ...adminOnly,
     announcementController.getAnnouncements
 );
 
 router.get(
     '/archived',
-    protect,
+    ...adminOnly,
     announcementController.getArchivedAnnouncements
 );
 
 router.post(
     '/',
-    protect,
+    ...adminOnly,
     announcementController.createAnnouncement
 );
 
 router.patch(
     '/:id',
-    protect,
+    ...adminOnly,
     announcementController.updateAnnouncement
 );
 
 router.patch(
     '/:id/publish',
-    protect,
+    ...adminOnly,
     announcementController.publishAnnouncement
 );
 
 router.patch(
     '/:id/archive',
-    protect,
+    ...adminOnly,
     announcementController.archiveAnnouncement
 );
 
 router.patch(
     '/:id/restore',
-    protect,
+    ...adminOnly,
     announcementController.restoreAnnouncement
 );
 

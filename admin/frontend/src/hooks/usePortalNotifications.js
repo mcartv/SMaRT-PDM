@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/config/api';
 import { useSocketListener } from './useSocket';
 
@@ -12,22 +12,92 @@ function normalizeNotification(raw = {}) {
     reference_id: raw.reference_id || raw.referenceId || null,
     reference_type: raw.reference_type || raw.referenceType || null,
     is_read: raw.is_read === true,
+    read_at: raw.read_at || raw.readAt || null,
     created_at: raw.created_at || raw.createdAt || null,
   };
 }
 
+
+function isEndorsementNotificationForPortal(portalRootPath, notification) {
+  const referenceType = String(notification.reference_type || '').toLowerCase();
+  if (!['endorsement_slip', 'endorsement', 'endorsement_stage'].includes(referenceType)) {
+    return false;
+  }
+
+  const descriptor = `${notification.title || ''} ${notification.message || ''}`.toLowerCase();
+
+  if (portalRootPath === '/sdo') {
+    return descriptor.includes('sdo');
+  }
+
+  if (portalRootPath === '/guidance') {
+    return descriptor.includes('guidance');
+  }
+
+  if (portalRootPath === '/pd') {
+    return descriptor.includes('pd') || descriptor.includes('program director');
+  }
+
+  return false;
+}
+
+function isRelevantPortalNotification(
+  portalRootPath,
+  notification,
+  { hasRoCoordinatorAccess = false } = {}
+) {
+  if (portalRootPath === '/admin') return true;
+
+  const referenceType = String(notification.reference_type || '').toLowerCase();
+  const type = String(notification.type || '').toLowerCase();
+
+  const common = new Set([
+    'staff_account',
+    'staff_profile',
+    'personal_reminder',
+  ]);
+
+  if (common.has(referenceType) || type === 'security' || type === 'account activity') {
+    return true;
+  }
+
+  if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
+    if (isEndorsementNotificationForPortal(portalRootPath, notification)) {
+      return true;
+    }
+  }
+
+  const roReferenceTypes = new Set([
+    'return_of_obligation',
+    'ro_time_log',
+    'ro_scholar_request',
+  ]);
+
+  if (roReferenceTypes.has(referenceType)) {
+    return (
+      hasRoCoordinatorAccess === true &&
+      ['/sdo', '/guidance', '/pd', '/ro-coordinator'].includes(portalRootPath)
+    );
+  }
+
+  return false;
+}
+
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
-    const aUnread = a.is_read !== true ? 1 : 0;
-    const bUnread = b.is_read !== true ? 1 : 0;
-    if (aUnread !== bUnread) {
-      return bUnread - aUnread;
-    }
-
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bTime - aTime;
   });
+}
+
+function isRecentNotification(notification, now = Date.now()) {
+  if (!notification?.created_at) return false;
+
+  const createdAt = new Date(notification.created_at).getTime();
+  if (Number.isNaN(createdAt)) return false;
+
+  return now - createdAt < 24 * 60 * 60 * 1000;
 }
 
 function formatNotificationTime(value) {
@@ -110,6 +180,15 @@ function buildNotificationTarget(portalRootPath, notification) {
     return `${portalRootPath}/dashboard`;
   }
 
+  if (['return_of_obligation', 'ro_time_log', 'ro_scholar_request'].includes(referenceType)) {
+    if (portalRootPath === '/admin') return '/admin/obligations';
+    if (portalRootPath === '/ro-coordinator') return '/ro-coordinator/queue';
+    if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
+      return `${portalRootPath}/ro-requests`;
+    }
+    return `${portalRootPath}/dashboard`;
+  }
+
   return null;
 }
 
@@ -119,20 +198,103 @@ export default function usePortalNotifications({
   limit = 8,
 }) {
   const [items, setItems] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const knownNotificationIdsRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
+  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+  const [sectionNow, setSectionNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setSectionNow(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const syncItems = useCallback((updater) => {
     setItems((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
-      return sortNotifications(next);
+      const sorted = sortNotifications(next);
+      knownNotificationIdsRef.current = new Set(
+        sorted.map((item) => item.notification_id).filter(Boolean)
+      );
+      return sorted;
     });
   }, []);
+
+  const loadUnreadCount = useCallback(async () => {
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token) {
+      setUnreadCount(0);
+      return null;
+    }
+
+    try {
+      const response = await fetch(buildApiUrl('/api/notifications/unread-count'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to load unread count.');
+      }
+
+      const nextCount = Math.max(0, Number(payload?.unreadCount ?? payload?.count ?? 0) || 0);
+      setUnreadCount(nextCount);
+      return nextCount;
+    } catch (error) {
+      console.error('NOTIFICATION UNREAD COUNT ERROR:', error);
+      return null;
+    }
+  }, [tokenStorageKey]);
+
+  const loadRoCoordinatorAccess = useCallback(async () => {
+    if (portalRootPath === '/admin') {
+      setHasRoCoordinatorAccess(false);
+      return;
+    }
+
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token) {
+      setHasRoCoordinatorAccess(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(buildApiUrl('/api/accounts/me'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to resolve RO access.');
+      }
+
+      setHasRoCoordinatorAccess(payload?.data?.has_ro_coordinator_access === true);
+    } catch (error) {
+      console.error('NOTIFICATION RO CAPABILITY CHECK ERROR:', error);
+      setHasRoCoordinatorAccess(false);
+    }
+  }, [portalRootPath, tokenStorageKey]);
+
+  useEffect(() => {
+    loadRoCoordinatorAccess();
+  }, [loadRoCoordinatorAccess]);
 
   const loadNotifications = useCallback(async () => {
     const token = sessionStorage.getItem(tokenStorageKey);
     if (!token) {
       setItems([]);
+      knownNotificationIdsRef.current = new Set();
+      setUnreadCount(0);
       setLoading(false);
       return;
     }
@@ -152,14 +314,33 @@ export default function usePortalNotifications({
       }
 
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      setItems(sortNotifications(rows.map(normalizeNotification)));
+      const normalized = rows
+        .map(normalizeNotification)
+        .filter((item) =>
+          isRelevantPortalNotification(portalRootPath, item, {
+            hasRoCoordinatorAccess,
+          })
+        );
+      syncItems(normalized);
+
+      const exactUnreadCount = await loadUnreadCount();
+      if (exactUnreadCount === null) {
+        setUnreadCount(normalized.filter((item) => item.is_read !== true).length);
+      }
     } catch (error) {
       console.error('NOTIFICATION LOAD ERROR:', error);
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [limit, tokenStorageKey]);
+  }, [
+    hasRoCoordinatorAccess,
+    limit,
+    loadUnreadCount,
+    portalRootPath,
+    syncItems,
+    tokenStorageKey,
+  ]);
 
   useEffect(() => {
     loadNotifications();
@@ -171,6 +352,19 @@ export default function usePortalNotifications({
 
       const token = sessionStorage.getItem(tokenStorageKey);
       if (!token) return;
+
+      const wasUnread = items.some(
+        (item) => item.notification_id === notificationId && item.is_read !== true
+      );
+
+      syncItems((current) =>
+        current.map((item) =>
+          item.notification_id === notificationId ? { ...item, is_read: true } : item
+        )
+      );
+      if (wasUnread) {
+        setUnreadCount((current) => Math.max(0, current - 1));
+      }
 
       try {
         const response = await fetch(buildApiUrl(`/api/notifications/${notificationId}/read`), {
@@ -194,9 +388,75 @@ export default function usePortalNotifications({
         );
       } catch (error) {
         console.error('MARK NOTIFICATION READ ERROR:', error);
+        if (wasUnread) {
+          syncItems((current) =>
+            current.map((item) =>
+              item.notification_id === notificationId ? { ...item, is_read: false } : item
+            )
+          );
+          setUnreadCount((current) => current + 1);
+        }
       }
     },
-    [syncItems, tokenStorageKey]
+    [items, syncItems, tokenStorageKey]
+  );
+
+  const markAsUnread = useCallback(
+    async (notificationId) => {
+      if (!notificationId) return;
+
+      const token = sessionStorage.getItem(tokenStorageKey);
+      if (!token) return;
+
+      const previous = items.find((item) => item.notification_id === notificationId) || null;
+      const wasRead = previous?.is_read === true;
+
+      syncItems((current) =>
+        current.map((item) =>
+          item.notification_id === notificationId
+            ? { ...item, is_read: false, read_at: null }
+            : item
+        )
+      );
+      if (wasRead) {
+        setUnreadCount((current) => current + 1);
+      }
+
+      try {
+        const response = await fetch(buildApiUrl(`/api/notifications/${notificationId}/unread`), {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload?.error || payload?.message || 'Failed to mark notification as unread.');
+        }
+
+        const updated = normalizeNotification(payload?.notification || {});
+        syncItems((current) =>
+          current.map((item) =>
+            item.notification_id === updated.notification_id ? { ...item, ...updated } : item
+          )
+        );
+      } catch (error) {
+        console.error('MARK NOTIFICATION UNREAD ERROR:', error);
+        if (wasRead) {
+          syncItems((current) =>
+            current.map((item) =>
+              item.notification_id === notificationId
+                ? { ...item, is_read: true, read_at: previous?.read_at || null }
+                : item
+            )
+          );
+          setUnreadCount((current) => Math.max(0, current - 1));
+        }
+      }
+    },
+    [items, syncItems, tokenStorageKey]
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -219,6 +479,7 @@ export default function usePortalNotifications({
       }
 
       syncItems((current) => current.map((item) => ({ ...item, is_read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error('MARK ALL NOTIFICATIONS READ ERROR:', error);
     } finally {
@@ -229,15 +490,37 @@ export default function usePortalNotifications({
   useSocketListener({
     'notification:created': (raw) => {
       const next = normalizeNotification(raw);
+      if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
+
+      const wasKnown = knownNotificationIdsRef.current.has(next.notification_id);
+      if (next.notification_id) {
+        knownNotificationIdsRef.current.add(next.notification_id);
+      }
+
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );
+
+      if (!wasKnown && next.is_read !== true) {
+        setUnreadCount((current) => current + 1);
+      }
     },
     'notification:new': (raw) => {
       const next = normalizeNotification(raw);
+      if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
+
+      const wasKnown = knownNotificationIdsRef.current.has(next.notification_id);
+      if (next.notification_id) {
+        knownNotificationIdsRef.current.add(next.notification_id);
+      }
+
       syncItems((current) =>
         [next, ...current.filter((item) => item.notification_id !== next.notification_id)].slice(0, limit)
       );
+
+      if (!wasKnown && next.is_read !== true) {
+        setUnreadCount((current) => current + 1);
+      }
     },
     'notification:updated': (raw) => {
       const next = normalizeNotification(raw?.notification || raw);
@@ -246,29 +529,28 @@ export default function usePortalNotifications({
           item.notification_id === next.notification_id ? { ...item, ...next } : item
         )
       );
+      void loadUnreadCount();
     },
     'notification:read-all': () => {
       syncItems((current) => current.map((item) => ({ ...item, is_read: true })));
+      setUnreadCount(0);
     },
     'notification:deleted': (raw) => {
       const targetId = raw?.notificationId || raw?.notification_id;
+      knownNotificationIdsRef.current.delete(targetId);
       syncItems((current) => current.filter((item) => item.notification_id !== targetId));
+      void loadUnreadCount();
     },
   });
 
-  const unreadCount = useMemo(
-    () => items.filter((item) => item.is_read !== true).length,
-    [items]
-  );
-
   const newNotifications = useMemo(
-    () => items.filter((item) => item.is_read !== true),
-    [items]
+    () => items.filter((item) => isRecentNotification(item, sectionNow)),
+    [items, sectionNow]
   );
 
   const earlierNotifications = useMemo(
-    () => items.filter((item) => item.is_read === true),
-    [items]
+    () => items.filter((item) => !isRecentNotification(item, sectionNow)),
+    [items, sectionNow]
   );
 
   const openNotification = useCallback(
@@ -309,6 +591,7 @@ export default function usePortalNotifications({
     markingAll,
     reloadNotifications: loadNotifications,
     markAsRead,
+    markAsUnread,
     markAllAsRead,
     openNotification,
     formatNotificationTime,

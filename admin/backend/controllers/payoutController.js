@@ -368,7 +368,6 @@ exports.archivePayoutBatch = async (req, res) => {
         });
 
         emitPayoutBatchRealtime(req, row?.batch || row, 'archived');
-        emitPayoutBatchRealtime(req, row?.batch || row, 'updated');
 
         await writePayoutAudit(
             req,
@@ -408,7 +407,6 @@ exports.restorePayoutBatch = async (req, res) => {
         const batch = row?.batch || row;
 
         emitPayoutBatchRealtime(req, batch, 'restored');
-        emitPayoutBatchRealtime(req, batch, 'updated');
 
         await writePayoutAudit(
             req,

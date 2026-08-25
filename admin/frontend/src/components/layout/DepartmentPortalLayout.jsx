@@ -5,6 +5,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -17,6 +18,10 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
+import { buildApiUrl } from '../../api';
+import { clearPortalSession } from '../../utils/authStorage';
+import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -40,10 +45,16 @@ function getInitials(profile, fallback) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+function readStoredProfile(storageKey) {
+  try {
+    return JSON.parse(sessionStorage.getItem(storageKey) || '{}');
+  } catch {
+    return null;
+  }
+}
+
 export default function DepartmentPortalLayout({
   portalKey,
-  title,
-  subtitle,
   officeName,
   loginPath,
   dashboardPath,
@@ -52,19 +63,25 @@ export default function DepartmentPortalLayout({
   profileStorageKey,
   colors,
   queuePath = '',
+  queueLabel = 'For Endorsement',
   trackerPath = '',
   reportsPath = '',
   maintenancePath = '',
+  roQueuePath = '',
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
   const { theme } = usePortalTheme(portalKey, colors);
+  const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
 
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => readStoredProfile(profileStorageKey));
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
+  const headerGreeting = useHeaderGreeting(profile);
   const {
     notifications,
     newNotifications,
@@ -77,10 +94,45 @@ export default function DepartmentPortalLayout({
     formatNotificationTime,
   } = usePortalNotifications({
     tokenStorageKey,
-    portalRootPath: `/${portalKey}`,
+    portalRootPath,
   });
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useSocketEvent('profile:updated', (payload) => {
+    const incoming = payload?.profile || payload?.account || null;
+    if (!incoming) return;
+
+    const current = readStoredProfile(profileStorageKey) || {};
+    if (payload?.user_id && current?.user_id && String(payload.user_id) !== String(current.user_id)) {
+      return;
+    }
+
+    const merged = { ...current, ...incoming };
+    sessionStorage.setItem(profileStorageKey, JSON.stringify(merged));
+    setProfile(merged);
+  }, [profileStorageKey]);
+
+  useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      if (event.detail?.profileStorageKey !== profileStorageKey) return;
+      setProfile(event.detail?.profile || readStoredProfile(profileStorageKey));
+    };
+
+    window.addEventListener('portal-profile:updated', handleProfileUpdated);
+    return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
+  }, [profileStorageKey]);
+
+  useEffect(() => {
+    const handleSessionInvalidated = (event) => {
+      if (event.detail?.portalName && event.detail.portalName !== portalKey) return;
+      clearPortalSession(portalKey);
+      navigate(loginPath, { replace: true });
+    };
+
+    window.addEventListener('portal-session:invalidated', handleSessionInvalidated);
+    return () => window.removeEventListener('portal-session:invalidated', handleSessionInvalidated);
+  }, [loginPath, navigate, portalKey]);
 
   useEffect(() => {
     const handleMessageUnread = (event) => {
@@ -100,12 +152,34 @@ export default function DepartmentPortalLayout({
       return;
     }
 
-    try {
-      setProfile(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}'));
-    } catch {
-      setProfile(null);
-    }
   }, [loginPath, navigate, profileStorageKey, tokenStorageKey]);
+
+  useEffect(() => {
+    if (!roQueuePath) return undefined;
+
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token) return undefined;
+
+    const controller = new AbortController();
+    fetch(buildApiUrl('/api/accounts/me'), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          setHasRoCoordinatorAccess(false);
+          return;
+        }
+
+        const data = await response.json();
+        setHasRoCoordinatorAccess(data?.data?.has_ro_coordinator_access === true);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setHasRoCoordinatorAccess(false);
+      });
+
+    return () => controller.abort();
+  }, [roQueuePath, tokenStorageKey]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -147,26 +221,37 @@ export default function DepartmentPortalLayout({
       replace: true,
       state: {
         ...(location.state || {}),
-        refreshAt: Date.now(),
+        refreshAt: event.timeStamp,
       },
     });
   };
 
   const profileImage = resolveProfileImage(profile);
   const displayName = profile?.name || officeName;
-  const displayPosition = profile?.position || title;
+  const displayPosition = profile?.position || officeName;
+  const portalDisplayName = portalKey === 'pd'
+    ? 'PD'
+    : portalKey
+      .split('_')
+      .map((part) => part.toLowerCase() === 'ro'
+        ? 'RO'
+        : part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   const navItems = [
     { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
-    ...(queuePath ? [{ path: queuePath, label: 'My Queue', icon: FileText }] : []),
+    ...(queuePath ? [{ path: queuePath, label: queueLabel, icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
-    ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
+    ...(roQueuePath && hasRoCoordinatorAccess
+      ? [{ path: roQueuePath, label: 'RO Requests', icon: ClipboardCheck }]
+      : []),
+    ...(maintenancePath ? [{ path: maintenancePath, label: 'Settings', icon: Settings }] : []),
   ];
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="portal-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -198,7 +283,7 @@ export default function DepartmentPortalLayout({
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight text-white">
-                PDM · {portalKey.toUpperCase()}
+                PDM · {portalDisplayName}
               </p>
               <p className="truncate text-[11px]" style={{ color: theme.sub }}>
                 {officeName}
@@ -262,16 +347,9 @@ export default function DepartmentPortalLayout({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold leading-tight text-stone-800">{title}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="truncate text-[11px] text-stone-500">{subtitle}</p>
-              <span
-                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
-                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
-              >
-                {theme.label}
-              </span>
-            </div>
+            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
+              {headerGreeting}
+            </h1>
           </div>
 
           <div className="flex items-center gap-3">
@@ -291,7 +369,7 @@ export default function DepartmentPortalLayout({
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
                   <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -301,11 +379,11 @@ export default function DepartmentPortalLayout({
                         >
                           <Bell className="h-4 w-4" />
                         </div>
-                        <p className="text-sm font-semibold text-stone-900">Notifications</p>
+                        <p className="text-base font-semibold text-stone-900">Notifications</p>
                       </div>
                       {unreadCount > 0 ? (
                         <span
-                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
                           style={{ background: theme.accentSoft, color: theme.base }}
                         >
                           {unreadCount} New
@@ -318,7 +396,7 @@ export default function DepartmentPortalLayout({
                       <>
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: theme.accentSoft }}>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
                               New
                             </p>
                           </div>
@@ -331,31 +409,35 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className="w-full border-b border-stone-100 border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
-                            style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
+                            style={item.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-900">
+                              <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {item.title || 'Notification'}
                               </p>
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                                style={{ background: theme.base, color: '#fff' }}
-                              >
-                                New
-                              </span>
+                              {item.is_read !== true ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={{ background: theme.base, color: '#fff' }}
+                                >
+                                  New
+                                </span>
+                              ) : null}
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-600">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {item.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(item.created_at)}
                             </p>
                           </button>
                         ))}
                         {earlierNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
                               Earlier
                             </p>
                           </div>
@@ -368,24 +450,27 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${item.is_read !== true ? 'border-l-4' : ''}`}
+                            style={item.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-800">
+                              <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {item.title || 'Notification'}
                               </p>
                             </div>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {item.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(item.created_at)}
                             </p>
                           </button>
                         ))}
                       </>
                     ) : (
-                      <div className="p-8 text-center text-xs text-stone-400">
+                      <div className="p-8 text-center text-sm text-stone-400">
                         {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
                       </div>
                     )}
@@ -396,7 +481,7 @@ export default function DepartmentPortalLayout({
                         type="button"
                         onClick={markAllAsRead}
                         disabled={markingAll || unreadCount === 0}
-                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
                       </button>
@@ -415,16 +500,30 @@ export default function DepartmentPortalLayout({
 
             <button
               type="button"
-              onClick={() => navigate(profilePath || dashboardPath)}
+              onClick={(event) => {
+                if (profileImage && event.target.closest('[data-profile-preview-target="true"]')) {
+                  setProfilePhotoPreviewOpen(true);
+                  return;
+                }
+                navigate(profilePath || dashboardPath);
+              }}
               className="group flex cursor-pointer items-center gap-2.5 rounded-full border border-stone-200 bg-white py-1.5 pl-1.5 pr-2 shadow-sm transition hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)]"
               title="Open Profile"
             >
               {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={displayName}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
-                />
+                <span
+                  data-profile-preview-target="true"
+                  className="relative shrink-0 rounded-full outline-none ring-offset-2 transition hover:ring-2 hover:ring-[var(--portal-border)]"
+                  title="Preview profile photo"
+                  aria-label={`Preview ${displayName} profile photo`}
+                >
+                  <img
+                    data-profile-preview-target="true"
+                    src={profileImage}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
+                  />
+                </span>
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
@@ -451,6 +550,13 @@ export default function DepartmentPortalLayout({
       </div>
 
       <AdminMessages tokenStorageKey={tokenStorageKey} portalKey={portalKey} />
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={profileImage}
+        name={`${displayName} profile photo`}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const db = require('../config/db');
 const notificationService = require('./notificationService');
 
 const APPROVED_APPLICATION_STATUSES = ['Approved', 'Approved Scholar', 'Accepted'];
@@ -144,6 +145,28 @@ function getUserId(user = {}) {
     return user?.userId || user?.user_id || user?.id || user?.sub || null;
 }
 
+async function getCurrentAcademicPeriod() {
+    const { data, error } = await supabase
+        .from('academic_period')
+        .select('period_id, academic_year_id, term, is_active')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
+
+    if (!data) {
+        throw createHttpError(
+            409,
+            'No current academic semester is active. Set the current semester in Maintenance > Academic Years.'
+        );
+    }
+
+    return data;
+}
+
 async function getApprovedApplicationForStudent(studentId, payload = {}) {
     if (!studentId) {
         throw createHttpError(400, 'Student ID is required.');
@@ -191,12 +214,45 @@ async function getApprovedApplicationForStudent(studentId, payload = {}) {
     return data;
 }
 
-async function getROByApplication(studentId, applicationId) {
+async function getROByApplication(studentId, applicationId, periodId = null) {
+    const currentPeriod =
+        periodId
+            ? { period_id: periodId }
+            : await getCurrentAcademicPeriod();
+
     const { data, error } = await supabase
         .from('return_of_obligations')
         .select('*')
         .eq('student_id', studentId)
         .eq('application_id', applicationId)
+        .eq('period_id', currentPeriod.period_id)
+        .maybeSingle();
+
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
+
+    return data || null;
+}
+
+async function getActivePlacementForRO(roId) {
+    if (!roId) return null;
+
+    const { data, error } = await supabase
+        .from('ro_placements')
+        .select(`
+            placement_id,
+            ro_id,
+            ro_area_id,
+            coordinator_assignment_id,
+            placement_status,
+            created_at,
+            updated_at
+        `)
+        .eq('ro_id', roId)
+        .in('placement_status', ['Pending', 'Approved'])
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
     if (error) {
@@ -280,6 +336,7 @@ async function getLogsForROIds(roIds) {
         .select(`
       log_id,
       ro_id,
+      placement_id,
       student_id,
       time_in_at,
       time_out_at,
@@ -289,6 +346,10 @@ async function getLogsForROIds(roIds) {
       validated_minutes,
       validation_status,
       validation_remarks,
+      department_validation_status,
+      department_validation_remarks,
+      department_validated_by,
+      department_validated_at,
       validated_by,
       validated_at,
       auto_timed_out,
@@ -413,6 +474,9 @@ function serializeLog(log = {}) {
         ro_id: log.ro_id,
         roId: log.ro_id,
 
+        placement_id: log.placement_id || null,
+        placementId: log.placement_id || null,
+
         student_id: log.student_id,
         studentId: log.student_id,
 
@@ -439,6 +503,15 @@ function serializeLog(log = {}) {
 
         validation_remarks: log.validation_remarks || '',
         validationRemarks: log.validation_remarks || '',
+
+        department_validation_status: log.department_validation_status || 'Pending',
+        departmentValidationStatus: log.department_validation_status || 'Pending',
+        department_validation_remarks: log.department_validation_remarks || '',
+        departmentValidationRemarks: log.department_validation_remarks || '',
+        department_validated_by: log.department_validated_by || null,
+        departmentValidatedBy: log.department_validated_by || null,
+        department_validated_at: log.department_validated_at || null,
+        departmentValidatedAt: log.department_validated_at || null,
 
         validated_by: log.validated_by || null,
         validatedBy: log.validated_by || null,
@@ -504,19 +577,21 @@ async function syncRoTotals(roId, user = {}) {
         .reduce((sum, log) => sum + toNumber(log.validated_minutes), 0);
 
     const requiredMinutes = toNumber(ro.required_hours) * 60;
-    const shouldClear = requiredMinutes > 0 && validatedMinutes >= requiredMinutes;
+    const readyForOsfaClearance =
+        requiredMinutes > 0 && validatedMinutes >= requiredMinutes;
     const now = new Date().toISOString();
-    const adminUserId = getUserId(user);
 
     let progressStatus = 'Not Started';
     let assignmentStatus = null;
 
-    if (shouldClear || ro.ro_status === 'Cleared') {
+    // Department validation makes the record eligible for OSFA clearance.
+    // It must never clear the obligation automatically; only OSFA/Admin may do that.
+    if (ro.ro_status === 'Cleared') {
         progressStatus = 'Cleared';
         assignmentStatus = 'Cleared';
     } else if (submittedMinutes <= 0) {
         progressStatus = 'Not Started';
-    } else if (requiredMinutes > 0 && submittedMinutes >= requiredMinutes) {
+    } else if (readyForOsfaClearance || (requiredMinutes > 0 && submittedMinutes >= requiredMinutes)) {
         progressStatus = 'For Validation';
         assignmentStatus = 'For Validation';
     } else {
@@ -535,14 +610,6 @@ async function syncRoTotals(roId, user = {}) {
         updatePayload.assignment_status = assignmentStatus;
     }
 
-    if (shouldClear) {
-        updatePayload.ro_status = 'Cleared';
-        updatePayload.assignment_status = 'Cleared';
-        updatePayload.progress_status = 'Cleared';
-        updatePayload.cleared_at = now;
-        updatePayload.cleared_by = adminUserId || null;
-    }
-
     const { data, error } = await supabase
         .from('return_of_obligations')
         .update(updatePayload)
@@ -557,7 +624,7 @@ async function syncRoTotals(roId, user = {}) {
     return data;
 }
 
-async function resolveAssignedDepartmentName(value) {
+async function resolveAssignedDepartment(value) {
     const departmentName = cleanText(value);
 
     if (!departmentName) {
@@ -582,7 +649,178 @@ async function resolveAssignedDepartmentName(value) {
         throw createHttpError(400, 'Selected RO department is inactive.');
     }
 
-    return data.department_name;
+    return data;
+}
+
+async function getPlacementsForROIds(roIds) {
+    const ids = [...new Set(roIds.filter(Boolean))];
+    if (!ids.length) return new Map();
+
+    const { data, error } = await supabase
+        .from('ro_placements')
+        .select(`
+          placement_id,
+          ro_id,
+          ro_area_id,
+          placement_status,
+          admin_remarks,
+          coordinator_remarks,
+          requested_at,
+          decided_at,
+          ro_departments (
+            department_name
+          )
+        `)
+        .in('ro_id', ids)
+        .order('created_at', { ascending: true });
+
+    if (error) throw createHttpError(500, error.message);
+
+    const map = new Map();
+    for (const placement of data || []) {
+        const current = map.get(placement.ro_id) || [];
+        current.push({
+            placement_id: placement.placement_id,
+            ro_area_id: placement.ro_area_id,
+            assigned_area: placement.ro_departments?.department_name || '',
+            placement_status: placement.placement_status,
+            admin_remarks: placement.admin_remarks || null,
+            coordinator_remarks: placement.coordinator_remarks || null,
+            requested_at: placement.requested_at || null,
+            decided_at: placement.decided_at || null,
+        });
+        map.set(placement.ro_id, current);
+    }
+    return map;
+}
+
+async function findRoCoordinator(department) {
+    const result = await db.query(
+        `
+        SELECT
+          rac.coordinator_assignment_id,
+          rac.user_id,
+          ap.first_name,
+          ap.last_name,
+          rd.department_id,
+          rd.department_name AS department,
+          ap.position
+        FROM ro_area_coordinators rac
+        JOIN ro_departments rd
+          ON rd.department_id = rac.ro_area_id
+        JOIN admin_profiles ap
+          ON ap.user_id = rac.user_id
+        WHERE rac.ro_area_id = $1
+          AND rac.is_active = true
+          AND rd.is_active = true
+          AND COALESCE(ap.is_archived, false) = false
+        LIMIT 1
+        `,
+        [department.department_id]
+    );
+    const coordinator = result.rows[0];
+
+    if (!coordinator?.user_id) {
+        throw createHttpError(
+            400,
+            `No active RO Coordinator is assigned to ${department.department_name}. Assign a coordinator first.`
+        );
+    }
+    return coordinator;
+}
+
+async function getCurrentPlacement(roId, roAreaId) {
+    const { data: current, error: currentError } = await supabase
+        .from('ro_placements')
+        .select('placement_id, placement_status')
+        .eq('ro_id', roId)
+        .eq('ro_area_id', roAreaId)
+        .in('placement_status', ['Pending', 'Approved'])
+        .limit(1)
+        .maybeSingle();
+
+    if (currentError) {
+        throw createHttpError(500, currentError.message);
+    }
+
+    return current || null;
+}
+
+async function createPlacementRequest({
+    roId,
+    department,
+    coordinator,
+    adminUserId,
+    remarks,
+    currentPlacement = null,
+}) {
+    const current =
+        currentPlacement ||
+        (await getCurrentPlacement(roId, department.department_id));
+
+    if (current?.placement_status === 'Approved') {
+        throw createHttpError(
+            409,
+            `${department.department_name} is already an approved placement for this obligation.`
+        );
+    }
+
+    const now = new Date().toISOString();
+    const payload = {
+        coordinator_assignment_id: coordinator.coordinator_assignment_id,
+        placement_status: 'Pending',
+        admin_remarks: cleanText(remarks) || null,
+        coordinator_remarks: null,
+        requested_by_user_id: adminUserId,
+        requested_at: now,
+        decided_by_user_id: null,
+        decided_at: null,
+        updated_at: now,
+    };
+
+    if (current?.placement_id) {
+        const { data, error } = await supabase
+            .from('ro_placements')
+            .update(payload)
+            .eq('placement_id', current.placement_id)
+            .select()
+            .single();
+
+        if (error) throw createHttpError(500, error.message);
+        return data;
+    }
+
+    const { data, error } = await supabase
+        .from('ro_placements')
+        .insert({
+            ro_id: roId,
+            ro_area_id: department.department_id,
+            ...payload,
+            created_at: now,
+        })
+        .select()
+        .single();
+
+    if (error) throw createHttpError(500, error.message);
+    return data;
+}
+
+async function sendCoordinatorRequestNotification({ coordinator, roId, student, assignedArea }) {
+    if (!coordinator?.user_id || typeof notificationService?.createUserNotification !== 'function') return null;
+    try {
+        return await notificationService.createUserNotification({
+            userId: coordinator.user_id,
+            type: 'Return of Obligation',
+            title: 'RO approval request',
+            message: `Admin sent an RO request for ${fullName(student) || 'a scholar'} to ${assignedArea}. Review the request in your RO Coordinator queue.`,
+            referenceId: roId,
+            referenceType: 'return_of_obligation',
+            createdAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('RO COORDINATOR NOTIFICATION ERROR:', error.message || error);
+        return null;
+    }
 }
 
 async function getStudentForRoNotice(studentId) {
@@ -710,6 +948,441 @@ async function sendRoTimeLogValidationNotification({
     }
 }
 
+async function getScholarObligationHistory(studentId) {
+    if (!studentId) {
+        throw createHttpError(400, 'Student ID is required.');
+    }
+
+    const { data: student, error: studentError } = await supabase
+        .from('students')
+        .select(`
+            student_id,
+            pdm_id,
+            first_name,
+            middle_name,
+            last_name,
+            profile_photo_url
+        `)
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (studentError) {
+        throw createHttpError(500, studentError.message);
+    }
+
+    if (!student) {
+        throw createHttpError(404, 'Scholar not found.');
+    }
+
+    const { data: roRows, error: roError } = await supabase
+        .from('return_of_obligations')
+        .select(`
+            ro_id,
+            student_id,
+            application_id,
+            opening_id,
+            program_id,
+            academic_year_id,
+            period_id,
+            ro_status,
+            cleared_at,
+            cleared_by,
+            remarks,
+            created_at,
+            updated_at,
+            setting_id,
+            required_hours,
+            progress_status,
+            submitted_progress,
+            ro_progress,
+            submitted_minutes,
+            validated_minutes,
+            assigned_area,
+            assignment_status,
+            assignment_acknowledged_at,
+            conflict_reason,
+            assigned_by,
+            assigned_at,
+            coordinator_status,
+            coordinator_remarks,
+            coordinator_user_id,
+            coordinator_decided_at
+        `)
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
+
+    if (roError) {
+        throw createHttpError(500, roError.message);
+    }
+
+    const obligations = roRows || [];
+
+    const studentPayload = {
+        student_id: student.student_id,
+        pdm_id: student.pdm_id || '',
+        name: fullName(student),
+        avatar_url: await resolveAvatarUrl(student.profile_photo_url),
+    };
+
+    if (!obligations.length) {
+        return {
+            student: studentPayload,
+            history: [],
+        };
+    }
+
+    const periodIds = [
+        ...new Set(
+            obligations
+                .map((row) => row.period_id)
+                .filter(Boolean)
+        ),
+    ];
+
+    let periods = [];
+
+    if (periodIds.length) {
+        const { data, error } = await supabase
+            .from('academic_period')
+            .select(`
+                period_id,
+                academic_year_id,
+                term,
+                is_active,
+                activated_at,
+                created_at,
+                updated_at
+            `)
+            .in('period_id', periodIds);
+
+        if (error) {
+            throw createHttpError(500, error.message);
+        }
+
+        periods = data || [];
+    }
+
+    const periodMap = new Map(
+        periods.map((period) => [
+            String(period.period_id),
+            period,
+        ])
+    );
+
+    const academicYearIds = [
+        ...new Set(
+            [
+                ...periods.map((period) => period.academic_year_id),
+                ...obligations.map((row) => row.academic_year_id),
+            ].filter(Boolean)
+        ),
+    ];
+
+    let academicYears = [];
+
+    if (academicYearIds.length) {
+        const { data, error } = await supabase
+            .from('academic_years')
+            .select(`
+                academic_year_id,
+                start_year,
+                end_year,
+                label
+            `)
+            .in('academic_year_id', academicYearIds);
+
+        if (error) {
+            throw createHttpError(500, error.message);
+        }
+
+        academicYears = data || [];
+    }
+
+    const academicYearMap = new Map(
+        academicYears.map((year) => [
+            String(year.academic_year_id),
+            year,
+        ])
+    );
+
+    const roIds = obligations
+        .map((row) => row.ro_id)
+        .filter(Boolean);
+
+    const [logsByRo, placementsByRo] = await Promise.all([
+        getLogsForROIds(roIds),
+        getPlacementsForROIds(roIds),
+    ]);
+
+    const semesterRank = (value) => {
+        const normalized = normalizeText(value);
+
+        if (normalized.includes('second')) return 2;
+        if (normalized.includes('first')) return 1;
+        if (normalized.includes('summer')) return 3;
+
+        return 0;
+    };
+
+    const history = obligations.map((ro) => {
+        const period =
+            periodMap.get(String(ro.period_id || '')) || {};
+
+        const academicYearId =
+            period.academic_year_id ||
+            ro.academic_year_id ||
+            null;
+
+        const academicYear =
+            academicYearMap.get(String(academicYearId || '')) || {};
+
+        const academicYearLabel =
+            cleanText(academicYear.label) ||
+            (
+                academicYear.start_year && academicYear.end_year
+                    ? `${academicYear.start_year}-${academicYear.end_year}`
+                    : ''
+            );
+
+        const placements =
+            placementsByRo.get(ro.ro_id) || [];
+
+        const approvedPlacement = placements.find(
+            (placement) =>
+                normalizeText(placement.placement_status) === 'approved'
+        );
+
+        const activePlacement =
+            approvedPlacement ||
+            placements.find((placement) => {
+                const status = normalizeText(
+                    placement.placement_status
+                );
+
+                return (
+                    status === 'pending' ||
+                    status === 'approved'
+                );
+            });
+
+        const logs = (logsByRo.get(ro.ro_id) || []).map(
+            serializeLog
+        );
+
+        const requiredMinutes =
+            Math.max(0, toNumber(ro.required_hours) * 60);
+
+        const submittedMinutes =
+            Math.max(0, toNumber(ro.submitted_minutes));
+
+        const validatedMinutes =
+            Math.max(0, toNumber(ro.validated_minutes));
+
+        const submittedProgress =
+            ro.submitted_progress != null
+                ? Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        toNumber(ro.submitted_progress)
+                    )
+                )
+                : percentFromMinutes(
+                    submittedMinutes,
+                    requiredMinutes
+                );
+
+        const validatedProgress =
+            ro.ro_progress != null
+                ? Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        toNumber(ro.ro_progress)
+                    )
+                )
+                : percentFromMinutes(
+                    validatedMinutes,
+                    requiredMinutes
+                );
+
+        const isCleared =
+            isClearedStatus(ro.ro_status) ||
+            isClearedStatus(ro.assignment_status);
+
+        const assignedArea =
+            activePlacement?.assigned_area ||
+            cleanText(ro.assigned_area) ||
+            '';
+
+        const proofCount = logs.reduce(
+            (total, log) =>
+                total +
+                (
+                    Array.isArray(log.proofs)
+                        ? log.proofs.length
+                        : 0
+                ),
+            0
+        );
+
+        return {
+            ro_id: ro.ro_id,
+            roId: ro.ro_id,
+
+            student_id: ro.student_id,
+            studentId: ro.student_id,
+
+            application_id: ro.application_id,
+            applicationId: ro.application_id,
+
+            opening_id: ro.opening_id,
+            openingId: ro.opening_id,
+
+            program_id: ro.program_id,
+            programId: ro.program_id,
+
+            academic_year_id: academicYearId,
+            academicYearId: academicYearId,
+
+            period_id: ro.period_id,
+            periodId: ro.period_id,
+
+            academic_year: academicYearLabel,
+            academicYear: academicYearLabel,
+
+            semester: cleanText(period.term),
+
+            is_current_period: period.is_active === true,
+            isCurrentPeriod: period.is_active === true,
+
+            required_hours: toNumber(ro.required_hours),
+            requiredHours: toNumber(ro.required_hours),
+
+            required_minutes: requiredMinutes,
+            requiredMinutes,
+
+            submitted_minutes: submittedMinutes,
+            submittedMinutes,
+
+            validated_minutes: validatedMinutes,
+            validatedMinutes,
+
+            submitted_progress: submittedProgress,
+            submittedProgress,
+
+            validated_progress: validatedProgress,
+            validatedProgress,
+
+            ro_progress: validatedProgress,
+
+            ro_status: ro.ro_status || 'Pending',
+            roStatus: ro.ro_status || 'Pending',
+
+            progress_status:
+                ro.progress_status || 'Not Started',
+            progressStatus:
+                ro.progress_status || 'Not Started',
+
+            assignment_status:
+                ro.assignment_status || 'Unassigned',
+            assignmentStatus:
+                ro.assignment_status || 'Unassigned',
+
+            assigned_area: assignedArea,
+            assignedArea,
+
+            remarks: cleanText(ro.remarks),
+
+            conflict_reason:
+                cleanText(ro.conflict_reason),
+            conflictReason:
+                cleanText(ro.conflict_reason),
+
+            cleared_at: ro.cleared_at || null,
+            clearedAt: ro.cleared_at || null,
+
+            cleared_by: ro.cleared_by || null,
+            clearedBy: ro.cleared_by || null,
+
+            assigned_at: ro.assigned_at || null,
+            assignedAt: ro.assigned_at || null,
+
+            assignment_acknowledged_at:
+                ro.assignment_acknowledged_at || null,
+            assignmentAcknowledgedAt:
+                ro.assignment_acknowledged_at || null,
+
+            created_at: ro.created_at || null,
+            createdAt: ro.created_at || null,
+
+            updated_at: ro.updated_at || null,
+            updatedAt: ro.updated_at || null,
+
+            is_cleared: isCleared,
+            isCleared,
+
+            placements,
+
+            logs,
+
+            log_count: logs.length,
+            logCount: logs.length,
+
+            proof_count: proofCount,
+            proofCount,
+        };
+    });
+
+    history.sort((a, b) => {
+        if (a.is_current_period !== b.is_current_period) {
+            return a.is_current_period ? -1 : 1;
+        }
+
+        const aStartYear =
+            Number(
+                String(
+                    a.academic_year || ''
+                ).split('-')[0]
+            ) || 0;
+
+        const bStartYear =
+            Number(
+                String(
+                    b.academic_year || ''
+                ).split('-')[0]
+            ) || 0;
+
+        if (aStartYear !== bStartYear) {
+            return bStartYear - aStartYear;
+        }
+
+        const semesterDifference =
+            semesterRank(b.semester) -
+            semesterRank(a.semester);
+
+        if (semesterDifference !== 0) {
+            return semesterDifference;
+        }
+
+        const aCreated =
+            Date.parse(a.created_at || '') || 0;
+
+        const bCreated =
+            Date.parse(b.created_at || '') || 0;
+
+        return bCreated - aCreated;
+    });
+
+    return {
+        student: studentPayload,
+        history,
+    };
+}
+
+exports.getScholarObligationHistory =
+    getScholarObligationHistory;
+
 async function sendRoClearanceNotification({ studentId, ro }) {
     try {
         if (typeof notificationService?.createUserNotification !== 'function') {
@@ -737,23 +1410,35 @@ async function sendRoClearanceNotification({ studentId, ro }) {
 }
 
 exports.getSummary = async () => {
-    const [{ data: roRows, error: roError }, { data: logs, error: logError }] =
-        await Promise.all([
-            supabase
-                .from('return_of_obligations')
-                .select('ro_status, assignment_status, progress_status'),
-            supabase
-                .from('ro_time_logs')
-                .select('validation_status')
-                .eq('validation_status', 'Pending Validation'),
-        ]);
+    const currentPeriod = await getCurrentAcademicPeriod();
+
+    const { data: roRows, error: roError } = await supabase
+        .from('return_of_obligations')
+        .select('ro_id, ro_status, assignment_status, progress_status')
+        .eq('period_id', currentPeriod.period_id);
 
     if (roError) {
         throw createHttpError(500, roError.message);
     }
 
-    if (logError) {
-        throw createHttpError(500, logError.message);
+    const currentRoIds = (roRows || [])
+        .map((row) => row.ro_id)
+        .filter(Boolean);
+
+    let pendingLogs = [];
+
+    if (currentRoIds.length > 0) {
+        const { data: logs, error: logError } = await supabase
+            .from('ro_time_logs')
+            .select('log_id, validation_status')
+            .in('ro_id', currentRoIds)
+            .eq('validation_status', 'Pending Validation');
+
+        if (logError) {
+            throw createHttpError(500, logError.message);
+        }
+
+        pendingLogs = logs || [];
     }
 
     const summary = {
@@ -763,8 +1448,11 @@ exports.getSummary = async () => {
         inProgress: 0,
         forValidation: 0,
         cleared: 0,
-        pendingLogs: logs?.length || 0,
+        pendingLogs: pendingLogs.length,
         total: roRows?.length || 0,
+        periodId: currentPeriod.period_id,
+        academicYearId: currentPeriod.academic_year_id,
+        term: currentPeriod.term,
     };
 
     for (const row of roRows || []) {
@@ -790,6 +1478,8 @@ exports.getSummary = async () => {
 };
 
 exports.getROScholars = async (filters = {}) => {
+    const currentPeriod = await getCurrentAcademicPeriod();
+
     const {
         search = '',
         courseId = 'all',
@@ -926,6 +1616,8 @@ exports.getROScholars = async (filters = {}) => {
               application_id,
               opening_id,
               program_id,
+              academic_year_id,
+              period_id,
               ro_status,
               cleared_at,
               cleared_by,
@@ -944,9 +1636,14 @@ exports.getROScholars = async (filters = {}) => {
               assignment_acknowledged_at,
               conflict_reason,
               assigned_by,
-              assigned_at
+              assigned_at,
+              coordinator_status,
+              coordinator_remarks,
+              coordinator_user_id,
+              coordinator_decided_at
             `)
                     .in('application_id', applicationIds)
+                    .eq('period_id', currentPeriod.period_id)
                 : Promise.resolve({ data: [], error: null }),
         ]);
 
@@ -1011,7 +1708,11 @@ exports.getROScholars = async (filters = {}) => {
         }
     }
 
-    const logsByRo = await getLogsForROIds(roRows.map((row) => row.ro_id));
+    const roIds = roRows.map((row) => row.ro_id);
+    const [logsByRo, placementsByRo] = await Promise.all([
+        getLogsForROIds(roIds),
+        getPlacementsForROIds(roIds),
+    ]);
 
     const searchNeedle = normalizeText(search);
 
@@ -1027,8 +1728,20 @@ exports.getROScholars = async (filters = {}) => {
             const opening = openingMap.get(app.opening_id) || {};
             const ro = roByApplication.get(app.application_id) || null;
             const logs = ro?.ro_id ? logsByRo.get(ro.ro_id) || [] : [];
+            const placements = ro?.ro_id ? placementsByRo.get(ro.ro_id) || [] : [];
+            const latestPlacement = placements.at(-1) || null;
+            const placementAreaById = new Map(
+                placements.map((placement) => [
+                    placement.placement_id,
+                    placement.assigned_area || '',
+                ])
+            );
 
-            const serializedLogs = logs.map(serializeLog);
+            const serializedLogs = logs.map((log) => ({
+                ...serializeLog(log),
+                assigned_area: placementAreaById.get(log.placement_id) || '',
+                assignedArea: placementAreaById.get(log.placement_id) || '',
+            }));
             const pendingLogs = serializedLogs.filter(
                 (log) => log.validationStatus === 'Pending Validation'
             );
@@ -1126,6 +1839,24 @@ exports.getROScholars = async (filters = {}) => {
                 assigned_at: ro?.assigned_at || null,
                 assignedAt: ro?.assigned_at || null,
 
+                coordinator_status:
+                    latestPlacement?.placement_status ||
+                    ro?.coordinator_status ||
+                    (ro ? 'Approved' : null),
+                coordinatorStatus:
+                    latestPlacement?.placement_status ||
+                    ro?.coordinator_status ||
+                    (ro ? 'Approved' : null),
+                coordinator_remarks:
+                    latestPlacement?.coordinator_remarks || ro?.coordinator_remarks || null,
+                coordinatorRemarks:
+                    latestPlacement?.coordinator_remarks || ro?.coordinator_remarks || null,
+                coordinator_decided_at:
+                    latestPlacement?.decided_at || ro?.coordinator_decided_at || null,
+                coordinatorDecidedAt:
+                    latestPlacement?.decided_at || ro?.coordinator_decided_at || null,
+                placements,
+
                 logs: serializedLogs,
                 pending_log_count: pendingLogs.length,
                 pendingLogCount: pendingLogs.length,
@@ -1186,32 +1917,88 @@ exports.getROScholars = async (filters = {}) => {
     return finalRows;
 };
 
-async function getActiveRoSettingForAssignments() {
+async function getActiveRoSettingForAssignments(currentPeriod = null) {
+    const period = currentPeriod || await getCurrentAcademicPeriod();
+
     const { data, error } = await supabase
         .from('ro_settings')
-        .select('setting_id, required_hours, allow_carry_over, is_active')
+        .select(`
+          setting_id,
+          academic_year_id,
+          period_id,
+          required_hours,
+          allow_carry_over,
+          is_active,
+          updated_at
+        `)
         .eq('is_active', true)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('updated_at', { ascending: false });
 
     if (error) {
         throw createHttpError(500, error.message);
     }
 
-    return data || {
-        setting_id: null,
-        required_hours: 20,
-        allow_carry_over: true,
-        is_active: true,
+    const settings = data || [];
+    const selected =
+        settings.find((row) => row.period_id === period.period_id) ||
+        settings.find(
+            (row) =>
+                !row.period_id &&
+                row.academic_year_id === period.academic_year_id
+        ) ||
+        settings.find(
+            (row) => !row.period_id && !row.academic_year_id
+        ) ||
+        settings[0] ||
+        null;
+
+    if (!selected) {
+        throw createHttpError(
+            409,
+            'Configure and activate the required hours in Maintenance > Obligation before sending an RO request.'
+        );
+    }
+
+    const requiredHours = toNumber(selected.required_hours);
+
+    if (requiredHours <= 0) {
+        throw createHttpError(
+            409,
+            'The active RO setting must have required hours greater than zero.'
+        );
+    }
+
+    return {
+        ...selected,
+        required_hours: requiredHours,
     };
 }
 
 exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
-    const application = await getApprovedApplicationForStudent(studentId, payload);
-    const existingRO = await getROByApplication(studentId, application.application_id);
+    const currentPeriod = await getCurrentAcademicPeriod();
+    const application = await getApprovedApplicationForStudent(
+        studentId,
+        payload
+    );
+    const existingRO = await getROByApplication(
+        studentId,
+        application.application_id,
+        currentPeriod.period_id
+    );
+    if (existingRO?.ro_id) {
+        const activePlacement = await getActivePlacementForRO(
+            existingRO.ro_id
+        );
+
+        if (activePlacement) {
+            throw createHttpError(
+                409,
+                'This scholar is already assigned to an RO area for the current semester. Cancel or reject the existing placement before assigning another one.'
+            );
+        }
+    }
     const student = await getStudentForRoNotice(studentId);
-    const activeRoSetting = await getActiveRoSettingForAssignments();
+    const activeRoSetting = await getActiveRoSettingForAssignments(currentPeriod);
 
     if (existingRO?.ro_status === 'Cleared') {
         throw createHttpError(400, 'This scholar already has a cleared RO record.');
@@ -1220,13 +2007,28 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     const now = new Date().toISOString();
     const adminUserId = getUserId(user);
 
-    const assignedDepartmentName = await resolveAssignedDepartmentName(
+    const assignedDepartment = await resolveAssignedDepartment(
         payload.assignedArea || payload.assigned_area
     );
+    const assignedDepartmentName = assignedDepartment.department_name;
+    const coordinator = await findRoCoordinator(assignedDepartment);
+    const currentPlacement = existingRO?.ro_id
+        ? await getCurrentPlacement(
+            existingRO.ro_id,
+            assignedDepartment.department_id
+        )
+        : null;
+
+    if (currentPlacement?.placement_status === 'Approved') {
+        throw createHttpError(
+            409,
+            `${assignedDepartmentName} is already an approved placement for this obligation.`
+        );
+    }
 
     const requiredHours = Math.max(
         0,
-        toNumber(activeRoSetting?.required_hours ?? 20)
+        toNumber(activeRoSetting.required_hours)
     );
 
     const assignmentPayload = {
@@ -1234,14 +2036,19 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         application_id: application.application_id,
         opening_id: application.opening_id || payload.openingId || payload.opening_id || null,
         program_id: application.program_id || payload.programId || payload.program_id || null,
+        academic_year_id: currentPeriod.academic_year_id,
+        period_id: currentPeriod.period_id,
 
-        ro_status: 'Pending',
         required_hours: requiredHours,
 
         assigned_area: assignedDepartmentName,
         remarks: cleanText(payload.remarks) || null,
 
-        assignment_status: 'Assigned',
+        assignment_status: 'Pending Coordinator Approval',
+        coordinator_status: 'Pending',
+        coordinator_remarks: null,
+        coordinator_user_id: null,
+        coordinator_decided_at: null,
         assignment_acknowledged_at: null,
         conflict_reason: null,
         assigned_by: adminUserId,
@@ -1252,9 +2059,34 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     let assignment;
 
     if (existingRO?.ro_id) {
+        const preserveActivePlacement =
+            ['Assigned', 'Acknowledged', 'In Progress', 'For Validation'].includes(
+                existingRO.assignment_status
+            );
         const { data, error } = await supabase
             .from('return_of_obligations')
-            .update(assignmentPayload)
+            .update({
+                assigned_area: preserveActivePlacement
+                    ? existingRO.assigned_area
+                    : assignedDepartmentName,
+                remarks: cleanText(payload.remarks) || existingRO.remarks || null,
+                assignment_status: preserveActivePlacement
+                    ? existingRO.assignment_status
+                    : 'Pending Coordinator Approval',
+                coordinator_status: preserveActivePlacement ? 'Approved' : 'Pending',
+                coordinator_remarks: preserveActivePlacement
+                    ? existingRO.coordinator_remarks
+                    : null,
+                coordinator_user_id: preserveActivePlacement
+                    ? existingRO.coordinator_user_id
+                    : null,
+                coordinator_decided_at: preserveActivePlacement
+                    ? existingRO.coordinator_decided_at
+                    : null,
+                academic_year_id: currentPeriod.academic_year_id,
+                period_id: currentPeriod.period_id,
+                updated_at: now,
+            })
             .eq('ro_id', existingRO.ro_id)
             .select()
             .single();
@@ -1269,6 +2101,7 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
             .from('return_of_obligations')
             .insert({
                 ...assignmentPayload,
+                ro_status: 'Pending',
                 setting_id: activeRoSetting?.setting_id || null,
                 created_at: now,
             })
@@ -1282,7 +2115,17 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         assignment = data;
     }
 
-    const notification = await sendRoAssignmentNotification({
+    const placement = await createPlacementRequest({
+        roId: assignment.ro_id,
+        department: assignedDepartment,
+        coordinator,
+        adminUserId,
+        remarks: payload.remarks,
+        currentPlacement,
+    });
+
+    const notification = await sendCoordinatorRequestNotification({
+        coordinator,
         student,
         roId: assignment.ro_id,
         assignedArea: assignedDepartmentName,
@@ -1290,9 +2133,15 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
 
     return {
         message: existingRO?.ro_id
-            ? 'RO assignment updated and notice sent to scholar.'
-            : 'RO assignment created and notice sent to scholar.',
+            ? 'RO request updated and sent to the assigned coordinator.'
+            : 'RO request created and sent to the assigned coordinator.',
         assignment,
+        placement,
+        coordinator: {
+            user_id: coordinator.user_id,
+            name: fullName(coordinator),
+            department: coordinator.department,
+        },
         notification,
     };
 };
@@ -1337,6 +2186,8 @@ exports.batchAssignScholarsRO = async (payload = {}, user = {}) => {
                 student_id: studentId,
                 ro_id: result?.assignment?.ro_id || null,
                 message: result?.message || 'Assigned successfully.',
+                coordinator: result?.coordinator || null,
+                notification: result?.notification || null,
             });
         } catch (error) {
             failed.push({
@@ -1349,8 +2200,8 @@ exports.batchAssignScholarsRO = async (payload = {}, user = {}) => {
     return {
         message:
             failed.length === 0
-                ? 'Batch RO assignment completed successfully.'
-                : 'Batch RO assignment completed with some failed records.',
+                ? 'Batch RO requests sent successfully.'
+                : 'Batch RO requests completed with some failed records.',
         total: studentIds.length,
         success_count: successful.length,
         failed_count: failed.length,
@@ -1359,110 +2210,11 @@ exports.batchAssignScholarsRO = async (payload = {}, user = {}) => {
     };
 };
 
-exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
-    if (!logId) {
-        throw createHttpError(400, 'Time log ID is required.');
-    }
-
-    const validationStatus = cleanText(
-        payload.validationStatus || payload.validation_status
+exports.validateTimeLog = async () => {
+    throw createHttpError(
+        409,
+        'RO attendance evidence must be validated by the assigned department head. OSFA/Admin can only perform the final clearance after department validation.'
     );
-
-    if (!['Approved', 'Rejected'].includes(validationStatus)) {
-        throw createHttpError(
-            400,
-            'Validation status must be Approved or Rejected.'
-        );
-    }
-
-    const { data: existingLog, error: existingError } = await supabase
-        .from('ro_time_logs')
-        .select('*')
-        .eq('log_id', logId)
-        .maybeSingle();
-
-    if (existingError) {
-        throw createHttpError(500, existingError.message);
-    }
-
-    if (!existingLog) {
-        throw createHttpError(404, 'Time log not found.');
-    }
-
-    const { data: beforeRo, error: beforeRoError } = await supabase
-        .from('return_of_obligations')
-        .select('ro_id, ro_status')
-        .eq('ro_id', existingLog.ro_id)
-        .maybeSingle();
-
-    if (beforeRoError) {
-        throw createHttpError(500, beforeRoError.message);
-    }
-
-    const wasAlreadyCleared = beforeRo?.ro_status === 'Cleared';
-
-    const durationMinutes = toNumber(existingLog.duration_minutes);
-
-    const requestedValidatedMinutes = toNumber(
-        payload.validatedMinutes ?? payload.validated_minutes ?? durationMinutes
-    );
-
-    const validatedMinutes =
-        validationStatus === 'Approved'
-            ? Math.min(durationMinutes, Math.max(0, requestedValidatedMinutes))
-            : 0;
-
-    const now = new Date().toISOString();
-    const adminUserId = getUserId(user);
-
-    const { data: log, error: updateError } = await supabase
-        .from('ro_time_logs')
-        .update({
-            validation_status: validationStatus,
-            validated_minutes: validatedMinutes,
-            validation_remarks:
-                cleanText(
-                    payload.remarks ||
-                    payload.validationRemarks ||
-                    payload.validation_remarks
-                ) || null,
-            validated_by: adminUserId,
-            validated_at: now,
-            updated_at: now,
-        })
-        .eq('log_id', logId)
-        .select()
-        .single();
-
-    if (updateError) {
-        throw createHttpError(500, updateError.message);
-    }
-
-    const ro = await syncRoTotals(existingLog.ro_id, user);
-
-    const validationNotification = await sendRoTimeLogValidationNotification({
-        studentId: existingLog.student_id,
-        log,
-        validationStatus,
-        validatedMinutes,
-    });
-
-    let clearanceNotification = null;
-
-    if (!wasAlreadyCleared && ro?.ro_status === 'Cleared') {
-        clearanceNotification = await sendRoClearanceNotification({
-            studentId: existingLog.student_id,
-            ro,
-        });
-    }
-
-    return {
-        message: `Time log ${validationStatus.toLowerCase()}.`,
-        log,
-        ro,
-        notification: validationNotification,
-        clearanceNotification,
-    };
 };
 
 exports.reviewTimeLogProof = async (proofId, payload = {}, user = {}) => {
@@ -1514,9 +2266,152 @@ exports.reviewTimeLogProof = async (proofId, payload = {}, user = {}) => {
     };
 };
 
+exports.getScholarRequests = async (query = {}) => {
+    const status = cleanText(query.status);
+    const search = cleanText(query.search);
+    const allowedStatuses = [
+        'Pending',
+        'Acknowledged',
+        'Fulfilled',
+        'Declined',
+        'Cancelled',
+    ];
+    const statusFilter = allowedStatuses.includes(status) ? status : null;
+
+    const result = await db.query(
+        `SELECT
+           rsr.request_id,
+           rsr.ro_area_id,
+           rd.department_name AS assigned_area,
+           rsr.requested_scholar_count,
+           rsr.purpose,
+           rsr.preferred_date,
+           rsr.request_status,
+           rsr.admin_remarks,
+           rsr.requested_by_user_id,
+           CONCAT_WS(' ', ap.first_name, ap.last_name) AS requested_by_name,
+           rsr.handled_by_user_id,
+           rsr.handled_at,
+           rsr.created_at,
+           rsr.updated_at
+         FROM ro_scholar_requests rsr
+         JOIN ro_departments rd ON rd.department_id = rsr.ro_area_id
+         LEFT JOIN admin_profiles ap ON ap.user_id = rsr.requested_by_user_id
+         WHERE ($1::text IS NULL OR rsr.request_status = $1)
+           AND (
+             $2::text = ''
+             OR CONCAT_WS(
+               ' ',
+               rd.department_name,
+               rsr.purpose,
+               ap.first_name,
+               ap.last_name
+             ) ILIKE '%' || $2 || '%'
+           )
+         ORDER BY
+           CASE rsr.request_status
+             WHEN 'Pending' THEN 0
+             WHEN 'Acknowledged' THEN 1
+             ELSE 2
+           END,
+           rsr.created_at DESC`,
+        [statusFilter, search]
+    );
+
+    return {
+        items: result.rows,
+        pending_count: result.rows.filter((item) => item.request_status === 'Pending').length,
+    };
+};
+
+exports.updateScholarRequest = async (requestId, payload = {}, user = {}) => {
+    const status = cleanText(payload.status || payload.requestStatus || payload.request_status);
+    const remarks = cleanText(payload.remarks || payload.adminRemarks || payload.admin_remarks);
+    const allowedStatuses = ['Acknowledged', 'Fulfilled', 'Declined'];
+
+    if (!allowedStatuses.includes(status)) {
+        throw createHttpError(400, 'Choose Acknowledged, Fulfilled, or Declined.');
+    }
+    if (status === 'Declined' && !remarks) {
+        throw createHttpError(400, 'Admin remarks are required when declining a request.');
+    }
+
+    const result = await db.query(
+        `UPDATE ro_scholar_requests
+         SET request_status = $1,
+             admin_remarks = $2,
+             handled_by_user_id = $3,
+             handled_at = now(),
+             updated_at = now()
+         WHERE request_id = $4
+           AND request_status IN ('Pending', 'Acknowledged')
+         RETURNING *`,
+        [status, remarks || null, getUserId(user), requestId]
+    );
+
+    if (!result.rows.length) {
+        throw createHttpError(404, 'This active scholar request is unavailable.');
+    }
+
+    return {
+        message: `Scholar request marked as ${status.toLowerCase()}.`,
+        request: result.rows[0],
+    };
+};
+
 exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
+    const currentPeriod = await getCurrentAcademicPeriod();
     const application = await getApprovedApplicationForStudent(studentId, payload);
-    const existingRO = await getROByApplication(studentId, application.application_id);
+    const existingRO = await getROByApplication(
+        studentId,
+        application.application_id,
+        currentPeriod.period_id
+    );
+
+    if (!existingRO?.ro_id) {
+        throw createHttpError(409, 'Assign and complete the required RO workflow before clearing this scholar.');
+    }
+
+    const { data: clearanceLogs, error: clearanceLogsError } = await supabase
+        .from('ro_time_logs')
+        .select('log_id, log_status, duration_minutes, validated_minutes, validation_status, department_validation_status')
+        .eq('ro_id', existingRO.ro_id);
+
+    if (clearanceLogsError) {
+        throw createHttpError(500, clearanceLogsError.message);
+    }
+
+    const completedLogs = (clearanceLogs || []).filter(
+        (log) => log.log_status === 'Timed Out'
+    );
+    const departmentApprovedLogs = completedLogs.filter(
+        (log) => log.department_validation_status === 'Approved'
+    );
+    const pendingDepartmentLogs = completedLogs.filter(
+        (log) => !log.department_validation_status || log.department_validation_status === 'Pending'
+    );
+    const departmentValidatedMinutes = departmentApprovedLogs.reduce(
+        (sum, log) => sum + toNumber(log.validated_minutes || log.duration_minutes),
+        0
+    );
+    const requiredMinutes = toNumber(existingRO.required_hours) * 60;
+
+    if (!completedLogs.length) {
+        throw createHttpError(409, 'The scholar has no completed RO attendance logs to clear.');
+    }
+
+    // Returned evidence is intentionally excluded. The scholar may submit a
+    // replacement log; the old returned record remains in the audit trail.
+    if (pendingDepartmentLogs.length > 0) {
+        throw createHttpError(409, 'The department head must decide all pending attendance evidence before OSFA can clear this scholar.');
+    }
+
+    if (requiredMinutes <= 0 || departmentValidatedMinutes < requiredMinutes) {
+        throw createHttpError(
+            409,
+            `Department-validated time is incomplete (${departmentValidatedMinutes} of ${requiredMinutes} required minutes).`
+        );
+    }
 
     const now = new Date().toISOString();
     const adminUserId = getUserId(user);
@@ -1561,7 +2456,7 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
             ...updatePayload,
             required_hours: Math.max(
                 0,
-                toNumber(activeRoSetting?.required_hours ?? 20)
+                toNumber(activeRoSetting.required_hours)
             ),
             setting_id: activeRoSetting?.setting_id || null,
             created_at: now,
@@ -1578,3 +2473,4 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
         clearance: data,
     };
 };
+

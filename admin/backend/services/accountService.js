@@ -5,12 +5,13 @@ const supabase = require('../config/supabase');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const { extractAvatarStoragePath, resolveAvatarUrl } = require('./avatarService');
 const pdCourseAssignmentService = require('./pdCourseAssignmentService');
+const adminSessionService = require('./adminSessionService');
 
 const ROLE_CONFIG = {
     admin: {
         dbRole: 'Admin',
         department: 'Office for Scholarship and Financial Assistance (OSFA)',
-        position: 'OSFA Administrator',
+        position: 'OSFA Coordinator',
     },
     pd: {
         dbRole: 'Admin',
@@ -20,12 +21,17 @@ const ROLE_CONFIG = {
     guidance: {
         dbRole: 'Admin',
         department: 'Guidance and Counseling Office',
-        position: 'Guidance Staff',
+        position: 'Guidance Counselor',
     },
     sdo: {
         dbRole: 'SDO',
         department: 'Student Welfare and Development Office',
-        position: 'SDO Officer',
+        position: 'Student Discipline Officer',
+    },
+    ro_coordinator: {
+        dbRole: 'Admin',
+        department: '',
+        position: 'RO Coordinator',
     },
 };
 
@@ -39,27 +45,59 @@ const DEPARTMENTS_BY_ROLE = {
     ],
     guidance: ['Guidance and Counseling Office'],
     sdo: ['Student Welfare and Development Office'],
+    ro_coordinator: [],
 };
 
 const ROLE_VALUES = Object.keys(ROLE_CONFIG);
+const OPERATIONAL_ROLE_VALUES = ['pd', 'guidance', 'sdo', 'ro_coordinator'];
+
+const passwordSchema = z
+    .string()
+    .min(8, 'Password must be at least 8 characters.')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+    .regex(/[0-9]/, 'Password must contain at least one number.');
+
+const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
+const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
+const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
+const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
+const optionalPhoneNumberSchema = z
+    .string()
+    .trim()
+    .refine((value) => !value || PHONE_NUMBER_PATTERN.test(value), {
+        message: PHONE_NUMBER_ERROR,
+    })
+    .refine((value) => !value || !REPEATING_PHONE_NUMBER_PATTERN.test(value), {
+        message: REPEATING_PHONE_NUMBER_ERROR,
+    })
+    .optional()
+    .default('');
 
 const staffAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
         last_name: z.string().trim().min(1, 'Last name is required.'),
         email: z.string().trim().toLowerCase().email('A valid email address is required.'),
-        phone_number: z.string().trim().optional().default(''),
-        role: z.enum(['admin', 'pd', 'guidance', 'sdo'], {
-            error: 'Invalid role selected.',
+        phone_number: optionalPhoneNumberSchema,
+        role: z.enum(OPERATIONAL_ROLE_VALUES, {
+            error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
         }),
         department: z.string().trim().optional().default(''),
-        position: z.string().trim().optional().default(''),
-        password: z
-            .string()
-            .min(8, 'Password must be at least 8 characters.')
-            .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
-            .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
-            .regex(/[0-9]/, 'Password must contain at least one number.'),
+        password: passwordSchema,
+        confirm_password: z.string(),
+    })
+    .refine((data) => data.password === data.confirm_password, {
+        path: ['confirm_password'],
+        message: 'Passwords do not match.',
+    });
+
+const adminAccountSchema = z
+    .object({
+        first_name: z.string().trim().min(1, 'First name is required.'),
+        last_name: z.string().trim().min(1, 'Last name is required.'),
+        email: z.string().trim().toLowerCase().email('A valid email address is required.'),
+        password: passwordSchema,
         confirm_password: z.string(),
     })
     .refine((data) => data.password === data.confirm_password, {
@@ -77,6 +115,20 @@ function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+function validateOptionalPhoneNumber(value) {
+    const phoneNumber = safeText(value);
+
+    if (phoneNumber && !PHONE_NUMBER_PATTERN.test(phoneNumber)) {
+        throw createHttpError(400, PHONE_NUMBER_ERROR);
+    }
+
+    if (phoneNumber && REPEATING_PHONE_NUMBER_PATTERN.test(phoneNumber)) {
+        throw createHttpError(400, REPEATING_PHONE_NUMBER_ERROR);
+    }
+
+    return phoneNumber || null;
+}
+
 function validateDepartment(role, value) {
     const department = safeText(value);
     const allowedDepartments = DEPARTMENTS_BY_ROLE[role] || [];
@@ -85,11 +137,128 @@ function validateDepartment(role, value) {
         throw createHttpError(400, 'Select a department or office.');
     }
 
+    if (role === 'ro_coordinator') {
+        return department;
+    }
+
     if (!allowedDepartments.includes(department)) {
         throw createHttpError(400, 'The selected department or office is not valid for this role.');
     }
 
     return department;
+}
+
+async function validateRoCoordinatorDepartment(department, client = db) {
+    const result = await client.query(
+        `SELECT department_name FROM ro_departments WHERE department_name = $1 AND is_active = true LIMIT 1`,
+        [department]
+    );
+
+    if (!result.rows.length) {
+        throw createHttpError(400, 'Select an active RO department, office, or faculty area.');
+    }
+
+    return result.rows[0].department_name;
+}
+
+async function assertRoCoordinatorAreaAvailable(department, excludedUserId = null, client = db) {
+    const result = await client.query(
+        `
+        SELECT rac.user_id
+        FROM ro_area_coordinators rac
+        JOIN ro_departments rd ON rd.department_id = rac.ro_area_id
+        WHERE LOWER(TRIM(rd.department_name)) = LOWER(TRIM($1))
+          AND rac.is_active = true
+          AND ($2::uuid IS NULL OR rac.user_id <> $2::uuid)
+        LIMIT 1
+        `,
+        [department, excludedUserId]
+    );
+
+    if (result.rows.length) {
+        throw createHttpError(409, 'This RO Area already has an active coordinator.');
+    }
+}
+
+async function syncStandaloneRoCoordinatorAssignment({
+    userId,
+    department,
+    actorUserId = null,
+    active = true,
+    client = db,
+}) {
+    await client.query(
+        `UPDATE ro_area_coordinators
+         SET is_active = false, archived_at = now(), updated_at = now()
+         WHERE user_id = $1 AND is_active = true`,
+        [userId]
+    );
+
+    if (!active) return;
+
+    const areaResult = await client.query(
+        `SELECT department_id
+         FROM ro_departments
+         WHERE LOWER(TRIM(department_name)) = LOWER(TRIM($1))
+           AND is_active = true
+         LIMIT 1`,
+        [department]
+    );
+    const areaId = areaResult.rows[0]?.department_id;
+    if (!areaId) {
+        throw createHttpError(400, 'Select an active RO Area.');
+    }
+
+    const existingResult = await client.query(
+        `SELECT coordinator_assignment_id
+         FROM ro_area_coordinators
+         WHERE ro_area_id = $1 AND user_id = $2
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [areaId, userId]
+    );
+
+    if (existingResult.rows.length) {
+        await client.query(
+            `UPDATE ro_area_coordinators
+             SET is_active = true,
+                 assigned_by_user_id = $2,
+                 assigned_at = now(),
+                 archived_at = NULL,
+                 updated_at = now()
+             WHERE coordinator_assignment_id = $1`,
+            [existingResult.rows[0].coordinator_assignment_id, actorUserId]
+        );
+    } else {
+        await client.query(
+            `INSERT INTO ro_area_coordinators (
+               ro_area_id, user_id, assigned_by_user_id
+             )
+             VALUES ($1, $2, $3)`,
+            [areaId, userId, actorUserId]
+        );
+    }
+}
+
+async function assertNoPendingRoRequests(department, client = db) {
+    const result = await client.query(
+        `
+        SELECT COUNT(*)::int AS pending_count
+        FROM ro_placements rp
+        JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
+        WHERE LOWER(TRIM(rd.department_name)) = LOWER(TRIM($1))
+          AND rp.placement_status = 'Pending'
+        `,
+        [department]
+    );
+
+    const pendingCount = Number(result.rows[0]?.pending_count || 0);
+    if (pendingCount > 0) {
+        throw createHttpError(
+            409,
+            `This RO Coordinator still has ${pendingCount} pending request${pendingCount === 1 ? '' : 's'}. Resolve or reassign them first.`
+        );
+    }
 }
 
 function validatePassword(password, confirmPassword) {
@@ -162,17 +331,42 @@ function mapStaffAccount(row) {
     };
 }
 
+async function hasActiveRoCoordinatorAssignment(userId, client = db) {
+    if (!userId) return false;
+
+    const result = await client.query(
+        `SELECT 1
+         FROM ro_area_coordinators rac
+         JOIN ro_departments rd
+           ON rd.department_id = rac.ro_area_id
+          AND rd.is_active = true
+         WHERE rac.user_id = $1
+           AND rac.is_active = true
+         LIMIT 1`,
+        [userId]
+    );
+
+    return result.rows.length > 0;
+}
+
 async function decorateStaffAccount(row, client = db) {
     const account = mapStaffAccount(row);
-    const assignedCourses = account.role === 'pd'
-        ? await pdCourseAssignmentService.getAssignmentsForUser(account.user_id, client)
-        : [];
+    const canHoldRoCoordinatorAssignment = ['pd', 'sdo', 'guidance', 'ro_coordinator'].includes(account.role);
+    const [assignedCourses, hasRoCoordinatorAccess] = await Promise.all([
+        account.role === 'pd'
+            ? pdCourseAssignmentService.getAssignmentsForUser(account.user_id, client)
+            : [],
+        canHoldRoCoordinatorAssignment
+            ? hasActiveRoCoordinatorAssignment(account.user_id, client)
+            : Promise.resolve(false),
+    ]);
 
     return {
         ...account,
         avatar_url: await resolveAvatarUrl(account.profile_photo_url),
         assigned_courses: assignedCourses,
         course_ids: assignedCourses.map((course) => course.course_id),
+        has_ro_coordinator_access: hasRoCoordinatorAccess,
     };
 }
 
@@ -283,33 +477,30 @@ async function getCurrentStaffProfile(userId) {
     const row = await fetchStaffAccountRow(userId, db, false);
 
     if (!row) {
-        throw createHttpError(404, 'Staff profile not found.');
+        throw createHttpError(404, 'Account profile not found.');
     }
 
     return decorateStaffAccount(row);
 }
 
-async function createStaffAccount(payload, actorUserId = null) {
-    const parsed = staffAccountSchema.safeParse(payload);
-
-    if (!parsed.success) {
-        const firstIssue = parsed.error.issues[0];
-        throw createHttpError(400, firstIssue?.message || 'Invalid staff account details.');
-    }
-
+async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUserId = null) {
     const {
         first_name: firstName,
         last_name: lastName,
         email,
-        phone_number: phoneNumberInput,
+        phone_number: phoneNumberInput = '',
         role,
         password,
-    } = parsed.data;
+    } = parsedData;
 
     const config = ROLE_CONFIG[role];
+    if (!config) {
+        throw createHttpError(400, 'Invalid role selected.');
+    }
+
     const phoneNumber = safeText(phoneNumberInput) || null;
-    const department = validateDepartment(role, payload.department || config.department);
-    const position = safeText(payload.position) || config.position;
+    let department = validateDepartment(role, rawPayload.department || parsedData.department || config.department);
+    const position = config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
     const client = await db.connect();
@@ -318,6 +509,10 @@ async function createStaffAccount(payload, actorUserId = null) {
         await client.query('BEGIN');
 
         const photoEnabled = await hasAdminProfilePhotoColumn(client);
+        if (role === 'ro_coordinator') {
+            department = await validateRoCoordinatorDepartment(department, client);
+            await assertRoCoordinatorAreaAvailable(department, null, client);
+        }
 
         const duplicateEmail = await client.query(
             'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
@@ -380,8 +575,17 @@ async function createStaffAccount(payload, actorUserId = null) {
         if (role === 'pd') {
             await pdCourseAssignmentService.syncAssignments({
                 userId: user.user_id,
-                courseIds: payload.course_ids,
+                courseIds: rawPayload.course_ids,
                 assignedByUserId: actorUserId,
+                client,
+            });
+        }
+
+        if (role === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId: user.user_id,
+                department,
+                actorUserId,
                 client,
             });
         }
@@ -395,6 +599,15 @@ async function createStaffAccount(payload, actorUserId = null) {
     } catch (error) {
         await client.query('ROLLBACK');
 
+        if (
+            error.code === '23505' &&
+            ['uq_active_ro_coordinator_area', 'uq_ro_area_active_coordinator'].includes(
+                error.constraint
+            )
+        ) {
+            throw createHttpError(409, 'This RO Area already has an active coordinator.');
+        }
+
         if (error.code === '23505') {
             throw createHttpError(400, 'An account with this email or username already exists.');
         }
@@ -403,6 +616,66 @@ async function createStaffAccount(payload, actorUserId = null) {
     } finally {
         client.release();
     }
+}
+
+async function createStaffAccount(payload, actorUserId = null) {
+    if (safeText(payload?.role).toLowerCase() === 'admin') {
+        throw createHttpError(
+            400,
+            'Admin accounts must be created through Create Admin Account.'
+        );
+    }
+
+    const parsed = staffAccountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        throw createHttpError(400, firstIssue?.message || 'Invalid account details.');
+    }
+
+    return createAccountFromParsedData(parsed.data, payload, actorUserId);
+}
+
+async function createAdminAccount(payload, actorUserId = null) {
+    const parsed = adminAccountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        throw createHttpError(400, firstIssue?.message || 'Invalid Admin account details.');
+    }
+
+    const config = ROLE_CONFIG.admin;
+
+    return createAccountFromParsedData(
+        {
+            ...parsed.data,
+            phone_number: '',
+            role: 'admin',
+            department: config.department,
+            position: config.position,
+        },
+        {
+            ...payload,
+            department: config.department,
+            position: config.position,
+            course_ids: [],
+        },
+        actorUserId
+    );
+}
+
+async function revokeStaffSessionVersion(client, userId) {
+    await client.query(
+        `UPDATE users
+         SET token_version = COALESCE(token_version, 1) + 1
+         WHERE user_id = $1`,
+        [userId]
+    );
+
+    // Admin accounts also have managed server-side sessions. Revoke those rows
+    // at the same time so an invalidated Admin session cannot occupy a device
+    // slot after the account is changed, archived, or restored.
+    await adminSessionService.revokeAllAdminSessionsForUser(client, userId);
 }
 
 async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
@@ -432,6 +705,17 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             throw createHttpError(400, 'Invalid role selected.');
         }
 
+        const crossesAdminBoundary =
+            (currentRole === 'admin' && nextRole !== 'admin') ||
+            (currentRole !== 'admin' && nextRole === 'admin');
+
+        if (crossesAdminBoundary) {
+            throw createHttpError(
+                400,
+                'Admin accounts and department accounts cannot be converted into each other. Archive the account and create the appropriate account type instead.'
+            );
+        }
+
         const roleChanged = nextRole !== currentRole;
         const config = ROLE_CONFIG[nextRole];
 
@@ -448,7 +732,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : safeText(current.email).toLowerCase();
 
         const phoneNumber = payload.phone_number !== undefined
-            ? safeText(payload.phone_number) || null
+            ? validateOptionalPhoneNumber(payload.phone_number)
             : safeText(current.phone_number) || null;
 
         const departmentInput = payload.department !== undefined
@@ -456,17 +740,37 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : roleChanged
                 ? config.department
                 : safeText(current.department) || config.department;
-        const department = validateDepartment(nextRole, departmentInput);
+        let department = validateDepartment(nextRole, departmentInput);
+        if (nextRole === 'ro_coordinator') {
+            department = await validateRoCoordinatorDepartment(department, client);
+        }
 
-        const position = payload.position !== undefined
-            ? safeText(payload.position) || config.position
-            : roleChanged
-                ? config.position
-                : safeText(current.position) || config.position;
+        const position = config.position;
 
         const nextIsArchived = payload.is_archived !== undefined
             ? payload.is_archived === true
             : current.is_archived === true;
+
+        const sessionIdentityChanged =
+            roleChanged || nextIsArchived !== (current.is_archived === true);
+        const isSelfUpdate = Boolean(
+            actorUserId && String(actorUserId) === String(userId)
+        );
+
+        if (
+            currentRole === 'ro_coordinator' &&
+            (
+                nextRole !== 'ro_coordinator' ||
+                nextIsArchived ||
+                department.toLowerCase() !== safeText(current.department).toLowerCase()
+            )
+        ) {
+            await assertNoPendingRoRequests(current.department, client);
+        }
+
+        if (nextRole === 'ro_coordinator' && !nextIsArchived) {
+            await assertRoCoordinatorAreaAvailable(department, userId, client);
+        }
 
         if (!firstName) {
             throw createHttpError(400, 'First name is required.');
@@ -504,6 +808,7 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         const nextPassword = safeText(payload.password);
         const confirmPassword = safeText(payload.confirm_password);
         const validPassword = validatePassword(nextPassword, confirmPassword);
+        const passwordChanged = Boolean(validPassword);
 
         if (validPassword) {
             const currentPasswordResult = await client.query(
@@ -552,6 +857,16 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             );
         }
 
+        // Keep the current Admin signed in when changing their own password.
+        // A password reset performed for another account still revokes every
+        // session for that target account immediately.
+        const shouldInvalidateSession =
+            sessionIdentityChanged || (passwordChanged && !isSelfUpdate);
+
+        if (shouldInvalidateSession) {
+            await revokeStaffSessionVersion(client, userId);
+        }
+
         await client.query(
             `
             UPDATE admin_profiles
@@ -581,11 +896,46 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             await pdCourseAssignmentService.releaseAssignments(userId, client);
         }
 
+        if (nextRole === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId,
+                department,
+                actorUserId,
+                active: !nextIsArchived,
+                client,
+            });
+        } else if (currentRole === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId,
+                department: current.department,
+                actorUserId,
+                active: false,
+                client,
+            });
+        }
+
         await client.query('COMMIT');
 
-        return getStaffAccountById(userId, true);
+        const updatedAccount = await getStaffAccountById(userId, true);
+        if (updatedAccount && shouldInvalidateSession) {
+            Object.defineProperty(updatedAccount, 'session_invalidated', {
+                value: true,
+                enumerable: false,
+            });
+        }
+
+        return updatedAccount;
     } catch (error) {
         await client.query('ROLLBACK');
+
+        if (
+            error.code === '23505' &&
+            ['uq_active_ro_coordinator_area', 'uq_ro_area_active_coordinator'].includes(
+                error.constraint
+            )
+        ) {
+            throw createHttpError(409, 'This RO Area already has an active coordinator.');
+        }
 
         if (error.code === '23505') {
             throw createHttpError(400, 'An account with this email or username already exists.');
@@ -615,11 +965,34 @@ async function archiveStaffAccount(userId, actorUserId = null) {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
+        const coordinatorPendingResult = await client.query(
+            `SELECT COUNT(*)::int AS pending_count
+             FROM ro_placements rp
+             JOIN ro_area_coordinators rac
+               ON rac.coordinator_assignment_id = rp.coordinator_assignment_id
+             WHERE rac.user_id = $1
+               AND rac.is_active = true
+               AND rp.placement_status = 'Pending'`,
+            [userId]
+        );
+        if (Number(coordinatorPendingResult.rows[0]?.pending_count || 0) > 0) {
+            throw createHttpError(
+                409,
+                'This account still has pending RO placement requests. Reassign them before archiving the account.'
+            );
+        }
         await client.query(
             `UPDATE admin_profiles SET is_archived = true WHERE user_id = $1`,
             [userId]
         );
+        await revokeStaffSessionVersion(client, userId);
         await pdCourseAssignmentService.releaseAssignments(userId, client);
+        await client.query(
+            `UPDATE ro_area_coordinators
+             SET is_active = false, archived_at = now(), updated_at = now()
+             WHERE user_id = $1 AND is_active = true`,
+            [userId]
+        );
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -642,14 +1015,38 @@ async function restoreStaffAccount(userId) {
         return null;
     }
 
-    await db.query(
-        `
-        UPDATE admin_profiles
-        SET is_archived = false
-        WHERE user_id = $1
-        `,
-        [userId]
-    );
+    if (existing.role === 'ro_coordinator') {
+        await validateRoCoordinatorDepartment(existing.department);
+        await assertRoCoordinatorAreaAvailable(existing.department, userId);
+    }
+
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `UPDATE admin_profiles
+             SET is_archived = false
+             WHERE user_id = $1`,
+            [userId]
+        );
+        // Restoring an account deliberately does not revive its old browser
+        // sessions. The user must sign in again and receive the new version.
+        await revokeStaffSessionVersion(client, userId);
+        if (existing.role === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId,
+                department: existing.department,
+                active: true,
+                client,
+            });
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 
     return getStaffAccountById(userId, true);
 }
@@ -662,8 +1059,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     const firstName = safeText(payload.first_name);
     const lastName = safeText(payload.last_name);
     const email = safeText(payload.email).toLowerCase();
-    const phoneNumber = safeText(payload.phone_number) || null;
-    const department = safeText(payload.department);
+    const phoneNumber = validateOptionalPhoneNumber(payload.phone_number);
     const position = safeText(payload.position);
 
     if (!firstName) {
@@ -692,7 +1088,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
         const currentProfile = await fetchStaffAccountRow(userId, client, false);
 
         if (!currentProfile) {
-            throw createHttpError(404, 'Staff profile not found.');
+            throw createHttpError(404, 'Account profile not found.');
         }
 
         const duplicateEmailResult = await client.query(
@@ -710,7 +1106,11 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
             throw createHttpError(400, 'Another account is already using this email address.');
         }
 
-        const nextDepartment = department || currentProfile.department || '';
+        // Department/office ownership remains an administrative assignment.
+        // Self-service profile updates may change personal identity/contact
+        // details and position text, but must never move an account between
+        // departments or RO areas.
+        const nextDepartment = currentProfile.department || '';
         const nextPosition = position || currentProfile.position || '';
 
         await client.query(
@@ -753,6 +1153,83 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     }
 }
 
+
+async function verifyCurrentStaffPassword(userId, payload = {}) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const currentPassword = String(payload.current_password || '');
+    if (!currentPassword) {
+        throw createHttpError(400, 'Current password is required.');
+    }
+
+    const result = await db.query(
+        `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1`,
+        [userId]
+    );
+
+    const passwordHash = result.rows[0]?.password_hash || '';
+    if (!passwordHash) {
+        throw createHttpError(404, 'Account not found.');
+    }
+
+    const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
+    if (!currentMatches) {
+        throw createHttpError(401, 'Current password is incorrect.');
+    }
+
+    return { verified: true };
+}
+
+
+async function changeCurrentStaffPassword(userId, payload = {}) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const currentPassword = String(payload.current_password || '');
+    const newPassword = String(payload.new_password || '');
+    const confirmPassword = String(payload.confirm_password || '');
+
+    if (!currentPassword) {
+        throw createHttpError(400, 'Current password is required.');
+    }
+
+    const validPassword = validatePassword(newPassword, confirmPassword);
+    if (!validPassword) {
+        throw createHttpError(400, 'New password is required.');
+    }
+
+    const result = await db.query(
+        `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1`,
+        [userId]
+    );
+
+    const passwordHash = result.rows[0]?.password_hash || '';
+    if (!passwordHash) {
+        throw createHttpError(404, 'Account not found.');
+    }
+
+    const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
+    if (!currentMatches) {
+        throw createHttpError(401, 'Current password is incorrect.');
+    }
+
+    const reusesCurrentPassword = await bcrypt.compare(validPassword, passwordHash);
+    if (reusesCurrentPassword) {
+        throw createHttpError(400, 'New password must be different from the current password.');
+    }
+
+    const nextHash = await bcrypt.hash(validPassword, 12);
+    await db.query(
+        `UPDATE users SET password_hash = $2 WHERE user_id = $1`,
+        [userId, nextHash]
+    );
+
+    return { changed: true };
+}
+
 async function uploadCurrentStaffProfilePhoto(userId, file) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -771,7 +1248,7 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     const photoEnabled = await hasAdminProfilePhotoColumn();
 
     if (!photoEnabled) {
-        throw createHttpError(400, 'Profile photo upload is not enabled yet for staff accounts.');
+        throw createHttpError(400, 'Profile photo upload is not enabled yet for these accounts.');
     }
 
     const currentProfile = await getCurrentStaffProfile(userId);
@@ -817,7 +1294,7 @@ async function removeCurrentStaffProfilePhoto(userId) {
     const photoEnabled = await hasAdminProfilePhotoColumn();
 
     if (!photoEnabled) {
-        throw createHttpError(400, 'Profile photo removal is not enabled yet for staff accounts.');
+        throw createHttpError(400, 'Profile photo removal is not enabled yet for these accounts.');
     }
 
     const currentProfile = await getCurrentStaffProfile(userId);
@@ -841,6 +1318,9 @@ async function removeCurrentStaffProfilePhoto(userId) {
 
 module.exports = {
     archiveStaffAccount,
+    hasActiveRoCoordinatorAssignment,
+    changeCurrentStaffPassword,
+    createAdminAccount,
     createStaffAccount,
     getCurrentStaffProfile,
     listStaffAccounts,
@@ -849,4 +1329,5 @@ module.exports = {
     updateCurrentStaffProfile,
     updateStaffAccount,
     uploadCurrentStaffProfilePhoto,
+    verifyCurrentStaffPassword,
 };

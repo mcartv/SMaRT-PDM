@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { getStoredPortalSession } from './utils/authStorage';
@@ -8,9 +8,9 @@ import AdminLayout from './components/layout/AdminLayout';
 import SDOLayout from './components/layout/SDOLayout';
 import PDLayout from './components/layout/PDLayout';
 import GuidanceLayout from './components/layout/GuidanceLayout';
+import ROCoordinatorLayout from './components/layout/ROCoordinatorLayout';
 
 // --- ADMIN PAGES ---
-import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import ApplicationReview from './pages/ApplicationReview';
@@ -18,7 +18,6 @@ import OpeningApplications from './pages/OpeningApplications';
 import DocumentVerification from './pages/DocumentVerification';
 import ReportGeneration from './pages/ReportGeneration';
 import ScholarMonitoring from './pages/ScholarMonitoring';
-import RenewalReview from './pages/RenewalReview';
 import RenewalDocumentVerification from './pages/RenewalDocumentVerification';
 import ScholarshipOpenings from './pages/ScholarshipOpenings';
 import ROAdmin from './pages/ROAdmin';
@@ -30,8 +29,6 @@ import AdminMessages from './pages/AdminMessages';
 import ProfilePhotoQueue from './pages/ProfilePhotoQueue';
 import EndorsementSlipDetail from './pages/EndorsementSlipDetail';
 import EndorsementVerification from './pages/EndorsementVerification';
-import PDLogin from './pages/PDLogin';
-import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
 import PDProfile from './pages/PDProfile';
@@ -40,17 +37,23 @@ import PDMaintenance from './pages/PDMaintenance';
 import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
 import EndorsementQueue from './pages/EndorsementQueue';
+import ROCoordinatorDashboard from './pages/ROCoordinatorDashboard';
+import ROCoordinatorQueue from './pages/ROCoordinatorQueue';
+import ROCoordinatorProfile from './pages/ROCoordinatorProfile';
+import ROCoordinatorMaintenance from './pages/ROCoordinatorMaintenance';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
+import AboutPage from './pages/AboutPage';
+import HowToApplyPage from './pages/HowToApplyPage';
+import UnifiedLogin from './pages/UnifiedLogin';
+import AdminLogin from './pages/AdminLogin';
 import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 
 // --- SDO PAGES ---
 
-import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
-import SDOStudentsWithRecords from './pages/SDOStudentsWithRecords';
 import SDOProfile from './pages/SDOProfile';
 import SDOMaintenance from './pages/SDOMaintenance';
 
@@ -63,6 +66,12 @@ const RoleHome = () => {
   return <Navigate to="/admin/dashboard" replace />;
 };
 
+
+const LegacyRenewalDetailRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/admin/scholars/renewals/${id}`} replace />;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -71,24 +80,32 @@ export default function App() {
 
         {/* Public Landing Page */}
         <Route path="/landing" element={<SmartPDMLanding />} />
+        <Route path="/about" element={<Navigate to="/about/smart-pdm" replace />} />
+        <Route path="/about/pdm" element={<AboutPage />} />
+        <Route path="/about/smart-pdm" element={<AboutPage />} />
+        <Route path="/about/developers" element={<AboutPage />} />
+        <Route path="/how-to-apply" element={<Navigate to="/how-to-apply/process" replace />} />
+        <Route path="/how-to-apply/process" element={<HowToApplyPage />} />
+        <Route path="/how-to-apply/requirements" element={<HowToApplyPage />} />
+        <Route path="/how-to-apply/obligations" element={<HowToApplyPage />} />
         <Route path="/privacy" element={<PrivacyNotice />} />
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/endorsement/verify/:token" element={<EndorsementVerification />} />
 
-        {/* Public Routes */}
-
-
+        {/* Unified User Login */}
+        <Route path="/login" element={<UnifiedLogin />} />
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/pd/login" element={<Navigate to="/login" replace />} />
+        <Route path="/guidance/login" element={<Navigate to="/login" replace />} />
+        <Route path="/sdo/login" element={<Navigate to="/login" replace />} />
+        <Route path="/ro-coordinator/login" element={<Navigate to="/login" replace />} />
         <Route path="/admin/forgot-password" element={<ForgotPassword />} />
-        <Route path="/pd/login" element={<PDLogin />} />
-        <Route path="/guidance/login" element={<GuidanceLogin />} />
-        <Route path="/sdo/login" element={<SDOLogin />} />
 
         {/* --- PROTECTED ADMIN PANEL --- */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute storageKey="adminToken" redirectTo="/admin/login">
+            <ProtectedRoute storageKey="adminToken" redirectTo="/login">
               <AdminLayout />
             </ProtectedRoute>
           }
@@ -99,6 +116,16 @@ export default function App() {
 
           {/* Applications */}
           <Route path="applications" element={<ApplicationReview />} />
+          <Route
+            path="endorsements"
+            element={
+              <AllEndorsementsTracker
+                tokenStorageKey="adminToken"
+                detailBasePath="/admin/endorsements"
+                title="Endorsement Monitoring"
+              />
+            }
+          />
           <Route
             path="openings/:openingId/applications"
             element={<OpeningApplications />}
@@ -114,10 +141,14 @@ export default function App() {
 
           {/* Other Admin Pages */}
           <Route path="scholars" element={<ScholarMonitoring />} />
-          <Route path="renewals" element={<RenewalReview />} />
+          <Route path="renewals" element={<Navigate to="/admin/scholars?tab=renewals" replace />} />
+          <Route
+            path="scholars/renewals/:id"
+            element={<RenewalDocumentVerification />}
+          />
           <Route
             path="renewals/:id"
-            element={<RenewalDocumentVerification />}
+            element={<LegacyRenewalDetailRedirect />}
           />
           <Route path="openings" element={<ScholarshipOpenings />} />
           <Route path="obligations" element={<ROAdmin />} />
@@ -135,7 +166,7 @@ export default function App() {
         <Route
           path="/pd"
           element={
-            <ProtectedRoute storageKey="pdToken" redirectTo="/pd/login">
+            <ProtectedRoute storageKey="pdToken" redirectTo="/login">
               <PDLayout />
             </ProtectedRoute>
           }
@@ -173,20 +204,30 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="pdToken"
-                allowedReportTypes={['pd']}
+                allowedReportTypes={['pd', 'ro']}
                 defaultReportType="pd"
               />
             }
           />
+          <Route
+            path="ro-requests"
+            element={
+              <ROCoordinatorQueue
+                tokenStorageKey="pdToken"
+                portalKey="pd"
+              />
+            }
+          />
           <Route path="profile" element={<PDProfile />} />
-          <Route path="maintenance" element={<PDMaintenance />} />
+          <Route path="settings" element={<PDMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/pd/settings" replace />} />
         </Route>
 
         {/* --- PROTECTED GUIDANCE PANEL --- */}
         <Route
           path="/guidance"
           element={
-            <ProtectedRoute storageKey="guidanceToken" redirectTo="/guidance/login">
+            <ProtectedRoute storageKey="guidanceToken" redirectTo="/login">
               <GuidanceLayout />
             </ProtectedRoute>
           }
@@ -224,20 +265,30 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="guidanceToken"
-                allowedReportTypes={['guidance']}
+                allowedReportTypes={['guidance', 'ro']}
                 defaultReportType="guidance"
               />
             }
           />
+          <Route
+            path="ro-requests"
+            element={
+              <ROCoordinatorQueue
+                tokenStorageKey="guidanceToken"
+                portalKey="guidance"
+              />
+            }
+          />
           <Route path="profile" element={<GuidanceProfile />} />
-          <Route path="maintenance" element={<GuidanceMaintenance />} />
+          <Route path="settings" element={<GuidanceMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/guidance/settings" replace />} />
         </Route>
 
         {/* --- PROTECTED SDO PANEL --- */}
         <Route
           path="/sdo"
           element={
-            <ProtectedRoute storageKey="sdoToken" redirectTo="/sdo/login">
+            <ProtectedRoute storageKey="sdoToken" redirectTo="/login">
               <SDOLayout />
             </ProtectedRoute>
           }
@@ -275,21 +326,58 @@ export default function App() {
             element={
               <ReportGeneration
                 tokenStorageKey="sdoToken"
-                allowedReportTypes={['sdo']}
+                allowedReportTypes={['sdo', 'ro']}
                 defaultReportType="sdo"
               />
             }
           />
+          <Route
+            path="ro-requests"
+            element={
+              <ROCoordinatorQueue
+                tokenStorageKey="sdoToken"
+                portalKey="sdo"
+              />
+            }
+          />
           <Route path="scholars" element={<SDOScholarList />} />
-          <Route path="students-with-records" element={<SDOStudentsWithRecords />} />
           <Route path="profile" element={<SDOProfile />} />
-          <Route path="maintenance" element={<SDOMaintenance />} />
+          <Route path="settings" element={<SDOMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/sdo/settings" replace />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/admin/login" replace />} />
+        {/* --- PROTECTED RO COORDINATOR PANEL --- */}
+        <Route
+          path="/ro-coordinator"
+          element={
+            <ProtectedRoute storageKey="roCoordinatorToken" redirectTo="/login">
+              <ROCoordinatorLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<ROCoordinatorDashboard />} />
+          <Route path="queue" element={<ROCoordinatorQueue />} />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="roCoordinatorToken"
+                allowedReportTypes={['ro']}
+                defaultReportType="ro"
+              />
+            }
+          />
+          <Route path="profile" element={<ROCoordinatorProfile />} />
+          <Route path="settings" element={<ROCoordinatorMaintenance />} />
+          <Route path="maintenance" element={<Navigate to="/ro-coordinator/settings" replace />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>
       <Toaster
         position="top-right"
+        offset={{ top: '72px', right: '16px' }}
         closeButton
         richColors
         duration={3600}
@@ -298,4 +386,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-

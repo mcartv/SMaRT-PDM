@@ -27,6 +27,7 @@ function buildAnnouncementSocketPayload(announcement = {}, action = 'updated') {
         status: getAnnouncementStatus(announcement),
         audience: announcement.audienceKey || announcement.audience || 'all',
         audience_key: announcement.audienceKey || announcement.audience || 'all',
+        template_key: announcement.templateKey || announcement.template_key || 'blank',
         is_archived: !!announcement.is_archived || getAnnouncementStatus(announcement) === 'Archived',
         scheduled_at: announcement.scheduledAt || announcement.scheduled_at || null,
         published_at: announcement.publishedAt || announcement.published_at || announcement.date || null,
@@ -40,8 +41,6 @@ function emitAnnouncementRealtime(req, announcement, action = 'updated') {
     if (!io || !announcement) return;
 
     const payload = buildAnnouncementSocketPayload(announcement, action);
-    const status = String(payload.status || '').toLowerCase();
-
     const emitFallback = (eventName, data) => {
         io.emit(eventName, data);
     };
@@ -62,7 +61,7 @@ function emitAnnouncementRealtime(req, announcement, action = 'updated') {
         }
     }
 
-    if (action === 'published' || status === 'published') {
+    if (action === 'published') {
         if (socketEvents?.announcementPublished) {
             socketEvents.announcementPublished(io, payload);
         } else {
@@ -292,7 +291,7 @@ exports.updateAnnouncement = async (req, res) => {
 
         emitAnnouncementRealtime(req, updated, audit.eventAction);
 
-        if (String(updated?.status || '').toLowerCase() === 'published') {
+        if (updated?.publishedNow === true) {
             emitAnnouncementRealtime(req, updated, 'published');
         }
 
@@ -388,20 +387,28 @@ exports.restoreAnnouncement = async (req, res) => {
         const restored = await announcementService.restoreAnnouncement(id, req.user);
 
         emitAnnouncementRealtime(req, restored, 'restored');
+        if (restored?.publishedNow) {
+            emitAnnouncementRealtime(req, restored, 'published');
+        }
         emitAnnouncementRealtime(req, restored, 'updated');
 
         await writeAnnouncementAudit(
             req,
             'RESTORE_ANNOUNCEMENT',
-            `Restored announcement: ${restored?.title || 'Untitled Announcement'}.`,
+            restored?.publishedNow
+                ? `Restored and published announcement: ${restored?.title || 'Untitled Announcement'}.`
+                : `Restored announcement: ${restored?.title || 'Untitled Announcement'}.`,
             restored,
             {
                 announcement_id: id,
+                published_on_restore: restored?.publishedNow === true,
             }
         );
 
         res.status(200).json({
-            message: 'Announcement restored successfully',
+            message: restored?.publishedNow
+                ? 'Announcement restored and published successfully'
+                : 'Announcement restored successfully',
             data: restored,
         });
     } catch (err) {

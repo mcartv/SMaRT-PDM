@@ -12,36 +12,11 @@ const upload = multer({
   },
 });
 
-router.get('/', protect, authorizeRoles('admin', 'sdo'), studentRegistryController.getRegistry);
-router.get(
-  '/sdo-records/summary',
-  protect,
-  authorizeRoles('sdo'),
-  studentRegistryController.getSdoRecordsSummary
-);
-router.get(
-  '/sdo-records/students',
-  protect,
-  authorizeRoles('sdo'),
-  studentRegistryController.getSdoStudentsWithRecords
-);
-router.get(
-  '/sdo-records/students/:studentNumber',
-  protect,
-  authorizeRoles('sdo'),
-  studentRegistryController.getSdoStudentRecordHistory
-);
-router.post(
-  '/import/preview',
-  protect,
-  authorizeRoles('sdo'),
-  upload.single('file'),
-  studentRegistryController.previewSdoImport
-);
+router.get('/', protect, authorizeRoles('admin'), studentRegistryController.getRegistry);
 router.post(
   '/import',
   protect,
-  authorizeRoles('admin', 'sdo'),
+  authorizeRoles('admin'),
   upload.single('file'),
   studentRegistryController.importRegistry
 );

@@ -10,7 +10,6 @@ import {
   NotebookPen,
   RefreshCw,
   ShieldAlert,
-  Users,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -19,6 +18,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 function buildHeaders(tokenStorageKey) {
   return {
@@ -63,13 +63,11 @@ function SummaryCard({ icon, label, value, tone, theme }) {
 const DASHBOARD_CONFIG = {
   sdo: {
     title: 'SDO Dashboard',
-    subtitle: 'A lighter overview for offense checks, queue review, and recent endorsement actions.',
+    subtitle: 'Review disciplinary standing and record the SDO determination required by the endorsement slip.',
     queueStage: 'pending_sdo',
     queueLabel: 'Approval Requests',
     trackerPath: '/sdo/tracker',
     reportsPath: '/sdo/reports',
-    maintenancePath: '/sdo/maintenance',
-    recordsPath: '/sdo/students-with-records',
     detailBasePath: '/sdo/endorsements',
     accent: 'from-emerald-700 via-emerald-600 to-teal-600',
     accentSoft: 'bg-emerald-50 text-emerald-700',
@@ -83,19 +81,19 @@ const DASHBOARD_CONFIG = {
       },
       {
         label: 'No Offense',
-        value: rows.filter((row) => row.sdo_decision === 'cleared').length,
+        value: rows.filter((row) => ['no_offense', 'cleared'].includes(row.sdo_decision)).length,
         icon: CheckCircle2,
         tone: 'bg-green-50 text-green-700',
       },
       {
         label: 'Minor Offense',
-        value: rows.filter((row) => row.sdo_decision === 'disqualified_minor').length,
+        value: rows.filter((row) => ['minor_offense', 'disqualified_minor'].includes(row.sdo_decision)).length,
         icon: ShieldAlert,
         tone: 'bg-amber-50 text-amber-700',
       },
       {
         label: 'Major Offense',
-        value: rows.filter((row) => row.sdo_decision === 'disqualified_major').length,
+        value: rows.filter((row) => ['major_offense', 'disqualified_major'].includes(row.sdo_decision)).length,
         icon: XCircle,
         tone: 'bg-red-50 text-red-700',
       },
@@ -103,12 +101,11 @@ const DASHBOARD_CONFIG = {
   },
   guidance: {
     title: 'Guidance Dashboard',
-    subtitle: 'A cleaner daily view for moral standing, counseling holds, and guidance decisions.',
+    subtitle: 'Confirm Good Moral Standing for applicants who completed the SDO endorsement stage.',
     queueStage: 'pending_guidance',
     queueLabel: 'Approval Requests',
     trackerPath: '/guidance/tracker',
     reportsPath: '/guidance/reports',
-    maintenancePath: '/guidance/maintenance',
     detailBasePath: '/guidance/endorsements',
     accent: 'from-sky-700 via-sky-600 to-blue-600',
     accentSoft: 'bg-sky-50 text-sky-700',
@@ -121,33 +118,26 @@ const DASHBOARD_CONFIG = {
         tone: 'bg-blue-50 text-blue-700',
       },
       {
-        label: 'Good Moral',
-        value: rows.filter((row) => row.guidance_decision === 'cleared').length,
-        icon: CheckCircle2,
-        tone: 'bg-green-50 text-green-700',
+        label: 'Forwarded to PD',
+        value: rows.filter((row) => row.current_stage === 'pending_pd' && ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
+        icon: ArrowRight,
+        tone: 'bg-violet-50 text-violet-700',
       },
       {
-        label: 'On Hold',
-        value: rows.filter((row) => row.guidance_decision === 'held').length,
-        icon: ShieldAlert,
-        tone: 'bg-amber-50 text-amber-700',
-      },
-      {
-        label: 'Rejected',
-        value: rows.filter((row) => row.guidance_decision === 'rejected').length,
-        icon: XCircle,
-        tone: 'bg-red-50 text-red-700',
+        label: 'Completed',
+        value: rows.filter((row) => row.overall_status === 'completed' && ['good_moral_standing', 'cleared'].includes(row.guidance_decision)).length,
+        icon: FileText,
+        tone: 'bg-stone-100 text-stone-700',
       },
     ],
   },
   pd: {
     title: 'PD Dashboard',
-    subtitle: 'A simpler endorsement view for pending approvals, rejections, and completed slips.',
+    subtitle: 'Review grade reports and record Good or Average Scholastic Standing for assigned programs.',
     queueStage: 'pending_pd',
     queueLabel: 'Approval Requests',
     trackerPath: '/pd/tracker',
     reportsPath: '/pd/reports',
-    maintenancePath: '/pd/maintenance',
     detailBasePath: '/pd/endorsements',
     accent: 'from-violet-700 via-violet-600 to-fuchsia-600',
     accentSoft: 'bg-violet-50 text-violet-700',
@@ -160,16 +150,16 @@ const DASHBOARD_CONFIG = {
         tone: 'bg-violet-50 text-violet-700',
       },
       {
-        label: 'Approved',
-        value: rows.filter((row) => row.pd_decision === 'approved').length,
+        label: 'Good Standing',
+        value: rows.filter((row) => row.pd_decision === 'good_scholastic_standing').length,
         icon: CheckCircle2,
         tone: 'bg-green-50 text-green-700',
       },
       {
-        label: 'Rejected',
-        value: rows.filter((row) => row.pd_decision === 'rejected').length,
-        icon: XCircle,
-        tone: 'bg-red-50 text-red-700',
+        label: 'Average Standing',
+        value: rows.filter((row) => row.pd_decision === 'average_scholastic_standing').length,
+        icon: ShieldAlert,
+        tone: 'bg-amber-50 text-amber-700',
       },
       {
         label: 'Completed',
@@ -194,9 +184,9 @@ const STATUS_TONE = {
 };
 
 function getFocusLabel(officeKey) {
-  if (officeKey === 'sdo') return 'Minor and major offense handling';
-  if (officeKey === 'guidance') return 'Counseling holds and moral standing review';
-  return 'Program endorsement approvals and final review';
+  if (officeKey === 'sdo') return 'Disciplinary standing endorsement';
+  if (officeKey === 'guidance') return 'Good Moral Standing endorsement';
+  return 'Scholastic standing and final endorsement';
 }
 
 function getDecisionLabel(row, officeKey) {
@@ -215,32 +205,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [sdoRecordsSummary, setSdoRecordsSummary] = useState({
-    total_students: 0,
-    total_records: 0,
-    latest_record: null,
-  });
-
-  const loadSdoRecordsSummary = useCallback(async () => {
-    if (officeKey !== 'sdo') return;
-    try {
-      const response = await fetch(
-        buildApiUrl('/api/student-registry/sdo-records/summary'),
-        { headers: buildHeaders(tokenStorageKey) }
-      );
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        setSdoRecordsSummary({
-          total_students: Number(data.total_students || 0),
-          total_records: Number(data.total_records || 0),
-          latest_record: data.latest_record || null,
-        });
-      }
-    } catch {
-      // The endorsement dashboard remains usable if the optional records summary is unavailable.
-    }
-  }, [officeKey, tokenStorageKey]);
-
   const loadRows = useCallback(async ({ soft = false } = {}) => {
     try {
       if (soft) {
@@ -270,8 +234,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   useEffect(() => {
     loadRows();
-    loadSdoRecordsSummary();
-  }, [loadRows, loadSdoRecordsSummary]);
+  }, [loadRows]);
 
   useSocketEvent(
     'endorsement:updated',
@@ -279,14 +242,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
       loadRows({ soft: true });
     },
     [tokenStorageKey]
-  );
-
-  useSocketEvent(
-    'sdo-records:updated',
-    () => {
-      loadSdoRecordsSummary();
-    },
-    [officeKey, tokenStorageKey]
   );
 
   const cards = useMemo(() => config.cards(rows), [config, rows]);
@@ -312,17 +267,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   const blockedCount = useMemo(() => {
     if (officeKey === 'sdo') {
-      return rows.filter((row) =>
-        ['disqualified_minor', 'disqualified_major'].includes(row.sdo_decision)
-      ).length;
+      return rows.filter((row) => ['major_offense', 'disqualified_major'].includes(row.sdo_decision)).length;
     }
-
-    if (officeKey === 'guidance') {
-      return rows.filter((row) => ['held', 'rejected'].includes(row.guidance_decision)).length;
-    }
-
-    return rows.filter((row) => row.pd_decision === 'rejected').length;
-  }, [officeKey, rows]);
+    return rows.filter((row) => row.current_stage === config.queueStage).length;
+  }, [config.queueStage, officeKey, rows]);
 
   const priorityRows = useMemo(() => {
     return rows.filter((row) => row.current_stage === config.queueStage).slice(0, 4);
@@ -336,16 +284,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   const recentActivity = useMemo(() => {
     const activity = [];
-
-    if (officeKey === 'sdo' && sdoRecordsSummary.latest_record?.created_at) {
-      activity.push({
-        slip_id: `sdo-record-${sdoRecordsSummary.latest_record.record_id}`,
-        student_name: sdoRecordsSummary.latest_record.student_number,
-        stage_label: 'Disciplinary record imported',
-        status: sdoRecordsSummary.latest_record.offense_type,
-        acted_at: sdoRecordsSummary.latest_record.created_at,
-      });
-    }
 
     rows.forEach((row) => {
       (row.stages || []).forEach((stage) => {
@@ -363,15 +301,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
     return activity
       .sort((a, b) => new Date(b.acted_at).getTime() - new Date(a.acted_at).getTime())
       .slice(0, 4);
-  }, [officeKey, rows, sdoRecordsSummary.latest_record]);
+  }, [rows]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading office dashboard...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label={`Loading ${config.title}`} variant="dashboard" />;
   }
 
   return (
@@ -418,8 +351,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            variant="outline"
-            className="border-stone-200 bg-white"
+            className="border-none text-white shadow-sm"
+            style={{ background: theme.base }}
             onClick={() => navigate(config.trackerPath)}
           >
             Open Tracker
@@ -427,7 +360,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
           </Button>
           <Button
             variant="outline"
-            className="border-stone-200 bg-white"
+            className="bg-white"
+            style={{ borderColor: theme.border, color: theme.base }}
             onClick={() => loadRows({ soft: true })}
           >
             {refreshing ? (
@@ -440,7 +374,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className={`grid grid-cols-1 gap-3 ${cards.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
         {cards.map((card) => (
             <SummaryCard
               key={card.label}
@@ -452,36 +386,6 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
             />
           ))}
       </div>
-
-      {officeKey === 'sdo' ? (
-        <Card className="rounded-[22px] border-stone-200 shadow-none">
-          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-              style={{ background: theme.accentSoft, color: theme.base }}
-            >
-              <Users className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-stone-900">Disciplinary Records</p>
-              <p className="mt-1 text-xs text-stone-500">
-                {sdoRecordsSummary.total_students} students with {sdoRecordsSummary.total_records} record entries
-                {sdoRecordsSummary.latest_record?.created_at
-                  ? ` · Latest update ${formatDate(sdoRecordsSummary.latest_record.created_at)}`
-                  : ''}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="shrink-0 border-stone-200"
-              onClick={() => navigate(config.recordsPath)}
-            >
-              View Students
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
         <Card className="rounded-[24px] border-stone-200 shadow-none">
@@ -511,13 +415,17 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                   key={row.slip_id}
                   type="button"
                   onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
-                  className="w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition hover:bg-stone-50"
+                  className="w-full rounded-[22px] border bg-white p-4 text-left transition hover:shadow-sm"
+                  style={{ borderColor: theme.border }}
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
                       <p className="mt-1 text-xs text-stone-500">
                         {row.pdm_id} • {row.opening_title || 'Opening not set'}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-stone-700">
+                        {row.course_display || row.course_code || row.course_name || 'N/A'}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Badge variant="outline" className="border-stone-200 text-stone-700">
@@ -569,7 +477,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               </div>
               <Button
                 variant="outline"
-                className="w-full justify-between border-stone-200"
+                className="w-full justify-between border-stone-200 bg-white text-stone-700"
                 onClick={() => navigate(config.trackerPath)}
               >
                 {config.queueLabel}
@@ -577,28 +485,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               </Button>
               <Button
                 variant="outline"
-                className="w-full justify-between border-stone-200"
+                className="w-full justify-between border-stone-200 bg-white text-stone-700"
                 onClick={() => navigate(config.reportsPath)}
               >
                 Reports
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              {officeKey === 'sdo' ? (
-                <Button
-                  variant="outline"
-                  className="w-full justify-between border-stone-200"
-                  onClick={() => navigate(config.recordsPath)}
-                >
-                  Students with Records
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                className="w-full justify-between border-stone-200"
-                onClick={() => navigate(config.maintenancePath)}
-              >
-                Maintenance
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -642,7 +532,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               <h2 className="text-base font-semibold text-stone-900">Recently Updated Slips</h2>
               <p className="text-sm text-stone-500">A lightweight list of completed or recently moved endorsements.</p>
             </div>
-            <Badge variant="outline" className="border-stone-200 text-stone-700">
+            <Badge
+              variant="outline"
+              style={{ borderColor: theme.border, color: theme.base }}
+            >
               {recentRows.length} shown
             </Badge>
           </div>
@@ -658,7 +551,8 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                 key={row.slip_id}
                 type="button"
                 onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
-                className="w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition hover:bg-stone-50"
+                className="w-full rounded-[22px] border bg-white p-4 text-left transition hover:shadow-sm"
+                style={{ borderColor: theme.border }}
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
@@ -666,12 +560,18 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                     <p className="text-xs text-stone-500">
                       {row.pdm_id} • {row.opening_title || 'Opening not set'}
                     </p>
+                    <p className="mt-1 text-xs font-medium text-stone-700">
+                      {row.course_display || row.course_code || row.course_name || 'N/A'}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
                       {row.overall_status_label}
                     </Badge>
-                    <Badge variant="outline" className="border-stone-200 text-stone-700">
+                    <Badge
+                      variant="outline"
+                      style={{ borderColor: theme.border, color: theme.base }}
+                    >
                       {row.current_stage_label}
                     </Badge>
                   </div>

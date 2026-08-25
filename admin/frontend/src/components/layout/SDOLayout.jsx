@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BarChart3,
+  ClipboardCheck,
   LayoutDashboard,
   FileText,
   ShieldAlert,
@@ -10,7 +11,6 @@ import {
   ChevronRight,
   LogOut,
   Settings,
-  Users,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
@@ -19,6 +19,10 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
+import { buildApiUrl } from '../../api';
+import { clearPortalSession } from '../../utils/authStorage';
+import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
+import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -35,14 +39,13 @@ function resolveProfileImage(profile) {
   return match?.trim() || '';
 }
 
-const navItems = [
+const baseNavItems = [
   { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/sdo/queue', label: 'My Queue', icon: FileText },
+  { path: '/sdo/queue', label: 'For Endorsement', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
-  { path: '/sdo/students-with-records', label: 'Students with Records', icon: Users },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
-  { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
+  { path: '/sdo/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function SDOLayout() {
@@ -52,8 +55,17 @@ export default function SDOLayout() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('sdoProfile') || 'null');
+    } catch {
+      return null;
+    }
+  });
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
+  const headerGreeting = useHeaderGreeting(profile);
   const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
@@ -71,6 +83,56 @@ export default function SDOLayout() {
   });
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useSocketEvent('profile:updated', (payload) => {
+    const incoming = payload?.profile || payload?.account || null;
+    if (!incoming) return;
+
+    let current = {};
+    try {
+      current = JSON.parse(sessionStorage.getItem('sdoProfile') || '{}');
+    } catch {
+      current = {};
+    }
+
+    if (payload?.user_id && current?.user_id && String(payload.user_id) !== String(current.user_id)) {
+      return;
+    }
+
+    const merged = { ...current, ...incoming };
+    sessionStorage.setItem('sdoProfile', JSON.stringify(merged));
+    setProfile(merged);
+  });
+
+  useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      if (event.detail?.profileStorageKey !== 'sdoProfile') return;
+      if (event.detail?.profile) {
+        setProfile(event.detail.profile);
+        return;
+      }
+
+      try {
+        setProfile(JSON.parse(sessionStorage.getItem('sdoProfile') || 'null'));
+      } catch {
+        setProfile(null);
+      }
+    };
+
+    window.addEventListener('portal-profile:updated', handleProfileUpdated);
+    return () => window.removeEventListener('portal-profile:updated', handleProfileUpdated);
+  }, []);
+
+  useEffect(() => {
+    const handleSessionInvalidated = (event) => {
+      if (event.detail?.portalName && event.detail.portalName !== 'sdo') return;
+      clearPortalSession('sdo');
+      navigate('/sdo/login', { replace: true });
+    };
+
+    window.addEventListener('portal-session:invalidated', handleSessionInvalidated);
+    return () => window.removeEventListener('portal-session:invalidated', handleSessionInvalidated);
+  }, [navigate]);
 
   useEffect(() => {
     const handleMessageUnread = (event) => {
@@ -90,15 +152,32 @@ export default function SDOLayout() {
       return;
     }
 
-    const savedProfile = sessionStorage.getItem('sdoProfile');
-    if (savedProfile) {
-      try {
-        setProfile(JSON.parse(savedProfile));
-      } catch {
-        setProfile(null);
-      }
-    }
   }, [navigate]);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem('sdoToken');
+    if (!token) return undefined;
+
+    const controller = new AbortController();
+    fetch(buildApiUrl('/api/accounts/me'), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          setHasRoCoordinatorAccess(false);
+          return;
+        }
+
+        const data = await response.json();
+        setHasRoCoordinatorAccess(data?.data?.has_ro_coordinator_access === true);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setHasRoCoordinatorAccess(false);
+      });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -154,7 +233,7 @@ export default function SDOLayout() {
     if (profile?.name) return profile.name;
 
     const combined = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
-    return combined || 'SDO Staff';
+    return combined || 'SDO User';
   };
 
   const getDisplayPosition = () => {
@@ -163,7 +242,12 @@ export default function SDOLayout() {
 
   const profileImage = resolveProfileImage(profile);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = (event) => {
+    if (profileImage && event?.target?.closest?.('[data-profile-preview-target="true"]')) {
+      setProfilePhotoPreviewOpen(true);
+      return;
+    }
+
     navigate('/sdo/profile');
   };
 
@@ -180,16 +264,24 @@ export default function SDOLayout() {
       replace: true,
       state: {
         ...(location.state || {}),
-        refreshAt: Date.now(),
+        refreshAt: event.timeStamp,
       },
     });
   };
+
+  const navItems = [
+    ...baseNavItems.filter((item) => item.path !== '/sdo/settings'),
+    ...(hasRoCoordinatorAccess
+      ? [{ path: '/sdo/ro-requests', label: 'RO Requests', icon: ClipboardCheck }]
+      : []),
+    ...baseNavItems.filter((item) => item.path === '/sdo/settings'),
+  ];
 
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="portal-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -291,27 +383,16 @@ export default function SDOLayout() {
         {/* Header */}
         <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-stone-800 leading-tight">
-              SMaRT PDM SDO Panel
+            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
+              {headerGreeting}
             </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-[11px] text-stone-500 truncate">
-                Probation monitoring and disciplinary tracking
-              </p>
-              <span
-                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
-                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
-              >
-                {theme.label}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
             {/* Notifications */}
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => setNotifOpen((prev) => !prev)}
+                onClick={() => setNotifOpen((current) => !current)}
                 className="relative rounded-xl border border-stone-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-stone-100"
                 style={notifOpen ? { borderColor: theme.accentSoft, background: theme.accentSoft } : undefined}
                 title="Open notifications"
@@ -325,7 +406,7 @@ export default function SDOLayout() {
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
                   <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -335,11 +416,11 @@ export default function SDOLayout() {
                         >
                           <Bell className="h-4 w-4" />
                         </div>
-                        <p className="text-sm font-semibold text-stone-900">Notifications</p>
+                        <p className="text-base font-semibold text-stone-900">Notifications</p>
                       </div>
                       {unreadCount > 0 ? (
                         <span
-                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
                           style={{ background: theme.accentSoft, color: theme.base }}
                         >
                           {unreadCount} New
@@ -353,7 +434,7 @@ export default function SDOLayout() {
                       <>
                         {newNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 px-4 py-2" style={{ background: theme.accentSoft }}>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
                               New
                             </p>
                           </div>
@@ -362,31 +443,35 @@ export default function SDOLayout() {
                           <button
                             key={n.notification_id || index}
                             onClick={() => handleNotificationClick(n)}
-                            className="w-full border-b border-stone-100 border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
-                            style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            style={n.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-900">
+                              <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
                                 {n.title || 'Notification'}
                               </p>
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                                style={{ background: theme.base }}
-                              >
-                                New
-                              </span>
+                              {n.is_read !== true ? (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                                  style={{ background: theme.base }}
+                                >
+                                  New
+                                </span>
+                              ) : null}
                             </div>
-                            <p className="text-[11px] text-stone-600 line-clamp-2 mt-0.5">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
                           </button>
                         ))}
                         {earlierNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
                               Earlier
                             </p>
                           </div>
@@ -395,24 +480,27 @@ export default function SDOLayout() {
                           <button
                             key={n.notification_id || `earlier-${index}`}
                             onClick={() => handleNotificationClick(n)}
-                            className="w-full border-b border-stone-50 bg-white px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            style={n.is_read !== true
+                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
+                              : { background: '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-800">
+                              <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {n.title || 'Notification'}
                               </p>
                             </div>
-                            <p className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">
+                            <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
                           </button>
                         ))}
                       </>
                     ) : (
-                      <div className="p-8 text-center text-xs text-stone-400">
+                      <div className="p-8 text-center text-sm text-stone-400">
                         {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
                       </div>
                     )}
@@ -424,7 +512,7 @@ export default function SDOLayout() {
                         type="button"
                         onClick={markAllAsRead}
                         disabled={markingAll || unreadCount === 0}
-                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
                       </button>
@@ -448,11 +536,18 @@ export default function SDOLayout() {
               title="Open Profile"
             >
               {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={getDisplayName()}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
-                />
+                <span
+                  data-profile-preview-target="true"
+                  className="relative shrink-0 rounded-full outline-none ring-offset-2 transition hover:ring-2 hover:ring-[var(--portal-border)]"
+                  title="Preview profile photo"
+                >
+                  <img
+                    data-profile-preview-target="true"
+                    src={profileImage}
+                    alt={getDisplayName()}
+                    className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
+                  />
+                </span>
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
@@ -484,6 +579,13 @@ export default function SDOLayout() {
       </div>
 
       <AdminMessages tokenStorageKey="sdoToken" portalKey="sdo" />
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={profileImage}
+        name={`${getDisplayName()} profile photo`}
+      />
     </div>
   );
 }

@@ -9,9 +9,14 @@ const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const adminSessionService = require('../services/adminSessionService');
 
-const ALLOWED_ADMIN_EMAIL = String(
-    process.env.ALLOWED_ADMIN_EMAIL || 'smartpdm.system@gmail.com'
-).trim().toLowerCase();
+function emitAdminSessionUpdated(req, action, session = null) {
+    socketEvents.emitEvent(req.app?.get?.('io'), 'admin-session:updated', {
+        action,
+        session_id: session?.session_id || req.user?.sid || req.user?.session_id || null,
+        user_id: req.user?.user_id || req.user?.userId || req.user?.sub || null,
+        updated_at: new Date().toISOString(),
+    });
+}
 
 const RESET_OTP_TTL_SECONDS = Number(process.env.RESET_OTP_TTL_SECONDS || 60);
 const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);
@@ -41,17 +46,18 @@ function buildAdminUserQuery(photoEnabled = false) {
             u.username,
             u.role AS user_role,
             u.password_hash,
+            COALESCE(u.token_version, 1)::integer AS token_version,
             u.phone_number,
             a.admin_id,
             a.first_name,
             a.last_name,
             a.department,
             a.position,
+            COALESCE(a.is_archived, false) AS is_archived,
             ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
         FROM users u
         LEFT JOIN admin_profiles a ON u.user_id = a.user_id
         WHERE LOWER(u.email) = LOWER($1)
-          AND (a.user_id IS NULL OR a.is_archived = false)
         LIMIT 1
     `;
 }
@@ -77,6 +83,7 @@ function buildToken(profile, role) {
             email: profile.email,
             department: profile.department || null,
             position: profile.position || null,
+            token_version: Number(profile.token_version || 1),
         },
         process.env.JWT_SECRET,
         { expiresIn: '1d' }
@@ -126,16 +133,13 @@ async function findStaffByEmail(email) {
 
 async function findAuthorizedAdminForReset(email) {
     const normalizedEmail = normalizeEmail(email);
-
-    if (normalizedEmail !== ALLOWED_ADMIN_EMAIL) {
-        return null;
-    }
+    if (!normalizedEmail) return null;
 
     const user = await findStaffByEmail(normalizedEmail);
 
     if (!user) return null;
     if (!user.admin_id) return null;
-    if (normalizeEmail(user.email) !== ALLOWED_ADMIN_EMAIL) return null;
+    if (user.is_archived === true) return null;
 
     const resolvedRole = resolveStaffRole(user);
 
@@ -146,7 +150,7 @@ async function findAuthorizedAdminForReset(email) {
     return user;
 }
 
-async function loginWithRole(req, res, role) {
+async function loginUnified(req, res) {
     const {
         email,
         password,
@@ -167,7 +171,15 @@ async function loginWithRole(req, res, role) {
 
         if (!user) {
             return res.status(401).json({
-                message: 'Invalid credentials or account deactivated',
+                code: 'INVALID_CREDENTIALS',
+                message: 'The email or password is incorrect.',
+            });
+        }
+
+        if (user.is_archived) {
+            return res.status(403).json({
+                code: 'ACCOUNT_DEACTIVATED',
+                message: 'This account has been deactivated. Contact an administrator.',
             });
         }
 
@@ -175,42 +187,34 @@ async function loginWithRole(req, res, role) {
 
         if (!isMatch) {
             return res.status(401).json({
-                message: 'Invalid credentials',
+                code: 'INVALID_CREDENTIALS',
+                message: 'The email or password is incorrect.',
             });
         }
 
         const resolvedRole = resolveStaffRole(user);
+        const tokenRole = resolvedRole;
+        const allowedAccessRoles = new Set([
+            'admin',
+            'sdo',
+            'guidance',
+            'pd',
+            'ro_coordinator',
+        ]);
 
-        if (role === 'admin') {
-            if (
-                !resolvedRole ||
-                !['admin', 'pd', 'guidance', 'sdo'].includes(resolvedRole)
-            ) {
-                return res.status(403).json({
-                    message: 'This account is not authorized for the admin portal',
-                });
-            }
+        if (!tokenRole || !allowedAccessRoles.has(tokenRole)) {
+            return res.status(403).json({
+                code: 'USER_ACCESS_NOT_CONFIGURED',
+                message: 'This user account does not have configured SMaRT-PDM access.',
+            });
         }
 
-        const departmentPortalLabels = {
+        const accessLabels = {
             pd: 'PD',
             guidance: 'Guidance',
             sdo: 'SDO',
+            ro_coordinator: 'RO Coordinator',
         };
-
-        if (departmentPortalLabels[role] && resolvedRole !== role) {
-            return res.status(403).json({
-                message: `This account is not authorized for the ${departmentPortalLabels[role]} portal`,
-            });
-        }
-
-        const tokenRole = departmentPortalLabels[role] ? role : resolvedRole;
-
-        if (!tokenRole) {
-            return res.status(403).json({
-                message: 'This account is not authorized for this portal',
-            });
-        }
 
         const displayName =
             [user.first_name, user.last_name].filter(Boolean).join(' ') ||
@@ -237,14 +241,23 @@ async function loginWithRole(req, res, role) {
             token = buildToken(user, tokenRole);
         }
 
-        const portalTitle = departmentPortalLabels[role];
+        const accessTitle = accessLabels[tokenRole];
         const avatarUrl = await resolveAvatarUrl(user.profile_photo_url || null);
+
+        if (tokenRole === 'admin') {
+            socketEvents.emitEvent(req.app?.get?.('io'), 'admin-session:updated', {
+                action: 'login',
+                session_id: managedSession?.session_id || null,
+                user_id: user.user_id,
+                updated_at: new Date().toISOString(),
+            });
+        }
 
         return res.status(200).json({
             token,
             session: managedSession,
-            message: portalTitle
-                ? `Welcome to the ${portalTitle} panel`
+            message: accessTitle
+                ? `Welcome to ${accessTitle}`
                 : 'Welcome back',
             user: {
                 user_id: user.user_id,
@@ -256,7 +269,7 @@ async function loginWithRole(req, res, role) {
                 phone_number: user.phone_number || '',
                 position:
                     user.position ||
-                    (tokenRole === 'sdo' ? 'SDO Officer' : 'Staff'),
+                    (tokenRole === 'sdo' ? 'SDO Officer' : 'User'),
                 department:
                     user.department ||
                     (tokenRole === 'sdo'
@@ -268,7 +281,7 @@ async function loginWithRole(req, res, role) {
             },
         });
     } catch (err) {
-        console.error(`${role.toUpperCase()} LOGIN ERROR:`, err);
+        console.error('UNIFIED LOGIN ERROR:', err);
 
         if (err instanceof adminSessionService.AdminSessionError) {
             return res.status(err.statusCode).json({
@@ -278,15 +291,28 @@ async function loginWithRole(req, res, role) {
         }
 
         return res.status(500).json({
-            message: 'Internal server error',
+            code: 'SERVER_ERROR',
+            message: 'The server could not complete the sign-in request. Please try again.',
         });
     }
 }
 
-exports.adminLogin = async (req, res) => loginWithRole(req, res, 'admin');
-exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
-exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
-exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');
+exports.staffLogin = loginUnified;
+
+exports.getStaffSessionStatus = async (req, res) => {
+    return res.status(200).json({
+        active: true,
+        user_id:
+            req.staffAccount?.user_id ||
+            req.user?.user_id ||
+            req.user?.userId ||
+            req.user?.sub ||
+            null,
+        role: req.user?.role || null,
+        token_version: Number(req.staffAccount?.token_version || 1),
+        checked_at: new Date().toISOString(),
+    });
+};
 
 exports.resumeAdminSession = async (req, res) => {
     try {
@@ -297,6 +323,8 @@ exports.resumeAdminSession = async (req, res) => {
             deviceId: req.body?.deviceId,
             pageId: req.body?.pageId,
         });
+
+        emitAdminSessionUpdated(req, 'resumed', result.session);
 
         return res.status(200).json({
             valid: true,
@@ -361,6 +389,8 @@ exports.releaseAdminSessionPage = async (req, res) => {
             decoded: req.user,
             pageId: req.body?.pageId,
         });
+
+        emitAdminSessionUpdated(req, 'page_released');
 
         return res.status(200).json({
             released: true,
@@ -430,6 +460,8 @@ exports.getRecentAdminSessions = async (req, res) => {
             session_scope: adminSessionService.sessionConfig.scope,
             max_active_devices:
                 adminSessionService.sessionConfig.maxActiveDevices,
+            multi_device_enabled:
+                adminSessionService.sessionConfig.multiDeviceEnabled === true,
         });
     } catch (err) {
         if (err instanceof adminSessionService.AdminSessionError) {
@@ -454,6 +486,8 @@ exports.logoutAdminSession = async (req, res) => {
             decoded: req.user,
         });
 
+        emitAdminSessionUpdated(req, 'logout');
+
         return res.status(200).json({
             message: 'Logged out successfully.',
         });
@@ -466,6 +500,44 @@ exports.logoutAdminSession = async (req, res) => {
         }
 
         console.error('ADMIN SESSION LOGOUT ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to log out the Admin session.',
+        });
+    }
+};
+
+// Beacon logout is used when the browser is clearing the local session and
+// navigating away. It verifies the signed JWT itself instead of requiring an
+// already-active managed session, making logout idempotent even if the normal
+// logout request and beacon arrive in either order.
+exports.logoutAdminSessionBeacon = async (req, res) => {
+    try {
+        const rawToken = String(req.body?.token || '').trim();
+        const decoded = adminSessionService.verifyAdminToken(rawToken);
+
+        // Populate req.user so realtime/audit helpers can identify the account
+        // even though this beacon route intentionally does not require the
+        // active-session middleware.
+        req.user = decoded;
+
+        await adminSessionService.logoutAdminSession({ decoded });
+
+        emitAdminSessionUpdated(req, 'logout', {
+            session_id: decoded.sid || decoded.session_id || null,
+        });
+
+        return res.status(200).json({
+            logged_out: true,
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION BEACON LOGOUT ERROR:', err);
         return res.status(500).json({
             message: 'Unable to log out the Admin session.',
         });
@@ -551,13 +623,9 @@ exports.startAdminPasswordReset = async (req, res) => {
 
         const resetOtpId = insertResult.rows[0]?.reset_otp_id;
 
-        const resetEmailRecipient =
-            process.env.ADMIN_RESET_EMAIL_TO ||
-            user.email;
-
         try {
             await sendAdminResetOtp({
-                to: resetEmailRecipient,
+                to: user.email,
                 otp,
                 expiresSeconds: RESET_OTP_TTL_SECONDS,
             });
@@ -762,7 +830,8 @@ exports.resetAdminPassword = async (req, res) => {
             await client.query(
                 `
                 UPDATE users
-                SET password_hash = $1
+                SET password_hash = $1,
+                    token_version = COALESCE(token_version, 1) + 1
                 WHERE user_id = $2
                 `,
                 [passwordHash, resetRow.user_id]
@@ -915,6 +984,7 @@ exports.resetAdminPassword = async (req, res) => {
         'heartbeatAdminSession',
         'releaseAdminSessionPage',
         'releaseAdminSessionBeacon',
+        'logoutAdminSessionBeacon',
     ]);
 
     Object.entries(module.exports).forEach(([functionName, handler]) => {

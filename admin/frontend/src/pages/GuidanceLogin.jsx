@@ -1,16 +1,6 @@
-import DepartmentPortalLogin from './DepartmentPortalLogin';
+import { Navigate } from 'react-router-dom';
 
+// Deprecated compatibility component. All user access now goes through /login.
 export default function GuidanceLogin() {
-  return (
-    <DepartmentPortalLogin
-      portalKey="guidance"
-      portalLabel="Guidance"
-      officeName="Guidance Office"
-      authPath="/api/auth/guidance/login"
-      tokenStorageKey="guidanceToken"
-      profileStorageKey="guidanceProfile"
-      redirectPath="/guidance/dashboard"
-      colors={{ base: '#1f4e79', sub: '#93c5fd', accent: '#38bdf8' }}
-    />
-  );
+  return <Navigate to="/login" replace />;
 }

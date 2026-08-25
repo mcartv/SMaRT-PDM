@@ -33,6 +33,25 @@ function normalizeLimit(value, fallback = 0) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function validateApplicantGwa(gwa, threshold = null) {
+  const numericGwa = Number(gwa);
+  if (!Number.isFinite(numericGwa) || numericGwa < 1 || numericGwa > 5) {
+    throw httpError(409, 'A valid GWA from 1.00 to 5.00 is required before selection.');
+  }
+
+  const numericThreshold = Number(threshold);
+  if (Number.isFinite(numericThreshold) && numericThreshold >= 1 && numericThreshold <= 5) {
+    // PDM uses the Philippine grading scale where a lower GWA is better.
+    if (numericGwa > numericThreshold) {
+      throw httpError(
+        409,
+        `Applicant GWA ${numericGwa.toFixed(2)} does not meet the required ${numericThreshold.toFixed(2)} threshold.`
+      );
+    }
+  }
+  return numericGwa;
+}
+
 function applicationName(row = {}) {
   return [row.first_name, row.middle_name, row.last_name]
     .filter(Boolean)
@@ -47,6 +66,7 @@ async function getOpeningForUpdate(client, openingId) {
       SELECT
         po.*,
         sp.program_name,
+        sp.gwa_threshold,
         ay.label AS academic_year,
         ap.term AS semester
       FROM program_openings po
@@ -90,34 +110,6 @@ async function getQualifiedQueue(client, openingId, { forUpdate = false } = {}) 
   const lockClause = forUpdate ? 'FOR UPDATE OF a' : '';
   const result = await client.query(
     `
-      WITH review_summary AS (
-        SELECT
-          adr.application_id,
-          COUNT(DISTINCT lower(adr.document_key)) FILTER (
-            WHERE lower(COALESCE(adr.review_status, '')) = 'verified'
-              AND lower(adr.document_key) = ANY($2::text[])
-          )::int AS verified_review_count
-        FROM application_document_reviews adr
-        GROUP BY adr.application_id
-      ),
-      upload_summary AS (
-        SELECT
-          ad.application_id,
-          COUNT(DISTINCT lower(ad.document_type)) FILTER (
-            WHERE COALESCE(ad.is_submitted, false) = true
-              AND lower(trim(ad.document_type)) = ANY($3::text[])
-              AND (
-                NULLIF(trim(COALESCE(ad.file_path, '')), '') IS NOT NULL
-                OR NULLIF(trim(COALESCE(ad.file_url, '')), '') IS NOT NULL
-              )
-          )::int AS uploaded_required_count,
-          MAX(COALESCE(ad.submitted_at, ad.updated_at, ad.created_at)) FILTER (
-            WHERE COALESCE(ad.is_submitted, false) = true
-              AND lower(trim(ad.document_type)) = ANY($3::text[])
-          ) AS last_required_submission
-        FROM application_documents ad
-        GROUP BY ad.application_id
-      )
       SELECT
         a.application_id,
         a.student_id,
@@ -129,8 +121,9 @@ async function getQualifiedQueue(client, openingId, { forUpdate = false } = {}) 
         a.selection_status,
         a.queue_position,
         a.waitlist_position,
+        a.fcfs_completed_at,
         a.submission_date,
-        COALESCE(a.requirements_completed_at, us.last_required_submission, a.submission_date) AS requirements_completed_at,
+        a.requirements_completed_at,
         a.requirements_verified_at,
         a.remarks,
         st.user_id,
@@ -142,43 +135,31 @@ async function getQualifiedQueue(client, openingId, { forUpdate = false } = {}) 
         st.gwa,
         ac.course_code,
         ac.course_name,
-        es.overall_status AS endorsement_status,
-        COALESCE(rs.verified_review_count, 0) AS verified_review_count,
-        COALESCE(us.uploaded_required_count, 0) AS uploaded_required_count
+        es.overall_status AS endorsement_status
       FROM applications a
       INNER JOIN students st ON st.student_id = a.student_id
       LEFT JOIN academic_course ac ON ac.course_id = st.course_id
-      LEFT JOIN endorsement_slips es ON es.application_id = a.application_id
-      LEFT JOIN review_summary rs ON rs.application_id = a.application_id
-      LEFT JOIN upload_summary us ON us.application_id = a.application_id
+      INNER JOIN endorsement_slips es ON es.application_id = a.application_id
       WHERE a.opening_id = $1
         AND COALESCE(a.is_archived, false) = false
         AND COALESCE(a.is_disqualified, false) = false
-        AND lower(COALESCE(a.application_status, '')) NOT IN ('approved', 'rejected')
+        AND lower(COALESCE(a.application_status, '')) NOT IN ('approved', 'rejected', 'disqualified')
         AND lower(COALESCE(a.verification_status, '')) = 'verified'
-        AND lower(COALESCE(a.selection_status, '')) = 'qualified'
-        AND COALESCE(rs.verified_review_count, 0) >= $4
-        AND COALESCE(us.uploaded_required_count, 0) >= $5
         AND lower(COALESCE(es.overall_status, '')) = 'completed'
+        AND a.queue_position IS NOT NULL
       ORDER BY
-        COALESCE(a.requirements_completed_at, us.last_required_submission, a.submission_date) ASC NULLS LAST,
-        a.submission_date ASC NULLS LAST,
+        a.queue_position ASC,
+        a.fcfs_completed_at ASC NULLS LAST,
         a.application_id ASC
       ${lockClause}
     `,
-    [
-      openingId,
-      REQUIRED_REVIEW_KEYS,
-      REQUIRED_UPLOAD_NAMES,
-      REQUIRED_REVIEW_KEYS.length,
-      4,
-    ]
+    [openingId]
   );
 
-  return result.rows.map((row, index) => ({
+  return result.rows.map((row) => ({
     ...row,
     applicant_name: applicationName(row),
-    queue_position: index + 1,
+    queue_position: Number(row.queue_position),
   }));
 }
 
@@ -353,9 +334,13 @@ async function markApplicationQualified(applicationId, actor = {}) {
           a.opening_id,
           a.verification_status,
           a.is_disqualified,
-          es.overall_status AS endorsement_status
+          es.overall_status AS endorsement_status,
+          st.gwa,
+          sp.gwa_threshold
         FROM applications a
         LEFT JOIN endorsement_slips es ON es.application_id = a.application_id
+        LEFT JOIN students st ON st.student_id = a.student_id
+        LEFT JOIN scholarship_program sp ON sp.program_id = a.program_id
         WHERE a.application_id = $1
         LIMIT 1
         FOR UPDATE OF a
@@ -372,6 +357,8 @@ async function markApplicationQualified(applicationId, actor = {}) {
     if (String(application.endorsement_status || '').toLowerCase() !== 'completed') {
       throw httpError(409, 'Complete the endorsement workflow before marking this applicant qualified.');
     }
+
+    validateApplicantGwa(application.gwa, application.gwa_threshold);
 
     const updated = await client.query(
       `
@@ -471,11 +458,34 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
 
     const occupiedBefore = await countOccupiedSlots(client, openingId);
     const queue = await getQualifiedQueue(client, openingId, { forUpdate: true });
+    queue.forEach((entry) => validateApplicantGwa(entry.gwa, opening.gwa_threshold));
     if (!queue.length) {
       throw httpError(409, 'No qualified applicants are ready for final selection.');
     }
 
     const partitioned = partitionQueue(queue, opening, occupiedBefore);
+
+    const openingStatus = String(opening.posting_status || '')
+      .trim()
+      .toLowerCase();
+
+    // Keep the semester opening active until its remaining scholarship slots
+    // are filled. The Admin can still manually close an underfilled opening,
+    // and a semester/year transition will close it automatically.
+    if (
+      openingStatus === 'open' &&
+      partitioned.available_slots > partitioned.selected_count
+    ) {
+      const stillAvailable =
+        partitioned.available_slots - partitioned.selected_count;
+
+      throw httpError(
+        409,
+        `This opening still has ${stillAvailable} available scholarship slot${stillAvailable === 1 ? '' : 's'}. Keep the opening active for more eligible applicants, or close it manually before finalizing early.`,
+        'OPENING_STILL_HAS_AVAILABLE_SLOTS'
+      );
+    }
+
     const batchResult = await client.query(
       `
         INSERT INTO application_selection_batches (
@@ -714,45 +724,25 @@ async function promoteNextWaitlisted({
     }
 
     const previousPosition = next.waitlist_position;
+    // Promotion reserves the newly available slot but does NOT activate the
+    // student automatically. The coordinator still performs the explicit
+    // Activate Scholar action from Readiness.
     await client.query(
       `
         UPDATE applications
         SET selection_status = 'Promoted',
-            application_status = 'Approved',
-            activation_status = 'Activated',
-            activated_at = now(),
+            activation_status = 'Not Activated',
+            activated_at = NULL,
             selected_at = COALESCE(selected_at, now()),
             waitlist_position = NULL,
             can_reapply = false,
             reapplication_reason = NULL,
             rejection_reason = NULL,
-            is_disqualified = false
+            is_disqualified = false,
+            updated_at = now()
         WHERE application_id = $1
       `,
       [next.application_id]
-    );
-
-    await client.query(
-      `
-        UPDATE students
-        SET is_active_scholar = true,
-            scholarship_status = 'Active',
-            current_program_id = $2,
-            current_application_id = $3,
-            active_academic_year_id = $4,
-            active_period_id = $5,
-            date_awarded = CURRENT_DATE,
-            scholar_is_archived = false,
-            updated_at = now()
-        WHERE student_id = $1
-      `,
-      [
-        next.student_id,
-        opening.program_id,
-        next.application_id,
-        opening.academic_year_id,
-        opening.period_id,
-      ]
     );
 
     await client.query(
@@ -822,7 +812,7 @@ async function promoteNextWaitlisted({
         userId: next.user_id,
         type: 'waitlist_promoted',
         title: 'Scholarship Slot Available',
-        message: `You were promoted from the waiting list for ${opening.program_name || 'the scholarship program'}. Scholar access is now active.`,
+        message: `You were promoted from the waiting list for ${opening.program_name || 'the scholarship program'}. Your slot is now reserved and awaits final scholar activation.`,
         referenceId: next.application_id,
         referenceType: 'application',
       }).catch((error) => console.error('WAITLIST PROMOTION NOTIFICATION ERROR:', error.message));
@@ -898,16 +888,6 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       );
     }
 
-    await client.query(
-      `
-        UPDATE program_openings
-        SET filled_slots = GREATEST(COALESCE(filled_slots, 0) - 1, 0),
-            updated_at = now()
-        WHERE opening_id = $1
-      `,
-      [scholar.opening_id]
-    );
-
     promotionResult = await promoteNextWaitlisted({
       openingId: scholar.opening_id,
       releasedStudentId: studentId,
@@ -915,6 +895,19 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       reason: `Promoted after a slot was released: ${normalizedReason}`,
       client,
     });
+
+    // Always reconcile the stored slot count from actual active scholar rows.
+    // This prevents stale counts after remove + automatic replacement.
+    const occupiedAfter = await countOccupiedSlots(client, scholar.opening_id);
+    await client.query(
+      `
+        UPDATE program_openings
+        SET filled_slots = LEAST(allocated_slots, $2),
+            updated_at = now()
+        WHERE opening_id = $1
+      `,
+      [scholar.opening_id, occupiedAfter]
+    );
 
     await client.query('COMMIT');
     return {

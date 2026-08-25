@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight, Eye, Loader2, RefreshCw, Search } from 'lucide-react';
+import {
+  ArrowRight,
+  Ban,
+  CheckCircle2,
+  ClipboardCheck,
+  Eye,
+  Loader2,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
@@ -15,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 function buildHeaders(tokenStorageKey) {
   return {
@@ -36,25 +46,54 @@ function formatDate(value) {
   });
 }
 
+function formatStatus(value = '') {
+  return (
+    String(value || '')
+      .replaceAll('_', ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Pending'
+  );
+}
+
+function formatWorkflowStatus(value = '', fallback = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  const labels = {
+    pending_sdo: 'Pending SDO',
+    pending_guidance: 'Pending GCO',
+    pending_pd: 'Pending PD',
+  };
+
+  if (labels[normalized]) return labels[normalized];
+
+  return String(fallback || formatStatus(value))
+    .replace(/\bSdo\b/g, 'SDO')
+    .replace(/\bGuidance\b/g, 'GCO')
+    .replace(/\bProgram Director\b/g, 'PD')
+    .replace(/\bPd\b/g, 'PD');
+}
+
 const STATUS_TONE = {
   completed: 'bg-green-50 text-green-700',
   pending_sdo: 'bg-orange-50 text-orange-700',
   pending_guidance: 'bg-blue-50 text-blue-700',
   pending_pd: 'bg-violet-50 text-violet-700',
+  disqualified_major: 'bg-red-50 text-red-700',
   held: 'bg-amber-50 text-amber-700',
   rejected: 'bg-red-50 text-red-700',
-  disqualified_minor: 'bg-amber-50 text-amber-700',
-  disqualified_major: 'bg-red-50 text-red-700',
+  guidance_rejected: 'bg-red-50 text-red-700',
 };
 
 const FINISHED_STATUSES = new Set([
   'completed',
+  'disqualified_major',
   'rejected',
   'guidance_rejected',
-  'disqualified_major',
 ]);
 
-const READY_FOR_PD_STATUSES = new Set(['pending_pd']);
+const STOPPED_STATUSES = new Set([
+  'disqualified_major',
+  'rejected',
+  'guidance_rejected',
+]);
 
 function getActiveRowsForOffice(rows, tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
@@ -75,32 +114,59 @@ function getActiveRowsForOffice(rows, tokenStorageKey) {
 function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return {
+      eyebrow: 'Student Discipline Office',
+      shortLabel: 'SDO',
       stage: 'pending_sdo',
       resultKey: 'sdo',
-      processedLabel: 'Cleared / Routed by SDO',
-      processedDescription: 'Applicants already handled by SDO and moved out of the active queue.',
+      processedLabel: 'Processed by SDO',
+      processedDescription:
+        'Applicants already endorsed by SDO and routed forward or stopped for a major offense.',
     };
   }
 
   if (tokenStorageKey === 'guidanceToken') {
     return {
+      eyebrow: 'Guidance Office',
+      shortLabel: 'GCO',
       stage: 'pending_guidance',
       resultKey: 'guidance',
-      processedLabel: 'Processed by Guidance',
-      processedDescription: 'Applicants already handled by Guidance and moved out of the active queue.',
+      processedLabel: 'Processed by GCO',
+      processedDescription:
+        'Applicants already certified for Good Moral Standing and routed to PD.',
     };
   }
 
   if (tokenStorageKey === 'pdToken') {
     return {
+      eyebrow: 'Program Director',
+      shortLabel: 'PD',
       stage: 'pending_pd',
       resultKey: 'pd',
       processedLabel: 'Processed by Program Director',
-      processedDescription: 'Applicants already handled by Program Director and moved out of the active queue.',
+      processedDescription:
+        'Applicants already assigned a Good or Average Scholastic Standing result.',
     };
   }
 
   return null;
+}
+
+function getAdminRowsForMode(rows, viewMode) {
+  switch (viewMode) {
+    case 'sdo':
+      return rows.filter((row) => row.current_stage === 'pending_sdo');
+    case 'guidance':
+      return rows.filter((row) => row.current_stage === 'pending_guidance');
+    case 'pd':
+      return rows.filter((row) => row.current_stage === 'pending_pd');
+    case 'completed':
+      return rows.filter((row) => row.overall_status === 'completed');
+    case 'stopped':
+      return rows.filter((row) => STOPPED_STATUSES.has(row.overall_status));
+    case 'active':
+    default:
+      return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
+  }
 }
 
 export default function AllEndorsementsTracker({
@@ -110,6 +176,7 @@ export default function AllEndorsementsTracker({
   subtitle = 'View every endorsement slip and where it currently is in the workflow.',
 }) {
   const navigate = useNavigate();
+  const isAdminView = tokenStorageKey === 'adminToken';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -118,33 +185,36 @@ export default function AllEndorsementsTracker({
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewMode, setViewMode] = useState('active');
 
-  const loadRows = async ({ soft = false } = {}) => {
-    try {
-      if (soft) setRefreshing(true);
-      else setLoading(true);
-      setError('');
+  const loadRows = useCallback(
+    async ({ soft = false } = {}) => {
+      try {
+        if (soft) setRefreshing(true);
+        else setLoading(true);
+        setError('');
 
-      const response = await fetch(buildApiUrl('/api/endorsement-slips?scope=all'), {
-        headers: buildHeaders(tokenStorageKey),
-      });
-      const data = await response.json();
+        const response = await fetch(buildApiUrl('/api/endorsement-slips?scope=all'), {
+          headers: buildHeaders(tokenStorageKey),
+        });
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load endorsement tracker');
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to load endorsement tracker');
+        }
+
+        setRows(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err.message || 'Failed to load endorsement tracker.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      setRows(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err.message || 'Failed to load endorsement tracker.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    [tokenStorageKey]
+  );
 
   useEffect(() => {
     loadRows();
-  }, [tokenStorageKey]);
+  }, [loadRows]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -152,19 +222,21 @@ export default function AllEndorsementsTracker({
     }, 8000);
 
     return () => window.clearInterval(timer);
-  }, [tokenStorageKey]);
+  }, [loadRows]);
 
   useSocketEvent(
     'endorsement:updated',
     () => {
       loadRows({ soft: true });
     },
-    [tokenStorageKey]
+    [loadRows]
   );
 
-  const filteredSourceRows = useMemo(() => {
-    if (viewMode === 'ready_pd') {
-      return rows.filter((row) => READY_FOR_PD_STATUSES.has(row.current_stage));
+  const officeConfig = getOfficeConfig(tokenStorageKey);
+
+  const sourceRows = useMemo(() => {
+    if (isAdminView) {
+      return getAdminRowsForMode(rows, viewMode);
     }
 
     if (viewMode === 'finished') {
@@ -172,269 +244,412 @@ export default function AllEndorsementsTracker({
     }
 
     return getActiveRowsForOffice(rows, tokenStorageKey);
-  }, [rows, tokenStorageKey, viewMode]);
+  }, [isAdminView, rows, tokenStorageKey, viewMode]);
 
   const officeProcessedRows = useMemo(() => {
-    const officeConfig = getOfficeConfig(tokenStorageKey);
-
-    if (!officeConfig || viewMode !== 'active') {
-      return [];
-    }
+    if (isAdminView || !officeConfig || viewMode !== 'active') return [];
 
     return rows.filter((row) => {
       const hasOfficeDecision = Boolean(row.office_results?.[officeConfig.resultKey]);
       return hasOfficeDecision && row.current_stage !== officeConfig.stage;
     });
-  }, [rows, tokenStorageKey, viewMode]);
-
-  const filteredOfficeProcessedRows = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return officeProcessedRows.filter((row) => {
-      const matchesSearch =
-        !query ||
-        (row.student_name || '').toLowerCase().includes(query) ||
-        (row.pdm_id || '').toLowerCase().includes(query) ||
-        (row.program_name || '').toLowerCase().includes(query);
-
-      const matchesStatus =
-        statusFilter === 'all' || row.overall_status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [officeProcessedRows, search, statusFilter]);
+  }, [isAdminView, officeConfig, rows, viewMode]);
 
   const statuses = useMemo(() => {
-    const source =
-      viewMode === 'active' && officeProcessedRows.length
-        ? [...filteredSourceRows, ...officeProcessedRows]
-        : filteredSourceRows;
+    const source = [...sourceRows, ...officeProcessedRows];
+    const observed = source.map((row) => row.overall_status).filter(Boolean);
 
-    return ['all', ...new Set(source.map((row) => row.overall_status).filter(Boolean))];
-  }, [filteredSourceRows, officeProcessedRows, viewMode]);
+    if (tokenStorageKey === 'sdoToken') {
+      return [
+        'all',
+        ...new Set([
+          'pending_sdo',
+          'pending_guidance',
+          'pending_pd',
+          'completed',
+          'disqualified_major',
+          ...observed,
+        ]),
+      ];
+    }
 
-  const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    return ['all', ...new Set(observed)];
+  }, [officeProcessedRows, sourceRows, tokenStorageKey]);
 
-    return filteredSourceRows.filter((row) => {
-      const matchesSearch =
-        !query ||
-        (row.student_name || '').toLowerCase().includes(query) ||
-        (row.pdm_id || '').toLowerCase().includes(query) ||
-        (row.program_name || '').toLowerCase().includes(query);
+  const filterRows = useCallback(
+    (list) => {
+      const query = search.trim().toLowerCase();
 
-      const matchesStatus =
-        statusFilter === 'all' || row.overall_status === statusFilter;
+      return list.filter((row) => {
+        const matchesSearch =
+          !query ||
+          (row.student_name || '').toLowerCase().includes(query) ||
+          (row.pdm_id || '').toLowerCase().includes(query) ||
+          (row.program_name || '').toLowerCase().includes(query) ||
+          (row.course_display || row.course_code || row.course_name || '').toLowerCase().includes(query) ||
+          (row.opening_title || '').toLowerCase().includes(query) ||
+          (row.current_stage_label || '').toLowerCase().includes(query);
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [filteredSourceRows, search, statusFilter]);
-
-  const trackerSummary = useMemo(
-    () => ({
-      active: getActiveRowsForOffice(rows, tokenStorageKey).length,
-      processed: viewMode === 'active' ? officeProcessedRows.length : 0,
-      finished: rows.filter((row) => FINISHED_STATUSES.has(row.overall_status)).length,
-      completed: rows.filter((row) => row.overall_status === 'completed').length,
-      rejected: rows.filter((row) => ['rejected', 'guidance_rejected', 'disqualified_major'].includes(row.overall_status)).length,
-      readyForPD: rows.filter((row) => row.current_stage === 'pending_pd').length,
-      visible: filteredRows.length + filteredOfficeProcessedRows.length,
-    }),
-    [rows, filteredRows, filteredOfficeProcessedRows, officeProcessedRows, tokenStorageKey, viewMode]
+        const matchesStatus = statusFilter === 'all' || row.overall_status === statusFilter;
+        return matchesSearch && matchesStatus;
+      });
+    },
+    [search, statusFilter]
   );
 
-  const officeConfig = getOfficeConfig(tokenStorageKey);
+  const filteredRows = useMemo(() => filterRows(sourceRows), [filterRows, sourceRows]);
+
+  const filteredOfficeProcessedRows = useMemo(
+    () => filterRows(officeProcessedRows),
+    [filterRows, officeProcessedRows]
+  );
+
+  const summary = useMemo(
+    () => ({
+      active: rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status)).length,
+      sdo: rows.filter((row) => row.current_stage === 'pending_sdo').length,
+      guidance: rows.filter((row) => row.current_stage === 'pending_guidance').length,
+      pd: rows.filter((row) => row.current_stage === 'pending_pd').length,
+      completed: rows.filter((row) => row.overall_status === 'completed').length,
+      stopped: rows.filter((row) => STOPPED_STATUSES.has(row.overall_status)).length,
+      processedByOffice: officeProcessedRows.length,
+    }),
+    [officeProcessedRows.length, rows]
+  );
+
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    setStatusFilter('all');
+  };
+
+  const viewOptions = isAdminView
+    ? [
+        { value: 'active', label: 'In Progress', count: summary.active },
+        { value: 'sdo', label: 'SDO Review', count: summary.sdo },
+        { value: 'guidance', label: 'GCO Review', count: summary.guidance },
+        { value: 'pd', label: 'PD Review', count: summary.pd },
+        { value: 'completed', label: 'Completed', count: summary.completed },
+        { value: 'stopped', label: 'Stopped', count: summary.stopped },
+      ]
+    : [
+        { value: 'active', label: 'Active Applicants' },
+        { value: 'finished', label: 'Finished' },
+      ];
+
+  const officeRoleLabel = officeConfig?.shortLabel || 'Office';
+  const officeSummaryCards = [
+    {
+      label: `Pending ${officeRoleLabel}`,
+      value: getActiveRowsForOffice(rows, tokenStorageKey).length,
+      icon: ClipboardCheck,
+      tone: 'bg-violet-50 text-violet-700',
+    },
+    {
+      label: `Processed by ${officeRoleLabel}`,
+      value: summary.processedByOffice,
+      icon: CheckCircle2,
+      tone: 'bg-blue-50 text-blue-700',
+    },
+    {
+      label: 'Completed',
+      value: summary.completed,
+      icon: CheckCircle2,
+      tone: 'bg-green-50 text-green-700',
+    },
+    ...(tokenStorageKey === 'sdoToken'
+      ? [
+          {
+            label: 'Major Offenses',
+            value: summary.stopped,
+            icon: Ban,
+            tone: 'bg-red-50 text-red-700',
+          },
+        ]
+      : []),
+  ];
+
+  const adminSummaryPills = [
+    { label: 'In Progress', value: summary.active },
+    { label: 'SDO Review', value: summary.sdo },
+    { label: 'GCO', value: summary.guidance },
+    { label: 'PD Review', value: summary.pd },
+    { label: 'Completed', value: summary.completed },
+  ];
 
   if (loading) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading endorsement tracker...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading endorsement tracker" showStats />;
   }
 
   return (
-    <div className="space-y-5 py-2">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">{title}</h1>
+    <div className="space-y-3 py-1.5">
+      {!isAdminView ? (
+        <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+            {officeConfig?.eyebrow || 'Endorsement Office'}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-stone-900">{title}</h1>
           <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
-        </div>
-        <Button variant="outline" className="border-stone-200" onClick={() => loadRows({ soft: true })}>
-          {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
-      </div>
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Endorsements
+            </p>
+            <h1 className="text-xl font-semibold text-stone-900">All Endorsement Slips</h1>
+          </div>
 
-      <Card className="border-stone-200 shadow-none">
-        <CardHeader className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              { label: 'Visible Slips', value: trackerSummary.visible },
-              { label: 'Active', value: trackerSummary.active },
-              {
-                label: officeConfig && viewMode === 'active' ? 'Processed by Office' : 'Completed',
-                value: officeConfig && viewMode === 'active' ? trackerSummary.processed : trackerSummary.completed,
-              },
-              { label: 'Rejected / Stopped', value: trackerSummary.rejected },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
-                <p className="mt-2 text-xl font-semibold text-stone-900">{item.value}</p>
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+            {adminSummaryPills.map((item) => (
+              <div
+                key={item.label}
+                className="min-h-[76px] rounded-2xl border px-4 py-3"
+                style={{
+                  background: 'color-mix(in srgb, var(--portal-chart-primary) 10%, white)',
+                  borderColor: 'color-mix(in srgb, var(--portal-chart-primary) 24%, white)',
+                  color: 'var(--portal-chart-primary)',
+                }}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">
+                  {item.label}
+                </p>
+                <p className="mt-1.5 text-2xl font-semibold leading-none">{item.value}</p>
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('active');
-                setStatusFilter('all');
-              }}
-              className={`inline-flex h-9 items-center rounded-full border px-4 text-sm font-medium transition ${
-                viewMode === 'active'
-                  ? 'border-stone-900 bg-stone-900 text-white'
-                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
-              }`}
-            >
-              Active Applicants
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('ready_pd');
-                setStatusFilter('all');
-              }}
-              className={`inline-flex h-9 items-center rounded-full border px-4 text-sm font-medium transition ${
-                viewMode === 'ready_pd'
-                  ? 'border-stone-900 bg-stone-900 text-white'
-                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
-              }`}
-            >
-              Waiting for PD
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('finished');
-                setStatusFilter('all');
-              }}
-              className={`inline-flex h-9 items-center rounded-full border px-4 text-sm font-medium transition ${
-                viewMode === 'finished'
-                  ? 'border-stone-900 bg-stone-900 text-white'
-                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
-              }`}
-            >
-              Completed / Rejected
-            </button>
-            <span className="text-xs text-stone-500">
-              {viewMode === 'active'
-                ? tokenStorageKey === 'sdoToken'
-                  ? 'Applicants currently waiting for SDO endorsement.'
-                  : tokenStorageKey === 'guidanceToken'
-                    ? 'Applicants currently waiting for Guidance endorsement.'
-                    : tokenStorageKey === 'pdToken'
-                      ? 'Applicants currently waiting for Program Director endorsement.'
-                      : 'Current endorsement applicants still moving through SDO, Guidance, or PD.'
-                : viewMode === 'ready_pd'
-                  ? 'Applicants already forwarded and currently waiting for Program Director review.'
-                  : 'Applicants with finished endorsement outcomes.'}
-            </span>
-          </div>
-          <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by student, PDM ID, or program"
-                className="pl-9"
-              />
+        </section>
+      )}
+
+      {isAdminView ? (
+        <Card className="border-stone-200 bg-white shadow-none">
+          <CardContent className="p-3">
+            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by student, PDM ID, program, opening, or current office"
+                  className="h-9 pl-9 text-sm"
+                />
+              </div>
+
+              <Select value={viewMode} onValueChange={handleViewModeChange}>
+                <SelectTrigger className="h-9 w-full text-sm xl:w-52">
+                  <SelectValue placeholder="Filter by workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  {viewOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                      {Number.isFinite(option.count) ? ` (${option.count})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 w-full text-sm xl:w-56">
+                  <SelectValue>{statusFilter === 'all' ? 'All Statuses' : formatWorkflowStatus(statusFilter)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {statuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status === 'all' ? 'All Statuses' : formatWorkflowStatus(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 border-stone-200 px-3 text-xs"
+                onClick={() => loadRows({ soft: true })}
+                disabled={refreshing}
+              >
+                {refreshing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Refresh
+              </Button>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full lg:w-64">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                {statuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status === 'all' ? 'All Statuses' : status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        </CardHeader>
-        <CardContent className="space-y-4 p-5">
+
+            {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-stone-200 shadow-none">
+          <CardHeader className="space-y-2.5 border-b border-stone-100 bg-stone-50/60 px-4 py-3">
+            <div
+              className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+                officeSummaryCards.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+              }`}
+            >
+              {officeSummaryCards.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2.5"
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.tone}`}
+                  >
+                    {createElement(item.icon, { className: 'h-4 w-4' })}
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 text-xl font-semibold text-stone-900">{item.value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by student, PDM ID, program, opening, or current office"
+                  className="h-9 pl-9 text-sm"
+                />
+              </div>
+
+              <Select value={viewMode} onValueChange={handleViewModeChange}>
+                <SelectTrigger className="h-9 w-full text-sm xl:w-52">
+                  <SelectValue placeholder="Filter by workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  {viewOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                      {Number.isFinite(option.count) ? ` (${option.count})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 w-full text-sm xl:w-56">
+                  <SelectValue>{statusFilter === 'all' ? 'All Statuses' : formatWorkflowStatus(statusFilter)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {statuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status === 'all' ? 'All Statuses' : formatWorkflowStatus(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 border-stone-200 px-3 text-xs"
+                onClick={() => loadRows({ soft: true })}
+                disabled={refreshing}
+              >
+                {refreshing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Refresh
+              </Button>
+            </div>
+
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          </CardHeader>
+        </Card>
+      )}
+
+      <Card className="border-stone-200 bg-white shadow-none">
+        <CardContent className="p-3">
           {filteredRows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
-              {viewMode === 'active'
-                ? tokenStorageKey === 'sdoToken'
-                  ? 'No applicants are currently waiting in SDO.'
-                  : tokenStorageKey === 'guidanceToken'
-                    ? 'No applicants are currently waiting in Guidance.'
-                    : tokenStorageKey === 'pdToken'
-                      ? 'No applicants are currently waiting in Program Director.'
-                      : 'No active applicants match the current filters.'
-                : viewMode === 'ready_pd'
-                  ? 'No applicants are currently waiting for PD.'
-                  : 'No completed or rejected applicants match the current filters.'}
+              No endorsement records match the current view and filters.
             </div>
           ) : (
-            filteredRows.map((row) => (
-              <div
-                key={row.slip_id}
-                className="rounded-2xl border border-stone-200 bg-white p-4"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-stone-900">{row.student_name}</p>
-                      <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
-                        {row.overall_status_label}
-                      </Badge>
-                      {row.slip_code ? (
-                        <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
-                          {row.slip_code}
-                        </Badge>
-                      ) : null}
+            <>
+              <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+                {filteredRows.map((row) => (
+                  <div
+                    key={row.slip_id}
+                    className="rounded-xl border border-stone-200 bg-white p-2.5"
+                  >
+                    <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+
+                          <Badge
+                            className={
+                              STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
+                            }
+                          >
+                            {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
+                          </Badge>
+
+                          {formatWorkflowStatus(row.current_stage, row.current_stage_label) !==
+                          formatWorkflowStatus(row.overall_status, row.overall_status_label) ? (
+                            <Badge
+                              variant="outline"
+                              className="border-stone-200 bg-white text-stone-600"
+                            >
+                              {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
+                            </Badge>
+                          ) : null}
+
+                          {row.slip_code ? (
+                            <Badge
+                              variant="outline"
+                              className="border-stone-200 font-mono text-[11px] text-stone-500"
+                            >
+                              {row.slip_code}
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <p className="text-sm text-stone-600">
+                          {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
+                        </p>
+
+                        <p className="text-xs font-medium text-stone-700">
+                          {row.course_display || row.course_code || row.course_name || 'N/A'}
+                        </p>
+
+                        <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 rounded-lg border-blue-200 bg-blue-50 px-3 font-medium text-blue-800 hover:bg-blue-100"
+                        onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        {isAdminView ? 'Monitor Slip' : 'View Slip'}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
                     </div>
-                    <p className="text-sm text-stone-600">
-                      {row.pdm_id} - {row.program_name}
-                    </p>
-                    <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
-                  </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-10 rounded-xl border-blue-200 bg-blue-50 px-4 font-medium text-blue-800 hover:bg-blue-100"
-                      onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Slip
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
+                    <div className="mt-2 rounded-xl border border-stone-100 bg-stone-50 px-2.5 py-2">
+                      <EndorsementProgressTracker tracker={row.tracker} compact className="space-y-1.5" />
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-4 rounded-2xl bg-stone-50 px-4 py-3">
-                  <EndorsementProgressTracker
-                    tracker={row.tracker}
-                    compact
-                    className="space-y-2"
-                  />
-                </div>
+                ))}
               </div>
-            ))
+            </>
           )}
 
-          {viewMode === 'active' && officeConfig ? (
-            <div className="space-y-4 border-t border-stone-100 pt-5">
-              <div className="flex flex-col gap-1">
+          {!isAdminView && viewMode === 'active' && officeConfig ? (
+            <div className="mt-4 space-y-4 border-t border-stone-100 pt-5">
+              <div>
                 <h2 className="text-base font-semibold text-stone-900">{officeConfig.processedLabel}</h2>
                 <p className="text-sm text-stone-500">{officeConfig.processedDescription}</p>
               </div>
@@ -447,41 +662,45 @@ export default function AllEndorsementsTracker({
                 filteredOfficeProcessedRows.map((row) => (
                   <div
                     key={`processed-${row.slip_id}`}
-                    className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4"
+                    className="rounded-xl border border-stone-200 bg-stone-50/70 p-3"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-2">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-base font-semibold text-stone-900">{row.student_name}</p>
-                          <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
-                            {row.overall_status_label}
+                          <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+
+                          <Badge
+                            className={
+                              STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'
+                            }
+                          >
+                            {formatWorkflowStatus(row.overall_status, row.overall_status_label)}
                           </Badge>
-                          {row.slip_code ? (
-                            <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
-                              {row.slip_code}
-                            </Badge>
-                          ) : null}
                         </div>
+
                         <p className="text-sm text-stone-600">
-                          {row.pdm_id} - {row.program_name}
+                          {row.pdm_id || 'No PDM ID'} • {row.program_name || row.opening_title || 'Program not set'}
                         </p>
+
+                        <p className="text-xs font-medium text-stone-700">
+                          {row.course_display || row.course_code || row.course_name || 'N/A'}
+                        </p>
+
                         <p className="text-xs text-stone-500">
-                          Latest stage: {row.current_stage_label || row.overall_status_label || 'Processed'}
+                          Current stage: {formatWorkflowStatus(row.current_stage, row.current_stage_label)}
                         </p>
                       </div>
 
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-10 rounded-xl border-blue-200 bg-blue-50 px-4 font-medium text-blue-800 hover:bg-blue-100"
-                          onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Slip
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 rounded-lg border-blue-200 bg-blue-50 px-3 font-medium text-blue-800 hover:bg-blue-100"
+                        onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Slip
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))

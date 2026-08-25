@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const staffSessionService = require('./staffSessionService');
 
 const DEFAULT_SESSION_HOURS = Number(
     process.env.ADMIN_SESSION_HOURS || 12
@@ -10,6 +11,10 @@ const REMEMBER_SESSION_DAYS = Number(
 );
 const STALE_PAGE_SECONDS = Number(
     process.env.ADMIN_SESSION_STALE_PAGE_SECONDS || 300
+);
+const MAX_ACTIVE_DEVICES = Math.min(
+    Math.max(Number(process.env.ADMIN_MAX_ACTIVE_DEVICES || 3) || 3, 1),
+    10
 );
 
 const ADMIN_ROLE = 'admin';
@@ -23,10 +28,6 @@ const SESSION_SCOPE = String(
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .slice(0, 30) || (IS_PRODUCTION ? 'production' : 'development');
-const MAX_ACTIVE_DEVICES = Math.max(
-    1,
-    Number(process.env.ADMIN_MAX_ACTIVE_DEVICES || 1) || 1
-);
 
 class AdminSessionError extends Error {
     constructor(message, { statusCode = 401, code = 'ADMIN_SESSION_ERROR' } = {}) {
@@ -55,10 +56,12 @@ function assertSessionScope(value) {
     }
 }
 
-async function lockUserScope(client, userId) {
+async function lockSessionAccount(client, userId) {
+    // Serialize login attempts for this account/environment so two new
+    // devices cannot race past the active-device limit at the same time.
     await client.query(
         'SELECT pg_advisory_xact_lock(hashtext($1))',
-        [`${userId}:${SESSION_SCOPE}`]
+        [`${userId}:${SESSION_SCOPE}:admin-device-limit`]
     );
 }
 
@@ -209,6 +212,7 @@ async function createAdminSession({
             sid: sessionId,
             session_id: sessionId,
             session_scope: SESSION_SCOPE,
+            token_version: Number(user.token_version || 1),
         },
         requireJwtSecret(),
         { expiresIn: ttlSeconds }
@@ -219,68 +223,73 @@ async function createAdminSession({
 
     try {
         await client.query('BEGIN');
-        await lockUserScope(client, user.user_id);
+        await lockSessionAccount(client, user.user_id);
         await cleanupStalePages(client, user.user_id);
 
-        const activeResult = await client.query(
+        // Keep one managed session per browser/device so a fresh login replaces
+        // only that device's stale token. Sessions on every other device remain
+        // valid and continue independently.
+        const replacedSessions = await client.query(
             `
-            SELECT session_id, device_id
+            UPDATE admin_sessions
+            SET is_active = false,
+                released_at = now(),
+                logged_out_at = now(),
+                last_seen_at = now()
+            WHERE user_id = $1
+              AND session_scope = $2
+              AND device_id = $3
+              AND is_active = true
+              AND logged_out_at IS NULL
+            RETURNING session_id
+            `,
+            [user.user_id, SESSION_SCOPE, cleanDeviceId]
+        );
+
+        const replacedSessionIds = replacedSessions.rows.map(
+            (session) => session.session_id
+        );
+
+        if (replacedSessionIds.length > 0) {
+            await client.query(
+                `
+                UPDATE admin_session_pages
+                SET is_active = false,
+                    released_at = now(),
+                    last_seen_at = now()
+                WHERE session_id = ANY($1::uuid[])
+                  AND is_active = true
+                `,
+                [replacedSessionIds]
+            );
+        }
+
+        // The same device was replaced above before counting. This means a
+        // delayed/failed logout from this browser never consumes another slot.
+        // Only other currently valid devices count toward the three-device cap.
+        const activeDeviceResult = await client.query(
+            `
+            SELECT COUNT(DISTINCT device_id)::int AS active_device_count
             FROM admin_sessions
             WHERE user_id = $1
               AND session_scope = $2
               AND is_active = true
               AND logged_out_at IS NULL
               AND expires_at > now()
-            ORDER BY created_at DESC
-            FOR UPDATE
             `,
             [user.user_id, SESSION_SCOPE]
         );
 
-        const sameDeviceSessions = activeResult.rows.filter(
-            (session) => session.device_id === cleanDeviceId
+        const activeDeviceCount = Number(
+            activeDeviceResult.rows?.[0]?.active_device_count || 0
         );
 
-        if (sameDeviceSessions.length > 0) {
-            const sessionIds = sameDeviceSessions.map((session) => session.session_id);
-
-            await client.query(
-                `
-                UPDATE admin_sessions
-                SET is_active = false,
-                    released_at = now(),
-                    logged_out_at = now()
-                WHERE session_id = ANY($1::uuid[])
-                `,
-                [sessionIds]
-            );
-
-            await client.query(
-                `
-                UPDATE admin_session_pages
-                SET is_active = false,
-                    released_at = now()
-                WHERE session_id = ANY($1::uuid[])
-                  AND is_active = true
-                `,
-                [sessionIds]
-            );
-        }
-
-        const activeOtherDevices = new Set(
-            activeResult.rows
-                .filter((session) => session.device_id !== cleanDeviceId)
-                .map((session) => session.device_id)
-        );
-
-        if (activeOtherDevices.size >= MAX_ACTIVE_DEVICES) {
+        if (activeDeviceCount >= MAX_ACTIVE_DEVICES) {
             throw new AdminSessionError(
-                `This Admin account already has ${MAX_ACTIVE_DEVICES} active ${
-                    MAX_ACTIVE_DEVICES === 1 ? 'device' : 'devices'
-                } in the ${SESSION_SCOPE} environment. Log out an active device before signing in here.`,
+                `This Admin account is already active on ${MAX_ACTIVE_DEVICES} devices. Log out from one device and try again.`,
                 {
                     statusCode: 409,
-                    code: 'ADMIN_ACTIVE_DEVICE_LIMIT_REACHED',
+                    code: 'ADMIN_DEVICE_LIMIT_REACHED',
                 }
             );
         }
@@ -441,6 +450,19 @@ async function loadSessionForUpdate(client, decoded, rawToken) {
 
 async function resumeAdminSession({ rawToken, deviceId, pageId }) {
     const decoded = verifyAdminToken(rawToken);
+
+    try {
+        await staffSessionService.assertCurrentStaffSession({ decoded });
+    } catch (error) {
+        if (error instanceof staffSessionService.StaffSessionError) {
+            throw new AdminSessionError(error.message, {
+                statusCode: error.statusCode,
+                code: error.code,
+            });
+        }
+        throw error;
+    }
+
     const cleanDeviceId = sanitizeClientId(deviceId, 'deviceId');
     const cleanPageId = sanitizeClientId(pageId, 'pageId');
     const userId = decoded.user_id || decoded.userId || decoded.sub;
@@ -448,7 +470,6 @@ async function resumeAdminSession({ rawToken, deviceId, pageId }) {
 
     try {
         await client.query('BEGIN');
-        await lockUserScope(client, userId);
         await cleanupStalePages(client, userId);
 
         const session = await loadSessionForUpdate(client, decoded, rawToken);
@@ -459,35 +480,6 @@ async function resumeAdminSession({ rawToken, deviceId, pageId }) {
                 {
                     statusCode: 401,
                     code: 'ADMIN_SESSION_DEVICE_MISMATCH',
-                }
-            );
-        }
-
-        const otherActiveResult = await client.query(
-            `
-            SELECT COUNT(DISTINCT device_id)::integer AS active_devices
-            FROM admin_sessions
-            WHERE user_id = $1
-              AND session_scope = $2
-              AND session_id <> $3
-              AND device_id <> $4
-              AND is_active = true
-              AND logged_out_at IS NULL
-              AND expires_at > now()
-            `,
-            [userId, SESSION_SCOPE, session.session_id, cleanDeviceId]
-        );
-
-        const otherActiveDevices = Number(
-            otherActiveResult.rows[0]?.active_devices || 0
-        );
-
-        if (otherActiveDevices >= MAX_ACTIVE_DEVICES) {
-            throw new AdminSessionError(
-                `The ${SESSION_SCOPE} Admin device limit has been reached.`,
-                {
-                    statusCode: 409,
-                    code: 'ADMIN_ACTIVE_DEVICE_LIMIT_REACHED',
                 }
             );
         }
@@ -697,41 +689,49 @@ async function releaseAdminPage({ decoded, pageId }) {
 }
 
 async function logoutAdminSession({ decoded }) {
-    const client = await db.connect();
+    const sessionId = decoded?.sid || decoded?.session_id || null;
 
+    if (!sessionId) {
+        throw new AdminSessionError('Admin session is invalid.', {
+            statusCode: 401,
+            code: 'ADMIN_SESSION_INVALID',
+        });
+    }
+
+    // Free the device slot first. The three-device limit only counts rows in
+    // admin_sessions, so this update must not wait for tab/page cleanup.
+    // It is intentionally idempotent so a normal logout request and a beacon
+    // may safely arrive in either order.
+    await db.query(
+        `
+        UPDATE admin_sessions
+        SET is_active = false,
+            released_at = COALESCE(released_at, now()),
+            logged_out_at = COALESCE(logged_out_at, now()),
+            last_seen_at = now()
+        WHERE session_id = $1
+          AND session_scope = $2
+        `,
+        [sessionId, SESSION_SCOPE]
+    );
+
+    // Page rows are bookkeeping only. Clean them after the session has already
+    // stopped consuming a device slot; failure here must not resurrect/block
+    // the logged-out device.
     try {
-        await client.query('BEGIN');
-
-        await client.query(
+        await db.query(
             `
             UPDATE admin_session_pages
             SET is_active = false,
-                released_at = now(),
+                released_at = COALESCE(released_at, now()),
                 last_seen_at = now()
             WHERE session_id = $1
               AND is_active = true
             `,
-            [decoded.sid]
+            [sessionId]
         );
-
-        await client.query(
-            `
-            UPDATE admin_sessions
-            SET is_active = false,
-                released_at = now(),
-                logged_out_at = now(),
-                last_seen_at = now()
-            WHERE session_id = $1
-            `,
-            [decoded.sid]
-        );
-
-        await client.query('COMMIT');
     } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-    } finally {
-        client.release();
+        console.error('ADMIN SESSION PAGE CLEANUP AFTER LOGOUT ERROR:', error);
     }
 }
 
@@ -881,6 +881,7 @@ module.exports = {
     sessionConfig: Object.freeze({
         scope: SESSION_SCOPE,
         maxActiveDevices: MAX_ACTIVE_DEVICES,
+        multiDeviceEnabled: true,
     }),
 };
 

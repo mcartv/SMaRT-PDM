@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,9 @@ import { buildApiUrl } from '@/api';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
+import { useSocketEvent } from '@/hooks/useSocket';
+import { formatSystemLogDescription } from '@/utils/systemLogText';
+import SystemLogIcon from '@/components/system/SystemLogIcon';
 import {
     Building2,
     Shield,
@@ -20,7 +23,8 @@ import {
     ChevronRight,
     Loader2,
     AlertCircle,
-    RefreshCw,
+    Mail,
+    Phone,
 } from 'lucide-react';
 
 
@@ -69,23 +73,15 @@ function parseDevice(userAgent = '') {
         label: `${browser} · ${platform}`,
         type:
             ua.includes('android') ||
-            ua.includes('iphone') ||
-            ua.includes('ipad')
+                ua.includes('iphone') ||
+                ua.includes('ipad')
                 ? 'mobile'
                 : 'desktop',
     };
 }
 
 function formatAuditAction(item = {}) {
-    const description = String(item.description || '').trim();
-    if (description) return description;
-
-    const action = String(item.action_taken || 'Activity')
-        .replaceAll('_', ' ')
-        .toLowerCase()
-        .replace(/^\w/, (letter) => letter.toUpperCase());
-
-    return item.module ? `${action} · ${item.module}` : action;
+    return formatSystemLogDescription(item);
 }
 
 function SectionCard({ title, subtitle, icon, children, action }) {
@@ -141,7 +137,7 @@ const adminProfileConfig = {
         last_name: 'Administrator',
         email: 'admin@pdm.edu.ph',
         phone_number: '',
-        position: 'OSFA Administrator',
+        position: 'OSFA Coordinator',
         department: 'Office for Scholarship and Financial Assistance',
         role: 'Admin',
     },
@@ -164,7 +160,7 @@ export default function AdminProfile() {
         lastName: savedProfile?.last_name || 'Dela Cruz',
         email: savedProfile?.email || 'cdelacruz@pdm.edu.ph',
         phone: savedProfile?.phone || savedProfile?.phone_number || '+63 917 123 4567',
-        position: savedProfile?.position || 'OSFA Administrator',
+        position: savedProfile?.position || 'OSFA Coordinator',
         department: savedProfile?.department || 'Office for Scholarship and Financial Assistance',
         role: savedProfile?.role || 'Super Admin',
         status: savedProfile?.is_active === false ? 'Inactive' : 'Active',
@@ -273,6 +269,14 @@ export default function AdminProfile() {
         loadRecentSessions();
     }, [loadRecentActivity, loadRecentSessions]);
 
+    useSocketEvent('audit:created', () => {
+        loadRecentActivity();
+    }, [loadRecentActivity]);
+
+    useSocketEvent('admin-session:updated', () => {
+        loadRecentSessions();
+    }, [loadRecentSessions]);
+
     const fullName = `${adminData.firstName} ${adminData.lastName}`.trim();
 
     const initials = useMemo(() => {
@@ -282,23 +286,25 @@ export default function AdminProfile() {
     }, [adminData.firstName, adminData.lastName]);
 
     return (
-        <div className="space-y-5 py-2">
-            <Card className="overflow-hidden rounded-3xl border-stone-200 bg-white shadow-none">
-                <CardContent className="p-5">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                            <Avatar className="h-20 w-20 border-4 border-white shadow-sm">
-                                <AvatarImage src={adminData.avatarUrl || undefined} alt={fullName} />
-                                <AvatarFallback className="bg-stone-800 text-xl font-bold text-white">
-                                    {initials}
-                                </AvatarFallback>
-                            </Avatar>
+        <main className="space-y-6 py-2" aria-labelledby="admin-profile-title">
+            <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
+                <CardContent className="relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-stone-50 to-white p-6 sm:p-7">
+                    <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-amber-900/5" />
+                    <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                            <PreviewableProfileAvatar
+                                src={adminData.avatarUrl || ''}
+                                name={`${fullName} profile photo`}
+                                fallback={initials}
+                                avatarClassName="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28"
+                                fallbackClassName="bg-stone-800 text-xl font-bold text-white"
+                            />
 
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                                    <h2 className="text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">
                                         {fullName}
-                                    </h1>
+                                    </h2>
 
                                     <Badge className="border border-green-100 bg-green-50 text-green-700 hover:bg-green-50">
                                         <BadgeCheck className="mr-1.5 h-3.5 w-3.5" />
@@ -323,6 +329,21 @@ export default function AdminProfile() {
                                 <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">
                                     {adminData.bio}
                                 </p>
+
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    {adminData.email ? (
+                                        <a href={`mailto:${adminData.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
+                                            <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                                            {adminData.email}
+                                        </a>
+                                    ) : null}
+                                    {adminData.phone ? (
+                                        <a href={`tel:${adminData.phone}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
+                                            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                                            {adminData.phone}
+                                        </a>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
 
@@ -350,24 +371,8 @@ export default function AdminProfile() {
 
                     <SectionCard
                         title="Recent Activity"
-                        subtitle="Latest actions recorded in the Audit Trail for this admin account."
+                        subtitle="Latest actions recorded in System Logs for this admin account."
                         icon={Activity}
-                        action={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={loadRecentActivity}
-                                disabled={activityLoading}
-                                className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
-                            >
-                                {activityLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                )}
-                            </Button>
-                        }
                     >
                         {activityLoading ? (
                             <div className="flex items-center justify-center gap-2 py-8 text-sm text-stone-500">
@@ -381,7 +386,7 @@ export default function AdminProfile() {
                             </div>
                         ) : recentActivity.length === 0 ? (
                             <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-500">
-                                No audit activity has been recorded for this account yet.
+                                No system log activity has been recorded for this account yet.
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -391,7 +396,7 @@ export default function AdminProfile() {
                                         className="flex flex-col gap-2 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
                                     >
                                         <div className="flex min-w-0 items-start gap-3">
-                                            <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                                            <SystemLogIcon item={item} />
                                             <div className="min-w-0">
                                                 <p className="text-sm font-medium text-stone-700">
                                                     {formatAuditAction(item)}
@@ -429,22 +434,6 @@ export default function AdminProfile() {
                         title="Recent Sessions"
                         subtitle="Current and previous sign-ins recorded for this admin account."
                         icon={Clock3}
-                        action={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={loadRecentSessions}
-                                disabled={sessionsLoading}
-                                className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
-                            >
-                                {sessionsLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                )}
-                            </Button>
-                        }
                     >
                         {sessionsLoading ? (
                             <div className="flex items-center justify-center gap-2 py-8 text-sm text-stone-500">
@@ -477,11 +466,10 @@ export default function AdminProfile() {
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="flex min-w-0 items-start gap-3">
                                                     <div
-                                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
-                                                            session.is_current
+                                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${session.is_current
                                                                 ? 'border-green-100 bg-green-50 text-green-700'
                                                                 : 'border-stone-200 bg-white text-stone-500'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         <Icon className="h-4 w-4" />
                                                     </div>
@@ -543,6 +531,6 @@ export default function AdminProfile() {
                     </SectionCard>
                 </div>
             </div>
-        </div>
+        </main>
     );
 }

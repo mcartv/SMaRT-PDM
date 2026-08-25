@@ -1,5 +1,6 @@
 const roService = require('../services/roService');
 const auditLogService = require('../services/auditLogService');
+const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
 
 function getRequestUserId(req) {
@@ -30,13 +31,12 @@ function emitRoUpdated(req, action, payload = {}) {
       socketEvents.roUpdated(io, data);
     } else if (typeof socketEvents?.emitEvent === 'function') {
       socketEvents.emitEvent(io, 'ro:updated', data);
-      socketEvents.emitEvent(io, 'roUpdated', data);
     } else {
       io.emit('ro:updated', data);
-      io.emit('roUpdated', data);
     }
 
-    io.emit('ro:updated', data);
+    // Keep the legacy alias once for older clients while the canonical
+    // ro:updated event remains the single web refresh signal.
     io.emit('roUpdated', data);
 
     if (action === 'validate-log') {
@@ -82,6 +82,22 @@ function writeAudit(req, actionTaken, entityId, description, metadata = {}) {
   }
 }
 
+function emitCoordinatorNotifications(req, entries = []) {
+  const io = req.app?.get?.('io');
+  if (!io) return;
+
+  entries.forEach((entry) => {
+    const userId = entry?.coordinator?.user_id;
+    const notification = entry?.notification;
+    if (userId && notification) {
+      socketEvents.notificationCreated(io, userId, {
+        ...notification,
+        target_user_id: userId,
+      });
+    }
+  });
+}
+
 exports.getSummary = async (req, res) => {
   try {
     const data = await roService.getSummary();
@@ -102,6 +118,84 @@ exports.getROScholars = async (req, res) => {
   }
 };
 
+exports.getScholarRequests = async (req, res) => {
+  try {
+    const data = await roService.getScholarRequests(req.query || {});
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('GET RO SCHOLAR REQUESTS ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.updateScholarRequest = async (req, res) => {
+  try {
+    const data = await roService.updateScholarRequest(
+      req.params.requestId,
+      req.body || {},
+      req.user || {}
+    );
+    const request = data.request;
+
+    if (request?.requested_by_user_id) {
+      try {
+        const notification = await notificationService.createUserNotification({
+          userId: request.requested_by_user_id,
+          type: 'Return of Obligation',
+          title: `Scholar request ${request.request_status.toLowerCase()}`,
+          message: request.admin_remarks
+            ? `Admin marked your scholar request as ${request.request_status.toLowerCase()}: ${request.admin_remarks}`
+            : `Admin marked your scholar request as ${request.request_status.toLowerCase()}.`,
+          referenceId: request.request_id,
+          referenceType: 'ro_scholar_request',
+        });
+        const io = req.app?.get?.('io');
+        socketEvents.notificationCreated(io, request.requested_by_user_id, {
+          ...notification,
+          target_user_id: request.requested_by_user_id,
+        });
+      } catch (notificationError) {
+        console.error('RO SCHOLAR REQUEST STATUS NOTIFICATION ERROR:', notificationError.message);
+      }
+    }
+
+    emitRoUpdated(req, 'scholar-request-updated', {
+      request_id: request?.request_id || req.params.requestId,
+      request_status: request?.request_status || null,
+    });
+    writeAudit(
+      req,
+      'UPDATE_RO_SCHOLAR_REQUEST',
+      request?.request_id || req.params.requestId,
+      `Updated an RO scholar request to ${request?.request_status || 'a new status'}.`,
+      { remarks: request?.admin_remarks || null }
+    );
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('UPDATE RO SCHOLAR REQUEST ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.getScholarObligationHistory = async (req, res) => {
+  try {
+    const data = await roService.getScholarObligationHistory(
+      req.params.studentId
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error(
+      'GET SCHOLAR RO HISTORY ERROR:',
+      err.message
+    );
+
+    return res
+      .status(getSafeStatusCode(err))
+      .json({ error: err.message });
+  }
+};
+
 exports.assignScholarRO = async (req, res) => {
   try {
     const data = await roService.assignScholarRO(
@@ -109,6 +203,7 @@ exports.assignScholarRO = async (req, res) => {
       req.body || {},
       req.user || {}
     );
+    emitCoordinatorNotifications(req, [data]);
 
     emitRoUpdated(req, 'assign', {
       student_id: req.params.studentId,
@@ -118,9 +213,9 @@ exports.assignScholarRO = async (req, res) => {
 
     writeAudit(
       req,
-      'ASSIGN_RO',
+      'SEND_RO_COORDINATOR_REQUEST',
       data?.assignment?.ro_id || req.params.studentId,
-      'Assigned Return of Obligation to scholar.',
+      'Sent Return of Obligation request to an RO Coordinator.',
       {
         student_id: req.params.studentId,
         body_keys: Object.keys(req.body || {}),
@@ -140,6 +235,7 @@ exports.batchAssignScholarsRO = async (req, res) => {
       req.body || {},
       req.user || {}
     );
+    emitCoordinatorNotifications(req, data?.successful || []);
 
     emitRoUpdated(req, 'batch-assign', {
       total: data.total,

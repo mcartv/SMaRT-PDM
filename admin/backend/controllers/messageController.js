@@ -1,6 +1,35 @@
 const db = require('../config/db');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
+const messageService = require('../services/messageService');
+const { resolveAvatarUrl } = require('../services/avatarService');
+
+
+let adminProfilePhotoColumnPromise = null;
+
+async function hasAdminProfilePhotoColumn() {
+  if (!adminProfilePhotoColumnPromise) {
+    adminProfilePhotoColumnPromise = db.query(
+      `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'admin_profiles'
+        AND column_name = 'profile_photo_url'
+      LIMIT 1;
+      `
+    )
+      .then((result) => result.rows.length > 0)
+      .catch((error) => {
+        adminProfilePhotoColumnPromise = null;
+        console.warn('[Messaging] Unable to inspect admin profile photo column:', error.message);
+        return false;
+      });
+  }
+
+  return adminProfilePhotoColumnPromise;
+}
 
 function getCurrentUserId(req) {
   return req.user?.userId || req.user?.user_id || req.user?.id || null;
@@ -11,7 +40,7 @@ function getCurrentRole(req) {
 }
 
 function isAdminLike(req) {
-  return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd'].includes(getCurrentRole(req));
+  return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'].includes(getCurrentRole(req));
 }
 
 function isSystemAdmin(req) {
@@ -166,12 +195,30 @@ async function logMessageAudit({
   }
 }
 
+function relayToStudentBackend(eventName, payload, targetUserIds = []) {
+  studentRealtimeRelayService
+    .relayMessageEvent({
+      event: eventName,
+      payload,
+      targetUserIds: uniqueIds(targetUserIds),
+    })
+    .catch((error) => {
+      console.error('STUDENT REALTIME RELAY ERROR:', error.message);
+    });
+}
+
 function emitToUsers(io, eventName, payload, targetUserIds = []) {
   if (!io) return;
 
   uniqueIds(targetUserIds).forEach((userId) => {
     io.to(`user:${userId}`).emit(eventName, payload);
   });
+}
+
+function emitRoomEvent(io, eventName, payload, targetUserIds = []) {
+  const targets = uniqueIds(targetUserIds);
+  emitToUsers(io, eventName, payload, targets);
+  relayToStudentBackend(eventName, payload, targets);
 }
 
 function emitMessageCreated(io, message, targetUserIds = []) {
@@ -189,8 +236,7 @@ function emitMessageCreated(io, message, targetUserIds = []) {
     emitToUsers(io, 'message:created', payload, targets);
   }
 
-  io.emit('message:new', payload);
-  io.emit('message:created', payload);
+  relayToStudentBackend('message:new', payload, targets);
 }
 
 function emitMessageRead(io, payload, targetUserIds = []) {
@@ -203,18 +249,23 @@ function emitMessageRead(io, payload, targetUserIds = []) {
   } else {
     emitToUsers(io, 'message:read', payload, targetUserIds);
   }
+
+  relayToStudentBackend('message:read', payload, targetUserIds);
 }
 
 function emitMessageUnread(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:unread', payload, targetUserIds);
+  relayToStudentBackend('message:unread', payload, targetUserIds);
 }
 
 function emitThreadArchived(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:thread-archived', payload, targetUserIds);
+  relayToStudentBackend('message:thread-archived', payload, targetUserIds);
 }
 
 function emitThreadRestored(io, payload, targetUserIds = []) {
   emitToUsers(io, 'message:thread-restored', payload, targetUserIds);
+  relayToStudentBackend('message:thread-restored', payload, targetUserIds);
 }
 
 async function getPrimarySupportAdminId(currentUserId) {
@@ -233,7 +284,7 @@ async function getPrimarySupportAdminId(currentUserId) {
       END
     WHERE m.room_id IS NULL
       AND (m.sender_id = $1 OR m.receiver_id = $1)
-      AND LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+      AND LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')
     ORDER BY m.sent_at DESC, m.message_id DESC
     LIMIT 1;
     `,
@@ -250,7 +301,7 @@ async function getPrimarySupportAdminId(currentUserId) {
     FROM users u
     LEFT JOIN admin_profiles ap
       ON ap.user_id = u.user_id
-    WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+    WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')
     ORDER BY
       CASE WHEN ap.admin_id IS NULL THEN 1 ELSE 0 END,
       u.created_at ASC NULLS LAST,
@@ -263,6 +314,9 @@ async function getPrimarySupportAdminId(currentUserId) {
 }
 
 async function fetchConversationMessages(leftUserId, rightUserId) {
+  const adminPhotoExpression = await hasAdminProfilePhotoColumn()
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
   const result = await db.query(
     `
     SELECT
@@ -283,8 +337,8 @@ async function fetchConversationMessages(leftUserId, rightUserId) {
         u.email,
         'Unknown'
       ) AS sender_name,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
@@ -373,6 +427,22 @@ async function createPrivateMessage({
   );
 
   const inserted = result.rows[0];
+  const restoredArchives = await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE thread_type = 'private'
+      AND (
+        (user_id = $1 AND counterparty_id = $2)
+        OR
+        (user_id = $2 AND counterparty_id = $1)
+      )
+    RETURNING user_id;
+    `,
+    [senderId, receiverId]
+  );
+  const adminPhotoExpression = await hasAdminProfilePhotoColumn()
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
 
   const withProfile = await db.query(
     `
@@ -394,8 +464,8 @@ async function createPrivateMessage({
         u.email,
         'Unknown'
       ) AS sender_name,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
@@ -409,7 +479,12 @@ async function createPrivateMessage({
     [inserted.message_id]
   );
 
-  return toMessagePayload(withProfile.rows[0] || inserted);
+  return {
+    ...toMessagePayload(withProfile.rows[0] || inserted),
+    restored_archive_user_ids: restoredArchives.rows
+      .map((row) => row.user_id)
+      .filter(Boolean),
+  };
 }
 
 async function createRoomMessage({
@@ -481,6 +556,24 @@ async function createRoomMessage({
   );
 
   const inserted = result.rows[0];
+  const restoredArchives = await db.query(
+    `
+    DELETE FROM message_thread_archives mta
+    WHERE mta.thread_type = 'group'
+      AND mta.room_id = $1
+      AND EXISTS (
+        SELECT 1
+        FROM chat_room_members crm
+        WHERE crm.room_id = mta.room_id
+          AND crm.user_id = mta.user_id
+      )
+    RETURNING mta.user_id;
+    `,
+    [roomId]
+  );
+  const adminPhotoExpression = await hasAdminProfilePhotoColumn()
+    ? 'ap.profile_photo_url'
+    : 'NULL::text';
 
   const withProfile = await db.query(
     `
@@ -497,24 +590,32 @@ async function createRoomMessage({
       u.role AS sender_role,
       COALESCE(
         NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+        NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
         u.username,
         u.email,
         'Unknown'
       ) AS sender_name,
-      s.profile_photo_url AS sender_profile_photo_url,
-      s.profile_photo_url AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ${adminPhotoExpression}) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
     LEFT JOIN students s
       ON s.user_id = m.sender_id
+    LEFT JOIN admin_profiles ap
+      ON ap.user_id = m.sender_id
     WHERE m.message_id = $1
     LIMIT 1;
     `,
     [inserted.message_id]
   );
 
-  return toMessagePayload(withProfile.rows[0] || inserted);
+  return {
+    ...toMessagePayload(withProfile.rows[0] || inserted),
+    restored_archive_user_ids: restoredArchives.rows
+      .map((row) => row.user_id)
+      .filter(Boolean),
+  };
 }
 
 function getStatusCode(error) {
@@ -671,6 +772,25 @@ exports.sendThreadMessage = async (req, res) => {
     });
 
     const io = req.app.get('io');
+    const restoredArchiveUserIds = uniqueIds(
+      message.restored_archive_user_ids || []
+    );
+
+    for (const restoredUserId of restoredArchiveUserIds) {
+      const restoredCounterpartyId =
+        restoredUserId === senderId ? targetAdminId : senderId;
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'private',
+          counterparty_id: restoredCounterpartyId,
+          counterpartyId: restoredCounterpartyId,
+          auto_restored: true,
+          restored_at: new Date().toISOString(),
+        },
+        [restoredUserId]
+      );
+    }
 
     emitMessageCreated(io, message, [senderId, targetAdminId]);
 
@@ -793,95 +913,25 @@ exports.getConversations = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const result = await db.query(
-      `
-      WITH direct_messages AS (
-        SELECT
-          m.*,
-          CASE
-            WHEN m.sender_id = $1 THEN m.receiver_id
-            ELSE m.sender_id
-          END AS counterparty_id
-        FROM messages m
-        WHERE m.room_id IS NULL
-          AND (m.sender_id = $1 OR m.receiver_id = $1)
-      ),
-      ranked AS (
-        SELECT
-          dm.*,
-          ROW_NUMBER() OVER (
-            PARTITION BY dm.counterparty_id
-            ORDER BY dm.sent_at DESC, dm.message_id DESC
-          ) AS rn,
-          COUNT(*) FILTER (
-            WHERE dm.receiver_id = $1
-              AND dm.sender_id <> $1
-              AND COALESCE(dm.is_read, false) = false
-          ) OVER (PARTITION BY dm.counterparty_id) AS unread_count
-        FROM direct_messages dm
-        WHERE dm.counterparty_id IS NOT NULL
-      )
-      SELECT
-        r.counterparty_id,
-        r.message_id,
-        r.message_body,
-        r.sent_at,
-        r.unread_count,
-        u.role,
-        COALESCE(
-          NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
-          NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
-          u.username,
-          u.email,
-          'Unknown user'
-        ) AS name,
-        COALESCE(s.pdm_id, ap.department, INITCAP(COALESCE(u.role, 'staff'))) AS student_number,
-        s.profile_photo_url AS avatar_url
-      FROM ranked r
-      LEFT JOIN users u
-        ON u.user_id = r.counterparty_id
-      LEFT JOIN students s
-        ON s.user_id = r.counterparty_id
-      LEFT JOIN admin_profiles ap
-        ON ap.user_id = r.counterparty_id
-      WHERE r.rn = 1
-      ORDER BY r.sent_at DESC, r.message_id DESC;
-      `,
-      [currentUserId]
-    );
-
-    const items = result.rows.map((row) => ({
+    const rows = await messageService.fetchConversations(currentUserId);
+    const items = rows.map((row) => ({
+      ...row,
       counterpartyId: row.counterparty_id,
-      counterparty_id: row.counterparty_id,
-
-      messageId: row.message_id,
-      message_id: row.message_id,
-
-      name: row.name || 'Unknown user',
-
-      role: row.role || null,
-
-      studentNumber: row.student_number || null,
-      student_number: row.student_number || null,
-
-      avatarUrl: row.avatar_url || null,
-      avatar_url: row.avatar_url || null,
-
-      lastMessage: row.message_body || '',
-      last_message: row.message_body || '',
-
-      lastSentAt: row.sent_at,
-      last_sent_at: row.sent_at,
-
+      studentNumber: row.student_number || '',
+      avatarUrl: row.avatar_url || row.profile_photo_url || null,
+      isDisabled: row.is_disabled === true,
+      lastMessage: row.last_message || '',
+      lastSentAt: row.last_sent_at || null,
       unreadCount: Number(row.unread_count || 0),
-      unread_count: Number(row.unread_count || 0),
+      isAdmin: row.is_admin === true,
+      is_admin: row.is_admin === true,
     }));
 
     return res.json({ items });
   } catch (err) {
     console.error('GET CONVERSATIONS ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to load conversations',
       error: err.message,
     });
@@ -897,11 +947,21 @@ exports.getConversationMessages = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const items = await fetchConversationMessages(currentUserId, counterpartyId);
+    const [items, counterparty] = await Promise.all([
+      messageService.fetchConversationMessages(currentUserId, counterpartyId),
+      messageService.fetchUserSummary(counterpartyId),
+    ]);
 
     return res.json({
       counterpartyId,
       counterparty_id: counterpartyId,
+      counterparty: counterparty
+        ? {
+            user_id: counterparty.user_id,
+            name: counterparty.display_name || 'Unknown User',
+            is_disabled: counterparty.is_disabled === true,
+          }
+        : null,
       items,
       messages: items,
     });
@@ -916,10 +976,27 @@ exports.getConversationMessages = async (req, res) => {
 };
 
 exports.getArchivedThreads = async (req, res) => {
-  return res.json({
-    items: [],
-    archived: [],
-  });
+  try {
+    const currentUserId = getCurrentUserId(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const items = await messageService.fetchArchivedThreads(currentUserId);
+
+    return res.json({
+      items,
+      archived: items,
+    });
+  } catch (err) {
+    console.error('GET ARCHIVED THREADS ERROR:', err.message);
+
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to load archived threads',
+      error: err.message,
+    });
+  }
 };
 
 exports.restoreConversation = async (req, res) => {
@@ -931,28 +1008,35 @@ exports.restoreConversation = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const io = req.app.get('io');
-
-    emitThreadRestored(
-      io,
-      {
-        thread_type: 'private',
-        counterparty_id: counterpartyId,
-        counterpartyId,
-        restored_by: currentUserId,
-        restored_at: new Date().toISOString(),
-      },
-      [currentUserId]
+    const result = await messageService.restoreConversation(
+      currentUserId,
+      counterpartyId
     );
+
+    if (result.restored) {
+      const io = req.app.get('io');
+
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'private',
+          counterparty_id: counterpartyId,
+          counterpartyId,
+          restored_by: currentUserId,
+          restored_at: new Date().toISOString(),
+        },
+        [currentUserId]
+      );
+    }
 
     return res.json({
       success: true,
-      restored: true,
+      ...result,
     });
   } catch (err) {
     console.error('RESTORE CONVERSATION ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to restore conversation',
       error: err.message,
     });
@@ -968,28 +1052,32 @@ exports.restoreRoom = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const io = req.app.get('io');
+    const result = await messageService.restoreRoom(currentUserId, roomId);
 
-    emitThreadRestored(
-      io,
-      {
-        thread_type: 'group',
-        room_id: roomId,
-        roomId,
-        restored_by: currentUserId,
-        restored_at: new Date().toISOString(),
-      },
-      [currentUserId]
-    );
+    if (result.restored) {
+      const io = req.app.get('io');
+
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'group',
+          room_id: roomId,
+          roomId,
+          restored_by: currentUserId,
+          restored_at: new Date().toISOString(),
+        },
+        [currentUserId]
+      );
+    }
 
     return res.json({
       success: true,
-      restored: true,
+      ...result,
     });
   } catch (err) {
     console.error('RESTORE ROOM ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to restore room thread',
       error: err.message,
     });
@@ -1005,20 +1093,10 @@ exports.markConversationRead = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const updateResult = await db.query(
-      `
-      UPDATE messages
-      SET is_read = true
-      WHERE room_id IS NULL
-        AND receiver_id = $1
-        AND sender_id = $2
-        AND COALESCE(is_read, false) = false
-      RETURNING message_id;
-      `,
-      [currentUserId, counterpartyId]
+    const messageIds = await messageService.markConversationRead(
+      currentUserId,
+      counterpartyId
     );
-
-    const messageIds = updateResult.rows.map((row) => row.message_id);
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1049,7 +1127,7 @@ exports.markConversationRead = async (req, res) => {
   } catch (err) {
     console.error('MARK CONVERSATION READ ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark conversation as read',
       error: err.message,
     });
@@ -1065,32 +1143,10 @@ exports.markConversationUnread = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const latestMessage = await db.query(
-      `
-      SELECT message_id
-      FROM messages
-      WHERE room_id IS NULL
-        AND receiver_id = $1
-        AND sender_id = $2
-      ORDER BY sent_at DESC, message_id DESC
-      LIMIT 1;
-      `,
-      [currentUserId, counterpartyId]
+    const messageIds = await messageService.markConversationUnread(
+      currentUserId,
+      counterpartyId
     );
-
-    const messageIds = latestMessage.rows.map((row) => row.message_id);
-
-    if (messageIds.length) {
-      await db.query(
-        `
-        UPDATE messages
-        SET is_read = false
-        WHERE message_id = ANY($1::uuid[]);
-        `,
-        [messageIds]
-      );
-    }
-
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1122,7 +1178,7 @@ exports.markConversationUnread = async (req, res) => {
   } catch (err) {
     console.error('MARK CONVERSATION UNREAD ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark conversation as unread',
       error: err.message,
     });
@@ -1146,6 +1202,12 @@ exports.archiveConversation = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    const archive = await messageService.archiveConversation(
+      currentUserId,
+      counterpartyId
+    );
+    const archivedAt = archive?.archived_at || new Date().toISOString();
+
     const io = req.app.get('io');
 
     emitThreadArchived(
@@ -1155,7 +1217,7 @@ exports.archiveConversation = async (req, res) => {
         counterparty_id: counterpartyId,
         counterpartyId,
         archived_by: currentUserId,
-        archived_at: new Date().toISOString(),
+        archived_at: archivedAt,
       },
       [currentUserId]
     );
@@ -1163,18 +1225,19 @@ exports.archiveConversation = async (req, res) => {
     return res.json({
       success: true,
       archive: {
+        ...archive,
         counterpartyId,
         counterparty_id: counterpartyId,
         archivedBy: currentUserId,
         archived_by: currentUserId,
-        archivedAt: new Date().toISOString(),
-        archived_at: new Date().toISOString(),
+        archivedAt,
+        archived_at: archivedAt,
       },
     });
   } catch (err) {
     console.error('ARCHIVE CONVERSATION ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to archive conversation',
       error: err.message,
     });
@@ -1199,7 +1262,7 @@ exports.sendMessage = async (req, res) => {
       return res.status(400).json({ message: 'Message body is required' });
     }
 
-    const message = await createPrivateMessage({
+    const message = await messageService.sendMessage({
       senderId,
       receiverId: counterpartyId,
       subject: getSubject(req),
@@ -1208,6 +1271,25 @@ exports.sendMessage = async (req, res) => {
     });
 
     const io = req.app.get('io');
+    const restoredArchiveUserIds = uniqueIds(
+      message.restored_archive_user_ids || []
+    );
+
+    for (const restoredUserId of restoredArchiveUserIds) {
+      const restoredCounterpartyId =
+        restoredUserId === senderId ? counterpartyId : senderId;
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'private',
+          counterparty_id: restoredCounterpartyId,
+          counterpartyId: restoredCounterpartyId,
+          auto_restored: true,
+          restored_at: new Date().toISOString(),
+        },
+        [restoredUserId]
+      );
+    }
 
     emitMessageCreated(io, message, [senderId, counterpartyId]);
 
@@ -1232,6 +1314,7 @@ exports.sendMessage = async (req, res) => {
     return res.status(getStatusCode(err)).json({
       message: 'Failed to send message',
       error: err.message,
+      code: err.code || 'MESSAGE_SEND_FAILED',
     });
   }
 };
@@ -1244,58 +1327,24 @@ exports.getRooms = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    let result;
-
-    if (isSystemAdmin(req)) {
-      result = await db.query(
-        `
-        SELECT
-          cr.room_id,
-          cr.room_name,
-          cr.created_at,
-          cr.created_by,
-          0::int AS unread_count
-        FROM chat_rooms cr
-        ORDER BY cr.created_at DESC;
-        `
-      );
-    } else {
-      result = await db.query(
-        `
-        SELECT
-          cr.room_id,
-          cr.room_name,
-          cr.created_at,
-          cr.created_by,
-          0::int AS unread_count
-        FROM chat_room_members crm
-        JOIN chat_rooms cr
-          ON cr.room_id = crm.room_id
-        WHERE crm.user_id = $1
-        ORDER BY cr.created_at DESC;
-        `,
-        [currentUserId]
-      );
-    }
-
-    const items = result.rows.map((row) => ({
+    const rows = await messageService.fetchRooms(currentUserId);
+    const items = rows.map((row) => ({
+      ...row,
       roomId: row.room_id,
-      room_id: row.room_id,
       roomName: row.room_name,
-      room_name: row.room_name,
-      createdAt: row.created_at,
-      created_at: row.created_at,
       createdBy: row.created_by,
-      created_by: row.created_by,
+      createdAt: row.created_at,
+      lastMessage: row.last_message || '',
+      lastSentAt: row.last_sent_at || null,
+      memberCount: Number(row.member_count || 0),
       unreadCount: Number(row.unread_count || 0),
-      unread_count: Number(row.unread_count || 0),
     }));
 
     return res.json({ items });
   } catch (err) {
     console.error('GET ROOMS ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to load chat rooms',
       error: err.message,
     });
@@ -1311,7 +1360,7 @@ exports.createRoom = async (req, res) => {
     }
 
     if (!isAdminLike(req)) {
-      return res.status(403).json({ message: 'Staff messaging access is required.' });
+      return res.status(403).json({ message: 'Account messaging access is required.' });
     }
 
     const roomName =
@@ -1353,6 +1402,8 @@ exports.createRoom = async (req, res) => {
       );
     }
 
+    const roomMemberPayload = await messageService.fetchRoomMembers(currentUserId, room.room_id);
+    const roomMembers = roomMemberPayload?.items || [];
     const payload = {
       roomId: room.room_id,
       room_id: room.room_id,
@@ -1364,6 +1415,12 @@ exports.createRoom = async (req, res) => {
       created_at: room.created_at,
       memberIds,
       member_ids: memberIds,
+      members: roomMembers,
+      roomMembers,
+      memberCount: roomMembers.length,
+      member_count: roomMembers.length,
+      viewerIsAdmin: roomMemberPayload?.viewer_is_admin === true,
+      viewer_is_admin: roomMemberPayload?.viewer_is_admin === true,
     };
 
     const io = req.app.get('io');
@@ -1375,6 +1432,7 @@ exports.createRoom = async (req, res) => {
     } else {
       emitToUsers(io, 'room:created', payload, memberIds);
     }
+    relayToStudentBackend('room:created', payload, memberIds);
 
     return res.status(201).json(payload);
   } catch (err) {
@@ -1396,68 +1454,28 @@ exports.getRoomMessages = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const membership = await db.query(
-      `
-      SELECT room_id
-      FROM chat_room_members
-      WHERE room_id = $1
-        AND user_id = $2
-      LIMIT 1;
-      `,
-      [roomId, currentUserId]
-    );
-
-    if (!membership.rows.length && !isSystemAdmin(req)) {
-      return res.status(403).json({ message: 'You are not a member of this room.' });
-    }
-
-    const result = await db.query(
-      `
-      SELECT
-        m.message_id,
-        m.sender_id,
-        m.receiver_id,
-        m.room_id,
-        m.subject,
-        m.message_body,
-        m.attachment_url,
-        m.sent_at,
-        m.is_read,
-        u.role AS sender_role,
-        COALESCE(
-          NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
-          NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
-          u.username,
-          u.email,
-          'Unknown'
-        ) AS sender_name,
-        COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
-        COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
-      FROM messages m
-      LEFT JOIN users u
-        ON u.user_id = m.sender_id
-      LEFT JOIN students s
-        ON s.user_id = m.sender_id
-      LEFT JOIN admin_profiles ap
-        ON ap.user_id = m.sender_id
-      WHERE m.room_id = $1
-      ORDER BY m.sent_at ASC, m.message_id ASC;
-      `,
-      [roomId]
-    );
-
-    const items = result.rows.map(toMessagePayload);
+    const [items, memberPayload] = await Promise.all([
+      messageService.fetchRoomMessages(currentUserId, roomId),
+      messageService.fetchRoomMembers(currentUserId, roomId),
+    ]);
+    const members = memberPayload?.items || [];
 
     return res.json({
       roomId,
       room_id: roomId,
       items,
       messages: items,
+      members,
+      roomMembers: members,
+      memberCount: members.length,
+      member_count: members.length,
+      viewerIsAdmin: memberPayload?.viewer_is_admin === true,
+      viewer_is_admin: memberPayload?.viewer_is_admin === true,
     });
   } catch (err) {
     console.error('GET ROOM MESSAGES ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to load room messages',
       error: err.message,
     });
@@ -1478,7 +1496,7 @@ exports.sendRoomMessage = async (req, res) => {
       return res.status(400).json({ message: 'Message body is required' });
     }
 
-    const message = await createRoomMessage({
+    const message = await messageService.sendRoomMessage({
       senderId,
       roomId,
       subject: getSubject(req),
@@ -1486,10 +1504,26 @@ exports.sendRoomMessage = async (req, res) => {
       attachmentUrl: getAttachmentUrl(req),
     });
 
-    const memberIds = await fetchRoomMemberUserIds(roomId);
+    const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, senderId);
-
+    const restoredArchiveUserIds = uniqueIds(
+      message.restored_archive_user_ids || []
+    );
     const io = req.app.get('io');
+
+    if (restoredArchiveUserIds.length) {
+      emitThreadRestored(
+        io,
+        {
+          thread_type: 'group',
+          room_id: roomId,
+          roomId,
+          auto_restored: true,
+          restored_at: new Date().toISOString(),
+        },
+        restoredArchiveUserIds
+      );
+    }
 
     emitMessageCreated(io, message, targetUserIds);
 
@@ -1504,6 +1538,37 @@ exports.sendRoomMessage = async (req, res) => {
   }
 };
 
+exports.getRoomMembers = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const payload = await messageService.fetchRoomMembers(currentUserId, roomId);
+    return res.json({
+      roomId,
+      room_id: roomId,
+      viewerIsAdmin: payload.viewer_is_admin === true,
+      viewer_is_admin: payload.viewer_is_admin === true,
+      items: payload.items || [],
+      members: payload.items || [],
+      roomMembers: payload.items || [],
+      memberCount: (payload.items || []).length,
+      member_count: (payload.items || []).length,
+    });
+  } catch (err) {
+    console.error('GET ROOM MEMBERS ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to load room members',
+      error: err.message,
+    });
+  }
+};
+
+
 exports.addRoomMembers = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);
@@ -1513,19 +1578,128 @@ exports.addRoomMembers = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const roomAccess = await db.query(
-      `
-      SELECT is_admin
-      FROM chat_room_members
-      WHERE room_id = $1
-        AND user_id = $2
-      LIMIT 1;
-      `,
-      [roomId, currentUserId]
-    );
+    const action = String(req.body?.action || 'add').trim().toLowerCase();
 
-    if (!isSystemAdmin(req) && roomAccess.rows[0]?.is_admin !== true) {
-      return res.status(403).json({ message: 'Only the group owner can add contacts.' });
+    if (action === 'promote_admin' || action === 'promote') {
+      const memberId = String(req.body?.memberId || req.body?.member_id || '').trim();
+      if (!memberId) {
+        return res.status(400).json({ message: 'A valid member is required.' });
+      }
+
+      const result = await messageService.promoteRoomMemberToAdmin({
+        actorId: currentUserId,
+        roomId,
+        memberId,
+      });
+
+      const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
+      const members = refreshed?.items || [];
+      const allRoomMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+      const io = req.app.get('io');
+
+      emitRoomEvent(io, 'room:member-promoted', {
+        room_id: roomId,
+        roomId,
+        member_id: memberId,
+        memberId,
+        promoted_by: currentUserId,
+        promotedBy: currentUserId,
+        updated_at: new Date().toISOString(),
+      }, uniqueIds(allRoomMemberIds, currentUserId, memberId));
+
+      return res.json({
+        success: true,
+        action: 'promote_admin',
+        ...result,
+        members,
+        roomMembers: members,
+        memberCount: members.length,
+        member_count: members.length,
+        viewerIsAdmin: refreshed?.viewer_is_admin === true,
+        viewer_is_admin: refreshed?.viewer_is_admin === true,
+      });
+    }
+
+    if (action === 'remove') {
+      const memberId = String(req.body?.memberId || req.body?.member_id || '').trim();
+      if (!memberId) {
+        return res.status(400).json({ message: 'Member ID is required.' });
+      }
+
+      const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+      const result = await messageService.removeRoomMember({
+        actorId: currentUserId,
+        roomId,
+        memberId,
+      });
+      const io = req.app.get('io');
+      emitRoomEvent(io, 'room:members-removed', {
+        room_id: roomId,
+        roomId,
+        member_id: memberId,
+        memberId,
+        actor_id: currentUserId,
+        actorId: currentUserId,
+        updated_at: new Date().toISOString(),
+      }, uniqueIds(beforeMemberIds, currentUserId, memberId));
+
+      const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
+      const members = refreshed?.items || [];
+      return res.json({
+        success: true,
+        action: 'remove',
+        ...result,
+        members,
+        roomMembers: members,
+        memberCount: members.length,
+        member_count: members.length,
+        viewerIsAdmin: refreshed?.viewer_is_admin === true,
+        viewer_is_admin: refreshed?.viewer_is_admin === true,
+      });
+    }
+
+    if (action === 'leave') {
+      const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+      const result = await messageService.leaveRoom(currentUserId, roomId);
+      const io = req.app.get('io');
+      const leaveTargets = uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id);
+      emitRoomEvent(io, 'room:member-left', {
+        room_id: roomId,
+        roomId,
+        user_id: currentUserId,
+        userId: currentUserId,
+        promoted_user_id: result.promoted_user_id || null,
+        promotedUserId: result.promoted_user_id || null,
+        updated_at: new Date().toISOString(),
+      }, leaveTargets);
+
+      if (result.promoted_user_id) {
+        emitRoomEvent(io, 'room:member-promoted', {
+          room_id: roomId,
+          roomId,
+          member_id: result.promoted_user_id,
+          memberId: result.promoted_user_id,
+          promoted_by: 'system',
+          promotedBy: 'system',
+          reason: 'last_admin_left',
+          updated_at: new Date().toISOString(),
+        }, leaveTargets);
+      }
+
+      emitThreadArchived(
+        io,
+        {
+          thread_type: 'group',
+          room_id: roomId,
+          roomId,
+          archived_by: currentUserId,
+          archived_at: result.archived_at || result.archive?.archived_at || new Date().toISOString(),
+          reason: 'left_group',
+        },
+        [currentUserId]
+      );
+
+      return res.json({ success: true, action: 'leave', ...result });
     }
 
     const memberIds =
@@ -1536,22 +1710,14 @@ exports.addRoomMembers = async (req, res) => {
       [];
 
     const selectedUserIds = uniqueIds(Array.isArray(memberIds) ? memberIds : []);
+    const result = await messageService.addRoomMembers({
+      actorId: currentUserId,
+      roomId,
+      memberIds: selectedUserIds,
+    });
 
-    if (selectedUserIds.length) {
-      await db.query(
-        `
-        INSERT INTO chat_room_members (room_id, user_id, is_admin)
-        SELECT $1, member_id, false
-        FROM unnest($2::uuid[]) AS member_id
-        ON CONFLICT DO NOTHING;
-        `,
-        [roomId, selectedUserIds]
-      );
-    }
-
-    const allRoomMemberIds = await fetchRoomMemberUserIds(roomId);
-    const targetUserIds = uniqueIds(allRoomMemberIds, currentUserId);
-
+    const allRoomMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+    const targetUserIds = uniqueIds(allRoomMemberIds, currentUserId, selectedUserIds);
     const payload = {
       room_id: roomId,
       roomId,
@@ -1559,34 +1725,133 @@ exports.addRoomMembers = async (req, res) => {
       actorId: currentUserId,
       member_ids: selectedUserIds,
       memberIds: selectedUserIds,
-      added_count: selectedUserIds.length,
-      addedCount: selectedUserIds.length,
+      added_count: result.added_count || 0,
+      addedCount: result.added_count || 0,
       updated_at: new Date().toISOString(),
     };
 
     const io = req.app.get('io');
-
     if (socketEvents?.roomMembersAdded) {
-      socketEvents.roomMembersAdded(io, payload, {
-        targetUserIds,
-      });
+      socketEvents.roomMembersAdded(io, payload, { targetUserIds });
     } else {
       emitToUsers(io, 'room:members-added', payload, targetUserIds);
     }
+    relayToStudentBackend('room:members-added', payload, targetUserIds);
 
+    const refreshed = await messageService.fetchRoomMembers(currentUserId, roomId);
+    const members = refreshed?.items || [];
     return res.json({
       success: true,
-      addedCount: selectedUserIds.length,
-      added_count: selectedUserIds.length,
-      members: selectedUserIds,
-      memberIds: selectedUserIds,
-      member_ids: selectedUserIds,
+      action: 'add',
+      ...result,
+      members,
+      roomMembers: members,
+      memberCount: members.length,
+      member_count: members.length,
+      viewerIsAdmin: refreshed?.viewer_is_admin === true,
+      viewer_is_admin: refreshed?.viewer_is_admin === true,
     });
   } catch (err) {
-    console.error('ADD ROOM MEMBERS ERROR:', err.message);
+    console.error('MANAGE ROOM MEMBERS ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to update group members',
+      error: err.message,
+    });
+  }
+};
 
-    return res.status(500).json({
-      message: 'Failed to add room members',
+exports.removeRoomMember = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId, memberId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+    const result = await messageService.removeRoomMember({
+      actorId: currentUserId,
+      roomId,
+      memberId,
+    });
+
+    const io = req.app.get('io');
+    const targetUserIds = uniqueIds(beforeMemberIds, currentUserId, memberId);
+    emitRoomEvent(io, 'room:members-removed', {
+      room_id: roomId,
+      roomId,
+      member_id: memberId,
+      memberId,
+      actor_id: currentUserId,
+      actorId: currentUserId,
+      updated_at: new Date().toISOString(),
+    }, targetUserIds);
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('REMOVE ROOM MEMBER ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to remove group member',
+      error: err.message,
+    });
+  }
+};
+
+exports.leaveRoom = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { roomId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const beforeMemberIds = await messageService.fetchRoomMemberUserIds(roomId);
+    const result = await messageService.leaveRoom(currentUserId, roomId);
+    const io = req.app.get('io');
+    const leaveTargets = uniqueIds(beforeMemberIds, currentUserId, result.promoted_user_id);
+    emitRoomEvent(io, 'room:member-left', {
+      room_id: roomId,
+      roomId,
+      user_id: currentUserId,
+      userId: currentUserId,
+      promoted_user_id: result.promoted_user_id || null,
+      promotedUserId: result.promoted_user_id || null,
+      updated_at: new Date().toISOString(),
+    }, leaveTargets);
+
+    if (result.promoted_user_id) {
+      emitRoomEvent(io, 'room:member-promoted', {
+        room_id: roomId,
+        roomId,
+        member_id: result.promoted_user_id,
+        memberId: result.promoted_user_id,
+        promoted_by: 'system',
+        promotedBy: 'system',
+        reason: 'last_admin_left',
+        updated_at: new Date().toISOString(),
+      }, leaveTargets);
+    }
+
+    emitThreadArchived(
+      io,
+      {
+        thread_type: 'group',
+        room_id: roomId,
+        roomId,
+        archived_by: currentUserId,
+        archived_at: result.archived_at || result.archive?.archived_at || new Date().toISOString(),
+        reason: 'left_group',
+      },
+      [currentUserId]
+    );
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('LEAVE ROOM ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to leave group',
       error: err.message,
     });
   }
@@ -1601,40 +1866,9 @@ exports.markRoomMessagesRead = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    let messageIds = [];
-
-    try {
-      const unread = await db.query(
-        `
-        SELECT m.message_id
-        FROM messages m
-        WHERE m.room_id = $1
-          AND m.sender_id <> $2;
-        `,
-        [roomId, currentUserId]
-      );
-
-      messageIds = unread.rows.map((row) => row.message_id);
-
-      if (messageIds.length) {
-        await db.query(
-          `
-          INSERT INTO message_read_states (message_id, user_id, is_read, read_at)
-          SELECT message_id, $2, true, now()
-          FROM unnest($1::uuid[]) AS message_id
-          ON CONFLICT (message_id, user_id)
-          DO UPDATE SET is_read = true, read_at = now();
-          `,
-          [messageIds, currentUserId]
-        );
-      }
-    } catch {
-      messageIds = [];
-    }
-
-    const memberIds = await fetchRoomMemberUserIds(roomId);
+    const messageIds = await messageService.markRoomMessagesRead(currentUserId, roomId);
+    const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, currentUserId);
-
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1665,7 +1899,7 @@ exports.markRoomMessagesRead = async (req, res) => {
   } catch (err) {
     console.error('MARK ROOM MESSAGES READ ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark room messages as read',
       error: err.message,
     });
@@ -1681,40 +1915,9 @@ exports.markRoomMessagesUnread = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const latest = await db.query(
-      `
-      SELECT message_id
-      FROM messages
-      WHERE room_id = $1
-        AND sender_id <> $2
-      ORDER BY sent_at DESC, message_id DESC
-      LIMIT 1;
-      `,
-      [roomId, currentUserId]
-    );
-
-    const messageIds = latest.rows.map((row) => row.message_id);
-
-    try {
-      if (messageIds.length) {
-        await db.query(
-          `
-          INSERT INTO message_read_states (message_id, user_id, is_read, read_at)
-          SELECT message_id, $2, false, null
-          FROM unnest($1::uuid[]) AS message_id
-          ON CONFLICT (message_id, user_id)
-          DO UPDATE SET is_read = false, read_at = null;
-          `,
-          [messageIds, currentUserId]
-        );
-      }
-    } catch {
-      // ignore read state failure
-    }
-
-    const memberIds = await fetchRoomMemberUserIds(roomId);
+    const messageIds = await messageService.markRoomMessagesUnread(currentUserId, roomId);
+    const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
     const targetUserIds = uniqueIds(memberIds, currentUserId);
-
     const io = req.app.get('io');
 
     if (messageIds.length) {
@@ -1746,7 +1949,7 @@ exports.markRoomMessagesUnread = async (req, res) => {
   } catch (err) {
     console.error('MARK ROOM MESSAGES UNREAD ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to mark room messages as unread',
       error: err.message,
     });
@@ -1770,6 +1973,9 @@ exports.archiveRoom = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    const archive = await messageService.archiveRoom(currentUserId, roomId);
+    const archivedAt = archive?.archived_at || new Date().toISOString();
+
     const io = req.app.get('io');
 
     emitThreadArchived(
@@ -1779,7 +1985,7 @@ exports.archiveRoom = async (req, res) => {
         room_id: roomId,
         roomId,
         archived_by: currentUserId,
-        archived_at: new Date().toISOString(),
+        archived_at: archivedAt,
       },
       [currentUserId]
     );
@@ -1787,18 +1993,19 @@ exports.archiveRoom = async (req, res) => {
     return res.json({
       success: true,
       archive: {
+        ...archive,
         roomId,
         room_id: roomId,
         archivedBy: currentUserId,
         archived_by: currentUserId,
-        archivedAt: new Date().toISOString(),
-        archived_at: new Date().toISOString(),
+        archivedAt,
+        archived_at: archivedAt,
       },
     });
   } catch (err) {
     console.error('ARCHIVE ROOM ERROR:', err.message);
 
-    return res.status(500).json({
+    return res.status(getStatusCode(err)).json({
       message: 'Failed to archive room thread',
       error: err.message,
     });
@@ -1827,40 +2034,43 @@ exports.getScholarMembers = async (req, res) => {
       `
     );
 
-    const items = result.rows.map((row) => ({
-      userId: row.user_id,
-      user_id: row.user_id,
+    const items = await Promise.all(result.rows.map(async (row) => {
+      const avatarUrl = await resolveAvatarUrl(row.profile_photo_url || null);
+      return {
+        userId: row.user_id,
+        user_id: row.user_id,
 
-      studentId: row.student_id,
-      student_id: row.student_id,
+        studentId: row.student_id,
+        student_id: row.student_id,
 
-      pdmId: row.pdm_id,
-      pdm_id: row.pdm_id,
+        pdmId: row.pdm_id,
+        pdm_id: row.pdm_id,
 
-      name:
-        [row.first_name, row.last_name]
-          .filter(Boolean)
-          .join(' ')
-          .trim() ||
-        row.username ||
-        row.email ||
-        'Unknown scholar',
+        name:
+          [row.first_name, row.last_name]
+            .filter(Boolean)
+            .join(' ')
+            .trim() ||
+          row.username ||
+          row.email ||
+          'Unknown scholar',
 
-      firstName: row.first_name,
-      first_name: row.first_name,
+        firstName: row.first_name,
+        first_name: row.first_name,
 
-      lastName: row.last_name,
-      last_name: row.last_name,
+        lastName: row.last_name,
+        last_name: row.last_name,
 
-      email: row.email,
-      username: row.username,
-      role: row.role,
+        email: row.email,
+        username: row.username,
+        role: row.role,
 
-      avatarUrl: row.profile_photo_url,
-      avatar_url: row.profile_photo_url,
+        avatarUrl,
+        avatar_url: avatarUrl,
 
-      profilePhotoUrl: row.profile_photo_url,
-      profile_photo_url: row.profile_photo_url,
+        profilePhotoUrl: avatarUrl,
+        profile_photo_url: avatarUrl,
+      };
     }));
 
     return res.json({ items });
@@ -1883,7 +2093,7 @@ exports.getMessagingContacts = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
     if (!isAdminLike(req)) {
-      return res.status(403).json({ message: 'Staff messaging access is required.' });
+      return res.status(403).json({ message: 'Account messaging access is required.' });
     }
 
     const studentParams = [currentUserId];
@@ -1922,19 +2132,26 @@ exports.getMessagingContacts = async (req, res) => {
       studentParams
     );
 
+    const adminPhotoEnabled = await hasAdminProfilePhotoColumn();
+    const adminPhotoSelect = adminPhotoEnabled
+      ? 'ap.profile_photo_url'
+      : 'NULL::text AS profile_photo_url';
+
     const staffResult = await db.query(
       `
       SELECT
         u.user_id,
         u.role,
+        u.username,
+        u.email,
         ap.first_name,
         ap.last_name,
         ap.department,
         ap.position,
-        ap.profile_photo_url
+        ${adminPhotoSelect}
       FROM users u
-      JOIN admin_profiles ap ON ap.user_id = u.user_id
-      WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+      LEFT JOIN admin_profiles ap ON ap.user_id = u.user_id
+      WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator')
         AND COALESCE(ap.is_archived, false) = false
         AND u.user_id <> $1
       ORDER BY ap.last_name ASC NULLS LAST, ap.first_name ASC NULLS LAST
@@ -1942,34 +2159,44 @@ exports.getMessagingContacts = async (req, res) => {
       [currentUserId]
     );
 
-    const studentItems = studentsResult.rows.map((row) => ({
-      user_id: row.user_id,
-      userId: row.user_id,
-      student_id: row.student_id,
-      studentId: row.student_id,
-      student_number: row.student_number,
-      studentNumber: row.student_number,
-      first_name: row.first_name,
-      firstName: row.first_name,
-      last_name: row.last_name,
-      lastName: row.last_name,
-      student_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
-      studentName: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
-      avatar_url: row.profile_photo_url,
-      avatarUrl: row.profile_photo_url,
-      program_name: row.program_name,
-      programName: row.program_name,
-      benefactor_name: 'Student',
-      benefactorName: 'Student',
-      role: row.role,
-      contact_type: 'student',
+    const studentItems = await Promise.all(studentsResult.rows.map(async (row) => {
+      const avatarUrl = await resolveAvatarUrl(row.profile_photo_url || null);
+      return {
+        user_id: row.user_id,
+        userId: row.user_id,
+        student_id: row.student_id,
+        studentId: row.student_id,
+        student_number: row.student_number,
+        studentNumber: row.student_number,
+        first_name: row.first_name,
+        firstName: row.first_name,
+        last_name: row.last_name,
+        lastName: row.last_name,
+        student_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
+        studentName: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
+        avatar_url: avatarUrl,
+        avatarUrl,
+        program_name: row.program_name,
+        programName: row.program_name,
+        benefactor_name: 'Student',
+        benefactorName: 'Student',
+        role: row.role,
+        contact_type: 'student',
+      };
     }));
 
-    const staffItems = staffResult.rows.map((row) => {
-      const name = [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Staff Account';
-      const roleLabel = String(row.role || 'staff')
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (character) => character.toUpperCase());
+    const staffItems = await Promise.all(staffResult.rows.map(async (row) => {
+      const avatarUrl = await resolveAvatarUrl(row.profile_photo_url || null);
+      const name =
+        [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+        row.username ||
+        row.email ||
+        'Account';
+      const roleLabel = row.role === 'ro_coordinator'
+        ? 'RO Coordinator'
+        : String(row.role || 'user')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (character) => character.toUpperCase());
       return {
         user_id: row.user_id,
         userId: row.user_id,
@@ -1983,17 +2210,17 @@ exports.getMessagingContacts = async (req, res) => {
         lastName: row.last_name,
         student_name: name,
         studentName: name,
-        avatar_url: row.profile_photo_url,
-        avatarUrl: row.profile_photo_url,
-        program_name: row.department || 'Staff Office',
-        programName: row.department || 'Staff Office',
+        avatar_url: avatarUrl,
+        avatarUrl,
+        program_name: row.department || 'Office',
+        programName: row.department || 'Office',
         benefactor_name: roleLabel,
         benefactorName: roleLabel,
         role: row.role,
         position: row.position,
-        contact_type: 'staff',
+        contact_type: 'authorized_user',
       };
-    });
+    }));
 
     return res.json({ items: [...staffItems, ...studentItems] });
   } catch (err) {

@@ -2,43 +2,132 @@ const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
-const AUDIENCE_TO_ROLE_FILTER = {
-    all: null,
-    applicants: 'Applicant',
-    scholars: 'Student',
-    tes: 'Student',
-    tdp: 'Student',
-};
+function normalizeAudience(value) {
+    return String(value || '').trim().toLowerCase();
+}
 
-async function getAudienceUsers(audience) {
-    let usersQuery = supabase
-        .from('users')
-        .select('user_id, role');
+function dedupeAudienceUsers(users = []) {
+    const seen = new Set();
+    return users.filter((user) => {
+        const userId = String(user?.user_id || '').trim();
+        if (!userId || seen.has(userId)) return false;
+        seen.add(userId);
+        return true;
+    });
+}
 
-    const roleFilter = AUDIENCE_TO_ROLE_FILTER[audience];
+async function getApplicantAudienceUsers() {
+    const { rows } = await db.query(
+        `
+        SELECT DISTINCT u.user_id, u.role
+        FROM users u
+        LEFT JOIN students s ON s.user_id = u.user_id
+        WHERE lower(coalesce(u.role, '')) IN ('student', 'applicant')
+          AND (
+            lower(coalesce(u.role, '')) = 'applicant'
+            OR NOT (
+              coalesce(s.is_active_scholar, false) = true
+              OR lower(coalesce(s.scholarship_status, '')) = 'active'
+            )
+          )
+          AND coalesce(s.scholar_is_archived, false) = false
+          AND coalesce(s.is_archived, false) = false
+          AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
+        `
+    );
 
-    if (roleFilter) {
-        usersQuery = usersQuery.eq('role', roleFilter);
+    return rows || [];
+}
+
+async function getActiveScholarAudienceUsers(programId = null) {
+    const params = [];
+    let programCondition = '';
+
+    if (programId) {
+        params.push(programId);
+        programCondition = `AND s.current_program_id = $${params.length}`;
     }
 
-    const { data: users, error } = await usersQuery;
+    const { rows } = await db.query(
+        `
+        SELECT DISTINCT u.user_id, u.role
+        FROM users u
+        INNER JOIN students s ON s.user_id = u.user_id
+        WHERE lower(coalesce(u.role, '')) = 'student'
+          AND (
+            coalesce(s.is_active_scholar, false) = true
+            OR lower(coalesce(s.scholarship_status, '')) = 'active'
+          )
+          AND coalesce(s.scholar_is_archived, false) = false
+          AND coalesce(s.is_archived, false) = false
+          AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
+          ${programCondition}
+        `,
+        params
+    );
 
-    if (error) {
-        console.error('SUPABASE USERS FETCH ERROR:', error);
-        throw new Error(error.message);
+    return rows || [];
+}
+
+async function resolveLegacyProgramId(audience) {
+    const normalizedAudience = normalizeAudience(audience);
+    if (!['tes', 'tdp'].includes(normalizedAudience)) return null;
+
+    const patterns = normalizedAudience === 'tes'
+        ? ['%tertiary education subsidy%', 'tes%', '% tes %']
+        : ['%tulong dunong%', 'tdp%', '% tdp %'];
+
+    const { rows } = await db.query(
+        `
+        SELECT program_id
+        FROM scholarship_program
+        WHERE coalesce(is_archived, false) = false
+          AND (
+            lower(program_name) LIKE $1
+            OR lower(program_name) LIKE $2
+            OR (' ' || lower(program_name) || ' ') LIKE $3
+          )
+        ORDER BY program_name
+        LIMIT 1
+        `,
+        patterns
+    );
+
+    return rows[0]?.program_id || null;
+}
+
+async function getAudienceUsers(audience, { programId = null } = {}) {
+    const normalizedAudience = normalizeAudience(audience);
+
+    if (normalizedAudience === 'applicants') {
+        return getApplicantAudienceUsers();
     }
 
-    let filteredUsers = users || [];
-
-    if (audience === 'applicants') {
-        filteredUsers = filteredUsers.filter((user) => user.role === 'Applicant');
+    if (normalizedAudience === 'scholars') {
+        return getActiveScholarAudienceUsers();
     }
 
-    if (['scholars', 'tes', 'tdp'].includes(audience)) {
-        filteredUsers = filteredUsers.filter((user) => user.role === 'Student');
+    if (normalizedAudience === 'program') {
+        if (!programId) {
+            throw new Error('Program ID is required for a program recipient announcement.');
+        }
+        return getActiveScholarAudienceUsers(programId);
     }
 
-    return filteredUsers;
+    if (['tes', 'tdp'].includes(normalizedAudience)) {
+        const legacyProgramId = await resolveLegacyProgramId(normalizedAudience);
+        return legacyProgramId ? getActiveScholarAudienceUsers(legacyProgramId) : [];
+    }
+
+    if (normalizedAudience === 'all') {
+        const [applicants, scholars] = await Promise.all([
+            getApplicantAudienceUsers(),
+            getActiveScholarAudienceUsers(),
+        ]);
+        return dedupeAudienceUsers([...applicants, ...scholars]);
+    }
+
+    throw new Error('Unsupported announcement audience.');
 }
 
 async function createNotificationsForAudience({
@@ -49,15 +138,86 @@ async function createNotificationsForAudience({
     referenceType = 'announcement',
     type = 'Announcement',
     createdAt = null,
+    programId = null,
 }) {
     if (!title || !message || !audience) {
         throw new Error('Title, message, and audience are required');
     }
 
-    const users = await getAudienceUsers(audience);
+    const users = await getAudienceUsers(audience, { programId });
 
     if (!users.length) {
         return [];
+    }
+
+    const timestamp = createdAt || new Date().toISOString();
+    const isCanonicalAnnouncement =
+        referenceId &&
+        String(referenceType || '').trim().toLowerCase() === 'announcement' &&
+        String(type || '').trim().toLowerCase() === 'announcement';
+
+    if (isCanonicalAnnouncement) {
+        const userIds = users
+            .map((targetUser) => String(targetUser?.user_id || '').trim())
+            .filter(Boolean);
+
+        const { rows } = await db.query(
+            `
+            INSERT INTO notifications (
+                user_id,
+                type,
+                title,
+                message,
+                reference_id,
+                reference_type,
+                is_read,
+                push_sent,
+                created_at
+            )
+            SELECT
+                target.user_id,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                false,
+                false,
+                $7::timestamptz
+            FROM unnest($1::uuid[]) AS target(user_id)
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM notifications existing
+                WHERE existing.user_id = target.user_id
+                  AND existing.reference_id = $5
+                  AND existing.reference_type = $6
+                  AND lower(existing.type) = lower($2)
+            )
+            ON CONFLICT DO NOTHING
+            RETURNING
+                notification_id,
+                user_id,
+                type,
+                title,
+                message,
+                reference_id,
+                reference_type,
+                is_read,
+                push_sent,
+                created_at
+            `,
+            [
+                userIds,
+                type,
+                title,
+                message,
+                referenceId,
+                referenceType,
+                timestamp,
+            ]
+        );
+
+        return rows || [];
     }
 
     const rows = users.map((targetUser) => ({
@@ -69,7 +229,7 @@ async function createNotificationsForAudience({
         reference_type: referenceType,
         is_read: false,
         push_sent: false,
-        created_at: createdAt || new Date().toISOString(),
+        created_at: timestamp,
     }));
 
     const { data, error } = await supabase
@@ -85,12 +245,114 @@ async function createNotificationsForAudience({
     return data || [];
 }
 
+async function syncAnnouncementNotifications({
+    audience,
+    title,
+    message,
+    referenceId,
+    createdAt = null,
+    programId = null,
+}) {
+    if (!title || !message || !audience || !referenceId) {
+        throw new Error('Title, message, audience, and referenceId are required');
+    }
+
+    const users = await getAudienceUsers(audience, { programId });
+    const userIds = users
+        .map((targetUser) => String(targetUser?.user_id || '').trim())
+        .filter(Boolean);
+
+    if (!userIds.length) {
+        await db.query(
+            `
+            DELETE FROM notifications
+            WHERE reference_id = $1
+              AND lower(coalesce(reference_type, '')) = 'announcement'
+              AND lower(coalesce(type, '')) = 'announcement'
+            `,
+            [referenceId]
+        );
+
+        return { inserted: 0, updated: 0, removedStale: true };
+    }
+
+    await db.query(
+        `
+        DELETE FROM notifications
+        WHERE reference_id = $1
+          AND lower(coalesce(reference_type, '')) = 'announcement'
+          AND lower(coalesce(type, '')) = 'announcement'
+          AND NOT (user_id = ANY($2::uuid[]))
+        `,
+        [referenceId, userIds]
+    );
+
+    const { rowCount: updated = 0 } = await db.query(
+        `
+        UPDATE notifications
+        SET title = $2,
+            message = $3
+        WHERE reference_id = $1
+          AND lower(coalesce(reference_type, '')) = 'announcement'
+          AND lower(coalesce(type, '')) = 'announcement'
+          AND user_id = ANY($4::uuid[])
+        `,
+        [referenceId, title, message, userIds]
+    );
+
+    const timestamp = createdAt || new Date().toISOString();
+    const { rows: insertedRows } = await db.query(
+        `
+        INSERT INTO notifications (
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            push_sent,
+            created_at
+        )
+        SELECT
+            target.user_id,
+            'Announcement',
+            $2,
+            $3,
+            $4,
+            'announcement',
+            false,
+            false,
+            $5::timestamptz
+        FROM unnest($1::uuid[]) AS target(user_id)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM notifications existing
+            WHERE existing.user_id = target.user_id
+              AND existing.reference_id = $4
+              AND lower(coalesce(existing.reference_type, '')) = 'announcement'
+              AND lower(coalesce(existing.type, '')) = 'announcement'
+        )
+        RETURNING notification_id
+        `,
+        [userIds, title, message, referenceId, timestamp]
+    );
+
+    return {
+        inserted: insertedRows?.length || 0,
+        updated,
+        removedStale: true,
+    };
+}
+
 exports.createAnnouncementNotifications = async (payload) => {
     const {
         title,
         content,
         audience,
         schedDate,
+        programId = null,
+        targetProgramId = null,
     } = payload || {};
 
     const createdRows = await createNotificationsForAudience({
@@ -100,6 +362,7 @@ exports.createAnnouncementNotifications = async (payload) => {
         referenceType: 'announcement',
         type: 'Announcement',
         createdAt: schedDate ? new Date(schedDate).toISOString() : new Date().toISOString(),
+        programId: programId || targetProgramId || null,
     });
 
     return {
@@ -109,7 +372,9 @@ exports.createAnnouncementNotifications = async (payload) => {
     };
 };
 
+exports.getAudienceUsers = getAudienceUsers;
 exports.createNotificationsForAudience = createNotificationsForAudience;
+exports.syncAnnouncementNotifications = syncAnnouncementNotifications;
 
 async function createUserNotification({
     userId,
@@ -149,6 +414,73 @@ async function createUserNotification({
 }
 
 exports.createUserNotification = createUserNotification;
+
+async function createUserNotificationOnce({
+    userId,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    createdAt = null,
+}) {
+    if (!userId || !type || !title || !message) {
+        throw new Error('userId, type, title, and message are required');
+    }
+
+    const timestamp = createdAt || new Date().toISOString();
+    const { rows } = await db.query(
+        `
+        INSERT INTO notifications (
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            read_at,
+            push_sent,
+            created_at
+        )
+        SELECT $1, $2, $3, $4, $5, $6, false, false, $7
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM notifications existing
+            WHERE existing.user_id = $1
+              AND existing.type = $2
+              AND existing.title = $3
+              AND existing.reference_id IS NOT DISTINCT FROM $5
+              AND existing.reference_type IS NOT DISTINCT FROM $6
+        )
+        RETURNING
+            notification_id,
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            read_at,
+            push_sent,
+            created_at
+        `,
+        [
+            userId,
+            type,
+            title,
+            message,
+            referenceId,
+            referenceType,
+            timestamp,
+        ]
+    );
+
+    return rows[0] || null;
+}
+
+exports.createUserNotificationOnce = createUserNotificationOnce;
 
 async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [] } = {}) {
     const normalizedRoles = new Set(
@@ -195,7 +527,7 @@ async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [
             name:
                 [row.first_name, row.last_name].filter(Boolean).join(' ') ||
                 row.email ||
-                'Staff user',
+                'User',
         }));
 
     if (courseId && normalizedRoles.has('pd')) {
@@ -279,6 +611,7 @@ async function getMyNotifications(userId, query = {}) {
             reference_id,
             reference_type,
             is_read,
+            read_at,
             push_sent,
             created_at
         `,
@@ -330,7 +663,7 @@ async function markAsRead(userId, notificationId) {
 
     const { data, error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('notification_id', notificationId)
         .eq('user_id', userId)
         .select(
@@ -343,6 +676,7 @@ async function markAsRead(userId, notificationId) {
             reference_id,
             reference_type,
             is_read,
+            read_at,
             push_sent,
             created_at
         `
@@ -364,6 +698,48 @@ async function markAsRead(userId, notificationId) {
     };
 }
 
+async function markAsUnread(userId, notificationId) {
+    if (!userId || !notificationId) {
+        throw new Error('User ID and notification ID are required');
+    }
+
+    const { data, error } = await supabase
+        .from('notifications')
+        .update({ is_read: false, read_at: null })
+        .eq('notification_id', notificationId)
+        .eq('user_id', userId)
+        .select(
+            `
+            notification_id,
+            user_id,
+            type,
+            title,
+            message,
+            reference_id,
+            reference_type,
+            is_read,
+            read_at,
+            push_sent,
+            created_at
+        `
+        )
+        .maybeSingle();
+
+    if (error) {
+        console.error('SUPABASE MARK NOTIFICATION UNREAD ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    if (!data) {
+        throw new Error('Notification not found.');
+    }
+
+    return {
+        message: 'Notification marked as unread.',
+        notification: data,
+    };
+}
+
 async function markAllAsRead(userId) {
     if (!userId) {
         throw new Error('User ID is required');
@@ -371,7 +747,7 @@ async function markAllAsRead(userId) {
 
     const { data, error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('is_read', false)
         .select('notification_id');
@@ -418,5 +794,6 @@ async function deleteNotification(userId, notificationId) {
 exports.getMyNotifications = getMyNotifications;
 exports.getUnreadCount = getUnreadCount;
 exports.markAsRead = markAsRead;
+exports.markAsUnread = markAsUnread;
 exports.markAllAsRead = markAllAsRead;
 exports.deleteNotification = deleteNotification;

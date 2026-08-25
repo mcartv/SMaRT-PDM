@@ -25,6 +25,20 @@ function resolveTone(state) {
   return STEP_TONES[state] || STEP_TONES.pending;
 }
 
+function getOfficeLabel(step = {}) {
+  const key = String(step.key || '').trim().toLowerCase();
+  if (key === 'sdo') return 'SDO';
+  if (key === 'guidance') return 'GCO';
+  if (key === 'pd') return 'PD';
+  return step.label || 'Office';
+}
+
+function formatWorkflowLabel(value = '') {
+  return String(value || '')
+    .replace(/Guidance/g, 'GCO')
+    .replace(/Program Director/g, 'PD');
+}
+
 export default function EndorsementProgressTracker({
   tracker,
   compact = false,
@@ -40,12 +54,12 @@ export default function EndorsementProgressTracker({
             Progress Tracker
           </p>
           <p className="mt-1 text-sm font-medium text-stone-800">
-            {tracker.current_label || tracker.overall_status_label || 'Pending'}
+            {formatWorkflowLabel(tracker.current_label || tracker.overall_status_label || 'Pending')}
           </p>
         </div>
         {tracker.overall_status_label ? (
           <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-medium text-stone-700">
-            {tracker.overall_status_label}
+            {formatWorkflowLabel(tracker.overall_status_label)}
           </span>
         ) : null}
       </div>
@@ -70,7 +84,7 @@ export default function EndorsementProgressTracker({
                 ) : null}
               </div>
               <div className={`mt-2 ${compact ? 'space-y-0.5' : 'space-y-1'}`}>
-                <p className={`text-xs font-semibold ${tone.label}`}>{step.label}</p>
+                <p className={`text-xs font-semibold ${tone.label}`}>{getOfficeLabel(step)}</p>
                 <p className="text-[11px] text-stone-500">
                   {step.state === 'active'
                     ? 'In progress'

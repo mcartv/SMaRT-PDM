@@ -1,90 +1,35 @@
-import React, { useMemo, useState } from 'react';
+import { createElement, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Shield,
-  Clock3,
-  Activity,
-  Monitor,
-  Smartphone,
   BadgeCheck,
+  BriefcaseBusiness,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  LockKeyhole,
+  Mail,
+  Phone,
   Settings,
-  AlertTriangle,
+  ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
+import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 
-const SESSION_LOG = [
-  {
-    device: 'Chrome · Windows 11',
-    location: 'Marilao, Bulacan',
-    time: 'Recent session',
-    current: true,
-    type: 'desktop',
-  },
-  {
-    device: 'Chrome · Android',
-    location: 'Marilao, Bulacan',
-    time: 'Previous session',
-    current: false,
-    type: 'mobile',
-  },
-];
-
-function SectionCard({ title, subtitle, icon, children, action }) {
+function DetailItem({ icon, label, value }) {
   return (
-    <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white shadow-sm">
-            {React.createElement(icon, { className: 'h-4 w-4 text-stone-600' })}
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
-            {subtitle ? <p className="mt-0.5 text-xs text-stone-500">{subtitle}</p> : null}
-          </div>
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+    <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-stone-200/80 bg-stone-50/70 p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white bg-white text-stone-500 shadow-sm">
+        {createElement(icon, { className: 'h-4 w-4', 'aria-hidden': true })}
       </div>
-
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
-  );
-}
-
-function InfoRow({ icon, label, value }) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white">
-        {React.createElement(icon, { className: 'h-4 w-4 text-stone-500' })}
-      </div>
-
       <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">{label}</p>
-        <p className="break-words text-sm font-semibold text-stone-800">{value || '—'}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-400">{label}</p>
+        <p className="mt-1 break-words text-sm font-semibold text-stone-800">{value || 'Not provided'}</p>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, icon, tone = 'green' }) {
-  const toneMap = {
-    green: 'border-green-100 bg-green-50 text-green-700',
-    amber: 'border-amber-100 bg-amber-50 text-amber-700',
-    red: 'border-red-100 bg-red-50 text-red-700',
-    stone: 'border-stone-100 bg-stone-50 text-stone-700',
-  };
-
-  return (
-    <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-4">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-xl border ${toneMap[tone]}`}>
-        {React.createElement(icon, { className: 'h-4 w-4' })}
-      </div>
-      <p className="mt-4 text-2xl font-bold leading-none text-stone-900">{value}</p>
-      <p className="mt-2 text-[11px] font-medium uppercase tracking-wider text-stone-500">
-        {label}
-      </p>
     </div>
   );
 }
@@ -98,123 +43,142 @@ export default function OfficeProfilePage({
   departmentFallback,
   roleFallback,
   avatarTone = '#475569',
-  statCards = [],
-  activityLog = [],
+  responsibilities = [],
   bio,
   accountConfig,
   palette,
   tokenStorageKey,
 }) {
+  const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [profile, setProfile] = useState(() => {
-    const saved = sessionStorage.getItem(storageKey);
     try {
+      const saved = sessionStorage.getItem(storageKey);
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
 
-  const firstName = profile?.first_name || '';
-  const lastName = profile?.last_name || '';
-  const fallbackName = profile?.name || `${firstName} ${lastName}`.trim() || portalName;
+  const account = useMemo(() => {
+    const firstName = profile?.first_name || '';
+    const lastName = profile?.last_name || '';
+    const savedName = String(profile?.name || '').trim();
+    const fallbackName = savedName || `${firstName} ${lastName}`.trim() || portalName;
 
-  const account = {
-    firstName: firstName || fallbackName.split(' ')[0] || portalName,
-    lastName: lastName || fallbackName.split(' ').slice(1).join(' '),
-    email: profile?.email || `${portalName.toLowerCase()}@pdm.edu.ph`,
-    phone: profile?.phone || profile?.phone_number || '+63 917 000 0000',
-    position: profile?.position || positionFallback,
-    department: profile?.department || departmentFallback,
-    role: profile?.role || roleFallback,
-    status: profile?.is_active === false ? 'Inactive' : 'Active',
-    avatarUrl:
-      profile?.avatar_url ||
-      profile?.profile_photo_url ||
-      profile?.photo_url ||
-      profile?.image_url ||
-      '',
-    bio,
-  };
+    return {
+      firstName: firstName || fallbackName.split(' ')[0] || portalName,
+      lastName: lastName || fallbackName.split(' ').slice(1).join(' '),
+      email: profile?.email || '',
+      phone: profile?.phone || profile?.phone_number || '',
+      position: profile?.position || positionFallback,
+      department: profile?.department || departmentFallback,
+      role: profile?.role || roleFallback,
+      status: profile?.is_active === false ? 'Inactive' : 'Active',
+      avatarUrl:
+        profile?.avatar_url ||
+        profile?.profile_photo_url ||
+        profile?.photo_url ||
+        profile?.image_url ||
+        '',
+    };
+  }, [departmentFallback, portalName, positionFallback, profile, roleFallback]);
 
   const fullName = `${account.firstName} ${account.lastName}`.trim();
-
-  const initials = useMemo(() => {
-    const a = account.firstName?.[0] || '';
-    const b = account.lastName?.[0] || '';
-    return `${a}${b}`.toUpperCase() || portalName.slice(0, 2).toUpperCase();
-  }, [account.firstName, account.lastName, portalName]);
+  const initials = `${account.firstName?.[0] || ''}${account.lastName?.[0] || ''}`.toUpperCase()
+    || portalName.slice(0, 2).toUpperCase();
+  const isActive = account.status === 'Active';
 
   return (
-    <div className="space-y-6 py-2">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <main className="space-y-6 py-2" aria-labelledby="profile-page-title">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-900">{heading}</h1>
-          <p className="mt-1 text-sm text-stone-500">
-            Manage your profile and review your account activity.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Account center</p>
+          <h1 id="profile-page-title" className="mt-1 text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">
+            {heading}
+          </h1>
+          <p className="mt-1 text-sm text-stone-500">Review your identity, contact details, and office access.</p>
         </div>
-
-        <Button
-          variant="outline"
-          className="w-fit rounded-xl border-stone-200 text-stone-700"
-          onClick={() => (window.location.href = maintenancePath)}
-        >
-          <Settings className="mr-2 h-4 w-4" />
-          Go to Maintenance
+        <Button asChild variant="outline" className="w-fit rounded-xl border-stone-200 bg-white">
+          <Link to={maintenancePath}>
+            <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+            Account settings
+          </Link>
         </Button>
-      </div>
+      </header>
 
-      <Card className="overflow-hidden rounded-3xl border-stone-200 bg-white shadow-sm">
+      <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
         <CardContent className="p-0">
-          <div className="border-b border-stone-100 bg-gradient-to-r from-stone-50 to-stone-100/80 px-6 py-6">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-col gap-5 md:flex-row md:items-center">
-                <Avatar className="h-24 w-24 border-4 border-white shadow-md">
-                  <AvatarImage src={account.avatarUrl || undefined} alt={fullName} />
-                  <AvatarFallback className="text-2xl font-bold text-white" style={{ backgroundColor: avatarTone }}>
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
+          <div
+            className="relative overflow-hidden px-5 py-7 sm:px-7"
+            style={{ background: `linear-gradient(135deg, ${avatarTone}16 0%, #fafaf9 52%, #ffffff 100%)` }}
+          >
+            <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-10" style={{ backgroundColor: avatarTone }} />
+            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => account.avatarUrl && setProfilePhotoPreviewOpen(true)}
+                  disabled={!account.avatarUrl}
+                  className="rounded-full text-left outline-none ring-offset-4 transition enabled:cursor-zoom-in enabled:hover:ring-2 enabled:hover:ring-stone-300 enabled:focus-visible:ring-2 enabled:focus-visible:ring-stone-400 disabled:cursor-default"
+                  aria-label={account.avatarUrl ? `Preview ${fullName} profile photo` : `${fullName} has no profile photo`}
+                  title={account.avatarUrl ? 'Preview profile photo' : 'No profile photo'}
+                >
+                  <Avatar className="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28">
+                    <AvatarImage src={account.avatarUrl || undefined} alt={`${fullName} profile photo`} />
+                    <AvatarFallback className="text-2xl font-bold text-white" style={{ backgroundColor: avatarTone }}>
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
 
                 <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-bold text-stone-900">{fullName}</h2>
-                    <Badge className="border border-green-100 bg-green-50 text-green-700 hover:bg-green-50">
-                      <BadgeCheck className="mr-1.5 h-3.5 w-3.5" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">{fullName}</h2>
+                    <Badge className={isActive
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'
+                      : 'border border-stone-200 bg-stone-100 text-stone-600 hover:bg-stone-100'}>
+                      <BadgeCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                       {account.status}
                     </Badge>
-                    <Badge variant="outline" className="rounded-full border-stone-200 bg-white text-stone-600">
-                      {account.role}
-                    </Badge>
                   </div>
+                  <p className="mt-2 text-sm font-semibold text-stone-700">{account.position}</p>
+                  <p className="mt-1 text-sm text-stone-500">{account.department}</p>
+                  <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">{bio}</p>
 
-                  <p className="text-sm font-medium text-stone-600">{account.position}</p>
-                  <p className="mt-1 text-xs uppercase tracking-wider text-stone-400">
-                    {account.department}
-                  </p>
-
-                  <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">{account.bio}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {account.email ? (
+                      <a href={`mailto:${account.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">
+                        <Mail className="h-3.5 w-3.5" aria-hidden="true" />{account.email}
+                      </a>
+                    ) : null}
+                    {account.phone ? (
+                      <a href={`tel:${account.phone}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">
+                        <Phone className="h-3.5 w-3.5" aria-hidden="true" />{account.phone}
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:w-[430px]">
-                {statCards.map((card) => (
-                  <StatCard
-                    key={card.label}
-                    label={card.label}
-                    value={card.value}
-                    icon={card.icon}
-                    tone={card.tone}
-                  />
-                ))}
+              <div className="grid grid-cols-2 gap-3 sm:min-w-[300px]">
+                <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur">
+                  <ShieldCheck className="h-5 w-5" style={{ color: avatarTone }} aria-hidden="true" />
+                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">Access level</p>
+                  <p className="mt-1 text-sm font-bold text-stone-900">{account.role}</p>
+                </div>
+                <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur">
+                  <Building2 className="h-5 w-5" style={{ color: avatarTone }} aria-hidden="true" />
+                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">Portal</p>
+                  <p className="mt-1 text-sm font-bold text-stone-900">{portalName}</p>
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section aria-label="Edit profile information">
           <DepartmentAccountPanel
             config={accountConfig}
             palette={palette}
@@ -222,103 +186,59 @@ export default function OfficeProfilePage({
             profileStorageKey={storageKey}
             onProfileUpdated={setProfile}
           />
+        </section>
 
-          <SectionCard
-            title="Recent Activity"
-            subtitle={`Latest actions performed using this ${portalName} account.`}
-            icon={Activity}
-          >
-            <div className="space-y-2">
-              {activityLog.map((item, index) => (
-                <div
-                  key={`${item.action}-${index}`}
-                  className="flex flex-col gap-2 rounded-2xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                    <p className="text-sm font-medium text-stone-700">{item.action}</p>
-                  </div>
-                  <p className="whitespace-nowrap text-xs text-stone-400">{item.time}</p>
+        <aside className="space-y-5">
+          <Card className="rounded-2xl border-stone-200 bg-white shadow-none">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
+                  <UserRound className="h-4 w-4" aria-hidden="true" />
                 </div>
-              ))}
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="space-y-6">
-          <SectionCard
-            title="Account Status"
-            subtitle={`Current standing of this ${portalName} account.`}
-            icon={Shield}
-          >
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                <p className="mb-1 text-[11px] uppercase tracking-wider text-stone-400">Status</p>
-                <p className="text-sm font-semibold text-stone-800">{account.status}</p>
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900">Account overview</h3>
+                  <p className="text-xs text-stone-500">Information tied to your office access.</p>
+                </div>
               </div>
-
-              <div className="rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                <p className="mb-1 text-[11px] uppercase tracking-wider text-stone-400">Access Level</p>
-                <p className="text-sm font-semibold text-stone-800">{account.role}</p>
+              <div className="mt-4 space-y-3">
+                <DetailItem icon={BriefcaseBusiness} label="Position" value={account.position} />
+                <DetailItem icon={Building2} label="Office" value={account.department} />
+                <DetailItem icon={LockKeyhole} label="Role" value={account.role} />
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                <p className="mb-1 text-[11px] uppercase tracking-wider text-stone-400">Assigned Office</p>
-                <p className="text-sm font-semibold text-stone-800">{account.department}</p>
-              </div>
+          <Card className="rounded-2xl border-stone-200 bg-white shadow-none">
+            <CardContent className="p-5">
+              <h3 className="text-sm font-bold text-stone-900">Role responsibilities</h3>
+              <p className="mt-1 text-xs text-stone-500">Primary tasks available in this portal.</p>
+              <ul className="mt-4 space-y-3">
+                {responsibilities.map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm leading-5 text-stone-600">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Link to={maintenancePath} className="group flex items-center justify-between rounded-2xl border border-stone-200 bg-stone-950 p-5 text-white shadow-sm transition hover:bg-stone-800">
+            <div>
+              <p className="text-sm font-bold">Manage account settings</p>
+              <p className="mt-1 text-xs text-stone-300">Update profile and portal preferences.</p>
             </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Active Sessions"
-            subtitle="Signed-in devices associated with this account."
-            icon={Clock3}
-          >
-            <div className="space-y-3">
-              {SESSION_LOG.map((session, index) => {
-                const Icon = session.type === 'mobile' ? Smartphone : Monitor;
-
-                return (
-                  <div
-                    key={`${session.device}-${index}`}
-                    className="rounded-2xl border border-stone-100 bg-stone-50/40 px-4 py-3"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white">
-                        <Icon className="h-4 w-4 text-stone-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-stone-800">{session.device}</p>
-                          {session.current ? (
-                            <Badge className="border border-green-100 bg-green-50 text-green-700 hover:bg-green-50">
-                              Current
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-xs text-stone-500">{session.location}</p>
-                        <p className="mt-1 text-xs text-stone-400">{session.time}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Security Reminder"
-            subtitle="Keep account access clean and role-specific."
-            icon={AlertTriangle}
-          >
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-              <p className="text-sm font-medium text-amber-800">
-                Keep your profile details current and never share your account credentials.
-              </p>
-            </div>
-          </SectionCard>
-        </div>
+            <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+          </Link>
+        </aside>
       </div>
-    </div>
+
+      <ProfilePhotoPreviewDialog
+        open={profilePhotoPreviewOpen}
+        onOpenChange={setProfilePhotoPreviewOpen}
+        src={account.avatarUrl}
+        name={`${fullName} profile photo`}
+      />
+    </main>
   );
 }

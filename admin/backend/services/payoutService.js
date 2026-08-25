@@ -1,6 +1,40 @@
 const pool = require('../config/db');
 const notificationService = require('./notificationService');
 
+
+function payoutError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function normalizeRequiredText(value, field, maxLength = 180) {
+  const normalized = String(value || '').trim();
+  if (!normalized) throw payoutError(400, `${field} is required.`);
+  if (normalized.length > maxLength) throw payoutError(400, `${field} is too long.`);
+  return normalized;
+}
+
+function validatePayoutDate(value) {
+  const normalized = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw payoutError(400, 'Payout date must use YYYY-MM-DD format.');
+  }
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
+    throw payoutError(400, 'Payout date is invalid.');
+  }
+  return normalized;
+}
+
+function validateMoney(value, field) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
+    throw payoutError(400, `${field} must be greater than zero and no more than 1,000,000.`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
 // =========================
 // FETCH PAYOUT BATCHES
 // =========================
@@ -229,8 +263,12 @@ async function createPayoutBatchFromOpening({
   scholar_ids,
 }) {
   if (!opening_id) {
-    throw new Error('opening_id is required');
+    throw payoutError(400, 'opening_id is required');
   }
+
+  const normalizedTitle = normalizeRequiredText(payout_title, 'Payout title');
+  const normalizedDate = validatePayoutDate(payout_date);
+  const normalizedPaymentMode = normalizeRequiredText(payment_mode, 'Payment mode', 60);
 
   let uniqueStudentIds = Array.isArray(scholar_ids)
     ? [...new Set(scholar_ids.filter(Boolean))]
@@ -304,7 +342,7 @@ async function createPayoutBatchFromOpening({
     throw new Error('One or more selected scholars do not belong to the selected opening');
   }
 
-  const amount = Number(opening.amount_per_scholar || 0);
+  const amount = validateMoney(opening.amount_per_scholar, 'Amount per scholar');
   const totalAmount = amount * uniqueStudentIds.length;
 
   const client = await pool.connect();
@@ -335,9 +373,9 @@ async function createPayoutBatchFromOpening({
         opening.program_id,
         opening.academic_year_id,
         opening.period_id,
-        payout_title || opening.opening_title || `${opening.program_name || 'Program'} Payout Batch`,
-        payout_date || new Date().toISOString().slice(0, 10),
-        payment_mode || 'Cash',
+        normalizedTitle,
+        normalizedDate,
+        normalizedPaymentMode,
         amount,
         totalAmount,
         remarks || null,
@@ -459,6 +497,17 @@ async function updateScholarPayoutStatus({
     throw err;
   }
 
+  const normalizedRemarks = String(remarks || '').trim();
+  const normalizedCheckNumber = String(check_number || '').trim();
+  if (normalizedRemarks.length > 500) throw payoutError(400, 'Remarks must not exceed 500 characters.');
+  if (normalizedCheckNumber.length > 100) throw payoutError(400, 'Check/reference number must not exceed 100 characters.');
+  if (next_status === 'On Hold' && !normalizedRemarks) {
+    throw payoutError(400, 'Remarks are required when placing a payout on hold.');
+  }
+  if (next_status === 'Released' && normalizedCheckNumber && !/^[A-Za-z0-9._\-/ ]+$/.test(normalizedCheckNumber)) {
+    throw payoutError(400, 'Check/reference number contains invalid characters.');
+  }
+
   const releasedAt = next_status === 'Released' ? new Date() : null;
 
   const updateQuery = `
@@ -476,8 +525,8 @@ async function updateScholarPayoutStatus({
   const { rows } = await pool.query(updateQuery, [
     next_status,
     releasedAt,
-    remarks,
-    check_number,
+    normalizedRemarks || null,
+    normalizedCheckNumber || null,
     payout_entry_id,
   ]);
 
@@ -578,17 +627,23 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     throw err;
   }
 
-  const hasPending = entries.some(
-    (entry) => !entry.release_status || entry.release_status === 'Pending'
+  const terminalStatuses = new Set(['released', 'absent', 'cancelled']);
+  const unfinishedEntries = entries.filter(
+    (entry) =>
+      !terminalStatuses.has(
+        String(entry.release_status || '').trim().toLowerCase()
+      )
   );
 
-  if (hasPending) {
-    const err = new Error('Cannot archive payout batch while some scholars are still pending');
+  if (unfinishedEntries.length > 0) {
+    const err = new Error(
+      `Cannot archive payout batch. ${unfinishedEntries.length} scholar payout entr${unfinishedEntries.length === 1 ? 'y is' : 'ies are'} still Pending or On Hold.`
+    );
     err.statusCode = 400;
     throw err;
   }
 
-  const updateQuery = `
+const updateQuery = `
     UPDATE payout_batches
     SET
       is_archived = TRUE,
@@ -604,6 +659,55 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     success: true,
     message: 'Payout batch archived successfully',
     batch: updateResult.rows[0],
+  };
+}
+
+async function restorePayoutBatch({
+  payout_batch_id,
+  restored_by = null,
+}) {
+  if (!payout_batch_id) {
+    throw payoutError(400, 'payout_batch_id is required');
+  }
+
+  const result = await pool.query(
+    `
+      UPDATE payout_batches
+      SET
+        is_archived = FALSE,
+        batch_status = CASE
+          WHEN LOWER(COALESCE(batch_status, '')) = 'archived' THEN 'Completed'
+          ELSE batch_status
+        END,
+        updated_at = NOW()
+      WHERE payout_batch_id = $1
+        AND COALESCE(is_archived, FALSE) = TRUE
+      RETURNING *;
+    `,
+    [payout_batch_id]
+  );
+
+  if (!result.rows.length) {
+    const existing = await pool.query(
+      `SELECT payout_batch_id, is_archived
+       FROM payout_batches
+       WHERE payout_batch_id = $1
+       LIMIT 1`,
+      [payout_batch_id]
+    );
+
+    if (!existing.rows.length) {
+      throw payoutError(404, 'Payout batch not found');
+    }
+
+    throw payoutError(400, 'Payout batch is not archived');
+  }
+
+  return {
+    success: true,
+    message: 'Payout batch restored successfully',
+    batch: result.rows[0],
+    restored_by,
   };
 }
 
@@ -714,6 +818,7 @@ module.exports = {
   createPayoutBatchFromOpening,
   updateScholarPayoutStatus,
   archivePayoutBatch,
+  restorePayoutBatch,
   fetchAcademicYears,
   fetchMyPayouts,
 };

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -27,12 +28,14 @@ import {
   Sparkles,
   Search,
   ArchiveRestore,
+  Megaphone,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 
 const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
+  brown: 'var(--portal-base)',
+  brownMid: 'var(--portal-base)',
   amber: '#d97706',
   amberSoft: '#FFF7ED',
   green: '#16a34a',
@@ -44,7 +47,7 @@ const C = {
   border: '#e7e5e4',
   muted: '#78716c',
   text: '#1c1917',
-  bg: '#faf7f2',
+  bg: 'var(--portal-main-bg, #faf7f2)',
 };
 
 const STATUS = {
@@ -54,13 +57,89 @@ const STATUS = {
   Archived: { bg: '#f5f5f4', color: '#78716c' },
 };
 
-const AUDIENCE_LABEL = {
+const GENERAL_AUDIENCE_LABEL = {
   all: 'All Students',
   applicants: 'New Applicants',
   scholars: 'Current Scholars',
-  tes: 'TES Recipients',
-  tdp: 'TDP Recipients',
 };
+
+const LEGACY_AUDIENCE_LABEL = {
+  tes: 'TES Recipients (Legacy)',
+  tdp: 'TDP Recipients (Legacy)',
+};
+
+function programAudienceValue(programId) {
+  return programId ? `program:${programId}` : '';
+}
+
+function parseAudienceSelection(value) {
+  const raw = String(value || '').trim();
+  if (raw.startsWith('program:')) {
+    return {
+      audience: 'program',
+      programId: raw.slice('program:'.length) || null,
+    };
+  }
+
+  return {
+    audience: raw || 'all',
+    programId: null,
+  };
+}
+
+function buildAudienceOptions(programs = [], currentValue = '') {
+  const options = Object.entries(GENERAL_AUDIENCE_LABEL).map(([value, label]) => ({
+    value,
+    label,
+    disabled: false,
+  }));
+
+  const activePrograms = programs
+    .filter(
+      (program) =>
+        program?.is_archived !== true &&
+        String(program?.visibility_status || 'Published') === 'Published'
+    )
+    .sort((a, b) =>
+      String(a?.program_name || '').localeCompare(String(b?.program_name || ''))
+    );
+
+  activePrograms.forEach((program) => {
+    options.push({
+      value: programAudienceValue(program.program_id),
+      label: `${program.program_name} Recipients`,
+      disabled: false,
+    });
+  });
+
+  if (currentValue.startsWith('program:')) {
+    const currentProgramId = currentValue.slice('program:'.length);
+    const alreadyIncluded = activePrograms.some(
+      (program) => String(program.program_id) === String(currentProgramId)
+    );
+    const historicalProgram = programs.find(
+      (program) => String(program.program_id) === String(currentProgramId)
+    );
+
+    if (!alreadyIncluded && historicalProgram) {
+      options.push({
+        value: currentValue,
+        label: `${historicalProgram.program_name} Recipients (Inactive)`,
+        disabled: true,
+      });
+    }
+  }
+
+  if (LEGACY_AUDIENCE_LABEL[currentValue]) {
+    options.push({
+      value: currentValue,
+      label: LEGACY_AUDIENCE_LABEL[currentValue],
+      disabled: false,
+    });
+  }
+
+  return options;
+}
 
 const ANNOUNCEMENT_TEMPLATES = {
   blank: {
@@ -112,6 +191,28 @@ const ANNOUNCEMENT_TEMPLATES = {
   },
 };
 
+function resolveAnnouncementTemplate(announcement = {}) {
+  const savedTemplateKey = String(
+    announcement.templateKey || announcement.template_key || ''
+  ).trim();
+
+  if (savedTemplateKey && ANNOUNCEMENT_TEMPLATES[savedTemplateKey]) {
+    return savedTemplateKey;
+  }
+
+  const announcementTitle = String(announcement.title || '').trim();
+  const announcementContent = String(announcement.content || '').trim();
+
+  const matchedTemplate = Object.entries(ANNOUNCEMENT_TEMPLATES).find(
+    ([key, template]) =>
+      key !== 'blank' &&
+      ((announcementTitle && announcementTitle === template.title) ||
+        (announcementContent && announcementContent === template.content))
+  );
+
+  return matchedTemplate?.[0] || 'blank';
+}
+
 function toUtcIsoFromLocalInput(value) {
   if (!value) return null;
 
@@ -125,6 +226,37 @@ function toLocalDateTimeInputValue(value) {
   const offsetMs = date.getTimezoneOffset() * 60000;
 
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function nextSchedulableLocalDateTimeInputValue(baseDate = new Date()) {
+  const date = new Date(baseDate);
+  date.setSeconds(0, 0);
+  date.setMinutes(date.getMinutes() + 1);
+
+  return toLocalDateTimeInputValue(date);
+}
+
+function getLocalScheduleParts(value = '') {
+  const [date = '', time = ''] = String(value || '').split('T');
+  const [hour = '', minute = ''] = time.split(':');
+
+  return {
+    date,
+    hour,
+    minute,
+  };
+}
+
+function formatScheduleHour(hourValue) {
+  const hour = Number(hourValue);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+
+  return `${String(displayHour).padStart(2, '0')}:00 ${period}`;
+}
+
+function formatScheduleMinute(minuteValue) {
+  return String(minuteValue).padStart(2, '0');
 }
 
 function StatusPill({ status }) {
@@ -158,8 +290,10 @@ function ComposeAnnouncementModal({
   setContent,
   audience,
   setAudience,
+  audienceOptions,
   schedDate,
   setSchedDate,
+  minScheduleDateTime,
   isRoVoluntary,
   setIsRoVoluntary,
   validationErrors,
@@ -171,12 +305,6 @@ function ComposeAnnouncementModal({
   if (!open) return null;
 
   const scheduled = !!schedDate;
-  const minScheduleDateTime = new Date(
-    Date.now() - new Date().getTimezoneOffset() * 60000
-  )
-    .toISOString()
-    .slice(0, 16);
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onRequestClose} />
@@ -279,9 +407,14 @@ function ComposeAnnouncementModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(AUDIENCE_LABEL).map(([value, label]) => (
-                        <SelectItem key={value} value={value} className="text-sm">
-                          {label}
+                      {audienceOptions.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          disabled={option.disabled}
+                          className="text-sm"
+                        >
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -289,20 +422,218 @@ function ComposeAnnouncementModal({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-                    Schedule
-                  </label>
-                  <Input
-                    type="datetime-local"
-                    value={schedDate}
-                    min={minScheduleDateTime}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value && value < minScheduleDateTime) return;
-                      setSchedDate(value);
-                    }}
-                    className="h-10 rounded-lg border-stone-200 bg-white text-sm"
-                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+                      Schedule
+                    </label>
+
+                    {schedDate && (
+                      <button
+                        type="button"
+                        onClick={() => setSchedDate('')}
+                        className="text-[10px] font-medium text-stone-400 transition hover:text-stone-700"
+                      >
+                        Clear schedule
+                      </button>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const selected = getLocalScheduleParts(schedDate);
+                    const minimum = getLocalScheduleParts(minScheduleDateTime);
+
+                    const selectedDate = selected.date;
+                    const selectedHour = selected.hour;
+                    const selectedMinute = selected.minute;
+
+                    const minimumDate = minimum.date;
+                    const minimumHour = minimum.hour;
+                    const minimumMinute = minimum.minute;
+
+                    const minimumHourNumber = Number(minimumHour || 0);
+                    const selectedHourNumber = Number(selectedHour || 0);
+
+                    const availableHours = Array.from(
+                      { length: 24 },
+                      (_, index) => index
+                    ).filter((hour) => {
+                      if (!selectedDate || selectedDate !== minimumDate) return true;
+                      return hour >= minimumHourNumber;
+                    });
+
+                    const availableMinutes = Array.from(
+                      { length: 60 },
+                      (_, index) => index
+                    ).filter((minute) => {
+                      if (
+                        !selectedDate ||
+                        selectedDate !== minimumDate ||
+                        selectedHourNumber !== minimumHourNumber
+                      ) {
+                        return true;
+                      }
+
+                      return minute >= Number(minimumMinute || 0);
+                    });
+
+                    const handleDateChange = (event) => {
+                      const nextDate = event.target.value;
+
+                      if (!nextDate) {
+                        setSchedDate('');
+                        return;
+                      }
+
+                      if (minimumDate && nextDate < minimumDate) {
+                        return;
+                      }
+
+                      const isMinimumDate = nextDate === minimumDate;
+
+                      let nextHour = selectedHour
+                        ? Number(selectedHour)
+                        : isMinimumDate
+                          ? minimumHourNumber
+                          : 0;
+
+                      if (isMinimumDate && nextHour < minimumHourNumber) {
+                        nextHour = minimumHourNumber;
+                      }
+
+                      let nextMinute = selectedMinute
+                        ? Number(selectedMinute)
+                        : isMinimumDate && nextHour === minimumHourNumber
+                          ? Number(minimumMinute || 0)
+                          : 0;
+
+                      if (
+                        isMinimumDate &&
+                        nextHour === minimumHourNumber &&
+                        nextMinute < Number(minimumMinute || 0)
+                      ) {
+                        nextMinute = Number(minimumMinute || 0);
+                      }
+
+                      setSchedDate(
+                        `${nextDate}T${String(nextHour).padStart(2, '0')}:${String(
+                          nextMinute
+                        ).padStart(2, '0')}`
+                      );
+                    };
+
+                    const handleHourChange = (value) => {
+                      if (!selectedDate) return;
+
+                      const nextHour = Number(value);
+                      let nextMinute = selectedMinute
+                        ? Number(selectedMinute)
+                        : 0;
+
+                      if (
+                        selectedDate === minimumDate &&
+                        nextHour === minimumHourNumber &&
+                        nextMinute < Number(minimumMinute || 0)
+                      ) {
+                        nextMinute = Number(minimumMinute || 0);
+                      }
+
+                      setSchedDate(
+                        `${selectedDate}T${String(nextHour).padStart(2, '0')}:${String(
+                          nextMinute
+                        ).padStart(2, '0')}`
+                      );
+                    };
+
+                    const handleMinuteChange = (value) => {
+                      if (!selectedDate || selectedHour === '') return;
+
+                      setSchedDate(
+                        `${selectedDate}T${selectedHour}:${String(value).padStart(
+                          2,
+                          '0'
+                        )}`
+                      );
+                    };
+
+                    return (
+                      <div className="space-y-2">
+                        <Input
+                          type="date"
+                          value={selectedDate}
+                          min={minimumDate}
+                          onChange={handleDateChange}
+                          className={`h-10 rounded-lg border-stone-200 bg-white text-sm ${
+                            validationErrors.schedule
+                              ? 'border-red-300 ring-1 ring-red-200'
+                              : ''
+                          }`}
+                        />
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={selectedHour}
+                            onChange={(event) => handleHourChange(event.target.value)}
+                            disabled={!selectedDate}
+                            className={`h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none transition focus:border-stone-300 focus:ring-2 focus:ring-stone-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 ${
+                              validationErrors.schedule
+                                ? 'border-red-300 ring-1 ring-red-200'
+                                : ''
+                            }`}
+                            aria-label="Schedule hour"
+                          >
+                            <option value="" disabled>
+                              Hour
+                            </option>
+                            {availableHours.map((hour) => {
+                              const hourValue = String(hour).padStart(2, '0');
+
+                              return (
+                                <option key={hourValue} value={hourValue}>
+                                  {formatScheduleHour(hourValue)}
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <select
+                            value={selectedMinute}
+                            onChange={(event) => handleMinuteChange(event.target.value)}
+                            disabled={!selectedDate || selectedHour === ''}
+                            className={`h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none transition focus:border-stone-300 focus:ring-2 focus:ring-stone-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 ${
+                              validationErrors.schedule
+                                ? 'border-red-300 ring-1 ring-red-200'
+                                : ''
+                            }`}
+                            aria-label="Schedule minute"
+                          >
+                            <option value="" disabled>
+                              Minute
+                            </option>
+                            {availableMinutes.map((minute) => {
+                              const minuteValue = String(minute).padStart(2, '0');
+
+                              return (
+                                <option key={minuteValue} value={minuteValue}>
+                                  :{formatScheduleMinute(minuteValue)}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <p className="text-[10px] leading-4 text-stone-400">
+                          Past dates cannot be selected. Past hours and minutes are removed from
+                          the native time dropdowns. The earliest schedule is the next minute.
+                        </p>
+
+                        {validationErrors.schedule && (
+                          <p className="text-xs text-red-500">
+                            {validationErrors.schedule}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -348,7 +679,7 @@ function ComposeAnnouncementModal({
                       </Badge>
 
                       <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                        {AUDIENCE_LABEL[audience]}
+                        {audienceOptions.find((option) => option.value === audience)?.label || 'Audience'}
                       </span>
                     </div>
 
@@ -493,8 +824,11 @@ function ConfirmTemplateApplyModal({
   open,
   onCancel,
   onConfirm,
+  selectedTemplate,
 }) {
   if (!open) return null;
+
+  const isBlankTemplate = selectedTemplate === 'blank';
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -502,9 +836,13 @@ function ConfirmTemplateApplyModal({
 
       <Card className="relative w-full max-w-md overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-800">Apply template</h3>
+          <h3 className="text-sm font-semibold text-stone-800">
+            {isBlankTemplate ? 'Clear announcement?' : 'Apply template'}
+          </h3>
           <p className="mt-1 text-xs text-stone-500">
-            Applying a template will replace your current subject and content.
+            {isBlankTemplate
+              ? 'This will clear the current subject, content, audience, schedule, and RO category.'
+              : 'Applying a template will replace your current subject and content.'}
           </p>
         </div>
 
@@ -514,7 +852,7 @@ function ConfirmTemplateApplyModal({
             onClick={onCancel}
             className="h-11 w-full rounded-lg border-stone-200"
           >
-            Keep Current Content
+            {isBlankTemplate ? 'Keep Current Announcement' : 'Keep Current Content'}
           </Button>
 
           <Button
@@ -522,80 +860,7 @@ function ConfirmTemplateApplyModal({
             className="h-11 w-full rounded-lg border-none text-white"
             style={{ background: C.brownMid }}
           >
-            Apply Template
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function FeedbackModal({
-  open,
-  tone = 'success',
-  title,
-  message,
-  onClose,
-}) {
-  if (!open) return null;
-
-  const meta = {
-    success: {
-      heading: title || 'Success',
-      bg: C.greenSoft,
-      color: C.green,
-      button: C.brownMid,
-    },
-    error: {
-      heading: title || 'Something went wrong',
-      bg: C.redSoft,
-      color: C.red,
-      button: C.red,
-    },
-    info: {
-      heading: title || 'Notice',
-      bg: C.blueSoft,
-      color: C.blue,
-      button: C.brownMid,
-    },
-  };
-
-  const current = meta[tone] || meta.info;
-
-  return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <Card
-        className="w-full max-w-md overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ background: current.color }}
-            />
-
-            <div>
-              <h3 className="text-sm font-semibold text-stone-800">
-                {current.heading}
-              </h3>
-              <p className="mt-1 text-xs text-stone-500">
-                {message || 'Action completed.'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <CardContent className="flex justify-end p-5">
-          <Button
-            onClick={onClose}
-            className="h-9 rounded-lg border-none px-5 text-xs text-white"
-            style={{ background: current.button }}
-          >
-            Okay
+            {isBlankTemplate ? 'Clear Form' : 'Apply Template'}
           </Button>
         </CardContent>
       </Card>
@@ -635,123 +900,133 @@ function AnnouncementRow({
       : announcement.status;
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 transition hover:bg-stone-50/40 md:flex-row md:items-center md:justify-between">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium text-stone-900">
-            {announcement.title}
-          </p>
-          <StatusPill status={effectiveStatus} />
-        </div>
+    <article className="group overflow-hidden rounded-xl border border-stone-200 bg-white transition hover:border-stone-300 hover:shadow-sm">
+      <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-base)' }}
+            aria-hidden="true"
+          >
+            <Megaphone className="h-5 w-5" />
+          </div>
 
-        <p className="line-clamp-2 text-xs leading-relaxed text-stone-500">
-          {announcement.content}
-        </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 className="min-w-0 truncate text-sm font-semibold text-stone-900 sm:text-base">
+                {announcement.title}
+              </h3>
+              <StatusPill status={effectiveStatus} />
+            </div>
 
-        <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-wide text-stone-400">
-          <span className="flex items-center gap-1">
-            <Calendar size={12} />
-            {announcement.date
-              ? new Date(announcement.date).toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })
-              : 'No date'}
-          </span>
+            <p className="mt-1.5 truncate text-sm leading-5 text-stone-600" title={announcement.content}>
+              {announcement.content}
+            </p>
 
-          <span className="flex items-center gap-1">
-            <Users size={12} />
-            {AUDIENCE_LABEL[announcement.audienceKey || announcement.audience] ||
-              announcement.audience ||
-              'Audience'}
-          </span>
-
-          {effectiveStatus === 'Published' && (
-            <span className="flex items-center gap-1 text-stone-700">
-              <Eye size={12} />
-              {announcement.views}
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-stone-500">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <Calendar size={13} />
+              {announcement.date
+                ? new Date(announcement.date).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+                : 'No date'}
             </span>
-          )}
+
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Users size={13} className="shrink-0" />
+              <span className="truncate">{announcement.audience || 'Audience'}</span>
+            </span>
+
+              {effectiveStatus === 'Published' && (
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-stone-600">
+                  <Eye size={13} />
+                  {announcement.views} views
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="flex shrink-0 gap-1 self-end md:self-auto">
-        {tab === 'active' ? (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(announcement)}
-              className="h-8 border-stone-200 text-[11px]"
-            >
-              <Edit className="mr-1.5 h-3.5 w-3.5" />
-              Edit
-            </Button>
-
-            {announcement.status === 'Draft' && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-stone-100 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+          {tab === 'active' ? (
+            <>
               <Button
+                variant="outline"
                 size="sm"
-                onClick={() => onPublish(announcement.id)}
-                disabled={publishingId === announcement.id}
-                className="h-8 border-none bg-green-600 text-[11px] text-white hover:bg-green-700 disabled:opacity-60"
+                onClick={() => onEdit(announcement)}
+                className="h-9 rounded-lg border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50"
               >
-                {publishingId === announcement.id ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    Publishing
-                  </>
+                <Edit className="mr-1.5 h-3.5 w-3.5" />
+                Edit
+              </Button>
+
+              {announcement.status === 'Draft' && (
+                <Button
+                  size="sm"
+                  onClick={() => onPublish(announcement.id)}
+                  disabled={publishingId === announcement.id}
+                  className="h-9 rounded-lg border-none bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                >
+                  {publishingId === announcement.id ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Publishing
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-1.5 h-3.5 w-3.5" />
+                      Publish
+                    </>
+                  )}
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onArchive(announcement.id)}
+                disabled={archivingId === announcement.id}
+                className="h-9 rounded-lg border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+              >
+                {archivingId === announcement.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
-                    <Send className="mr-1.5 h-3.5 w-3.5" />
-                    Publish
+                    <Archive className="mr-1.5 h-3.5 w-3.5" />
+                    Archive
                   </>
                 )}
               </Button>
-            )}
-
+            </>
+          ) : (
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => onArchive(announcement.id)}
-              disabled={archivingId === announcement.id}
-              className="h-8 border-red-200 text-[11px] text-red-500 disabled:opacity-60"
+              onClick={() => onRestore(announcement.id)}
+              disabled={restoringId === announcement.id}
+              className="h-9 rounded-lg border-none px-3 text-xs font-medium text-white hover:opacity-90"
+              style={{ background: C.brownMid }}
             >
-              {archivingId === announcement.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {restoringId === announcement.id ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Restoring
+                </>
               ) : (
                 <>
-                  <Archive className="mr-1.5 h-3.5 w-3.5" />
-                  Archive
+                  <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                  Restore
                 </>
               )}
             </Button>
-          </>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onRestore(announcement.id)}
-            disabled={restoringId === announcement.id}
-            className="h-8 border-stone-200 text-[11px]"
-          >
-            {restoringId === announcement.id ? (
-              <>
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                Restoring
-              </>
-            ) : (
-              <>
-                <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
-                Restore
-              </>
-            )}
-          </Button>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -845,10 +1120,13 @@ export default function AnnouncementsManagement() {
   const [content, setContent] = useState('');
   const [audience, setAudience] = useState('all');
   const [schedDate, setSchedDate] = useState('');
+  const [minScheduleDateTime, setMinScheduleDateTime] = useState('');
   const [isRoVoluntary, setIsRoVoluntary] = useState('false');
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
 
   const [items, setItems] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [programsLoading, setProgramsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -861,20 +1139,29 @@ export default function AnnouncementsManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const [feedbackModal, setFeedbackModal] = useState({
-    open: false,
-    tone: 'success',
-    title: '',
-    message: '',
-  });
+  const loadPrograms = useCallback(async () => {
+    try {
+      setProgramsLoading(true);
+      const token = sessionStorage.getItem('adminToken');
+      const response = await fetch(buildApiUrl('/api/scholarship-program'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await response.json().catch(() => []);
 
-  const showFeedback = useCallback((tone, title, message) => {
-    setFeedbackModal({
-      open: true,
-      tone,
-      title,
-      message,
-    });
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to load scholarship programs');
+      }
+
+      setPrograms(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('LOAD ANNOUNCEMENT PROGRAMS ERROR:', error);
+      setPrograms([]);
+    } finally {
+      setProgramsLoading(false);
+    }
   }, []);
 
   const loadAnnouncements = useCallback(async (options = {}) => {
@@ -928,7 +1215,7 @@ export default function AnnouncementsManagement() {
       console.error('LOAD ANNOUNCEMENTS ERROR:', err);
 
       if (!silent) {
-        showFeedback(
+        showAppToast(
           'error',
           'Failed to load announcements',
           err.message || 'Failed to load announcements'
@@ -939,11 +1226,12 @@ export default function AnnouncementsManagement() {
         setLoading(false);
       }
     }
-  }, [showFeedback]);
+  }, []);
 
   useEffect(() => {
     loadAnnouncements();
-  }, [loadAnnouncements]);
+    loadPrograms();
+  }, [loadAnnouncements, loadPrograms]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -954,6 +1242,26 @@ export default function AnnouncementsManagement() {
       window.clearInterval(intervalId);
     };
   }, [loadAnnouncements]);
+
+  useEffect(() => {
+    if (!showForm) return undefined;
+
+    const refreshMinimumSchedule = () => {
+      setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
+    };
+
+    refreshMinimumSchedule();
+
+    const intervalId = window.setInterval(refreshMinimumSchedule, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [showForm]);
+
+  useSocketEvent('maintenance:updated', () => {
+    loadPrograms();
+  }, [loadPrograms]);
 
   useSocketEvent('announcement:created', () => {
     console.log('[Socket] announcement:created received');
@@ -1008,6 +1316,7 @@ export default function AnnouncementsManagement() {
       setContent(buildOpeningPrefillContent(params));
       setAudience(normalizePrefillAudience(targetAudience));
       setSchedDate('');
+      setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
       setIsRoVoluntary('false');
       setSelectedTemplate('blank');
       setValidationErrors({});
@@ -1031,11 +1340,26 @@ export default function AnnouncementsManagement() {
         params.get('audience') ||
         'scholars';
 
+      const payoutProgramId = params.get('program_id') || '';
+      const payoutProgram = programs.find(
+        (program) =>
+          String(program.program_id) === String(payoutProgramId) &&
+          program.is_archived !== true &&
+          String(program.visibility_status || 'Published') === 'Published'
+      );
+
+      if (payoutProgramId && programsLoading) return;
+
       setEditingAnnouncementId(null);
       setTitle(payoutTitle);
       setContent(buildPayoutPrefillContent(params));
-      setAudience(normalizePrefillAudience(targetAudience));
+      setAudience(
+        payoutProgram
+          ? programAudienceValue(payoutProgram.program_id)
+          : normalizePrefillAudience(targetAudience)
+      );
       setSchedDate('');
+      setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
       setIsRoVoluntary('false');
       setSelectedTemplate('payout_notice');
       setValidationErrors({});
@@ -1046,7 +1370,7 @@ export default function AnnouncementsManagement() {
 
       navigate(location.pathname, { replace: true });
     }
-  }, [location.search, location.pathname, navigate]);
+  }, [location.search, location.pathname, navigate, programs, programsLoading]);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -1057,6 +1381,26 @@ export default function AnnouncementsManagement() {
       isRoVoluntary !== 'false'
     );
   }, [title, content, audience, schedDate, isRoVoluntary]);
+
+  const audienceOptions = useMemo(
+    () => buildAudienceOptions(programs, audience),
+    [programs, audience]
+  );
+
+  useEffect(() => {
+    if (!validationErrors.schedule || !schedDate) return;
+
+    const freshMinimumSchedule =
+      nextSchedulableLocalDateTimeInputValue();
+
+    if (schedDate >= freshMinimumSchedule) {
+      setValidationErrors((previous) => {
+        const next = { ...previous };
+        delete next.schedule;
+        return next;
+      });
+    }
+  }, [schedDate, validationErrors.schedule]);
 
   const activeItems = useMemo(
     () => items.filter((item) => !item.is_archived && item.status !== 'Archived'),
@@ -1102,6 +1446,7 @@ export default function AnnouncementsManagement() {
 
   const handleOpenModal = () => {
     resetForm();
+    setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     setShowForm(true);
   };
 
@@ -1125,14 +1470,19 @@ export default function AnnouncementsManagement() {
     setEditingAnnouncementId(announcement.id);
     setTitle(announcement.title || '');
     setContent(announcement.content || '');
-    setAudience(announcement.audienceKey || announcement.audience || 'all');
+    setAudience(
+      announcement.audienceKey === 'program' && announcement.targetProgramId
+        ? programAudienceValue(announcement.targetProgramId)
+        : announcement.audienceKey || 'all'
+    );
     setSchedDate(
       announcement.status === 'Scheduled' && announcement.date
         ? toLocalDateTimeInputValue(announcement.date)
         : ''
     );
+    setMinScheduleDateTime(nextSchedulableLocalDateTimeInputValue());
     setIsRoVoluntary(announcement.isRoVoluntary ? 'true' : 'false');
-    setSelectedTemplate('blank');
+    setSelectedTemplate(resolveAnnouncementTemplate(announcement));
     setValidationErrors({});
     setShowForm(true);
   };
@@ -1142,6 +1492,18 @@ export default function AnnouncementsManagement() {
 
     if (!title.trim()) errors.title = 'Announcement subject is required.';
     if (!content.trim()) errors.content = 'Announcement content is required.';
+
+    if (schedDate) {
+      const freshMinimumSchedule =
+        nextSchedulableLocalDateTimeInputValue();
+
+      setMinScheduleDateTime(freshMinimumSchedule);
+
+      if (schedDate < freshMinimumSchedule) {
+        errors.schedule =
+          'Choose a future schedule. The earliest available time is the next minute.';
+      }
+    }
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -1155,14 +1517,24 @@ export default function AnnouncementsManagement() {
     setContent(template.content);
     setAudience(template.audience);
     setIsRoVoluntary(template.isRoVoluntary);
+
+    if (selectedTemplate === 'blank') {
+      setSchedDate('');
+    }
+
     setValidationErrors({});
     setShowTemplateConfirmModal(false);
   };
 
   const handleApplyTemplate = () => {
-    const hasContent = title.trim() || content.trim();
+    const hasCurrentFormValues =
+      title.trim() ||
+      content.trim() ||
+      audience !== 'all' ||
+      schedDate !== '' ||
+      isRoVoluntary !== 'false';
 
-    if (hasContent) {
+    if (hasCurrentFormValues) {
       setShowTemplateConfirmModal(true);
       return;
     }
@@ -1179,6 +1551,7 @@ export default function AnnouncementsManagement() {
       : buildApiUrl('/api/announcements');
 
     const method = isEditing ? 'PATCH' : 'POST';
+    const audienceTarget = parseAudienceSelection(audience);
 
     const res = await fetch(url, {
       method,
@@ -1189,7 +1562,9 @@ export default function AnnouncementsManagement() {
       body: JSON.stringify({
         title: title.trim(),
         content: content.trim(),
-        audience,
+        templateKey: selectedTemplate,
+        audience: audienceTarget.audience,
+        programId: audienceTarget.programId,
         schedDate: schedDate ? toUtcIsoFromLocalInput(schedDate) : null,
         isRoVoluntary: isRoVoluntary === 'true',
         forceDraft,
@@ -1231,7 +1606,7 @@ export default function AnnouncementsManagement() {
       setShowForm(false);
       setShowDiscardModal(false);
 
-      showFeedback(
+      showAppToast(
         'success',
         wasEditing ? 'Announcement updated' : 'Announcement saved',
         wasEditing
@@ -1241,7 +1616,7 @@ export default function AnnouncementsManagement() {
     } catch (err) {
       console.error('POST ANNOUNCEMENT ERROR:', err);
 
-      showFeedback(
+      showAppToast(
         'error',
         'Save failed',
         err.message || 'Failed to save announcement'
@@ -1258,6 +1633,22 @@ export default function AnnouncementsManagement() {
       if (!title.trim() && !content.trim()) {
         handleCancelAnnouncement();
         return;
+      }
+
+      if (schedDate) {
+        const freshMinimumSchedule =
+          nextSchedulableLocalDateTimeInputValue();
+
+        setMinScheduleDateTime(freshMinimumSchedule);
+
+        if (schedDate < freshMinimumSchedule) {
+          setValidationErrors((previous) => ({
+            ...previous,
+            schedule:
+              'Choose a future schedule. The earliest available time is the next minute.',
+          }));
+          return;
+        }
       }
 
       setDraftSaving(true);
@@ -1278,7 +1669,7 @@ export default function AnnouncementsManagement() {
       setShowForm(false);
       setShowDiscardModal(false);
 
-      showFeedback(
+      showAppToast(
         'success',
         'Draft saved',
         'The announcement draft was saved successfully.'
@@ -1286,7 +1677,7 @@ export default function AnnouncementsManagement() {
     } catch (err) {
       console.error('SAVE DRAFT ERROR:', err);
 
-      showFeedback(
+      showAppToast(
         'error',
         'Draft save failed',
         err.message || 'Failed to save draft'
@@ -1330,9 +1721,14 @@ export default function AnnouncementsManagement() {
             : a
         )
       );
+      showAppToast(
+        'success',
+        'Announcement archived',
+        'The announcement was moved to Archived.'
+      );
     } catch (err) {
       console.error('ARCHIVE ANNOUNCEMENT ERROR:', err);
-      showFeedback(
+      showAppToast(
         'error',
         'Archive failed',
         err.message || 'Failed to archive announcement'
@@ -1365,9 +1761,17 @@ export default function AnnouncementsManagement() {
       }
 
       await loadAnnouncements({ silent: true });
+      const publishedOnRestore = data?.data?.publishedNow === true;
+      showAppToast(
+        'success',
+        publishedOnRestore ? 'Announcement restored and published' : 'Announcement restored',
+        publishedOnRestore
+          ? 'Its scheduled time already passed, so the announcement is now published.'
+          : 'The announcement was restored successfully.'
+      );
     } catch (err) {
       console.error('RESTORE ANNOUNCEMENT ERROR:', err);
-      showFeedback(
+      showAppToast(
         'error',
         'Restore failed',
         err.message || 'Failed to restore announcement'
@@ -1402,9 +1806,14 @@ export default function AnnouncementsManagement() {
       if (data?.data) {
         setItems((prev) => prev.map((a) => (a.id === id ? data.data : a)));
       }
+      showAppToast(
+        'success',
+        'Announcement published',
+        'The announcement is now visible to its intended audience.'
+      );
     } catch (err) {
       console.error('PUBLISH ANNOUNCEMENT ERROR:', err);
-      showFeedback(
+      showAppToast(
         'error',
         'Publish failed',
         err.message || 'Failed to publish announcement'
@@ -1415,14 +1824,7 @@ export default function AnnouncementsManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-        <p className="text-xs uppercase tracking-widest text-stone-400">
-          Loading announcements...
-        </p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading announcements" variant="cards" />;
   }
 
   return (
@@ -1440,8 +1842,10 @@ export default function AnnouncementsManagement() {
         setContent={setContent}
         audience={audience}
         setAudience={setAudience}
+        audienceOptions={audienceOptions}
         schedDate={schedDate}
         setSchedDate={setSchedDate}
+        minScheduleDateTime={minScheduleDateTime}
         isRoVoluntary={isRoVoluntary}
         setIsRoVoluntary={setIsRoVoluntary}
         validationErrors={validationErrors}
@@ -1459,26 +1863,22 @@ export default function AnnouncementsManagement() {
         draftSaving={draftSaving}
       />
 
-      <FeedbackModal
-        open={feedbackModal.open}
-        tone={feedbackModal.tone}
-        title={feedbackModal.title}
-        message={feedbackModal.message}
-        onClose={() =>
-          setFeedbackModal((prev) => ({
-            ...prev,
-            open: false,
-          }))
-        }
+      <ConfirmTemplateApplyModal
+        open={showTemplateConfirmModal}
+        onCancel={() => setShowTemplateConfirmModal(false)}
+        onConfirm={applyTemplateNow}
+        selectedTemplate={selectedTemplate}
       />
+
+
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
           <button
             onClick={() => setTab('active')}
-            className={`rounded-md px-4 py-2 text-xs font-medium transition-all ${tab === 'active'
+            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'active'
               ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+              : 'text-stone-600 hover:text-stone-900'
               }`}
           >
             Active
@@ -1486,9 +1886,9 @@ export default function AnnouncementsManagement() {
 
           <button
             onClick={() => setTab('archived')}
-            className={`rounded-md px-4 py-2 text-xs font-medium transition-all ${tab === 'archived'
+            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'archived'
               ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-500 hover:text-stone-700'
+              : 'text-stone-600 hover:text-stone-900'
               }`}
           >
             Archived
@@ -1499,7 +1899,7 @@ export default function AnnouncementsManagement() {
           <Button
             onClick={handleOpenModal}
             size="sm"
-            className="rounded-lg border-none text-xs text-white"
+            className="h-9 rounded-lg border-none px-3 text-sm font-medium text-white"
             style={{ background: C.brownMid }}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -1546,18 +1946,16 @@ export default function AnnouncementsManagement() {
                 setSearch('');
                 setStatusFilter('All');
               }}
-              className="h-9 border-stone-200 text-xs"
+              className="h-9 rounded-lg border-stone-200 px-3 text-sm text-stone-700"
             >
               Reset
             </Button>
           )}
         </div>
 
-        <div className="divide-y">
+        <div className="space-y-2.5 p-4">
           {filteredItems.length === 0 ? (
-            <div className="p-4">
-              <EmptyList archived={tab === 'archived'} />
-            </div>
+            <EmptyList archived={tab === 'archived'} />
           ) : (
             filteredItems.map((announcement) => (
               <AnnouncementRow

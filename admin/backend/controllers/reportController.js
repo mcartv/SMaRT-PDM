@@ -1,9 +1,65 @@
 const reportService = require('../services/reportService');
 const auditLogService = require('../services/auditLogService');
+const accountService = require('../services/accountService');
 
-function isAdmin(req) {
+function canAccessReports(req) {
     const role = String(req.user?.role || '').toLowerCase();
-    return ['admin', 'sdo', 'guidance', 'pd'].includes(role);
+    return ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'].includes(role);
+}
+
+function getAllowedReportTypes(role, hasRoCoordinatorAccess = false) {
+    const normalizedRole = String(role || '').toLowerCase();
+
+    if (normalizedRole === 'admin') {
+        return [
+            'applications',
+            'scholars',
+            'scholars_by_benefactor',
+            'payouts',
+            'endorsements',
+        ];
+    }
+
+    const allowed = [];
+
+    if (['sdo', 'guidance', 'pd'].includes(normalizedRole)) {
+        allowed.push(normalizedRole);
+    }
+
+    if (hasRoCoordinatorAccess) {
+        allowed.push('ro');
+    }
+
+    return allowed;
+}
+
+async function resolveReportAccess(req) {
+    const role = String(req.user?.role || '').toLowerCase();
+
+    if (!['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'].includes(role)) {
+        const error = new Error('Report access is not available for this account.');
+        error.statusCode = 403;
+        throw error;
+    }
+
+    const userId = getActorUserId(req);
+    const canHoldRoAssignment = ['sdo', 'guidance', 'pd', 'ro_coordinator'].includes(role);
+    const hasRoCoordinatorAccess = canHoldRoAssignment
+        ? await accountService.hasActiveRoCoordinatorAssignment(userId)
+        : false;
+
+    if (role === 'ro_coordinator' && !hasRoCoordinatorAccess) {
+        const error = new Error('An active RO Area coordinator assignment is required to access RO reports.');
+        error.statusCode = 403;
+        throw error;
+    }
+
+    return {
+        role,
+        userId,
+        hasRoCoordinatorAccess,
+        allowedReportTypes: getAllowedReportTypes(role, hasRoCoordinatorAccess),
+    };
 }
 
 function isSilentRequest(req) {
@@ -15,17 +71,23 @@ function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
-function getScopedServiceQuery(req) {
-    const role = String(req.user?.role || '').toLowerCase();
+function getScopedServiceQuery(req, access) {
     const reportType = String(req.query?.reportType || req.query?.type || 'applications').toLowerCase();
-    if (role === 'pd' && reportType !== 'pd') {
-        const error = new Error('Program Directors may only access their assigned-course PD report.');
-        error.statusCode = 403;
+
+    if (!access.allowedReportTypes.includes(reportType)) {
+        const error = new Error(
+            reportType === 'ro'
+                ? 'An active RO Area coordinator assignment is required to access the RO Coordinator report.'
+                : 'This account is not allowed to access the requested report.'
+        );
+        error.statusCode = access.role === 'admin' ? 400 : 403;
         throw error;
     }
+
     return {
         ...(req.query || {}),
-        pdUserId: role === 'pd' ? getActorUserId(req) : '',
+        pdUserId: reportType === 'pd' && access.role === 'pd' ? access.userId : '',
+        roUserId: reportType === 'ro' ? access.userId : '',
     };
 }
 
@@ -69,11 +131,12 @@ async function writeReportAudit(req, actionTaken, description, metadata = {}) {
 
 async function getReportMetadata(req, res) {
     try {
-        if (!isAdmin(req)) {
-            return res.status(403).json({ error: 'Admin access required.' });
-        }
-
+        const access = await resolveReportAccess(req);
         const result = await reportService.getReportMetadata();
+        const allowedReportTypes = access.allowedReportTypes;
+        result.reportTypes = (result.reportTypes || []).filter((reportType) =>
+            allowedReportTypes.includes(reportType.id)
+        );
 
         await writeReportAudit(
             req,
@@ -87,7 +150,7 @@ async function getReportMetadata(req, res) {
         return res.status(200).json(result);
     } catch (error) {
         console.error('REPORT METADATA ERROR:', error);
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             error: error.message || 'Failed to load report metadata.',
         });
     }
@@ -95,12 +158,9 @@ async function getReportMetadata(req, res) {
 
 async function previewReport(req, res) {
     try {
-        if (!isAdmin(req)) {
-            return res.status(403).json({ error: 'Admin access required.' });
-        }
-
+        const access = await resolveReportAccess(req);
         const queryPayload = getReportQueryPayload(req);
-        const result = await reportService.previewReport(getScopedServiceQuery(req));
+        const result = await reportService.previewReport(getScopedServiceQuery(req, access));
 
         await writeReportAudit(
             req,
@@ -123,15 +183,12 @@ async function previewReport(req, res) {
 
 async function exportReport(req, res) {
     try {
-        if (!isAdmin(req)) {
-            return res.status(403).json({ error: 'Admin access required.' });
-        }
-
+        const access = await resolveReportAccess(req);
         const queryPayload = getReportQueryPayload(req);
         const format = String(req.query?.format || 'xlsx').toLowerCase();
 
         if (format === 'csv') {
-            const result = await reportService.generateCsvReport(getScopedServiceQuery(req));
+            const result = await reportService.generateCsvReport(getScopedServiceQuery(req, access));
 
             await writeReportAudit(
                 req,
@@ -153,7 +210,7 @@ async function exportReport(req, res) {
             return res.status(200).send(result.content);
         }
 
-        const result = await reportService.generateExcelReport(getScopedServiceQuery(req));
+        const result = await reportService.generateExcelReport(getScopedServiceQuery(req, access));
 
         await writeReportAudit(
             req,

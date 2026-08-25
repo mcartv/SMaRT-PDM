@@ -58,11 +58,11 @@ create table if not exists public.endorsement_slips (
             )
         ),
     constraint endorsement_slips_pd_status_check
-        check (pd_status is null or pd_status in ('approved', 'rejected')),
+        check (pd_status is null or pd_status in ('good_scholastic_standing', 'average_scholastic_standing', 'approved', 'rejected')),
     constraint endorsement_slips_guidance_status_check
-        check (guidance_status is null or guidance_status in ('cleared', 'held', 'rejected')),
+        check (guidance_status is null or guidance_status in ('good_moral_standing', 'cleared', 'held', 'rejected')),
     constraint endorsement_slips_sdo_status_check
-        check (sdo_status is null or sdo_status in ('cleared', 'disqualified_minor', 'disqualified_major'))
+        check (sdo_status is null or sdo_status in ('no_offense', 'minor_offense', 'major_offense', 'cleared', 'disqualified_minor', 'disqualified_major'))
 );
 
 create index if not exists idx_endorsement_slips_stage

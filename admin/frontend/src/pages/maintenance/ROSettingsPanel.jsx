@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import {
     AlertTriangle,
     Building2,
-    CheckCircle2,
     Clock3,
     Loader2,
     Pencil,
@@ -17,10 +16,15 @@ import {
     X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { showAppToast } from '@/utils/appToast';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+    MAINTENANCE_CARD_SUBTITLE_CLASS,
+    MAINTENANCE_CARD_TITLE_CLASS,
+} from './components/maintenanceTypography';
 
 const C = {
-    brownMid: '#7c4a2e',
+    brownMid: 'var(--portal-base)',
     green: '#16a34a',
     greenSoft: '#F0FDF4',
     red: '#dc2626',
@@ -101,7 +105,7 @@ function DepartmentModal({
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <h3 className="text-sm font-semibold text-stone-800">
-                        {isEdit ? 'Edit RO Department' : 'Add RO Department'}
+                        {isEdit ? 'Edit RO Area' : 'Add RO Area'}
                     </h3>
 
                     <button
@@ -117,7 +121,7 @@ function DepartmentModal({
                 <CardContent className="space-y-3 p-4">
                     <div className="space-y-1.5">
                         <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                            Department / Office Name
+                            Department / Office / Faculty Name
                         </label>
 
                         <Input
@@ -159,11 +163,12 @@ function DepartmentModal({
 }
 
 export default function ROSettingsPanel() {
-    const [settings, setSettings] = useState([]);
+    const [, setSettings] = useState([]);
     const [activeSetting, setActiveSetting] = useState(null);
     const [departments, setDepartments] = useState([]);
+    const [coordinatorCandidates, setCoordinatorCandidates] = useState([]);
 
-    const [requiredHours, setRequiredHours] = useState(20);
+    const [requiredHours, setRequiredHours] = useState(8);
     const [allowCarryOver, setAllowCarryOver] = useState(true);
 
     const [search, setSearch] = useState('');
@@ -180,7 +185,6 @@ export default function ROSettingsPanel() {
     const [departmentActionId, setDepartmentActionId] = useState('');
 
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
 
     const activeSettingId = activeSetting?.setting_id || null;
 
@@ -254,7 +258,7 @@ export default function ROSettingsPanel() {
 
             if (!departmentsResponse.ok) {
                 throw new Error(
-                    departmentsPayload.error || 'Failed to load RO departments.'
+                    departmentsPayload.error || 'Failed to load RO Areas.'
                 );
             }
 
@@ -265,8 +269,13 @@ export default function ROSettingsPanel() {
             setSettings(settingRows);
             setActiveSetting(active);
             setDepartments(departmentRows);
+            setCoordinatorCandidates(
+                Array.isArray(departmentsPayload?.coordinator_candidates)
+                    ? departmentsPayload.coordinator_candidates
+                    : []
+            );
 
-            setRequiredHours(Number(active?.required_hours || 20));
+            setRequiredHours(Number(active?.required_hours ?? 8));
             setAllowCarryOver(active?.allow_carry_over !== false);
         } catch (err) {
             console.error('LOAD RO SETTINGS ERROR:', err);
@@ -308,12 +317,11 @@ export default function ROSettingsPanel() {
         try {
             setSaving(true);
             setError('');
-            setSuccess('');
 
             const hours = Number.parseInt(requiredHours, 10);
 
-            if (!Number.isInteger(hours) || hours < 0) {
-                throw new Error('Required hours must be a non-negative whole number.');
+            if (!Number.isInteger(hours) || hours <= 0) {
+                throw new Error('Required hours must be a whole number greater than zero.');
             }
 
             const payload = {
@@ -348,7 +356,7 @@ export default function ROSettingsPanel() {
                 throw new Error(data.error || 'Failed to save RO setting.');
             }
 
-            setSuccess(data.message || 'RO setting saved successfully.');
+            showAppToast('success', 'RO setting saved', data.message || 'RO setting saved successfully.');
             await loadSettings();
         } catch (err) {
             console.error('SAVE RO SETTING ERROR:', err);
@@ -358,12 +366,38 @@ export default function ROSettingsPanel() {
         }
     };
 
+    const assignCoordinator = async (department, userId) => {
+        try {
+            setDepartmentActionId(department.department_id);
+            setError('');
+
+            const response = await fetch(
+                buildApiUrl(`/api/ro-settings/departments/${department.department_id}/coordinator`),
+                {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ user_id: userId || null }),
+                }
+            );
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || 'Failed to update the RO Area coordinator.');
+            }
+
+            showAppToast('success', 'Coordinator updated', payload.message || 'RO Area coordinator updated.');
+            await loadSettings();
+        } catch (actionError) {
+            setError(actionError.message || 'Failed to update the RO Area coordinator.');
+        } finally {
+            setDepartmentActionId('');
+        }
+    };
+
     const openCreateModal = () => {
         setModalMode('create');
         setEditingDepartmentId(null);
         setDepartmentName('');
         setError('');
-        setSuccess('');
         setModalOpen(true);
     };
 
@@ -372,7 +406,6 @@ export default function ROSettingsPanel() {
         setEditingDepartmentId(department.department_id);
         setDepartmentName(department.department_name || '');
         setError('');
-        setSuccess('');
         setModalOpen(true);
     };
 
@@ -389,12 +422,11 @@ export default function ROSettingsPanel() {
         try {
             setDepartmentSaving(true);
             setError('');
-            setSuccess('');
 
             const name = String(departmentName || '').trim();
 
             if (!name) {
-                throw new Error('Department name is required.');
+                throw new Error('RO Area name is required.');
             }
 
             const isEdit = modalMode === 'edit' && editingDepartmentId;
@@ -417,15 +449,15 @@ export default function ROSettingsPanel() {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to save RO department.');
+                throw new Error(data.error || 'Failed to save RO Area.');
             }
 
-            setSuccess(data.message || 'RO department saved successfully.');
+            showAppToast('success', 'RO area saved', data.message || 'RO Area saved successfully.');
             closeDepartmentModal();
             await loadSettings();
         } catch (err) {
             console.error('SAVE RO DEPARTMENT ERROR:', err);
-            setError(err.message || 'Failed to save RO department.');
+            setError(err.message || 'Failed to save RO Area.');
         } finally {
             setDepartmentSaving(false);
         }
@@ -435,7 +467,6 @@ export default function ROSettingsPanel() {
         try {
             setDepartmentActionId(department.department_id);
             setError('');
-            setSuccess('');
 
             const response = await fetch(
                 buildApiUrl(`/api/ro-settings/departments/${department.department_id}/toggle`),
@@ -448,14 +479,14 @@ export default function ROSettingsPanel() {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to update RO department status.');
+                throw new Error(data.error || 'Failed to update RO Area status.');
             }
 
-            setSuccess(data.message || 'RO department status updated successfully.');
+            showAppToast('success', 'RO area updated', data.message || 'RO Area status updated successfully.');
             await loadSettings();
         } catch (err) {
             console.error('TOGGLE RO DEPARTMENT ERROR:', err);
-            setError(err.message || 'Failed to update RO department status.');
+            setError(err.message || 'Failed to update RO Area status.');
         } finally {
             setDepartmentActionId('');
         }
@@ -490,21 +521,15 @@ export default function ROSettingsPanel() {
                 </div>
             ) : null}
 
-            {success ? (
-                <div className="flex items-start gap-2 rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{success}</span>
-                </div>
-            ) : null}
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 RO Configuration
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 Required hours: {Number(requiredHours || 0)} · Carry-over {allowCarryOver ? 'allowed' : 'not allowed'}
                             </p>
                             <p className="mt-0.5 text-xs text-stone-400">
@@ -531,7 +556,7 @@ export default function ROSettingsPanel() {
 
                             <Input
                                 type="number"
-                                min="0"
+                                min="1"
                                 value={requiredHours}
                                 onChange={(event) => setRequiredHours(event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
@@ -572,10 +597,10 @@ export default function ROSettingsPanel() {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                RO Department Records
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                            <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
+                                RO Areas
+                            </h2>
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
                                 {currentCount} active · {inactiveCount} inactive
                             </p>
                         </div>
@@ -583,7 +608,7 @@ export default function ROSettingsPanel() {
                         <div className="relative w-full md:w-[320px]">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
-                                placeholder="Search department..."
+                                placeholder="Search RO Area..."
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
@@ -597,7 +622,7 @@ export default function ROSettingsPanel() {
                                 type="button"
                                 onClick={() => setPageTab('current')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
-                                        ? 'bg-[#7c4a2e] text-white'
+                                        ? 'bg-[var(--portal-base)] text-white'
                                         : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                     }`}
                             >
@@ -608,7 +633,7 @@ export default function ROSettingsPanel() {
                                 type="button"
                                 onClick={() => setPageTab('inactive')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'inactive'
-                                        ? 'bg-[#7c4a2e] text-white'
+                                        ? 'bg-[var(--portal-base)] text-white'
                                         : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                                     }`}
                             >
@@ -656,9 +681,9 @@ export default function ROSettingsPanel() {
                 {filteredDepartments.length === 0 ? (
                     <div className="flex min-h-[220px] flex-col items-center justify-center px-4 text-center text-stone-400">
                         <Building2 size={42} className="mb-4 opacity-50" />
-                        <p className="text-sm font-medium">No departments found</p>
+                        <p className="text-sm font-medium">No RO Areas found</p>
                         <p className="mt-1 text-xs">
-                            Click the add button above to create an RO department.
+                            Add a department, office, or faculty area that can receive RO requests.
                         </p>
                     </div>
                 ) : (
@@ -685,9 +710,36 @@ export default function ROSettingsPanel() {
                                         <p className="mt-1 truncate text-xs text-stone-400">
                                             Updated {formatDateTime(department.updated_at || department.created_at)}
                                         </p>
+                                        <p className={`mt-1 truncate text-xs font-medium ${department.coordinator ? 'text-cyan-700' : 'text-amber-700'}`}>
+                                            {department.coordinator
+                                                ? `Coordinator: ${department.coordinator.name}`
+                                                : 'No active coordinator assigned'}
+                                        </p>
                                     </div>
 
                                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                        {isActive ? (
+                                            <select
+                                                value={department.coordinator?.user_id || ''}
+                                                onChange={(event) =>
+                                                    assignCoordinator(department, event.target.value)
+                                                }
+                                                disabled={loadingThis}
+                                                className="h-8 max-w-[230px] rounded-lg border border-stone-200 bg-white px-2 text-xs text-stone-700 outline-none focus:border-orange-700"
+                                                aria-label={`Coordinator for ${department.department_name}`}
+                                            >
+                                                <option value="">No coordinator</option>
+                                                {coordinatorCandidates.map((candidate) => (
+                                                    <option
+                                                        key={candidate.user_id}
+                                                        value={candidate.user_id}
+                                                    >
+                                                        {candidate.name} - {candidate.position || candidate.department || 'User'}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : null}
+
                                         <Button
                                             size="sm"
                                             variant="outline"

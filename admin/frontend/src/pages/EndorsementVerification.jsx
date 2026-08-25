@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 function formatDate(value) {
   if (!value) return 'N/A';
@@ -24,10 +26,9 @@ export default function EndorsementVerification() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const loadVerification = async () => {
+  const loadVerification = useCallback(async ({ quiet = false } = {}) => {
       try {
-        setLoading(true);
+        if (!quiet) setLoading(true);
         setError('');
 
         const response = await fetch(buildApiUrl(`/api/endorsement-slips/verify/${token}`));
@@ -41,19 +42,23 @@ export default function EndorsementVerification() {
       } catch (err) {
         setError(err.message || 'Failed to verify slip.');
       } finally {
-        setLoading(false);
+        if (!quiet) setLoading(false);
       }
-    };
-
-    loadVerification();
   }, [token]);
+
+  useEffect(() => {
+    loadVerification();
+  }, [loadVerification]);
+
+  useSocketEvent('endorsement:updated', () => {
+    loadVerification({ quiet: true });
+  }, [loadVerification]);
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-stone-400" />
-          <p className="mt-3 text-sm text-stone-500">Verifying endorsement slip...</p>
+      <div className="min-h-screen bg-stone-50 px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-5xl">
+          <PageLoadingSkeleton label="Verifying endorsement slip" variant="cards" />
         </div>
       </div>
     );
@@ -109,6 +114,10 @@ export default function EndorsementVerification() {
               <p className="font-medium text-stone-900">{payload.program_name}</p>
             </div>
             <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Course</p>
+              <p className="font-medium text-stone-900">{payload.course_display || payload.course_code || payload.course_name || 'N/A'}</p>
+            </div>
+            <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">Semester</p>
               <p className="font-medium text-stone-900">{payload.semester || 'N/A'}</p>
             </div>
@@ -130,9 +139,9 @@ export default function EndorsementVerification() {
 
           <div className="space-y-3">
             {[
-              ['PD Endorsement', payload.stages?.pd],
-              ['Guidance Clearance', payload.stages?.guidance],
-              ['SDO Clearance', payload.stages?.sdo],
+              ['SDO Disciplinary Standing', payload.stages?.sdo],
+              ['Guidance Moral Standing', payload.stages?.guidance],
+              ['Program Director Scholastic Standing', payload.stages?.pd],
             ].map(([label, stage]) => (
               <div key={label} className="rounded-2xl border border-stone-200 p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -144,13 +153,6 @@ export default function EndorsementVerification() {
                 <p className="mt-2 text-sm text-stone-500">{formatDate(stage?.acted_at)}</p>
                 {stage?.acted_by_name ? (
                   <p className="mt-2 text-sm text-stone-600">Reviewed by: {stage.acted_by_name}</p>
-                ) : null}
-                {label === 'SDO Clearance' && payload.sdo_offense_detail?.offense_type ? (
-                  <div className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
-                    <p>Offense Type: {payload.sdo_offense_detail.offense_type}</p>
-                    <p>Date of Incident: {payload.sdo_offense_detail.incident_date || 'N/A'}</p>
-                    <p>Case Note / Ref No.: {payload.sdo_offense_detail.case_reference_number || 'N/A'}</p>
-                  </div>
                 ) : null}
                 {stage?.remarks ? (
                   <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">

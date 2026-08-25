@@ -9,6 +9,7 @@ const MASTER_TABLE = 'student_master_records';
 const REGISTRY_VIEW = 'student_registry';
 const COURSE_TABLE = 'academic_course';
 const SDO_RECORD_TABLE = 'sdo_student_records';
+const HEADER_ORDER_META_KEY = '__smart_pdm_header_order';
 
 function buildError(message, statusCode = 500, details = null) {
   const err = new Error(message);
@@ -27,6 +28,77 @@ function normalizeLookupValue(value) {
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function parseCsvLine(line) {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current);
+  return cells;
+}
+
+function parseCsvRows(text) {
+  const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    const next = normalized[index + 1];
+
+    if (char === '"') {
+      current += char;
+      if (inQuotes && next === '"') {
+        current += next;
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === '\n' && !inQuotes) {
+      if (current.trim() !== '') rows.push(parseCsvLine(current));
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim() !== '') rows.push(parseCsvLine(current));
+  return rows;
+}
+
+function parseNullableBoolean(value) {
+  if (value === null || value === undefined || normalizeText(value) === '') return null;
+  return parseBoolean(value);
 }
 
 function normalizeYearLevel(value) {
@@ -140,9 +212,7 @@ async function readWorkbookRows(file) {
   const fileName = String(file.originalname || '').toLowerCase();
 
   if (fileName.endsWith('.csv')) {
-    const text = file.buffer.toString('utf8');
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    return lines.map((line) => line.split(','));
+    return parseCsvRows(file.buffer.toString('utf8'));
   }
 
   if (fileName.endsWith('.xls')) {
@@ -179,27 +249,27 @@ function mapHeaders(headerRow) {
     const header = normalizeLookupValue(rawHeader);
 
     if (
-      ['student number', 'student_number', 'student no', 'pdm id', 'pdm_id'].includes(header)
+      ['student number', 'student no', 'student id', 'student id no', 'student id number', 'pdm id', 'pdm no', 'pdm number'].includes(header)
     ) {
       map.set(index, 'student_number');
     } else if (
-      ['surname', 'last name', 'lastname', 'last_name'].includes(header)
+      ['surname', 'last name', 'lastname', 'family name'].includes(header)
     ) {
       map.set(index, 'last_name');
     } else if (
-      ['first name', 'firstname', 'first_name', 'given name', 'given_name'].includes(header)
+      ['first name', 'firstname', 'given name', 'given names'].includes(header)
     ) {
       map.set(index, 'given_name');
     } else if (
-      ['middle name', 'middlename', 'middle_name'].includes(header)
+      ['middle name', 'middlename', 'middle initial'].includes(header)
     ) {
       map.set(index, 'middle_name');
     } else if (
-      ['course', 'course code', 'degree program', 'program'].includes(header)
+      ['course', 'course code', 'degree program', 'program', 'program code', 'course/program'].includes(header)
     ) {
       map.set(index, 'degree_program');
     } else if (
-      ['year level', 'year_level', 'year'].includes(header)
+      ['year level', 'year', 'level'].includes(header)
     ) {
       map.set(index, 'year_level');
     } else if (
@@ -211,7 +281,7 @@ function mapHeaders(headerRow) {
     ) {
       map.set(index, 'email_address');
     } else if (
-      ['phone number', 'contact number', 'mobile number', 'phone_number'].includes(header)
+      ['phone number', 'contact number', 'mobile number', 'personal number'].includes(header)
     ) {
       map.set(index, 'phone_number');
     } else if (
@@ -304,40 +374,72 @@ function mapHeaders(headerRow) {
   return map;
 }
 
-function parseRows(rows) {
-  if (!rows.length) {
-    return [];
+function buildSourceColumns(headerRow = [], bodyRows = []) {
+  const maxColumns = Math.max(
+    headerRow.length,
+    ...bodyRows.map((row) => (Array.isArray(row) ? row.length : 0)),
+    0
+  );
+  const seen = new Map();
+  const columns = [];
+
+  for (let index = 0; index < maxColumns; index += 1) {
+    const rawHeader = normalizeText(headerRow[index]);
+    const columnHasData = bodyRows.some((row) => normalizeText(row?.[index]) !== '');
+    if (!rawHeader && !columnHasData) continue;
+
+    const baseLabel = rawHeader || `Column ${index + 1}`;
+    const key = normalizeLookupValue(baseLabel);
+    const occurrence = (seen.get(key) || 0) + 1;
+    seen.set(key, occurrence);
+
+    columns.push({
+      index,
+      label: occurrence === 1 ? baseLabel : `${baseLabel} (${occurrence})`,
+    });
   }
 
-  const headerRow = rows[0];
-  const headerMap = mapHeaders(headerRow);
+  return columns;
+}
 
+function parseRows(rows) {
+  if (!rows.length) return [];
+
+  const headerRow = rows[0] || [];
+  const bodyRows = rows.slice(1);
+  const headerMap = mapHeaders(headerRow);
+  const sourceColumns = buildSourceColumns(headerRow, bodyRows);
+  const sourceHeaders = sourceColumns.map((column) => column.label);
   const records = [];
 
   for (let i = 1; i < rows.length; i += 1) {
-    const row = rows[i];
+    const row = rows[i] || [];
     const obj = {
       row_number: i + 1,
-      raw_payload: {},
+      raw_payload: { [HEADER_ORDER_META_KEY]: sourceHeaders },
     };
 
-    row.forEach((value, index) => {
+    sourceColumns.forEach(({ index, label }) => {
+      const value = row[index] ?? '';
       const key = headerMap.get(index);
       if (key) obj[key] = value;
-      obj.raw_payload[String(headerRow[index] || `col_${index + 1}`)] = value;
+      obj.raw_payload[label] = value;
     });
 
     const studentNumber = normalizeText(obj.student_number).toUpperCase();
     const givenName = normalizeText(obj.given_name);
     const lastName = normalizeText(obj.last_name);
 
-    if (!studentNumber && !givenName && !lastName) {
-      continue;
-    }
+    if (!studentNumber && !givenName && !lastName) continue;
+    if (!studentNumber || !givenName || !lastName) continue;
 
-    if (!studentNumber || !givenName || !lastName) {
-      continue;
-    }
+    const hasField = (field) => Object.prototype.hasOwnProperty.call(obj, field);
+    const explicitDisciplinary = hasField('has_disciplinary_action')
+      ? parseNullableBoolean(obj.has_disciplinary_action)
+      : null;
+    const hasOffenseDetails = Boolean(
+      normalizeText(obj.offense_type) || parseExcelDate(obj.offense_incident_date)
+    );
 
     records.push({
       row_number: obj.row_number,
@@ -362,14 +464,22 @@ function parseRows(rows) {
       sibling_first_name: normalizeText(obj.sibling_first_name) || null,
       sibling_middle_name: normalizeText(obj.sibling_middle_name) || null,
       sibling_mobile_no: normalizeText(obj.sibling_mobile_no) || null,
-      financial_support_parents: parseBoolean(obj.financial_support_parents),
-      financial_support_scholarship: parseBoolean(obj.financial_support_scholarship),
-      financial_support_loan: parseBoolean(obj.financial_support_loan),
-      financial_support_other: parseBoolean(obj.financial_support_other),
-      has_been_scholar: parseBoolean(obj.has_been_scholar),
-      has_disciplinary_action:
-        parseBoolean(obj.has_disciplinary_action) ||
-        Boolean(normalizeText(obj.offense_type) || parseExcelDate(obj.offense_incident_date)),
+      financial_support_parents: hasField('financial_support_parents')
+        ? parseNullableBoolean(obj.financial_support_parents)
+        : null,
+      financial_support_scholarship: hasField('financial_support_scholarship')
+        ? parseNullableBoolean(obj.financial_support_scholarship)
+        : null,
+      financial_support_loan: hasField('financial_support_loan')
+        ? parseNullableBoolean(obj.financial_support_loan)
+        : null,
+      financial_support_other: hasField('financial_support_other')
+        ? parseNullableBoolean(obj.financial_support_other)
+        : null,
+      has_been_scholar: hasField('has_been_scholar')
+        ? parseNullableBoolean(obj.has_been_scholar)
+        : null,
+      has_disciplinary_action: hasOffenseDetails ? true : explicitDisciplinary,
       offense_type: normalizeText(obj.offense_type) || null,
       offense_incident_date: parseExcelDate(obj.offense_incident_date),
       raw_payload: obj.raw_payload,
@@ -560,7 +670,20 @@ async function importStudentRegistryFile({ file, adminId }) {
   }
 
   const rawRows = await readWorkbookRows(file);
+  const sourceHeaders = buildSourceColumns(rawRows[0] || [], rawRows.slice(1))
+    .map((column) => column.label);
   const parsedRows = parseRows(rawRows);
+
+  if (!sourceHeaders.length) {
+    throw buildError('No usable columns were found in the uploaded file.', 400);
+  }
+
+  if (!parsedRows.length) {
+    throw buildError(
+      'No importable student rows were found. The file must include PDM ID/Student Number, First Name/Given Name, and Surname/Last Name.',
+      400
+    );
+  }
 
   const importBatchId = await createBatch(file, adminId);
   const courseMap = await loadCourseMap();
@@ -580,6 +703,90 @@ async function importStudentRegistryFile({ file, adminId }) {
     imported: masterRows.length,
     total: parsedRows.length,
     failed_rows: Math.max(parsedRows.length - masterRows.length, 0),
+    source_headers: sourceHeaders,
+  };
+}
+
+
+function getSnapshotValue(snapshot, headers = []) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  for (const header of headers) {
+    const value = snapshot[header];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  const entries = Object.entries(snapshot).map(([key, value]) => [normalizeLookupValue(key), value]);
+  for (const header of headers) {
+    const wanted = normalizeLookupValue(header);
+    const found = entries.find(([key]) => key === wanted);
+    if (found && found[1] !== undefined && found[1] !== null && String(found[1]).trim() !== '') return found[1];
+  }
+  return null;
+}
+
+function hydrateRegistryRowFromSnapshot(row) {
+  const snapshot = row?.raw_snapshot || {};
+  return {
+    ...row,
+    given_name: row?.given_name || getSnapshotValue(snapshot, ['First Name']),
+    middle_name: row?.middle_name || getSnapshotValue(snapshot, ['Middle Name']),
+    last_name: row?.last_name || getSnapshotValue(snapshot, ['Surname', 'Last Name']),
+    sex_at_birth: row?.sex_at_birth || getSnapshotValue(snapshot, ['Sex', 'Sex at Birth']),
+    religion: row?.religion || getSnapshotValue(snapshot, ['Religion']),
+    date_of_birth: row?.date_of_birth || getSnapshotValue(snapshot, ['Date of Birth','Birthday','Birthdate']),
+    age: row?.age ?? getSnapshotValue(snapshot, ['Age']),
+    place_of_birth: row?.place_of_birth || getSnapshotValue(snapshot, ['Place of Birth','Birthplace']),
+    civil_status: row?.civil_status || getSnapshotValue(snapshot, ['Civil Status']),
+    phone_number: row?.phone_number || getSnapshotValue(snapshot, ['Personal Number','Phone Number','Contact Number','Mobile Number']),
+    email_address: row?.email_address || getSnapshotValue(snapshot, ['Email Address','Email']),
+    suffix: getSnapshotValue(snapshot, ['Suffix']),
+    height_m: getSnapshotValue(snapshot, ['Height (m)','Height']),
+    weight_kg: getSnapshotValue(snapshot, ['Weight (kg)','Weight']),
+    nationality: getSnapshotValue(snapshot, ['Nationality']),
+    present_address: getSnapshotValue(snapshot, ['Present Address']),
+    present_zip_code: getSnapshotValue(snapshot, ['Present ZIP Code','Present Zip Code','Present Postal Code']),
+    permanent_address: getSnapshotValue(snapshot, ['Permanent Address']),
+    permanent_zip_code: getSnapshotValue(snapshot, ['Permanent ZIP Code','Permanent Zip Code','Permanent Postal Code']),
+    emergency_contact_person: getSnapshotValue(snapshot, ['Emergency Contact Person']),
+    relationship: getSnapshotValue(snapshot, ['Relationship']),
+    emergency_address: getSnapshotValue(snapshot, ['Emergency Address']),
+    emergency_contact_no: getSnapshotValue(snapshot, ['Emergency Contact No.','Emergency Contact No','Emergency Contact Number']),
+    father_name: getSnapshotValue(snapshot, ['Father Name']),
+    father_address: getSnapshotValue(snapshot, ['Father Address']),
+    father_birthday: getSnapshotValue(snapshot, ['Father Birthday']),
+    father_age: getSnapshotValue(snapshot, ['Father Age']),
+    father_contact: getSnapshotValue(snapshot, ['Father Contact']),
+    father_educational_attainment: getSnapshotValue(snapshot, ['Father Educational Attainment']),
+    father_occupation: getSnapshotValue(snapshot, ['Father Occupation']),
+    father_living_vital_status: getSnapshotValue(snapshot, ['Father Living/Vital Status']),
+    mother_name: getSnapshotValue(snapshot, ['Mother Name']),
+    mother_address: getSnapshotValue(snapshot, ['Mother Address']),
+    mother_birthday: getSnapshotValue(snapshot, ['Mother Birthday']),
+    mother_age: getSnapshotValue(snapshot, ['Mother Age']),
+    mother_contact: getSnapshotValue(snapshot, ['Mother Contact']),
+    mother_educational_attainment: getSnapshotValue(snapshot, ['Mother Educational Attainment']),
+    mother_occupation: getSnapshotValue(snapshot, ['Mother Occupation']),
+    mother_living_vital_status: getSnapshotValue(snapshot, ['Mother Living/Vital Status']),
+    elem_school: getSnapshotValue(snapshot, ['Elem School']),
+    elem_inclusive_year: getSnapshotValue(snapshot, ['Elem Inclusive Year']),
+    elem_address: getSnapshotValue(snapshot, ['Elem Address']),
+    elem_lrn: getSnapshotValue(snapshot, ['Elem LRN']),
+    hs_old_curriculum_school: getSnapshotValue(snapshot, ['HS Old Curriculum School']),
+    hs_old_curriculum_year: getSnapshotValue(snapshot, ['HS Old Curriculum Year']),
+    hs_old_curriculum_address: getSnapshotValue(snapshot, ['HS Old Curriculum Address']),
+    hs_old_curriculum_lrn: getSnapshotValue(snapshot, ['HS Old Curriculum LRN']),
+    grade_7_10_school: getSnapshotValue(snapshot, ['Grade 7-10 School']),
+    grade_7_10_year: getSnapshotValue(snapshot, ['Grade 7-10 Year']),
+    grade_7_10_address: getSnapshotValue(snapshot, ['Grade 7-10 Address']),
+    grade_7_10_lrn: getSnapshotValue(snapshot, ['Grade 7-10 LRN']),
+    grade_11_12_school: getSnapshotValue(snapshot, ['Grade 11-12 School']),
+    grade_11_12_year: getSnapshotValue(snapshot, ['Grade 11-12 Year']),
+    grade_11_12_address: getSnapshotValue(snapshot, ['Grade 11-12 Address']),
+    grade_11_12_lrn: getSnapshotValue(snapshot, ['Grade 11-12 LRN']),
+    als_graduate: getSnapshotValue(snapshot, ['ALS Graduate']),
+    previous_college: getSnapshotValue(snapshot, ['Previous College']),
+    previous_course: getSnapshotValue(snapshot, ['Previous Course']),
+    previous_inclusive_year: getSnapshotValue(snapshot, ['Previous Inclusive Year']),
+    previous_address: getSnapshotValue(snapshot, ['Previous Address']),
   };
 }
 
@@ -601,7 +808,7 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
     total: count || 0,
     limit: safeLimit,
     offset: safeOffset,
-    items: data || [],
+    items: (data || []).map(hydrateRegistryRowFromSnapshot),
   };
 }
 
@@ -1085,11 +1292,5 @@ async function listSdoStudentRegistry({ limit = 100, offset = 0 } = {}) {
 
 module.exports = {
   importStudentRegistryFile,
-  importSdoDisciplinaryRecordsFile,
-  previewSdoDisciplinaryRecordsFile,
   listStudentRegistry,
-  listSdoStudentRegistry,
-  listSdoStudentsWithRecords,
-  getSdoStudentRecordHistory,
-  getSdoRecordsSummary,
 };

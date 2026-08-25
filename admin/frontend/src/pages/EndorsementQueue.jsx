@@ -1,36 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   AlertTriangle,
-  AlertOctagon,
+  Check,
   CheckCircle2,
-  Download,
+  Circle,
+  ClipboardCheck,
   Eye,
-  ExternalLink,
   FileText,
-  Hourglass,
-  Image as ImageIcon,
+  GraduationCap,
   Loader2,
   RefreshCw,
+  RotateCcw,
   Search,
-  ShieldAlert,
+  ShieldCheck,
+  UserRound,
+  XCircle,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
+import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -42,97 +37,85 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const QUEUE_META = {
-  pd: {
-    title: 'Program Director Queue',
-    subtitle: 'Finalize applicants already cleared by SDO and Guidance.',
-    endpoint: '/api/endorsement-slips/pd',
-    actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/pd-action`,
-    allowedRoles: ['pd', 'admin'],
-  },
-  guidance: {
-    title: 'Guidance Queue',
-    subtitle: 'Review applicants already cleared by SDO before they proceed to Program Director, are held for counseling, or are rejected.',
-    endpoint: '/api/endorsement-slips/guidance',
-    actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/guidance-action`,
-    allowedRoles: ['guidance', 'admin'],
-  },
   sdo: {
-    title: 'SDO Queue',
-    subtitle: 'Start the endorsement flow and record no offense, minor offense, or major offense findings.',
+    title: 'For Endorsement',
+    eyebrow: 'Student Discipline Office',
+    subtitle: 'Review applicants awaiting disciplinary standing assessment.',
     endpoint: '/api/endorsement-slips/sdo',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/sdo-action`,
-    allowedRoles: ['sdo', 'admin'],
-  },
-};
-
-const SDO_STANDARD_REASONS = {
-  clear: 'No record - cleared.',
-  disqualify_minor: 'Minor offense noted and forwarded to Guidance.',
-  disqualify_major: 'Major offense - disqualified.',
-};
-
-const STAGE_TONE = {
-  pending_pd: 'bg-amber-50 text-amber-700',
-  pending_guidance: 'bg-blue-50 text-blue-700',
-  pending_sdo: 'bg-orange-50 text-orange-700',
-  completed: 'bg-green-50 text-green-700',
-  held: 'bg-amber-100 text-amber-800',
-  disqualified_minor: 'bg-amber-100 text-amber-800',
-  disqualified_major: 'bg-red-100 text-red-800',
-  rejected: 'bg-red-100 text-red-800',
-  guidance_rejected: 'bg-red-50 text-red-700',
-};
-
-const QUEUE_ACCENT = {
-  sdo: {
-    card: 'from-orange-50 via-white to-white',
-    border: 'border-orange-200',
-    badge: 'bg-orange-100 text-orange-800',
-    panel: 'border-orange-200 bg-orange-50/50',
-    button: 'border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100',
+    allowedRoles: ['sdo'],
   },
   guidance: {
-    card: 'from-blue-50 via-white to-white',
-    border: 'border-blue-200',
-    badge: 'bg-blue-100 text-blue-800',
-    panel: 'border-blue-200 bg-blue-50/50',
-    button: 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100',
+    title: 'For Endorsement',
+    eyebrow: 'Guidance Office',
+    subtitle: 'Review applicants awaiting moral standing assessment.',
+    endpoint: '/api/endorsement-slips/guidance',
+    actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/guidance-action`,
+    allowedRoles: ['guidance'],
   },
   pd: {
-    card: 'from-emerald-50 via-white to-white',
-    border: 'border-emerald-200',
-    badge: 'bg-emerald-100 text-emerald-800',
-    panel: 'border-emerald-200 bg-emerald-50/50',
-    button: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+    title: 'For Endorsement',
+    eyebrow: 'Program Director',
+    subtitle: 'Review applicants awaiting scholastic standing assessment.',
+    endpoint: '/api/endorsement-slips/pd',
+    actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/pd-action`,
+    allowedRoles: ['pd'],
   },
 };
 
-const QUEUE_RESULT_FILTERS = {
+const RESULT_FILTERS = {
   sdo: [
-    { value: 'all', label: 'All SDO Results' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'cleared', label: 'No Offense' },
-    { value: 'disqualified_minor', label: 'Minor Offense' },
-    { value: 'disqualified_major', label: 'Major Offense' },
+    ['all', 'All Results'],
+    ['no_offense', 'No Disciplinary Offense'],
+    ['minor_offense', 'With Minor Offense/s'],
+    ['major_offense', 'With Major Offense/s'],
   ],
   guidance: [
-    { value: 'all', label: 'All Guidance Results' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'cleared', label: 'Good Moral Standing' },
-    { value: 'held', label: 'For Counseling / Hold' },
-    { value: 'rejected', label: 'Rejected' },
+    ['all', 'All Results'],
+    ['good_moral_standing', 'Good Moral Standing'],
   ],
   pd: [
-    { value: 'all', label: 'All PD Results' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' },
+    ['all', 'All Results'],
+    ['good_scholastic_standing', 'Good Scholastic Standing'],
+    ['average_scholastic_standing', 'Average Scholastic Standing'],
   ],
 };
 
-function authHeaders(tokenStorageKey = 'adminToken') {
+const SORT_OPTIONS = [
+  ['oldest', 'Oldest First'],
+  ['newest', 'Newest First'],
+  ['name_asc', 'Name A–Z'],
+  ['name_desc', 'Name Z–A'],
+];
+
+function authHeaders(tokenStorageKey) {
   return {
     Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
     'Content-Type': 'application/json',
@@ -144,531 +127,576 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'N/A';
   return date.toLocaleString('en-PH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
   });
 }
 
-function getDocumentPreviewType(row = {}) {
-  const source = row.grade_document?.file_name || row.grade_document?.url || '';
-  const lower = source.toLowerCase();
+function formatCourse(row) {
+  const code = String(row?.course_code || '').trim();
+  const name = String(row?.course_name || '').trim();
+  const display = String(row?.course_display || '').trim();
 
-  if (lower.endsWith('.pdf')) return 'pdf';
-  if (/\.(png|jpg|jpeg|webp|gif)$/i.test(lower)) return 'image';
-  return 'file';
+  if (code && name) {
+    const normalizedCode = code.toLowerCase();
+    const normalizedName = name.toLowerCase();
+    if (normalizedName === normalizedCode || normalizedName.startsWith(`${normalizedCode} -`)) return name;
+    return `${code} - ${name}`;
+  }
+
+  return display || code || name || 'Course N/A';
+}
+
+function formatYearLevel(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const match = raw.match(/\d+/);
+  if (!match) return raw;
+
+  const year = Number(match[0]);
+  if (!Number.isFinite(year)) return raw;
+
+  const mod100 = year % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13
+    ? 'th'
+    : year % 10 === 1
+      ? 'st'
+      : year % 10 === 2
+        ? 'nd'
+        : year % 10 === 3
+          ? 'rd'
+          : 'th';
+
+  return `${year}${suffix} Year`;
+}
+
+function normalizeDecision(queueKey, value) {
+  const raw = String(value || '').toLowerCase();
+  if (!raw) return 'pending';
+  if (queueKey === 'sdo') {
+    if (['no_offense', 'cleared'].includes(raw)) return 'no_offense';
+    if (['minor_offense', 'disqualified_minor'].includes(raw)) return 'minor_offense';
+    if (['major_offense', 'disqualified_major'].includes(raw)) return 'major_offense';
+  }
+  if (queueKey === 'guidance' && ['good_moral_standing', 'cleared'].includes(raw)) return 'good_moral_standing';
+  if (queueKey === 'pd' && ['good_scholastic_standing', 'average_scholastic_standing'].includes(raw)) return raw;
+  return raw;
+}
+
+function getDecision(queueKey, row) {
+  if (queueKey === 'sdo') return normalizeDecision(queueKey, row.sdo_decision);
+  if (queueKey === 'guidance') return normalizeDecision(queueKey, row.guidance_decision);
+  return normalizeDecision(queueKey, row.pd_decision);
+}
+
+function decisionLabel(queueKey, row) {
+  if (queueKey === 'sdo') return row.office_results?.sdo || 'Awaiting Review';
+  if (queueKey === 'guidance') return row.office_results?.guidance || 'Awaiting Review';
+  return row.office_results?.pd || 'Awaiting Review';
+}
+
+function decisionTone(value) {
+  if (['no_offense', 'good_moral_standing', 'good_scholastic_standing'].includes(value)) return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (['minor_offense', 'average_scholastic_standing', 'pending'].includes(value)) return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (value === 'major_offense') return 'border-red-200 bg-red-50 text-red-700';
+  return 'border-stone-200 bg-stone-50 text-stone-700';
 }
 
 function hasUploadedGrade(row) {
   return row?.grade_document?.is_uploaded === true;
 }
 
-function GradePreviewModal({ row, open, onClose }) {
-  if (!open || !row?.grade_document?.url) return null;
+function getGradeValidation(row) {
+  const validation = row?.grade_summary?.grade_validation;
+  return validation && typeof validation === 'object' ? validation : null;
+}
 
-  const previewType = getDocumentPreviewType(row);
+function hasValidGrade(row) {
+  return getGradeValidation(row)?.is_valid === true;
+}
+
+function ProfileAvatar({ row, size = 'md', onPreview }) {
+  const [failed, setFailed] = useState(false);
+  const src = failed ? null : row?.avatar_url;
+  const sizeClass = size === 'lg' ? 'h-14 w-14' : 'h-11 w-11';
+  const iconClass = size === 'lg' ? 'h-7 w-7' : 'h-5 w-5';
+
+  if (!src) {
+    return (
+      <div
+        className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-100 text-stone-400`}
+        aria-label="No profile photo"
+        title="No profile photo"
+      >
+        <UserRound className={iconClass} aria-hidden="true" />
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-      <div className="flex h-[min(92vh,860px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
-              Grade Preview
-            </p>
-            <p className="mt-1 truncate text-base font-semibold text-stone-900">
-              {row.grade_document.file_name || 'Grade document'}
-            </p>
-            <p className="mt-1 text-sm text-stone-500">
-              {row.student_name} • {row.pdm_id || 'No PDM ID'}
-            </p>
-          </div>
+    <button
+      type="button"
+      onClick={() => onPreview?.(src, row?.student_name)}
+      className={`${sizeClass} shrink-0 overflow-hidden rounded-full border border-stone-200 bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-400 focus:ring-offset-2`}
+      aria-label={`Preview ${row?.student_name || 'student'} profile photo`}
+      title="Preview profile photo"
+    >
+      <img
+        src={src}
+        alt={`${row?.student_name || 'Student'} profile`}
+        className="h-full w-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    </button>
+  );
+}
 
-          <div className="flex items-center gap-2">
-            <a
-              href={row.grade_document.url}
-              target="_blank"
-              rel="noreferrer"
-              download={row.grade_document.file_name || 'grade-document'}
-              className="inline-flex"
-            >
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-stone-200 bg-white"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
-            </a>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-stone-200 bg-white"
-              onClick={onClose}
-            >
-              Close
-            </Button>
-          </div>
-        </div>
+const clampPreviewZoom = (value) => Math.min(4, Math.max(0.5, value));
 
-        <div className="flex-1 bg-stone-50 p-4">
-          {previewType === 'image' ? (
-            <div className="flex h-full items-center justify-center overflow-auto rounded-2xl border border-stone-200 bg-white p-4">
-              <img
-                src={row.grade_document.url}
-                alt={row.grade_document.file_name || 'Grade document'}
-                className="max-h-full max-w-full rounded-2xl object-contain"
-              />
-            </div>
-          ) : previewType === 'pdf' ? (
-            <object
-              data={row.grade_document.url}
-              type="application/pdf"
-              className="h-full w-full rounded-2xl border border-stone-200 bg-white"
-            >
-              <iframe
-                src={row.grade_document.url}
-                title={row.grade_document.file_name || 'Grade document'}
-                className="h-full w-full rounded-2xl border border-stone-200 bg-white"
-              />
-            </object>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 text-center">
-              <FileText className="h-10 w-10 text-stone-400" />
-              <p className="mt-4 text-base font-semibold text-stone-800">
-                Preview is not available for this file type.
-              </p>
-              <p className="mt-2 text-sm text-stone-500">
-                Open or download the file instead.
-              </p>
-              <div className="mt-4 flex gap-2">
-                <a
-                  href={row.grade_document.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex"
-                >
-                  <Button type="button" size="sm" className="border-none bg-stone-900 text-white hover:bg-stone-800">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Open File
-                  </Button>
-                </a>
-              </div>
-            </div>
-          )}
-        </div>
+function ZoomableGradeImage({ url }) {
+  const [zoom, setZoom] = useState(1);
+  const pinchRef = useRef(null);
+
+  const changeZoom = (amount) => {
+    setZoom((current) => clampPreviewZoom(Number((current + amount).toFixed(2))));
+  };
+
+  const getTouchDistance = (touches) => {
+    const [first, second] = touches;
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+  };
+
+  const handleTouchStart = (event) => {
+    if (event.touches.length !== 2) return;
+    pinchRef.current = { distance: getTouchDistance(event.touches), zoom };
+  };
+
+  const handleTouchMove = (event) => {
+    if (event.touches.length !== 2 || !pinchRef.current) return;
+    event.preventDefault();
+    const scale = getTouchDistance(event.touches) / pinchRef.current.distance;
+    setZoom(clampPreviewZoom(pinchRef.current.zoom * scale));
+  };
+
+  return (
+    <div className="relative h-full overflow-hidden">
+      <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-stone-200 bg-white/95 p-1 shadow-sm backdrop-blur">
+        <Button type="button" variant="ghost" size="icon" onClick={() => changeZoom(-0.25)} disabled={zoom <= 0.5} aria-label="Zoom out">
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <span className="min-w-14 text-center text-xs font-medium text-stone-700">{Math.round(zoom * 100)}%</span>
+        <Button type="button" variant="ghost" size="icon" onClick={() => changeZoom(0.25)} disabled={zoom >= 4} aria-label="Zoom in">
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setZoom(1)} aria-label="Reset zoom">
+          <RotateCcw className="mr-1 h-4 w-4" /> Reset
+        </Button>
+      </div>
+      <div
+        className="flex h-full items-center justify-center overflow-auto p-6 pt-16"
+        onWheel={(event) => {
+          if (!event.ctrlKey && !event.metaKey) return;
+          event.preventDefault();
+          changeZoom(event.deltaY < 0 ? 0.15 : -0.15);
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={() => { pinchRef.current = null; }}
+      >
+        <img
+          src={url}
+          alt="Grade Report preview"
+          draggable="false"
+          className="max-h-full max-w-full rounded-lg object-contain shadow-sm transition-transform duration-150"
+          style={{ transform: `scale(${zoom})` }}
+        />
       </div>
     </div>
   );
 }
 
-function getQueueDecisionValue(queueKey, row) {
-  if (queueKey === 'sdo') {
-    return row.sdo_decision || 'pending';
-  }
-  if (queueKey === 'guidance') {
-    return row.guidance_decision || 'pending';
-  }
-  return row.pd_decision || 'pending';
-}
+function GradeReportPreview({ preview, onClose }) {
+  const url = String(preview?.url || '').trim();
+  const fileName = String(preview?.fileName || '').toLowerCase();
+  const isImage = /\.(png|jpe?g|webp|gif)(?:$|\?)/i.test(fileName || url);
 
-function getQueueDecisionLabel(queueKey, row) {
-  if (queueKey === 'sdo') {
-    return row.office_results?.sdo || 'Pending SDO review';
-  }
-  if (queueKey === 'guidance') {
-    return row.office_results?.guidance || 'Pending Guidance review';
-  }
-  return row.office_results?.pd || 'Pending PD review';
-}
-
-function getQueueDecisionTone(value) {
-  if (['cleared', 'approved'].includes(value)) {
-    return 'bg-green-50 text-green-700 border-green-200';
-  }
-  if (['held', 'disqualified_minor', 'pending'].includes(value)) {
-    return 'bg-amber-50 text-amber-700 border-amber-200';
-  }
-  if (['rejected', 'guidance_rejected', 'disqualified_major'].includes(value)) {
-    return 'bg-red-50 text-red-700 border-red-200';
-  }
-  return 'bg-stone-100 text-stone-700 border-stone-200';
-}
-
-function getCurrentStageLabel(row) {
   return (
-    row.current_stage_label ||
-    row.overall_status_label ||
-    row.tracker?.current_stage_label ||
-    'Pending review'
+    <Dialog open={Boolean(url)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex h-[94vh] w-[96vw] max-w-[96vw] flex-col overflow-hidden rounded-2xl p-0 sm:max-w-[96vw]">
+        <DialogHeader className="shrink-0 border-b border-stone-200 px-5 py-4">
+          <DialogTitle>Grade Report Preview</DialogTitle>
+          <DialogDescription className="sr-only">
+            Preview the applicant Grade Report. Images support zoom controls and PDF files use the browser viewer.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 bg-stone-100">
+          {url ? (
+            isImage ? (
+              <ZoomableGradeImage key={url} url={url} />
+            ) : (
+              <iframe
+                src={url}
+                title="Grade Report preview"
+                className="h-full w-full border-0 bg-white"
+              />
+            )
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function getCurrentStageTone(row) {
-  return STAGE_TONE[row.current_stage] || 'bg-stone-100 text-stone-700';
+function CompactStageProgress({ tracker }) {
+  if (!tracker?.steps?.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="Endorsement progress">
+      {tracker.steps.map((step) => {
+        const complete = step.state === 'completed';
+        const active = step.state === 'active';
+        const stopped = step.state === 'stopped';
+        return (
+          <span
+            key={step.key}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${
+              stopped
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : complete
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : active
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : 'border-stone-200 bg-white text-stone-500'
+            }`}
+          >
+            {stopped ? <XCircle className="h-3 w-3" /> : complete ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+            {step.label}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
-function shouldConfirmAction(action) {
-  return ['approve', 'reject', 'hold', 'disqualify_minor', 'disqualify_major'].includes(action);
+function SummaryStrip({ queueKey, rows }) {
+  const pending = rows.filter((row) => getDecision(queueKey, row) === 'pending').length;
+  const today = new Date().toDateString();
+  const actedToday = rows.filter((row) => {
+    const value = queueKey === 'sdo'
+      ? row.sdo_at
+      : queueKey === 'guidance'
+        ? row.guidance_at
+        : row.pd_at;
+    return getDecision(queueKey, row) !== 'pending'
+      && value
+      && new Date(value).toDateString() === today;
+  }).length;
+
+  const cards = queueKey === 'sdo'
+    ? [
+        { label: 'For Endorsement', value: pending },
+        { label: 'Minor Offenses', value: rows.filter((row) => getDecision('sdo', row) === 'minor_offense').length },
+        { label: 'Major Offenses', value: rows.filter((row) => getDecision('sdo', row) === 'major_offense').length },
+      ]
+    : queueKey === 'guidance'
+      ? [
+          { label: 'For Endorsement', value: pending },
+          { label: 'Endorsed Today', value: actedToday },
+          { label: 'Completed Endorsements', value: rows.filter((row) => getDecision('guidance', row) !== 'pending').length },
+        ]
+      : [
+          { label: 'For Endorsement', value: pending, icon: ClipboardCheck, tone: 'bg-violet-50 text-violet-700' },
+          { label: 'Good Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'good_scholastic_standing').length, icon: GraduationCap, tone: 'bg-green-50 text-green-700' },
+          { label: 'Average Scholastic Standing', value: rows.filter((row) => getDecision('pd', row) === 'average_scholastic_standing').length, icon: FileText, tone: 'bg-amber-50 text-amber-700' },
+        ];
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {cards.map((item) => (
+        <div key={item.label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3.5">
+          {item.icon ? (
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.tone}`}>
+              {createElement(item.icon, { className: 'h-4 w-4' })}
+            </div>
+          ) : null}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">{item.label}</p>
+            <p className="mt-1 text-xl font-semibold text-stone-900">{item.value}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function getConfirmationMeta(queueKey, row, action) {
-  const studentName = row?.student_name || 'this applicant';
 
+function endorsementButtonClass(queueKey, value) {
   if (queueKey === 'sdo') {
-    if (action === 'disqualify_minor') {
-      return {
-        tone: 'amber',
-        title: 'Confirm minor offense decision',
-        description: `Mark ${studentName} with a minor offense and forward the slip to Guidance for the next review stage?`,
-        confirmLabel: 'Confirm Minor Offense',
-      };
+    if (value === 'major_offense') {
+      return 'w-full bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300 disabled:text-white';
     }
-
-    if (action === 'disqualify_major') {
-      return {
-        tone: 'red',
-        title: 'Confirm major offense decision',
-        description: `Mark ${studentName} with a major offense and stop the endorsement flow in SDO?`,
-        confirmLabel: 'Confirm Major Offense',
-      };
+    if (value === 'minor_offense') {
+      return 'w-full bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-300 disabled:text-white';
     }
   }
 
-  if (queueKey === 'guidance') {
-    if (action === 'hold') {
-      return {
-        tone: 'amber',
-        title: 'Confirm counseling hold',
-        description: `Place ${studentName} on hold for counseling and pause movement to Program Director?`,
-        confirmLabel: 'Confirm Hold',
-      };
-    }
-
-    if (action === 'reject') {
-      return {
-        tone: 'red',
-        title: 'Confirm guidance rejection',
-        description: `Reject ${studentName} in Guidance and stop the endorsement slip at this stage?`,
-        confirmLabel: 'Confirm Rejection',
-      };
-    }
+  if (queueKey === 'pd' && value === 'average_scholastic_standing') {
+    return 'w-full bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-300 disabled:text-white';
   }
 
-  if (queueKey === 'pd') {
-    if (action === 'approve') {
-      return {
-        tone: 'green',
-        title: 'Confirm PD approval',
-        description: `Approve ${studentName} in Program Director and complete the endorsement slip?`,
-        confirmLabel: 'Confirm Approval',
-      };
-    }
+  return 'w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:text-white';
+}
 
-    if (action === 'reject') {
-      return {
-        tone: 'red',
-        title: 'Confirm PD rejection',
-        description: `Reject ${studentName} in Program Director and stop final endorsement approval?`,
-        confirmLabel: 'Confirm Rejection',
-      };
-    }
-  }
+function confirmationButtonClass() {
+  return 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-600';
+}
+
+function legacySdoPayload(action, remarks) {
+  const legacyAction = {
+    no_offense: 'clear',
+    minor_offense: 'disqualify_minor',
+    major_offense: 'disqualify_major',
+  }[action];
+
+  if (!legacyAction) return null;
 
   return {
-    tone: 'amber',
-    title: 'Confirm action',
-    description: `Continue with this endorsement decision for ${studentName}?`,
-    confirmLabel: 'Confirm',
+    action: legacyAction,
+    remarks:
+      remarks ||
+      (action === 'minor_offense'
+        ? 'With Minor Offense/s'
+        : action === 'major_offense'
+          ? 'With Major Offense/s'
+          : ''),
+    offense_type:
+      action === 'minor_offense'
+        ? 'Minor offense'
+        : action === 'major_offense'
+          ? 'Major offense'
+          : '',
   };
 }
 
-function QueueSummary({ queueKey, rows }) {
+
+function legacyGuidancePayload(action, remarks) {
+  if (action !== 'good_moral_standing') return null;
+  return {
+    action: 'clear',
+    remarks: remarks || 'Good Moral Standing',
+  };
+}
+
+
+function legacyPdPayload(action, remarks) {
+  if (!['good_scholastic_standing', 'average_scholastic_standing'].includes(action)) {
+    return null;
+  }
+
+  const standingLabel =
+    action === 'average_scholastic_standing'
+      ? 'Average Scholastic Standing'
+      : 'Good Scholastic Standing';
+
+  return {
+    action: 'approve',
+    scholastic_standing: action,
+    remarks: remarks || standingLabel,
+  };
+}
+
+function ActionPanel({ queueKey, row, state, onChange, onSubmit, saving }) {
   if (queueKey === 'sdo') {
+    const selected = state.sdoResult || '';
     return (
-      <>
-        <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-orange-50 text-orange-700" />
-        <SummaryCard
-          icon={CheckCircle2}
-          label="No Offense"
-          value={rows.filter((row) => row.sdo_decision === 'cleared').length}
-          tone="bg-green-50 text-green-700"
-        />
-        <SummaryCard
-          icon={Hourglass}
-          label="Minor Offense"
-          value={rows.filter((row) => row.sdo_decision === 'disqualified_minor').length}
-          tone="bg-amber-50 text-amber-700"
-        />
-        <SummaryCard
-          icon={AlertOctagon}
-          label="Major Offense"
-          value={rows.filter((row) => row.sdo_decision === 'disqualified_major').length}
-          tone="bg-red-50 text-red-700"
-        />
-      </>
-    );
-  }
-
-  if (queueKey === 'guidance') {
-    return (
-      <>
-        <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-blue-50 text-blue-700" />
-        <SummaryCard
-          icon={CheckCircle2}
-          label="Good Moral"
-          value={rows.filter((row) => row.guidance_decision === 'cleared').length}
-          tone="bg-green-50 text-green-700"
-        />
-        <SummaryCard
-          icon={Hourglass}
-          label="On Hold"
-          value={rows.filter((row) => row.guidance_decision === 'held').length}
-          tone="bg-amber-50 text-amber-700"
-        />
-        <SummaryCard
-          icon={AlertOctagon}
-          label="Rejected"
-          value={rows.filter((row) => row.guidance_decision === 'rejected').length}
-          tone="bg-red-50 text-red-700"
-        />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-amber-50 text-amber-700" />
-      <SummaryCard
-        icon={CheckCircle2}
-        label="With Grade File"
-        value={rows.filter(hasUploadedGrade).length}
-        tone="bg-green-50 text-green-700"
-      />
-      <SummaryCard
-        icon={ShieldAlert}
-        label="Programs"
-        value={new Set(rows.map((row) => row.program_name).filter(Boolean)).size}
-        tone="bg-blue-50 text-blue-700"
-      />
-    </>
-  );
-}
-
-function SummaryCard({ icon: Icon, label, value, tone }) {
-  return (
-    <Card className="overflow-hidden border-stone-200 shadow-none">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={`rounded-2xl p-3 ${tone}`}>
-          <Icon className="h-4 w-4" />
-        </div>
+      <div className="space-y-4">
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-stone-500">{label}</p>
-          <p className="text-2xl font-semibold leading-none text-stone-900">{value}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">Disciplinary Standing</p>
+          <p className="mt-1 text-sm text-stone-600">Minor offense continues to Guidance. Major offense stops the endorsement.</p>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loading }) {
-  const state = actionState[row.slip_id] || {
-    remarks: '',
-    sdoReason: 'clear',
-    offenseType: '',
-    incidentDate: '',
-    caseReferenceNumber: '',
-  };
-
-  const updateState = (patch) => {
-    setActionState((current) => ({
-      ...current,
-      [row.slip_id]: {
-        ...state,
-        ...patch,
-      },
-    }));
-  };
-
-  if (queueKey === 'pd') {
-    const hasGradeDocument = hasUploadedGrade(row);
-
-    return (
-      <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">PD Decision</p>
-          <p className="mt-1 text-sm text-stone-600">Finalize the endorsement after checking the grade and prior office reviews.</p>
-        </div>
-        <Textarea
-          rows={2}
-          value={state.remarks}
-          onChange={(event) => updateState({ remarks: event.target.value })}
-          placeholder="Optional remark"
-          className="min-h-[88px] bg-white"
-        />
-        {!hasGradeDocument ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-            Approval is disabled until the applicant uploads a grade document.
-          </div>
-        ) : null}
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            className="h-10 bg-green-700 text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500 disabled:opacity-100"
-            disabled={loading || !hasGradeDocument}
-            title={!hasGradeDocument ? 'Grade document is required before PD approval' : undefined}
-            onClick={() => onSubmit(row, 'approve')}
-          >
-            Approve
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 border-red-200 text-red-700 hover:bg-red-50"
-            disabled={loading}
-            onClick={() => onSubmit(row, 'reject')}
-          >
-            Reject
-          </Button>
-        </div>
+        <Select value={selected} onValueChange={(value) => onChange({ sdoResult: value })}>
+          <SelectTrigger className="bg-white"><SelectValue placeholder="Select disciplinary standing" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="no_offense">No Disciplinary Offense</SelectItem>
+            <SelectItem value="minor_offense">With Minor Offense/s</SelectItem>
+            <SelectItem value="major_offense">With Major Offense/s</SelectItem>
+          </SelectContent>
+        </Select>
+        <Textarea value={state.remarks || ''} onChange={(event) => onChange({ remarks: event.target.value })} rows={3} placeholder="Optional remarks" />
+        <Button disabled={saving || !selected} className={endorsementButtonClass(queueKey, selected)} onClick={() => onSubmit(selected)}>
+          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
+        </Button>
       </div>
     );
   }
 
   if (queueKey === 'guidance') {
     return (
-      <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
+      <div className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Decision</p>
-          <div className="mt-2 rounded-xl bg-white p-3 text-xs leading-5 text-stone-600">
-            Clear students with good moral standing, hold them for counseling, or reject them with a reason.
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">Guidance Endorsement</p>
+          <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">Good Moral Standing</div>
         </div>
-        <Textarea
-          rows={2}
-          value={state.remarks}
-          onChange={(event) => updateState({ remarks: event.target.value })}
-          placeholder="Reason is required when holding or rejecting a student"
-          className="min-h-[88px] bg-white"
-        />
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Button
-            className="h-10 bg-green-700 text-white hover:bg-green-800"
-            disabled={loading}
-            onClick={() => onSubmit(row, 'clear')}
-          >
-            Clear
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 border-amber-200 px-3 text-[13px] text-amber-700 hover:bg-amber-50"
-            disabled={loading || row.current_stage === 'held'}
-            onClick={() => onSubmit(row, 'hold')}
-          >
-            Counsel / Hold
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 border-red-200 text-red-700 hover:bg-red-50"
-            disabled={loading}
-            onClick={() => onSubmit(row, 'reject')}
-          >
-            Reject
-          </Button>
-        </div>
+        <Textarea value={state.remarks || ''} onChange={(event) => onChange({ remarks: event.target.value })} rows={3} placeholder="Optional remarks" />
+        <Button disabled={saving} className={endorsementButtonClass(queueKey, 'good_moral_standing')} onClick={() => onSubmit('good_moral_standing')}>
+          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
+        </Button>
       </div>
     );
   }
 
-  const selectedReason = state.sdoReason;
-  const needsOffenseDetail = ['disqualify_minor', 'disqualify_major'].includes(selectedReason);
-
+  const standing = state.pdResult || '';
+  const gradeValidation = getGradeValidation(row);
+  const gradeReady = hasValidGrade(row);
+  const gradeBlockingReason =
+    gradeValidation?.blocking_reason ||
+    (!hasUploadedGrade(row)
+      ? 'A Grade Report is required before PD endorsement.'
+      : 'Grade Report OCR and GWA validation must pass before PD endorsement.');
   return (
-    <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
+    <div className="space-y-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">SDO Decision</p>
-        <div className="mt-2 rounded-xl bg-white p-3 text-xs leading-5 text-stone-600">
-          Minor offense still proceeds to Guidance. Major offense stops the slip in SDO.
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">Scholastic Standing</p>
+        <p className="mt-1 text-sm text-stone-600">Record the standing shown on the official endorsement slip.</p>
       </div>
-      <Select
-        value={state.sdoReason}
-        onValueChange={(value) =>
-          updateState({
-            sdoReason: value,
-            remarks:
-              state.remarks && state.remarks !== SDO_STANDARD_REASONS.clear && state.remarks !== SDO_STANDARD_REASONS.disqualify_minor && state.remarks !== SDO_STANDARD_REASONS.disqualify_major
-                ? state.remarks
-                : SDO_STANDARD_REASONS[value],
-          })
-        }
+      <Select value={standing}
+        onValueChange={(value) => onChange({ pdResult: value })}
+        disabled={!gradeReady || saving}
       >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
+        <SelectTrigger className="bg-white"><SelectValue placeholder="Select scholastic standing" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="clear">No offense</SelectItem>
-          <SelectItem value="disqualify_minor">Minor offense</SelectItem>
-          <SelectItem value="disqualify_major">Major offense</SelectItem>
+          <SelectItem value="good_scholastic_standing">Good Scholastic Standing</SelectItem>
+          <SelectItem value="average_scholastic_standing">Average Scholastic Standing</SelectItem>
         </SelectContent>
       </Select>
-      {needsOffenseDetail ? (
-        <div className="grid gap-2 md:grid-cols-2">
-          <Input
-            value={state.offenseType}
-            onChange={(event) => updateState({ offenseType: event.target.value })}
-            placeholder="Offense type"
-          />
-          <Input
-            type="date"
-            value={state.incidentDate}
-            onChange={(event) => updateState({ incidentDate: event.target.value })}
-          />
-          <div className="md:col-span-2">
-            <Input
-              value={state.caseReferenceNumber}
-              onChange={(event) => updateState({ caseReferenceNumber: event.target.value })}
-              placeholder="Case note / reference number"
-            />
-          </div>
-        </div>
-      ) : null}
-      <Textarea
-        rows={2}
-        value={state.remarks}
-        onChange={(event) => updateState({ remarks: event.target.value })}
-        placeholder={needsOffenseDetail ? 'Remarks are required for minor or major offense' : 'Optional remark'}
-        className="min-h-[88px] bg-white"
-      />
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Button
-          className="h-10 bg-green-700 text-white hover:bg-green-800"
-          disabled={loading}
-          onClick={() => onSubmit(row, 'clear')}
-        >
-          Clear
-        </Button>
-        <Button
-          variant="outline"
-          className="h-10 border-amber-200 text-amber-700 hover:bg-amber-50"
-          disabled={loading}
-          onClick={() => onSubmit(row, 'disqualify_minor')}
-        >
-          Minor Offense
-        </Button>
-        <Button
-          variant="outline"
-          className="h-10 border-red-200 text-red-700 hover:bg-red-50"
-          disabled={loading}
-          onClick={() => onSubmit(row, 'disqualify_major')}
-        >
-          Major Offense
-        </Button>
-      </div>
+      <Textarea value={state.remarks || ''} onChange={(event) => onChange({ remarks: event.target.value })} rows={3} placeholder="Optional remarks" />
+      {!gradeReady ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          {gradeBlockingReason}
+        </p>
+      ) : (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          Grade Report OCR and GWA validation passed.
+        </p>
+      )}
+      <Button disabled={saving || !gradeReady || !standing} className={endorsementButtonClass(queueKey, standing)} onClick={() => onSubmit(standing)}>
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirm Endorsement
+      </Button>
     </div>
+  );
+}
+
+function confirmationMeta(queueKey, action, studentName) {
+  if (queueKey === 'sdo') {
+    if (action === 'major_offense') return { tone: 'red', title: 'Confirm Major Offense', description: `Record With Major Offense/s for ${studentName}? This will stop the endorsement at SDO.` };
+    if (action === 'minor_offense') return { tone: 'amber', title: 'Confirm Minor Offense', description: `Record With Minor Offense/s for ${studentName} and continue to Guidance?` };
+    return { tone: 'green', title: 'Confirm SDO Endorsement', description: `Record No Disciplinary Offense for ${studentName} and continue to Guidance?` };
+  }
+  if (queueKey === 'guidance') return { tone: 'green', title: 'Confirm Good Moral Standing', description: `Confirm Good Moral Standing for ${studentName} and continue to the Program Director?` };
+  return { tone: action === 'average_scholastic_standing' ? 'amber' : 'green', title: 'Confirm Scholastic Standing', description: `Record ${action === 'average_scholastic_standing' ? 'Average' : 'Good'} Scholastic Standing for ${studentName} and complete the endorsement?` };
+}
+
+function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClose, onViewFull, detailBasePath, onPreviewProfile, onPreviewGrade }) {
+  if (!row) return null;
+  const decision = getDecision(queueKey, row);
+  const gradeValidation = getGradeValidation(row);
+  return (
+    <Sheet open={Boolean(row)} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetHeader className="border-b border-stone-200 px-5 py-5 pr-12">
+          <SheetTitle className="text-lg">Review Endorsement</SheetTitle>
+          <SheetDescription>Review only the information required for your endorsement stage.</SheetDescription>
+        </SheetHeader>
+
+        <div className="space-y-5 px-5 pb-6">
+          <section className="rounded-xl border border-stone-200 p-4">
+            <div className="flex items-center gap-3">
+              <ProfileAvatar key={row?.avatar_url || 'no-avatar'} row={row} size="lg" onPreview={onPreviewProfile} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Applicant</p>
+                <h2 className="mt-1 truncate text-base font-semibold text-stone-900">{row.student_name}</h2>
+                <p className="mt-0.5 text-sm text-stone-600">{row.pdm_id || 'No PDM ID'}</p>
+                <p className="mt-0.5 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}</p>
+                <p className="mt-0.5 text-xs text-stone-500">{row.program_name || 'Scholarship N/A'}{row.opening_title ? ` • ${row.opening_title}` : ''}</p>
+              </div>
+            </div>
+          </section>
+
+          {queueKey !== 'sdo' ? (
+            <section className="rounded-xl border border-stone-200 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Previous Endorsements</p>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700" /><div><p className="text-sm font-medium text-stone-900">Student Discipline Office</p><p className="text-xs text-stone-500">{row.office_results?.sdo || 'Pending'}</p></div></div>
+                {queueKey === 'pd' ? <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700" /><div><p className="text-sm font-medium text-stone-900">Guidance Office</p><p className="text-xs text-stone-500">{row.office_results?.guidance || 'Pending'}</p></div></div> : null}
+              </div>
+            </section>
+          ) : null}
+
+          {queueKey === 'pd' ? (
+            <section className="rounded-xl border border-stone-200 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Academic Information</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-xs text-stone-500">OCR GWA</p><p className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</p></div>
+                <div><p className="text-xs text-stone-500">Academic Period</p><p className="font-semibold text-stone-900">{row.semester || 'N/A'} / {row.school_year || 'N/A'}</p></div>
+                <div>
+                  <p className="text-xs text-stone-500">Grade Validation</p>
+                  <p className={`font-semibold ${gradeValidation?.is_valid === true ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {gradeValidation?.is_valid === true
+                      ? 'Passed'
+                      : gradeValidation?.status
+                        ? String(gradeValidation.status).replaceAll('_', ' ')
+                        : 'Not validated'}
+                  </p>
+                </div>
+              </div>
+              {gradeValidation?.blocking_reason ? (
+                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  {gradeValidation.blocking_reason}
+                </p>
+              ) : null}
+              {row.grade_document?.url ? (
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      onPreviewGrade?.({
+                        url: row.grade_document.url,
+                        fileName: row.grade_document.file_name || 'grade-report',
+                      })
+                    }
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Preview Grade Report
+                  </Button>
+                </div>
+              ) : <p className="mt-3 text-xs text-amber-700">Grade Report not uploaded.</p>}
+            </section>
+          ) : null}
+
+          <section className="rounded-xl border border-stone-200 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Endorsement Progress</p>
+            <div className="mt-3"><EndorsementProgressTracker tracker={row.tracker} compact /></div>
+          </section>
+
+          {decision === 'pending' ? (
+            <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+              <ActionPanel queueKey={queueKey} row={row} state={state} onChange={onChange} onSubmit={onSubmit} saving={saving} />
+            </section>
+          ) : (
+            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2 className="h-4 w-4" /><p className="font-semibold">Endorsement recorded</p></div>
+              <p className="mt-2 text-sm font-medium text-emerald-900">{decisionLabel(queueKey, row)}</p>
+              <p className="mt-1 text-xs text-emerald-700">Recorded decisions are read-only after submission.</p>
+            </section>
+          )}
+
+          <Button variant="outline" className="w-full" onClick={() => onViewFull(`${detailBasePath}/${row.slip_id}`)}>
+            <FileText className="mr-2 h-4 w-4" />View Full Endorsement Slip
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -681,675 +709,400 @@ export default function EndorsementQueue({
   const navigate = useNavigate();
   const meta = QUEUE_META[queueKey];
   const profile = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}');
-    } catch {
-      return {};
-    }
+    try { return JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}'); } catch { return {}; }
   }, [profileStorageKey]);
+
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savingSlipId, setSavingSlipId] = useState('');
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [programFilter, setProgramFilter] = useState('all');
+  const [courseFilter, setCourseFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
-  const [previewRow, setPreviewRow] = useState(null);
+  const [sortOrder, setSortOrder] = useState('oldest');
   const [actionState, setActionState] = useState({});
   const [confirmAction, setConfirmAction] = useState(null);
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [profilePreview, setProfilePreview] = useState(null);
+  const [gradePreview, setGradePreview] = useState(null);
 
-  const hasAccess = meta.allowedRoles.includes(profile.role);
-  const accent = QUEUE_ACCENT[queueKey] || QUEUE_ACCENT.pd;
-  const isPdQueue = queueKey === 'pd';
+  const hasAccess = meta?.allowedRoles.includes(profile.role);
 
-  const loadQueue = async ({ soft = false } = {}) => {
+  const loadQueue = useCallback(async ({ soft = false } = {}) => {
     if (!hasAccess) return;
-
     try {
-      if (soft) setRefreshing(true);
-      else setLoading(true);
+      soft ? setRefreshing(true) : setLoading(true);
       setError('');
-
-      const response = await fetch(buildApiUrl(meta.endpoint), {
-        headers: authHeaders(tokenStorageKey),
-      });
+      const response = await fetch(buildApiUrl(meta.endpoint), { headers: authHeaders(tokenStorageKey) });
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load endorsement queue');
-      }
-
-      setRows(Array.isArray(data) ? data : []);
+      if (!response.ok) throw new Error(data.message || 'Failed to load endorsement queue');
+      const nextRows = Array.isArray(data) ? data : [];
+      setRows(nextRows);
+      setSelectedRow((current) => current ? nextRows.find((row) => row.slip_id === current.slip_id) || null : null);
     } catch (err) {
       setError(err.message || 'Failed to load endorsement queue.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [hasAccess, meta, tokenStorageKey]);
 
-  useEffect(() => {
-    loadQueue();
-  }, [queueKey]);
-
+  useEffect(() => { loadQueue(); }, [loadQueue]);
   useEffect(() => {
     if (!hasAccess) return undefined;
 
-    const timer = window.setInterval(() => {
-      loadQueue({ soft: true });
-    }, 8000);
+    // Socket events are the primary refresh path. This low-frequency fallback
+    // only repairs a temporarily missed event while the tab is visible.
+    const FALLBACK_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
-    return () => window.clearInterval(timer);
-  }, [queueKey, hasAccess]);
-
-  useSocketEvent(
-    'endorsement:updated',
-    () => {
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       loadQueue({ soft: true });
-    },
-    [queueKey, hasAccess]
-  );
+    };
 
-  useSocketEvent(
-    'application-document:uploaded',
-    () => {
-      loadQueue({ soft: true });
-    },
-    [queueKey, hasAccess]
-  );
+    const id = window.setInterval(
+      refreshIfVisible,
+      FALLBACK_REFRESH_INTERVAL_MS
+    );
 
-  useSocketEvent(
-    'application:updated',
-    () => {
-      loadQueue({ soft: true });
-    },
-    [queueKey, hasAccess]
-  );
+    return () => window.clearInterval(id);
+  }, [hasAccess, loadQueue]);
+  useSocketEvent('endorsement:updated', () => loadQueue({ soft: true }), [loadQueue]);
+  useSocketEvent('application-document:uploaded', () => loadQueue({ soft: true }), [loadQueue]);
+
+  const programs = useMemo(() => ['all', ...new Set(rows.map((row) => row.program_name).filter(Boolean))], [rows]);
+  const courses = useMemo(() => ['all', ...new Set(rows.map((row) => row.course_code).filter(Boolean))], [rows]);
+  const years = useMemo(() => ['all', ...new Set(rows.map((row) => String(row.year_level || '')).filter(Boolean))], [rows]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return rows.filter((row) => {
-      const matchesSearch =
-        !query ||
-        (row.student_name || '').toLowerCase().includes(query) ||
-        (row.pdm_id || '').toLowerCase().includes(query);
-
-      const matchesProgram =
-        programFilter === 'all' || row.program_name === programFilter;
-
-      const decisionValue = getQueueDecisionValue(queueKey, row);
-      const matchesResult = resultFilter === 'all' || decisionValue === resultFilter;
-
-      return matchesSearch && matchesProgram && matchesResult;
+    const result = rows.filter((row) => {
+      const decision = getDecision(queueKey, row);
+      const status = decision === 'pending' ? 'pending' : 'completed';
+      const searchable = [row.student_name, row.pdm_id, row.course_code, row.year_level, row.program_name, row.opening_title].filter(Boolean).join(' ').toLowerCase();
+      return (!query || searchable.includes(query))
+        && (statusFilter === 'all' || status === statusFilter)
+        && (programFilter === 'all' || row.program_name === programFilter)
+        && (courseFilter === 'all' || row.course_code === courseFilter)
+        && (yearFilter === 'all' || String(row.year_level || '') === yearFilter)
+        && (resultFilter === 'all' || decision === resultFilter);
     });
-  }, [rows, search, programFilter, queueKey, resultFilter]);
 
-  const programs = useMemo(
-    () => ['all', ...new Set(rows.map((row) => row.program_name).filter(Boolean))],
-    [rows]
-  );
+    return result.sort((a, b) => {
+      if (sortOrder === 'name_asc') return String(a.student_name || '').localeCompare(String(b.student_name || ''));
+      if (sortOrder === 'name_desc') return String(b.student_name || '').localeCompare(String(a.student_name || ''));
+      const aTime = new Date(a.submitted_at || 0).getTime();
+      const bTime = new Date(b.submitted_at || 0).getTime();
+      return sortOrder === 'newest' ? bTime - aTime : aTime - bTime;
+    });
+  }, [courseFilter, programFilter, queueKey, resultFilter, rows, search, sortOrder, statusFilter, yearFilter]);
 
-  const executeSubmit = async (row, action) => {
-    const state = actionState[row.slip_id] || { remarks: '', sdoReason: 'clear' };
-    const remarks =
-      queueKey === 'sdo' && !state.remarks
-        ? SDO_STANDARD_REASONS[action] || ''
-        : state.remarks;
+  const resetFilters = () => {
+    setSearch('');
+    setStatusFilter('pending');
+    setProgramFilter('all');
+    setCourseFilter('all');
+    setYearFilter('all');
+    setResultFilter('all');
+    setSortOrder('oldest');
+  };
 
-    if (queueKey === 'pd' && action === 'approve' && !hasUploadedGrade(row)) {
-      setError('Program Director approval requires an uploaded grade document.');
+  const updateActionState = (slipId, patch) => setActionState((current) => ({ ...current, [slipId]: { ...(current[slipId] || {}), ...patch } }));
+
+  const executeAction = async () => {
+    if (!confirmAction) return;
+    const { row, action } = confirmAction;
+    if (queueKey === 'pd' && !hasUploadedGrade(row)) {
       setConfirmAction(null);
+      setError('A Grade Report must be uploaded before PD endorsement.');
       return;
     }
-
-    if (queueKey === 'guidance' && ['hold', 'reject'].includes(action) && !remarks.trim()) {
-      setError('Guidance hold or rejection requires a reason.');
-      return;
-    }
-
-    if (queueKey === 'sdo' && ['disqualify_minor', 'disqualify_major'].includes(action) && !remarks.trim()) {
-      setError('SDO remarks are required for minor or major offense.');
-      return;
-    }
-
-    if (queueKey === 'sdo' && ['disqualify_minor', 'disqualify_major'].includes(action) && !state.offenseType.trim()) {
-      setError('Offense type is required for minor or major offense.');
-      return;
-    }
-
+    const state = actionState[row.slip_id] || {};
     try {
       setSavingSlipId(row.slip_id);
       setError('');
-      setConfirmAction(null);
+      const endpoint = buildApiUrl(meta.actionEndpoint(row.slip_id));
 
-      const response = await fetch(buildApiUrl(meta.actionEndpoint(row.slip_id)), {
+      let requestPayload = { action, remarks: state.remarks || '' };
+
+      // Use the transition-safe payload accepted by the currently deployed
+      // backend and by the updated backend. This avoids deliberately causing
+      // a 400 before retrying.
+      if (queueKey === 'sdo') {
+        requestPayload = legacySdoPayload(action, state.remarks || '') || requestPayload;
+      } else if (queueKey === 'guidance') {
+        requestPayload = legacyGuidancePayload(action, state.remarks || '') || requestPayload;
+      } else if (queueKey === 'pd') {
+        requestPayload = legacyPdPayload(action, state.remarks || '') || requestPayload;
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: authHeaders(tokenStorageKey),
-        body: JSON.stringify({
-          action,
-          remarks,
-          offense_type: queueKey === 'sdo' ? state.offenseType : undefined,
-          incident_date: queueKey === 'sdo' ? state.incidentDate : undefined,
-          case_reference_number: queueKey === 'sdo' ? state.caseReferenceNumber : undefined,
-        }),
+        body: JSON.stringify(requestPayload),
       });
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update endorsement slip');
+      if (!response.ok) throw new Error(data.message || 'Failed to save endorsement');
+      setConfirmAction(null);
+      setActionState((current) => { const next = { ...current }; delete next[row.slip_id]; return next; });
+      if (queueKey === 'sdo') {
+        setSelectedRow(null);
+        setGradePreview(null);
+        setProfilePreview(null);
       }
-
-      if (data?.pdfError) {
-        setError(`Decision saved, but final PDF generation failed: ${data.pdfError}`);
-      }
-
-      if (!data?.pdfError) {
-        const nextStageLabel =
-          data?.slip?.current_stage_label ||
-          data?.slip?.overall_status_label ||
-          data?.current_stage_label ||
-          data?.overall_status_label ||
-          '';
-
-        const actionLabelMap = {
-          clear: queueKey === 'guidance' ? 'cleared successfully' : 'saved successfully',
-          disqualify_minor: 'saved as minor offense and forwarded to Guidance',
-          disqualify_major: 'saved as major offense and stopped in SDO',
-          hold: 'saved for counseling / hold',
-          reject: 'saved as rejected',
-          approve: 'approved successfully',
-        };
-
-        const actionLabel = actionLabelMap[action] || 'saved successfully';
-        const detail = nextStageLabel
-          ? `Status updated to ${nextStageLabel}.`
-          : 'The endorsement slip was updated successfully.';
-        toast.success('Decision saved successfully', {
-          description: `${row.student_name} ${actionLabel}. ${detail}`,
-          action: {
-            label: 'View Slip',
-            onClick: () => navigate(`${detailBasePath}/${row.slip_id}`),
-          },
-        });
-      }
-
+      toast.success('Endorsement saved', { description: `${row.student_name} was updated successfully.` });
       await loadQueue({ soft: true });
     } catch (err) {
-      setError(err.message || 'Failed to update endorsement slip.');
+      setError(err.message || 'Failed to save endorsement.');
     } finally {
       setSavingSlipId('');
     }
   };
 
-  const handleSubmit = (row, action) => {
-    if (queueKey === 'pd' && action === 'approve' && !hasUploadedGrade(row)) {
-      setError('Program Director approval requires an uploaded grade document.');
-      return;
-    }
+  if (!hasAccess) return <div className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center text-sm text-red-700">This account is not authorized to access this endorsement queue.</div>;
+  if (loading) return <PageLoadingSkeleton label="Loading endorsement queue" showStats />;
 
-    if (shouldConfirmAction(action)) {
-      setConfirmAction({ row, action });
-      return;
-    }
-
-    executeSubmit(row, action);
-  };
-
-  const confirmMeta = confirmAction
-    ? getConfirmationMeta(queueKey, confirmAction.row, confirmAction.action)
-    : null;
-  const openExternalFile = (url) => {
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
-  if (!hasAccess) {
-    return (
-      <div className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
-        <AlertTriangle className="mx-auto mb-3 h-7 w-7 text-red-400" />
-        <p className="text-sm font-semibold text-red-800">Access denied</p>
-        <p className="mt-1 text-sm text-red-600">
-          This account is not allowed to access the {meta.title}.
-        </p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading endorsement queue...</p>
-      </div>
-    );
-  }
+  const confirm = confirmAction ? confirmationMeta(queueKey, confirmAction.action, confirmAction.row.student_name) : null;
+  const confirmBlockedByMissingGrade =
+    queueKey === 'pd' && Boolean(confirmAction) && !hasUploadedGrade(confirmAction.row);
+  const selectedState = selectedRow ? actionState[selectedRow.slip_id] || {} : {};
 
   return (
     <div className="space-y-5 py-2">
-      <GradePreviewModal
-        row={previewRow}
-        open={Boolean(previewRow)}
-        onClose={() => setPreviewRow(null)}
-      />
-      <AlertDialog
-        open={Boolean(confirmAction)}
+      <ProfilePhotoPreviewDialog
+        open={Boolean(profilePreview?.url)}
         onOpenChange={(open) => {
-          if (!open && !savingSlipId) {
-            setConfirmAction(null);
-          }
+          if (!open) setProfilePreview(null);
         }}
-      >
-        {confirmAction && confirmMeta ? (
-          <AlertDialogContent size="lg" className="rounded-3xl border border-stone-200 bg-white p-0">
-            <AlertDialogHeader className="px-6 pt-6">
+        src={profilePreview?.url || ''}
+        name={profilePreview?.name || 'Student'}
+      />
+      <GradeReportPreview preview={gradePreview} onClose={() => setGradePreview(null)} />
+
+      <AlertDialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open && !savingSlipId) setConfirmAction(null); }}>
+        {confirm ? (
+          <AlertDialogContent className="rounded-3xl">
+            <AlertDialogHeader>
               <AlertDialogMedia
-                className={`${
-                  confirmMeta.tone === 'red'
+                className={
+                  confirm.tone === 'red'
                     ? 'bg-red-50 text-red-700'
-                    : confirmMeta.tone === 'green'
-                      ? 'bg-green-50 text-green-700'
-                      : 'bg-amber-50 text-amber-700'
-                }`}
+                    : confirm.tone === 'amber'
+                      ? 'bg-amber-50 text-amber-700'
+                      : 'bg-emerald-50 text-emerald-700'
+                }
               >
-                {confirmMeta.tone === 'red' ? (
+                {confirm.tone === 'red' ? (
                   <AlertTriangle className="h-5 w-5" />
-                ) : confirmMeta.tone === 'green' ? (
-                  <CheckCircle2 className="h-5 w-5" />
                 ) : (
-                  <Hourglass className="h-5 w-5" />
+                  <CheckCircle2 className="h-5 w-5" />
                 )}
               </AlertDialogMedia>
-              <AlertDialogTitle>{confirmMeta.title}</AlertDialogTitle>
-              <AlertDialogDescription>{confirmMeta.description}</AlertDialogDescription>
-              <div className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-left">
-                <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</p>
-                <p className="mt-1 text-sm font-semibold text-stone-900">
-                  {confirmAction.row.student_name}
-                </p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-xl bg-white px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">PDM ID</p>
-                    <p className="mt-1 text-sm text-stone-700">
-                      {confirmAction.row.pdm_id || 'No PDM ID'}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Slip Code</p>
-                    <p className="mt-1 font-mono text-sm text-stone-700">
-                      {confirmAction.row.slip_code || 'Not available'}
-                    </p>
-                  </div>
-                </div>
-                {queueKey === 'pd' ? (
-                  <div className="mt-3 rounded-xl border border-stone-200 bg-white px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">PD Check</p>
-                    <p className="mt-1 text-sm text-stone-700">
-                      Grade file:{' '}
-                      <span className="font-semibold text-stone-900">
-                        {hasUploadedGrade(confirmAction.row) ? 'Uploaded' : 'Missing'}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-sm text-stone-700">
-                      GWA:{' '}
-                      <span className="font-semibold text-stone-900">
-                        {confirmAction.row.grade_summary?.gwa ?? 'N/A'}
-                      </span>
-                    </p>
-                  </div>
-                ) : null}
-              </div>
+              <AlertDialogTitle>{confirm.title}</AlertDialogTitle>
+              <AlertDialogDescription>{confirm.description}</AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter className="mt-2">
-              <AlertDialogCancel disabled={Boolean(savingSlipId)} className="h-10 min-w-28 border-stone-200 bg-white px-4">
-                Cancel
-              </AlertDialogCancel>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={Boolean(savingSlipId)}>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                disabled={
-                  Boolean(savingSlipId) ||
-                  (queueKey === 'pd' &&
-                    confirmAction.action === 'approve' &&
-                    !hasUploadedGrade(confirmAction.row))
-                }
-                className={`h-10 min-w-40 border-transparent px-4 font-semibold !text-white shadow-sm ${
-                  confirmMeta.tone === 'red'
-                    ? '!bg-red-700 hover:!bg-red-800'
-                    : confirmMeta.tone === 'green'
-                      ? '!bg-green-700 hover:!bg-green-800'
-                      : '!bg-amber-600 hover:!bg-amber-700'
-                }`}
+                className={`${confirmationButtonClass()} min-w-24 border-emerald-600 font-semibold shadow-sm`}
+                style={{ backgroundColor: '#059669', color: '#ffffff', borderColor: '#059669' }}
+                disabled={Boolean(savingSlipId) || confirmBlockedByMissingGrade}
                 onClick={(event) => {
                   event.preventDefault();
-                  executeSubmit(confirmAction.row, confirmAction.action);
+                  executeAction();
                 }}
               >
-                {savingSlipId === confirmAction.row.slip_id ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  confirmMeta.confirmLabel
-                )}
+                {savingSlipId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Confirm
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         ) : null}
       </AlertDialog>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">{meta.title}</h1>
-          <p className="mt-1 text-sm text-stone-500">{meta.subtitle}</p>
+      <ReviewDrawer
+        queueKey={queueKey}
+        row={selectedRow}
+        state={selectedState}
+        onChange={(patch) => selectedRow && updateActionState(selectedRow.slip_id, patch)}
+        onSubmit={(action) => {
+          if (!selectedRow) return;
+          if (queueKey === 'pd' && !hasUploadedGrade(selectedRow)) {
+            setError('A Grade Report must be uploaded before PD endorsement.');
+            return;
+          }
+          setConfirmAction({ row: selectedRow, action });
+        }}
+        saving={selectedRow ? savingSlipId === selectedRow.slip_id : false}
+        onClose={() => setSelectedRow(null)}
+        onViewFull={navigate}
+        detailBasePath={detailBasePath}
+        onPreviewProfile={(url, name) => setProfilePreview({ url, name })}
+        onPreviewGrade={(preview) => setGradePreview(preview)}
+      />
+
+      <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">{meta.eyebrow}</p>
+            <h1 className="mt-1 text-2xl font-semibold text-stone-900">{meta.title}</h1>
+            <p className="mt-1 text-sm text-stone-500">{meta.subtitle}</p>
+          </div>
+          <Button variant="outline" onClick={() => loadQueue({ soft: true })} disabled={refreshing}>
+            {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh
+          </Button>
         </div>
-        <Button variant="outline" className="border-stone-200" onClick={() => loadQueue({ soft: true })}>
-          {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
-      </div>
+      </section>
 
-      <div className={`grid grid-cols-1 gap-3 ${queueKey === 'pd' ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
-        <QueueSummary queueKey={queueKey} rows={rows} />
-      </div>
+      <SummaryStrip queueKey={queueKey} rows={rows} />
 
-      <Card className="overflow-hidden border-stone-200 shadow-none">
-        <CardHeader className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="relative flex-1">
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by student name or PDM ID"
-                className="pl-9"
+                placeholder="Search applicant or PDM ID"
+                className="h-10 w-full pl-9"
               />
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full border border-stone-200 text-stone-500 hover:bg-stone-100 hover:text-stone-700"
+              onClick={resetFilters}
+              title="Reset filters"
+              aria-label="Reset filters"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={programFilter} onValueChange={setProgramFilter}>
-              <SelectTrigger className="w-full lg:w-64">
-                <SelectValue placeholder="Filter by program" />
-              </SelectTrigger>
+              <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {programs.map((program) => (
                   <SelectItem key={program} value={program}>
-                    {program === 'all' ? 'All Programs' : program}
+                    {program === 'all' ? 'All Scholarships' : program}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={resultFilter} onValueChange={setResultFilter}>
-              <SelectTrigger className="w-full lg:w-64">
-                <SelectValue placeholder="Filter by result" />
-              </SelectTrigger>
+
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
+              <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {(QUEUE_RESULT_FILTERS[queueKey] || QUEUE_RESULT_FILTERS.pd).map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {courses.map((course) => (
+                  <SelectItem key={course} value={course}>
+                    {course === 'all' ? 'All Courses' : course}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
+            <Select value={yearFilter} onValueChange={setYearFilter}>
+              <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year === 'all' ? 'All Years' : formatYearLevel(year)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={resultFilter} onValueChange={setResultFilter}>
+              <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {RESULT_FILTERS[queueKey].map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+              <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-            <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
-              {filteredRows.length} visible
-            </span>
-            <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
-              {rows.length} total in queue
-            </span>
-            {queueKey === 'pd' ? (
-              <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
-                {rows.filter(hasUploadedGrade).length} with grade file
-              </span>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 p-5">
-          {filteredRows.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
-              No students match the current filters.
-            </div>
-          ) : (
-            filteredRows.map((row) => (
-              <div
-                key={row.slip_id}
-                className={`overflow-hidden rounded-[28px] border bg-gradient-to-br p-0 shadow-sm transition-all hover:shadow-md ${accent.card} ${accent.border}`}
-              >
-                <div className="border-b border-stone-200/70 px-5 py-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xl font-semibold text-stone-900">{row.student_name}</p>
-                      <p className="mt-1 text-sm text-stone-500">{row.pdm_id || 'No PDM ID'}</p>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Badge variant="outline" className="border-stone-200 bg-white/80 text-stone-700">
-                          {row.program_name || 'No program'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[280px]">
-                      <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Slip Code</p>
-                        <p className="mt-1 font-mono text-xs text-stone-700">{row.slip_code || 'Not available'}</p>
-                      </div>
-                      <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Submitted</p>
-                        <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-stone-200 bg-white/90 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Progress Tracker</p>
-                      <div className="mt-3 rounded-2xl bg-stone-50 px-4 py-4">
-                        <EndorsementProgressTracker tracker={row.tracker} />
-                      </div>
-                    </div>
-
-                    <div className={`grid gap-4 ${isPdQueue ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,340px)]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]'}`}>
-                    <div className="space-y-3">
-                      {queueKey === 'pd' ? (
-                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
-                          <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
-                          <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{hasUploadedGrade(row) ? 'Uploaded' : 'Missing'}</span></p>
-                          {row.grade_document?.file_name ? (
-                            <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
-                          ) : null}
-                          {!hasUploadedGrade(row) ? (
-                            <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                              PD approval is blocked until the applicant uploads the grade document.
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-
-                      {queueKey === 'pd' ? (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
-                            <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
-                            {row.sdo_offense_detail?.offense_type ? (
-                              <p className="mt-2 text-xs leading-5 text-stone-500">
-                                {row.sdo_offense_detail.offense_type}
-                                {row.sdo_offense_detail.incident_date ? ` | ${row.sdo_offense_detail.incident_date}` : ''}
-                                {row.sdo_offense_detail.case_reference_number ? ` | ${row.sdo_offense_detail.case_reference_number}` : ''}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Review</p>
-                            <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
-                          </div>
-                        </div>
-                      ) : queueKey !== 'sdo' ? (
-                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
-                          <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
-                          {row.sdo_offense_detail?.offense_type ? (
-                            <p className="mt-2 text-xs leading-5 text-stone-500">
-                              {row.sdo_offense_detail.offense_type}
-                              {row.sdo_offense_detail.incident_date ? ` | ${row.sdo_offense_detail.incident_date}` : ''}
-                              {row.sdo_offense_detail.case_reference_number ? ` | ${row.sdo_offense_detail.case_reference_number}` : ''}
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className={`rounded-[24px] border p-4 ${accent.panel}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-600">
-                      {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
-                        </p>
-                      </div>
-                    </div>
-                    {queueKey === 'pd' ? (
-                      row.grade_document?.url ? (
-                        <div className="mt-3 space-y-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              className="border-none bg-stone-900 text-white hover:bg-stone-800"
-                              onClick={() => setPreviewRow(row)}
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              Preview Grade
-                            </Button>
-                            <a
-                              href={row.grade_document.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={row.grade_document.file_name || 'grade-document'}
-                              className="inline-flex"
-                            >
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
-                              >
-                                <Download className="mr-2 h-4 w-4" />
-                                Download
-                              </Button>
-                            </a>
-                            <a
-                              href={row.grade_document.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex"
-                            >
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
-                              >
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                Open
-                              </Button>
-                            </a>
-                          </div>
-
-                          <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-                            <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
-                              <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-stone-700">
-                                {getDocumentPreviewType(row) === 'image' ? (
-                                  <ImageIcon className="h-4 w-4 shrink-0 text-stone-500" />
-                                ) : (
-                                  <FileText className="h-4 w-4 shrink-0 text-stone-500" />
-                                )}
-                                <span className="truncate">
-                                  {row.grade_document.file_name || 'Grade document'}
-                                </span>
-                              </div>
-                              <span className="text-[11px] uppercase tracking-wide text-stone-400">
-                                {getDocumentPreviewType(row) === 'pdf'
-                                  ? 'PDF Preview'
-                                  : getDocumentPreviewType(row) === 'image'
-                                    ? 'Image Preview'
-                                    : 'File'}
-                              </span>
-                            </div>
-
-                            {getDocumentPreviewType(row) === 'image' ? (
-                              <div className="flex h-[300px] items-center justify-center bg-stone-50 p-3">
-                                <img
-                                  src={row.grade_document.url}
-                                  alt={row.grade_document.file_name || 'Grade document'}
-                                  className="max-h-full max-w-full rounded-xl object-contain"
-                                />
-                              </div>
-                            ) : getDocumentPreviewType(row) === 'pdf' ? (
-                              <object
-                                data={row.grade_document.url}
-                                type="application/pdf"
-                                className="h-[300px] w-full bg-white"
-                              >
-                                <iframe
-                                  src={row.grade_document.url}
-                                  title={row.grade_document.file_name || 'Grade document'}
-                                  className="h-[300px] w-full bg-white"
-                                />
-                              </object>
-                            ) : (
-                              <div className="flex h-[220px] flex-col items-center justify-center gap-3 bg-stone-50 px-4 text-center">
-                                <FileText className="h-8 w-8 text-stone-400" />
-                                <p className="text-sm text-stone-600">
-                                  This file type cannot be previewed here.
-                                </p>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-stone-200 bg-white"
-                                  onClick={() => openExternalFile(row.grade_document.url)}
-                                >
-                                  Open File
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-3 text-sm text-red-600">No uploaded grade document</p>
-                      )
-                    ) : null}
-                    <Button
-                      variant="outline"
-                      className={`mt-3 h-10 w-full font-medium ${accent.button}`}
-                      title="Open the full endorsement slip"
-                      onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Full Slip
-                    </Button>
-                  </div>
-                    </div>
-                  </div>
-                  </div>
-
-                  <div className="xl:pl-1">
-                    <ActionPanel
-                      queueKey={queueKey}
-                      row={row}
-                      actionState={actionState}
-                      setActionState={setActionState}
-                      onSubmit={handleSubmit}
-                      loading={savingSlipId === row.slip_id}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+          <p className="mt-3 text-xs text-stone-500">
+            Showing {filteredRows.length} of {rows.length} applicants
+          </p>
         </CardContent>
       </Card>
+
+      {error ? <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+
+      {filteredRows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-5 py-12 text-center">
+          <CheckCircle2 className="mx-auto h-8 w-8 text-stone-300" />
+          <p className="mt-3 text-sm font-medium text-stone-700">No applicants match the current filters.</p>
+          <p className="mt-1 text-xs text-stone-500">Adjust the filters or reset them to view other endorsements.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredRows.map((row) => {
+            const decision = getDecision(queueKey, row);
+            return (
+              <article key={row.slip_id} className="rounded-2xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300">
+                <div className="flex gap-3">
+                  <ProfileAvatar
+                    key={row?.avatar_url || 'no-avatar'}
+                    row={row}
+                    onPreview={(url, name) => setProfilePreview({ url, name })}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-sm font-semibold text-stone-900">{row.student_name}</h2>
+                        <p className="mt-0.5 text-xs text-stone-500">{row.pdm_id || 'No PDM ID'}</p>
+                      </div>
+                      <Badge variant="outline" className={`${decisionTone(decision)} shrink-0`}>{decision === 'pending' ? 'Awaiting Review' : decisionLabel(queueKey, row)}</Badge>
+                    </div>
+                    <p className="mt-2 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}</p>
+                    <p className="mt-0.5 truncate text-xs text-stone-500">{row.program_name || 'Scholarship N/A'}{row.opening_title ? ` • ${row.opening_title}` : ''}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 border-t border-stone-100 pt-3">
+                  <CompactStageProgress tracker={row.tracker} />
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-100 pt-3">
+                  <span className="min-w-0 truncate text-[11px] text-stone-400">Received {formatDate(row.submitted_at)}</span>
+                  <Button variant="outline" size="sm" className="shrink-0" onClick={() => setSelectedRow(row)}>
+                    {decision === 'pending' ? <ShieldCheck className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                    {decision === 'pending' ? 'Review' : 'View'}
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

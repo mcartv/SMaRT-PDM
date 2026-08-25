@@ -6,6 +6,7 @@ import { authService, AuthRequestError } from '@/services/authService';
 import {
   clearPortalSession,
   getPortalNameFromTokenKey,
+  savePortalSessionFeedback,
   getStoredItem,
 } from '@/utils/authStorage';
 
@@ -22,17 +23,20 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
       return;
     }
 
-    // Only the true Admin account uses the managed one-device session.
-    if (portalName !== 'admin') {
-      setStatus('allowed');
-      return;
-    }
-
     setStatus('checking');
-    setMessage('Restoring your Admin session...');
+    setMessage(
+      portalName === 'admin'
+        ? 'Restoring your Admin session...'
+        : 'Checking your account access...'
+    );
 
     try {
-      await authService.resumeAdminSession(token);
+      if (portalName === 'admin') {
+        await authService.resumeAdminSession(token);
+      } else {
+        await authService.validateStaffSession(token);
+      }
+
       setStatus('allowed');
     } catch (error) {
       if (
@@ -43,7 +47,14 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         return;
       }
 
-      clearPortalSession('admin');
+      if (portalName) {
+        savePortalSessionFeedback({
+          portalName,
+          code: error?.code,
+          message: error?.message,
+        });
+        clearPortalSession(portalName);
+      }
       setStatus('denied');
     }
   }, [portalName, storageKey]);
@@ -74,7 +85,7 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
           </div>
           <p className="text-sm font-semibold text-stone-800">{message}</p>
           <p className="mt-1 text-xs text-stone-500">
-            The Admin portal will continue automatically when the session is available.
+            The portal will continue automatically when the session is available.
           </p>
         </div>
       </div>

@@ -83,6 +83,22 @@ function getSubject(req) {
   return req.body?.subject || null;
 }
 
+function getReplyToMessageId(req) {
+  return normalizeId(
+    req.body?.replyToMessageId ??
+    req.body?.reply_to_message_id ??
+    ''
+  ) || null;
+}
+
+function getClientMessageId(req) {
+  return normalizeId(
+    req.body?.clientMessageId ??
+    req.body?.client_message_id ??
+    ''
+  ) || null;
+}
+
 function toMessagePayload(row = {}) {
   return {
     messageId: row.message_id,
@@ -122,6 +138,23 @@ function toMessagePayload(row = {}) {
 
     senderAvatarUrl: row.sender_avatar_url || row.sender_profile_photo_url || null,
     sender_avatar_url: row.sender_avatar_url || row.sender_profile_photo_url || null,
+
+    replyToMessageId: row.reply_to_message_id || null,
+    reply_to_message_id: row.reply_to_message_id || null,
+    replyMessageBody: row.reply_message_body || null,
+    reply_message_body: row.reply_message_body || null,
+    replySenderId: row.reply_sender_id || null,
+    reply_sender_id: row.reply_sender_id || null,
+    replySenderName: row.reply_sender_name || null,
+    reply_sender_name: row.reply_sender_name || null,
+
+    clientMessageId: row.client_message_id || null,
+    client_message_id: row.client_message_id || null,
+
+    seenByCounterparty: row.seen_by_counterparty === true,
+    seen_by_counterparty: row.seen_by_counterparty === true,
+
+    deduplicated: row.deduplicated === true,
 
     created_at: row.sent_at || new Date().toISOString(),
   };
@@ -165,6 +198,20 @@ function buildMessageSocketPayload(message) {
 
     senderAvatarUrl: message.senderAvatarUrl || message.sender_avatar_url || null,
     sender_avatar_url: message.sender_avatar_url || message.senderAvatarUrl || null,
+
+    replyToMessageId: message.replyToMessageId || message.reply_to_message_id || null,
+    reply_to_message_id: message.reply_to_message_id || message.replyToMessageId || null,
+    replyMessageBody: message.replyMessageBody || message.reply_message_body || null,
+    reply_message_body: message.reply_message_body || message.replyMessageBody || null,
+    replySenderId: message.replySenderId || message.reply_sender_id || null,
+    reply_sender_id: message.reply_sender_id || message.replySenderId || null,
+    replySenderName: message.replySenderName || message.reply_sender_name || null,
+    reply_sender_name: message.reply_sender_name || message.replySenderName || null,
+
+    clientMessageId: message.clientMessageId || message.client_message_id || null,
+    client_message_id: message.client_message_id || message.clientMessageId || null,
+    seenByCounterparty: message.seenByCounterparty === true || message.seen_by_counterparty === true,
+    seen_by_counterparty: message.seen_by_counterparty === true || message.seenByCounterparty === true,
 
     created_at: new Date().toISOString(),
   };
@@ -769,6 +816,8 @@ exports.sendThreadMessage = async (req, res) => {
       subject: getSubject(req),
       messageBody: cleanMessageBody,
       attachmentUrl: getAttachmentUrl(req),
+      replyToMessageId: getReplyToMessageId(req),
+      clientMessageId: getClientMessageId(req),
     });
 
     const io = req.app.get('io');
@@ -1268,6 +1317,8 @@ exports.sendMessage = async (req, res) => {
       subject: getSubject(req),
       messageBody: cleanMessageBody,
       attachmentUrl: getAttachmentUrl(req),
+      replyToMessageId: getReplyToMessageId(req),
+      clientMessageId: getClientMessageId(req),
     });
 
     const io = req.app.get('io');
@@ -1291,23 +1342,27 @@ exports.sendMessage = async (req, res) => {
       );
     }
 
-    emitMessageCreated(io, message, [senderId, counterpartyId]);
+    if (!message.deduplicated) {
+      emitMessageCreated(io, message, [senderId, counterpartyId]);
+    }
 
-    await logMessageAudit({
-      req,
-      actionTaken: 'SEND_PRIVATE_MESSAGE',
-      entityType: 'message',
-      entityId: message.message_id,
-      description: 'Sent a private message.',
-      metadata: {
-        message_id: message.message_id,
-        sender_id: senderId,
-        receiver_id: counterpartyId,
-        message_length: cleanMessageBody.length,
-      },
-    });
+    if (!message.deduplicated) {
+      await logMessageAudit({
+        req,
+        actionTaken: 'SEND_PRIVATE_MESSAGE',
+        entityType: 'message',
+        entityId: message.message_id,
+        description: 'Sent a private message.',
+        metadata: {
+          message_id: message.message_id,
+          sender_id: senderId,
+          receiver_id: counterpartyId,
+          message_length: cleanMessageBody.length,
+        },
+      });
+    }
 
-    return res.status(201).json(message);
+    return res.status(message.deduplicated ? 200 : 201).json(message);
   } catch (err) {
     console.error('SEND MESSAGE ERROR:', err.message);
 
@@ -1315,6 +1370,41 @@ exports.sendMessage = async (req, res) => {
       message: 'Failed to send message',
       error: err.message,
       code: err.code || 'MESSAGE_SEND_FAILED',
+    });
+  }
+};
+
+exports.hideMessageForMe = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { messageId } = req.params;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const result = await messageService.hideMessageForUser(currentUserId, messageId);
+    const io = req.app.get('io');
+    const payload = {
+      message_id: result.message_id,
+      messageId: result.message_id,
+      room_id: result.room_id,
+      roomId: result.room_id,
+      counterparty_id: result.counterparty_id,
+      counterpartyId: result.counterparty_id,
+      hidden_by: currentUserId,
+      hiddenBy: currentUserId,
+      hidden_at: new Date().toISOString(),
+    };
+
+    emitToUsers(io, 'message:hidden', payload, [currentUserId]);
+
+    return res.json({ success: true, ...payload });
+  } catch (err) {
+    console.error('HIDE MESSAGE FOR ME ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to hide message',
+      error: err.message,
     });
   }
 };
@@ -1502,6 +1592,8 @@ exports.sendRoomMessage = async (req, res) => {
       subject: getSubject(req),
       messageBody: cleanMessageBody,
       attachmentUrl: getAttachmentUrl(req),
+      replyToMessageId: getReplyToMessageId(req),
+      clientMessageId: getClientMessageId(req),
     });
 
     const memberIds = await messageService.fetchRoomMemberUserIds(roomId);
@@ -1525,9 +1617,11 @@ exports.sendRoomMessage = async (req, res) => {
       );
     }
 
-    emitMessageCreated(io, message, targetUserIds);
+    if (!message.deduplicated) {
+      emitMessageCreated(io, message, targetUserIds);
+    }
 
-    return res.status(201).json(message);
+    return res.status(message.deduplicated ? 200 : 201).json(message);
   } catch (err) {
     console.error('SEND ROOM MESSAGE ERROR:', err.message);
 

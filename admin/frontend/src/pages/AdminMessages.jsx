@@ -4,6 +4,9 @@ import {
   ArchiveRestore,
   ArrowLeft,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
   Eye,
   Filter,
   Info,
@@ -15,21 +18,58 @@ import {
   MoreVertical,
   Plus,
   RefreshCw,
+  Reply,
   Search,
   SendHorizontal,
   ShieldCheck,
+  Trash2,
+  WifiOff,
   UserMinus,
   UserPlus,
   UserRound,
   Users,
   X,
 } from 'lucide-react'
-import { useSocketEvent } from '@/hooks/useSocket'
+import { useSocketConnectionState, useSocketEmit, useSocketEvent } from '@/hooks/useSocket'
 import API_BASE_URL from '@/api'
 
 const MESSAGING_API_BASE = API_BASE_URL
 // SMART-PDM_ADMIN_MESSAGES_RESPONSIVE_V1
 // SMART-PDM_ADMIN_MESSAGES_EMBEDDED_GROUP_INFO_V2
+
+function createClientMessageId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  // RFC4122-compatible fallback for older browsers. The backend stores this as
+  // UUID and uses it to make a retry idempotent.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16)
+    const value = character === 'x' ? random : (random & 0x3) | 0x8
+    return value.toString(16)
+  })
+}
+
+function compactMessagePreview(value, maxLength = 90) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
+}
+
+function formatThreadPreview(item, currentUserId) {
+  const body = compactMessagePreview(item.lastMessage, 88)
+  const content = body || (item.lastAttachmentUrl ? '📎 Attachment' : 'No messages yet')
+
+  if (!item.lastSentAt) return content
+
+  const senderId = String(item.lastSenderId || '')
+  const isOwn = Boolean(senderId && senderId === String(currentUserId || ''))
+
+  if (isOwn) return `You: ${content}`
+  if (item.type === 'group' && item.lastSenderName) return `${item.lastSenderName}: ${content}`
+  return content
+}
 
 function parseMessagingToken(token) {
   try {
@@ -77,6 +117,9 @@ function normalizeConversation(raw = {}) {
     name: raw.name?.toString() || 'Unknown user',
     studentNumber: raw.studentNumber?.toString() || raw.student_number?.toString() || '',
     lastMessage: raw.lastMessage?.toString() || raw.last_message?.toString() || '',
+    lastSenderId: raw.lastSenderId?.toString() || raw.last_sender_id?.toString() || '',
+    lastSenderName: raw.lastSenderName?.toString() || raw.last_sender_name?.toString() || '',
+    lastAttachmentUrl: raw.lastAttachmentUrl?.toString() || raw.last_attachment_url?.toString() || '',
     lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
     createdAt: raw.createdAt?.toString() || raw.created_at?.toString() || '',
     avatarUrl:
@@ -100,6 +143,9 @@ function normalizeRoom(raw = {}) {
     memberCount,
     studentNumber: `${memberCount} member${memberCount === 1 ? '' : 's'}`,
     lastMessage: raw.lastMessage?.toString() || raw.last_message?.toString() || '',
+    lastSenderId: raw.lastSenderId?.toString() || raw.last_sender_id?.toString() || '',
+    lastSenderName: raw.lastSenderName?.toString() || raw.last_sender_name?.toString() || '',
+    lastAttachmentUrl: raw.lastAttachmentUrl?.toString() || raw.last_attachment_url?.toString() || '',
     lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
     createdAt: raw.createdAt?.toString() || raw.created_at?.toString() || '',
     unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
@@ -217,6 +263,20 @@ function normalizeMessage(raw = {}) {
       raw.sender_avatar_url?.toString() ||
       raw.sender_profile_photo_url?.toString() ||
       '',
+    replyToMessageId:
+      raw.replyToMessageId?.toString() || raw.reply_to_message_id?.toString() || '',
+    replyMessageBody:
+      raw.replyMessageBody?.toString() || raw.reply_message_body?.toString() || '',
+    replySenderId:
+      raw.replySenderId?.toString() || raw.reply_sender_id?.toString() || '',
+    replySenderName:
+      raw.replySenderName?.toString() || raw.reply_sender_name?.toString() || '',
+    clientMessageId:
+      raw.clientMessageId?.toString() || raw.client_message_id?.toString() || '',
+    seenByCounterparty:
+      raw.seenByCounterparty === true || raw.seen_by_counterparty === true,
+    deliveryStatus: raw.deliveryStatus?.toString() || raw.delivery_status?.toString() || 'sent',
+    sendError: raw.sendError?.toString() || raw.send_error?.toString() || '',
   }
 }
 
@@ -232,7 +292,11 @@ function sortItems(items = []) {
 }
 
 function upsertMessage(items, message) {
-  const next = items.filter((item) => item.messageId !== message.messageId)
+  const next = items.filter((item) => {
+    if (item.messageId === message.messageId) return false
+    if (message.clientMessageId && item.clientMessageId === message.clientMessageId) return false
+    return true
+  })
   next.push(message)
   return sortMessages(next)
 }
@@ -314,7 +378,7 @@ function formatMessageDay(value) {
   return new Intl.DateTimeFormat('en-US', {
     month: 'long',
     day: 'numeric',
-    year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+    year: 'numeric',
   }).format(date)
 }
 
@@ -342,6 +406,18 @@ function MessageDateDivider({ value }) {
   )
 }
 
+function NewMessagesDivider() {
+  return (
+    <div className="my-4 flex items-center gap-3" role="separator" aria-label="New messages">
+      <div className="h-px flex-1 bg-stone-200" />
+      <span className="shrink-0 rounded-full bg-[var(--portal-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--portal-base)]">
+        New messages
+      </span>
+      <div className="h-px flex-1 bg-stone-200" />
+    </div>
+  )
+}
+
 function ThreadIcon({ item }) {
   const initials = (item.name || 'User')
     .split(/\s+/)
@@ -363,7 +439,7 @@ function ThreadIcon({ item }) {
   )
 }
 
-function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyle = false }) {
+function ThreadRow({ item, isActive, currentUserId, onClick, onToggleRead, onArchive, inboxStyle = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState(null)
   const menuButtonRef = useRef(null)
@@ -407,12 +483,15 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyl
     if (!menuOpen) return undefined
 
     const handleViewportChange = () => closeMenu()
+    const handleKeyDown = (event) => { if (event.key === 'Escape') closeMenu() }
     window.addEventListener('resize', handleViewportChange)
     window.addEventListener('scroll', handleViewportChange, true)
+    window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       window.removeEventListener('resize', handleViewportChange)
       window.removeEventListener('scroll', handleViewportChange, true)
+      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [menuOpen])
 
@@ -422,11 +501,11 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyl
         ? `group relative border-b border-stone-100 transition ${isActive
           ? 'bg-[var(--portal-accent-soft)] before:absolute before:bottom-2 before:left-0 before:top-2 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]'
           : hasUnread
-            ? 'bg-white hover:bg-stone-50'
+            ? 'bg-[var(--portal-accent-soft)] hover:brightness-[0.99]'
             : 'bg-white hover:bg-stone-50'
           }`
         : `group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${isActive
-          ? 'bg-white hover:bg-stone-50'
+          ? 'bg-[var(--portal-accent-soft)]'
           : hasUnread
             ? 'bg-[var(--portal-accent-soft)]'
             : 'bg-white hover:bg-stone-50'
@@ -466,7 +545,7 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyl
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span className={inboxStyle
                 ? 'text-[11px] font-medium text-stone-400'
-                : 'text-xs text-stone-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'}>
+                : 'text-xs font-medium text-stone-400'}>
                 {formatConversationTime(item.lastSentAt)}
               </span>
 
@@ -482,7 +561,7 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyl
             className={`mt-1 truncate text-xs ${hasUnread ? 'font-semibold text-stone-700' : 'text-stone-500'
               }`}
           >
-            {item.lastMessage || 'No messages yet'}
+            {formatThreadPreview(item, currentUserId)}
           </p>
         </div>
       </button>
@@ -495,6 +574,7 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive, inboxStyl
             onClick={toggleMenu}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
             title="Thread options"
+            aria-label={`Options for ${item.name}`}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
@@ -697,38 +777,150 @@ function MessageBubble({
   message,
   isMine,
   isGroup = false,
+  currentUserId = '',
   searchTerm = '',
   showAvatar = true,
   showSenderName = true,
   groupedWithPrevious = false,
   groupedWithNext = false,
+  isLatestOutgoing = false,
+  isCurrentSearchMatch = false,
+  onReply,
+  onCopy,
+  onDelete,
+  onRetry,
 }) {
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionRootRef = useRef(null)
+  useEffect(() => {
+    if (!actionsOpen) return undefined
+
+    const closeOnOutside = (event) => {
+      if (!actionRootRef.current?.contains(event.target)) setActionsOpen(false)
+    }
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setActionsOpen(false)
+    }
+
+    document.addEventListener('mousedown', closeOnOutside)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [actionsOpen])
+
   const query = searchTerm.trim().toLowerCase()
   const isMatch = Boolean(query && message.messageBody.toLowerCase().includes(query))
   const incomingCornerClass = `${groupedWithPrevious ? 'rounded-tl-md' : ''} ${groupedWithNext ? 'rounded-bl-md' : ''}`
   const outgoingCornerClass = `${groupedWithPrevious ? 'rounded-tr-md' : ''} ${groupedWithNext ? 'rounded-br-md' : ''}`
+  const replyPreview = compactMessagePreview(message.replyMessageBody || 'Original message unavailable', 100)
+  const repliedToCurrentUser = Boolean(
+    message.replySenderId && currentUserId && message.replySenderId === currentUserId
+  )
+  const replyContextLabel = message.replyToMessageId
+    ? isMine
+      ? `You replied to ${message.replySenderId === currentUserId ? 'yourself' : message.replySenderName || 'a message'}`
+      : repliedToCurrentUser
+        ? `${message.senderName || 'Someone'} replied to you`
+        : `${message.senderName || 'Someone'} replied to ${message.replySenderName || 'a message'}`
+    : ''
+
+  const actionMenu = (
+    <div ref={actionRootRef} className="relative shrink-0 self-center">
+      <button
+        type="button"
+        onClick={() => setActionsOpen((current) => !current)}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-stone-400 opacity-70 transition hover:bg-stone-200 hover:text-stone-700 sm:opacity-0 sm:group-hover/message-row:opacity-100 sm:focus:opacity-100"
+        title="Message options"
+        aria-label="Message options"
+        aria-haspopup="menu"
+        aria-expanded={actionsOpen}
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
+
+      {actionsOpen ? (
+        <div
+          role="menu"
+          className={`absolute bottom-8 z-30 w-40 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl ${isMine ? 'right-0' : 'left-0'}`}
+        >
+          <button
+            type="button"
+            onClick={() => { setActionsOpen(false); onReply?.(message) }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
+            role="menuitem"
+          >
+            <Reply className="h-3.5 w-3.5" /> Reply
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActionsOpen(false); onCopy?.(message) }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
+            role="menuitem"
+          >
+            <Copy className="h-3.5 w-3.5" /> Copy
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActionsOpen(false); onDelete?.(message) }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+            role="menuitem"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete for me
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
 
   return (
-    <div className={`flex items-end gap-2 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`group/message-row flex items-end gap-1.5 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine ? 'justify-end' : 'justify-start'}`}>
       {!isMine && isGroup ? (
         showAvatar ? <MessageAvatar message={message} /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
       ) : null}
 
-      <div className={`flex max-w-[82%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[72%]`}>
-        {isGroup && !isMine && showSenderName && message.senderName ? (
+      <div className={`flex max-w-[88%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[76%] lg:max-w-[68%]`}>
+        {isGroup && !isMine && showSenderName && message.senderName && !message.replyToMessageId ? (
           <p className="mb-1 px-1 text-xs font-semibold text-stone-500">
             {message.senderName}
           </p>
         ) : null}
 
-        <div className="group/message relative">
-          <div
-            className={`rounded-2xl px-3.5 py-2.5 shadow-sm transition ${isMine
-              ? `bg-[var(--portal-base)] text-white ${outgoingCornerClass}`
-              : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
-              } ${isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
-          >
-            <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
+        <div className={`group/message relative flex max-w-full flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+          {message.replyToMessageId ? (
+            <>
+              <div
+                className={`mb-1 flex max-w-full items-center gap-1.5 px-1 text-[11px] font-medium leading-4 text-stone-500 ${isMine ? 'justify-end text-right' : 'justify-start text-left'}`}
+                title={replyContextLabel}
+                aria-label={replyContextLabel}
+              >
+                <Reply className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{replyContextLabel}</span>
+              </div>
+              <div
+                className={`relative z-0 -mb-1.5 inline-block w-fit max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm ${isMine
+                  ? 'mr-1.5 rounded-br-md bg-stone-600/85 text-white/90'
+                  : 'ml-1.5 rounded-bl-md bg-stone-600/85 text-white/90'
+                  }`}
+                title={`Original message: ${replyPreview}`}
+                aria-label={`${replyContextLabel}. Original message: ${replyPreview}`}
+              >
+                <p className="line-clamp-2 whitespace-pre-wrap break-words">{replyPreview}</p>
+              </div>
+            </>
+          ) : null}
+
+          <div className={`relative z-10 flex max-w-full items-center gap-0.5 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+            <div
+              className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 shadow-sm transition ${isMine
+                ? `bg-[var(--portal-base)] text-white ${outgoingCornerClass}`
+                : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
+                } ${isCurrentSearchMatch ? 'ring-2 ring-[var(--portal-base)] ring-offset-2' : isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
+            >
+              <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.messageBody}</p>
+            </div>
+            {actionMenu}
           </div>
 
           {message.sentAt ? (
@@ -740,6 +932,24 @@ function MessageBubble({
             </div>
           ) : null}
         </div>
+
+        {isMine && isLatestOutgoing ? (
+          <div className="mt-1 px-1 text-[11px] font-medium text-stone-400" aria-live="polite">
+            {message.deliveryStatus === 'sending' ? (
+              <span>Sending…</span>
+            ) : message.deliveryStatus === 'failed' ? (
+              <button type="button" onClick={() => onRetry?.(message)} className="font-semibold text-red-600 hover:underline">
+                Failed to send · Retry
+              </button>
+            ) : isGroup ? (
+              <span>Sent</span>
+            ) : message.seenByCounterparty ? (
+              <span>Seen</span>
+            ) : (
+              <span>Sent</span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {isMine && isGroup ? (
@@ -770,11 +980,18 @@ function MemberAvatar({ member, sizeClass = 'h-10 w-10' }) {
 }
 
 function MemberProfileModal({ member, onClose, onMessage }) {
+  useEffect(() => {
+    if (!member) return undefined
+    const handleKeyDown = (event) => { if (event.key === 'Escape') onClose?.() }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [member, onClose])
+
   if (!member) return null
 
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/35 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-3xl border border-stone-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={`${member.name} profile`} className="w-full max-w-md rounded-3xl border border-stone-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <MemberAvatar member={member} sizeClass="h-14 w-14" />
@@ -788,7 +1005,7 @@ function MemberProfileModal({ member, onClose, onMessage }) {
               <p className="mt-1 text-xs text-stone-500">{member.subtitle || member.role || 'Group member'}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100">
+          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100" title="Close profile" aria-label="Close profile">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -813,11 +1030,28 @@ function MemberProfileModal({ member, onClose, onMessage }) {
 }
 
 function ConfirmActionModal({ open, title, description, confirmLabel, busy, onCancel, onConfirm, variant = 'danger' }) {
+  useEffect(() => {
+    if (!open) return undefined
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !busy) onCancel?.()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, busy, onCancel])
+
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4" onClick={onCancel}>
-      <div className="w-full max-w-sm rounded-3xl border border-stone-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="w-full max-w-sm rounded-3xl border border-stone-200 bg-white p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h3 className="text-base font-semibold text-stone-900">{title}</h3>
         <p className="mt-2 text-sm leading-6 text-stone-500">{description}</p>
         <div className="mt-5 flex justify-end gap-2">
@@ -859,6 +1093,7 @@ function GroupInfoModal({
   onLeave,
   overlay = false,
   embedded = false,
+  responsive = false,
 }) {
   const [menuMemberId, setMenuMemberId] = useState('')
 
@@ -868,17 +1103,84 @@ function GroupInfoModal({
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
+
   if (!open || !room) return null
 
-  const filteredMembers = members
+  const memberQuery = String(searchTerm || '').trim().toLowerCase()
+  const filteredMembers = memberQuery
+    ? members.filter((member) =>
+        [member.name, member.studentNumber, member.subtitle, member.role, member.department, member.position]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(memberQuery)
+      )
+    : members
+  const currentMember = members.find((member) => member.userId === currentUserId || member.isCurrentUser)
+  const viewerIsAdmin = currentMember?.isAdmin === true || room.viewerIsAdmin === true
+  const adminCount = members.filter((member) => member.isAdmin).length
+  const displayedMemberCount = Number(room.memberCount || members.length || 0)
+  const mustAssignAdminBeforeLeaving = viewerIsAdmin && displayedMemberCount > 1 && adminCount <= 1
+  const filteredAdmins = filteredMembers.filter((member) => member.isAdmin)
+  const filteredRegularMembers = filteredMembers.filter((member) => !member.isAdmin)
+
+  const renderMemberRow = (member) => {
+    const canPromote = viewerIsAdmin && !member.isCurrentUser && member.userId !== currentUserId && !member.isAdmin
+    const canRemove = viewerIsAdmin && !member.isCurrentUser && member.userId !== currentUserId && !member.isAdmin
+
+    return (
+      <div key={member.userId} className="relative flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-stone-50">
+        <MemberAvatar member={member} sizeClass="h-9 w-9" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-medium text-stone-900">{member.name}</p>
+            {member.isCurrentUser || member.userId === currentUserId ? (
+              <span className="shrink-0 text-xs font-medium text-stone-400">You</span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 truncate text-xs text-stone-500">{member.subtitle || member.role || 'Group member'}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMenuMemberId((current) => current === member.userId ? '' : member.userId)}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100"
+          title={`Actions for ${member.name}`}
+          aria-label={`Actions for ${member.name}`}
+          aria-haspopup="menu"
+          aria-expanded={menuMemberId === member.userId}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+        {menuMemberId === member.userId ? (
+          <div className="absolute right-2 top-10 z-20 w-44 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl" role="menu">
+            <button type="button" onClick={() => { setMenuMemberId(''); onViewProfile(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><Eye className="h-3.5 w-3.5" /> View profile</button>
+            {!member.isCurrentUser && member.userId !== currentUserId ? <button type="button" onClick={() => { setMenuMemberId(''); onMessage(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><MessageSquareMore className="h-3.5 w-3.5" /> Message</button> : null}
+            {canPromote ? <button type="button" onClick={() => { setMenuMemberId(''); onPromote(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[var(--portal-base)] hover:bg-[var(--portal-accent-soft)]"><ShieldCheck className="h-3.5 w-3.5" /> Make group admin</button> : null}
+            {canRemove ? <button type="button" onClick={() => { setMenuMemberId(''); onRemove(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"><UserMinus className="h-3.5 w-3.5" /> Remove member</button> : null}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <aside
+      aria-label="Group information"
       className={embedded
         ? 'flex h-full min-h-0 w-full flex-col bg-white'
         : overlay
           ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl'
-          : 'flex min-h-0 flex-col border-l border-stone-200 bg-white'}
+          : responsive
+            ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl xl:static xl:z-auto xl:w-auto xl:shadow-none'
+            : 'flex min-h-0 flex-col border-l border-stone-200 bg-white'}
     >
       <div className="border-b border-stone-100 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
@@ -907,19 +1209,19 @@ function GroupInfoModal({
           <input
             value={searchTerm}
             onChange={(event) => onSearchChange?.(event.target.value)}
-            placeholder="Search chat"
+            placeholder="Search members"
+            aria-label="Search group members"
             className="h-9 w-full rounded-lg border border-stone-200 pl-9 pr-3 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
           />
         </div>
         {searchTerm?.trim() ? (
-          <p className="mt-1.5 text-xs text-stone-500">{matchCount} match{matchCount === 1 ? '' : 'es'}</p>
+          <p className="mt-1.5 text-xs text-stone-500">{filteredMembers.length} match{filteredMembers.length === 1 ? '' : 'es'}</p>
         ) : null}
       </div>
 
       <div className="px-4 pt-4">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-stone-800">All members</p>
-          {room.viewerIsAdmin ? (
+        <div className="mb-2 flex items-center justify-end gap-3">
+          {viewerIsAdmin ? (
             <button
               type="button"
               onClick={onAddMember}
@@ -936,38 +1238,28 @@ function GroupInfoModal({
         {loading ? (
           <div className="flex justify-center gap-2 py-10 text-sm text-stone-500"><LoaderCircle className="h-4 w-4 animate-spin" /> Loading members</div>
         ) : filteredMembers.length ? (
-          <div className="space-y-2">
-            {filteredMembers.map((member) => {
-              const canPromote = room.viewerIsAdmin && !member.isCurrentUser && !member.isAdmin
-              const canRemove = room.viewerIsAdmin && !member.isCurrentUser && !member.isAdmin
-              return (
-                <div key={member.userId} className="relative flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-stone-50">
-                  <MemberAvatar member={member} sizeClass="h-9 w-9" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium text-stone-900">{member.name}</p>
-                      {member.isAdmin ? <span className="shrink-0 rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--portal-base)]">Admin</span> : null}
-                    </div>
-                    <p className="mt-0.5 truncate text-xs text-stone-500">{member.userId === currentUserId ? 'You' : member.subtitle || member.role || 'Group member'}</p>
-                  </div>
-                  <button type="button" onClick={() => setMenuMemberId((current) => current === member.userId ? '' : member.userId)} className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100" title="Member actions">
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {menuMemberId === member.userId ? (
-                    <div className="absolute right-2 top-10 z-20 w-44 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl">
-                      <button type="button" onClick={() => { setMenuMemberId(''); onViewProfile(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><Eye className="h-3.5 w-3.5" /> View profile</button>
-                      {!member.isCurrentUser ? <button type="button" onClick={() => { setMenuMemberId(''); onMessage(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><MessageSquareMore className="h-3.5 w-3.5" /> Message</button> : null}
-                      {canPromote ? <button type="button" onClick={() => { setMenuMemberId(''); onPromote(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[var(--portal-base)] hover:bg-[var(--portal-accent-soft)]"><ShieldCheck className="h-3.5 w-3.5" /> Make group admin</button> : null}
-                      {canRemove ? <button type="button" onClick={() => { setMenuMemberId(''); onRemove(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"><UserMinus className="h-3.5 w-3.5" /> Remove member</button> : null}
-                    </div>
-                  ) : null}
+          <div className="space-y-5">
+            {filteredAdmins.length ? (
+              <section>
+                <div className="mb-1.5 px-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Group Admins</p>
                 </div>
-              )
-            })}
+                <div className="space-y-1">{filteredAdmins.map(renderMemberRow)}</div>
+              </section>
+            ) : null}
+
+            {filteredRegularMembers.length ? (
+              <section>
+                <div className="mb-1.5 px-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Members</p>
+                </div>
+                <div className="space-y-1">{filteredRegularMembers.map(renderMemberRow)}</div>
+              </section>
+            ) : null}
           </div>
         ) : (
           <div className="py-10 text-center text-sm text-stone-500">
-            {Number(room.memberCount || 0) > 0 ? 'Member details could not be loaded.' : 'No members in this group.'}
+            {memberQuery ? 'No members match your search.' : Number(room.memberCount || 0) > 0 ? 'Member details could not be loaded.' : 'No members in this group.'}
           </div>
         )}
 
@@ -975,12 +1267,16 @@ function GroupInfoModal({
           <button
             type="button"
             onClick={onLeave}
-            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50"
+            disabled={mustAssignAdminBeforeLeaving}
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400 disabled:hover:bg-stone-50"
+            title={mustAssignAdminBeforeLeaving ? 'Assign another group admin before leaving.' : 'Leave group'}
           >
             <LogOut className="h-4 w-4" /> Leave group
           </button>
           <p className="mt-2 text-center text-xs leading-5 text-stone-400">
-            Leaving removes you from the group and moves it to your personal Archived Messages.
+            {mustAssignAdminBeforeLeaving
+              ? 'Assign another group admin before leaving so the group is not left without an administrator.'
+              : 'Leaving removes you from the group and moves it to your personal Archived Messages.'}
           </p>
         </div>
       </div>
@@ -1359,12 +1655,13 @@ export default function AdminMessages({
   const tokenPayload = parseMessagingToken(token)
   const currentUserId =
     tokenPayload.user_id || tokenPayload.userId || tokenPayload.sub || tokenPayload.id || ''
+  const emitSocket = useSocketEmit()
+  const socketStatus = useSocketConnectionState()
 
   const [isOpen, setIsOpen] = useState(false)
   const [mainView, setMainView] = useState('chats')
   const [searchTerm, setSearchTerm] = useState('')
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
-  const isAdminMessaging = portalKey === 'admin'
   const [compactPane, setCompactPane] = useState('list')
 
   const [conversations, setConversations] = useState([])
@@ -1390,6 +1687,7 @@ export default function AdminMessages({
 
   const [groupInfoOpen, setGroupInfoOpen] = useState(false)
   const [groupMembers, setGroupMembers] = useState([])
+  const [groupMemberSearchTerm, setGroupMemberSearchTerm] = useState('')
   const [loadingGroupMembers, setLoadingGroupMembers] = useState(false)
   const [selectedMemberProfile, setSelectedMemberProfile] = useState(null)
   const [pendingRemoveMember, setPendingRemoveMember] = useState(null)
@@ -1400,6 +1698,12 @@ export default function AdminMessages({
   const [leaveGroupBusy, setLeaveGroupBusy] = useState(false)
   const [chatSearchOpen, setChatSearchOpen] = useState(false)
   const [chatSearchTerm, setChatSearchTerm] = useState('')
+  const [chatMatchIndex, setChatMatchIndex] = useState(0)
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState('')
+  const [replyingTo, setReplyingTo] = useState(null)
+  const [pendingDeleteMessage, setPendingDeleteMessage] = useState(null)
+  const [deleteMessageBusy, setDeleteMessageBusy] = useState(false)
+  const [typingUserIds, setTypingUserIds] = useState([])
 
   const [archivedOpen, setArchivedOpen] = useState(false)
   const [archivedItems, setArchivedItems] = useState([])
@@ -1415,7 +1719,14 @@ export default function AdminMessages({
   const composerRef = useRef(null)
   const shouldAutoScrollRef = useRef(true)
   const forceScrollToBottomRef = useRef(true)
+  const sendingRef = useRef(false)
   const processedRealtimeMessageIdsRef = useRef(new Set())
+  const pendingUnreadOpenRef = useRef(null)
+  const typingStopTimerRef = useRef(null)
+  const typingActiveRef = useRef(false)
+  const typingTargetRef = useRef(null)
+  const lastTypingEmitAtRef = useRef(0)
+  const typingExpiryTimersRef = useRef(new Map())
 
   const totalUnreadCount = useMemo(
     () =>
@@ -1540,11 +1851,43 @@ export default function AdminMessages({
     )
   }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId, transientPrivateContact])
 
-  const chatMatchCount = useMemo(() => {
+  const chatMatches = useMemo(() => {
     const query = chatSearchTerm.trim().toLowerCase()
-    if (!query) return 0
-    return messages.filter((message) => message.messageBody.toLowerCase().includes(query)).length
+    if (!query) return []
+    return messages.filter((message) =>
+      [message.messageBody, message.replyMessageBody, message.senderName]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    )
   }, [messages, chatSearchTerm])
+
+  const chatMatchCount = chatMatches.length
+  const currentChatMatchId = chatMatches[chatMatchIndex]?.messageId || ''
+
+  const latestOwnMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.senderId === currentUserId) return messages[index].messageId
+    }
+    return ''
+  }, [messages, currentUserId])
+
+  const typingLabel = useMemo(() => {
+    if (!typingUserIds.length || !selectedItem) return ''
+
+    const names = typingUserIds
+      .map((userId) => {
+        if (selectedItem.type === 'private') return selectedItem.name
+        return groupMembers.find((member) => member.userId === userId)?.name || 'Someone'
+      })
+      .filter(Boolean)
+
+    if (!names.length) return ''
+    if (names.length === 1) return `${names[0]} is typing…`
+    if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`
+    return `${names[0]} and ${names.length - 1} others are typing…`
+  }, [typingUserIds, selectedItem, groupMembers])
 
   useEffect(() => {
     activeConversationRef.current = activeConversationId
@@ -1570,9 +1913,29 @@ export default function AdminMessages({
     shouldAutoScrollRef.current = distanceFromBottom < 120
   }, [])
 
+  const scrollToMessageId = useCallback((messageId, behavior = 'smooth') => {
+    if (!messageId) return
+    window.requestAnimationFrame(() => {
+      const container = messagesScrollRef.current
+      const target = container?.querySelector(`[data-message-id="${messageId}"]`)
+      if (!container || !target) return
+      const containerRect = container.getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
+      const top = container.scrollTop + (targetRect.top - containerRect.top) - (container.clientHeight / 3)
+      container.scrollTo({ top: Math.max(0, top), behavior })
+      shouldAutoScrollRef.current = false
+    })
+  }, [])
+
   useEffect(() => {
-    forceScrollToBottomRef.current = true
-    shouldAutoScrollRef.current = true
+    const pending = pendingUnreadOpenRef.current
+    const pendingMatches = pending && (
+      (activeType === 'group' && pending.type === 'group' && pending.id === activeRoomId) ||
+      (activeType === 'private' && pending.type === 'private' && pending.id === activeConversationId)
+    )
+    forceScrollToBottomRef.current = !pendingMatches
+    shouldAutoScrollRef.current = !pendingMatches
+    setFirstUnreadMessageId('')
   }, [activeType, activeConversationId, activeRoomId])
 
   useEffect(() => {
@@ -1588,6 +1951,20 @@ export default function AdminMessages({
       scrollMessagesToBottom('smooth')
     }
   }, [messages, scrollMessagesToBottom])
+
+  useEffect(() => {
+    if (!chatMatches.length) {
+      setChatMatchIndex(0)
+      return
+    }
+    setChatMatchIndex((current) => Math.min(current, chatMatches.length - 1))
+  }, [chatMatches.length])
+
+  useEffect(() => {
+    if (chatSearchOpen && currentChatMatchId) {
+      scrollToMessageId(currentChatMatchId)
+    }
+  }, [chatSearchOpen, currentChatMatchId, scrollToMessageId])
 
   useEffect(() => {
     const composer = composerRef.current
@@ -1617,13 +1994,13 @@ export default function AdminMessages({
           return
         }
 
-        if (items.length && !activeRoomRef.current) {
-          const nextConversationId = items.some((item) => item.id === preferredConversationId)
-            ? preferredConversationId
-            : items[0].id
-
+        if (
+          preferredConversationId &&
+          !activeRoomRef.current &&
+          items.some((item) => item.id === preferredConversationId)
+        ) {
           setActiveType('private')
-          setActiveConversationId(nextConversationId)
+          setActiveConversationId(preferredConversationId)
         }
       } catch (err) {
         setError(err.message || 'Failed to load conversations.')
@@ -1647,10 +2024,7 @@ export default function AdminMessages({
 
         setRooms(items)
 
-        if (items.length && !activeConversationRef.current && !preferredRoomId) {
-          setActiveType('group')
-          setActiveRoomId(items[0].id)
-        } else if (
+        if (
           items.length &&
           preferredRoomId &&
           items.some((item) => item.id === preferredRoomId)
@@ -1703,7 +2077,15 @@ export default function AdminMessages({
         const items = sortMessages((payload.items || []).map(normalizeMessage))
         const counterpartyDisabled = payload?.counterparty?.is_disabled === true
 
-        setMessages(items)
+        setMessages((current) => {
+          if (!silent) return items
+          const serverClientIds = new Set(items.map((message) => message.clientMessageId).filter(Boolean))
+          const localPending = current.filter((message) =>
+            (message.deliveryStatus === 'sending' || message.deliveryStatus === 'failed') &&
+            (!message.clientMessageId || !serverClientIds.has(message.clientMessageId))
+          )
+          return sortMessages([...items, ...localPending])
+        })
         setConversations((current) =>
           current.map((item) =>
             item.id === counterpartyId
@@ -1753,7 +2135,15 @@ export default function AdminMessages({
           payload.member_count ?? payload.memberCount ?? roomMembers.length
         )
 
-        setMessages(items)
+        setMessages((current) => {
+          if (!silent) return items
+          const serverClientIds = new Set(items.map((message) => message.clientMessageId).filter(Boolean))
+          const localPending = current.filter((message) =>
+            (message.deliveryStatus === 'sending' || message.deliveryStatus === 'failed') &&
+            (!message.clientMessageId || !serverClientIds.has(message.clientMessageId))
+          )
+          return sortMessages([...items, ...localPending])
+        })
         if (hasMemberPayload) {
           setGroupMembers(roomMembers)
           setRooms((current) => current.map((room) =>
@@ -2001,6 +2391,45 @@ export default function AdminMessages({
     [token]
   )
 
+  useEffect(() => {
+    const pending = pendingUnreadOpenRef.current
+    if (!pending || loadingMessages || !messages.length) return
+
+    const matchesActive =
+      (pending.type === 'group' && activeType === 'group' && pending.id === activeRoomId) ||
+      (pending.type === 'private' && activeType === 'private' && pending.id === activeConversationId)
+    if (!matchesActive) return
+
+    const firstUnread = messages.find(
+      (message) => message.senderId !== currentUserId && message.isRead !== true
+    )
+
+    if (firstUnread?.messageId) {
+      setFirstUnreadMessageId(firstUnread.messageId)
+      scrollToMessageId(firstUnread.messageId, 'auto')
+    }
+
+    pendingUnreadOpenRef.current = null
+
+    const markPromise = pending.type === 'group'
+      ? markRoomMessagesRead(pending.id)
+      : markConversationRead(pending.id)
+
+    Promise.resolve(markPromise).catch((error) => {
+      console.error('[Messaging] Auto read after opening unread thread failed:', error)
+    })
+  }, [
+    messages,
+    loadingMessages,
+    activeType,
+    activeConversationId,
+    activeRoomId,
+    currentUserId,
+    markConversationRead,
+    markRoomMessagesRead,
+    scrollToMessageId,
+  ])
+
   const fetchArchivedThreads = useCallback(async () => {
     try {
       setLoadingArchived(true)
@@ -2140,22 +2569,127 @@ export default function AdminMessages({
     ]
   )
 
-  async function handleSendMessage(event) {
-    event.preventDefault()
+  const emitTypingState = useCallback(
+    (isTyping) => {
+      const currentTarget = {
+        type: activeType,
+        roomId: activeType === 'group' ? activeRoomId : '',
+        counterpartyId: activeType === 'private' ? activeConversationId : '',
+      }
+      const target = isTyping ? currentTarget : (typingTargetRef.current || currentTarget)
+      const hasTarget = target.type === 'group' ? Boolean(target.roomId) : Boolean(target.counterpartyId)
+      if (!isOpen || !hasTarget || !currentUserId) return false
 
-    const messageBody = draft.trim()
-    if (!messageBody) return
+      const emitted = emitSocket('message:typing', {
+        roomId: target.type === 'group' ? target.roomId : null,
+        room_id: target.type === 'group' ? target.roomId : null,
+        counterpartyId: target.type === 'private' ? target.counterpartyId : null,
+        counterparty_id: target.type === 'private' ? target.counterpartyId : null,
+        isTyping,
+        is_typing: isTyping,
+      })
+
+      if (emitted) {
+        if (isTyping) typingTargetRef.current = target
+        else typingTargetRef.current = null
+      }
+      return emitted
+    },
+    [emitSocket, isOpen, currentUserId, activeType, activeRoomId, activeConversationId]
+  )
+
+  const stopTyping = useCallback(() => {
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current)
+      typingStopTimerRef.current = null
+    }
+    if (typingActiveRef.current) {
+      emitTypingState(false)
+      typingActiveRef.current = false
+    }
+  }, [emitTypingState])
+
+  const handleDraftChange = useCallback((event) => {
+    const value = event.target.value
+    setDraft(value)
+
+    if (!value.trim()) {
+      stopTyping()
+      return
+    }
+
+    const now = Date.now()
+    if (!typingActiveRef.current || now - lastTypingEmitAtRef.current > 1200) {
+      emitTypingState(true)
+      typingActiveRef.current = true
+      lastTypingEmitAtRef.current = now
+    }
+
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current)
+    }
+    typingStopTimerRef.current = window.setTimeout(() => {
+      if (typingActiveRef.current) {
+        emitTypingState(false)
+        typingActiveRef.current = false
+      }
+      typingStopTimerRef.current = null
+    }, 1800)
+  }, [emitTypingState, stopTyping])
+
+  useEffect(() => () => stopTyping(), [stopTyping])
+
+  async function sendMessageBody(rawMessageBody, options = {}) {
+    const messageBody = rawMessageBody?.trim?.() || ''
+    if (!messageBody || sendingRef.current) return
 
     if (activeType === 'private' && selectedItem?.isDisabled) {
       setError('This account is currently disabled. You can view previous messages, but you cannot send new messages to this account.')
       return
     }
 
+    const replyTarget = options.replyTarget || replyingTo
+    const clientMessageId = options.clientMessageId || createClientMessageId()
+    const optimisticId = options.optimisticId || `local:${clientMessageId}`
+    const optimisticSentAt = options.sentAt || new Date().toISOString()
+    const optimisticMessage = normalizeMessage({
+      messageId: optimisticId,
+      clientMessageId,
+      senderId: currentUserId,
+      receiverId: activeType === 'private' ? activeConversationId : null,
+      roomId: activeType === 'group' ? activeRoomId : null,
+      messageBody,
+      sentAt: optimisticSentAt,
+      isRead: true,
+      seenByCounterparty: false,
+      deliveryStatus: 'sending',
+      replyToMessageId: replyTarget?.messageId || replyTarget?.replyToMessageId || '',
+      replyMessageBody: replyTarget?.messageBody || replyTarget?.replyMessageBody || '',
+      replySenderId: replyTarget?.senderId || replyTarget?.replySenderId || '',
+      replySenderName:
+        replyTarget?.senderName ||
+        replyTarget?.replySenderName ||
+        (replyTarget?.senderId === currentUserId ? 'You' : ''),
+    })
+
     shouldAutoScrollRef.current = true
+    sendingRef.current = true
     setSending(true)
+    setMessages((current) => upsertMessage(current, optimisticMessage))
+
+    if (!options.isRetry) {
+      setDraft('')
+      setReplyingTo(null)
+      stopTyping()
+    }
 
     try {
       let response
+      const requestBody = {
+        messageBody,
+        clientMessageId,
+        replyToMessageId: optimisticMessage.replyToMessageId || null,
+      }
 
       if (activeType === 'group' && activeRoomId) {
         response = await fetch(
@@ -2163,7 +2697,7 @@ export default function AdminMessages({
           {
             method: 'POST',
             headers: buildMessagingHeaders(token, { json: true }),
-            body: JSON.stringify({ messageBody }),
+            body: JSON.stringify(requestBody),
           }
         )
       } else if (activeConversationId) {
@@ -2172,16 +2706,18 @@ export default function AdminMessages({
           {
             method: 'POST',
             headers: buildMessagingHeaders(token, { json: true }),
-            body: JSON.stringify({ messageBody }),
+            body: JSON.stringify(requestBody),
           }
         )
       } else {
-        setSending(false)
-        return
+        throw new Error('Select a conversation before sending a message.')
       }
 
       const payload = await parseApiResponse(response, 'Failed to send message.')
-      const message = normalizeMessage(payload)
+      const message = {
+        ...normalizeMessage(payload),
+        deliveryStatus: 'sent',
+      }
 
       setMessages((current) => upsertMessage(current, message))
 
@@ -2238,14 +2774,99 @@ export default function AdminMessages({
       if (activeType === 'private') {
         setTransientPrivateContact(null)
       }
-      setDraft('')
       setError('')
     } catch (err) {
-      setError(err.message || 'Failed to send message.')
+      setMessages((current) => current.map((message) =>
+        message.messageId === optimisticId || message.clientMessageId === clientMessageId
+          ? {
+            ...message,
+            messageId: optimisticId,
+            clientMessageId,
+            deliveryStatus: 'failed',
+            sendError: err.message || 'Failed to send message.',
+          }
+          : message
+      ))
+      setError('')
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }
+
+  async function handleSendMessage(event) {
+    event.preventDefault()
+    await sendMessageBody(draft)
+  }
+
+  async function handleQuickLike() {
+    if (draft.trim() || sendingRef.current) return
+    await sendMessageBody('👍')
+  }
+
+  function handleReplyToMessage(message) {
+    if (!message || message.deliveryStatus === 'failed') return
+    setReplyingTo(message)
+    window.requestAnimationFrame(() => composerRef.current?.focus())
+  }
+
+  async function handleCopyMessage(message) {
+    try {
+      await navigator.clipboard.writeText(message?.messageBody || '')
+    } catch {
+      setError('Unable to copy this message in the current browser.')
+    }
+  }
+
+  async function handleDeleteMessageForMe(message) {
+    if (!message?.messageId || message.messageId.startsWith('local:')) {
+      setMessages((current) => current.filter((item) => item.messageId !== message?.messageId))
+      setPendingDeleteMessage(null)
+      return
+    }
+
+    try {
+      setDeleteMessageBusy(true)
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/message/${message.messageId}`, {
+        method: 'DELETE',
+        headers: buildMessagingHeaders(token),
+      })
+      await parseApiResponse(response, 'Failed to delete message for you.')
+
+      setMessages((current) => current.filter((item) => item.messageId !== message.messageId))
+      if (firstUnreadMessageId === message.messageId) setFirstUnreadMessageId('')
+      if (replyingTo?.messageId === message.messageId) setReplyingTo(null)
+      setPendingDeleteMessage(null)
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to delete message for you.')
+    } finally {
+      setDeleteMessageBusy(false)
+    }
+  }
+
+  async function handleRetryFailedMessage(message) {
+    if (!message || sendingRef.current) return
+    await sendMessageBody(message.messageBody, {
+      isRetry: true,
+      clientMessageId: message.clientMessageId || createClientMessageId(),
+      optimisticId: message.messageId,
+      sentAt: message.sentAt,
+      replyTarget: message.replyToMessageId
+        ? {
+          messageId: message.replyToMessageId,
+          messageBody: message.replyMessageBody,
+          senderId: message.replySenderId,
+          senderName: message.replySenderName,
+        }
+        : null,
+    })
+  }
+
 
   async function handleCreateGroup(payload) {
     try {
@@ -2420,7 +3041,7 @@ export default function AdminMessages({
     setGroupInfoOpen(false)
     setChatSearchOpen(false)
     setChatSearchTerm('')
-    if (isAdminMessaging) setCompactPane('thread')
+    setCompactPane('thread')
     setActiveType('private')
     setActiveConversationId(member.userId)
     setActiveRoomId('')
@@ -2454,9 +3075,16 @@ export default function AdminMessages({
   useEffect(() => {
     setChatSearchOpen(false)
     setChatSearchTerm('')
+    setChatMatchIndex(0)
     setGroupInfoOpen(false)
     setGroupMembers([])
-  }, [activeType, activeConversationId, activeRoomId])
+    setGroupMemberSearchTerm('')
+    setTypingUserIds([])
+    setReplyingTo(null)
+    typingExpiryTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))
+    typingExpiryTimersRef.current.clear()
+    stopTyping()
+  }, [activeType, activeConversationId, activeRoomId, stopTyping])
 
   useEffect(() => {
     if (!token || !currentUserId) {
@@ -2488,6 +3116,10 @@ export default function AdminMessages({
 
     if (!activeConversationId && !activeRoomId && filteredItems.length) {
       const firstItem = filteredItems[0]
+      if (Number(firstItem.unreadCount || 0) > 0) {
+        pendingUnreadOpenRef.current = { type: firstItem.type, id: firstItem.id }
+        setMessages([])
+      }
 
       if (firstItem.type === 'group') {
         setActiveType('group')
@@ -2566,6 +3198,10 @@ export default function AdminMessages({
   useEffect(() => {
     if (!selectedItem && filteredItems.length) {
       const firstItem = filteredItems[0]
+      if (Number(firstItem.unreadCount || 0) > 0) {
+        pendingUnreadOpenRef.current = { type: firstItem.type, id: firstItem.id }
+        setMessages([])
+      }
 
       if (firstItem.type === 'group') {
         setActiveType('group')
@@ -2757,6 +3393,40 @@ export default function AdminMessages({
   )
 
   useSocketEvent(
+    'message:typing',
+    (data = {}) => {
+      const senderId = data?.sender_id?.toString?.() || data?.senderId?.toString?.() || ''
+      if (!senderId || senderId === currentUserId || !isOpen) return
+
+      const roomId = data?.room_id?.toString?.() || data?.roomId?.toString?.() || ''
+      const counterpartyId = data?.counterparty_id?.toString?.() || data?.counterpartyId?.toString?.() || ''
+      const isTyping = data?.is_typing === true || data?.isTyping === true
+      const isRelevant = activeType === 'group'
+        ? Boolean(activeRoomId && roomId === activeRoomId)
+        : Boolean(activeConversationId && senderId === activeConversationId && (!counterpartyId || counterpartyId === currentUserId))
+
+      if (!isRelevant) return
+
+      const previousTimer = typingExpiryTimersRef.current.get(senderId)
+      if (previousTimer) window.clearTimeout(previousTimer)
+
+      if (!isTyping) {
+        typingExpiryTimersRef.current.delete(senderId)
+        setTypingUserIds((current) => current.filter((id) => id !== senderId))
+        return
+      }
+
+      setTypingUserIds((current) => current.includes(senderId) ? current : [...current, senderId])
+      const timerId = window.setTimeout(() => {
+        typingExpiryTimersRef.current.delete(senderId)
+        setTypingUserIds((current) => current.filter((id) => id !== senderId))
+      }, 2800)
+      typingExpiryTimersRef.current.set(senderId, timerId)
+    },
+    [isOpen, activeType, activeRoomId, activeConversationId, currentUserId]
+  )
+
+  useSocketEvent(
     'maintenance:updated',
     async (data) => {
       if (data?.module && data.module !== 'accounts') return
@@ -2793,7 +3463,14 @@ export default function AdminMessages({
         .filter(Boolean)
 
       if (messageIds.length) {
-        setMessages((current) => markMessagesRead(current, messageIds))
+        const readerId = data?.reader_id?.toString?.() || data?.readerId?.toString?.() || ''
+        setMessages((current) =>
+          markMessagesRead(current, messageIds).map((message) =>
+            readerId && readerId !== currentUserId && messageIds.includes(message.messageId) && message.senderId === currentUserId
+              ? { ...message, seenByCounterparty: true }
+              : message
+          )
+        )
       }
 
       await Promise.all([
@@ -2804,6 +3481,7 @@ export default function AdminMessages({
     [
       activeConversationId,
       activeRoomId,
+      currentUserId,
       fetchConversations,
       fetchRooms,
     ]
@@ -2831,6 +3509,24 @@ export default function AdminMessages({
       fetchConversations,
       fetchRooms,
     ]
+  )
+
+  useSocketEvent(
+    'message:hidden',
+    async (data = {}) => {
+      const hiddenBy = data?.hidden_by?.toString?.() || data?.hiddenBy?.toString?.() || ''
+      const messageId = data?.message_id?.toString?.() || data?.messageId?.toString?.() || ''
+      if (!messageId || hiddenBy !== currentUserId) return
+
+      setMessages((current) => current.filter((message) => message.messageId !== messageId))
+      if (firstUnreadMessageId === messageId) setFirstUnreadMessageId('')
+      if (replyingTo?.messageId === messageId) setReplyingTo(null)
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+    },
+    [currentUserId, firstUnreadMessageId, replyingTo, activeConversationId, activeRoomId, fetchConversations, fetchRooms]
   )
 
   useSocketEvent(
@@ -3080,7 +3776,7 @@ export default function AdminMessages({
     ]
   )
 
-  const renderGroupInfo = ({ embedded = false } = {}) => (
+  const renderGroupInfo = ({ embedded = false, responsive = false } = {}) => (
     <GroupInfoModal
       open={groupInfoOpen}
       room={selectedItem?.type === 'group' ? selectedItem : null}
@@ -3088,12 +3784,9 @@ export default function AdminMessages({
       loading={loadingGroupMembers}
       currentUserId={currentUserId}
       onClose={() => setGroupInfoOpen(false)}
-      searchTerm={chatSearchTerm}
-      matchCount={chatMatchCount}
-      onSearchChange={(value) => {
-        setChatSearchTerm(value)
-        setChatSearchOpen(Boolean(value.trim()))
-      }}
+      searchTerm={groupMemberSearchTerm}
+      matchCount={groupMembers.length}
+      onSearchChange={setGroupMemberSearchTerm}
       onViewProfile={setSelectedMemberProfile}
       onMessage={handleMessageMember}
       onRemove={setPendingRemoveMember}
@@ -3105,34 +3798,44 @@ export default function AdminMessages({
       }}
       onLeave={() => setLeaveGroupOpen(true)}
       embedded={embedded}
+      responsive={responsive}
     />
   )
 
   return (
     <>
+      {!isOpen && (
       <button
-        type="button"
-        onClick={() => {
-          setMainView('chats')
-          setArchivedOpen(false)
-          setCreateGroupOpen(false)
-          setAddMembersOpen(false)
-          setGroupInfoOpen(false)
-          if (isAdminMessaging) setCompactPane('list')
-          setIsOpen(true)
-        }}
-        className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
-          }`}
-        title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
-      >
-        <MessageSquareMore className="h-6 w-6" />
-
-        {totalUnreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold leading-none text-white shadow-md">
-            {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-          </span>
+          type="button"
+          onClick={() => {
+            activeConversationRef.current = ''
+            activeRoomRef.current = ''
+            setActiveConversationId('')
+            setActiveRoomId('')
+            setMessages([])
+            setSearchTerm('')
+            setShowUnreadOnly(false)
+            setMainView('chats')
+            setArchivedOpen(false)
+            setCreateGroupOpen(false)
+            setAddMembersOpen(false)
+            setGroupInfoOpen(false)
+            setCompactPane('list')
+            setIsOpen(true)
+          }}
+          className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
+            }`}
+          aria-label={totalUnreadCount > 0 ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
+        >
+          <MessageSquareMore className="h-6 w-6" />
+  
+          {totalUnreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold leading-none text-white shadow-md">
+              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+            </span>
+          )}
+        </button>
         )}
-      </button>
 
       <MemberProfileModal
         member={selectedMemberProfile}
@@ -3149,6 +3852,16 @@ export default function AdminMessages({
         variant="primary"
         onCancel={() => { if (!archiveThreadBusy) setPendingArchiveThread(null) }}
         onConfirm={() => archiveThread(pendingArchiveThread)}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(pendingDeleteMessage)}
+        title="Delete message for you?"
+        description="This message will be hidden only from your account. Other participants will still have their copy."
+        confirmLabel="Delete for me"
+        busy={deleteMessageBusy}
+        onCancel={() => { if (!deleteMessageBusy) setPendingDeleteMessage(null) }}
+        onConfirm={() => handleDeleteMessageForMe(pendingDeleteMessage)}
       />
 
       <ConfirmActionModal
@@ -3183,39 +3896,27 @@ export default function AdminMessages({
       />
 
       {isOpen && (
-        <div
-          className={isAdminMessaging
-            ? 'fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 sm:p-3 md:p-5 lg:items-center lg:p-6'
-            : 'fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6'}
-        >
-          <div
-            className={isAdminMessaging
-              ? 'flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100dvh-24px)] sm:rounded-[24px] sm:border sm:border-stone-200 md:h-[calc(100dvh-40px)] lg:h-[92dvh] lg:max-h-[860px] lg:max-w-6xl'
-              : 'flex h-[88vh] w-full max-w-7xl flex-col overflow-hidden rounded-[26px] border border-stone-200 bg-white shadow-2xl'}
-          >
-            <div
-              className={isAdminMessaging
-                ? 'flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-stone-100 px-3 py-3 sm:px-4 lg:px-5'
-                : 'flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5'}
-            >
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-0 sm:p-4 lg:p-6">
+          <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[88dvh] sm:max-w-7xl sm:rounded-[26px] sm:border sm:border-stone-200">
+            <div className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-100 px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
                   <MessageSquareMore className="h-4.5 w-4.5" />
                 </div>
                 <div>
                   <div className="text-base font-semibold text-stone-900">Messages</div>
-                  <div className="text-xs text-stone-500">{isAdminMessaging ? 'Admin inbox' : 'Private and group conversations'}</div>
+                  <div className="text-xs text-stone-500">Private and group conversations</div>
                 </div>
               </div>
 
-              <div className={isAdminMessaging ? 'flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2' : 'flex items-center gap-2'}>
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={openArchivedThreads}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'archived' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
                 >
                   <Archive className="h-4 w-4" />
-                  <span className={isAdminMessaging ? 'hidden sm:inline' : ''}>Archived</span>
+                  <span>Archived</span>
                 </button>
 
                 <button
@@ -3230,7 +3931,7 @@ export default function AdminMessages({
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'create-group' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
                 >
                   <Users className="h-4 w-4" />
-                  <span className={isAdminMessaging ? 'hidden sm:inline' : ''}>Group</span>
+                  <span>Group</span>
                 </button>
 
                 <button
@@ -3240,14 +3941,18 @@ export default function AdminMessages({
                     fetchRooms(activeRoomId)
                   }}
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                  title="Refresh conversations"
+                  aria-label="Refresh conversations"
                 >
                   <RefreshCw className="h-4 w-4" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setTransientPrivateContact(null); if (isAdminMessaging) setCompactPane('list') }}
+                  onClick={() => { stopTyping(); setIsOpen(false); setMainView('chats'); setArchivedOpen(false); setCreateGroupOpen(false); setAddMembersOpen(false); setGroupInfoOpen(false); setTransientPrivateContact(null); setCompactPane('list') }}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+                  title="Close messages"
+                  aria-label="Close messages"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -3296,19 +4001,14 @@ export default function AdminMessages({
               />
             ) : (
             <div
-              className={isAdminMessaging
-                ? 'grid min-h-0 flex-1 grid-cols-1 gap-0 md:grid-cols-[300px_minmax(0,1fr)]'
-                : `grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'xl:grid-cols-[320px_minmax(0,1fr)_320px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}
+              className={`grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]' : 'lg:grid-cols-[340px_minmax(0,1fr)]'}`}
             >
               <section
-                className={isAdminMessaging
-                  ? `${compactPane === 'thread' ? 'hidden md:flex' : 'flex'} min-h-0 flex-col border-r border-stone-200 bg-stone-50/40`
-                  : 'flex min-h-0 flex-col border-b border-stone-200 xl:border-b-0 xl:border-r'}
+                className={`${compactPane === 'thread' ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-stone-200 bg-white lg:border-r`}
               >
-                <div className={isAdminMessaging ? 'space-y-3 border-b border-stone-100 bg-white px-3 py-3.5 sm:px-4' : 'space-y-3 border-b border-stone-100 px-4 py-4'}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-base font-semibold text-stone-900">{isAdminMessaging ? 'Inbox' : 'Chats'}</p>
-                    <p className="text-xs text-stone-400">{filteredItems.length}</p>
+                <div className="space-y-3 border-b border-stone-100 px-4 py-4">
+                  <div>
+                    <p className="text-base font-semibold text-stone-900">Chats</p>
                   </div>
 
                   <div className="relative">
@@ -3317,10 +4017,8 @@ export default function AdminMessages({
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder={isAdminMessaging ? 'Search people or conversations' : 'Search conversations'}
-                      className={isAdminMessaging
-                        ? 'h-10 w-full rounded-xl border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]'
-                        : 'h-10 w-full rounded-full border-0 bg-stone-100 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]'}
+                      placeholder="Search name, PDM ID, or message"
+                      className="h-10 w-full rounded-full border-0 bg-stone-100 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
                     />
                   </div>
 
@@ -3358,11 +4056,19 @@ export default function AdminMessages({
                           key={`${item.type}-${item.id}`}
                           item={item}
                           isActive={isActive}
+                          currentUserId={currentUserId}
                           onToggleRead={toggleThreadReadState}
                           onArchive={setPendingArchiveThread}
-                          inboxStyle={isAdminMessaging}
+                          inboxStyle={false}
                           onClick={() => {
                             setTransientPrivateContact(null)
+                            const hasUnread = Number(item.unreadCount || 0) > 0
+
+                            if (hasUnread && !isActive) {
+                              pendingUnreadOpenRef.current = { type: item.type, id: item.id }
+                              setMessages([])
+                            }
+
                             if (item.type === 'group') {
                               setActiveType('group')
                               setActiveRoomId(item.id)
@@ -3373,48 +4079,59 @@ export default function AdminMessages({
                               setActiveRoomId('')
                             }
 
-                            if (isAdminMessaging) setCompactPane('thread')
+                            setCompactPane('thread')
 
-                            if (Number(item.unreadCount || 0) > 0) {
-                              toggleThreadReadState(item)
+                            if (hasUnread && isActive) {
+                              const firstUnread = messages.find((message) => message.senderId !== currentUserId && message.isRead !== true)
+                              if (firstUnread?.messageId) {
+                                setFirstUnreadMessageId(firstUnread.messageId)
+                                scrollToMessageId(firstUnread.messageId, 'auto')
+                              }
+                              if (item.type === 'group') {
+                                markRoomMessagesRead(item.id).catch(() => {})
+                              } else {
+                                markConversationRead(item.id).catch(() => {})
+                              }
                             }
                           }}
                         />
                       )
                     })
                   ) : (
-                    <div className="px-6 py-14 text-center text-sm text-stone-500">
-                      {searchTerm || showUnreadOnly
-                        ? 'No threads match the current filter.'
-                        : 'No messages or rooms yet.'}
+                    <div className="flex flex-col items-center px-6 py-14 text-center">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-400">
+                        <MessageSquareMore className="h-5 w-5" />
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-stone-700">
+                        {searchTerm || showUnreadOnly ? 'No matching conversations' : 'No conversations yet'}
+                      </p>
+                      <p className="mt-1 max-w-[240px] text-xs leading-5 text-stone-400">
+                        {searchTerm || showUnreadOnly
+                          ? 'Try another name, PDM ID, or clear the unread filter.'
+                          : 'Search for an authorized user or create a group to start messaging.'}
+                      </p>
                     </div>
                   )}
                 </div>
               </section>
 
               <section
-                className={isAdminMessaging
-                  ? `${compactPane === 'thread' ? 'flex' : 'hidden md:flex'} min-h-0 flex-col bg-white`
-                  : 'flex min-h-0 flex-col bg-white'}
+                className={`${compactPane === 'thread' ? 'flex' : 'hidden lg:flex'} min-h-0 flex-col bg-white`}
               >
-                {isAdminMessaging && groupInfoOpen && selectedItem?.type === 'group' ? (
-                  renderGroupInfo({ embedded: true })
-                ) : selectedItem ? (
+                {selectedItem ? (
                   <>
-                    <div className={isAdminMessaging ? 'border-b border-stone-100 bg-white px-3 py-3 sm:px-4 lg:px-5' : 'border-b border-stone-100 bg-white px-5 py-3.5'}>
+                    <div className="border-b border-stone-100 bg-white px-4 py-3.5 sm:px-5">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
-                          {isAdminMessaging ? (
-                            <button
-                              type="button"
-                              onClick={() => setCompactPane('list')}
-                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:bg-stone-50 md:hidden"
-                              title="Back to inbox"
-                              aria-label="Back to inbox"
-                            >
-                              <ArrowLeft className="h-4 w-4" />
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setCompactPane('list')}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:bg-stone-50 lg:hidden"
+                            title="Back to inbox"
+                            aria-label="Back to inbox"
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </button>
                           <ThreadIcon item={selectedItem} />
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
@@ -3423,43 +4140,77 @@ export default function AdminMessages({
                                 <span className="shrink-0 rounded-full bg-stone-200 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-stone-600">Account Disabled</span>
                               ) : null}
                             </div>
-                            <p className="mt-0.5 text-xs text-stone-500">
-                              {selectedItem.type === 'group'
+                            <p className={`mt-0.5 text-xs ${typingLabel ? 'font-medium text-[var(--portal-base)]' : 'text-stone-500'}`} aria-live="polite">
+                              {typingLabel || (selectedItem.type === 'group'
                                 ? 'Group chat'
-                                : selectedItem.studentNumber || 'Private conversation'}
+                                : selectedItem.studentNumber || 'Private conversation')}
                             </p>
                           </div>
                         </div>
 
-                        {selectedItem.type === 'group' ? (
+                        <div className="flex shrink-0 items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setGroupInfoOpen((current) => !current)}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200"
-                            title="Group information"
-                            aria-label="Group information"
+                            onClick={() => { setChatSearchOpen((current) => !current); setGroupInfoOpen(false); setChatMatchIndex(0) }}
+                            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition ${chatSearchOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                            title="Search this conversation"
+                            aria-label="Search this conversation"
+                            aria-pressed={chatSearchOpen}
                           >
-                            <Info className="h-4 w-4" />
+                            <Search className="h-4 w-4" />
                           </button>
-                        ) : null}
+                          {selectedItem.type === 'group' ? (
+                            <button
+                              type="button"
+                              onClick={() => { setGroupInfoOpen((current) => !current); setChatSearchOpen(false) }}
+                              className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition ${groupInfoOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                              title="Group information"
+                              aria-label="Group information"
+                              aria-pressed={groupInfoOpen}
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
 
-                      {selectedItem.type === 'group' && chatSearchOpen && !groupInfoOpen ? (
+                      {socketStatus !== 'connected' ? (
+                        <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-700" role="status">
+                          <WifiOff className="h-3.5 w-3.5" /> Reconnecting…
+                        </div>
+                      ) : null}
+
+                      {chatSearchOpen && !groupInfoOpen ? (
                         <div className="mt-3 flex items-center gap-2">
                           <div className="relative min-w-0 flex-1">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <input
                               autoFocus
                               value={chatSearchTerm}
-                              onChange={(event) => setChatSearchTerm(event.target.value)}
+                              onChange={(event) => { setChatSearchTerm(event.target.value); setChatMatchIndex(0) }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' && chatMatchCount) {
+                                  event.preventDefault()
+                                  setChatMatchIndex((current) => event.shiftKey
+                                    ? (current - 1 + chatMatchCount) % chatMatchCount
+                                    : (current + 1) % chatMatchCount)
+                                }
+                                if (event.key === 'Escape') {
+                                  setChatSearchOpen(false)
+                                  setChatSearchTerm('')
+                                }
+                              }}
                               placeholder="Search this conversation"
                               className="h-9 w-full rounded-xl border border-stone-200 pl-9 pr-3 text-xs outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+                              aria-label="Search messages in this conversation"
                             />
                           </div>
-                          <span className="shrink-0 text-xs text-stone-500">
-                            {chatSearchTerm.trim() ? `${chatMatchCount} match${chatMatchCount === 1 ? '' : 'es'}` : ''}
+                          <span className="shrink-0 text-xs tabular-nums text-stone-500">
+                            {chatSearchTerm.trim() ? (chatMatchCount ? `${chatMatchIndex + 1}/${chatMatchCount}` : '0 matches') : ''}
                           </span>
-                          <button type="button" onClick={() => { setChatSearchOpen(false); setChatSearchTerm('') }} className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100"><X className="h-4 w-4" /></button>
+                          <button type="button" disabled={!chatMatchCount} onClick={() => setChatMatchIndex((current) => (current - 1 + chatMatchCount) % chatMatchCount)} className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100 disabled:opacity-30" title="Previous match" aria-label="Previous search match"><ChevronUp className="h-4 w-4" /></button>
+                          <button type="button" disabled={!chatMatchCount} onClick={() => setChatMatchIndex((current) => (current + 1) % chatMatchCount)} className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100 disabled:opacity-30" title="Next match" aria-label="Next search match"><ChevronDown className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => { setChatSearchOpen(false); setChatSearchTerm(''); setChatMatchIndex(0) }} className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100" title="Close search" aria-label="Close conversation search"><X className="h-4 w-4" /></button>
                         </div>
                       ) : null}
                     </div>
@@ -3467,9 +4218,7 @@ export default function AdminMessages({
                     <div
                       ref={messagesScrollRef}
                       onScroll={handleMessagesScroll}
-                      className={isAdminMessaging
-                        ? 'min-h-0 flex-1 overflow-y-auto bg-stone-50 px-3 py-4 sm:px-5 sm:py-5 lg:px-6'
-                        : 'min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-5 py-5'}
+                      className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-3 py-4 sm:px-5 sm:py-5"
                     >
                       {loadingMessages ? (
                         <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">
@@ -3487,17 +4236,25 @@ export default function AdminMessages({
                             const showDateDivider = !previousMessage || messageDayKey(previousMessage.sentAt) !== messageDayKey(message.sentAt)
 
                             return (
-                              <div key={message.messageId}>
+                              <div key={message.messageId} data-message-id={message.messageId}>
                                 {showDateDivider ? <MessageDateDivider value={message.sentAt} /> : null}
+                                {firstUnreadMessageId === message.messageId ? <NewMessagesDivider /> : null}
                                 <MessageBubble
                                   message={message}
                                   isMine={isMine}
                                   isGroup={selectedItem.type === 'group'}
-                                  searchTerm={selectedItem.type === 'group' ? chatSearchTerm : ''}
+                                  currentUserId={currentUserId}
+                                  searchTerm={chatSearchOpen ? chatSearchTerm : ''}
                                   groupedWithPrevious={groupedWithPrevious}
                                   groupedWithNext={groupedWithNext}
                                   showSenderName={!groupedWithPrevious}
                                   showAvatar={!groupedWithPrevious}
+                                  isLatestOutgoing={isMine && latestOwnMessageId === message.messageId}
+                                  isCurrentSearchMatch={currentChatMatchId === message.messageId}
+                                  onReply={handleReplyToMessage}
+                                  onCopy={handleCopyMessage}
+                                  onDelete={setPendingDeleteMessage}
+                                  onRetry={handleRetryFailedMessage}
                                 />
                               </div>
                             )
@@ -3505,8 +4262,10 @@ export default function AdminMessages({
                           <div ref={messagesEndRef} />
                         </div>
                       ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-stone-500">
-                          No messages in this thread yet.
+                        <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-400"><MessageSquareMore className="h-5 w-5" /></div>
+                          <p className="mt-3 text-sm font-semibold text-stone-700">No messages yet</p>
+                          <p className="mt-1 text-xs leading-5 text-stone-400">Send the first message to start this conversation.</p>
                         </div>
                       )}
                     </div>
@@ -3521,17 +4280,33 @@ export default function AdminMessages({
                     ) : (
                     <form
                       onSubmit={handleSendMessage}
-                      className={isAdminMessaging
-                        ? 'border-t border-stone-100 bg-white px-3 py-3 sm:px-4'
-                        : 'border-t border-stone-100 bg-white px-4 py-3'}
+                      className="border-t border-stone-100 bg-white px-3 py-3 sm:px-4"
                     >
+                      {replyingTo ? (
+                        <div className="mb-2 flex items-start justify-between gap-3 rounded-xl border-l-2 border-[var(--portal-base)] bg-stone-50 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-stone-700">Replying to {replyingTo.senderId === currentUserId ? 'yourself' : replyingTo.senderName || selectedItem.name}</p>
+                            <p className="mt-0.5 truncate text-xs text-stone-500">{compactMessagePreview(replyingTo.messageBody, 120)}</p>
+                          </div>
+                          <button type="button" onClick={() => setReplyingTo(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-stone-400 hover:bg-stone-200 hover:text-stone-700" title="Cancel reply" aria-label="Cancel reply"><X className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ) : null}
                       <div className="flex items-end gap-2">
                         <textarea
                           ref={composerRef}
                           value={draft}
-                          onChange={(event) => setDraft(event.target.value)}
+                          onChange={handleDraftChange}
                           onKeyDown={(event) => {
-                            if (event.key !== 'Enter' || event.nativeEvent?.isComposing) return
+                            if (event.nativeEvent?.isComposing) return
+
+                            if (event.key === 'Escape') {
+                              event.preventDefault()
+                              if (replyingTo) setReplyingTo(null)
+                              else if (chatSearchOpen) { setChatSearchOpen(false); setChatSearchTerm(''); setChatMatchIndex(0) }
+                              return
+                            }
+
+                            if (event.key !== 'Enter') return
 
                             // Shift + Enter keeps the textarea's normal newline behavior.
                             if (event.shiftKey) return
@@ -3543,6 +4318,7 @@ export default function AdminMessages({
                             }
                           }}
                           rows={1}
+                          aria-label={selectedItem.type === 'group' ? 'Message group' : `Message ${selectedItem.name}`}
                           placeholder={
                             selectedItem.type === 'group'
                               ? 'Message group'
@@ -3551,19 +4327,32 @@ export default function AdminMessages({
                           className="max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 bg-stone-100 px-4 py-2.5 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
                         />
 
-                        <button
-                          type="submit"
-                          disabled={sending || !draft.trim()}
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--portal-base)] text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-                          title="Send message"
-                          aria-label="Send message"
-                        >
-                          {sending ? (
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <SendHorizontal className="h-4 w-4" />
-                          )}
-                        </button>
+                        {draft.trim() ? (
+                          <button
+                            type="submit"
+                            disabled={sending}
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--portal-base)] text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Send message"
+                            aria-label="Send message"
+                          >
+                            {sending ? (
+                              <LoaderCircle className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <SendHorizontal className="h-4 w-4" />
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleQuickLike}
+                            disabled={sending}
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-xl leading-none text-[var(--portal-base)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Send like"
+                            aria-label="Send like"
+                          >
+                            {sending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <span aria-hidden="true">👍</span>}
+                          </button>
+                        )}
                       </div>
                     </form>
                     )}
@@ -3585,7 +4374,7 @@ export default function AdminMessages({
                 )}
               </section>
 
-              {!isAdminMessaging ? renderGroupInfo() : null}
+              {renderGroupInfo({ responsive: true })}
             </div>
             )}
           </div>

@@ -162,7 +162,7 @@ function buildNotificationTarget(portalRootPath, notification) {
     if (portalRootPath === '/admin') {
       return referenceType === 'staff_profile'
         ? '/admin/adminprofile'
-        : '/admin/maintenance';
+        : null;
     }
 
     return `${portalRootPath}/profile`;

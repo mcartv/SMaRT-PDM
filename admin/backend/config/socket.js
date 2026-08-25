@@ -1,5 +1,6 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const db = require('./db');
 
 const DEFAULT_ALLOWED_ORIGINS = [
     'http://localhost:5173',
@@ -196,6 +197,62 @@ function configureSocket(server) {
                 joinUserRoom(socket, payloadUserId);
             });
         }
+
+        socket.on('message:typing', async (payload = {}) => {
+            const senderId = String(socket.data.userId || '').trim();
+            if (!senderId) return;
+
+            const isTyping = payload?.is_typing === true || payload?.isTyping === true;
+            const now = Date.now();
+            const lastTypingAt = Number(socket.data.lastTypingAt || 0);
+
+            // Keep a noisy client from flooding all participant sockets. Stop
+            // events are never throttled so typing indicators clear promptly.
+            if (isTyping && now - lastTypingAt < 250) return;
+            if (isTyping) socket.data.lastTypingAt = now;
+
+            const roomId = String(payload?.room_id || payload?.roomId || '').trim();
+            const counterpartyId = String(
+                payload?.counterparty_id || payload?.counterpartyId || ''
+            ).trim();
+
+            const typingPayload = {
+                sender_id: senderId,
+                senderId,
+                room_id: roomId || null,
+                roomId: roomId || null,
+                counterparty_id: counterpartyId || null,
+                counterpartyId: counterpartyId || null,
+                is_typing: isTyping,
+                isTyping,
+                updated_at: new Date().toISOString(),
+            };
+
+            try {
+                if (roomId) {
+                    const membership = await db.query(
+                        `SELECT 1 FROM chat_room_members WHERE room_id = $1 AND user_id = $2 LIMIT 1;`,
+                        [roomId, senderId]
+                    );
+                    if (!membership.rows.length) return;
+
+                    const members = await db.query(
+                        `SELECT user_id FROM chat_room_members WHERE room_id = $1 AND user_id <> $2;`,
+                        [roomId, senderId]
+                    );
+                    members.rows.forEach((row) => {
+                        const userId = String(row.user_id || '').trim();
+                        if (userId) io.to(`user:${userId}`).emit('message:typing', typingPayload);
+                    });
+                    return;
+                }
+
+                if (!counterpartyId || counterpartyId === senderId) return;
+                io.to(`user:${counterpartyId}`).emit('message:typing', typingPayload);
+            } catch (error) {
+                console.warn('[Socket] message:typing relay failed:', error.message);
+            }
+        });
 
         socket.on('disconnect', (reason) => {
             console.log('[Socket] disconnected:', socket.id, reason);

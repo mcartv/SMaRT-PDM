@@ -198,6 +198,130 @@ async function createRoomReadStates(messageId, roomId, senderId) {
   );
 }
 
+async function enrichMessageRows(rows = []) {
+  const userIds = [
+    ...new Set(
+      rows
+        .flatMap((row) => [row.sender_id, row.reply_sender_id])
+        .filter(Boolean)
+    ),
+  ];
+  const summaries = new Map();
+
+  for (const userId of userIds) {
+    summaries.set(userId, await getUserSummarySafe(userId));
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    sender_name: summaries.get(row.sender_id)?.display_name || 'Unknown User',
+    sender_profile_photo_url: summaries.get(row.sender_id)?.profile_photo_url || null,
+    sender_avatar_url: summaries.get(row.sender_id)?.avatar_url || null,
+    reply_sender_name: row.reply_sender_id
+      ? summaries.get(row.reply_sender_id)?.display_name || 'Unknown User'
+      : null,
+  }));
+}
+
+async function ensurePrivateReplyTarget(replyToMessageId, leftUserId, rightUserId) {
+  if (!replyToMessageId) return null;
+
+  const result = await db.query(
+    `
+    SELECT message_id
+    FROM messages
+    WHERE message_id = $1
+      AND room_id IS NULL
+      AND (
+        (sender_id = $2 AND receiver_id = $3)
+        OR
+        (sender_id = $3 AND receiver_id = $2)
+      )
+    LIMIT 1;
+    `,
+    [replyToMessageId, leftUserId, rightUserId]
+  );
+
+  if (!result.rows.length) {
+    const error = new Error('The replied message does not belong to this conversation.');
+    error.statusCode = 400;
+    error.code = 'INVALID_REPLY_TARGET';
+    throw error;
+  }
+
+  return replyToMessageId;
+}
+
+async function ensureRoomReplyTarget(replyToMessageId, roomId) {
+  if (!replyToMessageId) return null;
+
+  const result = await db.query(
+    `
+    SELECT message_id
+    FROM messages
+    WHERE message_id = $1
+      AND room_id = $2
+    LIMIT 1;
+    `,
+    [replyToMessageId, roomId]
+  );
+
+  if (!result.rows.length) {
+    const error = new Error('The replied message does not belong to this group.');
+    error.statusCode = 400;
+    error.code = 'INVALID_REPLY_TARGET';
+    throw error;
+  }
+
+  return replyToMessageId;
+}
+
+async function fetchMessageWithReply(messageId, viewerId = null, counterpartyId = null) {
+  const result = await db.query(
+    `
+    SELECT
+      m.message_id,
+      m.sender_id,
+      m.receiver_id,
+      m.room_id,
+      m.subject,
+      m.message_body,
+      m.sent_at,
+      m.is_read,
+      m.attachment_url,
+      m.reply_to_message_id,
+      m.client_message_id,
+      reply.message_body AS reply_message_body,
+      reply.sender_id AS reply_sender_id,
+      CASE
+        WHEN $2::uuid IS NOT NULL
+          AND $3::uuid IS NOT NULL
+          AND m.sender_id = $2
+        THEN COALESCE(counterparty_read.is_read, m.is_read, false)
+        ELSE false
+      END AS seen_by_counterparty
+    FROM messages m
+    LEFT JOIN messages reply
+      ON reply.message_id = m.reply_to_message_id
+     AND NOT EXISTS (
+       SELECT 1
+       FROM message_hidden_states hidden_reply
+       WHERE hidden_reply.message_id = reply.message_id
+         AND hidden_reply.user_id = $2
+     )
+    LEFT JOIN message_read_states counterparty_read
+      ON counterparty_read.message_id = m.message_id
+     AND counterparty_read.user_id = $3
+    WHERE m.message_id = $1
+    LIMIT 1;
+    `,
+    [messageId, viewerId, counterpartyId]
+  );
+
+  const enriched = await enrichMessageRows(result.rows);
+  return enriched[0] || null;
+}
+
 exports.fetchRoomMemberUserIds = async (roomId) => {
   const result = await db.query(
     `
@@ -225,6 +349,7 @@ exports.fetchConversations = async (currentUserId) => {
         m.receiver_id,
         m.subject,
         m.message_body,
+        m.attachment_url,
         m.sent_at,
         CASE
           WHEN m.sender_id = $1 THEN true
@@ -236,6 +361,12 @@ exports.fetchConversations = async (currentUserId) => {
        AND mrs.user_id = $1
       WHERE (m.sender_id = $1 OR m.receiver_id = $1)
         AND m.room_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM message_hidden_states mhs
+          WHERE mhs.message_id = m.message_id
+            AND mhs.user_id = $1
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM message_thread_archives mta
@@ -251,8 +382,10 @@ exports.fetchConversations = async (currentUserId) => {
       SELECT DISTINCT ON (counterparty_id)
         counterparty_id,
         message_id,
+        sender_id,
         subject,
         message_body,
+        attachment_url,
         sent_at
       FROM base
       ORDER BY counterparty_id, sent_at DESC, message_id DESC
@@ -269,8 +402,10 @@ exports.fetchConversations = async (currentUserId) => {
     SELECT
       l.counterparty_id,
       l.message_id,
+      l.sender_id,
       l.subject,
       l.message_body,
+      l.attachment_url,
       l.sent_at,
       COALESCE(u.unread_count, 0) AS unread_count
     FROM latest l
@@ -296,6 +431,9 @@ exports.fetchConversations = async (currentUserId) => {
       email: summary?.email || '',
       is_disabled: summary?.is_disabled === true,
       last_message: row.message_body || '',
+      last_sender_id: row.sender_id || null,
+      last_sender_name: row.sender_id === currentUserId ? 'You' : summary?.display_name || 'Unknown User',
+      last_attachment_url: row.attachment_url || null,
       subject: row.subject || '',
       last_sent_at: row.sent_at,
       unread_count: Number(row.unread_count || 0),
@@ -320,34 +458,49 @@ exports.fetchConversationMessages = async (currentUserId, counterpartyId) => {
         WHEN m.sender_id = $1 THEN true
         ELSE COALESCE(mrs.is_read, m.is_read, false)
       END AS is_read,
-      m.attachment_url
+      CASE
+        WHEN m.sender_id = $1
+        THEN COALESCE(counterparty_read.is_read, m.is_read, false)
+        ELSE false
+      END AS seen_by_counterparty,
+      m.attachment_url,
+      m.reply_to_message_id,
+      m.client_message_id,
+      reply.message_body AS reply_message_body,
+      reply.sender_id AS reply_sender_id
     FROM messages m
     LEFT JOIN message_read_states mrs
       ON mrs.message_id = m.message_id
      AND mrs.user_id = $1
+    LEFT JOIN message_read_states counterparty_read
+      ON counterparty_read.message_id = m.message_id
+     AND counterparty_read.user_id = $2
+    LEFT JOIN messages reply
+      ON reply.message_id = m.reply_to_message_id
+     AND NOT EXISTS (
+       SELECT 1
+       FROM message_hidden_states hidden_reply
+       WHERE hidden_reply.message_id = reply.message_id
+         AND hidden_reply.user_id = $1
+     )
     WHERE m.room_id IS NULL
       AND (
         (m.sender_id = $1 AND m.receiver_id = $2)
         OR
         (m.sender_id = $2 AND m.receiver_id = $1)
       )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM message_hidden_states mhs
+        WHERE mhs.message_id = m.message_id
+          AND mhs.user_id = $1
+      )
     ORDER BY m.sent_at ASC, m.message_id ASC;
     `,
     [currentUserId, counterpartyId]
   );
 
-  const summaries = new Map();
-
-  for (const senderId of [...new Set(result.rows.map((row) => row.sender_id).filter(Boolean))]) {
-    summaries.set(senderId, await getUserSummarySafe(senderId));
-  }
-
-  return result.rows.map((row) => ({
-    ...row,
-    sender_name: summaries.get(row.sender_id)?.display_name || 'Unknown User',
-    sender_profile_photo_url: summaries.get(row.sender_id)?.profile_photo_url || null,
-    sender_avatar_url: summaries.get(row.sender_id)?.avatar_url || null,
-  }));
+  return enrichMessageRows(result.rows);
 };
 
 exports.markConversationRead = async (currentUserId, counterpartyId) => {
@@ -457,10 +610,11 @@ exports.sendMessage = async ({
   subject = null,
   messageBody,
   attachmentUrl = null,
+  replyToMessageId = null,
+  clientMessageId = null,
 }) => {
-  // Enforce disabled-recipient protection in the INSERT itself so a stale UI
-  // or direct API call cannot message an archived account. Historical messages
-  // remain untouched and continue to resolve the original display name.
+  await ensurePrivateReplyTarget(replyToMessageId, senderId, receiverId);
+
   const result = await db.query(
     `
     INSERT INTO messages (
@@ -469,9 +623,11 @@ exports.sendMessage = async ({
       room_id,
       subject,
       message_body,
-      attachment_url
+      attachment_url,
+      reply_to_message_id,
+      client_message_id
     )
-    SELECT $1, $2, NULL, $3, $4, $5
+    SELECT $1, $2, NULL, $3, $4, $5, $6, $7
     WHERE EXISTS (
       SELECT 1
       FROM users recipient
@@ -483,23 +639,40 @@ exports.sendMessage = async ({
         AND COALESCE(st.is_archived, false) = false
         AND COALESCE(ap.is_archived, false) = false
     )
-    RETURNING
-      message_id,
-      sender_id,
-      receiver_id,
-      room_id,
-      subject,
-      message_body,
-      sent_at,
-      is_read,
-      attachment_url;
+    ON CONFLICT (sender_id, client_message_id)
+      WHERE client_message_id IS NOT NULL
+    DO NOTHING
+    RETURNING message_id;
     `,
-    [senderId, receiverId, subject, messageBody, attachmentUrl]
+    [senderId, receiverId, subject, messageBody, attachmentUrl, replyToMessageId, clientMessageId]
   );
 
-  const message = result.rows[0];
+  let messageId = result.rows[0]?.message_id || null;
+  let deduplicated = false;
 
-  if (!message) {
+  if (!messageId && clientMessageId) {
+    const existing = await db.query(
+      `
+      SELECT message_id, receiver_id, room_id
+      FROM messages
+      WHERE sender_id = $1
+        AND client_message_id = $2
+      LIMIT 1;
+      `,
+      [senderId, clientMessageId]
+    );
+    const existingMessage = existing.rows[0] || null;
+    if (existingMessage && (existingMessage.room_id || existingMessage.receiver_id !== receiverId)) {
+      const error = new Error('The message retry key belongs to a different conversation.');
+      error.statusCode = 409;
+      error.code = 'CLIENT_MESSAGE_ID_CONFLICT';
+      throw error;
+    }
+    messageId = existingMessage?.message_id || null;
+    deduplicated = Boolean(messageId);
+  }
+
+  if (!messageId) {
     const receiverSummary = await getUserSummarySafe(receiverId);
     const error = new Error(
       receiverSummary?.is_disabled
@@ -513,23 +686,27 @@ exports.sendMessage = async ({
     throw error;
   }
 
-  await createPrivateReadStates(message.message_id, senderId, receiverId);
+  if (!deduplicated) {
+    await createPrivateReadStates(messageId, senderId, receiverId);
+  }
 
-  const restoredArchives = await db.query(
-    `
-    DELETE FROM message_thread_archives
-    WHERE thread_type = 'private'
-      AND (
-        (user_id = $1 AND counterparty_id = $2)
-        OR
-        (user_id = $2 AND counterparty_id = $1)
-      )
-    RETURNING user_id;
-    `,
-    [senderId, receiverId]
-  );
+  const restoredArchives = deduplicated
+    ? { rows: [] }
+    : await db.query(
+      `
+      DELETE FROM message_thread_archives
+      WHERE thread_type = 'private'
+        AND (
+          (user_id = $1 AND counterparty_id = $2)
+          OR
+          (user_id = $2 AND counterparty_id = $1)
+        )
+      RETURNING user_id;
+      `,
+      [senderId, receiverId]
+    );
 
-  const senderSummary = await getUserSummarySafe(senderId);
+  const message = await fetchMessageWithReply(messageId, senderId, receiverId);
 
   return {
     ...message,
@@ -537,9 +714,7 @@ exports.sendMessage = async ({
       .map((row) => row.user_id)
       .filter(Boolean),
     is_read: true,
-    sender_name: senderSummary?.display_name || 'Unknown User',
-    sender_profile_photo_url: senderSummary?.profile_photo_url || null,
-    sender_avatar_url: senderSummary?.avatar_url || null,
+    deduplicated,
   };
 };
 
@@ -550,11 +725,19 @@ exports.fetchRooms = async (currentUserId) => {
       SELECT DISTINCT ON (m.room_id)
         m.room_id,
         m.message_id,
+        m.sender_id,
         m.subject,
         m.message_body,
+        m.attachment_url,
         m.sent_at
       FROM messages m
       WHERE m.room_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM message_hidden_states mhs
+          WHERE mhs.message_id = m.message_id
+            AND mhs.user_id = $1
+        )
       ORDER BY m.room_id, m.sent_at DESC, m.message_id DESC
     ),
     member_counts AS (
@@ -575,6 +758,12 @@ exports.fetchRooms = async (currentUserId) => {
       WHERE m.room_id IS NOT NULL
         AND m.sender_id <> $1
         AND COALESCE(mrs.is_read, false) = false
+        AND NOT EXISTS (
+          SELECT 1
+          FROM message_hidden_states mhs
+          WHERE mhs.message_id = m.message_id
+            AND mhs.user_id = $1
+        )
       GROUP BY m.room_id
     )
     SELECT
@@ -583,6 +772,8 @@ exports.fetchRooms = async (currentUserId) => {
       cr.created_by,
       cr.created_at,
       COALESCE(lrm.message_body, '') AS last_message,
+      lrm.sender_id AS last_sender_id,
+      lrm.attachment_url AS last_attachment_url,
       lrm.subject,
       lrm.sent_at AS last_sent_at,
       COALESCE(mc.member_count, 0) AS member_count,
@@ -611,19 +802,34 @@ exports.fetchRooms = async (currentUserId) => {
     [currentUserId]
   );
 
-  return result.rows.map((row) => ({
-    room_id: row.room_id,
-    room_name: row.room_name || 'Untitled Group',
-    created_by: row.created_by,
-    created_at: row.created_at,
-    last_message: row.last_message || '',
-    subject: row.subject || '',
-    last_sent_at: row.last_sent_at,
-    member_count: Number(row.member_count || 0),
-    unread_count: Number(row.unread_count || 0),
-    is_admin: row.is_admin === true,
-    conversation_type: 'group',
-  }));
+  const rooms = [];
+  for (const row of result.rows) {
+    const senderSummary = row.last_sender_id
+      ? await getUserSummarySafe(row.last_sender_id)
+      : null;
+
+    rooms.push({
+      room_id: row.room_id,
+      room_name: row.room_name || 'Untitled Group',
+      created_by: row.created_by,
+      created_at: row.created_at,
+      last_message: row.last_message || '',
+      last_sender_id: row.last_sender_id || null,
+      last_sender_name:
+        row.last_sender_id === currentUserId
+          ? 'You'
+          : senderSummary?.display_name || '',
+      last_attachment_url: row.last_attachment_url || null,
+      subject: row.subject || '',
+      last_sent_at: row.last_sent_at,
+      member_count: Number(row.member_count || 0),
+      unread_count: Number(row.unread_count || 0),
+      is_admin: row.is_admin === true,
+      conversation_type: 'group',
+    });
+  }
+
+  return rooms;
 };
 
 exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
@@ -717,29 +923,37 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
       m.message_body,
       m.sent_at,
       COALESCE(mrs.is_read, CASE WHEN m.sender_id = $2 THEN true ELSE false END) AS is_read,
-      m.attachment_url
+      false AS seen_by_counterparty,
+      m.attachment_url,
+      m.reply_to_message_id,
+      m.client_message_id,
+      reply.message_body AS reply_message_body,
+      reply.sender_id AS reply_sender_id
     FROM messages m
     LEFT JOIN message_read_states mrs
       ON mrs.message_id = m.message_id
      AND mrs.user_id = $2
+    LEFT JOIN messages reply
+      ON reply.message_id = m.reply_to_message_id
+     AND NOT EXISTS (
+       SELECT 1
+       FROM message_hidden_states hidden_reply
+       WHERE hidden_reply.message_id = reply.message_id
+         AND hidden_reply.user_id = $2
+     )
     WHERE m.room_id = $1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM message_hidden_states mhs
+        WHERE mhs.message_id = m.message_id
+          AND mhs.user_id = $2
+      )
     ORDER BY m.sent_at ASC, m.message_id ASC;
     `,
     [roomId, currentUserId]
   );
 
-  const summaries = new Map();
-
-  for (const senderId of [...new Set(result.rows.map((row) => row.sender_id).filter(Boolean))]) {
-    summaries.set(senderId, await getUserSummarySafe(senderId));
-  }
-
-  return result.rows.map((row) => ({
-    ...row,
-    sender_name: summaries.get(row.sender_id)?.display_name || 'Unknown User',
-    sender_profile_photo_url: summaries.get(row.sender_id)?.profile_photo_url || null,
-    sender_avatar_url: summaries.get(row.sender_id)?.avatar_url || null,
-  }));
+  return enrichMessageRows(result.rows);
 };
 
 exports.sendRoomMessage = async ({
@@ -748,8 +962,11 @@ exports.sendRoomMessage = async ({
   subject = null,
   messageBody,
   attachmentUrl = null,
+  replyToMessageId = null,
+  clientMessageId = null,
 }) => {
   await ensureRoomMembership(senderId, roomId);
+  await ensureRoomReplyTarget(replyToMessageId, roomId);
 
   const result = await db.query(
     `
@@ -759,44 +976,74 @@ exports.sendRoomMessage = async ({
       room_id,
       subject,
       message_body,
-      attachment_url
+      attachment_url,
+      reply_to_message_id,
+      client_message_id
     )
-    VALUES ($1, NULL, $2, $3, $4, $5)
-    RETURNING
-      message_id,
-      sender_id,
-      receiver_id,
-      room_id,
-      subject,
-      message_body,
-      sent_at,
-      is_read,
-      attachment_url;
+    VALUES ($1, NULL, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (sender_id, client_message_id)
+      WHERE client_message_id IS NOT NULL
+    DO NOTHING
+    RETURNING message_id;
     `,
-    [senderId, roomId, subject, messageBody, attachmentUrl]
+    [senderId, roomId, subject, messageBody, attachmentUrl, replyToMessageId, clientMessageId]
   );
 
-  const message = result.rows[0];
+  let messageId = result.rows[0]?.message_id || null;
+  let deduplicated = false;
 
-  await createRoomReadStates(message.message_id, roomId, senderId);
+  if (!messageId && clientMessageId) {
+    const existing = await db.query(
+      `
+      SELECT message_id, receiver_id, room_id
+      FROM messages
+      WHERE sender_id = $1
+        AND client_message_id = $2
+      LIMIT 1;
+      `,
+      [senderId, clientMessageId]
+    );
+    const existingMessage = existing.rows[0] || null;
+    if (existingMessage && existingMessage.room_id !== roomId) {
+      const error = new Error('The message retry key belongs to a different group.');
+      error.statusCode = 409;
+      error.code = 'CLIENT_MESSAGE_ID_CONFLICT';
+      throw error;
+    }
+    messageId = existingMessage?.message_id || null;
+    deduplicated = Boolean(messageId);
+  }
 
-  const restoredArchives = await db.query(
-    `
-    DELETE FROM message_thread_archives mta
-    WHERE mta.thread_type = 'group'
-      AND mta.room_id = $1
-      AND EXISTS (
-        SELECT 1
-        FROM chat_room_members crm
-        WHERE crm.room_id = mta.room_id
-          AND crm.user_id = mta.user_id
-      )
-    RETURNING mta.user_id;
-    `,
-    [roomId]
-  );
+  if (!messageId) {
+    const error = new Error('Unable to send the group message.');
+    error.statusCode = 400;
+    error.code = 'GROUP_MESSAGE_SEND_FAILED';
+    throw error;
+  }
 
-  const senderSummary = await getUserSummarySafe(senderId);
+  if (!deduplicated) {
+    await createRoomReadStates(messageId, roomId, senderId);
+  }
+
+  const restoredArchives = deduplicated
+    ? { rows: [] }
+    : await db.query(
+      `
+      DELETE FROM message_thread_archives mta
+      WHERE mta.thread_type = 'group'
+        AND mta.room_id = $1
+        AND EXISTS (
+          SELECT 1
+          FROM chat_room_members crm
+          WHERE crm.room_id = mta.room_id
+            AND crm.user_id = mta.user_id
+        )
+      RETURNING mta.user_id;
+      `,
+      [roomId]
+    );
+
+  const message = await fetchMessageWithReply(messageId, senderId, null);
 
   return {
     ...message,
@@ -804,9 +1051,7 @@ exports.sendRoomMessage = async ({
       .map((row) => row.user_id)
       .filter(Boolean),
     is_read: true,
-    sender_name: senderSummary?.display_name || 'Unknown User',
-    sender_profile_photo_url: senderSummary?.profile_photo_url || null,
-    sender_avatar_url: senderSummary?.avatar_url || null,
+    deduplicated,
   };
 };
 
@@ -977,11 +1222,46 @@ exports.removeRoomMember = async ({ actorId, roomId, memberId }) => {
 };
 
 exports.leaveRoom = async (currentUserId, roomId) => {
-  const membership = await ensureRoomMembership(currentUserId, roomId);
+  await ensureRoomMembership(currentUserId, roomId);
   const client = await db.connect();
 
   try {
     await client.query('BEGIN');
+
+    // Serialize membership changes for this room so two admins cannot leave at
+    // the same time and accidentally leave the group without an administrator.
+    const lockedMembershipsResult = await client.query(
+      `
+      SELECT user_id, is_admin
+      FROM chat_room_members
+      WHERE room_id = $1
+      ORDER BY user_id ASC
+      FOR UPDATE;
+      `,
+      [roomId]
+    );
+    const lockedMemberships = lockedMembershipsResult.rows;
+    const membership = lockedMemberships.find(
+      (row) => String(row.user_id) === String(currentUserId)
+    );
+
+    if (!membership) {
+      const error = new Error('You are not a member of this chat room');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (membership.is_admin === true) {
+      const memberCount = lockedMemberships.length;
+      const adminCount = lockedMemberships.filter((row) => row.is_admin === true).length;
+
+      if (memberCount > 1 && adminCount <= 1) {
+        const error = new Error('Assign another group admin before leaving this group.');
+        error.statusCode = 409;
+        error.code = 'LAST_GROUP_ADMIN';
+        throw error;
+      }
+    }
 
     // Leaving a group is personal to this account. Preserve the thread in the
     // current user's archive before removing their membership. Other members
@@ -1025,18 +1305,10 @@ exports.leaveRoom = async (currentUserId, roomId) => {
       [roomId]
     );
 
-    let promotedUserId = null;
-
     if (!remainingResult.rows.length) {
       await client.query(
         `UPDATE chat_rooms SET is_archived = true WHERE room_id = $1;`,
         [roomId]
-      );
-    } else if (membership.is_admin === true && !remainingResult.rows.some((row) => row.is_admin === true)) {
-      promotedUserId = remainingResult.rows[0].user_id;
-      await client.query(
-        `UPDATE chat_room_members SET is_admin = true WHERE room_id = $1 AND user_id = $2;`,
-        [roomId, promotedUserId]
       );
     }
 
@@ -1045,7 +1317,7 @@ exports.leaveRoom = async (currentUserId, roomId) => {
       room_id: roomId,
       user_id: currentUserId,
       left: true,
-      promoted_user_id: promotedUserId,
+      promoted_user_id: null,
       archive: archiveResult.rows[0] || null,
       archived_at: archiveResult.rows[0]?.archived_at || null,
     };
@@ -1409,6 +1681,51 @@ exports.restoreRoom = async (
     restored: result.rowCount > 0,
     archive: result.rows[0] || null,
     room_id: roomId,
+  };
+};
+
+exports.hideMessageForUser = async (currentUserId, messageId) => {
+  const result = await db.query(
+    `
+    SELECT message_id, sender_id, receiver_id, room_id
+    FROM messages
+    WHERE message_id = $1
+    LIMIT 1;
+    `,
+    [messageId]
+  );
+  const message = result.rows[0];
+
+  if (!message) {
+    const error = new Error('Message not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (message.room_id) {
+    await ensureRoomMembership(currentUserId, message.room_id);
+  } else if (message.sender_id !== currentUserId && message.receiver_id !== currentUserId) {
+    const error = new Error('You do not have access to this message.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  await db.query(
+    `
+    INSERT INTO message_hidden_states (message_id, user_id)
+    VALUES ($1, $2)
+    ON CONFLICT (message_id, user_id) DO NOTHING;
+    `,
+    [messageId, currentUserId]
+  );
+
+  return {
+    message_id: messageId,
+    room_id: message.room_id || null,
+    counterparty_id: message.room_id
+      ? null
+      : (message.sender_id === currentUserId ? message.receiver_id : message.sender_id),
+    hidden_by: currentUserId,
   };
 };
 

@@ -77,8 +77,6 @@ export default function AdminLayout() {
     unreadCount,
     loading: notificationsLoading,
     markingAll,
-    markAsRead,
-    markAsUnread,
     markAllAsRead,
     openNotification,
     formatNotificationTime,
@@ -342,7 +340,7 @@ export default function AdminLayout() {
                 <Bell className="h-4 w-4" style={{ color: theme.base }} />
                 {unreadCount > 0 && (
                   <span
-                    className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
+                    className="absolute right-[-4px] top-[-4px] z-10 inline-grid h-[17px] min-w-[17px] place-items-center rounded-full bg-red-500 px-1 pt-px text-center text-[9px] font-semibold leading-none text-white shadow-sm ring-2 ring-white"
                     aria-label={`${unreadCount} unread notifications`}
                   >
                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -409,25 +407,9 @@ export default function AdminLayout() {
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <div className="mt-1.5 flex items-center justify-between gap-3">
-                              <p className="text-[11px] font-medium text-stone-400">
-                                {formatNotificationTime(n.created_at)}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (n.is_read === true) {
-                                    void markAsUnread(n.notification_id);
-                                  } else {
-                                    void markAsRead(n.notification_id);
-                                  }
-                                }}
-                                className="rounded-md px-2 py-1 text-[11px] font-semibold text-stone-500 transition hover:bg-white/70 hover:text-stone-900"
-                              >
-                                {n.is_read === true ? 'Mark as unread' : 'Mark as read'}
-                              </button>
-                            </div>
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
+                              {formatNotificationTime(n.created_at)}
+                            </p>
                           </div>
                         ))}
                         {earlierNotifications.length > 0 ? (
@@ -465,25 +447,9 @@ export default function AdminLayout() {
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <div className="mt-1.5 flex items-center justify-between gap-3">
-                              <p className="text-[11px] font-medium text-stone-400">
-                                {formatNotificationTime(n.created_at)}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (n.is_read === true) {
-                                    void markAsUnread(n.notification_id);
-                                  } else {
-                                    void markAsRead(n.notification_id);
-                                  }
-                                }}
-                                className="rounded-md px-2 py-1 text-[11px] font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
-                              >
-                                {n.is_read === true ? 'Mark as unread' : 'Mark as read'}
-                              </button>
-                            </div>
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
+                              {formatNotificationTime(n.created_at)}
+                            </p>
                           </div>
                         ))}
                       </>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 import { buildApiUrl } from '@/api';
 import {
@@ -425,6 +425,47 @@ export const disconnectSocket = () => {
 
   globalSocket = null;
   joinedUserId = '';
+};
+
+/**
+ * Small connection-state hook for UI that needs to explain a transient socket
+ * reconnect without showing repeated error toasts.
+ */
+export const useSocketConnectionState = () => {
+  const [status, setStatus] = useState(() => {
+    const socket = initializeSocket();
+    return socket?.connected ? 'connected' : 'connecting';
+  });
+
+  useEffect(() => {
+    const socket = initializeSocket();
+    if (!socket) {
+      setStatus('offline');
+      return undefined;
+    }
+
+    const handleConnect = () => setStatus('connected');
+    const handleDisconnect = () => setStatus('reconnecting');
+    const handleReconnectAttempt = () => setStatus('reconnecting');
+    const handleConnectError = () => setStatus('reconnecting');
+
+    setStatus(socket.connected ? 'connected' : 'connecting');
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.io.on('reconnect_attempt', handleReconnectAttempt);
+    socket.io.on('reconnect', handleConnect);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.io.off('reconnect_attempt', handleReconnectAttempt);
+      socket.io.off('reconnect', handleConnect);
+    };
+  }, []);
+
+  return status;
 };
 
 /**

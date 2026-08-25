@@ -1823,36 +1823,39 @@ function OCRPanel({
               </span>
             </div>
 
-            <div className="max-w-full">
-              <div className="flex w-full flex-wrap items-end gap-3">
-                {!runningIotOcr && !reviewCandidate ? (
-                  <label className="flex shrink-0 flex-col gap-1.5">
-                    <span className="pl-1 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400">Mode</span>
-                    <select
-                      value={activeDoc?.id === 'birth_certificate'
-                        ? birthOcrVersion
-                        : activeDoc?.id === 'student_grade_forms'
-                          ? gradeOcrVersion
-                          : indigencyOcrVersion}
-                      onChange={(event) => activeDoc?.id === 'birth_certificate'
-                        ? onBirthOcrVersionChange(event.target.value)
-                        : activeDoc?.id === 'student_grade_forms'
-                          ? onGradeOcrVersionChange(event.target.value)
-                          : onIndigencyOcrVersionChange(event.target.value)}
-                      className="h-10 w-full min-w-[210px] max-w-[232px] rounded-xl border border-stone-200 bg-white px-3 text-[13px] font-semibold text-stone-700 shadow-sm outline-none transition-colors focus:border-stone-400"
-                      aria-label={`${activeDoc?.name || 'Document'} OCR version`}
-                    >
-                      <option value="v1">Version 1 - Local OCR</option>
-                      <option value="v2">Version 2 - Enhanced OCR</option>
-                    </select>
-                  </label>
-                ) : null}
+            <div className="max-w-full rounded-2xl border border-stone-200/80 bg-white/80 p-3 shadow-sm sm:p-4">
+              <div className="flex w-full flex-wrap items-end gap-3 sm:gap-4">
+                <label className="flex min-w-[210px] flex-1 flex-col gap-1.5 sm:max-w-[280px]">
+                  <span className="pl-1 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400">Mode</span>
+                  <select
+                    value={activeDoc?.id === 'birth_certificate'
+                      ? birthOcrVersion
+                      : activeDoc?.id === 'student_grade_forms'
+                        ? gradeOcrVersion
+                        : indigencyOcrVersion}
+                    onChange={(event) => activeDoc?.id === 'birth_certificate'
+                      ? onBirthOcrVersionChange(event.target.value)
+                      : activeDoc?.id === 'student_grade_forms'
+                        ? onGradeOcrVersionChange(event.target.value)
+                        : onIndigencyOcrVersionChange(event.target.value)}
+                    disabled={runningIotOcr}
+                    className="h-12 w-full rounded-xl border border-stone-200 bg-white px-4 text-[13px] font-semibold text-stone-800 shadow-sm outline-none transition-all hover:border-stone-300 focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)] disabled:cursor-wait disabled:bg-stone-100 disabled:text-stone-400"
+                    aria-label={`${activeDoc?.name || 'Document'} OCR version`}
+                    title={reviewCandidate ? 'Select the OCR mode for the next scan' : 'Select OCR mode'}
+                  >
+                    <option value="v1">Version 1 - Local OCR</option>
+                    <option value="v2">Version 2 - Enhanced OCR</option>
+                  </select>
+                  <span className="min-h-4 pl-1 text-[11px] leading-4 text-stone-400">
+                    {reviewCandidate ? 'Applied to the next OCR request' : 'Choose how the next scan is processed'}
+                  </span>
+                </label>
 
                 <Button
                   size="sm"
                   onClick={onRunIotOcr}
                   disabled={!canRunIotOcr || runningIotOcr || !piOnline}
-                  className="h-12 shrink-0 whitespace-nowrap rounded-xl border border-[var(--portal-base)] bg-[var(--portal-base)] px-6 text-sm font-bold text-white shadow-[0_8px_20px_-10px_var(--portal-base)] transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg active:translate-y-0 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--portal-sub)] focus-visible:ring-offset-2 disabled:translate-y-0 disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-400 disabled:shadow-none"
+                  className="mb-5 h-12 shrink-0 whitespace-nowrap rounded-xl border border-[var(--portal-base)] bg-[var(--portal-base)] px-7 text-sm font-bold text-white shadow-[0_8px_20px_-10px_var(--portal-base)] transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg active:translate-y-0 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--portal-sub)] focus-visible:ring-offset-2 disabled:translate-y-0 disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-400 disabled:shadow-none sm:min-w-[180px]"
                 >
                   {runningIotOcr ? (
                     <>

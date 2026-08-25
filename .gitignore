@@ -1,0 +1,47 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+
+# Local editor settings
+.vscode/
+.idea/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Local logs and scratch output
+*.log
+*.err
+*.out
+
+# Local backup/export artifacts
+backups/
+*.dump
+*.backup
+
+# Project-specific local assets
+mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
+
+# Flutter generated files
+**/generated_plugin_registrant.cc
+**/generated_plugins.cmake
+**/GeneratedPluginRegistrant.swift
+**/flutter_export_environment.sh
+**/Flutter-Generated.xcconfig
+**/Flutter/ephemeral/
+
+# Supabase local metadata
+supabase/.temp/
+
+# Supabase CLI generated files
+supabase/**/linked-project.json
+supabase/**/project-ref
+supabase/**/pooler-url
+supabase/**/gotrue-version
+supabase/**/rest-version
+supabase/**/storage-version
+supabase/**/postgres-version
+backend/.env

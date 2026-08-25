@@ -1,0 +1,2017 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { useSocketEvent } from '@/hooks/useSocket';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import {
+    Plus,
+    Search,
+    Loader2,
+    FolderOpen,
+    Pencil,
+    Archive,
+    ArchiveRestore,
+    X,
+    Clock3,
+    Sparkles,
+    Megaphone,
+    Layers3,
+    EyeOff,
+    RefreshCw,
+    Users,
+    Lock,
+    Unlock,
+    SlidersHorizontal,
+} from 'lucide-react';
+import { buildApiUrl } from '@/api';
+
+const C = {
+    brownMid: '#7c4a2e',
+    green: '#16a34a',
+    greenSoft: '#F0FDF4',
+    amber: '#d97706',
+    amberSoft: '#FFF7ED',
+    red: '#dc2626',
+    redSoft: '#FEF2F2',
+    blueMid: '#2563EB',
+    blueSoft: '#EFF6FF',
+    bg: '#faf7f2',
+    line: '#e7e5e4',
+};
+
+const STATUS_META = {
+    draft: { label: 'Draft', color: C.amber, bg: C.amberSoft },
+    open: { label: 'Open', color: C.green, bg: C.greenSoft },
+    closed: { label: 'Closed', color: C.red, bg: C.redSoft },
+    archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
+};
+
+const INITIAL_FORM = {
+    program_id: '',
+    opening_title: '',
+    academic_year_id: '',
+    academic_year: '',
+    allocated_slots: '',
+    filled_slots_preview: 0,
+    waiting_list_enabled: true,
+    waiting_list_limit: 0,
+    financial_allocation: '',
+    announcement_text: '',
+    posting_status: 'draft',
+    target_audience: 'Applicants',
+};
+
+function fmtMoney(v) {
+    const n = Number(v || 0);
+    return `₱${n.toLocaleString()}`;
+}
+
+function normalizeAudience(value) {
+    if (!value) return '';
+
+    const raw = String(value).trim();
+
+    if (raw === 'Applicants') return 'Applicants';
+    if (raw === 'Scholars') return 'Scholars';
+
+    if (
+        raw === 'Both' ||
+        raw === 'Applicants,Scholars' ||
+        raw === 'Scholars,Applicants'
+    ) {
+        return 'Both';
+    }
+
+    return raw;
+}
+
+function deriveTargetAudience(source) {
+    const normalized = normalizeAudience(source?.target_audience);
+    if (normalized) return normalized;
+
+    const joined = [
+        source?.program_name,
+        source?.benefactor_name,
+        source?.opening_title,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+    const isTES = /\btes\b|tertiary education subsidy/.test(joined);
+
+    return isTES ? 'Both' : 'Applicants';
+}
+
+function targetAudienceLabel(value) {
+    const normalized = normalizeAudience(value);
+
+    if (normalized === 'Both') return 'Scholars & Applicants';
+    if (normalized === 'Applicants') return 'Applicants';
+    if (normalized === 'Scholars') return 'Scholars';
+
+    return normalized || 'Applicants';
+}
+
+function getCurrentSchoolYearLabel(date = new Date()) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+
+    const startYear = month >= 6 ? year : year - 1;
+    const endYear = startYear + 1;
+
+    return `${startYear}-${endYear}`;
+}
+
+function getVisibleAcademicYears(rows = []) {
+    return (Array.isArray(rows) ? rows : []).filter((year) => {
+        const isArchived =
+            year?.is_archived === true ||
+            year?.archived === true ||
+            year?.academic_year_is_archived === true ||
+            String(year?.status || '').toLowerCase() === 'archived';
+
+        return !isArchived;
+    });
+}
+
+function getDefaultAcademicYear(academicYears = []) {
+    const currentLabel = getCurrentSchoolYearLabel();
+
+    return (
+        academicYears.find((year) => String(year.label || '') === currentLabel) ||
+        academicYears.find((year) => year.is_active === true) ||
+        academicYears[0] ||
+        null
+    );
+}
+
+function getFilledSlots(openingLike = {}) {
+    return Number(
+        openingLike.qualified_count ??
+        openingLike.filled_slots ??
+        openingLike.filled_slots_preview ??
+        0
+    );
+}
+
+function getAllocatedSlots(openingLike = {}) {
+    return Number(openingLike.allocated_slots || 0);
+}
+
+function getAvailableSlots(openingLike = {}) {
+    return Math.max(0, getAllocatedSlots(openingLike) - getFilledSlots(openingLike));
+}
+
+function getComputedDisplayStatus(openingLike = {}) {
+    const rawStatus = String(openingLike.posting_status || 'draft').toLowerCase();
+    const isArchived = !!openingLike.is_archived;
+
+    if (isArchived || rawStatus === 'archived') return 'archived';
+    if (rawStatus === 'closed') return 'closed';
+    if (rawStatus === 'draft') return 'draft';
+
+    return 'open';
+}
+
+function derivePersistedOpeningStatus(payload, existingStatus = '') {
+    const normalizedExisting = String(existingStatus || '').toLowerCase();
+
+    if (normalizedExisting === 'archived') return 'archived';
+    if (normalizedExisting === 'closed') return 'closed';
+    if (normalizedExisting === 'draft') return 'draft';
+
+    const hasRequiredFields =
+        !!payload.opening_title &&
+        !!payload.program_id &&
+        !!payload.academic_year_id &&
+        Number(payload.allocated_slots || 0) > 0;
+
+    if (!hasRequiredFields) return 'draft';
+
+    return 'open';
+}
+
+function canOpeningBeOpened(openingLike = {}) {
+    return (
+        !!String(openingLike.opening_title || '').trim() &&
+        !!String(openingLike.program_id || '').trim() &&
+        !!String(openingLike.academic_year_id || '').trim() &&
+        Number(openingLike.allocated_slots || 0) > 0
+    );
+}
+
+function EmptyState({ icon: Icon, title, subtitle }) {
+    return (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
+            <Icon size={40} className="mb-3 text-stone-300" />
+            <p className="text-sm font-semibold text-stone-700">{title}</p>
+            <p className="mt-1 text-xs text-stone-400">{subtitle}</p>
+        </div>
+    );
+}
+
+function FilterModal({
+    open,
+    onClose,
+    programOptions,
+    audienceOptions,
+    draftProgramFilter,
+    setDraftProgramFilter,
+    draftAudienceFilter,
+    setDraftAudienceFilter,
+    onApply,
+    onClear,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <div>
+                        <h3 className="text-base font-semibold text-stone-800">
+                            Filter Openings
+                        </h3>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <CardContent className="space-y-4 p-5">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            Target Audience
+                        </label>
+                        <Select value={draftAudienceFilter} onValueChange={setDraftAudienceFilter}>
+                            <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm">
+                                <SelectValue placeholder="Target Audience" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {audienceOptions.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                        {option === 'Both' ? 'Scholars & Applicants' : option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            Program
+                        </label>
+                        <Select value={draftProgramFilter} onValueChange={setDraftProgramFilter}>
+                            <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {programOptions.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                        {option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClear}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Clear
+                        </Button>
+                        <Button
+                            onClick={onApply}
+                            className="h-9 rounded-lg border-none text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            Apply Filters
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function OpeningModal({
+    open,
+    mode,
+    form,
+    setForm,
+    template,
+    templates,
+    academicYears,
+    onClose,
+    onSave,
+    saving,
+}) {
+    if (!open) return null;
+
+    const isEdit = mode === 'edit';
+    const title = isEdit ? 'Edit Scholarship Opening' : 'Create Scholarship Opening';
+
+    const selectedTemplate =
+        templates.find((t) => t.program_id === form.program_id) || template || null;
+
+    const previewStatus = getComputedDisplayStatus({
+        ...form,
+        posting_status: derivePersistedOpeningStatus(form, form.posting_status),
+    });
+
+    const allocatedSlots = Number(form.allocated_slots) || 0;
+    const totalFinancial = Number(form.financial_allocation) || 0;
+    const perScholarFinancial =
+        allocatedSlots > 0 && totalFinancial > 0
+            ? Math.floor(totalFinancial / allocatedSlots)
+            : 0;
+
+    const audienceLabel = targetAudienceLabel(form.target_audience);
+
+    const canSubmit =
+        !!form.opening_title?.trim() &&
+        !!form.program_id &&
+        !!form.academic_year_id &&
+        Number(form.allocated_slots || 0) > 0;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-stone-200 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex shrink-0 items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <div>
+                        <h3 className="text-base font-semibold text-stone-800">{title}</h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Configure the opening details, slots, and financial allocation.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <div className="flex-1 space-y-5 overflow-y-auto p-5">
+                    {selectedTemplate && (
+                        <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+                            <div className="flex items-start gap-3">
+                                <div
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                                    style={{ background: C.blueSoft }}
+                                >
+                                    <Layers3 className="h-4 w-4" style={{ color: C.blueMid }} />
+                                </div>
+
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-sm font-semibold text-stone-800">
+                                            {selectedTemplate.program_name || 'Untitled Program'}
+                                        </p>
+
+                                        <Badge
+                                            variant="outline"
+                                            className="border-stone-200 bg-white text-[10px] text-stone-600"
+                                        >
+                                            {selectedTemplate.benefactor_name || 'No Organization'}
+                                        </Badge>
+
+                                        <Badge
+                                            variant="outline"
+                                            className="border-purple-200 bg-purple-50 text-[10px] text-purple-700"
+                                        >
+                                            <Users className="mr-1 h-3 w-3" />
+                                            {audienceLabel}
+                                        </Badge>
+
+                                        <Badge
+                                            variant="outline"
+                                            className={`text-[10px] ${previewStatus === 'open'
+                                                ? 'border-green-200 bg-green-50 text-green-700'
+                                                : previewStatus === 'closed'
+                                                    ? 'border-red-200 bg-red-50 text-red-700'
+                                                    : previewStatus === 'draft'
+                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                        : 'border-stone-200 bg-white text-stone-600'
+                                                }`}
+                                        >
+                                            {STATUS_META[previewStatus]?.label || 'Draft'}
+                                        </Badge>
+                                    </div>
+
+                                    <p className="mt-1 text-xs text-stone-500">
+                                        {selectedTemplate.description || 'No default description set.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Scholarship Program
+                                </label>
+                                <Select
+                                    value={form.program_id}
+                                    onValueChange={(value) => {
+                                        const selected = templates.find((t) => t.program_id === value);
+
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            program_id: value,
+                                            target_audience: deriveTargetAudience(selected),
+                                            announcement_text:
+                                                prev.announcement_text?.trim()
+                                                    ? prev.announcement_text
+                                                    : selected?.description || '',
+                                            opening_title:
+                                                prev.opening_title?.trim()
+                                                    ? prev.opening_title
+                                                    : `${selected?.program_name || 'Scholarship'} Opening`,
+                                        }));
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                        <SelectValue placeholder="Select scholarship program" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {templates.length === 0 ? (
+                                            <SelectItem value="NO_PROGRAM" disabled>
+                                                No published programs available
+                                            </SelectItem>
+                                        ) : (
+                                            templates.map((item) => (
+                                                <SelectItem key={item.program_id} value={item.program_id}>
+                                                    {item.program_name}
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Opening Title
+                                </label>
+                                <Input
+                                    value={form.opening_title}
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            opening_title: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="e.g. Kaizen Scholarship Opening 2026-2027"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Academic Year
+                                </label>
+                                <Select
+                                    value={form.academic_year_id}
+                                    onValueChange={(value) => {
+                                        const selected = academicYears.find(
+                                            (y) => y.academic_year_id === value
+                                        );
+
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            academic_year_id: value,
+                                            academic_year: selected?.label || '',
+                                        }));
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                        <SelectValue placeholder="Select academic year" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {academicYears.length === 0 ? (
+                                            <SelectItem value="NO_YEAR" disabled>
+                                                No academic years available
+                                            </SelectItem>
+                                        ) : (
+                                            academicYears.map((year) => (
+                                                <SelectItem
+                                                    key={year.academic_year_id}
+                                                    value={year.academic_year_id}
+                                                >
+                                                    {year.label}
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Target Audience
+                                </label>
+                                <Input
+                                    value={audienceLabel}
+                                    readOnly
+                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
+                                    style={{ color: C.brownMid }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Allocated Slots
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={form.allocated_slots}
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            allocated_slots: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="0"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                            </div>
+
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                                <label className="flex cursor-pointer items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.waiting_list_enabled !== false}
+                                        onChange={(e) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                waiting_list_enabled: e.target.checked,
+                                            }))
+                                        }
+                                        className="mt-0.5 h-4 w-4 rounded border-stone-300"
+                                    />
+                                    <span>
+                                        <span className="block text-sm font-semibold text-stone-800">
+                                            Enable Waiting List
+                                        </span>
+                                        <span className="mt-1 block text-xs leading-relaxed text-stone-500">
+                                            Applicants who complete valid requirements after the available slots are filled will be queued in first-come, first-served order.
+                                        </span>
+                                    </span>
+                                </label>
+
+                                {form.waiting_list_enabled !== false ? (
+                                    <div className="mt-3 space-y-1.5">
+                                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                            Waiting List Limit
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={form.waiting_list_limit ?? 0}
+                                            onChange={(e) =>
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    waiting_list_limit: e.target.value,
+                                                }))
+                                            }
+                                            placeholder="0 = no limit"
+                                            className="h-10 rounded-lg border-stone-200 bg-white text-sm"
+                                        />
+                                        <p className="text-[11px] text-stone-400">
+                                            Enter 0 to accept all qualified applicants into the waiting list.
+                                        </p>
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Total Financial Allocation (₱)
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1000"
+                                    value={form.financial_allocation}
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            financial_allocation: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="0"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Per Scholar Amount (₱)
+                                </label>
+                                <Input
+                                    type="number"
+                                    readOnly
+                                    value={perScholarFinancial}
+                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
+                                    style={{ color: C.brownMid }}
+                                />
+                            </div>
+
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                <p className="text-xs text-emerald-700">
+                                    <span className="font-semibold">Allocated Slots:</span>{' '}
+                                    {allocatedSlots}
+                                    {' · '}
+                                    <span className="font-semibold">Per Scholar:</span>{' '}
+                                    ₱{perScholarFinancial.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            Opening Notes
+                        </label>
+                        <Textarea
+                            value={form.announcement_text}
+                            onChange={(e) =>
+                                setForm((prev) => ({
+                                    ...prev,
+                                    announcement_text: e.target.value,
+                                }))
+                            }
+                            placeholder="Instructions, reminders, notes, or conditions..."
+                            className="min-h-[120px] resize-none rounded-lg border-stone-200 text-sm"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                        className="h-9 rounded-lg border-stone-200 text-xs"
+                    >
+                        Cancel
+                    </Button>
+
+                    <Button
+                        onClick={onSave}
+                        disabled={saving || !canSubmit}
+                        className="h-9 rounded-lg border-none text-xs text-white disabled:opacity-50"
+                        style={{ background: C.brownMid }}
+                    >
+                        {saving ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="mr-2 h-4 w-4" />
+                        )}
+                        {isEdit ? 'Save Changes' : 'Create Opening'}
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
+function CreateOpeningConfirmModal({
+    open,
+    onClose,
+    onOpenNow,
+    onSaveDraft,
+    saving,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <h3 className="text-base font-semibold text-stone-800">
+                        Create Scholarship Opening
+                    </h3>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                        Choose how you want to save this opening.
+                    </p>
+                </div>
+
+                <CardContent className="space-y-4 p-5">
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <p className="text-sm font-medium text-stone-800">
+                            Do you want to open this scholarship opening now?
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-stone-500">
+                            If you open it now, it can appear as an available opening.
+                            If you save it as draft, it will stay hidden until you click Open.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={saving}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={onSaveDraft}
+                            disabled={saving}
+                            className="h-9 rounded-lg border-amber-200 text-xs text-amber-700 hover:bg-amber-50"
+                        >
+                            {saving ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Clock3 className="mr-2 h-4 w-4" />
+                            )}
+                            Save as Draft
+                        </Button>
+
+                        <Button
+                            onClick={onOpenNow}
+                            disabled={saving}
+                            className="h-9 rounded-lg border-none text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            {saving ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Unlock className="mr-2 h-4 w-4" />
+                            )}
+                            Open Now
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
+    if (!open || !opening) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <h3 className="text-base font-semibold text-stone-800">
+                        Opening Created
+                    </h3>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                        {opening.opening_title || 'Scholarship opening created successfully.'}
+                    </p>
+                </div>
+
+                <CardContent className="space-y-4 p-5">
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <p className="text-sm font-medium text-stone-800">
+                            Do you want to create an announcement for this opening now?
+                        </p>
+                        <p className="mt-1 text-xs text-stone-500">
+                            This will redirect you to the announcements page with prefilled content.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Skip for Now
+                        </Button>
+                        <Button
+                            onClick={onCreateAnnouncement}
+                            className="h-9 rounded-lg border-none text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            <Megaphone className="mr-2 h-4 w-4" />
+                            Create Announcement
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function TemplateCard({ template, onOpen }) {
+    return (
+        <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
+            <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold text-stone-900">
+                                {template.program_name || 'Untitled Program'}
+                            </h3>
+
+                            <Badge
+                                variant="outline"
+                                className="border-stone-200 bg-white text-[10px] text-stone-600"
+                            >
+                                {template.benefactor_name || 'No Organization'}
+                            </Badge>
+
+                            <Badge
+                                variant="outline"
+                                className="border-purple-200 bg-purple-50 text-[10px] text-purple-700"
+                            >
+                                <Users className="mr-1 h-3 w-3" />
+                                {targetAudienceLabel(
+                                    template.target_audience || deriveTargetAudience(template)
+                                )}
+                            </Badge>
+                        </div>
+
+                        <p className="mt-2 text-xs leading-relaxed text-stone-500">
+                            {template.description || 'No description available.'}
+                        </p>
+                    </div>
+
+                    <Button
+                        size="sm"
+                        className="h-8 shrink-0 rounded-lg border-none px-3 text-xs text-white"
+                        style={{ background: C.brownMid }}
+                        onClick={() => onOpen(template)}
+                    >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Open
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function OpeningCard({
+    opening,
+    actionLoadingId,
+    openEditModal,
+    handleRestoreOpening,
+    handleOpenDraftOpening,
+    handleMoveToDraft,
+    handleCloseOpening,
+    handleReopenOpening,
+    handleArchiveOpening,
+}) {
+    const computedStatus = getComputedDisplayStatus(opening);
+    const meta = STATUS_META[computedStatus] || STATUS_META.draft;
+    const audience = normalizeAudience(opening.target_audience) || 'Applicants';
+    const audienceLabelValue = targetAudienceLabel(audience);
+
+    const allocatedSlots = getAllocatedSlots(opening);
+    const filledSlots = getFilledSlots(opening);
+    const availableSlots = getAvailableSlots(opening);
+
+    const isArchived = computedStatus === 'archived';
+    const isClosed = computedStatus === 'closed';
+    const isDraft = computedStatus === 'draft';
+    const canBeOpened = canOpeningBeOpened(opening);
+    const canReopen = isClosed && availableSlots > 0;
+    const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
+    const isBusy = actionLoadingId === opening.opening_id;
+
+    const perScholar =
+        opening.per_scholar_amount ??
+        (allocatedSlots > 0
+            ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
+            : 0);
+
+    return (
+        <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
+            <CardContent className="p-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-sm font-semibold text-stone-900">
+                                    {opening.opening_title || 'Untitled Opening'}
+                                </h3>
+
+                                <span
+                                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+                                    style={{ color: meta.color, background: meta.bg }}
+                                >
+                                    {meta.label}
+                                </span>
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Badge
+                                    variant="outline"
+                                    className="border-stone-200 bg-white text-[10px] text-stone-600"
+                                >
+                                    {opening.program_name || 'No Program'}
+                                </Badge>
+
+                                <Badge
+                                    variant="outline"
+                                    className={`text-[10px] ${audience === 'Both'
+                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                        : audience === 'Scholars'
+                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                            : 'border-sky-200 bg-sky-50 text-sky-700'
+                                        }`}
+                                >
+                                    <Users className="mr-1 h-3 w-3" />
+                                    {audienceLabelValue}
+                                </Badge>
+                            </div>
+
+                            <p className="mt-2 text-xs text-stone-500">
+                                {opening.benefactor_name || 'No Benefactor'}
+                            </p>
+
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        AY
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {opening.academic_year || 'N/A'}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        Slots
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {allocatedSlots}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        Filled
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {filledSlots}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        Per Scholar
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {fmtMoney(perScholar)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {opening.announcement_text && (
+                                <details className="mt-3 text-xs">
+                                    <summary className="cursor-pointer text-stone-500 hover:text-stone-700">
+                                        View notes
+                                    </summary>
+                                    <p className="mt-1 leading-relaxed text-stone-600">
+                                        {opening.announcement_text}
+                                    </p>
+                                </details>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
+                            {isArchived && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRestoreOpening(opening)}
+                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Restore
+                                </Button>
+                            )}
+
+                            {!isArchived && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openEditModal(opening)}
+                                    className="h-7 rounded-md border-stone-200 px-2 text-[11px]"
+                                    disabled={isBusy}
+                                >
+                                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                    Edit
+                                </Button>
+                            )}
+
+                            {!isArchived && isDraft && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenDraftOpening(opening)}
+                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                    disabled={isBusy || !canBeOpened}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Open
+                                </Button>
+                            )}
+
+                            {canMoveToDraft && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleMoveToDraft(opening)}
+                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Draft
+                                </Button>
+                            )}
+
+                            {!isArchived && !isClosed && !isDraft && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCloseOpening(opening.opening_id)}
+                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Lock className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Close
+                                </Button>
+                            )}
+
+                            {!isArchived && isClosed && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleReopenOpening(opening)}
+                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                    disabled={isBusy || !canReopen}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Reopen
+                                </Button>
+                            )}
+
+                            {!isArchived && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleArchiveOpening(opening.opening_id)}
+                                    className="h-7 rounded-md border-red-200 px-2 text-[11px] text-red-700 hover:bg-red-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Archive
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+export default function ScholarshipOpenings() {
+    const navigate = useNavigate();
+
+    const [templates, setTemplates] = useState([]);
+    const [openings, setOpenings] = useState([]);
+    const [academicYears, setAcademicYears] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [actionLoadingId, setActionLoadingId] = useState(null);
+
+    const [search, setSearch] = useState('');
+    const [programFilter, setProgramFilter] = useState('All Programs');
+    const [audienceFilter, setAudienceFilter] = useState('All Audiences');
+    const [pageTab, setPageTab] = useState('current');
+
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [draftProgramFilter, setDraftProgramFilter] = useState('All Programs');
+    const [draftAudienceFilter, setDraftAudienceFilter] = useState('All Audiences');
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('create');
+    const [activeTemplate, setActiveTemplate] = useState(null);
+    const [editingOpeningId, setEditingOpeningId] = useState(null);
+    const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
+
+    const [postCreateOpen, setPostCreateOpen] = useState(false);
+    const [newOpeningForPrompt, setNewOpeningForPrompt] = useState(null);
+
+    const [form, setForm] = useState(INITIAL_FORM);
+
+    const buildEmptyForm = useCallback(() => {
+        const defaultAcademicYear = getDefaultAcademicYear(academicYears);
+
+        return {
+            ...INITIAL_FORM,
+            academic_year_id: defaultAcademicYear?.academic_year_id || '',
+            academic_year: defaultAcademicYear?.label || '',
+        };
+    }, [academicYears]);
+
+    const fetchData = useCallback(async (options = {}) => {
+        const silent = options.silent === true;
+
+        try {
+            if (!silent) {
+                setLoading(true);
+            }
+
+            const token = sessionStorage.getItem('adminToken');
+
+            const [templatesRes, openingsRes, academicYearsRes] = await Promise.all([
+                fetch(buildApiUrl('/api/scholarship-program'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+                fetch(buildApiUrl('/api/program-openings'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+                fetch(buildApiUrl('/api/academic-years'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+            ]);
+
+            if (!templatesRes.ok) {
+                throw new Error('Failed to load scholarship program templates.');
+            }
+
+            if (!openingsRes.ok) {
+                throw new Error('Failed to load scholarship openings.');
+            }
+
+            if (!academicYearsRes.ok) {
+                throw new Error('Failed to load academic years.');
+            }
+
+            const templatesData = await templatesRes.json();
+            const openingsData = await openingsRes.json();
+            const academicYearsData = await academicYearsRes.json();
+
+            const visibleAcademicYears = getVisibleAcademicYears(academicYearsData);
+
+            setAcademicYears(visibleAcademicYears);
+
+            setTemplates(
+                Array.isArray(templatesData)
+                    ? templatesData.filter(
+                        (t) =>
+                            !t.is_archived &&
+                            String(t.visibility_status || '').toLowerCase() === 'published'
+                    )
+                    : []
+            );
+
+            setOpenings(Array.isArray(openingsData) ? openingsData : []);
+
+            setForm((prev) => {
+                if (prev.academic_year_id) return prev;
+
+                const defaultAcademicYear = getDefaultAcademicYear(visibleAcademicYears);
+
+                return {
+                    ...prev,
+                    academic_year_id: defaultAcademicYear?.academic_year_id || '',
+                    academic_year: defaultAcademicYear?.label || '',
+                };
+            });
+        } catch (err) {
+            console.error('SCHOLARSHIP OPENINGS FETCH ERROR:', err);
+            alert(err.message || 'Failed to load scholarship openings.');
+        } finally {
+            if (!silent) {
+                setLoading(false);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    useSocketEvent('opening:created', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('opening:updated', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('opening:closed', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('opening:archived', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('opening:restored', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('maintenance:updated', (payload) => {
+        if (!payload?.module || payload.module === 'scholarship_openings') {
+            fetchData({ silent: true });
+        }
+    }, [fetchData]);
+
+    const visibleOpenings = useMemo(() => {
+        return openings.filter((o) => {
+            const status = String(o.posting_status || '').toLowerCase();
+
+            const noCoreData =
+                !o.opening_title &&
+                !o.program_name &&
+                Number(o.allocated_slots || 0) === 0 &&
+                Number(o.financial_allocation || 0) === 0;
+
+            if (noCoreData) return false;
+            if (status === 'archived' && !o.opening_title) return false;
+
+            return true;
+        });
+    }, [openings]);
+
+    const programOptions = useMemo(() => {
+        const source = pageTab === 'templates' ? templates : visibleOpenings;
+        const values = source.map((o) => o.program_name).filter(Boolean);
+
+        return ['All Programs', ...new Set(values)];
+    }, [templates, visibleOpenings, pageTab]);
+
+    const audienceOptions = ['All Audiences', 'Applicants', 'Scholars', 'Both'];
+
+    const filteredTemplates = useMemo(() => {
+        const q = search.trim().toLowerCase();
+
+        return templates.filter((t) => {
+            const matchSearch =
+                !q ||
+                (t.program_name || '').toLowerCase().includes(q) ||
+                (t.benefactor_name || '').toLowerCase().includes(q) ||
+                (t.description || '').toLowerCase().includes(q);
+
+            const templateAudience =
+                normalizeAudience(t.target_audience) || deriveTargetAudience(t);
+
+            const matchAudience =
+                audienceFilter === 'All Audiences' ||
+                templateAudience === audienceFilter;
+
+            const matchProgram =
+                programFilter === 'All Programs' ||
+                (t.program_name || '') === programFilter;
+
+            return matchSearch && matchAudience && matchProgram;
+        });
+    }, [templates, search, audienceFilter, programFilter]);
+
+    const filteredOpenings = useMemo(() => {
+        const q = search.trim().toLowerCase();
+
+        return visibleOpenings
+            .filter((o) => {
+                const computedStatus = getComputedDisplayStatus(o);
+
+                const inCurrentTab =
+                    pageTab === 'current' && computedStatus !== 'archived';
+                const inArchivedTab =
+                    pageTab === 'archived' && computedStatus === 'archived';
+
+                if (pageTab === 'templates') return false;
+                if (!inCurrentTab && !inArchivedTab) return false;
+
+                const matchSearch =
+                    !q ||
+                    (o.opening_title || '').toLowerCase().includes(q) ||
+                    (o.program_name || '').toLowerCase().includes(q) ||
+                    (o.benefactor_name || '').toLowerCase().includes(q) ||
+                    (o.academic_year || '').toLowerCase().includes(q);
+
+                const matchProgram =
+                    programFilter === 'All Programs' ||
+                    (o.program_name || '') === programFilter;
+
+                const openingAudience = normalizeAudience(o.target_audience) || 'Applicants';
+
+                const matchAudience =
+                    audienceFilter === 'All Audiences' ||
+                    openingAudience === audienceFilter;
+
+                return matchSearch && matchProgram && matchAudience;
+            })
+            .sort((a, b) => {
+                const aCreated = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                const bCreated = b?.created_at ? new Date(b.created_at).getTime() : 0;
+
+                if (bCreated !== aCreated) return bCreated - aCreated;
+
+                const aUpdated = a?.updated_at ? new Date(a.updated_at).getTime() : 0;
+                const bUpdated = b?.updated_at ? new Date(b.updated_at).getTime() : 0;
+
+                return bUpdated - aUpdated;
+            });
+    }, [visibleOpenings, search, programFilter, audienceFilter, pageTab]);
+
+    const hasActiveFilters =
+        audienceFilter !== 'All Audiences' ||
+        programFilter !== 'All Programs';
+
+    const openFilterModal = () => {
+        setDraftAudienceFilter(audienceFilter);
+        setDraftProgramFilter(programFilter);
+        setFilterOpen(true);
+    };
+
+    const applyFilters = () => {
+        setAudienceFilter(draftAudienceFilter);
+        setProgramFilter(draftProgramFilter);
+        setFilterOpen(false);
+    };
+
+    const clearFilters = () => {
+        setAudienceFilter('All Audiences');
+        setProgramFilter('All Programs');
+        setDraftAudienceFilter('All Audiences');
+        setDraftProgramFilter('All Programs');
+        setFilterOpen(false);
+    };
+
+    const openCreateFromTemplate = (template) => {
+        const currentYear = new Date().getFullYear();
+        const computedAudience = deriveTargetAudience(template);
+        const defaultAcademicYear = getDefaultAcademicYear(academicYears);
+
+        const existingDraft = openings.find(
+            (o) =>
+                o.program_id === template.program_id &&
+                String(o.posting_status || '').toLowerCase() === 'draft'
+        );
+
+        if (existingDraft) {
+            setModalMode('edit');
+            setEditingOpeningId(existingDraft.opening_id);
+            setActiveTemplate(template);
+            setForm({
+                program_id: existingDraft.program_id || template.program_id,
+                opening_title:
+                    existingDraft.opening_title ||
+                    `${template.program_name} ${currentYear}-${currentYear + 1}`,
+                academic_year_id:
+                    existingDraft.academic_year_id ||
+                    defaultAcademicYear?.academic_year_id ||
+                    '',
+                academic_year:
+                    existingDraft.academic_year ||
+                    defaultAcademicYear?.label ||
+                    '',
+                allocated_slots: existingDraft.allocated_slots ?? '',
+                filled_slots_preview:
+                    existingDraft.qualified_count ??
+                    existingDraft.filled_slots ??
+                    0,
+                waiting_list_enabled: existingDraft.waiting_list_enabled !== false,
+                waiting_list_limit: existingDraft.waiting_list_limit ?? 0,
+                financial_allocation: existingDraft.financial_allocation ?? '',
+                announcement_text:
+                    existingDraft.announcement_text ??
+                    template.description ??
+                    '',
+                posting_status: existingDraft.posting_status || 'draft',
+                target_audience: deriveTargetAudience(existingDraft),
+            });
+            setModalOpen(true);
+            return;
+        }
+
+        setModalMode('create');
+        setEditingOpeningId(null);
+        setActiveTemplate(template);
+        setForm({
+            program_id: template.program_id,
+            opening_title: `${template.program_name} ${currentYear}-${currentYear + 1}`,
+            academic_year_id: defaultAcademicYear?.academic_year_id || '',
+            academic_year: defaultAcademicYear?.label || '',
+            allocated_slots: '',
+            filled_slots_preview: 0,
+            waiting_list_enabled: true,
+            waiting_list_limit: 0,
+            financial_allocation: '',
+            announcement_text: template.description || '',
+            posting_status: 'draft',
+            target_audience: computedAudience,
+        });
+        setModalOpen(true);
+    };
+
+    const openEditModal = (opening) => {
+        setModalMode('edit');
+        setEditingOpeningId(opening.opening_id);
+        setActiveTemplate(
+            templates.find((t) => t.program_id === opening.program_id) || null
+        );
+
+        setForm({
+            program_id: opening.program_id || '',
+            opening_title: opening.opening_title || '',
+            academic_year_id: opening.academic_year_id || '',
+            academic_year: opening.academic_year || '',
+            allocated_slots: opening.allocated_slots ?? '',
+            filled_slots_preview:
+                opening.qualified_count ??
+                opening.filled_slots ??
+                0,
+            waiting_list_enabled: opening.waiting_list_enabled !== false,
+            waiting_list_limit: opening.waiting_list_limit ?? 0,
+            financial_allocation: opening.financial_allocation ?? '',
+            announcement_text: opening.announcement_text || '',
+            posting_status: opening.posting_status || 'draft',
+            target_audience: deriveTargetAudience(opening),
+        });
+
+        setModalOpen(true);
+    };
+
+    const handleSaveOpening = async (forcedStatus = null) => {
+        try {
+            if (!form.program_id) {
+                alert('Program is required.');
+                return;
+            }
+
+            if (!form.opening_title?.trim()) {
+                alert('Opening title is required.');
+                return;
+            }
+
+            if (!form.academic_year_id) {
+                alert('Academic year is required.');
+                return;
+            }
+
+            const allocatedSlots = Number(form.allocated_slots || 0);
+
+            if (allocatedSlots <= 0) {
+                alert('Allocated slots must be greater than 0.');
+                return;
+            }
+
+            const financialAllocation = Number(form.financial_allocation || 0);
+            const perScholarAmount =
+                allocatedSlots > 0 && financialAllocation > 0
+                    ? Math.floor(financialAllocation / allocatedSlots)
+                    : 0;
+
+            setSaving(true);
+
+            const isEdit = modalMode === 'edit' && editingOpeningId;
+
+            const computedStatus = forcedStatus
+                ? forcedStatus
+                : derivePersistedOpeningStatus(
+                    form,
+                    isEdit ? form.posting_status : ''
+                );
+
+            const payload = {
+                program_id: form.program_id,
+                opening_title: form.opening_title.trim(),
+                academic_year_id: form.academic_year_id || null,
+                allocated_slots: allocatedSlots,
+                waiting_list_enabled: form.waiting_list_enabled !== false,
+                waiting_list_limit: Math.max(0, Number(form.waiting_list_limit || 0)),
+                financial_allocation: financialAllocation,
+                per_scholar_amount: perScholarAmount,
+                announcement_text: form.announcement_text?.trim() || null,
+                posting_status: computedStatus,
+            };
+
+            const url = isEdit
+                ? buildApiUrl(`/api/program-openings/${editingOpeningId}`)
+                : buildApiUrl('/api/program-openings');
+
+            const method = isEdit ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                    data.message ||
+                    'Failed to save scholarship opening'
+                );
+            }
+
+            setCreateConfirmOpen(false);
+            setModalOpen(false);
+            setForm(buildEmptyForm());
+            setEditingOpeningId(null);
+            setActiveTemplate(null);
+
+            await fetchData({ silent: true });
+
+            if (!isEdit && String(computedStatus).toLowerCase() === 'open') {
+                setNewOpeningForPrompt({
+                    ...(data?.data || data || payload),
+                    target_audience: form.target_audience,
+                });
+                setPostCreateOpen(true);
+            }
+        } catch (err) {
+            console.error('SAVE OPENING ERROR:', err);
+            alert(err.message || 'Failed to save scholarship opening');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const requestSaveOpening = () => {
+        const isEdit = modalMode === 'edit' && editingOpeningId;
+
+        if (isEdit) {
+            handleSaveOpening();
+            return;
+        }
+
+        setCreateConfirmOpen(true);
+    };
+
+    const updateOpeningStatus = async (openingId, nextStatus, extraPayload = {}) => {
+        try {
+            setActionLoadingId(openingId);
+
+            const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    posting_status: nextStatus,
+                    ...extraPayload,
+                }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                    data.message ||
+                    'Failed to update opening status'
+                );
+            }
+
+            await fetchData({ silent: true });
+        } catch (err) {
+            console.error('UPDATE OPENING STATUS ERROR:', err);
+            alert(err.message || 'Failed to update opening status');
+        } finally {
+            setActionLoadingId(null);
+        }
+    };
+
+    const handleArchiveOpening = async (openingId) => {
+        await updateOpeningStatus(openingId, 'archived', { is_archived: true });
+    };
+
+    const handleRestoreOpening = async (opening) => {
+        const availableSlots = getAvailableSlots(opening);
+        const nextStatus = availableSlots > 0 ? 'open' : 'closed';
+
+        await updateOpeningStatus(opening.opening_id, nextStatus, {
+            is_archived: false,
+        });
+    };
+
+    const handleOpenDraftOpening = async (opening) => {
+        if (!canOpeningBeOpened(opening)) {
+            alert(
+                'This draft cannot be opened yet. Make sure it has an opening title, academic year, and allocated slots greater than 0.'
+            );
+            return;
+        }
+
+        await updateOpeningStatus(opening.opening_id, 'open', {
+            is_archived: false,
+        });
+    };
+
+    const handleCloseOpening = async (openingId) => {
+        await updateOpeningStatus(openingId, 'closed', {
+            is_archived: false,
+        });
+    };
+
+    const handleMoveToDraft = async (opening) => {
+        if (getFilledSlots(opening) > 0) {
+            alert(
+                'This opening cannot be moved to draft because it already has approved/filled slots.'
+            );
+            return;
+        }
+
+        await updateOpeningStatus(opening.opening_id, 'draft', {
+            is_archived: false,
+        });
+    };
+
+    const handleReopenOpening = async (opening) => {
+        const availableSlots = getAvailableSlots(opening);
+
+        if (availableSlots <= 0) {
+            alert('This opening cannot be reopened because no slots are available.');
+            return;
+        }
+
+        await updateOpeningStatus(opening.opening_id, 'open', {
+            is_archived: false,
+        });
+    };
+
+    const handleCreateAnnouncementRedirect = () => {
+        if (!newOpeningForPrompt) return;
+
+        const params = new URLSearchParams({
+            opening_title: newOpeningForPrompt.opening_title || '',
+            announcement_text: newOpeningForPrompt.announcement_text || '',
+            posting_status: newOpeningForPrompt.posting_status || '',
+            opening_id: newOpeningForPrompt.opening_id || '',
+            program_id: newOpeningForPrompt.program_id || '',
+            academic_year: newOpeningForPrompt.academic_year || '',
+            academic_year_id: newOpeningForPrompt.academic_year_id || '',
+            target_audience:
+                normalizeAudience(newOpeningForPrompt.target_audience) ||
+                deriveTargetAudience(newOpeningForPrompt),
+        });
+
+        navigate(`/admin/announcements?prefill=opening&${params.toString()}`);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
+                <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
+                <p className="text-xs uppercase tracking-widest text-stone-400">
+                    Loading scholarship openings.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4 py-3" style={{ background: C.bg }}>
+            <OpeningModal
+                open={modalOpen}
+                mode={modalMode}
+                form={form}
+                setForm={setForm}
+                template={activeTemplate}
+                templates={templates}
+                academicYears={academicYears}
+                onClose={() => {
+                    setModalOpen(false);
+                    setCreateConfirmOpen(false);
+                    setActiveTemplate(null);
+                    setEditingOpeningId(null);
+                    setForm(buildEmptyForm());
+                }}
+                onSave={requestSaveOpening}
+                saving={saving}
+            />
+
+            <CreateOpeningConfirmModal
+                open={createConfirmOpen}
+                saving={saving}
+                onClose={() => setCreateConfirmOpen(false)}
+                onOpenNow={() => handleSaveOpening('open')}
+                onSaveDraft={() => handleSaveOpening('draft')}
+            />
+
+            <PostCreatePrompt
+                open={postCreateOpen}
+                opening={newOpeningForPrompt}
+                onClose={() => {
+                    setPostCreateOpen(false);
+                    setNewOpeningForPrompt(null);
+                }}
+                onCreateAnnouncement={handleCreateAnnouncementRedirect}
+            />
+
+            <FilterModal
+                open={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                programOptions={programOptions}
+                audienceOptions={audienceOptions}
+                draftProgramFilter={draftProgramFilter}
+                setDraftProgramFilter={setDraftProgramFilter}
+                draftAudienceFilter={draftAudienceFilter}
+                setDraftAudienceFilter={setDraftAudienceFilter}
+                onApply={applyFilters}
+                onClear={clearFilters}
+            />
+
+            <section
+                className="rounded-2xl border bg-white p-3 sm:p-4"
+                style={{ borderColor: C.line }}
+            >
+                <div className="space-y-3">
+                    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={() => setPageTab('templates')}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'templates'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
+                                }`}
+                        >
+                            Templates
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setPageTab('current')}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'current'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
+                                }`}
+                        >
+                            Current
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setPageTab('archived')}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'archived'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
+                                }`}
+                        >
+                            Archived
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="relative w-full xl:max-w-xl">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder={
+                                    pageTab === 'templates'
+                                        ? 'Search template, benefactor, or description...'
+                                        : 'Search by opening title, program, benefactor, or academic year...'
+                                }
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm"
+                            />
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 lg:items-center">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={openFilterModal}
+                                className="h-10 rounded-xl border-stone-200 text-xs text-stone-600"
+                            >
+                                <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                                Filters
+                                {hasActiveFilters && (
+                                    <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                        Active
+                                    </span>
+                                )}
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => fetchData()}
+                                className="h-10 rounded-xl border-stone-200 text-xs text-stone-600"
+                            >
+                                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                className="h-10 rounded-xl border-none text-xs text-white"
+                                style={{ background: C.brownMid }}
+                                onClick={() => {
+                                    setModalMode('create');
+                                    setEditingOpeningId(null);
+                                    setActiveTemplate(null);
+                                    setForm(buildEmptyForm());
+                                    setModalOpen(true);
+                                }}
+                            >
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                Create Opening
+                            </Button>
+                        </div>
+                    </div>
+
+                    {search && (
+                        <div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSearch('')}
+                                className="h-9 rounded-lg border-stone-200 text-xs"
+                            >
+                                Reset Search
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {pageTab === 'templates' && (
+                <section
+                    className="overflow-hidden rounded-2xl border bg-white"
+                    style={{ borderColor: C.line }}
+                >
+                    <div className="border-b border-stone-100 px-5 py-4">
+                        <h2 className="text-sm font-semibold text-stone-800">
+                            Published Scholarship Program Templates
+                        </h2>
+                        <p className="mt-1 text-xs text-stone-500">
+                            Use a published template to create a new scholarship opening quickly.
+                        </p>
+                    </div>
+
+                    <div className="p-4">
+                        {filteredTemplates.length === 0 ? (
+                            <EmptyState
+                                icon={FolderOpen}
+                                title="No published templates found"
+                                subtitle="Create and publish scholarship programs first."
+                            />
+                        ) : (
+                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                {filteredTemplates.map((template) => (
+                                    <TemplateCard
+                                        key={template.program_id}
+                                        template={template}
+                                        onOpen={openCreateFromTemplate}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+
+            {pageTab !== 'templates' && (
+                <section
+                    className="overflow-hidden rounded-2xl border bg-white"
+                    style={{ borderColor: C.line }}
+                >
+                    <div className="border-b border-stone-100 px-5 py-4">
+                        <h2 className="text-sm font-semibold text-stone-800">
+                            {pageTab === 'current' ? 'Opening Registry' : 'Archived Openings'}
+                        </h2>
+                        <p className="mt-1 text-xs text-stone-500">
+                            {pageTab === 'current'
+                                ? 'Active, draft, and closed scholarship openings.'
+                                : 'Archived scholarship openings.'}
+                        </p>
+                    </div>
+
+                    <div className="p-4">
+                        {filteredOpenings.length === 0 ? (
+                            <EmptyState
+                                icon={EyeOff}
+                                title={
+                                    pageTab === 'current'
+                                        ? 'No scholarship openings found'
+                                        : 'No archived openings found'
+                                }
+                                subtitle={
+                                    pageTab === 'current'
+                                        ? 'Open a scholarship program from a published template to create one.'
+                                        : 'Archived scholarship openings will appear here.'
+                                }
+                            />
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredOpenings.map((opening) => (
+                                    <OpeningCard
+                                        key={opening.opening_id}
+                                        opening={opening}
+                                        actionLoadingId={actionLoadingId}
+                                        openEditModal={openEditModal}
+                                        handleRestoreOpening={handleRestoreOpening}
+                                        handleOpenDraftOpening={handleOpenDraftOpening}
+                                        handleMoveToDraft={handleMoveToDraft}
+                                        handleCloseOpening={handleCloseOpening}
+                                        handleReopenOpening={handleReopenOpening}
+                                        handleArchiveOpening={handleArchiveOpening}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+        </div>
+    );
+}

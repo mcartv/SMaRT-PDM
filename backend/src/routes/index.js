@@ -1,0 +1,50 @@
+const express = require('express');
+
+const authRoutes = require('./authRoutes');
+const courseRoutes = require('./courseRoutes');
+const profileRoutes = require('./profileRoutes');
+const applicationRoutes = require('./applicationRoutes');
+const openingRoutes = require('./openingRoutes');
+const messageRoutes = require('./messageRoutes');
+const adminApplicationRoutes = require('./adminApplicationRoutes');
+const adminProfilePhotoRoutes = require('./adminProfilePhotoRoutes');
+const notificationRoutes = require('./notificationRoutes');
+const announcementRoutes = require('./announcementRoutes');
+const studentRoutes = require('./studentRoutes');
+const payoutRoutes = require('./payoutRoutes');
+const roRoutes = require('./roRoutes');
+
+const router = express.Router();
+
+router.use('/api/auth', authRoutes);
+
+router.use('/api/courses', courseRoutes);
+router.use('/api/profile', profileRoutes);
+router.use('/api/applications', applicationRoutes);
+
+/*
+  Mobile uses /api/openings.
+  Some admin/web code may use /api/program-openings.
+*/
+router.use('/api/openings', openingRoutes);
+router.use('/api/program-openings', openingRoutes);
+
+router.use('/api/messages', messageRoutes);
+router.use('/api/admin/applications', adminApplicationRoutes);
+router.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
+router.use('/api/notifications', notificationRoutes);
+router.use('/api/announcements', announcementRoutes);
+router.use('/api/students', studentRoutes);
+router.use('/api/payouts', payoutRoutes);
+router.use('/api/ro', roRoutes);
+
+router.get('/api/health', (_req, res) => {
+    res.status(200).json({
+        status: 'OK',
+        service: 'SMaRT-PDM backend',
+    });
+});
+
+console.log('[Routes] Mounted: /api/openings and /api/openings/latest');
+
+module.exports = router;

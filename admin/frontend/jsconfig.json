@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "target": "ESNext",
+        "jsx": "react-jsx",
+        "baseUrl": ".",
+        "ignoreDeprecations": "5.0",
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ]
+        },
+        "types": [
+            "vite/client"
+        ]
+    },
+    "include": [
+        "src/**/*",
+        "public/**/*"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
+}

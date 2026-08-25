@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: smart-pdm-backend
+    env: node
+    rootDir: admin/backend
+    buildCommand: npm install && npm run build:frontend
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true

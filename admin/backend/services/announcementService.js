@@ -1,0 +1,327 @@
+const supabase = require('../config/supabase');
+const notificationService = require('./notificationService');
+
+const AUDIENCE_LABEL = {
+    all: 'All Students',
+    applicants: 'New Applicants',
+    scholars: 'Current Scholars',
+    tes: 'TES Recipients',
+    tdp: 'TDP Recipients',
+};
+
+function mapAnnouncementRow(row) {
+    return {
+        id: row.announcement_id,
+        title: row.subject,
+        content: row.content,
+        status: row.is_archived ? 'Archived' : row.status,
+        date: row.published_at || row.scheduled_at || row.publish_date || row.created_at,
+        audience: AUDIENCE_LABEL[row.target_audience] || row.target_audience,
+        audienceKey: row.target_audience,
+        isRoVoluntary: !!row.is_ro_voluntary,
+        is_archived: !!row.is_archived,
+        scheduledAt: row.scheduled_at || null,
+        publishedAt: row.published_at || null,
+        createdAt: row.created_at || null,
+        updatedAt: row.updated_at || null,
+        views: 0,
+    };
+}
+
+async function createAnnouncementNotifications(announcementRow) {
+    try {
+        const rows = await notificationService.createNotificationsForAudience({
+            audience: announcementRow.target_audience,
+            title: announcementRow.subject,
+            message: announcementRow.content,
+            referenceId: announcementRow.announcement_id,
+            referenceType: 'announcement',
+            type: 'Announcement',
+            createdAt: announcementRow.published_at || new Date().toISOString(),
+        });
+
+        return Array.isArray(rows) ? rows.length : 0;
+    } catch (err) {
+        console.error('CREATE ANNOUNCEMENT NOTIFICATIONS ERROR:', err.message);
+        return 0;
+    }
+}
+
+async function publishAnnouncementInternal(announcementId) {
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .update({
+            status: 'Published',
+            publish_date: nowIso,
+            published_at: nowIso,
+            scheduled_at: null,
+            updated_at: nowIso,
+        })
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', false)
+        .in('status', ['Draft', 'Scheduled'])
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE PUBLISH ANNOUNCEMENT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    const notificationsInserted = await createAnnouncementNotifications(data);
+
+    return {
+        ...mapAnnouncementRow(data),
+        notificationsInserted,
+    };
+}
+
+exports.fetchAnnouncements = async () => {
+    const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('SUPABASE FETCH ANNOUNCEMENTS ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return (data || []).map(mapAnnouncementRow);
+};
+
+exports.fetchArchivedAnnouncements = async () => {
+    const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_archived', true)
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error('SUPABASE FETCH ARCHIVED ANNOUNCEMENTS ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return (data || []).map(mapAnnouncementRow);
+};
+
+exports.createAnnouncement = async (payload, user) => {
+    const {
+        title,
+        content,
+        audience,
+        schedDate,
+        isRoVoluntary = false,
+        forceDraft = false,
+    } = payload || {};
+
+    if (!audience) {
+        throw new Error('Audience is required');
+    }
+
+    if (!forceDraft && (!title || !content)) {
+        throw new Error('Title and content are required');
+    }
+
+    if (schedDate) {
+        const scheduledTime = new Date(schedDate);
+        const now = new Date();
+
+        if (scheduledTime < now) {
+            throw new Error('Scheduled date must be current or future.');
+        }
+    }
+
+    const isScheduled = !!schedDate && !forceDraft;
+    const nowIso = new Date().toISOString();
+
+    const insertRow = {
+        author_id: user?.userId || user?.user_id || null,
+        subject: (title || '').trim(),
+        content: (content || '').trim(),
+        target_audience: audience,
+        is_ro_voluntary: !!isRoVoluntary,
+        publish_date: forceDraft ? null : isScheduled ? null : nowIso,
+        status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
+        scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
+        published_at: forceDraft ? null : isScheduled ? null : nowIso,
+        updated_at: nowIso,
+        is_archived: false,
+    };
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .insert(insertRow)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE CREATE ANNOUNCEMENT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    let notificationsInserted = 0;
+
+    if (data.status === 'Published') {
+        notificationsInserted = await createAnnouncementNotifications(data);
+    }
+
+    return {
+        ...mapAnnouncementRow(data),
+        notificationsInserted,
+    };
+};
+
+exports.updateAnnouncement = async (announcementId, payload) => {
+    const {
+        title,
+        content,
+        audience,
+        schedDate,
+        isRoVoluntary = false,
+        forceDraft = false,
+    } = payload || {};
+
+    if (!audience) {
+        throw new Error('Audience is required');
+    }
+
+    if (!forceDraft && (!title || !content)) {
+        throw new Error('Title and content are required');
+    }
+
+    if (schedDate) {
+        const scheduledTime = new Date(schedDate);
+        const now = new Date();
+
+        if (scheduledTime < now) {
+            throw new Error('Scheduled date must be current or future.');
+        }
+    }
+
+    const isScheduled = !!schedDate && !forceDraft;
+    const nowIso = new Date().toISOString();
+
+    const updateRow = {
+        subject: (title || '').trim(),
+        content: (content || '').trim(),
+        target_audience: audience,
+        is_ro_voluntary: !!isRoVoluntary,
+        status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
+        scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
+        publish_date: forceDraft ? null : isScheduled ? null : nowIso,
+        published_at: forceDraft ? null : isScheduled ? null : nowIso,
+        updated_at: nowIso,
+    };
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .update(updateRow)
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', false)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE UPDATE ANNOUNCEMENT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    let notificationsInserted = 0;
+
+    if (data.status === 'Published') {
+        notificationsInserted = await createAnnouncementNotifications(data);
+    }
+
+    return {
+        ...mapAnnouncementRow(data),
+        notificationsInserted,
+    };
+};
+
+exports.publishAnnouncement = async (announcementId) => {
+    return await publishAnnouncementInternal(announcementId);
+};
+
+exports.publishDueAnnouncements = async () => {
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('status', 'Scheduled')
+        .eq('is_archived', false)
+        .lte('scheduled_at', nowIso);
+
+    if (error) {
+        console.error('SUPABASE FETCH DUE ANNOUNCEMENTS ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    if (!data || data.length === 0) {
+        return [];
+    }
+
+    const published = [];
+
+    for (const row of data) {
+        try {
+            const result = await publishAnnouncementInternal(row.announcement_id);
+            published.push(result);
+        } catch (err) {
+            console.error(
+                `FAILED TO AUTO-PUBLISH ANNOUNCEMENT ${row.announcement_id}:`,
+                err.message
+            );
+        }
+    }
+
+    return published;
+};
+
+exports.archiveAnnouncement = async (announcementId) => {
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .update({
+            is_archived: true,
+            updated_at: nowIso,
+        })
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', false)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE ARCHIVE ANNOUNCEMENT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return mapAnnouncementRow(data);
+};
+
+exports.restoreAnnouncement = async (announcementId) => {
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .update({
+            is_archived: false,
+            updated_at: nowIso,
+        })
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', true)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE RESTORE ANNOUNCEMENT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return mapAnnouncementRow(data);
+};

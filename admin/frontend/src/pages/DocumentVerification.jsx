@@ -1998,55 +1998,57 @@ function OCRPanel({
 
         {isIndigencyReview && (
           <div className={`rounded-xl border p-4 space-y-4 ${indigencyReviewCompleted ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-start">
+              <div className="min-w-0">
                 <p className="text-base font-bold tracking-wide text-stone-900">INDIGENCY OCR</p>
                 <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
               </div>
-              <Badge className={indigencyReviewCompleted
+              <Badge className={`shrink-0 whitespace-nowrap ${indigencyReviewCompleted
                 ? 'border-green-200 bg-green-100 text-green-800'
-                : 'border-amber-200 bg-amber-100 text-amber-800'}>
+                : 'border-amber-200 bg-amber-100 text-amber-800'}`}>
                 {indigencyReviewCompleted ? 'OCR confirmed' : 'Review required'}
               </Badge>
             </div>
 
             <div className="space-y-3">
               {INDIGENCY_REVIEW_FIELDS.map(([key, label]) => (
-                <label key={key} className="grid gap-1 sm:grid-cols-[180px_1fr_auto] sm:items-center">
-                  <span className="text-sm font-semibold text-stone-700">{label}</span>
-                  {key === 'residency_address' ? (
-                    <Textarea
-                      value={ocrFieldValue(correctedFields?.[key])}
-                      readOnly={indigencyReviewCompleted}
-                      aria-label="Verified full residence address"
-                      onChange={(event) => onCorrectedFieldsChange({
-                        ...correctedFields,
-                        [key]: event.target.value,
-                      })}
-                      className={`min-h-20 resize-y ${indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
-                    />
-                  ) : (
-                    <Input
-                      value={ocrFieldValue(correctedFields?.[key])}
-                      readOnly={indigencyReviewCompleted}
-                      onChange={(event) => onCorrectedFieldsChange({
-                        ...correctedFields,
-                        [key]: event.target.value,
-                      })}
-                      className={indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}
-                    />
-                  )}
-                  <span className="whitespace-nowrap text-right text-xs font-semibold text-amber-700">
-                    {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '\u2014'}
-                  </span>
+                <label key={key} className="grid min-w-0 gap-2 rounded-xl border border-amber-100 bg-white/70 p-3 sm:grid-cols-[minmax(120px,0.65fr)_minmax(0,1.35fr)] sm:items-start sm:gap-3">
+                  <span className="whitespace-nowrap pt-2 text-sm font-semibold leading-5 text-stone-700">{label}</span>
+                  <div className="min-w-0 space-y-2">
+                    {key === 'residency_address' ? (
+                      <Textarea
+                        value={ocrFieldValue(correctedFields?.[key])}
+                        readOnly={indigencyReviewCompleted}
+                        aria-label="Verified full residence address"
+                        onChange={(event) => onCorrectedFieldsChange({
+                          ...correctedFields,
+                          [key]: event.target.value,
+                        })}
+                        className={`min-h-20 w-full min-w-0 resize-y ${indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
+                      />
+                    ) : (
+                      <Input
+                        value={ocrFieldValue(correctedFields?.[key])}
+                        readOnly={indigencyReviewCompleted}
+                        onChange={(event) => onCorrectedFieldsChange({
+                          ...correctedFields,
+                          [key]: event.target.value,
+                        })}
+                        className={`w-full min-w-0 ${indigencyReviewCompleted ? 'bg-stone-100' : 'bg-white'}`}
+                      />
+                    )}
+                    <span className="inline-flex whitespace-nowrap text-xs font-semibold text-amber-700">
+                      {String(ocrFieldValue(correctedFields?.[key]) || '').trim() ? 'Detected' : '\u2014'}
+                    </span>
+                  </div>
                 </label>
               ))}
             </div>
 
             {!indigencyReviewCompleted && (
-              <div className="flex justify-between gap-2">
-                <Button variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
-                <Button onClick={onConfirmCandidate} disabled={reviewingCandidate}>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button className="whitespace-nowrap" variant="outline" onClick={onRetryCandidate} disabled={reviewingCandidate}>Retry OCR</Button>
+                <Button className="whitespace-nowrap" onClick={onConfirmCandidate} disabled={reviewingCandidate}>
                   {reviewingCandidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Confirm OCR
                 </Button>

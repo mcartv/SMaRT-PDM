@@ -1765,6 +1765,7 @@ function OCRPanel({
   const canRunIotOcr = Boolean(
     activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
   );
+  const isVersionedOcrHub = ['birth_certificate', 'student_grade_forms'].includes(activeDoc?.id);
   const isGradeReview = activeDoc?.id === 'student_grade_forms' && reviewCandidate;
   const isIndigencyReview = activeDoc?.id === 'certificate_of_indigency' && reviewCandidate;
   const isBirthReview = activeDoc?.id === 'birth_certificate' && reviewCandidate;
@@ -1801,61 +1802,110 @@ function OCRPanel({
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
-        <div className="flex items-center gap-2">
-          <ScanText className="w-4 h-4 text-stone-500" />
-          <div>
-            <h4 className="text-[15px] font-semibold text-stone-800">OCR Validation Hub</h4>
-            <p className="text-xs text-stone-400">Extracted text / validation markers</p>
+      {isVersionedOcrHub ? (
+        <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-500 shadow-sm">
+                <ScanText className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="whitespace-nowrap text-[15px] font-semibold tracking-tight text-stone-800">OCR Validation Hub</h4>
+                <p className="mt-1 whitespace-nowrap text-xs text-stone-400">Extracted text / validation markers</p>
+              </div>
+            </div>
+
+            <div className="max-w-full">
+              <div className="flex w-full flex-wrap items-end gap-3">
+                {!runningIotOcr && !reviewCandidate ? (
+                  <label className="flex shrink-0 flex-col gap-1.5">
+                    <span className="pl-1 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400">Mode</span>
+                    <select
+                      value={activeDoc?.id === 'birth_certificate' ? birthOcrVersion : gradeOcrVersion}
+                      onChange={(event) => activeDoc?.id === 'birth_certificate'
+                        ? onBirthOcrVersionChange(event.target.value)
+                        : onGradeOcrVersionChange(event.target.value)}
+                      className="h-10 w-full min-w-[210px] max-w-[232px] rounded-xl border border-stone-200 bg-white px-3 text-[13px] font-semibold text-stone-700 shadow-sm outline-none transition-colors focus:border-stone-400"
+                      aria-label={`${activeDoc?.name || 'Document'} OCR version`}
+                    >
+                      <option value="v1">Version 1 - Local OCR</option>
+                      <option value="v2">Version 2 - Enhanced OCR</option>
+                    </select>
+                  </label>
+                ) : null}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRunIotOcr}
+                  disabled={!canRunIotOcr || runningIotOcr || !piOnline}
+                  className="h-10 shrink-0 whitespace-nowrap rounded-xl border-stone-200 bg-white px-4 text-xs font-semibold text-stone-500 shadow-sm"
+                >
+                  {runningIotOcr ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Running IoT OCR
+                    </>
+                  ) : (
+                    <>
+                      <ScanText className="mr-2 h-3.5 w-3.5" />
+                      {!canRunIotOcr
+                        ? 'IoT OCR unavailable'
+                        : piAvailabilityChecked && !piOnline
+                          ? 'Pi OCR Offline'
+                          : 'Use IoT OCR'}
+                    </>
+                  )}
+                </Button>
+
+                <Badge className="h-10 shrink-0 whitespace-nowrap rounded-xl border px-4 text-xs font-semibold" style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' }}>
+                  Extracted Preview
+                </Badge>
+              </div>
+            </div>
           </div>
         </div>
+      ) : (
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <ScanText className="h-4 w-4 text-stone-500" />
+            <div>
+              <h4 className="text-[15px] font-semibold text-stone-800">OCR Validation Hub</h4>
+              <p className="text-xs text-stone-400">Extracted text / validation markers</p>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2">
-          {['birth_certificate', 'student_grade_forms'].includes(activeDoc?.id) && !runningIotOcr && !reviewCandidate && (
-            <label className="flex items-center gap-1 text-xs text-stone-600">
-              <span>Mode</span>
-              <select
-                value={activeDoc?.id === 'birth_certificate' ? birthOcrVersion : gradeOcrVersion}
-                onChange={(event) => activeDoc?.id === 'birth_certificate'
-                  ? onBirthOcrVersionChange(event.target.value)
-                  : onGradeOcrVersionChange(event.target.value)}
-                className="h-8 rounded-lg border border-stone-200 bg-white px-2"
-                aria-label={`${activeDoc?.name || 'Document'} OCR version`}
-              >
-                <option value="v1">Version 1 - Local OCR</option>
-                <option value="v2">Version 2 - Enhanced OCR</option>
-              </select>
-            </label>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRunIotOcr}
-            disabled={!canRunIotOcr || runningIotOcr || !piOnline}
-            className="h-8 rounded-lg border-stone-200 text-xs"
-          >
-            {runningIotOcr ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                Running IoT OCR
-              </>
-            ) : (
-              <>
-                <ScanText className="w-3.5 h-3.5 mr-1.5" />
-                {!canRunIotOcr
-                  ? 'IoT OCR unavailable'
-                  : piAvailabilityChecked && !piOnline
-                    ? 'Pi OCR Offline'
-                    : 'Use IoT OCR'}
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRunIotOcr}
+              disabled={!canRunIotOcr || runningIotOcr || !piOnline}
+              className="h-8 rounded-lg border-stone-200 text-xs"
+            >
+              {runningIotOcr ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Running IoT OCR
+                </>
+              ) : (
+                <>
+                  <ScanText className="mr-1.5 h-3.5 w-3.5" />
+                  {!canRunIotOcr
+                    ? 'IoT OCR unavailable'
+                    : piAvailabilityChecked && !piOnline
+                      ? 'Pi OCR Offline'
+                      : 'Use IoT OCR'}
+                </>
+              )}
+            </Button>
 
-          <Badge className="border text-xs font-medium" style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' }}>
-            Extracted Preview
-          </Badge>
+            <Badge className="border text-xs font-medium" style={{ background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' }}>
+              Extracted Preview
+            </Badge>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="min-h-[380px] space-y-4 p-3 sm:min-h-[440px] sm:p-4 xl:min-h-[520px]">
         {runningIotOcr && (

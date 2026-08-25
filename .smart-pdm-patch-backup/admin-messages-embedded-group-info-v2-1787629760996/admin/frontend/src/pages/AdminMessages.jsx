@@ -29,7 +29,6 @@ import API_BASE_URL from '@/api'
 
 const MESSAGING_API_BASE = API_BASE_URL
 // SMART-PDM_ADMIN_MESSAGES_RESPONSIVE_V1
-// SMART-PDM_ADMIN_MESSAGES_EMBEDDED_GROUP_INFO_V2
 
 function parseMessagingToken(token) {
   try {
@@ -858,7 +857,6 @@ function GroupInfoModal({
   onAddMember,
   onLeave,
   overlay = false,
-  embedded = false,
 }) {
   const [menuMemberId, setMenuMemberId] = useState('')
 
@@ -874,11 +872,9 @@ function GroupInfoModal({
 
   return (
     <aside
-      className={embedded
-        ? 'flex h-full min-h-0 w-full flex-col bg-white'
-        : overlay
-          ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl'
-          : 'flex min-h-0 flex-col border-l border-stone-200 bg-white'}
+      className={overlay
+        ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl'
+        : 'flex min-h-0 flex-col border-l border-stone-200 bg-white'}
     >
       <div className="border-b border-stone-100 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
@@ -891,14 +887,8 @@ function GroupInfoModal({
               <p className="mt-0.5 text-xs text-stone-500">Group chat</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-stone-100"
-            title={embedded ? 'Back to conversation' : 'Close group info'}
-            aria-label={embedded ? 'Back to conversation' : 'Close group info'}
-          >
-            {embedded ? <ArrowLeft className="h-4 w-4" /> : <X className="h-4 w-4" />}
+          <button type="button" onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100" title="Close group info">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -3080,34 +3070,6 @@ export default function AdminMessages({
     ]
   )
 
-  const renderGroupInfo = ({ embedded = false } = {}) => (
-    <GroupInfoModal
-      open={groupInfoOpen}
-      room={selectedItem?.type === 'group' ? selectedItem : null}
-      members={groupMembers}
-      loading={loadingGroupMembers}
-      currentUserId={currentUserId}
-      onClose={() => setGroupInfoOpen(false)}
-      searchTerm={chatSearchTerm}
-      matchCount={chatMatchCount}
-      onSearchChange={(value) => {
-        setChatSearchTerm(value)
-        setChatSearchOpen(Boolean(value.trim()))
-      }}
-      onViewProfile={setSelectedMemberProfile}
-      onMessage={handleMessageMember}
-      onRemove={setPendingRemoveMember}
-      onPromote={setPendingPromoteMember}
-      onAddMember={() => {
-        setAddMembersOpen(true)
-        setGroupInfoOpen(false)
-        setMainView('add-members')
-      }}
-      onLeave={() => setLeaveGroupOpen(true)}
-      embedded={embedded}
-    />
-  )
-
   return (
     <>
       <button
@@ -3397,9 +3359,7 @@ export default function AdminMessages({
                   ? `${compactPane === 'thread' ? 'flex' : 'hidden md:flex'} min-h-0 flex-col bg-white`
                   : 'flex min-h-0 flex-col bg-white'}
               >
-                {isAdminMessaging && groupInfoOpen && selectedItem?.type === 'group' ? (
-                  renderGroupInfo({ embedded: true })
-                ) : selectedItem ? (
+                {selectedItem ? (
                   <>
                     <div className={isAdminMessaging ? 'border-b border-stone-100 bg-white px-3 py-3 sm:px-4 lg:px-5' : 'border-b border-stone-100 bg-white px-5 py-3.5'}>
                       <div className="flex items-center justify-between gap-3">
@@ -3585,7 +3545,31 @@ export default function AdminMessages({
                 )}
               </section>
 
-              {!isAdminMessaging ? renderGroupInfo() : null}
+              <GroupInfoModal
+                open={groupInfoOpen}
+                room={selectedItem?.type === 'group' ? selectedItem : null}
+                members={groupMembers}
+                loading={loadingGroupMembers}
+                currentUserId={currentUserId}
+                onClose={() => setGroupInfoOpen(false)}
+                searchTerm={chatSearchTerm}
+                matchCount={chatMatchCount}
+                onSearchChange={(value) => {
+                  setChatSearchTerm(value)
+                  setChatSearchOpen(Boolean(value.trim()))
+                }}
+                onViewProfile={setSelectedMemberProfile}
+                onMessage={handleMessageMember}
+                onRemove={setPendingRemoveMember}
+                onPromote={setPendingPromoteMember}
+                onAddMember={() => {
+                  setAddMembersOpen(true)
+                  setGroupInfoOpen(false)
+                  setMainView('add-members')
+                }}
+                onLeave={() => setLeaveGroupOpen(true)}
+                overlay={isAdminMessaging}
+              />
             </div>
             )}
           </div>

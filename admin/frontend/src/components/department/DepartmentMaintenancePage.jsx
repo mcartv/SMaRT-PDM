@@ -174,10 +174,10 @@ function useDepartmentAccountManager({
   }, [config.account, onProfileUpdated, profileStorageKey, tokenStorageKey]);
 
   useEffect(() => {
-    let cleanup = () => {};
+    let cleanup = () => { };
 
     const run = async () => {
-      cleanup = (await loadProfile()) || (() => {});
+      cleanup = (await loadProfile()) || (() => { });
     };
 
     run();
@@ -278,9 +278,8 @@ function useDepartmentAccountManager({
       ...savedProfile,
       name:
         savedProfile.name ||
-        `${savedProfile.first_name || accountValues.first_name} ${
-          savedProfile.last_name || accountValues.last_name
-        }`.trim(),
+        `${savedProfile.first_name || accountValues.first_name} ${savedProfile.last_name || accountValues.last_name
+          }`.trim(),
     };
 
     publishPortalProfile(profileStorageKey, mergedProfile);
@@ -593,22 +592,8 @@ export function DepartmentAccountPanel({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-stone-900">Profile & Account</h2>
-        <p className="text-sm text-stone-500">
-          Update your name, contact details, position, and profile photo. Role and department assignments are managed by Admin.
-        </p>
-      </div>
-
       <GroupCard title={`${config.shortName} Profile Details`} icon={User}>
         <div className="space-y-5">
-          <div className={`rounded-xl border px-4 py-3 ${palette.infoBox}`}>
-            <p className="text-sm font-medium">Manage the current office account in one place.</p>
-            <p className="mt-1 text-xs">
-              Changes here update the profile used across the {config.shortName} portal.
-            </p>
-          </div>
-
           <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-4">
               {currentProfileImage ? (
@@ -697,11 +682,10 @@ export function DepartmentAccountPanel({
           />
 
           {accountFeedback ? (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${
-              feedbackIsError
+            <div className={`rounded-xl border px-4 py-3 text-sm ${feedbackIsError
                 ? 'border-red-100 bg-red-50 text-red-700'
                 : 'border-green-100 bg-green-50 text-green-800'
-            }`}>
+              }`}>
               {accountFeedback}
             </div>
           ) : null}
@@ -914,11 +898,10 @@ function AuditPanel({ config }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold text-stone-900">{entry.action}</h3>
                       <span
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${
-                          entry.status === 'Success'
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${entry.status === 'Success'
                             ? 'bg-green-50 text-green-700'
                             : 'bg-stone-100 text-stone-600'
-                        }`}
+                          }`}
                       >
                         {entry.status}
                       </span>
@@ -964,11 +947,10 @@ export default function DepartmentMaintenancePage({
               key={tabOption.key}
               type="button"
               onClick={() => setTab(tabOption.key)}
-              className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-medium transition-all ${
-                tab === tabOption.key
+              className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-medium transition-all ${tab === tabOption.key
                   ? 'bg-white text-stone-900'
                   : 'border-transparent text-stone-400 hover:text-stone-600'
-              }`}
+                }`}
               style={{ borderBottomColor: tab === tabOption.key ? palette.base : 'transparent' }}
             >
               <tabOption.icon size={14} />

@@ -59,50 +59,6 @@ const DEFAULT_FILTERS = {
   documentStatus: 'all',
 };
 
-const READINESS_SEEN_STORAGE_PREFIX = 'smart-pdm:admin:readiness-seen:v1';
-
-function getReadinessSeenStorageKey() {
-  try {
-    const profile = JSON.parse(sessionStorage.getItem('adminProfile') || '{}');
-    const userId = profile?.user_id || profile?.userId || profile?.id || 'admin';
-    return `${READINESS_SEEN_STORAGE_PREFIX}:${userId}`;
-  } catch {
-    return `${READINESS_SEEN_STORAGE_PREFIX}:admin`;
-  }
-}
-
-function readReadinessSeenState() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(getReadinessSeenStorageKey()) || '{}');
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeReadinessSeenState(value) {
-  try {
-    localStorage.setItem(getReadinessSeenStorageKey(), JSON.stringify(value || {}));
-  } catch {
-    // The readiness indicator remains session-functional even if browser storage is unavailable.
-  }
-}
-
-function buildReadinessOpeningSignature(rows = []) {
-  return rows
-    .map((row) =>
-      [
-        row.application_id || '',
-        normalizeStatus(row.selection_status),
-        Number(row.queue_position || 0),
-        Number(row.waitlist_position || 0),
-        row.fcfs_completed_at || '',
-      ].join(':')
-    )
-    .sort()
-    .join('|');
-}
-
 function normalizeStatus(value = '') {
   return String(value).trim().toLowerCase();
 }
@@ -682,13 +638,7 @@ function Toolbar({
   );
 }
 
-function OpeningsGrid({
-  rows,
-  countsMap,
-  navigate,
-  unseenOpeningIds = new Set(),
-  onOpeningViewed = () => {},
-}) {
+function OpeningsGrid({ rows, countsMap, navigate }) {
   return (
     <section className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
       {rows.map((opening) => {
@@ -703,7 +653,6 @@ function OpeningsGrid({
         const readyCount = summary.scholarReady || 0;
         const fcfsCount = summary.fcfsQueued || 0;
         const nextFcfsApplicant = summary.nextFcfsApplicant || null;
-        const hasUnseenReadiness = unseenOpeningIds.has(String(opening.opening_id));
 
         return (
           <Card
@@ -714,18 +663,9 @@ function OpeningsGrid({
               <div className="flex h-full flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <h2 className="min-w-0 truncate text-lg font-semibold leading-tight text-stone-900">
-                        {opening.opening_title || opening.title || 'Untitled Opening'}
-                      </h2>
-                      {hasUnseenReadiness ? (
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
-                          title="New readiness activity"
-                          aria-label="New readiness activity"
-                        />
-                      ) : null}
-                    </div>
+                    <h2 className="text-lg font-semibold leading-tight text-stone-900">
+                      {opening.opening_title || opening.title || 'Untitled Opening'}
+                    </h2>
                     <p className="mt-1 text-sm text-stone-500">
                       {opening.program_name || 'No Program'}
                       {opening.academic_year ? ` ${opening.academic_year}` : ''}
@@ -766,10 +706,9 @@ function OpeningsGrid({
                     size="sm"
                     variant="outline"
                     className="h-8 rounded-lg border-amber-200 px-3 text-xs text-amber-800"
-                    onClick={() => {
-                      onOpeningViewed(opening.opening_id);
-                      navigate(`/admin/openings/${opening.opening_id}/applications`);
-                    }}
+                    onClick={() =>
+                      navigate(`/admin/openings/${opening.opening_id}/applications`)
+                    }
                   >
                     <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
                     View FCFS Queue
@@ -778,10 +717,9 @@ function OpeningsGrid({
                     size="sm"
                     className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
                     style={{ background: C.brownMid }}
-                    onClick={() => {
-                      onOpeningViewed(opening.opening_id);
-                      navigate(`/admin/openings/${opening.opening_id}/applications`);
-                    }}
+                    onClick={() =>
+                      navigate(`/admin/openings/${opening.opening_id}/applications`)
+                    }
                   >
                     View Applicants
                     <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -803,8 +741,6 @@ function ReadinessOpeningCards({
   navigate,
   onApproveScholar,
   approvalLoadingId = '',
-  unseenOpeningIds = new Set(),
-  onOpeningViewed = () => {},
 }) {
   const grouped = useMemo(() => {
     const map = new Map();
@@ -970,17 +906,15 @@ function ReadinessOpeningCards({
               String(
                 selectedGroup.opening?.opening_id || ''
               );
-            const hasUnseenReadiness = unseenOpeningIds.has(itemId);
 
             return (
               <button
                 key={itemId}
                 type="button"
                 aria-pressed={selected}
-                onClick={() => {
-                  setSelectedOpeningId(itemId);
-                  onOpeningViewed(itemId);
-                }}
+                onClick={() =>
+                  setSelectedOpeningId(itemId)
+                }
                 className={`min-w-[210px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition sm:min-w-[240px] ${
                   selected
                     ? 'border-stone-300 bg-stone-900 text-white shadow-sm'
@@ -989,25 +923,16 @@ function ReadinessOpeningCards({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <p
-                        className={`min-w-0 truncate text-sm font-semibold ${
-                          selected
-                            ? 'text-white'
-                            : 'text-stone-900'
-                        }`}
-                      >
-                        {itemOpening.opening_title ||
-                          'Scholarship Opening'}
-                      </p>
-                      {hasUnseenReadiness ? (
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
-                          title="New readiness activity"
-                          aria-label="New readiness activity"
-                        />
-                      ) : null}
-                    </div>
+                    <p
+                      className={`truncate text-sm font-semibold ${
+                        selected
+                          ? 'text-white'
+                          : 'text-stone-900'
+                      }`}
+                    >
+                      {itemOpening.opening_title ||
+                        'Scholarship Opening'}
+                    </p>
 
                     <p
                       className={`mt-0.5 truncate text-xs ${
@@ -1074,12 +999,11 @@ function ReadinessOpeningCards({
               variant="outline"
               size="sm"
               className="h-9 shrink-0 rounded-lg border-stone-200 text-sm"
-              onClick={() => {
-                onOpeningViewed(opening.opening_id);
+              onClick={() =>
                 navigate(
                   `/admin/openings/${opening.opening_id}/applications`
-                );
-              }}
+                )
+              }
             >
               Open Queue
               <ArrowRight className="ml-1.5 h-4 w-4" />
@@ -1595,9 +1519,6 @@ export default function ApplicationReview() {
   const [approvalLoadingId, setApprovalLoadingId] = useState('');
   const [activationCandidate, setActivationCandidate] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const [readinessSeenSignatures, setReadinessSeenSignatures] = useState(() =>
-    readReadinessSeenState()
-  );
 
   useEffect(() => {
     if (!feedback) return undefined;
@@ -1943,11 +1864,6 @@ export default function ApplicationReview() {
     [filteredRegistryRows]
   );
 
-  const allReadinessRows = useMemo(
-    () => registryRows.filter(isReadyForScholarHandling).sort(compareFcfs),
-    [registryRows]
-  );
-
   const readinessRows = useMemo(
     () =>
       filteredRegistryRows
@@ -1956,48 +1872,7 @@ export default function ApplicationReview() {
     [filteredRegistryRows]
   );
 
-  const readinessAttentionSignatures = useMemo(() => {
-    const grouped = new Map();
-
-    allReadinessRows.forEach((row) => {
-      const openingId = String(row.opening_id || '');
-      if (!openingId) return;
-      if (!grouped.has(openingId)) grouped.set(openingId, []);
-      grouped.get(openingId).push(row);
-    });
-
-    return new Map(
-      [...grouped.entries()].map(([openingId, rows]) => [
-        openingId,
-        buildReadinessOpeningSignature(rows),
-      ])
-    );
-  }, [allReadinessRows]);
-
-  const unseenReadinessOpeningIds = useMemo(() => {
-    return new Set(
-      [...readinessAttentionSignatures.entries()]
-        .filter(([openingId, signature]) =>
-          readinessSeenSignatures[openingId] !== signature
-        )
-        .map(([openingId]) => openingId)
-    );
-  }, [readinessAttentionSignatures, readinessSeenSignatures]);
-
-  const markReadinessOpeningSeen = (openingId) => {
-    const key = String(openingId || '');
-    const signature = readinessAttentionSignatures.get(key);
-    if (!key || !signature) return;
-
-    setReadinessSeenSignatures((current) => {
-      if (current[key] === signature) return current;
-      const next = { ...current, [key]: signature };
-      writeReadinessSeenState(next);
-      return next;
-    });
-  };
-
-  const hasNeedsAttention = unseenReadinessOpeningIds.size > 0;
+  const hasNeedsAttention = readinessRows.length > 0;
 
   const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
@@ -2145,8 +2020,6 @@ export default function ApplicationReview() {
               rows={cardsPageData}
               countsMap={openingCountsMap}
               navigate={navigate}
-              unseenOpeningIds={unseenReadinessOpeningIds}
-              onOpeningViewed={markReadinessOpeningSeen}
             />
 
             <Pagination
@@ -2165,8 +2038,6 @@ export default function ApplicationReview() {
           navigate={navigate}
           onApproveScholar={setActivationCandidate}
           approvalLoadingId={approvalLoadingId}
-          unseenOpeningIds={unseenReadinessOpeningIds}
-          onOpeningViewed={markReadinessOpeningSeen}
         />
       ) : pendingRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">

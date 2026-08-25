@@ -401,64 +401,6 @@ export default function usePortalNotifications({
     [items, syncItems, tokenStorageKey]
   );
 
-  const markAsUnread = useCallback(
-    async (notificationId) => {
-      if (!notificationId) return;
-
-      const token = sessionStorage.getItem(tokenStorageKey);
-      if (!token) return;
-
-      const previous = items.find((item) => item.notification_id === notificationId) || null;
-      const wasRead = previous?.is_read === true;
-
-      syncItems((current) =>
-        current.map((item) =>
-          item.notification_id === notificationId
-            ? { ...item, is_read: false, read_at: null }
-            : item
-        )
-      );
-      if (wasRead) {
-        setUnreadCount((current) => current + 1);
-      }
-
-      try {
-        const response = await fetch(buildApiUrl(`/api/notifications/${notificationId}/unread`), {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(payload?.error || payload?.message || 'Failed to mark notification as unread.');
-        }
-
-        const updated = normalizeNotification(payload?.notification || {});
-        syncItems((current) =>
-          current.map((item) =>
-            item.notification_id === updated.notification_id ? { ...item, ...updated } : item
-          )
-        );
-      } catch (error) {
-        console.error('MARK NOTIFICATION UNREAD ERROR:', error);
-        if (wasRead) {
-          syncItems((current) =>
-            current.map((item) =>
-              item.notification_id === notificationId
-                ? { ...item, is_read: true, read_at: previous?.read_at || null }
-                : item
-            )
-          );
-          setUnreadCount((current) => Math.max(0, current - 1));
-        }
-      }
-    },
-    [items, syncItems, tokenStorageKey]
-  );
-
   const markAllAsRead = useCallback(async () => {
     const token = sessionStorage.getItem(tokenStorageKey);
     if (!token) return;
@@ -591,7 +533,6 @@ export default function usePortalNotifications({
     markingAll,
     reloadNotifications: loadNotifications,
     markAsRead,
-    markAsUnread,
     markAllAsRead,
     openNotification,
     formatNotificationTime,

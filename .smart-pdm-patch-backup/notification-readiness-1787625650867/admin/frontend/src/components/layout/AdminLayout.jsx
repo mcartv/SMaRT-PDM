@@ -77,8 +77,6 @@ export default function AdminLayout() {
     unreadCount,
     loading: notificationsLoading,
     markingAll,
-    markAsRead,
-    markAsUnread,
     markAllAsRead,
     openNotification,
     formatNotificationTime,
@@ -341,12 +339,7 @@ export default function AdminLayout() {
               >
                 <Bell className="h-4 w-4" style={{ color: theme.base }} />
                 {unreadCount > 0 && (
-                  <span
-                    className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
-                    aria-label={`${unreadCount} unread notifications`}
-                  >
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
+                  <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 )}
               </button>
 
@@ -382,13 +375,14 @@ export default function AdminLayout() {
                           </div>
                         ) : null}
                         {newNotifications.map((n) => (
-                          <div
+                          <button
                             key={n.notification_id}
+                            type="button"
                             onClick={() => {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className={`w-full cursor-pointer border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            className={`w-full border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
                             style={n.is_read !== true
                               ? { borderLeftColor: theme.base, background: theme.accentSoft }
                               : { background: '#fff' }}
@@ -409,26 +403,10 @@ export default function AdminLayout() {
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <div className="mt-1.5 flex items-center justify-between gap-3">
-                              <p className="text-[11px] font-medium text-stone-400">
-                                {formatNotificationTime(n.created_at)}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (n.is_read === true) {
-                                    void markAsUnread(n.notification_id);
-                                  } else {
-                                    void markAsRead(n.notification_id);
-                                  }
-                                }}
-                                className="rounded-md px-2 py-1 text-[11px] font-semibold text-stone-500 transition hover:bg-white/70 hover:text-stone-900"
-                              >
-                                {n.is_read === true ? 'Mark as unread' : 'Mark as read'}
-                              </button>
-                            </div>
-                          </div>
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
+                              {formatNotificationTime(n.created_at)}
+                            </p>
+                          </button>
                         ))}
                         {earlierNotifications.length > 0 ? (
                           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-2">
@@ -438,13 +416,14 @@ export default function AdminLayout() {
                           </div>
                         ) : null}
                         {earlierNotifications.map((n) => (
-                          <div
+                          <button
                             key={n.notification_id}
+                            type="button"
                             onClick={() => {
                               setNotifOpen(false);
                               openNotification(n, navigate);
                             }}
-                            className={`w-full cursor-pointer border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
+                            className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
                             style={n.is_read !== true
                               ? { borderLeftColor: theme.base, background: theme.accentSoft }
                               : { background: '#fff' }}
@@ -453,38 +432,14 @@ export default function AdminLayout() {
                               <p className="text-[13px] font-medium leading-[18px] text-stone-800">
                                 {n.title || 'Notification'}
                               </p>
-                              {n.is_read !== true ? (
-                                <span
-                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                                  style={{ background: theme.base }}
-                                >
-                                  Unread
-                                </span>
-                              ) : null}
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs leading-[18px] text-stone-600">
                               {n.message || 'Open notification'}
                             </p>
-                            <div className="mt-1.5 flex items-center justify-between gap-3">
-                              <p className="text-[11px] font-medium text-stone-400">
-                                {formatNotificationTime(n.created_at)}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (n.is_read === true) {
-                                    void markAsUnread(n.notification_id);
-                                  } else {
-                                    void markAsRead(n.notification_id);
-                                  }
-                                }}
-                                className="rounded-md px-2 py-1 text-[11px] font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
-                              >
-                                {n.is_read === true ? 'Mark as unread' : 'Mark as read'}
-                              </button>
-                            </div>
-                          </div>
+                            <p className="mt-1.5 text-[11px] font-medium text-stone-400">
+                              {formatNotificationTime(n.created_at)}
+                            </p>
+                          </button>
                         ))}
                       </>
                     ) : (

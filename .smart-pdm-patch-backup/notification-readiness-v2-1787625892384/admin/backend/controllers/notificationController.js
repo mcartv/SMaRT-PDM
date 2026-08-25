@@ -72,23 +72,6 @@ exports.markAsRead = async (req, res) => {
     }
 };
 
-exports.markAsUnread = async (req, res) => {
-    try {
-        const userId = getRequestUserId(req);
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required.' });
-        }
-
-        const result = await notificationService.markAsUnread(userId, req.params.notificationId);
-        socketEvents.notificationUpdated(req.app.get('io'), userId, result.notification);
-        await writeNotificationAudit(req, 'MARK_NOTIFICATION_UNREAD', 'Marked notification as unread.', { notification_id: req.params.notificationId, user_id: userId });
-        return res.status(200).json(result);
-    } catch (err) {
-        console.error('MARK NOTIFICATION UNREAD ERROR:', err.message || err);
-        return res.status(500).json({ error: err.message || 'Failed to mark notification as unread.' });
-    }
-};
-
 exports.markAllAsRead = async (req, res) => {
     try {
         const userId = getRequestUserId(req);

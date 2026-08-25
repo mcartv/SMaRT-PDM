@@ -698,48 +698,6 @@ async function markAsRead(userId, notificationId) {
     };
 }
 
-async function markAsUnread(userId, notificationId) {
-    if (!userId || !notificationId) {
-        throw new Error('User ID and notification ID are required');
-    }
-
-    const { data, error } = await supabase
-        .from('notifications')
-        .update({ is_read: false, read_at: null })
-        .eq('notification_id', notificationId)
-        .eq('user_id', userId)
-        .select(
-            `
-            notification_id,
-            user_id,
-            type,
-            title,
-            message,
-            reference_id,
-            reference_type,
-            is_read,
-            read_at,
-            push_sent,
-            created_at
-        `
-        )
-        .maybeSingle();
-
-    if (error) {
-        console.error('SUPABASE MARK NOTIFICATION UNREAD ERROR:', error);
-        throw new Error(error.message);
-    }
-
-    if (!data) {
-        throw new Error('Notification not found.');
-    }
-
-    return {
-        message: 'Notification marked as unread.',
-        notification: data,
-    };
-}
-
 async function markAllAsRead(userId) {
     if (!userId) {
         throw new Error('User ID is required');
@@ -794,6 +752,5 @@ async function deleteNotification(userId, notificationId) {
 exports.getMyNotifications = getMyNotifications;
 exports.getUnreadCount = getUnreadCount;
 exports.markAsRead = markAsRead;
-exports.markAsUnread = markAsUnread;
 exports.markAllAsRead = markAllAsRead;
 exports.deleteNotification = deleteNotification;

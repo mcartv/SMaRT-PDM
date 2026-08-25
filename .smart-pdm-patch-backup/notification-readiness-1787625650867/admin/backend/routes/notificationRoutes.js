@@ -44,13 +44,6 @@ router.patch(
 );
 
 router.patch(
-    '/:notificationId/unread',
-    protect,
-    allStaff,
-    notificationController.markAsUnread
-);
-
-router.patch(
     '/:notificationId/archive',
     protect,
     allStaff,

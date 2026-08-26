@@ -12,8 +12,14 @@ function sanitizeEndorsementDocumentsForRole(payload, roleValue) {
     }
 
     if (role === 'pd') {
+        // SMART-PDM_PD_OCR_GRADE_VALIDATION_REMOVED_V1
+        // PD may review the submitted Grade Report, but OCR/GWA-derived
+        // grade_summary metadata belongs to the Admin document-validation flow.
+        const pdPayload = { ...(payload || {}) };
+        delete pdPayload.grade_summary;
+
         return {
-            ...payload,
+            ...pdPayload,
             documents: documents.filter(
                 (document) => String(document?.document_type || '').trim().toLowerCase() === 'grade report'
             ),

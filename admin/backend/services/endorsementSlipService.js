@@ -406,7 +406,10 @@ function mapQueueRow(row, actorRole = '') {
         next_stage_label: tracker.next_stage_label,
         current_label: tracker.current_label,
         current_office: tracker.current_office,
-        ...(actorRole === 'pd' || actorRole === 'admin'
+        // SMART-PDM_PD_OCR_GRADE_VALIDATION_REMOVED_V1
+        // Grade OCR/GWA validation remains Admin evidence only. PD receives the
+        // submitted Grade Report itself, but not grade_summary_json / OCR metadata.
+        ...(actorRole === 'admin'
             ? {
                 grade_summary: parseJson(row.grade_summary_json),
                 grade_document: {
@@ -421,7 +424,21 @@ function mapQueueRow(row, actorRole = '') {
                         ),
                 },
             }
-            : {}),
+            : actorRole === 'pd'
+                ? {
+                    grade_document: {
+                        url: row.grade_document_url || '',
+                        file_name: row.grade_document_name || '',
+                        submitted_at: row.grade_document_submitted_at || null,
+                        is_uploaded:
+                            row.grade_document_is_submitted === true &&
+                            Boolean(
+                                safeText(row.grade_document_path) ||
+                                safeText(row.grade_document_url)
+                            ),
+                    },
+                }
+                : {}),
         pd_decision: row.pd_status || null,
         guidance_decision: row.guidance_status || null,
         sdo_decision: row.sdo_status || null,

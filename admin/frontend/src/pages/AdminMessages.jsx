@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Archive,
   ArchiveRestore,
@@ -773,6 +774,48 @@ function MessageAvatar({ message, isMine = false }) {
   )
 }
 
+function FloatingMessageTooltip({ anchorRef, open, placement = 'left', children }) {
+  const [position, setPosition] = useState(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    const updatePosition = () => {
+      const rect = anchorRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      if (placement === 'top') {
+        setPosition({ left: rect.left + rect.width / 2, top: rect.top - 8, transform: 'translate(-50%, -100%)' })
+      } else if (placement === 'right') {
+        setPosition({ left: rect.right + 8, top: rect.top + rect.height / 2, transform: 'translateY(-50%)' })
+      } else {
+        setPosition({ left: rect.left - 8, top: rect.top + rect.height / 2, transform: 'translate(-100%, -50%)' })
+      }
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [anchorRef, open, placement])
+
+  if (!open || !position || typeof document === 'undefined') return null
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[200] whitespace-nowrap rounded-lg bg-stone-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg"
+      style={position}
+      role="tooltip"
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
 function MessageBubble({
   message,
   isMine,
@@ -785,13 +828,17 @@ function MessageBubble({
   groupedWithNext = false,
   isLatestOutgoing = false,
   isCurrentSearchMatch = false,
+  infoPanelOpen = false,
   onReply,
   onCopy,
   onDelete,
   onRetry,
 }) {
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [timestampOpen, setTimestampOpen] = useState(false)
+  const [optionsTooltipOpen, setOptionsTooltipOpen] = useState(false)
   const actionRootRef = useRef(null)
+  const messageRootRef = useRef(null)
   useEffect(() => {
     if (!actionsOpen) return undefined
 
@@ -828,11 +875,17 @@ function MessageBubble({
 
   const actionMenu = (
     <div ref={actionRootRef} className="relative shrink-0 self-center">
+      <FloatingMessageTooltip anchorRef={actionRootRef} open={optionsTooltipOpen && !actionsOpen} placement="top">
+        Message options
+      </FloatingMessageTooltip>
       <button
         type="button"
         onClick={() => setActionsOpen((current) => !current)}
+        onMouseEnter={() => { setOptionsTooltipOpen(true); setTimestampOpen(false) }}
+        onMouseLeave={() => setOptionsTooltipOpen(false)}
+        onFocus={() => { setOptionsTooltipOpen(true); setTimestampOpen(false) }}
+        onBlur={() => setOptionsTooltipOpen(false)}
         className="inline-flex h-7 w-7 items-center justify-center rounded-full text-stone-400 opacity-70 transition hover:bg-stone-200 hover:text-stone-700 sm:opacity-0 sm:group-hover/message-row:opacity-100 sm:focus:opacity-100"
-        title="Message options"
         aria-label="Message options"
         aria-haspopup="menu"
         aria-expanded={actionsOpen}
@@ -887,7 +940,16 @@ function MessageBubble({
           </p>
         ) : null}
 
-        <div className={`group/message relative flex max-w-full flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+        <div
+          ref={messageRootRef}
+          className={`relative flex max-w-full flex-col ${isMine ? 'items-end' : 'items-start'}`}
+          onMouseEnter={() => setTimestampOpen(true)}
+          onMouseLeave={() => setTimestampOpen(false)}
+          onFocusCapture={() => setTimestampOpen(true)}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setTimestampOpen(false)
+          }}
+        >
           {message.replyToMessageId ? (
             <>
               <div
@@ -924,12 +986,13 @@ function MessageBubble({
           </div>
 
           {message.sentAt ? (
-            <div
-              className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden whitespace-nowrap rounded-lg bg-stone-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg group-hover/message:block group-focus-within/message:block ${isMine ? 'right-0' : 'left-0'}`}
-              role="tooltip"
+            <FloatingMessageTooltip
+              anchorRef={messageRootRef}
+              open={timestampOpen && !optionsTooltipOpen}
+              placement={isMine && infoPanelOpen ? 'right' : 'left'}
             >
               {formatMessageTime(message.sentAt)}
-            </div>
+            </FloatingMessageTooltip>
           ) : null}
         </div>
 
@@ -4260,6 +4323,7 @@ export default function AdminMessages({
                                   showAvatar={!groupedWithPrevious}
                                   isLatestOutgoing={isMine && latestOwnMessageId === message.messageId}
                                   isCurrentSearchMatch={currentChatMatchId === message.messageId}
+                                  infoPanelOpen={groupInfoOpen}
                                   onReply={handleReplyToMessage}
                                   onCopy={handleCopyMessage}
                                   onDelete={setPendingDeleteMessage}

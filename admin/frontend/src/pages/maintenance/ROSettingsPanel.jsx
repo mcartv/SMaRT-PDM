@@ -464,6 +464,16 @@ export default function ROSettingsPanel() {
     };
 
     const toggleDepartment = async (department) => {
+        const isDeactivating = department.is_active !== false;
+        if (isDeactivating && department.coordinator) {
+            showAppToast(
+                'warning',
+                'RO Area cannot be deactivated',
+                `${department.coordinator.name || 'An active coordinator'} is still assigned to ${department.department_name}. Remove or reassign the coordinator before deactivating this RO Area.`
+            );
+            return;
+        }
+
         try {
             setDepartmentActionId(department.department_id);
             setError('');
@@ -486,7 +496,8 @@ export default function ROSettingsPanel() {
             await loadSettings();
         } catch (err) {
             console.error('TOGGLE RO DEPARTMENT ERROR:', err);
-            setError(err.message || 'Failed to update RO Area status.');
+            const message = err.message || 'Failed to update RO Area status.';
+            showAppToast('error', 'RO Area status not updated', message);
         } finally {
             setDepartmentActionId('');
         }

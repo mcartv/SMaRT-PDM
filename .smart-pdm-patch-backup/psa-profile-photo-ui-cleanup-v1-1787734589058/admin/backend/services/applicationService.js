@@ -256,11 +256,10 @@ const REJECTED_APPLICATION_NOTIFICATION = Object.freeze({
     referenceType: 'application',
 });
 
-// SMART-PDM_PSA_BIRTH_CERTIFICATE_TERMINOLOGY_V2
 const APPLICATION_DOCUMENT_DEFINITIONS = [
     {
         id: 'birth_certificate',
-        name: 'PSA / Birth Certificate',
+        name: 'Birth Certificate / PSA',
         aliases: [
             'birth certificate',
             'birth certificate / psa',
@@ -342,7 +341,7 @@ const DOCUMENT_TYPE_ALIASES = {
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
-    birth_certificate: 'PSA / Birth Certificate',
+    birth_certificate: 'Birth Certificate / PSA',
     certificate_of_registration: 'Certificate of Registration',
     student_grade_forms: 'Grade Report',
     certificate_of_indigency: 'Certificate of Indigency',

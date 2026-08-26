@@ -14,7 +14,6 @@ import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewD
 
 const STATUS_OPTIONS = ['pending', 'approved', 'rejected', 'superseded'];
 // SMART-PDM_PROFILE_PHOTO_PENDING_SUPERSEDED_V2
-// SMART-PDM_PROFILE_PHOTO_UI_CLEANUP_V2
 
 function getToken() {
   return sessionStorage.getItem('adminToken') || '';
@@ -59,12 +58,41 @@ function statusClass(status) {
 function StatusPill({ status }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ring-1 ${statusClass(
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ${statusClass(
         status
       )}`}
     >
       {status || 'pending'}
     </span>
+  );
+}
+
+function ImagePreview({ src, label, primary = false }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+      <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+        <p className="text-sm font-semibold text-stone-900">{label}</p>
+        {src ? <span className="text-xs text-stone-400">Image available</span> : null}
+      </div>
+      <div
+        className={`flex items-center justify-center bg-stone-50 p-4 ${
+          primary ? 'min-h-[430px]' : 'min-h-[180px]'
+        }`}
+      >
+        {src ? (
+          <img
+            src={src}
+            alt={label}
+            className={`${primary ? 'max-h-[620px]' : 'max-h-[240px]'} w-full rounded-xl object-contain`}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-center text-sm text-stone-500">
+            <Camera className="mb-2 h-5 w-5 text-stone-300" />
+            No image available
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -337,7 +365,7 @@ export default function ProfilePhotoQueue() {
           <button
             type="button"
             onClick={() => navigate('/admin/profile-photos')}
-            className="inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:bg-stone-50"
+            className="inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to queue
@@ -363,7 +391,7 @@ export default function ProfilePhotoQueue() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--portal-base)]">
                     Profile Photo Review
                   </p>
-                  <h1 className="mt-1 break-words text-lg font-semibold text-stone-900 sm:text-xl">
+                  <h1 className="mt-1 truncate text-xl font-semibold text-stone-900 sm:text-2xl">
                     {student.display_name || 'Student profile photo'}
                   </h1>
                   <p className="mt-1 text-sm text-stone-500">
@@ -384,7 +412,7 @@ export default function ProfilePhotoQueue() {
                     ) : null}
                   </div>
 
-                  <div className="flex min-h-[260px] items-center justify-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-3 sm:min-h-[360px] sm:p-4 lg:min-h-[460px]">
+                  <div className="flex min-h-[420px] items-center justify-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:min-h-[500px]">
                     {detail?.submitted_url ? (
                       <button
                         type="button"
@@ -410,7 +438,10 @@ export default function ProfilePhotoQueue() {
                 <aside className="min-w-0 bg-stone-50/35 p-4 sm:p-5 xl:sticky xl:top-4 xl:self-start">
                   <div className="space-y-4">
                     <section className="rounded-2xl border border-stone-200 bg-white p-4">
-                      <h2 className="text-sm font-semibold text-stone-900">Student Information</h2>
+                      <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-sm font-semibold text-stone-900">Student Information</h2>
+                        {detail?.status ? <StatusPill status={detail.status} /> : null}
+                      </div>
 
                       <dl className="mt-4 grid gap-3 text-sm">
                         <div>
@@ -481,7 +512,7 @@ export default function ProfilePhotoQueue() {
                             type="button"
                             onClick={handleApprove}
                             disabled={actionBusy}
-                            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
                           >
                             <CheckCircle2 className="h-4 w-4" />
                             Approve Photo
@@ -490,7 +521,7 @@ export default function ProfilePhotoQueue() {
                             type="button"
                             onClick={() => setShowRejectModal(true)}
                             disabled={actionBusy}
-                            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
                           >
                             <XCircle className="h-4 w-4" />
                             Reject Photo
@@ -539,7 +570,7 @@ export default function ProfilePhotoQueue() {
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusPill status={item.status} />
                           {item.is_current_profile_photo ? (
-                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                               Current
                             </span>
                           ) : null}
@@ -589,7 +620,7 @@ export default function ProfilePhotoQueue() {
   }
 
   return (
-    <div className="min-w-0 space-y-4 py-3" style={{ background: 'var(--portal-main-bg, #faf7f2)' }}>
+    <div className="space-y-4 py-3" style={{ background: 'var(--portal-main-bg, #faf7f2)' }}>
       <div>
         <section className="mb-4 rounded-2xl border border-stone-200 bg-white p-4">
           <div className="mb-4">
@@ -598,7 +629,7 @@ export default function ProfilePhotoQueue() {
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="grid w-full grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:inline-flex sm:w-auto sm:flex-wrap">
+          <div className="inline-flex max-w-full flex-wrap gap-1 rounded-xl bg-stone-100 p-1">
             {STATUS_OPTIONS.map((option) => (
               <button
                 key={option}
@@ -640,100 +671,9 @@ export default function ProfilePhotoQueue() {
             {error}
           </div>
         )}
+
         <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-          <div className="divide-y divide-stone-100 md:hidden">
-            {loading ? (
-              <div className="px-4 py-10 text-center text-sm text-stone-500">
-                Loading profile photo reviews...
-              </div>
-            ) : filteredItems.length > 0 ? (
-              filteredItems.map((item) => {
-                const student = item.student || {};
-
-                return (
-                  <article key={item.review_id} className="space-y-3 p-4">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-100">
-                        {item.submitted_url ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openPhotoPreview(
-                                item.submitted_url,
-                                `${student.display_name || 'Student'} Profile Photo`
-                              )
-                            }
-                            className="h-full w-full cursor-zoom-in focus:outline-none"
-                            aria-label={`Enlarge ${student.display_name || 'student'} profile photo`}
-                          >
-                            <img
-                              src={item.submitted_url}
-                              alt={`${student.display_name || 'Student'} submitted profile`}
-                              className="h-full w-full object-cover"
-                            />
-                          </button>
-                        ) : (
-                          <Camera className="h-4 w-4 text-stone-500" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="break-words text-sm font-semibold text-stone-900">
-                              {student.display_name || 'Not recorded'}
-                            </p>
-                            <p className="mt-0.5 text-xs text-stone-500">
-                              {student.course_code || 'No course'}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <StatusPill status={item.status} />
-                            {item.is_current_profile_photo ? (
-                              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
-                                Current
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <dl className="grid grid-cols-1 gap-2 rounded-xl bg-stone-50 p-3 text-xs sm:grid-cols-2">
-                      <div className="min-w-0">
-                        <dt className="font-medium text-stone-500">PDM / Student ID</dt>
-                        <dd className="mt-1 break-words text-stone-800">
-                          {getStudentCode(student)}
-                        </dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="font-medium text-stone-500">Submitted</dt>
-                        <dd className="mt-1 break-words text-stone-800">
-                          {formatDate(item.submitted_at)}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/admin/profile-photos/${item.review_id}`)}
-                      className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:bg-stone-50"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Open Review
-                    </button>
-                  </article>
-                );
-              })
-            ) : (
-              <div className="px-4 py-10 text-center text-sm text-stone-500">
-                No {status} profile photo reviews found.
-              </div>
-            )}
-          </div>
-
-          <div className="hidden overflow-x-auto md:block">
+          <div className="overflow-x-auto">
             <table className="min-w-[760px] w-full divide-y divide-stone-100">
               <thead className="bg-stone-50">
                 <tr>
@@ -809,7 +749,7 @@ export default function ProfilePhotoQueue() {
                           <div className="flex flex-wrap items-center gap-2">
                           <StatusPill status={item.status} />
                           {item.is_current_profile_photo ? (
-                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                               Current
                             </span>
                           ) : null}
@@ -821,7 +761,7 @@ export default function ProfilePhotoQueue() {
                             onClick={() =>
                               navigate(`/admin/profile-photos/${item.review_id}`)
                             }
-                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:bg-stone-50"
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
                           >
                             <Eye className="h-4 w-4" />
                             Open

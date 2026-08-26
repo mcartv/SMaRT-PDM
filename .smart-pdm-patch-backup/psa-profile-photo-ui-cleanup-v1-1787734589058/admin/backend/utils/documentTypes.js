@@ -35,14 +35,13 @@ const DOCUMENT_TYPE_ALIASES = {
     nso: 'birth_certificate',
 };
 
-// SMART-PDM_PSA_BIRTH_CERTIFICATE_TERMINOLOGY_V2
 const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_registration: 'Certificate of Registration',
     student_grade_forms: 'Grade Report',
     certificate_of_indigency: 'Certificate of Indigency',
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
-    birth_certificate: 'PSA / Birth Certificate',
+    birth_certificate: 'Birth Certificate / PSA',
 };
 
 function normalizeDocumentType(value) {

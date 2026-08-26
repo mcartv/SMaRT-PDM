@@ -13,6 +13,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 
 const STATUS_OPTIONS = ['pending', 'approved', 'rejected', 'superseded'];
+// SMART-PDM_PROFILE_PHOTO_PENDING_SUPERSEDED_V2
 
 function getToken() {
   return sessionStorage.getItem('adminToken') || '';
@@ -165,6 +166,12 @@ export default function ProfilePhotoQueue() {
   const navigate = useNavigate();
   const { reviewId } = useParams();
   const [items, setItems] = useState([]);
+  const [statusCounts, setStatusCounts] = useState({
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    superseded: 0,
+  });
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
   const [detail, setDetail] = useState(null);
@@ -196,7 +203,23 @@ export default function ProfilePhotoQueue() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load profile photo reviews.');
       }
-      setItems(Array.isArray(data.items) ? data.items : []);
+      const expectedStatus = String(nextStatus || 'pending').toLowerCase();
+      const nextItems = Array.isArray(data.items) ? data.items : [];
+
+      // Keep each queue defensive: even if a stale API/cache response ever
+      // includes a different lifecycle state, it cannot leak into Pending.
+      setItems(
+        nextItems.filter(
+          (item) => String(item?.status || '').toLowerCase() === expectedStatus
+        )
+      );
+
+      setStatusCounts({
+        pending: Number(data?.status_counts?.pending) || 0,
+        approved: Number(data?.status_counts?.approved) || 0,
+        rejected: Number(data?.status_counts?.rejected) || 0,
+        superseded: Number(data?.status_counts?.superseded) || 0,
+      });
     } catch (err) {
       setError(err.message || 'Failed to load profile photo reviews.');
     } finally {
@@ -288,7 +311,10 @@ export default function ProfilePhotoQueue() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to approve profile photo.');
       }
-      await loadDetail();
+      await Promise.all([
+        loadQueue('pending', { quiet: true }),
+        loadDetail(),
+      ]);
     } catch (err) {
       setError(err.message || 'Failed to approve profile photo.');
     } finally {
@@ -318,7 +344,10 @@ export default function ProfilePhotoQueue() {
         throw new Error(data.error || 'Failed to reject profile photo.');
       }
       setShowRejectModal(false);
-      await loadDetail();
+      await Promise.all([
+        loadQueue('pending', { quiet: true }),
+        loadDetail(),
+      ]);
     } catch (err) {
       setError(err.message || 'Failed to reject profile photo.');
     } finally {
@@ -538,7 +567,14 @@ export default function ProfilePhotoQueue() {
                       className="rounded-2xl border border-stone-100 bg-stone-50/60 p-4"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <StatusPill status={item.status} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusPill status={item.status} />
+                          {item.is_current_profile_photo ? (
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                              Current
+                            </span>
+                          ) : null}
+                        </div>
                         <span className="text-xs text-stone-500">{formatDate(item.submitted_at)}</span>
                       </div>
                       {item.rejection_reason ? (
@@ -605,7 +641,16 @@ export default function ProfilePhotoQueue() {
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                {option}
+                <span>{option}</span>
+                <span
+                  className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    status === option
+                      ? 'bg-stone-100 text-stone-700'
+                      : 'bg-white/80 text-stone-500'
+                  }`}
+                >
+                  {statusCounts[option] ?? 0}
+                </span>
               </button>
             ))}
           </div>
@@ -701,7 +746,14 @@ export default function ProfilePhotoQueue() {
                           {formatDate(item.submitted_at)}
                         </td>
                         <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
                           <StatusPill status={item.status} />
+                          {item.is_current_profile_photo ? (
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                              Current
+                            </span>
+                          ) : null}
+                        </div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button

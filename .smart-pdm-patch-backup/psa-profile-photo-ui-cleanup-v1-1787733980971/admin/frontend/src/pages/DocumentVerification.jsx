@@ -78,11 +78,10 @@ const DOC_STATUS_META = {
   },
 };
 
-// SMART-PDM_PSA_BIRTH_CERTIFICATE_TERMINOLOGY_V2
 const REQUIRED_DOCUMENTS = [
   {
     id: 'birth_certificate',
-    name: 'PSA / Birth Certificate',
+    name: 'Birth Certificate / PSA',
     aliases: [
       'birth certificate',
       'birth certificate / psa',
@@ -864,12 +863,12 @@ function detectBirthCertificateOcr(activeDoc) {
       expectedBirthCertificate,
       detectedBirthCertificate: false,
       structuredResult: false,
-      panelTitle: 'PSA / Birth Certificate Detection',
+      panelTitle: 'Birth Certificate / PSA Detection',
       detectedLabel: 'No OCR text yet',
       confidenceLabel: 'Unavailable',
       tone: 'amber',
       warning: expectedBirthCertificate
-        ? 'Run IoT OCR or paste OCR text to validate if this is a PSA / Birth Certificate.'
+        ? 'Run IoT OCR or paste OCR text to validate if this is a PSA/Birth Certificate.'
         : '',
       rows: [
         { label: 'OCR Text', value: 'No OCR text yet', found: false },
@@ -951,11 +950,11 @@ function detectBirthCertificateOcr(activeDoc) {
   let warning = '';
 
   if (expectedBirthCertificate && detectedBirthCertificate) {
-    warning = 'OCR text contains PSA / Birth Certificate markers. Continue manual review before verifying.';
+    warning = 'OCR text contains PSA/Birth Certificate markers. Continue manual review before verifying.';
   } else if (expectedBirthCertificate && !detectedBirthCertificate) {
-    warning = 'This OCR text does not strongly match a PSA / Birth Certificate. Reject if the uploaded document is wrong.';
+    warning = 'This OCR text does not strongly match a PSA/Birth Certificate. Reject if the uploaded document is wrong.';
   } else if (!expectedBirthCertificate && detectedBirthCertificate) {
-    warning = `OCR text looks like a PSA / Birth Certificate, but the selected document is ${activeDoc?.name || 'another requirement'}. This may be a wrong upload.`;
+    warning = `OCR text looks like a PSA/Birth Certificate, but the selected document is ${activeDoc?.name || 'another requirement'}. This may be a wrong upload.`;
   }
 
   return {
@@ -963,10 +962,10 @@ function detectBirthCertificateOcr(activeDoc) {
     expectedBirthCertificate,
     detectedBirthCertificate,
     structuredResult: false,
-    panelTitle: 'PSA / Birth Certificate Detection',
+    panelTitle: 'Birth Certificate / PSA Detection',
     detectedLabel: detectedBirthCertificate
-      ? 'Likely PSA / Birth Certificate'
-      : 'PSA / Birth Certificate not detected',
+      ? 'Likely Birth Certificate / PSA'
+      : 'Birth Certificate / PSA not detected',
     confidenceLabel,
     tone: detectedBirthCertificate ? 'green' : 'red',
     warning,
@@ -2383,7 +2382,7 @@ function OCRPanel({
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-[var(--portal-base)]" />
                 <p className="text-sm font-semibold uppercase tracking-wide text-stone-700">
-                  {extractedData.documentValidation.panelTitle || 'PSA / Birth Certificate Detection'}
+                  {extractedData.documentValidation.panelTitle || 'Birth Certificate / PSA Detection'}
                 </p>
               </div>
 

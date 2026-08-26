@@ -17,6 +17,7 @@ import {
   MailOpen,
   MessageSquareMore,
   MoreVertical,
+  Pencil,
   Plus,
   RefreshCw,
   Reply,
@@ -247,6 +248,15 @@ function toScholarSearchItem(raw = {}) {
 }
 
 function normalizeMessage(raw = {}) {
+  const seenBy = (Array.isArray(raw.seenBy) ? raw.seenBy : Array.isArray(raw.seen_by) ? raw.seen_by : [])
+    .map((receipt) => ({
+      userId: receipt?.userId?.toString?.() || receipt?.user_id?.toString?.() || '',
+      name: receipt?.name?.toString?.() || 'Unknown User',
+      avatarUrl: receipt?.avatarUrl?.toString?.() || receipt?.avatar_url?.toString?.() || '',
+      seenAt: receipt?.seenAt?.toString?.() || receipt?.seen_at?.toString?.() || '',
+    }))
+    .filter((receipt) => receipt.userId)
+
   return {
     messageId: raw.messageId?.toString() || raw.message_id?.toString() || '',
     senderId: raw.senderId?.toString() || raw.sender_id?.toString() || '',
@@ -254,6 +264,8 @@ function normalizeMessage(raw = {}) {
     roomId: raw.roomId?.toString() || raw.room_id?.toString() || '',
     messageBody: raw.messageBody?.toString() || raw.message_body?.toString() || '',
     sentAt: raw.sentAt?.toString() || raw.sent_at?.toString() || '',
+    editedAt: raw.editedAt?.toString() || raw.edited_at?.toString() || '',
+    editCount: Number(raw.editCount ?? raw.edit_count ?? 0),
     isRead: raw.isRead === true || raw.is_read === true,
     subject: raw.subject?.toString() || null,
     attachmentUrl: raw.attachmentUrl?.toString() || raw.attachment_url?.toString() || null,
@@ -276,6 +288,7 @@ function normalizeMessage(raw = {}) {
       raw.clientMessageId?.toString() || raw.client_message_id?.toString() || '',
     seenByCounterparty:
       raw.seenByCounterparty === true || raw.seen_by_counterparty === true,
+    seenBy,
     deliveryStatus: raw.deliveryStatus?.toString() || raw.delivery_status?.toString() || 'sent',
     sendError: raw.sendError?.toString() || raw.send_error?.toString() || '',
   }
@@ -313,6 +326,11 @@ function markMessagesRead(items, messageIds = []) {
       }
       : item
   )
+}
+
+function isBrowserTabActivelyViewed() {
+  if (typeof document === 'undefined') return false
+  return document.visibilityState === 'visible' && document.hasFocus()
 }
 
 function markMessagesUnread(items, messageIds = []) {
@@ -373,14 +391,35 @@ function formatMessageDay(value) {
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
   const difference = Math.round((today.getTime() - target.getTime()) / 86400000)
 
-  if (difference === 0) return 'Today'
-  if (difference === 1) return 'Yesterday'
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
+  const time = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
   }).format(date)
+
+  if (difference === 0) return `Today, ${time}`
+  if (difference === 1) return `Yesterday, ${time}`
+  if (difference > 1 && difference < 7) {
+    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date)
+    return `${weekday}, ${time}`
+  }
+
+  const calendarDate = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  }).format(date)
+  return `${calendarDate}, ${time}`
+}
+
+function shouldShowMessageSeparator(previousMessage, currentMessage) {
+  if (!previousMessage) return true
+  if (messageDayKey(previousMessage.sentAt) !== messageDayKey(currentMessage.sentAt)) return true
+
+  const previousTime = new Date(previousMessage.sentAt).getTime()
+  const currentTime = new Date(currentMessage.sentAt).getTime()
+  if (!Number.isFinite(previousTime) || !Number.isFinite(currentTime)) return false
+
+  return currentTime - previousTime > 60 * 60 * 1000
 }
 
 function messagesBelongTogether(older, newer) {
@@ -745,6 +784,41 @@ function ArchivedThreadsModal({
   )
 }
 
+function MessageText({ value }) {
+  const text = String(value || '')
+  const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi
+  const parts = text.split(urlPattern)
+
+  return (
+    <p className="whitespace-pre-wrap break-words text-sm leading-6">
+      {parts.map((part, index) => {
+        if (!/^(?:https?:\/\/|www\.)/i.test(part)) {
+          return <span key={`text-${index}`}>{part}</span>
+        }
+
+        const trailingPunctuation = part.match(/[.,!?;:\]\)}]+$/)?.[0] || ''
+        const url = trailingPunctuation ? part.slice(0, -trailingPunctuation.length) : part
+        const href = /^www\./i.test(url) ? `https://${url}` : url
+
+        return (
+          <span key={`link-${index}`}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium underline decoration-current/60 underline-offset-2 hover:decoration-current"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {url}
+            </a>
+            {trailingPunctuation}
+          </span>
+        )
+      })}
+    </p>
+  )
+}
+
 function MessageAvatar({ message, isMine = false }) {
   const initials = (message.senderName || 'User')
     .split(/\s+/)
@@ -818,6 +892,7 @@ function FloatingMessageTooltip({ anchorRef, open, placement = 'left', children 
 
 function MessageBubble({
   message,
+  displaySeenBy = [],
   isMine,
   isGroup = false,
   currentUserId = '',
@@ -829,14 +904,22 @@ function MessageBubble({
   isLatestOutgoing = false,
   isCurrentSearchMatch = false,
   infoPanelOpen = false,
+  editingMode = false,
   onReply,
   onCopy,
+  onStartEdit,
+  onLoadEditHistory,
   onDelete,
   onRetry,
 }) {
   const [actionsOpen, setActionsOpen] = useState(false)
   const [timestampOpen, setTimestampOpen] = useState(false)
   const [optionsTooltipOpen, setOptionsTooltipOpen] = useState(false)
+  const [seenListOpen, setSeenListOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [editHistory, setEditHistory] = useState([])
+  const [historyError, setHistoryError] = useState('')
   const actionRootRef = useRef(null)
   const messageRootRef = useRef(null)
   useEffect(() => {
@@ -872,6 +955,53 @@ function MessageBubble({
         ? `${message.senderName || 'Someone'} replied to you`
         : `${message.senderName || 'Someone'} replied to ${message.replySenderName || 'a message'}`
     : ''
+  const seenBy = isGroup ? displaySeenBy : []
+  const mobileSeenBy = seenBy.slice(0, 1)
+  const desktopSeenBy = seenBy.slice(0, 3)
+  const mobileAdditionalSeenCount = Math.max(0, seenBy.length - mobileSeenBy.length)
+  const desktopAdditionalSeenCount = Math.max(0, seenBy.length - desktopSeenBy.length)
+  const editDeadline = new Date(message.sentAt).getTime() + 15 * 60 * 1000
+  const isOwnSentMessage = isMine && message.deliveryStatus === 'sent' && !message.messageId.startsWith('local:')
+  const editWindowExpired = Number.isFinite(editDeadline) && Date.now() > editDeadline
+  const editLimitReached = Number(message.editCount || 0) >= 5
+  const isEmojiOnlyMessage = /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(message.messageBody.trim())
+  const canEdit = Boolean(
+    isOwnSentMessage &&
+    Number.isFinite(editDeadline) &&
+    !editWindowExpired &&
+    !editLimitReached &&
+    !isEmojiOnlyMessage
+  )
+  const toggleEditHistory = async () => {
+    if (historyOpen) {
+      setHistoryOpen(false)
+      return
+    }
+    setHistoryOpen(true)
+    if (editHistory.length || historyLoading) return
+    try {
+      setHistoryLoading(true)
+      setHistoryError('')
+      setEditHistory(await onLoadEditHistory?.(message) || [])
+    } catch (error) {
+      setHistoryError(error.message || 'Unable to load edit history.')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+  const renderSeenAvatar = (receipt) => (
+    <span
+      key={receipt.userId}
+      className="flex h-[18px] w-[18px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-stone-300 bg-white text-[6px] font-bold leading-none text-stone-600 shadow-sm sm:h-5 sm:w-5 sm:text-[7px]"
+      title={`Seen by ${receipt.name}${receipt.seenAt ? ` at ${formatMessageTime(receipt.seenAt)}` : ''}`}
+    >
+      {receipt.avatarUrl ? (
+        <img src={receipt.avatarUrl} alt={receipt.name} className="h-full w-full object-cover" />
+      ) : (
+        receipt.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+      )}
+    </span>
+  )
 
   const actionMenu = (
     <div ref={actionRootRef} className="relative shrink-0 self-center">
@@ -898,14 +1028,16 @@ function MessageBubble({
           role="menu"
           className={`absolute bottom-8 z-30 w-40 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl ${isMine ? 'right-0' : 'left-0'}`}
         >
-          <button
-            type="button"
-            onClick={() => { setActionsOpen(false); onReply?.(message) }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
-            role="menuitem"
-          >
-            <Reply className="h-3.5 w-3.5" /> Reply
-          </button>
+          {!editingMode ? (
+            <button
+              type="button"
+              onClick={() => { setActionsOpen(false); onReply?.(message) }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
+              role="menuitem"
+            >
+              <Reply className="h-3.5 w-3.5" /> Reply
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => { setActionsOpen(false); onCopy?.(message) }}
@@ -914,6 +1046,16 @@ function MessageBubble({
           >
             <Copy className="h-3.5 w-3.5" /> Copy
           </button>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={() => { setActionsOpen(false); onStartEdit?.(message) }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
+              role="menuitem"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => { setActionsOpen(false); onDelete?.(message) }}
@@ -928,15 +1070,18 @@ function MessageBubble({
   )
 
   return (
-    <div className={`group/message-row flex items-end gap-1.5 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${isMine && isLatestOutgoing ? 'mb-5' : ''} ${isMine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`group/message-row relative flex w-full items-end gap-1.5 ${groupedWithPrevious ? 'mt-1' : 'mt-3'} ${(isMine && isLatestOutgoing) || seenBy.length ? 'mb-6 sm:mb-7' : ''} ${isMine ? 'justify-end' : 'justify-start'}`}>
       {!isMine && isGroup ? (
         showAvatar ? <MessageAvatar message={message} /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
       ) : null}
 
-      <div className={`relative flex max-w-[88%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[76%] lg:max-w-[68%]`}>
-        {isGroup && !isMine && showSenderName && message.senderName && !message.replyToMessageId ? (
-          <p className="mb-1 px-1 text-xs font-semibold text-stone-500">
-            {message.senderName}
+      <div className={`flex max-w-[88%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[76%] lg:max-w-[68%]`}>
+        {((isGroup && !isMine && showSenderName && message.senderName && !message.replyToMessageId) || message.editedAt) ? (
+          <p className={`mb-1 flex items-center gap-1 px-1 text-[11px] font-semibold text-stone-600 ${isMine ? 'justify-end text-right' : 'justify-start'}`}>
+            <span>{isMine ? 'You' : message.senderName || 'User'}</span>
+            {message.editedAt ? (
+              <><span aria-hidden="true">·</span><button type="button" onClick={toggleEditHistory} className={`rounded px-0.5 transition hover:underline ${historyOpen ? 'font-bold text-stone-900 underline underline-offset-2' : 'font-semibold text-stone-600'}`} aria-expanded={historyOpen}>{historyOpen ? 'Hide edits' : 'Edited'}</button></>
+            ) : null}
           </p>
         ) : null}
 
@@ -950,6 +1095,25 @@ function MessageBubble({
             if (!event.currentTarget.contains(event.relatedTarget)) setTimestampOpen(false)
           }}
         >
+          {historyOpen ? (
+            <div className={`relative z-0 mb-1 flex w-full min-w-[13rem] max-w-sm flex-col gap-1 ${isMine ? 'items-end' : 'items-start'}`}>
+              {historyLoading ? <p className="px-3 py-1 text-xs text-stone-400">Loading...</p> : null}
+              {historyError ? <p className="px-3 py-1 text-xs text-red-600">{historyError}</p> : null}
+              {!historyLoading && !historyError ? (
+                <div className={`flex max-h-40 w-full flex-col gap-1 overflow-y-auto ${isMine ? 'items-end' : 'items-start'}`}>
+                  {editHistory.map((entry) => (
+                    <div
+                      key={entry.historyId}
+                      className={`w-fit max-w-full rounded-2xl px-3.5 py-2 text-sm leading-6 shadow-sm ${isMine ? 'bg-[var(--portal-base)]/65 text-white/65' : 'border border-stone-200 bg-stone-200/80 text-stone-500'}`}
+                      title={`Changed ${formatMessageTime(entry.editedAt)}`}
+                    >
+                      <p className="whitespace-pre-wrap break-words">{entry.previousMessageBody}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {message.replyToMessageId ? (
             <>
               <div
@@ -980,7 +1144,7 @@ function MessageBubble({
                 : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
                 } ${isCurrentSearchMatch ? 'ring-2 ring-[var(--portal-base)] ring-offset-2' : isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
             >
-              <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.messageBody}</p>
+              <MessageText value={message.messageBody} />
             </div>
             {actionMenu}
           </div>
@@ -996,14 +1160,67 @@ function MessageBubble({
           ) : null}
         </div>
 
-        {isMine && isLatestOutgoing ? (
-          <div className="absolute right-0 top-full mt-1 whitespace-nowrap px-1 text-[11px] font-medium text-stone-400" aria-live="polite">
+        {(isMine && isLatestOutgoing) || seenBy.length ? (
+          <div className="absolute right-0 top-full mt-1 flex min-h-5 max-w-[min(75vw,18rem)] items-center justify-end text-[10px] font-medium text-stone-400 sm:min-h-6 sm:text-[11px]" aria-live="polite">
             {message.deliveryStatus === 'sending' ? (
               <span>Sending…</span>
             ) : message.deliveryStatus === 'failed' ? (
               <button type="button" onClick={() => onRetry?.(message)} className="font-semibold text-red-600 hover:underline">
                 Failed to send · Retry
               </button>
+            ) : isGroup && seenBy.length ? (
+              <span className="relative flex max-w-full items-center justify-end gap-1" aria-label={`Seen by ${seenBy.map((receipt) => receipt.name).join(', ')}`}>
+                <span className="flex items-center justify-end gap-px sm:hidden">
+                  {mobileSeenBy.map(renderSeenAvatar)}
+                  {mobileAdditionalSeenCount ? (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full bg-stone-200 px-1 text-[8px] font-semibold leading-4 text-stone-600 hover:bg-stone-300"
+                      onClick={() => setSeenListOpen((current) => !current)}
+                      aria-expanded={seenListOpen}
+                      aria-label={`Show all ${seenBy.length} people who saw this message`}
+                    >
+                      +{mobileAdditionalSeenCount}
+                    </button>
+                  ) : null}
+                </span>
+                <span className="hidden items-center justify-end gap-0.5 sm:flex">
+                  {desktopSeenBy.map(renderSeenAvatar)}
+                  {desktopAdditionalSeenCount ? (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full bg-stone-200 px-1.5 text-[8px] font-semibold leading-[18px] text-stone-600 hover:bg-stone-300"
+                      onClick={() => setSeenListOpen((current) => !current)}
+                      aria-expanded={seenListOpen}
+                      aria-label={`Show all ${seenBy.length} people who saw this message`}
+                    >
+                      +{desktopAdditionalSeenCount}
+                    </button>
+                  ) : null}
+                </span>
+                {seenListOpen ? (
+                  <span className="absolute bottom-6 right-0 z-30 w-64 overflow-hidden rounded-xl border border-stone-200 bg-white p-2 text-left text-stone-700 shadow-xl">
+                    <span className="block px-2 pb-1.5 text-xs font-semibold text-stone-800">Seen by</span>
+                    <span className="block max-h-48 overflow-y-auto">
+                      {seenBy.map((receipt) => (
+                        <span key={receipt.userId} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-200 text-[9px] font-bold text-stone-600">
+                            {receipt.avatarUrl ? (
+                              <img src={receipt.avatarUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              receipt.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium">{receipt.name}</span>
+                            <span className="block text-[10px] font-normal text-stone-400">{receipt.seenAt ? formatMessageTime(receipt.seenAt) : 'Seen'}</span>
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                  </span>
+                ) : null}
+              </span>
             ) : isGroup ? (
               <span>Sent</span>
             ) : message.seenByCounterparty ? (
@@ -1015,9 +1232,6 @@ function MessageBubble({
         ) : null}
       </div>
 
-      {isMine && isGroup ? (
-        showAvatar ? <MessageAvatar message={message} isMine /> : <div className="h-8 w-8 shrink-0" aria-hidden="true" />
-      ) : null}
     </div>
   )
 }
@@ -1738,6 +1952,10 @@ export default function AdminMessages({
   const [transientPrivateContact, setTransientPrivateContact] = useState(null)
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
+  const [editingMessage, setEditingMessage] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState(null)
+  const [mentionIndex, setMentionIndex] = useState(0)
   const [error, setError] = useState('')
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
@@ -1767,6 +1985,28 @@ export default function AdminMessages({
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState(null)
   const [deleteMessageBusy, setDeleteMessageBusy] = useState(false)
   const [typingUserIds, setTypingUserIds] = useState([])
+
+  useEffect(() => {
+    setEditingMessage(null)
+    setDraft('')
+    setMentionQuery(null)
+    setMentionIndex(0)
+  }, [activeType, activeConversationId, activeRoomId, isOpen])
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null || activeType !== 'group') return []
+    const normalizedQuery = mentionQuery.trim().toLowerCase()
+    const everyoneMention = {
+      userId: 'mention:everyone',
+      name: 'everyone',
+      isEveryoneMention: true,
+    }
+    return [everyoneMention, ...groupMembers
+      .filter((member) => member.userId !== currentUserId)
+    ]
+      .filter((member) => !normalizedQuery || member.name?.toLowerCase().includes(normalizedQuery))
+      .slice(0, 6)
+  }, [mentionQuery, activeType, groupMembers, currentUserId])
 
   const [archivedOpen, setArchivedOpen] = useState(false)
   const [archivedItems, setArchivedItems] = useState([])
@@ -1918,11 +2158,7 @@ export default function AdminMessages({
     const query = chatSearchTerm.trim().toLowerCase()
     if (!query) return []
     return messages.filter((message) =>
-      [message.messageBody, message.replyMessageBody, message.senderName]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
+      message.messageBody.toLowerCase().includes(query)
     )
   }, [messages, chatSearchTerm])
 
@@ -1935,6 +2171,38 @@ export default function AdminMessages({
     }
     return ''
   }, [messages, currentUserId])
+
+  const groupSeenByByMessageId = useMemo(() => {
+    const latestPositionByMember = new Map()
+    messages.forEach((message) => {
+      if (message.senderId && message.senderId !== currentUserId) {
+        const senderMember = groupMembers.find((member) => member.userId === message.senderId)
+        // Sending a newer message proves the member advanced beyond any older
+        // read receipt, so move their indicator beneath their new message.
+        latestPositionByMember.set(message.senderId, {
+          messageId: message.messageId,
+          receipt: {
+            userId: message.senderId,
+            name: senderMember?.name || message.senderName || 'Group member',
+            avatarUrl: senderMember?.avatarUrl || message.senderAvatarUrl || '',
+            seenAt: message.sentAt,
+          },
+        })
+      }
+
+      (message.seenBy || []).forEach((receipt) => {
+        if (receipt.userId === currentUserId) return
+        latestPositionByMember.set(receipt.userId, { messageId: message.messageId, receipt })
+      })
+    })
+
+    const receiptsByMessage = new Map()
+    latestPositionByMember.forEach(({ messageId, receipt }) => {
+      if (!receipt) return
+      receiptsByMessage.set(messageId, [...(receiptsByMessage.get(messageId) || []), receipt])
+    })
+    return receiptsByMessage
+  }, [messages, currentUserId, groupMembers])
 
   const typingLabel = useMemo(() => {
     if (!typingUserIds.length || !selectedItem) return ''
@@ -2287,6 +2555,9 @@ export default function AdminMessages({
       if (!normalizedCounterpartyId) {
         return { messageIds: [], isRead: true, unreadCount: 0 }
       }
+      if (!isOpen || !isBrowserTabActivelyViewed()) {
+        return { messageIds: [], isRead: false, unreadCount: null, skipped: true }
+      }
 
       try {
         const response = await fetch(
@@ -2330,7 +2601,7 @@ export default function AdminMessages({
         throw err
       }
     },
-    [token, activeType, activeConversationId]
+    [token, activeType, activeConversationId, isOpen]
   )
 
   const markRoomMessagesRead = useCallback(
@@ -2339,6 +2610,9 @@ export default function AdminMessages({
 
       if (!normalizedRoomId) {
         return { messageIds: [], isRead: true, unreadCount: 0 }
+      }
+      if (!isOpen || !isBrowserTabActivelyViewed()) {
+        return { messageIds: [], isRead: false, unreadCount: null, skipped: true }
       }
 
       try {
@@ -2383,7 +2657,7 @@ export default function AdminMessages({
         throw err
       }
     },
-    [token, activeType, activeRoomId]
+    [token, activeType, activeRoomId, isOpen]
   )
 
   const toggleThreadReadState = useCallback(
@@ -2676,6 +2950,13 @@ export default function AdminMessages({
     const value = event.target.value
     setDraft(value)
 
+    const valueBeforeCaret = value.slice(0, event.target.selectionStart ?? value.length)
+    const mentionMatch = activeType === 'group' ? valueBeforeCaret.match(/(?:^|\s)@([^@\s]*)$/) : null
+    setMentionQuery(mentionMatch ? mentionMatch[1] : null)
+    setMentionIndex(0)
+
+    if (editingMessage) return
+
     if (!value.trim()) {
       stopTyping()
       return
@@ -2698,7 +2979,26 @@ export default function AdminMessages({
       }
       typingStopTimerRef.current = null
     }, 1800)
-  }, [emitTypingState, stopTyping])
+  }, [activeType, editingMessage, emitTypingState, stopTyping])
+
+  const selectMention = useCallback((member) => {
+    const composer = composerRef.current
+    const caret = composer?.selectionStart ?? draft.length
+    const beforeCaret = draft.slice(0, caret)
+    const mentionMatch = beforeCaret.match(/(?:^|\s)@([^@\s]*)$/)
+    if (!mentionMatch) return
+
+    const mentionStart = caret - mentionMatch[1].length - 1
+    const nextDraft = `${draft.slice(0, mentionStart)}@${member.name} ${draft.slice(caret)}`
+    const nextCaret = mentionStart + member.name.length + 2
+    setDraft(nextDraft)
+    setMentionQuery(null)
+    setMentionIndex(0)
+    window.requestAnimationFrame(() => {
+      composer?.focus()
+      composer?.setSelectionRange(nextCaret, nextCaret)
+    })
+  }, [draft])
 
   useEffect(() => () => stopTyping(), [stopTyping])
 
@@ -2859,6 +3159,18 @@ export default function AdminMessages({
 
   async function handleSendMessage(event) {
     event.preventDefault()
+    if (editingMessage) {
+      if (!draft.trim() || draft.trim() === editingMessage.messageBody) return
+      try {
+        setEditSaving(true)
+        await handleEditMessage(editingMessage, draft.trim())
+        setEditingMessage(null)
+        setDraft('')
+      } finally {
+        setEditSaving(false)
+      }
+      return
+    }
     await sendMessageBody(draft)
   }
 
@@ -2868,8 +3180,36 @@ export default function AdminMessages({
   }
 
   function handleReplyToMessage(message) {
+    if (editingMessage) return
     if (!message || message.deliveryStatus === 'failed') return
     setReplyingTo(message)
+    window.requestAnimationFrame(() => composerRef.current?.focus())
+  }
+
+  function handleStartEditMessage(message) {
+    setReplyingTo(null)
+    setChatSearchOpen(false)
+    setChatSearchTerm('')
+    setChatMatchIndex(0)
+    setGroupInfoOpen(false)
+    setEditingMessage(message)
+    setDraft(message.messageBody)
+    stopTyping()
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const composer = composerRef.current
+        if (!composer) return
+        const caretPosition = message.messageBody.length
+        composer.focus()
+        composer.setSelectionRange(caretPosition, caretPosition)
+        composer.scrollTop = composer.scrollHeight
+      })
+    })
+  }
+
+  function cancelMessageEdit() {
+    setEditingMessage(null)
+    setDraft('')
     window.requestAnimationFrame(() => composerRef.current?.focus())
   }
 
@@ -2879,6 +3219,50 @@ export default function AdminMessages({
     } catch {
       setError('Unable to copy this message in the current browser.')
     }
+  }
+
+  async function handleEditMessage(message, messageBody) {
+    try {
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/message/${message.messageId}`, {
+        method: 'PATCH',
+        headers: buildMessagingHeaders(token, { json: true }),
+        body: JSON.stringify({ messageBody }),
+      })
+      const payload = await parseApiResponse(response, 'Failed to edit message.')
+      const updated = normalizeMessage(payload)
+
+      setMessages((current) => current.map((item) => {
+        if (item.messageId === message.messageId) {
+          return { ...item, messageBody: updated.messageBody, editedAt: updated.editedAt, editCount: updated.editCount }
+        }
+        if (item.replyToMessageId === message.messageId) {
+          return { ...item, replyMessageBody: updated.messageBody }
+        }
+        return item
+      }))
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to edit message.')
+      throw err
+    }
+  }
+
+  async function handleLoadEditHistory(message) {
+    const response = await fetch(`${MESSAGING_API_BASE}/api/messages/message/${message.messageId}/history`, {
+      headers: buildMessagingHeaders(token),
+    })
+    const payload = await parseApiResponse(response, 'Failed to load edit history.')
+    return (payload.items || payload.history || []).map((entry) => ({
+      historyId: entry.historyId?.toString?.() || entry.history_id?.toString?.() || '',
+      editNumber: Number(entry.editNumber ?? entry.edit_number ?? 0),
+      previousMessageBody: entry.previousMessageBody?.toString?.() || entry.previous_message_body?.toString?.() || '',
+      newMessageBody: entry.newMessageBody?.toString?.() || entry.new_message_body?.toString?.() || '',
+      editedAt: entry.editedAt?.toString?.() || entry.edited_at?.toString?.() || '',
+    })).sort((left, right) => left.editNumber - right.editNumber)
   }
 
   async function handleDeleteMessageForMe(message) {
@@ -3228,15 +3612,17 @@ export default function AdminMessages({
     if (!isOpen) return undefined
 
     const syncOpenThread = () => {
-      if (document.visibilityState !== 'visible') return
+      if (!isBrowserTabActivelyViewed()) return
 
       if (activeType === 'group' && activeRoomId) {
         fetchRoomMessages(activeRoomId, { silent: true })
+        markRoomMessagesRead(activeRoomId).catch(() => {})
         return
       }
 
       if (activeType === 'private' && activeConversationId) {
         fetchConversationMessages(activeConversationId, { silent: true })
+        markConversationRead(activeConversationId).catch(() => {})
       }
     }
 
@@ -3256,6 +3642,8 @@ export default function AdminMessages({
     activeRoomId,
     fetchConversationMessages,
     fetchRoomMessages,
+    markConversationRead,
+    markRoomMessagesRead,
   ])
 
   useEffect(() => {
@@ -3519,6 +3907,34 @@ export default function AdminMessages({
   )
 
   useSocketEvent(
+    'message:updated',
+    async (data = {}) => {
+      const updated = normalizeMessage(data)
+      if (!updated.messageId) return
+
+      setMessages((current) => current.map((message) => {
+        if (message.messageId === updated.messageId) {
+          return {
+            ...message,
+            messageBody: updated.messageBody,
+            editedAt: updated.editedAt || new Date().toISOString(),
+            editCount: Math.max(Number(message.editCount || 0), Number(updated.editCount || 0)),
+          }
+        }
+        if (message.replyToMessageId === updated.messageId) {
+          return { ...message, replyMessageBody: updated.messageBody }
+        }
+        return message
+      }))
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+    },
+    [activeConversationId, activeRoomId, fetchConversations, fetchRooms]
+  )
+
+  useSocketEvent(
     'message:read',
     async (data) => {
       const messageIds = (data?.message_ids || data?.messageIds || [])
@@ -3527,12 +3943,32 @@ export default function AdminMessages({
 
       if (messageIds.length) {
         const readerId = data?.reader_id?.toString?.() || data?.readerId?.toString?.() || ''
+        const roomId = data?.room_id?.toString?.() || data?.roomId?.toString?.() || ''
+        const seenAt = data?.updated_at?.toString?.() || new Date().toISOString()
+        const reader = groupMembers.find((member) => member.userId === readerId)
         setMessages((current) =>
-          markMessagesRead(current, messageIds).map((message) =>
-            readerId && readerId !== currentUserId && messageIds.includes(message.messageId) && message.senderId === currentUserId
+          markMessagesRead(current, messageIds).map((message) => {
+            if (!readerId || readerId === currentUserId || !messageIds.includes(message.messageId)) {
+              return message
+            }
+
+            if (roomId && message.roomId === roomId) {
+              const nextReceipt = {
+                userId: readerId,
+                name: reader?.name || 'Group member',
+                avatarUrl: reader?.avatarUrl || '',
+                seenAt,
+              }
+              return {
+                ...message,
+                seenBy: [...(message.seenBy || []).filter((receipt) => receipt.userId !== readerId), nextReceipt],
+              }
+            }
+
+            return message.senderId === currentUserId
               ? { ...message, seenByCounterparty: true }
               : message
-          )
+          })
         )
       }
 
@@ -3547,6 +3983,7 @@ export default function AdminMessages({
       currentUserId,
       fetchConversations,
       fetchRooms,
+      groupMembers,
     ]
   )
 
@@ -4223,8 +4660,9 @@ export default function AdminMessages({
                         <div className="flex shrink-0 items-center gap-1.5">
                           <button
                             type="button"
+                            disabled={Boolean(editingMessage)}
                             onClick={() => { setChatSearchOpen((current) => !current); setGroupInfoOpen(false); setChatMatchIndex(0) }}
-                            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition ${chatSearchOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${chatSearchOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:hover:bg-stone-100'}`}
                             title="Search this conversation"
                             aria-label="Search this conversation"
                             aria-pressed={chatSearchOpen}
@@ -4234,8 +4672,9 @@ export default function AdminMessages({
                           {selectedItem.type === 'group' ? (
                             <button
                               type="button"
+                              disabled={Boolean(editingMessage)}
                               onClick={() => { setGroupInfoOpen((current) => !current); setChatSearchOpen(false) }}
-                              className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition ${groupInfoOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                              className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${groupInfoOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:hover:bg-stone-100'}`}
                               title="Group information"
                               aria-label="Group information"
                               aria-pressed={groupInfoOpen}
@@ -4290,7 +4729,7 @@ export default function AdminMessages({
                     <div
                       ref={messagesScrollRef}
                       onScroll={handleMessagesScroll}
-                      className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f7] px-3 py-4 sm:px-5 sm:py-5"
+                      className={`relative min-h-0 flex-1 overflow-y-auto px-3 py-4 transition-colors sm:px-5 sm:py-5 ${editingMessage ? 'bg-neutral-300' : 'bg-[#f7f7f7]'}`}
                     >
                       {loadingMessages ? (
                         <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">
@@ -4305,14 +4744,23 @@ export default function AdminMessages({
                             const nextMessage = index + 1 < messages.length ? messages[index + 1] : null
                             const groupedWithPrevious = messagesBelongTogether(previousMessage, message)
                             const groupedWithNext = messagesBelongTogether(message, nextMessage)
-                            const showDateDivider = !previousMessage || messageDayKey(previousMessage.sentAt) !== messageDayKey(message.sentAt)
+                            const showDateDivider = shouldShowMessageSeparator(previousMessage, message)
 
                             return (
-                              <div key={message.messageId} data-message-id={message.messageId}>
+                              <div
+                                key={message.messageId}
+                                data-message-id={message.messageId}
+                                className={editingMessage
+                                  ? String(editingMessage.messageId) === String(message.messageId)
+                                    ? 'relative z-20 opacity-100'
+                                    : 'pointer-events-none select-none opacity-40'
+                                  : undefined}
+                              >
                                 {showDateDivider ? <MessageDateDivider value={message.sentAt} /> : null}
                                 {firstUnreadMessageId === message.messageId ? <NewMessagesDivider /> : null}
                                 <MessageBubble
                                   message={message}
+                                  displaySeenBy={groupSeenByByMessageId.get(message.messageId) || []}
                                   isMine={isMine}
                                   isGroup={selectedItem.type === 'group'}
                                   currentUserId={currentUserId}
@@ -4324,8 +4772,11 @@ export default function AdminMessages({
                                   isLatestOutgoing={isMine && latestOwnMessageId === message.messageId}
                                   isCurrentSearchMatch={currentChatMatchId === message.messageId}
                                   infoPanelOpen={groupInfoOpen}
+                                  editingMode={Boolean(editingMessage)}
                                   onReply={handleReplyToMessage}
                                   onCopy={handleCopyMessage}
+                                  onStartEdit={handleStartEditMessage}
+                                  onLoadEditHistory={handleLoadEditHistory}
                                   onDelete={setPendingDeleteMessage}
                                   onRetry={handleRetryFailedMessage}
                                 />
@@ -4355,6 +4806,12 @@ export default function AdminMessages({
                       onSubmit={handleSendMessage}
                       className="border-t border-stone-100 bg-white px-3 py-3 sm:px-4"
                     >
+                      {editingMessage ? (
+                        <div className="mb-2 flex items-center justify-between px-1">
+                          <p className="text-xs font-semibold text-stone-700">Edit message</p>
+                          <button type="button" disabled={editSaving} onClick={cancelMessageEdit} className="flex h-7 w-7 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-stone-700" title="Cancel edit" aria-label="Cancel edit"><X className="h-4 w-4" /></button>
+                        </div>
+                      ) : null}
                       {replyingTo ? (
                         <div className="mb-2 flex items-start justify-between gap-3 rounded-xl border-l-2 border-[var(--portal-base)] bg-stone-50 px-3 py-2">
                           <div className="min-w-0">
@@ -4364,7 +4821,34 @@ export default function AdminMessages({
                           <button type="button" onClick={() => setReplyingTo(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-stone-400 hover:bg-stone-200 hover:text-stone-700" title="Cancel reply" aria-label="Cancel reply"><X className="h-3.5 w-3.5" /></button>
                         </div>
                       ) : null}
-                      <div className="flex items-end gap-2">
+                      <div className="relative flex items-end gap-2">
+                        {mentionQuery !== null && mentionSuggestions.length ? (
+                          <div className="absolute bottom-full left-0 z-40 mb-2 w-64 max-w-[calc(100vw-5rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white py-1.5 shadow-xl" role="listbox" aria-label="Mention a group member">
+                            {mentionSuggestions.map((member, index) => (
+                              <button
+                                key={member.userId}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectMention(member)}
+                                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition ${index === mentionIndex ? 'bg-stone-100' : 'hover:bg-stone-50'}`}
+                                role="option"
+                                aria-selected={index === mentionIndex}
+                              >
+                                {member.isEveryoneMention ? (
+                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
+                                    <Users className="h-4 w-4" aria-hidden="true" />
+                                  </span>
+                                ) : (
+                                  <MemberAvatar member={member} sizeClass="h-8 w-8" />
+                                )}
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium text-stone-800">{member.name}</span>
+                                  {member.isEveryoneMention ? <span className="block text-[11px] text-stone-500">Mention everyone in this group</span> : null}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                         <textarea
                           ref={composerRef}
                           value={draft}
@@ -4372,9 +4856,29 @@ export default function AdminMessages({
                           onKeyDown={(event) => {
                             if (event.nativeEvent?.isComposing) return
 
+                            if (mentionSuggestions.length) {
+                              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                                event.preventDefault()
+                                setMentionIndex((current) => event.key === 'ArrowDown'
+                                  ? (current + 1) % mentionSuggestions.length
+                                  : (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+                                return
+                              }
+                              if (event.key === 'Enter' || event.key === 'Tab') {
+                                event.preventDefault()
+                                selectMention(mentionSuggestions[mentionIndex] || mentionSuggestions[0])
+                                return
+                              }
+                            }
+
                             if (event.key === 'Escape') {
                               event.preventDefault()
-                              if (replyingTo) setReplyingTo(null)
+                              if (mentionQuery !== null) {
+                                setMentionQuery(null)
+                                return
+                              }
+                              if (editingMessage) cancelMessageEdit()
+                              else if (replyingTo) setReplyingTo(null)
                               else if (chatSearchOpen) { setChatSearchOpen(false); setChatSearchTerm(''); setChatMatchIndex(0) }
                               return
                             }
@@ -4391,25 +4895,29 @@ export default function AdminMessages({
                             }
                           }}
                           rows={1}
-                          aria-label={selectedItem.type === 'group' ? 'Message group' : `Message ${selectedItem.name}`}
+                          aria-label={editingMessage ? 'Edit message' : selectedItem.type === 'group' ? 'Message group' : `Message ${selectedItem.name}`}
                           placeholder={
-                            selectedItem.type === 'group'
+                            editingMessage
+                              ? 'Edit message'
+                              : selectedItem.type === 'group'
                               ? 'Message group'
                               : 'Message'
                           }
                           className="max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 bg-stone-100 px-4 py-2.5 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
                         />
 
-                        {draft.trim() ? (
+                        {editingMessage || draft.trim() ? (
                           <button
                             type="submit"
-                            disabled={sending}
+                            disabled={sending || editSaving || !draft.trim() || (editingMessage && draft.trim() === editingMessage.messageBody)}
                             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--portal-base)] text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Send message"
-                            aria-label="Send message"
+                            title={editingMessage ? 'Save edit' : 'Send message'}
+                            aria-label={editingMessage ? 'Save edit' : 'Send message'}
                           >
-                            {sending ? (
+                            {sending || editSaving ? (
                               <LoaderCircle className="h-4 w-4 animate-spin" />
+                            ) : editingMessage ? (
+                              <Check className="h-4 w-4" />
                             ) : (
                               <SendHorizontal className="h-4 w-4" />
                             )}

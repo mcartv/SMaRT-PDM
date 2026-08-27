@@ -47,7 +47,7 @@ const C = {
     blueMid: '#2563EB',
     blueSoft: '#EFF6FF',
     bg: '#faf7f2',
-    line: '#e7e5e4',
+    line: 'var(--portal-border)',
 };
 
 const STATUS_META = {
@@ -1044,7 +1044,7 @@ function OpeningCard({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openEditModal(opening)}
-                                className={themeOutlineButton}
+                                className={`${themeOutlineButton} opening-edit-button`}
                                 style={{ borderColor: 'color-mix(in srgb, var(--portal-base) 28%, white)', color: C.brownMid }}
                                 disabled={isBusy}
                             >
@@ -1822,7 +1822,7 @@ export default function ScholarshipOpenings() {
     }
 
     return (
-        <div className="space-y-4 py-3" style={{ background: C.bg }}>
+        <div className="dark-mode-route-canvas space-y-4 py-3" style={{ background: C.bg }}>
             <OpeningModal
                 open={modalOpen}
                 mode={modalMode}

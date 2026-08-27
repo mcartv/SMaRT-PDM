@@ -82,7 +82,7 @@ function TemplateCard({ report, active, onClick, theme }) {
     <button
       type="button"
       onClick={() => onClick(report.id)}
-      className={`w-full rounded-2xl border p-4 text-left transition-all ${active
+      className={`report-template-card w-full rounded-2xl border p-4 text-left transition-all ${active
         ? ''
         : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
         }`}
@@ -100,7 +100,7 @@ function TemplateCard({ report, active, onClick, theme }) {
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold" style={{ color: active ? theme.base : '#1c1917' }}>
+          <p className="report-template-title truncate text-sm font-semibold" style={{ color: active ? theme.base : '#1c1917' }}>
             {report.name}
           </p>
           <p className="mt-1 text-xs text-stone-500">{report.sub}</p>
@@ -558,7 +558,7 @@ export default function ReportGeneration({
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <Card className="overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-4">
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
-            <h2 className="text-sm font-semibold text-stone-800">
+            <h2 className="report-section-title text-sm font-semibold text-stone-800">
               Report Templates
             </h2>
             <p className="mt-0.5 text-xs text-stone-500">
@@ -583,7 +583,7 @@ export default function ReportGeneration({
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-stone-800">
+                <h2 className="report-section-title text-sm font-semibold text-stone-800">
                   Export Settings
                 </h2>
                 <p className="mt-0.5 text-xs text-stone-500">
@@ -751,7 +751,7 @@ export default function ReportGeneration({
             <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row">
               <Button
                 variant="outline"
-                className="h-11 rounded-xl text-sm font-semibold"
+                className="report-action-button h-11 rounded-xl text-sm font-semibold"
                 style={{ borderColor: theme.border, color: theme.base }}
                 disabled={previewLoading || generating}
                 onClick={handlePreviewReport}
@@ -766,7 +766,7 @@ export default function ReportGeneration({
 
               <div className="flex flex-1 gap-3">
                 <Button
-                  className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
+                  className="report-action-button h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
                   style={{ background: theme.base }}
                   disabled={generating}
                   onClick={handleGenerateReport}
@@ -780,7 +780,7 @@ export default function ReportGeneration({
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-11 rounded-xl text-sm font-semibold"
+                  className="report-action-button h-11 rounded-xl text-sm font-semibold"
                   style={{ borderColor: theme.border, color: theme.base }}
                   disabled={generating}
                   onClick={() => handleDownloadByFormat('csv')}
@@ -792,7 +792,7 @@ export default function ReportGeneration({
 
               <Button
                 variant="outline"
-                className="h-11 rounded-xl text-sm font-semibold"
+                className="report-action-button h-11 rounded-xl text-sm font-semibold"
                 style={{ borderColor: theme.border, color: theme.base }}
                 disabled={previewLoading || generating}
                 onClick={resetFilters}

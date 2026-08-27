@@ -1804,7 +1804,7 @@ function OCRPanel({
   );
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+    <div className="ocr-validation-hub rounded-xl border border-stone-200 bg-white overflow-hidden">
       {isVersionedOcrHub ? (
         <div className="border-b border-stone-100 bg-gradient-to-b from-white to-stone-50/70 px-5 py-5 sm:px-6">
           <div className="flex min-w-0 flex-col gap-5">
@@ -4924,7 +4924,7 @@ export default function DocumentVerification() {
 
   return (
     <div
-      className="space-y-5 py-2 animate-in fade-in duration-300"
+      className="dark-mode-route-canvas space-y-5 py-2 animate-in fade-in duration-300"
       style={{
         background: theme?.mainBg || C.bg,
         '--portal-base': theme?.base || '#6f4b33',

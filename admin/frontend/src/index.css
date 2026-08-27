@@ -16,7 +16,7 @@
 
 /* Make Radix Modals look smooth */
 .DialogOverlay {
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--bg-overlay);
   position: fixed;
   inset: 0;
   animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -92,72 +92,654 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: 25.1% 0.05 45;
-  --primary-foreground: 98.5% 0 0;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: 85% 0.12 85;
-  --accent-foreground: 20.5% 0 0;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0.01 45);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  color-scheme: only light;
+  /* Semantic surfaces: page < section < card/modal elevation. */
+  --bg-primary: #f6f7f8;
+  --bg-secondary: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #f0f2f4;
+  --bg-muted: #e7eaed;
+  --bg-hover: #e9edf0;
+  --bg-active: #dde4e8;
+  --bg-overlay: rgb(24 28 32 / 0.48);
+
+  /* WCAG AA text/icon pairs on the semantic surfaces above. */
+  --text-main: #202428;
+  --text-secondary: #4e565e;
+  --text-muted: #68717a;
+  --text-disabled: #899199;
+  --text-inverse: #f7f8f9;
+  --icon-main: #394149;
+  --icon-muted: #68717a;
+
+  --border-subtle: #e1e4e7;
+  --border-default: #cdd2d7;
+  --border-strong: #aeb6be;
+  --focus-ring: #527d8c;
+
+  /* Brand-safe defaults; portal variables may supply the identity color. */
+  --accent-primary: #355f6e;
+  --accent-primary-hover: #294e5b;
+  --accent-soft: #e2ecef;
+  --accent-on-primary: #ffffff;
+
+  --status-danger-bg: #fbe8eb;
+  --status-danger-text: #9f2537;
+  --status-danger-border: #e8b4bd;
+  --status-warning-bg: #fff3d6;
+  --status-warning-text: #805b00;
+  --status-warning-border: #e7c775;
+  --status-success-bg: #e5f5ec;
+  --status-success-text: #216b43;
+  --status-success-border: #9dcdb2;
+  --status-info-bg: #e6f1f7;
+  --status-info-text: #285f7d;
+  --status-info-border: #a5c9dc;
+  --status-special-bg: #eee9f7;
+  --status-special-text: #62468a;
+  --status-special-border: #c9bbe1;
+
+  --background: var(--bg-primary);
+  --foreground: var(--text-main);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-main);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-main);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--accent-on-primary);
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-main);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--accent-soft);
+  --accent-foreground: var(--text-main);
+  --destructive: var(--status-danger-text);
+  --border: var(--border-default);
+  --input: var(--border-default);
+  --ring: var(--focus-ring);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.75rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--bg-secondary);
+  --sidebar-foreground: var(--text-main);
+  --sidebar-primary: var(--accent-primary);
+  --sidebar-primary-foreground: var(--accent-on-primary);
+  --sidebar-accent: var(--bg-subtle);
+  --sidebar-accent-foreground: var(--text-main);
+  --sidebar-border: var(--border-default);
+  --sidebar-ring: var(--focus-ring);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+.dark-mode {
+  color-scheme: dark;
+  /* Facebook-inspired neutral hierarchy: canvas, navigation/card, hover. */
+  --bg-primary: #18191a;
+  --bg-secondary: #242526;
+  --bg-elevated: #2d2e30;
+  --bg-subtle: #303031;
+  --bg-muted: #3a3b3c;
+  --bg-hover: #3a3b3c;
+  --bg-active: #4e4f50;
+  --bg-overlay: rgb(11 12 13 / 0.74);
+
+  --text-main: #e4e6eb;
+  --text-secondary: #c5c8ce;
+  --text-muted: #b0b3b8;
+  --text-disabled: #8a8d91;
+  --text-inverse: #18202a;
+  --icon-main: #e4e6eb;
+  --icon-muted: #b0b3b8;
+
+  --border-subtle: #323436;
+  --border-default: #3e4042;
+  --border-strong: #5b5d60;
+  --focus-ring: #8ab4ee;
+
+  /* A softened Facebook-blue family remains calm against charcoal. */
+  --accent-primary: #78a7e3;
+  --accent-primary-hover: #8db5e8;
+  --accent-soft: #263951;
+  --accent-on-primary: #17202b;
+
+  --status-danger-bg: #3a2227;
+  --status-danger-text: #f2a6b1;
+  --status-danger-border: #75404a;
+  --status-warning-bg: #382f1f;
+  --status-warning-text: #efd27b;
+  --status-warning-border: #725d2d;
+  --status-success-bg: #1d3429;
+  --status-success-text: #91d5ae;
+  --status-success-border: #37664d;
+  --status-info-bg: #1e303b;
+  --status-info-text: #91c5dd;
+  --status-info-border: #3d6276;
+  --status-special-bg: #2d283b;
+  --status-special-text: #c9b8e8;
+  --status-special-border: #5c5078;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Per-user Dark Mode (web only)                                              */
+/* -------------------------------------------------------------------------- */
+/*
+ * This is a native dark palette, not a page inversion. The authenticated
+ * `.dark-mode` owns the palette. The authenticated portal also adds the
+ * legacy `.smartpdm-force-dark` adapter while hardcoded utility colors are
+ * migrated. Brand accents and media keep their original colors.
+ */
+html.smartpdm-force-dark {
+  color-scheme: dark;
+  background: var(--bg-primary);
+}
+
+html.smartpdm-force-dark .portal-shell {
+  --portal-main-bg: var(--bg-primary) !important;
+  --portal-surface: var(--bg-secondary) !important;
+  --portal-accent-soft: var(--accent-soft) !important;
+  --portal-sub: var(--border-strong) !important;
+  --portal-border: var(--border-default) !important;
+  --portal-muted: var(--text-muted) !important;
+  --portal-text: var(--text-main) !important;
+  background: var(--bg-primary) !important;
+}
+
+html.smartpdm-force-dark .portal-shell > main,
+html.smartpdm-force-dark .portal-shell > div > main {
+  background: var(--bg-primary) !important;
+}
+
+/* Route roots occasionally carry a light inline background. Keep that page
+ * canvas neutral without changing the user's chosen portal accent theme. */
+html.smartpdm-force-dark .portal-shell > div > main > div,
+html.smartpdm-force-dark .portal-shell > div > main > section {
+  background-color: var(--bg-primary) !important;
+}
+
+html.smartpdm-force-dark .bg-white { background-color: var(--bg-secondary) !important; }
+html.smartpdm-force-dark .bg-white\/80 { background-color: color-mix(in srgb, var(--bg-secondary) 80%, transparent) !important; }
+html.smartpdm-force-dark .bg-white\/90 { background-color: color-mix(in srgb, var(--bg-secondary) 90%, transparent) !important; }
+html.smartpdm-force-dark .bg-white\/95 { background-color: color-mix(in srgb, var(--bg-secondary) 95%, transparent) !important; }
+html.smartpdm-force-dark .bg-white\/70 { background-color: color-mix(in srgb, var(--bg-secondary) 70%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50 { background-color: var(--bg-primary) !important; }
+html.smartpdm-force-dark .bg-stone-50\/40 { background-color: color-mix(in srgb, var(--bg-primary) 40%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/50 { background-color: color-mix(in srgb, var(--bg-primary) 50%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/60 { background-color: color-mix(in srgb, var(--bg-primary) 60%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/70 { background-color: color-mix(in srgb, var(--bg-primary) 70%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/80 { background-color: color-mix(in srgb, var(--bg-primary) 80%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/90 { background-color: color-mix(in srgb, var(--bg-primary) 90%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/30 { background-color: color-mix(in srgb, var(--bg-primary) 30%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/35 { background-color: color-mix(in srgb, var(--bg-primary) 35%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-50\/45 { background-color: color-mix(in srgb, var(--bg-primary) 45%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-100 { background-color: var(--bg-subtle) !important; }
+html.smartpdm-force-dark .bg-stone-200 { background-color: var(--bg-muted) !important; }
+html.smartpdm-force-dark .bg-stone-200\/80 { background-color: color-mix(in srgb, var(--bg-muted) 80%, transparent) !important; }
+html.smartpdm-force-dark .bg-stone-300 { background-color: var(--bg-active) !important; }
+html.smartpdm-force-dark .bg-stone-700,
+html.smartpdm-force-dark .bg-stone-800,
+html.smartpdm-force-dark .bg-stone-900,
+html.smartpdm-force-dark .bg-stone-950 { background-color: var(--bg-active) !important; }
+html.smartpdm-force-dark .bg-slate-50,
+html.smartpdm-force-dark .bg-gray-50,
+html.smartpdm-force-dark .bg-neutral-50 { background-color: var(--bg-primary) !important; }
+html.smartpdm-force-dark .bg-neutral-300 { background-color: var(--border-strong) !important; }
+html.smartpdm-force-dark [class~="bg-[#fffdf9]"],
+html.smartpdm-force-dark [class~="bg-[#fffdfa]"],
+html.smartpdm-force-dark [class~="bg-[#fffbea]"],
+html.smartpdm-force-dark [class~="bg-[#f7f7f7]"],
+html.smartpdm-force-dark [class~="bg-[#f8fafc]"],
+html.smartpdm-force-dark [class~="bg-[#faf7f2]"],
+html.smartpdm-force-dark [class~="bg-[#faf9f5]/90"],
+html.smartpdm-force-dark [class~="bg-[#f6f1e9]"] { background-color: var(--bg-secondary) !important; }
+
+html.smartpdm-force-dark .message-thread-surface {
+  background-color: var(--bg-primary) !important;
+}
+
+html.smartpdm-force-dark .ocr-validation-hub .from-white {
+  --tw-gradient-from: var(--bg-elevated) !important;
+  --tw-gradient-to: color-mix(in srgb, var(--bg-primary) 70%, transparent) !important;
+}
+
+html.smartpdm-force-dark .ocr-validation-hub {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main);
+}
+
+html.smartpdm-force-dark .ocr-validation-hub .to-stone-50\/70 {
+  --tw-gradient-to: color-mix(in srgb, var(--bg-primary) 70%, transparent) !important;
+}
+
+html.smartpdm-force-dark .report-template-card[style*="background"] {
+  background-color: var(--accent-soft) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.smartpdm-force-dark .report-template-title[style*="#1c1917"] {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .report-template-title {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .opening-edit-button {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .opening-edit-button svg {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .report-section-title {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .report-action-button {
+  color: var(--text-main) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.smartpdm-force-dark .report-action-button[style*="background"] {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .announcement-icon {
+  background-color: color-mix(in srgb, var(--portal-accent) 18%, var(--bg-elevated)) !important;
+  color: var(--portal-accent) !important;
+}
+
+html.smartpdm-force-dark .group-info-panel :is(
+  .text-stone-950,
+  .text-stone-900,
+  .text-stone-800,
+  .text-stone-700,
+  .text-stone-600,
+  .text-stone-500,
+  .text-stone-400
+) {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .group-info-panel :is(.text-stone-500, .text-stone-400) {
+  color: #aeb7c0 !important;
+}
+
+html.smartpdm-force-dark .group-info-panel :is(button, svg) {
+  color: #ffffff;
+}
+
+html.smartpdm-force-dark .group-info-panel [role="menu"] button,
+html.smartpdm-force-dark .group-info-panel [role="menu"] button svg {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .group-info-panel .group-info-remove,
+html.smartpdm-force-dark .group-info-panel .group-info-remove svg {
+  color: #ef4444 !important;
+}
+
+html.smartpdm-force-dark [style*="#1c1917"],
+html.smartpdm-force-dark [style*="#202428"] {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .messages-launcher {
+  background-color: var(--portal-base) !important;
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .dark-mode-route-canvas {
+  background: var(--bg-primary) !important;
+}
+
+/* One neutral outline system for dark surfaces. Semantic colored borders and
+ * keyboard focus rings remain separate and retain their meaning. */
+html.smartpdm-force-dark .portal-shell .border-2 {
+  border-width: 1px !important;
+}
+
+html.smartpdm-force-dark .portal-shell :is(
+  .border,
+  .border-stone-50,
+  .border-stone-100,
+  .border-stone-200,
+  .border-stone-300,
+  .border-gray-100,
+  .border-gray-200,
+  .border-slate-100,
+  .border-slate-200
+) {
+  border-width: 1px;
+}
+
+html.smartpdm-force-dark .dark-mode-profile-hero {
+  background: linear-gradient(135deg, var(--bg-subtle) 0%, var(--bg-secondary) 58%, var(--bg-primary) 100%) !important;
+}
+
+html.smartpdm-force-dark .dark-mode-profile-hero .from-white\/20,
+html.smartpdm-force-dark .dark-mode-profile-hero .to-white\/35 {
+  opacity: 0.22;
+}
+
+html.smartpdm-force-dark .dark-mode-summary-card {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark [class~="bg-[var(--portal-accent-soft)]"] {
+  background-color: var(--accent-soft) !important;
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .text-stone-950,
+html.smartpdm-force-dark .text-stone-900 { color: var(--text-main) !important; }
+html.smartpdm-force-dark .text-stone-800 { color: var(--text-main) !important; }
+html.smartpdm-force-dark .text-stone-700 { color: var(--text-secondary) !important; }
+html.smartpdm-force-dark .text-stone-600 { color: var(--text-secondary) !important; }
+html.smartpdm-force-dark .text-stone-500 { color: var(--text-muted) !important; }
+html.smartpdm-force-dark .text-stone-400 { color: var(--text-muted) !important; }
+html.smartpdm-force-dark .text-stone-300 { color: var(--text-secondary) !important; }
+html.smartpdm-force-dark .text-black,
+html.smartpdm-force-dark .text-gray-950,
+html.smartpdm-force-dark .text-gray-900,
+html.smartpdm-force-dark .text-slate-900,
+html.smartpdm-force-dark .text-neutral-900 { color: var(--text-main) !important; }
+html.smartpdm-force-dark .text-gray-800,
+html.smartpdm-force-dark .text-slate-800 { color: var(--text-main) !important; }
+html.smartpdm-force-dark .text-gray-700,
+html.smartpdm-force-dark .text-slate-700 { color: var(--text-secondary) !important; }
+html.smartpdm-force-dark .text-gray-600,
+html.smartpdm-force-dark .text-slate-600 { color: var(--text-secondary) !important; }
+html.smartpdm-force-dark .text-gray-500,
+html.smartpdm-force-dark .text-slate-500 { color: var(--text-muted) !important; }
+
+/* Semantic highlights use dark tints with brighter foregrounds. */
+html.smartpdm-force-dark .bg-red-50,
+html.smartpdm-force-dark .bg-red-100,
+html.smartpdm-force-dark .bg-rose-50,
+html.smartpdm-force-dark .bg-rose-100 { background-color: var(--status-danger-bg) !important; }
+html.smartpdm-force-dark .bg-amber-50,
+html.smartpdm-force-dark .bg-amber-100,
+html.smartpdm-force-dark .bg-orange-50 { background-color: var(--status-warning-bg) !important; }
+html.smartpdm-force-dark .bg-green-50,
+html.smartpdm-force-dark .bg-green-100,
+html.smartpdm-force-dark .bg-emerald-50,
+html.smartpdm-force-dark .bg-emerald-100 { background-color: var(--status-success-bg) !important; }
+html.smartpdm-force-dark .bg-blue-50,
+html.smartpdm-force-dark .bg-blue-100,
+html.smartpdm-force-dark .bg-sky-50,
+html.smartpdm-force-dark .bg-cyan-50 { background-color: var(--status-info-bg) !important; }
+html.smartpdm-force-dark .bg-violet-50,
+html.smartpdm-force-dark .bg-purple-50 { background-color: var(--status-special-bg) !important; }
+
+html.smartpdm-force-dark .text-red-600,
+html.smartpdm-force-dark .text-red-700,
+html.smartpdm-force-dark .text-red-800,
+html.smartpdm-force-dark .text-red-900,
+html.smartpdm-force-dark .text-rose-700,
+html.smartpdm-force-dark .text-rose-800 { color: var(--status-danger-text) !important; }
+html.smartpdm-force-dark .text-amber-600,
+html.smartpdm-force-dark .text-amber-700,
+html.smartpdm-force-dark .text-amber-800,
+html.smartpdm-force-dark .text-amber-900,
+html.smartpdm-force-dark .text-orange-700,
+html.smartpdm-force-dark .text-orange-800 { color: var(--status-warning-text) !important; }
+html.smartpdm-force-dark .text-green-600,
+html.smartpdm-force-dark .text-green-700,
+html.smartpdm-force-dark .text-green-800,
+html.smartpdm-force-dark .text-green-900,
+html.smartpdm-force-dark .text-emerald-600,
+html.smartpdm-force-dark .text-emerald-700,
+html.smartpdm-force-dark .text-emerald-800,
+html.smartpdm-force-dark .text-emerald-900 { color: var(--status-success-text) !important; }
+html.smartpdm-force-dark .text-blue-600,
+html.smartpdm-force-dark .text-blue-700,
+html.smartpdm-force-dark .text-blue-800,
+html.smartpdm-force-dark .text-blue-900,
+html.smartpdm-force-dark .text-sky-700,
+html.smartpdm-force-dark .text-cyan-700 { color: var(--status-info-text) !important; }
+html.smartpdm-force-dark .text-violet-600,
+html.smartpdm-force-dark .text-violet-700,
+html.smartpdm-force-dark .text-violet-800,
+html.smartpdm-force-dark .text-purple-700 { color: var(--status-special-text) !important; }
+
+html.smartpdm-force-dark [class~="text-[#5c2d0e]"] {
+  color: var(--status-warning-text) !important;
+}
+
+html.smartpdm-force-dark .border-stone-50,
+html.smartpdm-force-dark .border-stone-100 { border-color: var(--border-subtle) !important; }
+html.smartpdm-force-dark .border-stone-200 { border-color: var(--border-default) !important; }
+html.smartpdm-force-dark .border-stone-300 { border-color: var(--border-strong) !important; }
+html.smartpdm-force-dark .divide-stone-100 > :not(:last-child) { border-color: var(--border-subtle) !important; }
+html.smartpdm-force-dark .border-gray-100,
+html.smartpdm-force-dark .border-slate-100 { border-color: var(--border-subtle) !important; }
+html.smartpdm-force-dark .border-gray-200,
+html.smartpdm-force-dark .border-slate-200 { border-color: var(--border-default) !important; }
+html.smartpdm-force-dark .portal-shell .border-black\/10 { border-color: var(--border-subtle) !important; }
+html.smartpdm-force-dark .border-red-100,
+html.smartpdm-force-dark .border-red-200,
+html.smartpdm-force-dark .border-rose-100,
+html.smartpdm-force-dark .border-rose-200 { border-color: var(--status-danger-border) !important; }
+html.smartpdm-force-dark .border-amber-100,
+html.smartpdm-force-dark .border-amber-200,
+html.smartpdm-force-dark .border-orange-100,
+html.smartpdm-force-dark .border-orange-200 { border-color: var(--status-warning-border) !important; }
+html.smartpdm-force-dark .border-green-100,
+html.smartpdm-force-dark .border-green-200,
+html.smartpdm-force-dark .border-emerald-100,
+html.smartpdm-force-dark .border-emerald-200 { border-color: var(--status-success-border) !important; }
+html.smartpdm-force-dark .border-blue-100,
+html.smartpdm-force-dark .border-blue-200,
+html.smartpdm-force-dark .border-sky-100,
+html.smartpdm-force-dark .border-sky-200,
+html.smartpdm-force-dark .border-cyan-100 { border-color: var(--status-info-border) !important; }
+html.smartpdm-force-dark .border-violet-100,
+html.smartpdm-force-dark .border-violet-200,
+html.smartpdm-force-dark .border-purple-100,
+html.smartpdm-force-dark .border-purple-200 { border-color: var(--status-special-border) !important; }
+
+html.smartpdm-force-dark [role="dialog"],
+html.smartpdm-force-dark [role="menu"],
+html.smartpdm-force-dark [role="listbox"] {
+  color: var(--text-main);
+}
+
+html.smartpdm-force-dark table {
+  color: var(--text-main);
+}
+
+/* Lucide and other currentColor icons follow the corrected label color. */
+html.smartpdm-force-dark .portal-shell :is(button, a, label, [role="button"], [role="tab"], [role="menuitem"]) svg {
+  color: currentColor;
+}
+
+html.smartpdm-force-dark ::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+html.smartpdm-force-dark input,
+html.smartpdm-force-dark textarea,
+html.smartpdm-force-dark select {
+  color: var(--text-main);
+  background-color: var(--bg-elevated) !important;
+  border-color: var(--border-default);
+  caret-color: var(--text-main);
+}
+
+html.smartpdm-force-dark select option,
+html.smartpdm-force-dark select optgroup {
+  color: var(--text-main);
+  background-color: var(--bg-elevated);
+}
+
+html.smartpdm-force-dark [role="combobox"],
+html.smartpdm-force-dark [data-slot="select-trigger"],
+html.smartpdm-force-dark [data-slot="select-content"],
+html.smartpdm-force-dark [data-slot="select-item"] {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark [data-slot="select-trigger"],
+html.smartpdm-force-dark [data-slot="select-content"] {
+  background-color: var(--bg-elevated) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.smartpdm-force-dark [data-slot="select-item"]:focus,
+html.smartpdm-force-dark [data-slot="select-item"][data-highlighted] {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .bg-gray-100,
+html.smartpdm-force-dark .bg-slate-100,
+html.smartpdm-force-dark .bg-neutral-100,
+html.smartpdm-force-dark .bg-zinc-100,
+html.smartpdm-force-dark .bg-stone-50\/60,
+html.smartpdm-force-dark .bg-stone-50\/70 {
+  background-color: var(--bg-subtle) !important;
+}
+
+html.smartpdm-force-dark .text-gray-900,
+html.smartpdm-force-dark .text-slate-900,
+html.smartpdm-force-dark .text-neutral-900,
+html.smartpdm-force-dark .text-zinc-900,
+html.smartpdm-force-dark .text-stone-900 {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .text-gray-800,
+html.smartpdm-force-dark .text-slate-800,
+html.smartpdm-force-dark .text-neutral-800,
+html.smartpdm-force-dark .text-zinc-800,
+html.smartpdm-force-dark .text-stone-800 {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark .text-gray-700,
+html.smartpdm-force-dark .text-slate-700,
+html.smartpdm-force-dark .text-neutral-700,
+html.smartpdm-force-dark .text-zinc-700,
+html.smartpdm-force-dark .text-stone-700 {
+  color: var(--text-secondary) !important;
+}
+
+html.smartpdm-force-dark input::placeholder,
+html.smartpdm-force-dark textarea::placeholder {
+  color: var(--text-muted);
+}
+
+html.smartpdm-force-dark .hover\:bg-white:hover,
+html.smartpdm-force-dark .hover\:bg-white\/70:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-stone-50:hover,
+html.smartpdm-force-dark .hover\:bg-stone-50\/60:hover,
+html.smartpdm-force-dark .hover\:bg-stone-50\/70:hover,
+html.smartpdm-force-dark .hover\:bg-stone-100:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+html.smartpdm-force-dark .hover\:text-stone-900:hover,
+html.smartpdm-force-dark .hover\:text-stone-800:hover,
+html.smartpdm-force-dark .hover\:text-stone-700:hover {
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark button:not(:disabled),
+html.smartpdm-force-dark [role="button"]:not([aria-disabled="true"]) {
+  --tw-ring-offset-color: var(--bg-secondary);
+}
+
+html.smartpdm-force-dark button[class~="bg-[var(--portal-base)]"]:not(:disabled),
+html.smartpdm-force-dark a[class~="bg-[var(--portal-base)]"] {
+  background-color: color-mix(in srgb, var(--portal-base) 72%, var(--text-main) 28%) !important;
+  color: var(--accent-on-primary) !important;
+}
+
+html.smartpdm-force-dark button.messages-launcher:not(:disabled) {
+  background-color: var(--portal-base) !important;
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark button.messages-launcher:not(:disabled) svg {
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark button[class~="border-[var(--portal-base)]"]:not(:disabled) {
+  border-color: color-mix(in srgb, var(--portal-base) 58%, var(--text-main) 42%) !important;
+  color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark [data-slot="switch"] {
+  border: 1px solid var(--border-strong) !important;
+}
+
+html.smartpdm-force-dark [data-slot="switch"][data-unchecked] {
+  background-color: var(--bg-muted) !important;
+}
+
+html.smartpdm-force-dark [data-slot="switch"][data-checked] {
+  background-color: color-mix(in srgb, var(--portal-base) 68%, var(--text-main) 32%) !important;
+  border-color: color-mix(in srgb, var(--portal-base) 55%, var(--text-main) 45%) !important;
+}
+
+html.smartpdm-force-dark [data-slot="switch-thumb"] {
+  background-color: var(--text-main) !important;
+}
+
+html.smartpdm-force-dark button:disabled,
+html.smartpdm-force-dark [role="button"][aria-disabled="true"] {
+  color: var(--text-disabled) !important;
+  border-color: var(--border-default) !important;
+  opacity: 0.68 !important;
+}
+
+html.smartpdm-force-dark button:disabled svg,
+html.smartpdm-force-dark [role="button"][aria-disabled="true"] svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.dark,
+.dark-mode {
+  --background: var(--bg-primary);
+  --foreground: var(--text-main);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-main);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-main);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--accent-on-primary);
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-main);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--accent-soft);
+  --accent-foreground: var(--text-main);
+  --destructive: var(--status-danger-text);
+  --border: var(--border-default);
+  --input: var(--border-default);
+  --ring: var(--focus-ring);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: var(--bg-secondary);
+  --sidebar-foreground: var(--text-main);
+  --sidebar-primary: var(--accent-primary);
+  --sidebar-primary-foreground: var(--accent-on-primary);
+  --sidebar-accent: var(--bg-subtle);
+  --sidebar-accent-foreground: var(--text-main);
+  --sidebar-border: var(--border-default);
+  --sidebar-ring: var(--focus-ring);
 }
 
 ::-webkit-scrollbar {
@@ -165,7 +747,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
+  background: var(--border-strong);
   border-radius: 999px;
 }
 

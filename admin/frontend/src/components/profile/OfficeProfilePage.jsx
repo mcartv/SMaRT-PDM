@@ -90,7 +90,7 @@ export default function OfficeProfilePage({
       <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
         <CardContent className="p-0">
           <div
-            className="relative overflow-hidden px-5 py-7 sm:px-7"
+            className="dark-mode-profile-hero relative overflow-hidden px-5 py-7 sm:px-7"
             style={{ background: `linear-gradient(135deg, ${avatarTone}16 0%, #fafaf9 52%, #ffffff 100%)` }}
           >
             <div

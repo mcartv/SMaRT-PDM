@@ -47,7 +47,7 @@ const C = {
   blueMid: '#2563EB',
   blueSoft: '#EFF6FF',
   bg: '#f8f6f2',
-  line: '#e7e5e4',
+  line: 'var(--portal-border)',
 };
 
 const PAGE_SIZE = 8;
@@ -2048,7 +2048,7 @@ export default function ApplicationReview() {
   }
 
   return (
-    <div className="space-y-3 py-2" style={{ background: C.bg }}>
+    <div className="dark-mode-route-canvas space-y-3 py-2" style={{ background: C.bg }}>
       <Dialog
         open={Boolean(activationCandidate)}
         onOpenChange={(open) => {

@@ -22,6 +22,7 @@ import AdminMessages from '../../pages/AdminMessages';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import usePortalTheme from '../../hooks/usePortalTheme';
+import useForceDarkMode from '../../hooks/useForceDarkMode';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
@@ -67,7 +68,8 @@ export default function AdminLayout() {
   const [adminData, setAdminData] = useState(null);
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
-  const { theme } = usePortalTheme('admin');
+  const { theme, forceDarkMode } = usePortalTheme('admin');
+  useForceDarkMode(forceDarkMode);
   const {
     notifications: notifs,
     newNotifications,
@@ -325,13 +327,17 @@ export default function AdminLayout() {
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
-                className="relative rounded-xl border border-stone-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-stone-100"
-                style={notifOpen ? { borderColor: theme.accentSoft, background: theme.accentSoft } : undefined}
+                className="relative rounded-xl border p-2.5 shadow-sm transition-colors hover:brightness-95"
+                style={{
+                  borderColor: notifOpen ? (forceDarkMode ? 'var(--border-default)' : theme.accentSoft) : (forceDarkMode ? theme.base : 'var(--border-default)'),
+                  background: notifOpen ? (forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft) : (forceDarkMode ? theme.base : 'var(--bg-secondary)'),
+                  color: forceDarkMode ? '#ffffff' : 'var(--text-main)',
+                }}
                 title="Open notifications"
                 aria-label="Open notifications"
                 aria-expanded={notifOpen}
               >
-                <Bell className="h-4 w-4" style={{ color: theme.base }} />
+                <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
                   <span
                     className="absolute right-[-4px] top-[-4px] z-10 inline-grid h-[17px] min-w-[17px] place-items-center rounded-full bg-red-500 px-1 pt-px text-center text-[9px] font-semibold leading-none text-white shadow-sm ring-2 ring-white"
@@ -349,7 +355,7 @@ export default function AdminLayout() {
                       <div className="flex items-center gap-3">
                         <div
                           className="flex h-9 w-9 items-center justify-center rounded-xl border"
-                          style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+                          style={{ borderColor: forceDarkMode ? 'var(--border-default)' : theme.accentSoft, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft, color: forceDarkMode ? 'var(--text-main)' : theme.base }}
                         >
                           <Bell className="h-4 w-4" />
                         </div>
@@ -367,8 +373,8 @@ export default function AdminLayout() {
                     {notifs.length > 0 ? (
                       <>
                         {newNotifications.length > 0 ? (
-                          <div className="border-b border-stone-100 px-4 py-2" style={{ background: theme.accentSoft }}>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
+                          <div className="border-b border-stone-100 px-4 py-2" style={{ background: forceDarkMode ? 'var(--bg-subtle)' : theme.accentSoft }}>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: forceDarkMode ? 'var(--text-secondary)' : theme.base }}>
                               New
                             </p>
                           </div>
@@ -382,8 +388,8 @@ export default function AdminLayout() {
                             }}
                             className={`w-full cursor-pointer border-b border-stone-100 px-4 py-3 text-left transition hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
                             style={n.is_read !== true
-                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
-                              : { background: '#fff' }}
+                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-semibold leading-[18px] text-stone-900">
@@ -422,8 +428,8 @@ export default function AdminLayout() {
                             }}
                             className={`w-full cursor-pointer border-b border-stone-50 px-4 py-3 text-left transition-colors hover:brightness-[0.98] ${n.is_read !== true ? 'border-l-4' : ''}`}
                             style={n.is_read !== true
-                              ? { borderLeftColor: theme.base, background: theme.accentSoft }
-                              : { background: '#fff' }}
+                              ? { borderLeftColor: forceDarkMode ? 'var(--accent-primary)' : theme.base, background: forceDarkMode ? 'var(--bg-hover)' : theme.accentSoft }
+                              : { background: forceDarkMode ? 'var(--bg-secondary)' : '#fff' }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-[13px] font-medium leading-[18px] text-stone-800">
@@ -473,6 +479,7 @@ export default function AdminLayout() {
             <PortalQuickTools
               tokenStorageKey="adminToken"
               noteTitle="Admin Notes"
+              forceDarkMode={forceDarkMode}
               notificationOpen={notifOpen}
               onToolOpen={() => setNotifOpen(false)}
             />

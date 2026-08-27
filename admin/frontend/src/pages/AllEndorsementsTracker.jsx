@@ -403,7 +403,7 @@ export default function AllEndorsementsTracker({
             {adminSummaryPills.map((item) => (
               <div
                 key={item.label}
-                className="min-h-[76px] rounded-2xl border px-4 py-3"
+                className="dark-mode-summary-card min-h-[76px] rounded-2xl border px-4 py-3"
                 style={{
                   background: 'color-mix(in srgb, var(--portal-chart-primary) 10%, white)',
                   borderColor: 'color-mix(in srgb, var(--portal-chart-primary) 24%, white)',

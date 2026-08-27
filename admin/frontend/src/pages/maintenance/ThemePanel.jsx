@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
-import { AlertCircle, BarChart3, CheckCircle2, Loader2, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { AlertCircle, BarChart3, CheckCircle2, Loader2, Moon, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { getThemePresetOptions, resolvePortalTheme } from '@/config/portalThemes';
+import { showAppToast } from '@/utils/appToast';
 import {
   MAINTENANCE_CARD_SUBTITLE_CLASS,
   MAINTENANCE_CARD_TITLE_CLASS,
@@ -53,9 +55,10 @@ function readPersonalThemeCache(portalKeys, tokenStorageKey) {
   const userId = getUserIdFromToken(token);
   const settings = {};
   const customColors = {};
+  const forceDarkModes = {};
   let hasAny = false;
 
-  if (!userId) return { settings, customColors, hasAny, userId };
+  if (!userId) return { settings, customColors, forceDarkModes, hasAny, userId };
 
   portalKeys.forEach((portalKey) => {
     try {
@@ -64,21 +67,26 @@ function readPersonalThemeCache(portalKeys, tokenStorageKey) {
       const parsed = raw.startsWith('{') ? JSON.parse(raw) : { presetKey: raw, customColors: null };
       settings[portalKey] = parsed?.presetKey || 'default';
       customColors[portalKey] = parsed?.customColors || null;
+      forceDarkModes[portalKey] = parsed?.forceDarkMode === true;
       hasAny = true;
     } catch {
       // Ignore an unreadable cache and refresh silently from the API.
     }
   });
 
-  return { settings, customColors, hasAny, userId };
+  return { settings, customColors, forceDarkModes, hasAny, userId };
 }
 
-function writePersonalThemeCache(portalKey, userId, presetKey, colors) {
+function writePersonalThemeCache(portalKey, userId, presetKey, colors, forceDarkMode = false) {
   if (!portalKey || !userId) return;
   try {
     localStorage.setItem(
       personalThemeCacheKey(portalKey, userId),
-      JSON.stringify({ presetKey: presetKey || 'default', customColors: colors || null })
+      JSON.stringify({
+        presetKey: presetKey || 'default',
+        customColors: colors || null,
+        forceDarkMode: forceDarkMode === true,
+      })
     );
   } catch {
     // Theme persistence still works server-side when browser storage is unavailable.
@@ -231,6 +239,7 @@ export default function ThemePanel({
 
   const [settings, setSettings] = useState(() => ({ ...cachedSnapshot.settings }));
   const [customColors, setCustomColors] = useState(() => ({ ...cachedSnapshot.customColors }));
+  const [forceDarkModes, setForceDarkModes] = useState(() => ({ ...cachedSnapshot.forceDarkModes }));
   const [customPortal, setCustomPortal] = useState('');
   const [customDraft, setCustomDraft] = useState({});
   const [savingPortal, setSavingPortal] = useState('');
@@ -277,14 +286,23 @@ export default function ThemePanel({
 
       const nextSettings = {};
       const nextCustomColors = {};
+      const nextForceDarkModes = {};
       normalizedPortals.forEach((portalKey) => {
         const match = items.find((item) => String(item?.portal_key || '').trim().toLowerCase() === portalKey);
         nextSettings[portalKey] = match?.preset_key || 'default';
         nextCustomColors[portalKey] = match?.custom_colors || null;
-        writePersonalThemeCache(portalKey, userId, nextSettings[portalKey], nextCustomColors[portalKey]);
+        nextForceDarkModes[portalKey] = match?.force_dark_mode === true;
+        writePersonalThemeCache(
+          portalKey,
+          userId,
+          nextSettings[portalKey],
+          nextCustomColors[portalKey],
+          nextForceDarkModes[portalKey]
+        );
       });
       setSettings(nextSettings);
       setCustomColors(nextCustomColors);
+      setForceDarkModes(nextForceDarkModes);
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to load theme settings.' });
     } finally {
@@ -306,12 +324,24 @@ export default function ThemePanel({
     const userId = getUserIdFromToken(token);
     if (event?.is_personal && event?.user_id && userId && event.user_id !== userId) return;
 
-    if (event?.preset_key) {
-      const nextPresetKey = String(event.preset_key || 'default').trim().toLowerCase() || 'default';
-      const nextColors = event?.custom_colors || null;
+    if (
+      event?.preset_key !== undefined ||
+      event?.custom_colors !== undefined ||
+      event?.force_dark_mode !== undefined
+    ) {
+      const nextPresetKey = event?.preset_key !== undefined
+        ? String(event.preset_key || 'default').trim().toLowerCase() || 'default'
+        : settings[portalKey] || 'default';
+      const nextColors = event?.custom_colors !== undefined
+        ? event.custom_colors || null
+        : customColors[portalKey] || null;
+      const nextForceDark = event?.force_dark_mode !== undefined
+        ? event.force_dark_mode === true
+        : forceDarkModes[portalKey] === true;
       setSettings((current) => ({ ...current, [portalKey]: nextPresetKey }));
       setCustomColors((current) => ({ ...current, [portalKey]: nextColors }));
-      writePersonalThemeCache(portalKey, userId, nextPresetKey, nextColors);
+      setForceDarkModes((current) => ({ ...current, [portalKey]: nextForceDark }));
+      writePersonalThemeCache(portalKey, userId, nextPresetKey, nextColors, nextForceDark);
       return;
     }
 
@@ -369,7 +399,8 @@ export default function ThemePanel({
         portalKey,
         getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
         nextPresetKey,
-        savedCustomColors
+        savedCustomColors,
+        forceDarkModes[portalKey] === true
       );
 
       window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
@@ -380,6 +411,12 @@ export default function ThemePanel({
           user_id: payload?.user_id || null,
         },
       }));
+      showAppToast(
+        'success',
+        'Theme updated',
+        `${PORTAL_LABELS[portalKey]} theme is now ${resolvePortalTheme(portalKey, nextPresetKey, savedCustomColors).label}.`,
+        { id: `theme-update-${portalKey}` }
+      );
 
       return true;
     } catch (error) {
@@ -389,7 +426,8 @@ export default function ThemePanel({
         portalKey,
         getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
         previousPresetKey,
-        previousCustomColors
+        previousCustomColors,
+        forceDarkModes[portalKey] === true
       );
       window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
         detail: {
@@ -400,6 +438,70 @@ export default function ThemePanel({
       }));
       setFeedback({ type: 'error', message: error.message || 'Failed to save theme setting.' });
       return false;
+    } finally {
+      setSavingPortal('');
+    }
+  };
+
+  const handleForceDarkToggle = async (portalKey, enabled) => {
+    const previous = forceDarkModes[portalKey] === true;
+    const userId = getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || '');
+    const presetKey = settings[portalKey] || 'default';
+    const colors = customColors[portalKey] || null;
+
+    setForceDarkModes((current) => ({ ...current, [portalKey]: enabled }));
+    writePersonalThemeCache(portalKey, userId, presetKey, colors, enabled);
+    window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
+      detail: {
+        portal_key: portalKey,
+        force_dark_mode: enabled,
+      },
+    }));
+
+    try {
+      setSavingPortal(`${portalKey}:force-dark`);
+      const response = await fetch(buildApiUrl(`/api/theme-settings/${portalKey}/force-dark`), {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ force_dark_mode: enabled }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to save Dark Mode.');
+      }
+
+      const savedValue = payload?.force_dark_mode === true;
+      setForceDarkModes((current) => ({ ...current, [portalKey]: savedValue }));
+      writePersonalThemeCache(portalKey, userId, presetKey, colors, savedValue);
+      window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
+        detail: {
+          portal_key: portalKey,
+          preset_key: payload?.preset_key,
+          custom_colors: payload?.custom_colors,
+          force_dark_mode: savedValue,
+          user_id: payload?.user_id || userId,
+        },
+      }));
+      showAppToast(
+        'success',
+        savedValue ? 'Dark Mode enabled' : 'Dark Mode disabled',
+        `${PORTAL_LABELS[portalKey]} display mode updated successfully.`,
+        { id: `theme-update-${portalKey}` }
+      );
+    } catch (error) {
+      setForceDarkModes((current) => ({ ...current, [portalKey]: previous }));
+      writePersonalThemeCache(portalKey, userId, presetKey, colors, previous);
+      window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
+        detail: {
+          portal_key: portalKey,
+          force_dark_mode: previous,
+        },
+      }));
+      setFeedback({ type: 'error', message: error.message || 'Failed to save Dark Mode.' });
     } finally {
       setSavingPortal('');
     }
@@ -487,6 +589,8 @@ export default function ThemePanel({
         {normalizedPortals.map((portalKey) => {
           const savedPresetKey = settings[portalKey] || 'default';
           const savedCustomColors = customColors[portalKey] || null;
+          const forceDarkEnabled = forceDarkModes[portalKey] === true;
+          const forceDarkSaving = savingPortal === `${portalKey}:force-dark`;
 
           return (
             <Card key={portalKey} className="overflow-hidden border-stone-200 shadow-none">
@@ -525,6 +629,27 @@ export default function ThemePanel({
               </div>
 
               <CardContent className="space-y-4 p-5">
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-stone-900 text-white">
+                      <Moon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-stone-900">Dark Mode</p>
+                      <p className="mt-0.5 text-xs leading-5 text-stone-500">
+                        Uses a native dark palette for this portal on your account. Images, icons, and brand colors stay unchanged.
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={forceDarkEnabled}
+                    onCheckedChange={(checked) => handleForceDarkToggle(portalKey, checked === true)}
+                    disabled={forceDarkSaving}
+                    aria-label={`Dark Mode for ${PORTAL_LABELS[portalKey]}`}
+                    className="data-checked:bg-stone-900"
+                  />
+                </div>
+
                 <ThemePreviewCard portalKey={portalKey} presetKey={savedPresetKey} customColors={savedCustomColors} />
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

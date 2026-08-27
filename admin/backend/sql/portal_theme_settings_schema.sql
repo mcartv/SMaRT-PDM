@@ -59,6 +59,7 @@ create table if not exists public.staff_portal_theme_settings (
   portal_key text not null,
   preset_key text not null default 'default',
   custom_colors jsonb null,
+  force_dark_mode boolean not null default false,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   primary key (user_id, portal_key),
@@ -84,6 +85,9 @@ create table if not exists public.staff_portal_theme_settings (
       'custom'
     ))
 );
+
+alter table public.staff_portal_theme_settings
+  add column if not exists force_dark_mode boolean not null default false;
 
 create index if not exists idx_staff_portal_theme_settings_portal
   on public.staff_portal_theme_settings (portal_key);

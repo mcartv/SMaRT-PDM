@@ -87,7 +87,7 @@ const C = {
   slate: '#475569',
   slateSoft: '#F8FAFC',
   bg: '#F8F6F2',
-  line: '#e7e5e4',
+  line: 'var(--portal-border)',
 };
 
 const EMPTY_FORM = {
@@ -1371,7 +1371,7 @@ export default function PayoutManagement() {
   }
 
   return (
-    <div className="space-y-4 py-3" style={{ background: C.bg }}>
+    <div className="dark-mode-route-canvas space-y-4 py-3" style={{ background: C.bg }}>
       <PostPayoutCreatePrompt
         open={postCreateOpen}
         payout={newPayoutForPrompt}

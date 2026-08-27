@@ -1970,7 +1970,7 @@ export default function ScholarMonitoring() {
   }
 
   return (
-    <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
+    <div className="dark-mode-route-canvas space-y-4 px-1 py-3" style={{ background: C.bg }}>
       {selectedScholarId ? (
         <ScholarProfileModal
           scholar={selectedScholar}

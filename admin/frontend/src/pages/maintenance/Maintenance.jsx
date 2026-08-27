@@ -173,7 +173,7 @@ export default function Maintenance() {
 
   return (
     <div
-      className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden"
+      className="dark-mode-route-canvas flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden"
       style={{ background: theme.mainBg }}
       data-maintenance-viewport-fit="true"
     >

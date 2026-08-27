@@ -243,7 +243,7 @@ export default function AdminProfile() {
     return (
         <main className="space-y-6 py-2" aria-labelledby="admin-profile-title">
             <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
-                <CardContent className="relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-stone-50 to-white p-6 sm:p-7">
+                <CardContent className="dark-mode-profile-hero relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-stone-50 to-white p-6 sm:p-7">
                     <div
                         className="pointer-events-none absolute inset-y-0 right-0 hidden w-[58%] md:block"
                         style={{

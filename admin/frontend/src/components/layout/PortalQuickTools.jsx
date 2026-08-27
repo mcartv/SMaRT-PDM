@@ -118,6 +118,7 @@ async function requestPersonalTools(path, tokenStorageKey, options = {}) {
 export default function PortalQuickTools({
   tokenStorageKey,
   noteTitle = 'Quick Notes',
+  forceDarkMode = false,
   notificationOpen = false,
   onToolOpen,
   accentClassName = 'hover:bg-stone-100',
@@ -388,15 +389,19 @@ export default function PortalQuickTools({
             setCalendarOpen(false);
             onToolOpen?.();
           }}
-          className={`relative rounded-xl border border-stone-200 bg-white p-2.5 text-stone-600 shadow-sm transition-colors ${accentClassName}`}
+          className={`relative rounded-xl border p-2.5 shadow-sm transition-colors ${accentClassName}`}
           style={
             notesOpen
               ? {
-                  borderColor: 'var(--portal-border)',
-                  color: 'var(--portal-base)',
-                  background: 'var(--portal-accent-soft)',
+                  borderColor: forceDarkMode ? 'var(--portal-border)' : 'var(--border-default)',
+                  color: forceDarkMode ? '#ffffff' : 'var(--text-main)',
+                  background: forceDarkMode ? 'var(--portal-base)' : 'var(--bg-secondary)',
                 }
-              : { color: 'var(--portal-base)' }
+              : {
+                  borderColor: forceDarkMode ? 'var(--portal-base)' : 'var(--border-default)',
+                  color: forceDarkMode ? '#ffffff' : 'var(--text-main)',
+                  background: forceDarkMode ? 'var(--portal-base)' : 'var(--bg-secondary)',
+                }
           }
           title="Open quick notes"
           aria-label="Open quick notes"
@@ -415,9 +420,9 @@ export default function PortalQuickTools({
                 <div
                   className="flex h-9 w-9 items-center justify-center rounded-xl border"
                   style={{
-                    borderColor: 'var(--portal-border)',
-                    background: 'var(--portal-accent-soft)',
-                    color: 'var(--portal-base)',
+                    borderColor: forceDarkMode ? 'var(--portal-base)' : 'var(--border-default)',
+                    background: forceDarkMode ? 'var(--portal-base)' : 'var(--bg-secondary)',
+                    color: forceDarkMode ? '#ffffff' : 'var(--text-main)',
                   }}
                 >
                   <FileText className="h-4 w-4" />

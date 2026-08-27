@@ -22,6 +22,10 @@ async function writeThemeSettingAudit(req, result) {
         portal_key: result?.portal_key || req.params.portalKey || null,
         preset_key: result?.preset_key || req.body?.preset_key || null,
         custom_colors: result?.custom_colors || req.body?.custom_colors || null,
+        force_dark_mode:
+          typeof result?.force_dark_mode === 'boolean'
+            ? result.force_dark_mode
+            : req.body?.force_dark_mode,
         changes: req.body || {},
       },
     });
@@ -122,9 +126,41 @@ async function updateThemeSetting(req, res) {
   }
 }
 
+async function updateForceDarkMode(req, res) {
+  try {
+    const result = await themeSettingService.updateForceDarkMode(
+      req.params.portalKey,
+      req.body?.force_dark_mode,
+      req.user || {}
+    );
+
+    const io = req.app.get('io');
+    socketEvents.maintenanceUpdated(io, {
+      source: 'theme_settings',
+      portal_key: result.portal_key,
+      preset_key: result.preset_key,
+      custom_colors: result.custom_colors || null,
+      force_dark_mode: result.force_dark_mode === true,
+      user_id: result.user_id || getActorUserId(req),
+      is_personal: true,
+      updated_at: result.updated_at || new Date().toISOString(),
+    });
+
+    await writeThemeSettingAudit(req, result);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('UPDATE FORCE DARK MODE ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to update Force Dark Mode.',
+    });
+  }
+}
+
 module.exports = {
   getPublicThemeSetting,
   getCurrentThemeSetting,
   getThemeSettings,
   updateThemeSetting,
+  updateForceDarkMode,
 };

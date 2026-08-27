@@ -1565,9 +1565,10 @@ function GroupInfoModal({
                   setMenuMemberId('')
                   onRemove(member)
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+                className="group-info-remove flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+                style={{ color: '#ef4444' }}
               >
-                <UserMinus className="h-3.5 w-3.5" /> Remove member
+                <UserMinus className="h-3.5 w-3.5" style={{ color: '#ef4444' }} /> Remove member
               </button>
             ) : null}
           </div>
@@ -1579,9 +1580,9 @@ function GroupInfoModal({
   return (
     <section
       aria-label="Group information"
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white"
+      className="group-info-panel flex h-full min-h-0 w-full flex-col overflow-hidden border-stone-200 bg-white lg:border-l"
     >
-      <div className="shrink-0 border-b border-stone-100 px-4 py-4 sm:px-5">
+      <div className="shrink-0 border-b border-stone-100 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
@@ -1599,10 +1600,10 @@ function GroupInfoModal({
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-500 transition hover:bg-stone-50"
-            title="Back to conversation"
-            aria-label="Back to conversation"
+            title="Close group information"
+            aria-label="Close group information"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -1616,92 +1617,83 @@ function GroupInfoModal({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-          <div className="mx-auto w-full max-w-3xl">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-stone-900">Members</h3>
-                <p className="mt-0.5 text-xs text-stone-500">
-                  Manage group participants and permissions.
-                </p>
-              </div>
-
-              {viewerIsAdmin ? (
-                <button
-                  type="button"
-                  onClick={onAddMember}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[var(--portal-accent-soft)] px-3 text-xs font-semibold text-[var(--portal-base)] transition hover:brightness-95"
-                >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Add member</span>
-                  <span className="sm:hidden">Add</span>
-                </button>
-              ) : null}
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center gap-2 rounded-2xl border border-stone-100 bg-stone-50 px-4 py-10 text-sm text-stone-500">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading members
-              </div>
-            ) : members.length ? (
-              <div className="space-y-5">
-                {adminMembers.length ? (
-                  <section>
-                    <p className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-                      Group Admins
-                    </p>
-                    <div className="space-y-1">
-                      {adminMembers.map(renderMemberRow)}
-                    </div>
-                  </section>
-                ) : null}
-
-                {regularMembers.length ? (
-                  <section>
-                    <p className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-                      Members
-                    </p>
-                    <div className="space-y-1">
-                      {regularMembers.map(renderMemberRow)}
-                    </div>
-                  </section>
-                ) : null}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
-                {Number(room.memberCount || 0) > 0
-                  ? 'Member details could not be loaded.'
-                  : 'No members in this group.'}
-              </div>
-            )}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-stone-900">Members</h3>
+            <p className="mt-0.5 text-xs text-stone-500">Manage participants and permissions.</p>
           </div>
-        </div>
 
-        <div className="shrink-0 border-t border-stone-100 bg-stone-50/70 px-4 py-4 lg:w-[280px] lg:border-l lg:border-t-0 sm:px-5">
-          <div className="mx-auto max-w-3xl lg:mx-0">
+          {viewerIsAdmin ? (
             <button
               type="button"
-              onClick={onLeave}
-              disabled={mustAssignAdminBeforeLeaving}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
-              title={
-                mustAssignAdminBeforeLeaving
-                  ? 'Assign another group admin before leaving.'
-                  : 'Leave group'
-              }
+              onClick={onAddMember}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[var(--portal-accent-soft)] px-3 text-xs font-semibold text-[var(--portal-base)] transition hover:brightness-95"
             >
-              <LogOut className="h-4 w-4" /> Leave group
+              <UserPlus className="h-3.5 w-3.5" />
+              Add
             </button>
-
-            <p className="mt-2 text-center text-xs leading-5 text-stone-400">
-              {mustAssignAdminBeforeLeaving
-                ? 'Assign another group admin before leaving so the group is not left without an administrator.'
-                : 'Leaving removes you from the group and moves it to your personal Archived Messages.'}
-            </p>
-          </div>
+          ) : null}
         </div>
+
+        {loading ? (
+          <div className="flex justify-center gap-2 rounded-2xl border border-stone-100 bg-stone-50 px-4 py-10 text-sm text-stone-500">
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            Loading members
+          </div>
+        ) : members.length ? (
+          <div className="space-y-5">
+            {adminMembers.length ? (
+              <section>
+                <p className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Group Admins
+                </p>
+                <div className="space-y-1">
+                  {adminMembers.map(renderMemberRow)}
+                </div>
+              </section>
+            ) : null}
+
+            {regularMembers.length ? (
+              <section>
+                <p className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Members
+                </p>
+                <div className="space-y-1">
+                  {regularMembers.map(renderMemberRow)}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
+            {Number(room.memberCount || 0) > 0
+              ? 'Member details could not be loaded.'
+              : 'No members in this group.'}
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-stone-100 bg-stone-50/70 px-4 py-4">
+        <button
+          type="button"
+          onClick={onLeave}
+          disabled={mustAssignAdminBeforeLeaving}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
+          title={
+            mustAssignAdminBeforeLeaving
+              ? 'Assign another group admin before leaving.'
+              : 'Leave group'
+          }
+        >
+          <LogOut className="h-4 w-4" /> Leave group
+        </button>
+
+        <p className="mt-2 text-center text-xs leading-5 text-stone-400">
+          {mustAssignAdminBeforeLeaving
+            ? 'Assign another group admin before leaving.'
+            : 'Leaving moves this conversation to your Archived Messages.'}
+        </p>
       </div>
     </section>
   )
@@ -2116,6 +2108,11 @@ export default function AdminMessages({
     conversationPaneMode === 'compact'
       ? 'lg:grid-cols-[76px_minmax(0,1fr)]'
       : 'lg:grid-cols-[340px_minmax(0,1fr)]'
+
+  const conversationWithInfoGridClass =
+    conversationPaneMode === 'compact'
+      ? 'lg:grid-cols-[76px_minmax(0,1fr)_300px] xl:grid-cols-[76px_minmax(0,1fr)_320px]'
+      : 'lg:grid-cols-[280px_minmax(0,1fr)_300px] xl:grid-cols-[340px_minmax(0,1fr)_320px]'
 
   const toggleConversationPaneMode = () => {
     setConversationPaneMode((current) =>
@@ -4537,13 +4534,6 @@ export default function AdminMessages({
     <>
       {!isOpen && (
         <div className="group fixed bottom-6 right-6 z-40">
-          <div className="pointer-events-none absolute bottom-full right-0 mb-3 translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
-            <div className="relative whitespace-nowrap rounded-xl bg-stone-900 px-3 py-2 text-xs font-medium text-white shadow-lg">
-              Open messages
-              <div className="absolute right-5 top-full h-0 w-0 border-l-[6px] border-r-[6px] border-t-[7px] border-l-transparent border-r-transparent border-t-stone-900" />
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={() => {
@@ -4562,8 +4552,9 @@ export default function AdminMessages({
               setCompactPane('list')
               setIsOpen(true)
             }}
-            className={`relative inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
+            className={`messages-launcher relative inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
               }`}
+            style={{ backgroundColor: 'var(--portal-base)', color: '#ffffff' }}
             aria-label={totalUnreadCount > 0 ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
           >
             <MessageSquareMore className="h-6 w-6" />
@@ -4644,7 +4635,7 @@ export default function AdminMessages({
       <ConfirmActionModal
         open={leaveGroupOpen}
         title="Leave group?"
-        description="You will be removed from this group and it will move to your personal Archived Messages. You will no longer receive new group messages. If you are the group admin, management will transfer to the oldest remaining member."
+        description="You will be removed from this group and it will move to your personal Archived Messages. You will no longer receive new group messages. If you are the only group admin and other members remain, assign another admin before leaving."
         confirmLabel="Leave group"
         busy={leaveGroupBusy}
         onCancel={() => setLeaveGroupOpen(false)}
@@ -4653,7 +4644,7 @@ export default function AdminMessages({
 
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-0 sm:p-4 lg:p-6">
-          <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[88dvh] sm:max-w-7xl sm:rounded-[26px] sm:border sm:border-stone-200">
+          <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[88dvh] sm:max-w-7xl sm:rounded-[26px] sm:border sm:border-white/20">
             <div className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-100 px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
@@ -4757,10 +4748,10 @@ export default function AdminMessages({
               />
             ) : (
               <div
-                className={`grid min-h-0 flex-1 gap-0 transition-[grid-template-columns] duration-300 ease-in-out motion-reduce:transition-none ${groupInfoOpen && selectedItem?.type === 'group' ? 'grid-cols-1' : conversationPaneGridClass}`}
+                className={`grid min-h-0 flex-1 gap-0 transition-[grid-template-columns] duration-300 ease-in-out motion-reduce:transition-none ${groupInfoOpen && selectedItem?.type === 'group' ? `grid-cols-1 ${conversationWithInfoGridClass}` : conversationPaneGridClass}`}
               >
                 <section
-                  className={`${groupInfoOpen ? 'hidden' : compactPane === 'thread' ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-stone-200 bg-white lg:border-r`}
+                  className={`${groupInfoOpen ? 'hidden lg:flex' : compactPane === 'thread' ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-stone-200 bg-white lg:border-r`}
                 >
                   <div className={`${conversationPaneMode === 'compact' ? 'px-2 py-3' : 'space-y-3 px-4 py-4'} border-b border-stone-100 transition-[padding] duration-300 ease-in-out motion-reduce:transition-none`}>
                     <div className={`flex items-center ${conversationPaneMode === 'compact' ? 'justify-center' : 'justify-between'} gap-2`}>
@@ -4914,7 +4905,7 @@ export default function AdminMessages({
                 </section>
 
                 <section
-                  className={`${groupInfoOpen ? 'hidden' : compactPane === 'thread' ? 'flex' : 'hidden lg:flex'} min-h-0 flex-col bg-white`}
+                  className={`${groupInfoOpen ? 'hidden lg:flex' : compactPane === 'thread' ? 'flex' : 'hidden lg:flex'} min-h-0 flex-col bg-white`}
                 >
                   {selectedItem ? (
                     <>
@@ -5018,7 +5009,7 @@ export default function AdminMessages({
                       <div
                         ref={messagesScrollRef}
                         onScroll={handleMessagesScroll}
-                        className={`relative min-h-0 flex-1 overflow-y-auto px-3 py-4 transition-colors sm:px-5 sm:py-5 ${editingMessage ? 'bg-neutral-300' : 'bg-[#f7f7f7]'}`}
+                        className={`message-thread-surface relative min-h-0 flex-1 overflow-y-auto px-3 py-4 transition-colors sm:px-5 sm:py-5 ${editingMessage ? 'bg-neutral-300' : 'bg-[#f7f7f7]'}`}
                       >
                         {loadingMessages ? (
                           <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">

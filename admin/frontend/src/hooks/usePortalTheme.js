@@ -37,15 +37,16 @@ function storageKeyForPortal(portalKey, userId = 'public') {
 function readCachedTheme(cacheKey) {
   try {
     const saved = localStorage.getItem(cacheKey);
-    if (!saved) return { presetKey: 'default', customColors: null };
-    if (!saved.startsWith('{')) return { presetKey: saved, customColors: null };
+    if (!saved) return { presetKey: 'default', customColors: null, forceDarkMode: false };
+    if (!saved.startsWith('{')) return { presetKey: saved, customColors: null, forceDarkMode: false };
     const parsed = JSON.parse(saved);
     return {
       presetKey: parsed?.presetKey || 'default',
       customColors: parsed?.customColors || null,
+      forceDarkMode: parsed?.forceDarkMode === true,
     };
   } catch {
-    return { presetKey: 'default', customColors: null };
+    return { presetKey: 'default', customColors: null, forceDarkMode: false };
   }
 }
 
@@ -94,21 +95,30 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
   const cacheKey = userId ? storageKeyForPortal(normalizedPortal, userId) : '';
 
   const [themeSetting, setThemeSetting] = useState(() =>
-    cacheKey ? readCachedTheme(cacheKey) : { presetKey: 'default', customColors: null }
+    cacheKey ? readCachedTheme(cacheKey) : { presetKey: 'default', customColors: null, forceDarkMode: false }
   );
 
-  const applyThemeSetting = useCallback((presetKey, colors) => {
-    const nextSetting = {
-      presetKey: String(presetKey || 'default').trim().toLowerCase() || 'default',
-      customColors: colors || null,
-    };
-    setThemeSetting(nextSetting);
-    writeCachedTheme(cacheKey, nextSetting);
+  const applyThemeSetting = useCallback((partial = {}) => {
+    setThemeSetting((current) => {
+      const nextSetting = {
+        presetKey: partial.presetKey !== undefined
+          ? String(partial.presetKey || 'default').trim().toLowerCase() || 'default'
+          : current.presetKey,
+        customColors: partial.customColors !== undefined
+          ? partial.customColors || null
+          : current.customColors,
+        forceDarkMode: partial.forceDarkMode !== undefined
+          ? partial.forceDarkMode === true
+          : current.forceDarkMode === true,
+      };
+      writeCachedTheme(cacheKey, nextSetting);
+      return nextSetting;
+    });
   }, [cacheKey]);
 
   const loadTheme = useCallback(async () => {
     if (!token || !userId) {
-      setThemeSetting({ presetKey: 'default', customColors: null });
+      setThemeSetting({ presetKey: 'default', customColors: null, forceDarkMode: false });
       return;
     }
 
@@ -118,7 +128,11 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
         token,
         `${normalizedPortal}:${userId}`
       );
-      applyThemeSetting(payload?.preset_key, payload?.custom_colors || null);
+      applyThemeSetting({
+        presetKey: payload?.preset_key,
+        customColors: payload?.custom_colors || null,
+        forceDarkMode: payload?.force_dark_mode === true,
+      });
     } catch (error) {
       console.error('THEME LOAD ERROR:', error);
     }
@@ -126,7 +140,7 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
 
   useEffect(() => {
     setThemeSetting(
-      cacheKey ? readCachedTheme(cacheKey) : { presetKey: 'default', customColors: null }
+      cacheKey ? readCachedTheme(cacheKey) : { presetKey: 'default', customColors: null, forceDarkMode: false }
     );
     loadTheme();
   }, [cacheKey, loadTheme]);
@@ -135,8 +149,16 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
     const handleLocalThemeUpdate = (event) => {
       if (event.detail?.portal_key !== normalizedPortal) return;
       if (event.detail?.user_id && userId && event.detail.user_id !== userId) return;
-      if (event.detail?.preset_key) {
-        applyThemeSetting(event.detail.preset_key, event.detail.custom_colors || null);
+      if (
+        event.detail?.preset_key !== undefined ||
+        event.detail?.custom_colors !== undefined ||
+        event.detail?.force_dark_mode !== undefined
+      ) {
+        applyThemeSetting({
+          presetKey: event.detail?.preset_key,
+          customColors: event.detail?.custom_colors,
+          forceDarkMode: event.detail?.force_dark_mode,
+        });
         return;
       }
       loadTheme();
@@ -153,8 +175,16 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
       if (payload?.portal_key && payload.portal_key !== normalizedPortal) return;
       if (payload?.is_personal && payload?.user_id && userId && payload.user_id !== userId) return;
 
-      if (payload?.preset_key) {
-        applyThemeSetting(payload.preset_key, payload?.custom_colors || null);
+      if (
+        payload?.preset_key !== undefined ||
+        payload?.custom_colors !== undefined ||
+        payload?.force_dark_mode !== undefined
+      ) {
+        applyThemeSetting({
+          presetKey: payload?.preset_key,
+          customColors: payload?.custom_colors,
+          forceDarkMode: payload?.force_dark_mode,
+        });
         return;
       }
       loadTheme();
@@ -174,6 +204,7 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
     theme,
     presetKey: themeSetting.presetKey,
     customColors: themeSetting.customColors,
+    forceDarkMode: themeSetting.forceDarkMode === true,
     reloadTheme: loadTheme,
   };
 }

@@ -42,6 +42,7 @@ function buildFallbackSetting(portalKey, extra = {}) {
     portal_key: portalKey,
     preset_key: 'default',
     custom_colors: null,
+    force_dark_mode: false,
     updated_at: null,
     updated_by_user_id: null,
     is_fallback: true,
@@ -94,10 +95,18 @@ function isMissingTableError(error, tableName) {
   return (
     code === '42P01' ||
     code === 'PGRST205' ||
-    code === 'PGRST204' ||
     (message.includes('relation') && message.includes(normalizedTable)) ||
     (message.includes('could not find the table') && message.includes(normalizedTable)) ||
     (message.includes('schema cache') && message.includes(normalizedTable))
+  );
+}
+
+function isMissingForceDarkColumnError(error) {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    code === 'PGRST204' ||
+    (message.includes('force_dark_mode') && (message.includes('column') || message.includes('schema cache')))
   );
 }
 
@@ -156,12 +165,25 @@ async function getPersonalThemeSetting(portalKey, actor = {}) {
   }
 
   const fallback = buildFallbackSetting(normalizedPortal, { user_id: actorUserId });
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(PERSONAL_TABLE_NAME)
-    .select('user_id, portal_key, preset_key, custom_colors, updated_at')
+    .select('user_id, portal_key, preset_key, custom_colors, force_dark_mode, updated_at')
     .eq('user_id', actorUserId)
     .eq('portal_key', normalizedPortal)
     .maybeSingle();
+
+  // Keep existing personal themes working while a deployment is waiting for
+  // the one-column Force Dark Mode migration to be applied.
+  if (error && isMissingForceDarkColumnError(error)) {
+    const legacyResult = await supabase
+      .from(PERSONAL_TABLE_NAME)
+      .select('user_id, portal_key, preset_key, custom_colors, updated_at')
+      .eq('user_id', actorUserId)
+      .eq('portal_key', normalizedPortal)
+      .maybeSingle();
+    data = legacyResult.data ? { ...legacyResult.data, force_dark_mode: false } : legacyResult.data;
+    error = legacyResult.error;
+  }
 
   if (error) {
     if (isMissingTableError(error, PERSONAL_TABLE_NAME)) {
@@ -265,13 +287,85 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}, customColors
     updated_at: payload.updated_at,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(PERSONAL_TABLE_NAME)
     .upsert(personalPayload, { onConflict: 'user_id,portal_key' })
-    .select('user_id, portal_key, preset_key, custom_colors, updated_at')
+    .select('user_id, portal_key, preset_key, custom_colors, force_dark_mode, updated_at')
+    .single();
+
+  if (error && isMissingForceDarkColumnError(error)) {
+    const legacyResult = await supabase
+      .from(PERSONAL_TABLE_NAME)
+      .upsert(personalPayload, { onConflict: 'user_id,portal_key' })
+      .select('user_id, portal_key, preset_key, custom_colors, updated_at')
+      .single();
+    data = legacyResult.data ? { ...legacyResult.data, force_dark_mode: false } : legacyResult.data;
+    error = legacyResult.error;
+  }
+
+  if (error) {
+    if (isMissingForceDarkColumnError(error)) {
+      throw createHttpError(
+        500,
+        'Force Dark Mode database column is missing. Run the 20260827 staff force dark mode migration first.'
+      );
+    }
+    if (isMissingTableError(error, PERSONAL_TABLE_NAME)) {
+      throw createHttpError(
+        500,
+        'Personal theme settings table is missing. Please run the staff portal theme settings migration first.'
+      );
+    }
+    throw error;
+  }
+
+  return { ...data, is_personal: true };
+}
+
+async function updateForceDarkMode(portalKey, enabled, actor = {}) {
+  const normalizedPortal = validatePortalKey(portalKey);
+  const actorRole = normalizePortalKey(actor.role);
+  const actorUserId = getActorUserId(actor);
+
+  if (normalizedPortal === 'landing') {
+    throw createHttpError(400, 'Force Dark Mode is only available for signed-in web portals.');
+  }
+  if (!canManagePortal(actorRole, normalizedPortal)) {
+    throw createHttpError(403, 'Access denied for this theme setting.');
+  }
+  if (!actorUserId) {
+    throw createHttpError(401, 'A valid user session is required.');
+  }
+  if (typeof enabled !== 'boolean') {
+    throw createHttpError(400, 'force_dark_mode must be true or false.');
+  }
+
+  // Preserve the user's current preset/custom colors while changing only the
+  // web darkening preference. Upserting a complete personal row also makes
+  // this safe for accounts that have never selected a theme preset before.
+  const current = await getPersonalThemeSetting(normalizedPortal, actor);
+  const payload = {
+    user_id: actorUserId,
+    portal_key: normalizedPortal,
+    preset_key: current?.preset_key || 'default',
+    custom_colors: current?.custom_colors || null,
+    force_dark_mode: enabled,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from(PERSONAL_TABLE_NAME)
+    .upsert(payload, { onConflict: 'user_id,portal_key' })
+    .select('user_id, portal_key, preset_key, custom_colors, force_dark_mode, updated_at')
     .single();
 
   if (error) {
+    if (isMissingForceDarkColumnError(error)) {
+      throw createHttpError(
+        500,
+        'Force Dark Mode database column is missing. Run the 20260827 staff force dark mode migration first.'
+      );
+    }
     if (isMissingTableError(error, PERSONAL_TABLE_NAME)) {
       throw createHttpError(
         500,
@@ -291,4 +385,5 @@ module.exports = {
   getPersonalThemeSetting,
   getThemeSettings,
   updateThemeSetting,
+  updateForceDarkMode,
 };

@@ -904,7 +904,7 @@ function AnnouncementRow({
       <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div
-            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            className="announcement-icon mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
             style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-base)' }}
             aria-hidden="true"
           >

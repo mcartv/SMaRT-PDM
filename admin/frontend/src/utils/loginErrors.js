@@ -26,8 +26,5 @@ export function getLoginErrorMessage(error) {
     return LOGIN_ERROR_MESSAGES.SERVER_ERROR;
   }
 
-  return (
-    error?.message ||
-    'Unable to sign in. Please try again.'
-  );
+  return 'Unable to sign in. Please check your details and try again.';
 }

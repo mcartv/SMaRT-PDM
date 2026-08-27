@@ -76,6 +76,22 @@ export default function UnifiedLogin() {
           transform-origin: center;
         }
 
+        @media (min-width: 1024px) and (max-height: 760px) {
+          .smartpdm-login-grid {
+            align-items: flex-start !important;
+            padding-top: 3.5rem !important;
+            padding-bottom: 2rem !important;
+          }
+        }
+
+        @media (max-width: 1023px) and (max-height: 700px) {
+          .smartpdm-login-grid {
+            align-items: flex-start !important;
+            padding-top: 4rem !important;
+            padding-bottom: 1.5rem !important;
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .smartpdm-login-fade,
           .smartpdm-login-slide-left,
@@ -90,14 +106,14 @@ export default function UnifiedLogin() {
 
       <LandingInstitutionHeader theme={theme} />
 
-      <main className="relative flex flex-1 overflow-hidden">
+      <main className="relative flex flex-1 overflow-x-hidden overflow-y-auto">
         <nav
           className="smartpdm-login-fade pointer-events-none absolute right-4 top-3 z-30 sm:right-5 md:right-6 lg:right-8"
           aria-label="Login page navigation"
         >
           <Link
             to="/landing"
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-lg border border-stone-300/80 bg-white/72 px-3 py-2 text-xs font-bold text-stone-700 backdrop-blur-sm transition hover:border-stone-400 hover:bg-white hover:text-stone-900"
+            className="pointer-events-auto inline-flex cursor-pointer items-center gap-2 rounded-lg border border-stone-300/80 bg-white/72 px-3 py-2 text-xs font-bold text-stone-700 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-px hover:border-stone-400 hover:bg-white hover:text-stone-900 hover:shadow-md"
             aria-label="Back to Home"
           >
             <span aria-hidden="true">←</span>
@@ -108,6 +124,8 @@ export default function UnifiedLogin() {
           <img
             src={pdmFacade}
             alt=""
+            decoding="async"
+            fetchPriority="high"
             className="smartpdm-login-facade absolute inset-0 h-full w-full object-cover object-center opacity-[0.58] saturate-[0.88]"
           />
           <div
@@ -160,7 +178,7 @@ export default function UnifiedLogin() {
           mirrored
         />
 
-        <div className="relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 pb-8 pt-20 sm:px-6 sm:pb-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
+        <div className="smartpdm-login-grid relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 pb-8 pt-20 sm:px-6 sm:pb-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
           <section className="smartpdm-login-slide-left hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
             <div className="max-w-[560px]">
               <p

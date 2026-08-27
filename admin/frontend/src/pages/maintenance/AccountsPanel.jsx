@@ -300,7 +300,7 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
                         type="button"
                         disabled={disabled || !courses.length}
                         aria-expanded={open}
-                        className="flex h-10 w-full items-center justify-between rounded-lg border border-stone-200 bg-white px-3 text-left text-sm shadow-sm outline-none transition hover:border-stone-300 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:opacity-60"
+                        className="flex h-10 w-full cursor-pointer items-center justify-between rounded-lg border border-stone-200 bg-white px-3 text-left text-sm shadow-sm outline-none transition hover:border-stone-300 hover:bg-stone-50/60 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:opacity-60"
                     >
                         <span className="text-stone-500">Select courses</span>
                         <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -1813,9 +1813,9 @@ export default function AccountsPanel() {
                                 <button
                                     type="button"
                                     onClick={() => setPageTab('current')}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
+                                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-200 hover:-translate-y-px hover:shadow-sm ${pageTab === 'current'
                                             ? 'bg-[var(--portal-base)] text-white'
-                                            : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                            : 'border border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50'
                                         }`}
                                 >
                                     Current ({currentCount})
@@ -1824,9 +1824,9 @@ export default function AccountsPanel() {
                                 <button
                                     type="button"
                                     onClick={() => setPageTab('archived')}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
+                                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-200 hover:-translate-y-px hover:shadow-sm ${pageTab === 'archived'
                                             ? 'bg-[var(--portal-base)] text-white'
-                                            : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                            : 'border border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50'
                                         }`}
                                 >
                                     Archived ({archivedCount})
@@ -1836,7 +1836,7 @@ export default function AccountsPanel() {
                             <div className="flex flex-wrap items-center gap-2">
                                 <Popover>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" className="h-8 rounded-lg border-stone-200 px-3 text-xs">
+                                        <Button variant="outline" className="h-8 rounded-lg border-stone-200 px-3 text-xs hover:-translate-y-px hover:border-stone-300 hover:shadow-sm">
                                             <Filter className="mr-1.5 h-3.5 w-3.5" />
                                             Filter &amp; Group
                                             {(roleFilter !== 'grouped' || courseFilter !== 'all') ? (
@@ -1859,7 +1859,7 @@ export default function AccountsPanel() {
                                                         setRoleFilter('grouped');
                                                         setCourseFilter('all');
                                                     }}
-                                                    className="text-xs font-semibold text-stone-600 hover:text-stone-900"
+                                                    className="cursor-pointer text-xs font-semibold text-stone-600 transition hover:text-stone-900 hover:underline hover:underline-offset-4"
                                                 >
                                                     Clear
                                                 </button>
@@ -1876,7 +1876,7 @@ export default function AccountsPanel() {
                                                         if (value !== 'pd') setCourseFilter('all');
                                                     }}
                                                 >
-                                                    <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 bg-white text-xs">
+                                                    <SelectTrigger className="h-9 w-full cursor-pointer rounded-lg border-stone-200 bg-white text-xs transition hover:border-stone-300 hover:bg-stone-50/60">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -1903,7 +1903,7 @@ export default function AccountsPanel() {
                                                         if (value !== 'all') setRoleFilter('pd');
                                                     }}
                                                 >
-                                                    <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 bg-white text-xs">
+                                                    <SelectTrigger className="h-9 w-full cursor-pointer rounded-lg border-stone-200 bg-white text-xs transition hover:border-stone-300 hover:bg-stone-50/60">
                                                         <SelectValue placeholder="All courses" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -1929,7 +1929,7 @@ export default function AccountsPanel() {
                                             setRoleFilter('grouped');
                                             setCourseFilter('all');
                                         }}
-                                        className="h-8 rounded-lg border-stone-200 text-xs"
+                                        className="h-8 rounded-lg border-stone-200 text-xs hover:-translate-y-px hover:border-stone-300 hover:shadow-sm"
                                     >
                                         Reset
                                     </Button>
@@ -1939,7 +1939,7 @@ export default function AccountsPanel() {
                                     variant="outline"
                                     onClick={loadAccounts}
                                     disabled={loading}
-                                    className="h-8 rounded-lg border-stone-200 text-xs"
+                                    className="h-8 rounded-lg border-stone-200 text-xs hover:-translate-y-px hover:border-stone-300 hover:shadow-sm"
                                 >
                                     {loading ? (
                                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -1953,7 +1953,7 @@ export default function AccountsPanel() {
                                     variant="outline"
                                     size="sm"
                                     onClick={openAdminCreateModal}
-                                    className="h-8 rounded-lg border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-100 hover:text-amber-900"
+                                    className="h-8 rounded-lg border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-800 hover:-translate-y-px hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:shadow-sm"
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
                                     Create Admin Account
@@ -1962,7 +1962,7 @@ export default function AccountsPanel() {
                                 <Button
                                     size="sm"
                                     onClick={openCreateModal}
-                                    className="h-8 rounded-lg border-none text-xs text-white"
+                                    className="h-8 rounded-lg border-none text-xs text-white hover:-translate-y-px hover:brightness-105 hover:shadow-sm"
                                     style={{ background: C.brownMid }}
                                 >
                                     <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -2106,7 +2106,7 @@ export default function AccountsPanel() {
                                                     disabled={isBusy}
                                                     aria-label={`View ${account.name}`}
                                                     title="View account"
-                                                    className="h-7 w-7 rounded-lg border-stone-200 p-0 text-stone-600 hover:bg-stone-50"
+                                                    className="h-7 w-7 rounded-lg border-stone-200 p-0 text-stone-600 hover:-translate-y-px hover:border-stone-300 hover:bg-stone-50 hover:shadow-sm"
                                                 >
                                                     <Eye className="h-3.5 w-3.5" />
                                                 </Button>
@@ -2118,7 +2118,7 @@ export default function AccountsPanel() {
                                                         disabled={isBusy}
                                                         aria-label={`Restore ${account.name}`}
                                                         title="Restore account"
-                                                        className="h-7 w-7 rounded-lg border-green-200 p-0 text-green-700 hover:bg-green-50"
+                                                        className="h-7 w-7 rounded-lg border-green-200 p-0 text-green-700 hover:-translate-y-px hover:border-green-300 hover:bg-green-50 hover:shadow-sm"
                                                     >
                                                         {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
                                                     </Button>
@@ -2131,7 +2131,7 @@ export default function AccountsPanel() {
                                                             disabled={isBusy}
                                                             aria-label={`Edit ${account.name}`}
                                                             title="Edit account"
-                                                            className="h-7 w-7 rounded-lg border-stone-200 p-0 text-stone-600 hover:bg-stone-50"
+                                                            className="h-7 w-7 rounded-lg border-stone-200 p-0 text-stone-600 hover:-translate-y-px hover:border-stone-300 hover:bg-stone-50 hover:shadow-sm"
                                                         >
                                                             <Edit className="h-3.5 w-3.5" />
                                                         </Button>
@@ -2142,7 +2142,7 @@ export default function AccountsPanel() {
                                                             disabled={isBusy}
                                                             aria-label={`Archive ${account.name}`}
                                                             title="Archive account"
-                                                            className="h-7 w-7 rounded-lg border-red-200 p-0 text-red-700 hover:bg-red-50"
+                                                            className="h-7 w-7 rounded-lg border-red-200 p-0 text-red-700 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:shadow-sm"
                                                         >
                                                             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
                                                         </Button>

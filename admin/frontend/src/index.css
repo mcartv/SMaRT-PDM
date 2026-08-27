@@ -1530,3 +1530,49 @@ html.smartpdm-force-dark .portal-shell :is(a[href], [role="button"], [role="tab"
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 52%, transparent) !important;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Authenticated portal click cursor                                           */
+/* -------------------------------------------------------------------------- */
+/*
+ * Admin, SDO, Guidance, PD, and RO Coordinator all render inside
+ * `.portal-shell`. Give every genuine click target a consistent pointer in
+ * light and dark mode without changing card positions, sizing, or colors.
+ */
+.portal-shell :where(
+  button:not(:disabled),
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [data-slot="button"]:not(:disabled),
+  [data-slot="switch"]:not([data-disabled]),
+  [data-slot="checkbox"]:not([data-disabled]),
+  [data-slot="select-trigger"]:not([data-disabled]),
+  [data-slot="select-item"]:not([data-disabled]),
+  [data-slot="dropdown-menu-item"]:not([data-disabled]),
+  [data-slot="toggle"]:not([data-disabled]),
+  [data-slot="toggle-group-item"]:not([data-disabled]),
+  .cursor-pointer
+) {
+  cursor: pointer !important;
+}
+
+/* Never advertise disabled controls as clickable. */
+.portal-shell :where(
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"],
+  [data-disabled]
+) {
+  cursor: not-allowed !important;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Eye,
   EyeOff,
@@ -32,9 +32,12 @@ export default function UnifiedUserLoginCard({ theme }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessionFeedback] = useState(consumeAnyPortalFeedback);
+  const emailInputRef = useRef(null);
+  const loginRequestRef = useRef(false);
   const loginTooltip = !email.trim() && !password
     ? 'Enter your email and password to continue.'
     : !email.trim()
@@ -47,13 +50,22 @@ export default function UnifiedUserLoginCard({ theme }) {
     const existingSession = getStoredPortalSession();
     if (existingSession?.token && existingSession?.redirectPath) {
       navigate(existingSession.redirectPath, { replace: true });
+      return undefined;
     }
+
+    if (window.matchMedia?.('(pointer: fine)').matches) {
+      const frameId = window.requestAnimationFrame(() => emailInputRef.current?.focus());
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
+    return undefined;
   }, [navigate]);
 
   const handleLogin = async (event) => {
     event.preventDefault();
-    if (isLoading) return;
+    if (loginRequestRef.current || isLoading) return;
 
+    loginRequestRef.current = true;
     setError('');
     setIsLoading(true);
 
@@ -85,8 +97,13 @@ export default function UnifiedUserLoginCard({ theme }) {
       navigate(portal.redirectPath, { replace: true });
     } catch (err) {
       setError(getLoginErrorMessage(err, 'User'));
+      loginRequestRef.current = false;
       setIsLoading(false);
     }
+  };
+
+  const updateCapsLockState = (event) => {
+    setCapsLockOn(Boolean(event?.getModifierState?.('CapsLock')));
   };
 
   return (
@@ -173,14 +190,19 @@ export default function UnifiedUserLoginCard({ theme }) {
                   className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400"
                 />
                 <input
+                  ref={emailInputRef}
                   id="unified-user-email"
                   type="email"
                   required
                   disabled={isLoading}
-                  autoComplete="email"
+                  autoComplete="username"
+                  inputMode="email"
                   placeholder="Enter your email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (error) setError('');
+                  }}
                   className="h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-4 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{
                     '--tw-ring-color': `${theme.base}1c`,
@@ -199,8 +221,10 @@ export default function UnifiedUserLoginCard({ theme }) {
                   type="button"
                   onClick={() => navigate('/admin/forgot-password', { state: { email } })}
                   disabled={isLoading}
-                  className="text-[11px] font-bold transition hover:underline disabled:cursor-wait disabled:opacity-50 disabled:no-underline"
+                  className="cursor-pointer text-[11px] font-bold transition hover:opacity-80 hover:underline disabled:cursor-wait disabled:opacity-50 disabled:no-underline"
                   style={{ color: theme.base }}
+                  aria-label="Admin password recovery"
+                  title="Admin account password recovery"
                 >
                   Admin password recovery
                 </button>
@@ -217,9 +241,18 @@ export default function UnifiedUserLoginCard({ theme }) {
                   required
                   disabled={isLoading}
                   autoComplete="current-password"
+                  enterKeyHint="go"
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (error) setError('');
+                  }}
+                  onKeyDown={updateCapsLockState}
+                  onKeyUp={updateCapsLockState}
+                  onFocus={updateCapsLockState}
+                  onBlur={() => setCapsLockOn(false)}
+                  aria-describedby={capsLockOn ? 'unified-user-caps-lock' : undefined}
                   className="h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-12 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{
                     '--tw-ring-color': `${theme.base}1c`,
@@ -230,11 +263,27 @@ export default function UnifiedUserLoginCard({ theme }) {
                   type="button"
                   disabled={isLoading}
                   onClick={() => setShowPassword((current) => !current)}
-                  className="absolute right-3.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600 disabled:cursor-wait disabled:opacity-50"
+                  className="absolute right-3.5 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-stone-400 transition duration-200 hover:bg-stone-100 hover:text-stone-700 hover:shadow-sm disabled:cursor-wait disabled:opacity-50"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
+
+                {capsLockOn ? (
+                  <div
+                    id="unified-user-caps-lock"
+                    role="status"
+                    className="pointer-events-none absolute right-2 top-[-2.35rem] z-20 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold leading-none text-amber-800 shadow-sm"
+                  >
+                    Caps Lock is on
+                    <span
+                      className="absolute -bottom-1 right-5 h-2 w-2 rotate-45 border-b border-r border-amber-200 bg-amber-50"
+                      aria-hidden="true"
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -242,7 +291,7 @@ export default function UnifiedUserLoginCard({ theme }) {
               type="submit"
               disabled={isLoading}
               title={loginTooltip}
-              className="mt-1 flex h-[48px] w-full items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
+              className="mt-1 flex h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition duration-200 hover:-translate-y-px hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
               style={{ background: theme.base }}
             >
               {isLoading ? (

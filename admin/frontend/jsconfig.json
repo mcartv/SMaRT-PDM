@@ -4,8 +4,6 @@
         "moduleResolution": "Bundler",
         "target": "ESNext",
         "jsx": "react-jsx",
-        "baseUrl": ".",
-        "ignoreDeprecations": "5.0",
         "paths": {
             "@/*": [
                 "./src/*"

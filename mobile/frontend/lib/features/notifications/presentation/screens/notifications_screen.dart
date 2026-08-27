@@ -235,6 +235,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
 
+    if (referenceType == 'application_form' ||
+        title.contains('application form edit required')) {
+      Navigator.pushNamed(context, AppRoutes.applicationFormPreview);
+      return;
+    }
+
     if (_isRenewalNotification(notification)) {
       Navigator.pushNamed(context, AppRoutes.renewalDocuments);
       return;

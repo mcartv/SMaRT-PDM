@@ -125,6 +125,7 @@ const socketEvents = {
     /** Dashboard-wide refresh channels. */
     dashboardUpdated: (io, data) => emitEvent(io, 'dashboard:updated', data),
     maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    publicGeneralSettingsUpdated: (io, data) => emitPublicEvent(io, 'general-settings:updated', data),
     landingThemeUpdated: (io, data) => emitPublicEvent(io, 'landing-theme:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
     auditCreated: (io, data) => emitEvent(io, 'audit:created', data),

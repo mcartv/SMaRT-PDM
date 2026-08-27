@@ -124,6 +124,11 @@ function toMessagePayload(row = {}) {
     sentAt: row.sent_at,
     sent_at: row.sent_at,
 
+    editedAt: row.edited_at || null,
+    edited_at: row.edited_at || null,
+    editCount: Number(row.edit_count || 0),
+    edit_count: Number(row.edit_count || 0),
+
     isRead: row.is_read === true,
     is_read: row.is_read === true,
 
@@ -1404,6 +1409,59 @@ exports.hideMessageForMe = async (req, res) => {
     console.error('HIDE MESSAGE FOR ME ERROR:', err.message);
     return res.status(getStatusCode(err)).json({
       message: 'Failed to hide message',
+      error: err.message,
+    });
+  }
+};
+
+exports.editMessage = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { messageId } = req.params;
+    const cleanMessageBody = String(getMessageBody(req) || '').trim();
+
+    if (!currentUserId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!cleanMessageBody) return res.status(400).json({ message: 'Message body is required' });
+
+    const message = await messageService.editMessage(currentUserId, messageId, cleanMessageBody);
+    const payload = toMessagePayload(message);
+    const targetUserIds = message.room_id
+      ? uniqueIds(await messageService.fetchRoomMemberUserIds(message.room_id), currentUserId)
+      : uniqueIds(currentUserId, message.receiver_id);
+
+    emitToUsers(req.app.get('io'), 'message:updated', payload, targetUserIds);
+    relayToStudentBackend('message:updated', payload, targetUserIds);
+
+    await logMessageAudit({
+      req,
+      actionTaken: 'EDIT_MESSAGE',
+      entityType: 'message',
+      entityId: message.message_id,
+      description: 'Edited a message.',
+      metadata: { message_id: message.message_id, room_id: message.room_id || null },
+    });
+
+    return res.json(payload);
+  } catch (err) {
+    console.error('EDIT MESSAGE ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to edit message',
+      error: err.message,
+    });
+  }
+};
+
+exports.getMessageEditHistory = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    if (!currentUserId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const items = await messageService.fetchMessageEditHistory(currentUserId, req.params.messageId);
+    return res.json({ items, history: items });
+  } catch (err) {
+    console.error('GET MESSAGE EDIT HISTORY ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to load message edit history',
       error: err.message,
     });
   }

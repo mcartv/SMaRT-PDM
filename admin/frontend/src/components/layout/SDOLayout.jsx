@@ -22,7 +22,6 @@ import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
-import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -65,7 +64,6 @@ export default function SDOLayout() {
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
-  const headerGreeting = useHeaderGreeting(profile);
   const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
@@ -382,11 +380,7 @@ export default function SDOLayout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {headerGreeting}
-            </h1>
-          </div>
+          <div aria-hidden="true" />
 
           <div className="flex items-center gap-3">
             {/* Notifications */}

@@ -1334,10 +1334,10 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       <div className="flex min-h-[360px] items-center justify-center bg-[#f8fafc] p-3 sm:min-h-[440px] sm:p-4 xl:min-h-[560px]">
         {activeDoc?.id === 'application_form' ? <ApplicationFormPreview application={application} />
           : previewLoading ? <div className="flex flex-col items-center gap-3 text-stone-500"><Loader2 className="h-7 w-7 animate-spin text-[var(--portal-base)]" /><p className="text-[15px]">Loading secure preview</p></div>
-          : previewError ? <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center"><AlertTriangle className="mx-auto h-7 w-7 text-amber-600" /><p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p><p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p></div>
-          : previewUrl && isImage ? <div className="flex h-[360px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-2 sm:h-[440px] sm:p-3 xl:h-[560px]"><img src={previewUrl} alt={activeDoc?.name || 'Uploaded document'} className="max-h-full max-w-full select-none object-contain" draggable={false} onError={() => setPreviewError('The image could not be decoded.')} /></div>
-          : previewUrl && isPdf ? <iframe src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`} title={activeDoc?.name || 'PDF preview'} className="h-[360px] w-full rounded-xl border border-stone-200 bg-white sm:h-[440px] xl:h-[560px]" />
-          : <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center"><FileText className="mx-auto h-6 w-6 text-stone-500" /><h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4></div>}
+            : previewError ? <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center"><AlertTriangle className="mx-auto h-7 w-7 text-amber-600" /><p className="mt-3 text-[15px] font-semibold text-amber-900">Preview unavailable</p><p className="mt-1 break-words text-[15px] leading-relaxed text-amber-700">{previewError}</p></div>
+              : previewUrl && isImage ? <div className="flex h-[360px] w-full items-center justify-center overflow-auto rounded-xl border border-stone-200 bg-white p-2 sm:h-[440px] sm:p-3 xl:h-[560px]"><img src={previewUrl} alt={activeDoc?.name || 'Uploaded document'} className="max-h-full max-w-full select-none object-contain" draggable={false} onError={() => setPreviewError('The image could not be decoded.')} /></div>
+                : previewUrl && isPdf ? <iframe src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1`} title={activeDoc?.name || 'PDF preview'} className="h-[360px] w-full rounded-xl border border-stone-200 bg-white sm:h-[440px] xl:h-[560px]" />
+                  : <div className="w-full max-w-sm rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center"><FileText className="mx-auto h-6 w-6 text-stone-500" /><h4 className="mt-4 text-base font-semibold text-stone-800">No document uploaded</h4></div>}
       </div>
     </section>
   );
@@ -1689,30 +1689,30 @@ function BirthV2ReviewImage({ src, regions, regionMode, activeRegion, status, er
       <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-900" aria-label="Private Birth OCR review image with scan regions">
         <img src={src} alt="Captured Birth certificate for admin review" className="block h-auto w-full" />
         <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
-        {Object.entries(regions || {}).map(([key, points]) => {
-          if (!Array.isArray(points)) return null;
-          const prefix = key.startsWith('item13') ? 'item13' : key.startsWith('item6') ? 'item6' : 'item1';
-          const style = BIRTH_REGION_STYLE[prefix];
-          const component = key.split('_').at(-1);
-          const anchorX = Math.min(...points.map(([x]) => Number(x))) + 0.004;
-          const anchorY = Math.min(...points.map(([, y]) => Number(y))) + 0.014;
-          return (
-            <g key={key}>
-              <polygon
-                points={points.map(([x, y]) => `${x},${y}`).join(' ')}
-                fill={prefix === 'item13'
-                  ? (key === activeRegion ? 'color-mix(in srgb, var(--portal-base) 34%, transparent)' : 'color-mix(in srgb, var(--portal-base) 13%, transparent)')
-                  : (key === activeRegion ? `${style.color}55` : `${style.color}20`)}
-                stroke={style.color}
-                strokeWidth={key === activeRegion ? 0.006 : 0.003}
-                strokeDasharray={expected ? '0.012 0.008' : undefined}
-              />
-              <text x={anchorX} y={anchorY} fill={style.color} fontSize="0.018" fontWeight="700">
-                {component?.[0]?.toUpperCase() + component?.slice(1)}
-              </text>
-            </g>
-          );
-        })}
+          {Object.entries(regions || {}).map(([key, points]) => {
+            if (!Array.isArray(points)) return null;
+            const prefix = key.startsWith('item13') ? 'item13' : key.startsWith('item6') ? 'item6' : 'item1';
+            const style = BIRTH_REGION_STYLE[prefix];
+            const component = key.split('_').at(-1);
+            const anchorX = Math.min(...points.map(([x]) => Number(x))) + 0.004;
+            const anchorY = Math.min(...points.map(([, y]) => Number(y))) + 0.014;
+            return (
+              <g key={key}>
+                <polygon
+                  points={points.map(([x, y]) => `${x},${y}`).join(' ')}
+                  fill={prefix === 'item13'
+                    ? (key === activeRegion ? 'color-mix(in srgb, var(--portal-base) 34%, transparent)' : 'color-mix(in srgb, var(--portal-base) 13%, transparent)')
+                    : (key === activeRegion ? `${style.color}55` : `${style.color}20`)}
+                  stroke={style.color}
+                  strokeWidth={key === activeRegion ? 0.006 : 0.003}
+                  strokeDasharray={expected ? '0.012 0.008' : undefined}
+                />
+                <text x={anchorX} y={anchorY} fill={style.color} fontSize="0.018" fontWeight="700">
+                  {component?.[0]?.toUpperCase() + component?.slice(1)}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       </div>
       {entries.length > 0 ? (
@@ -2093,7 +2093,7 @@ function OCRPanel({
                   ? 'border-green-200 bg-green-100 text-green-800'
                   : birthReplacementRunning
                     ? 'border'
-                  : 'border-rose-200 bg-rose-100 text-rose-800'}
+                    : 'border-rose-200 bg-rose-100 text-rose-800'}
                   style={birthReplacementRunning && !birthReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
                 >
                   {birthReviewCompleted
@@ -2111,7 +2111,7 @@ function OCRPanel({
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 {reviewCandidate.ocr_version === 'v2'
                   ? reviewCandidate?.processing?.private_capture_available
-                ? 'Enhanced OCR could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
+                    ? 'Enhanced OCR could not produce all required Birth names. The private capture remains available for review, but this diagnostic candidate cannot be confirmed. Request a rescan or reject it.'
                     : 'This earlier Birth V2 attempt did not upload its private capture. The candidate cannot be confirmed; request a rescan to capture and display a review image.'
                   : 'The Birth rows were not safely identified. The raw snapshot below is diagnostic full-page OCR only and cannot be confirmed as parent information. Reposition the complete form and retry OCR.'}
               </div>
@@ -2120,86 +2120,86 @@ function OCRPanel({
             <div className={birthShowReviewImage && !birthDiagnosticOnly
               ? 'grid items-start gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]'
               : 'space-y-4'}>
-            {birthShowReviewImage && (
-              <div className="min-w-0 space-y-2">
-                <BirthV2ReviewImage
-                  src={birthReviewImageUrl}
-                  regions={reviewCandidate?.processing?.source_regions}
-                  regionMode={reviewCandidate?.processing?.region_mode}
-                  activeRegion={activeBirthRegion}
-                  status={birthReviewImageStatus}
-                  error={birthReviewImageError}
-                />
-                <p className="text-xs text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
-              </div>
-            )}
+              {birthShowReviewImage && (
+                <div className="min-w-0 space-y-2">
+                  <BirthV2ReviewImage
+                    src={birthReviewImageUrl}
+                    regions={reviewCandidate?.processing?.source_regions}
+                    regionMode={reviewCandidate?.processing?.region_mode}
+                    activeRegion={activeBirthRegion}
+                    status={birthReviewImageStatus}
+                    error={birthReviewImageError}
+                  />
+                  <p className="text-xs text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
+                </div>
+              )}
 
-            <div className="min-w-0 space-y-4">
+              <div className="min-w-0 space-y-4">
 
-            {!birthDiagnosticOnly && <div className="rounded-xl border border-rose-100 bg-white p-4">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <p className="min-w-0 text-sm font-semibold text-stone-800">Child Name</p>
-                <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                  {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
-                </span>
-              </div>
-              <div className="grid min-w-0 gap-3 sm:grid-cols-3">
-                {BIRTH_NAME_PARTS.map(([part, label]) => (
-                  <label key={part} className="min-w-0 space-y-1.5">
-                    <span className="block text-xs text-stone-500">{label}</span>
-                    <Input
-                      value={correctedFields?.child_name?.[part] || ''}
-                      readOnly={birthReviewClosed}
-                      data-birth-ocr-field
-                      onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX.child_name}_${part.replace('_name', '')}`)}
-                      aria-label={`Child ${label}`}
-                      onChange={(event) => onCorrectedFieldsChange({
-                        ...correctedFields,
-                        child_name: {
-                          ...(correctedFields?.child_name || {}),
-                          [part]: event.target.value,
-                        },
-                      })}
-                      className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
-                    />
-                  </label>
+                {!birthDiagnosticOnly && <div className="rounded-xl border border-rose-100 bg-white p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <p className="min-w-0 text-sm font-semibold text-stone-800">Child Name</p>
+                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                      {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
+                    </span>
+                  </div>
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+                    {BIRTH_NAME_PARTS.map(([part, label]) => (
+                      <label key={part} className="min-w-0 space-y-1.5">
+                        <span className="block text-xs text-stone-500">{label}</span>
+                        <Input
+                          value={correctedFields?.child_name?.[part] || ''}
+                          readOnly={birthReviewClosed}
+                          data-birth-ocr-field
+                          onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX.child_name}_${part.replace('_name', '')}`)}
+                          aria-label={`Child ${label}`}
+                          onChange={(event) => onCorrectedFieldsChange({
+                            ...correctedFields,
+                            child_name: {
+                              ...(correctedFields?.child_name || {}),
+                              [part]: event.target.value,
+                            },
+                          })}
+                          className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>}
+
+                {!birthDiagnosticOnly && BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
+                  <div key={fieldKey} className="rounded-xl border border-rose-100 bg-white p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <p className="min-w-0 text-sm font-semibold text-stone-800">{heading}</p>
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                        {Object.values(correctedFields?.[fieldKey] || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
+                      </span>
+                    </div>
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+                      {BIRTH_NAME_PARTS.map(([part, label]) => (
+                        <label key={part} className="min-w-0 space-y-1.5">
+                          <span className="block text-xs text-stone-500">{label}</span>
+                          <Input
+                            value={correctedFields?.[fieldKey]?.[part] || ''}
+                            readOnly={birthReviewClosed}
+                            data-birth-ocr-field
+                            onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX[fieldKey]}_${part.replace('_name', '')}`)}
+                            aria-label={`${heading} ${label}`}
+                            onChange={(event) => onCorrectedFieldsChange({
+                              ...correctedFields,
+                              [fieldKey]: {
+                                ...(correctedFields?.[fieldKey] || {}),
+                                [part]: event.target.value,
+                              },
+                            })}
+                            className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>}
-
-            {!birthDiagnosticOnly && BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
-              <div key={fieldKey} className="rounded-xl border border-rose-100 bg-white p-4">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <p className="min-w-0 text-sm font-semibold text-stone-800">{heading}</p>
-                  <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                    {Object.values(correctedFields?.[fieldKey] || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
-                  </span>
-                </div>
-                <div className="grid min-w-0 gap-3 sm:grid-cols-3">
-                  {BIRTH_NAME_PARTS.map(([part, label]) => (
-                    <label key={part} className="min-w-0 space-y-1.5">
-                      <span className="block text-xs text-stone-500">{label}</span>
-                      <Input
-                        value={correctedFields?.[fieldKey]?.[part] || ''}
-                        readOnly={birthReviewClosed}
-                        data-birth-ocr-field
-                        onFocus={() => setActiveBirthRegion(`${BIRTH_REGION_PREFIX[fieldKey]}_${part.replace('_name', '')}`)}
-                        aria-label={`${heading} ${label}`}
-                        onChange={(event) => onCorrectedFieldsChange({
-                          ...correctedFields,
-                          [fieldKey]: {
-                            ...(correctedFields?.[fieldKey] || {}),
-                            [part]: event.target.value,
-                          },
-                        })}
-                        className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-            </div>
             </div>
 
             {(!birthReviewClosed || birthCanRequestRescan) && (
@@ -2590,11 +2590,10 @@ function ReviewIssueModal({
 
         <CardContent className="p-5 space-y-4">
           <div
-            className={`rounded-xl border px-3 py-3 text-sm leading-relaxed ${
-              isMajor
-                ? 'border-red-200 bg-red-50 text-red-800'
-                : 'border-amber-200 bg-amber-50 text-amber-800'
-            }`}
+            className={`rounded-xl border px-3 py-3 text-sm leading-relaxed ${isMajor
+              ? 'border-red-200 bg-red-50 text-red-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+              }`}
           >
             {isMajor
               ? 'Major action: saving this review will reject the entire scholarship application. Use this only for fraud, document tampering, deliberate falsification, or another serious disqualifying violation.'
@@ -2665,11 +2664,10 @@ function ReviewIssueModal({
             type="button"
             onClick={handleSubmit}
             disabled={!selectedReason}
-            className={`h-9 rounded-lg text-white text-sm border-none disabled:opacity-50 ${
-              isMajor
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-amber-600 hover:bg-amber-700'
-            }`}
+            className={`h-9 rounded-lg text-white text-sm border-none disabled:opacity-50 ${isMajor
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-amber-600 hover:bg-amber-700'
+              }`}
           >
             {isMajor ? (
               <>
@@ -2860,7 +2858,7 @@ function ChecklistCard({
           const baseMeta = getDocumentStatusMeta(d.status);
           const meta =
             d.id === 'application_form' &&
-            d.status === 'reupload_required'
+              d.status === 'reupload_required'
               ? { ...baseMeta, label: 'Re-edit Required' }
               : baseMeta;
           const isActive = activeDocId === d.id;
@@ -2877,9 +2875,9 @@ function ChecklistCard({
               style={
                 isActive
                   ? {
-                      borderColor: theme?.base || C.brownMid,
-                      background: theme?.accentSoft || '#f9ebc8',
-                    }
+                    borderColor: theme?.base || C.brownMid,
+                    background: theme?.accentSoft || '#f9ebc8',
+                  }
                   : undefined
               }
             >
@@ -3079,7 +3077,7 @@ function VerificationActions({
 
   const saveButtonClass = (() => {
     const base =
-      'h-11 w-full rounded-xl border-none text-sm font-semibold shadow-none transition-all duration-200';
+      'min-h-11 h-auto w-full min-w-0 whitespace-normal rounded-xl border-none px-3 py-2.5 text-center text-sm font-semibold leading-tight shadow-none transition-all duration-200';
 
     if (saveDisabled) {
       return `${base}
@@ -3114,37 +3112,65 @@ function VerificationActions({
   return (
     <Card className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-none">
       <div className="p-4 sm:p-5">
-        <div className="mb-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div>
+        <div className="mb-4 min-w-0">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-stone-800">
                 Review selected document
               </p>
-              <p className="mt-0.5 text-xs text-stone-500">
+
+              <p className="mt-0.5 break-words text-xs text-stone-500">
                 {activeDoc?.name || 'No document selected'}
               </p>
             </div>
 
             {activeDoc && (
               <Badge
-                className={isSaved ? 'border-stone-200 bg-stone-100 text-stone-500' : 'border'}
-                style={!isSaved ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
+                className={`shrink-0 ${isSaved
+                  ? 'border-stone-200 bg-stone-100 text-stone-500'
+                  : 'border'
+                  }`}
+                style={
+                  !isSaved
+                    ? {
+                      background: 'var(--portal-accent-soft)',
+                      borderColor: 'var(--portal-sub)',
+                      color: 'var(--portal-base)',
+                    }
+                    : undefined
+                }
               >
                 {isSaved ? 'Finalized' : 'Review'}
               </Badge>
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div
+            className="
+      grid
+      min-w-0
+      grid-cols-[repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]
+      gap-2
+    "
+          >
             <Button
               type="button"
               variant="outline"
               onClick={onVerify}
               disabled={!canReviewActiveDocument}
-              className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:bg-stone-50 disabled:text-stone-400"
+              className="
+        h-auto min-h-10 w-full min-w-0
+        whitespace-normal rounded-xl
+        border-stone-200 bg-white
+        px-3 py-2
+        text-center text-sm font-medium leading-tight
+        text-stone-700
+        hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700
+        disabled:bg-stone-50 disabled:text-stone-400
+      "
             >
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Verify
+              <CheckCircle className="mr-2 h-4 w-4 shrink-0" />
+              <span className="break-words">Verify</span>
             </Button>
 
             <Button
@@ -3152,12 +3178,24 @@ function VerificationActions({
               variant="outline"
               onClick={onRequestReupload}
               disabled={!canRequestReupload}
-              className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:bg-stone-50 disabled:text-stone-400"
+              className="
+        h-auto min-h-10 w-full min-w-0
+        whitespace-normal rounded-xl
+        border-stone-200 bg-white
+        px-3 py-2
+        text-center text-sm font-medium leading-tight
+        text-stone-700
+        hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700
+        disabled:bg-stone-50 disabled:text-stone-400
+      "
             >
-              <AlertTriangle className="mr-2 h-4 w-4" />
-              {activeDoc?.id === 'application_form'
-                ? 'Request Re-edit'
-                : 'Request Re-upload'}
+              <AlertTriangle className="mr-2 h-4 w-4 shrink-0" />
+
+              <span className="break-words">
+                {activeDoc?.id === 'application_form'
+                  ? 'Request Re-edit'
+                  : 'Request Re-upload'}
+              </span>
             </Button>
 
             <Button
@@ -3165,30 +3203,31 @@ function VerificationActions({
               variant="outline"
               onClick={onRejectApplication}
               disabled={!canReviewActiveDocument}
-              className="h-10 rounded-xl border-stone-200 bg-white text-sm font-medium text-stone-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:bg-stone-50 disabled:text-stone-400"
+              className="
+        h-auto min-h-10 w-full min-w-0
+        whitespace-normal rounded-xl
+        border-stone-200 bg-white
+        px-3 py-2
+        text-center text-sm font-medium leading-tight
+        text-stone-700
+        hover:border-red-300 hover:bg-red-50 hover:text-red-700
+        disabled:bg-stone-50 disabled:text-stone-400
+      "
             >
-              <XCircle className="mr-2 h-4 w-4" />
-              Reject Application
+              <XCircle className="mr-2 h-4 w-4 shrink-0" />
+              <span className="break-words">Reject Application</span>
             </Button>
           </div>
 
           {activeDoc?.id === 'application_form' && (
-            <p className="mt-2 text-xs text-stone-500">
-              The application form is digital. Use Request Re-edit for
-              correctable information issues. The applicant's Edit Form button
-              unlocks only after this correction request is saved.
-            </p>
+            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
+              <p className="text-xs leading-5 text-amber-800">
+                Use <span className="font-semibold">Request Re-edit</span> for
+                correctable Application Form information. The applicant will be
+                notified and Edit Form will become available.
+              </p>
+            </div>
           )}
-
-          {!hasUploadedDocument &&
-            activeDoc?.id !== 'application_form' && (
-              <div className="mt-3 flex items-start gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <p>
-                  This document must be uploaded before it can be reviewed.
-                </p>
-              </div>
-            )}
         </div>
 
         <div className="my-4 h-px bg-stone-100" />
@@ -3204,7 +3243,12 @@ function VerificationActions({
           </div>
 
           <div
-            className={`mb-4 flex items-start gap-3 rounded-xl border px-3.5 py-3 ${statusConfig.container}`}
+            className={`
+              mb-4 flex min-w-0 flex-col gap-2
+              rounded-xl border px-3 py-3
+              sm:flex-row sm:items-start sm:gap-3 sm:px-3.5
+              ${statusConfig.container}
+            `}
           >
             <div
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${statusConfig.iconContainer}`}
@@ -3383,13 +3427,13 @@ export default function DocumentVerification() {
 
             next[d.id] = hasUnsavedReview
               ? current[d.id] ?? {
-                  issue_severity: d.issue_severity || null,
-                  reason_code: d.reason_code || null,
-                }
+                issue_severity: d.issue_severity || null,
+                reason_code: d.reason_code || null,
+              }
               : {
-                  issue_severity: d.issue_severity || null,
-                  reason_code: d.reason_code || null,
-                };
+                issue_severity: d.issue_severity || null,
+                reason_code: d.reason_code || null,
+              };
           });
 
           return next;
@@ -3858,13 +3902,13 @@ export default function DocumentVerification() {
     const candidate = activeBirthCandidate || persistedCandidate;
     const request = activeBirthCandidate
       ? (
-          activeRequestMatchesPersisted
-            ? persistedRequest
-            : {
-                request_id: activeBirthCandidate.request_id,
-                status: activeBirthCandidate.status,
-              }
-        )
+        activeRequestMatchesPersisted
+          ? persistedRequest
+          : {
+            request_id: activeBirthCandidate.request_id,
+            status: activeBirthCandidate.status,
+          }
+      )
       : persistedRequest;
 
     const candidateStatus = String(candidate?.status || '').toLowerCase();
@@ -4192,7 +4236,7 @@ export default function DocumentVerification() {
     });
   };
 
-  const handleMinorIssueConfirm = ({
+  const handleMinorIssueConfirm = async ({
     status,
     issueSeverity,
     reasonCode,
@@ -4203,6 +4247,88 @@ export default function DocumentVerification() {
       return;
     }
 
+    /*
+     * Application Form correction is persisted immediately.
+     * It does NOT wait for all six Requirements items.
+     */
+    if (
+      activeDoc?.id === 'application_form' &&
+      status === 'reupload_required'
+    ) {
+      try {
+        setSubmitting(true);
+
+        const response = await fetch(
+          `${API_BASE}/api/applications/${id}/application-form/request-reedit`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              reason_code: reasonCode,
+              comment: nextComment || '',
+            }),
+          }
+        );
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            payload.error ||
+            'Failed to request Application Form re-edit.'
+          );
+        }
+
+        /*
+         * Reflect the persisted status immediately in Admin.
+         */
+        setDocStatuses((current) => ({
+          ...current,
+          application_form: 'reupload_required',
+        }));
+
+        setDocComments((current) => ({
+          ...current,
+          application_form: nextComment || '',
+        }));
+
+        setDocReviewMeta((current) => ({
+          ...current,
+          application_form: {
+            issue_severity: issueSeverity || 'minor',
+            reason_code: reasonCode || null,
+          },
+        }));
+
+        dirtyReviewIdsRef.current.delete('application_form');
+
+        setReviewIssueModal(null);
+
+        await fetchApplicationDocuments({ soft: true });
+
+        return;
+      } catch (error) {
+        console.error(
+          'REQUEST APPLICATION FORM RE-EDIT ERROR:',
+          error
+        );
+
+        alert(
+          error.message ||
+          'Failed to request Application Form re-edit.'
+        );
+
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
+    // Normal document correction remains a draft until
+    // Save Requirements Review.
     updateActiveDocStatus(status, nextComment, {
       issue_severity: issueSeverity,
       reason_code: reasonCode,
@@ -4271,12 +4397,12 @@ export default function DocumentVerification() {
           body: JSON.stringify(
             ['birth_certificate', 'student_grade_forms', 'certificate_of_indigency'].includes(targetDocumentId)
               ? {
-                  ocr_version: targetDocumentId === 'birth_certificate'
-                    ? birthOcrVersion
-                    : targetDocumentId === 'student_grade_forms'
-                      ? gradeOcrVersion
-                      : indigencyOcrVersion,
-                }
+                ocr_version: targetDocumentId === 'birth_certificate'
+                  ? birthOcrVersion
+                  : targetDocumentId === 'student_grade_forms'
+                    ? gradeOcrVersion
+                    : indigencyOcrVersion,
+              }
               : {}
           ),
           cache: 'no-store',

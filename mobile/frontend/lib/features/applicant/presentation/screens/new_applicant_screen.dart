@@ -357,6 +357,258 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
   }
 
+  // SMART_PDM_APPLICATION_FORM_PRE_SUBMIT_CONFIRMATION_V1
+  Future<bool> _confirmUpdatedApplicationSubmission() async {
+    if (!mounted) return false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final isDark = theme.brightness == Brightness.dark;
+        final surfaceColor = isDark
+            ? AppColors.applicantDarkSurface
+            : Colors.white;
+        final titleColor = isDark
+            ? AppColors.applicantDarkText
+            : const Color(0xFF2F2924);
+        final bodyColor = isDark
+            ? AppColors.applicantDarkTextMuted
+            : const Color(0xFF6F675F);
+        final borderColor = isDark
+            ? AppColors.applicantDarkOutline
+            : const Color(0xFFE8E2D8);
+
+        Widget reviewPoint(String text) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  margin: const EdgeInsets.only(top: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Icon(
+                    Icons.check_rounded,
+                    size: 15,
+                    color: AppColors.gold,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: bodyColor,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final backButton = OutlinedButton.icon(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          icon: const Icon(Icons.arrow_back_rounded, size: 18),
+          label: const Text('Back to Edit'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 46),
+            foregroundColor: titleColor,
+            side: BorderSide(color: borderColor),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        );
+
+        final submitButton = FilledButton.icon(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          icon: const Icon(Icons.verified_outlined, size: 18),
+          label: const Text('Submit for Verification'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 46),
+            backgroundColor: AppColors.gold,
+            foregroundColor: const Color(0xFF3D2A1D),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        );
+
+        return Dialog(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Container(
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: borderColor),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x18000000),
+                    blurRadius: 24,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.fact_check_outlined,
+                            color: AppColors.gold,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Review before submitting',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: titleColor,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'You are about to submit your updated '
+                                'Application Form for verification.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: bodyColor,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.applicantDarkSurfaceMuted
+                            : const Color(0xFFFFFBF2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.gold.withOpacity(0.25),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Before you continue',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: titleColor,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          reviewPoint(
+                            'Triple-check your personal, family, academic, '
+                            'and essay information.',
+                          ),
+                          reviewPoint(
+                            'Make sure names, dates, contact details, and '
+                            'other important information are complete and correct.',
+                          ),
+                          reviewPoint(
+                            'After submission, Edit Form will be temporarily '
+                            'disabled while OSFA/Admin verifies your update.',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'If another correction is required, you will receive '
+                      'a notification and Edit Form will become available again.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: bodyColor,
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final stackButtons = constraints.maxWidth < 330;
+
+                        if (stackButtons) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              backButton,
+                              const SizedBox(height: 10),
+                              submitButton,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(child: backButton),
+                            const SizedBox(width: 10),
+                            Expanded(child: submitButton),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
   Future<void> _submitApplication() async {
     if (!_hasSelectedOpening) {
       setState(() {
@@ -382,6 +634,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     setState(() {
       _formFeedbackError = null;
     });
+
+    if (widget.editExistingApplication) {
+      final shouldSubmitUpdatedForm =
+          await _confirmUpdatedApplicationSubmission();
+
+      if (!mounted || !shouldSubmitUpdatedForm) {
+        return;
+      }
+    }
 
     final submissionPayload = _data.toSubmissionPayload();
     final provider = context.read<NewScholarProvider>();

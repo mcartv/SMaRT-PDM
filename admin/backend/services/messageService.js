@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { resolveAvatarUrl } = require('./avatarService');
+const { resolveStaffRole } = require('../utils/staffRoles');
 
 let adminProfilePhotoColumnPromise = null;
 
@@ -39,10 +40,13 @@ async function getUserSummary(userId) {
       u.role,
       u.email,
       u.username,
+      st.student_id,
       ap.department,
       ap.position,
+      roa.ro_area,
       COALESCE(
         st.pdm_id,
+        roa.ro_area,
         ap.department,
         INITCAP(REPLACE(COALESCE(u.role, 'user'), '_', ' '))
       ) AS student_number,
@@ -64,6 +68,15 @@ async function getUserSummary(userId) {
       ON st.user_id = u.user_id
     LEFT JOIN admin_profiles ap
       ON ap.user_id = u.user_id
+    LEFT JOIN LATERAL (
+      SELECT STRING_AGG(DISTINCT rd.department_name, ', ' ORDER BY rd.department_name) AS ro_area
+      FROM ro_area_coordinators rac
+      JOIN ro_departments rd
+        ON rd.department_id = rac.ro_area_id
+      WHERE rac.user_id = u.user_id
+        AND rac.is_active = true
+        AND rd.is_active = true
+    ) roa ON true
     WHERE u.user_id = $1
     LIMIT 1;
     `,
@@ -76,8 +89,25 @@ async function getUserSummary(userId) {
     return null;
   }
 
+  const resolvedRole = row.student_id
+    ? row.role
+    : resolveStaffRole({
+        user_role: row.role,
+        position: row.position,
+        department: row.department,
+      });
+
   return {
     ...row,
+    role: resolvedRole,
+    student_number: row.student_id
+      ? row.student_number
+      : row.ro_area || (
+          resolvedRole === 'ro_coordinator'
+            ? row.position || 'RO Coordinator'
+            : row.department || row.position || resolvedRole
+        ),
+    department: resolvedRole === 'ro_coordinator' ? null : row.department,
     is_disabled: row.is_disabled === true,
     profile_photo_url: row.profile_photo_url || null,
     avatar_url: await resolveAvatarUrl(row.profile_photo_url),
@@ -223,6 +253,37 @@ async function enrichMessageRows(rows = []) {
   }));
 }
 
+async function enrichRoomMessageReadReceipts(rows = []) {
+  const readerIds = [
+    ...new Set(
+      rows
+        .flatMap((row) => (Array.isArray(row.seen_by) ? row.seen_by : []))
+        .map((receipt) => receipt?.user_id)
+        .filter(Boolean)
+    ),
+  ];
+  const summaries = new Map();
+
+  await Promise.all(
+    readerIds.map(async (userId) => {
+      summaries.set(userId, await getUserSummarySafe(userId));
+    })
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    seen_by: (Array.isArray(row.seen_by) ? row.seen_by : []).map((receipt) => {
+      const summary = summaries.get(receipt.user_id);
+      return {
+        user_id: receipt.user_id,
+        name: summary?.display_name || summary?.email || 'Unknown User',
+        avatar_url: summary?.avatar_url || null,
+        seen_at: receipt.seen_at || null,
+      };
+    }),
+  }));
+}
+
 async function ensurePrivateReplyTarget(replyToMessageId, leftUserId, rightUserId) {
   if (!replyToMessageId) return null;
 
@@ -287,6 +348,8 @@ async function fetchMessageWithReply(messageId, viewerId = null, counterpartyId 
       m.subject,
       m.message_body,
       m.sent_at,
+      m.edited_at,
+      (SELECT COUNT(*)::int FROM message_edit_history meh WHERE meh.message_id = m.message_id) AS edit_count,
       m.is_read,
       m.attachment_url,
       m.reply_to_message_id,
@@ -454,6 +517,8 @@ exports.fetchConversationMessages = async (currentUserId, counterpartyId) => {
       m.subject,
       m.message_body,
       m.sent_at,
+      m.edited_at,
+      (SELECT COUNT(*)::int FROM message_edit_history meh WHERE meh.message_id = m.message_id) AS edit_count,
       CASE
         WHEN m.sender_id = $1 THEN true
         ELSE COALESCE(mrs.is_read, m.is_read, false)
@@ -922,8 +987,26 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
       m.subject,
       m.message_body,
       m.sent_at,
+      m.edited_at,
+      (SELECT COUNT(*)::int FROM message_edit_history meh WHERE meh.message_id = m.message_id) AS edit_count,
       COALESCE(mrs.is_read, CASE WHEN m.sender_id = $2 THEN true ELSE false END) AS is_read,
       false AS seen_by_counterparty,
+      COALESCE(
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'user_id', reader.user_id,
+              'seen_at', reader.updated_at
+            )
+            ORDER BY reader.updated_at DESC
+          )
+          FROM message_read_states reader
+          WHERE reader.message_id = m.message_id
+            AND reader.is_read = true
+            AND reader.user_id <> m.sender_id
+        ),
+        '[]'::jsonb
+      ) AS seen_by,
       m.attachment_url,
       m.reply_to_message_id,
       m.client_message_id,
@@ -953,7 +1036,8 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
     [roomId, currentUserId]
   );
 
-  return enrichMessageRows(result.rows);
+  const enrichedRows = await enrichMessageRows(result.rows);
+  return enrichRoomMessageReadReceipts(enrichedRows);
 };
 
 exports.sendRoomMessage = async ({
@@ -1119,6 +1203,7 @@ exports.fetchRoomMembers = async (currentUserId, roomId) => {
       role: summary?.role || null,
       email: summary?.email || null,
       department: summary?.department || null,
+      ro_area: summary?.ro_area || null,
       position: summary?.position || null,
       profile_photo_url: summary?.profile_photo_url || null,
       avatar_url: summary?.avatar_url || null,
@@ -1126,7 +1211,12 @@ exports.fetchRoomMembers = async (currentUserId, roomId) => {
       is_current_user: row.user_id === currentUserId,
       joined_at: null,
     };
-  });
+  }).sort((left, right) =>
+    String(left.name || '').localeCompare(String(right.name || ''), 'en', {
+      sensitivity: 'base',
+      numeric: true,
+    })
+  );
 
   return {
     room_id: roomId,
@@ -1727,6 +1817,124 @@ exports.hideMessageForUser = async (currentUserId, messageId) => {
       : (message.sender_id === currentUserId ? message.receiver_id : message.sender_id),
     hidden_by: currentUserId,
   };
+};
+
+exports.editMessage = async (currentUserId, messageId, messageBody) => {
+  const cleanMessageBody = String(messageBody || '').trim();
+  if (!cleanMessageBody) {
+    const error = new Error('Message body is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const currentResult = await client.query(
+      `
+      SELECT m.*, now() AS database_now
+      FROM messages m
+      WHERE m.message_id = $1
+      FOR UPDATE;
+      `,
+      [messageId]
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      const error = new Error('Message not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (current.sender_id !== currentUserId) {
+      const error = new Error('You can only edit your own messages.');
+      error.statusCode = 403;
+      throw error;
+    }
+    if (new Date(current.database_now).getTime() - new Date(current.sent_at).getTime() > 15 * 60 * 1000) {
+      const error = new Error('Messages can only be edited within 15 minutes of sending.');
+      error.statusCode = 409;
+      error.code = 'MESSAGE_EDIT_WINDOW_EXPIRED';
+      throw error;
+    }
+    const editCountResult = await client.query(
+      'SELECT COUNT(*)::int AS edit_count FROM message_edit_history WHERE message_id = $1;',
+      [messageId]
+    );
+    const editCount = Number(editCountResult.rows[0]?.edit_count || 0);
+    if (editCount >= 5) {
+      const error = new Error('This message has reached the maximum of 5 edits.');
+      error.statusCode = 409;
+      error.code = 'MESSAGE_EDIT_LIMIT_REACHED';
+      throw error;
+    }
+    if (current.message_body === cleanMessageBody) {
+      const error = new Error('The edited message is unchanged.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const editNumber = editCount + 1;
+    const historyResult = await client.query(
+      `
+      INSERT INTO message_edit_history (
+        message_id, edited_by, edit_number, previous_message_body, new_message_body
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING edited_at;
+      `,
+      [messageId, currentUserId, editNumber, current.message_body, cleanMessageBody]
+    );
+    const editedAt = historyResult.rows[0].edited_at;
+    const updateResult = await client.query(
+      `
+      UPDATE messages
+      SET message_body = $2, edited_at = $3
+      WHERE message_id = $1
+      RETURNING message_id, sender_id, receiver_id, room_id, subject, message_body,
+        sent_at, edited_at, is_read, attachment_url, reply_to_message_id, client_message_id;
+      `,
+      [messageId, cleanMessageBody, editedAt]
+    );
+    await client.query('COMMIT');
+
+    const enriched = await enrichMessageRows([{ ...updateResult.rows[0], edit_count: editNumber }]);
+    return enriched[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+exports.fetchMessageEditHistory = async (currentUserId, messageId) => {
+  const messageResult = await db.query(
+    'SELECT message_id, sender_id, receiver_id, room_id FROM messages WHERE message_id = $1 LIMIT 1;',
+    [messageId]
+  );
+  const message = messageResult.rows[0];
+  if (!message) {
+    const error = new Error('Message not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+  if (message.room_id) {
+    await ensureRoomMembership(currentUserId, message.room_id);
+  } else if (message.sender_id !== currentUserId && message.receiver_id !== currentUserId) {
+    const error = new Error('You do not have access to this message.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const historyResult = await db.query(
+    `
+    SELECT history_id, message_id, edit_number, previous_message_body, new_message_body, edited_at
+    FROM message_edit_history
+    WHERE message_id = $1
+    ORDER BY edit_number DESC;
+    `,
+    [messageId]
+  );
+  return historyResult.rows;
 };
 
 exports.fetchUserSummary = getUserSummary;

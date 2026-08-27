@@ -68,6 +68,11 @@ async function updateGeneralSettings(req, res) {
       updated_at: result.updated_at || new Date().toISOString(),
       settings: publicResult,
     });
+    socketEvents.publicGeneralSettingsUpdated(io, {
+      source: 'general_settings',
+      updated_at: result.updated_at || new Date().toISOString(),
+      settings: publicResult,
+    });
 
     socketEvents.reportUpdated(io, {
       module: 'reports',

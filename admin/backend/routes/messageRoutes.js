@@ -27,6 +27,8 @@ router.get('/members/contacts', messageController.getMessagingContacts);
   ARCHIVED THREADS
 */
 router.get('/archived', messageController.getArchivedThreads);
+router.get('/message/:messageId/history', messageController.getMessageEditHistory);
+router.patch('/message/:messageId', messageController.editMessage);
 router.delete('/message/:messageId', messageController.hideMessageForMe);
 
 /*

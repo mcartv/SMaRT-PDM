@@ -192,9 +192,84 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     );
   }
 
+  // SMART_PDM_REQUIRED_DOCUMENT_REPLACE_UI_V1
+  Future<bool> _confirmDocumentReplacement(
+    ApplicantRequirementDocument document,
+  ) async {
+    if (!document.isSubmitted) return true;
+    if (!mounted) return false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final isDark = theme.brightness == Brightness.dark;
+        final titleColor = isDark
+            ? AppColors.applicantDarkText
+            : AppColors.darkBrown;
+        final bodyColor = isDark
+            ? AppColors.applicantDarkTextMuted
+            : Colors.black54;
+
+        return AlertDialog(
+          title: const Text('Replace Document?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You are replacing ${document.documentType}.',
+                style: TextStyle(
+                  color: titleColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Your current uploaded file will remain available until the '
+                'replacement finishes successfully. After replacement, the new '
+                'file becomes the current document and returns to Pending Review.',
+                style: TextStyle(
+                  color: bodyColor,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Previous document versions are preserved for review history.',
+                style: TextStyle(
+                  color: bodyColor,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep Current'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.swap_horiz_rounded),
+              label: const Text('Choose Replacement'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
   Future<void> _pickAndUploadDocument(
     ApplicantRequirementDocument document,
   ) async {
+    final canContinue = await _confirmDocumentReplacement(document);
+    if (!canContinue || !mounted) return;
+
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
@@ -261,8 +336,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       });
 
       _showUploadMessage(
-        document.needsReplacement
-            ? '${document.documentType} replacement uploaded successfully.'
+        document.isSubmitted
+            ? '${document.documentType} replaced successfully. The new document is pending review.'
             : '${document.documentType} uploaded successfully.',
       );
     } catch (error) {
@@ -398,11 +473,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                           onPressed: () =>
                               Navigator.of(dialogContext).pop(true),
                           icon: const Icon(Icons.upload_file),
-                          label: Text(
-                            document.needsReplacement
-                                ? 'Replace File'
-                                : 'Re-upload',
-                          ),
+                          label: const Text('Replace Document'),
                         ),
                       ),
                     ],
@@ -1042,18 +1113,23 @@ class _DocumentCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              if (!document.isSubmitted || document.needsReplacement)
-                ElevatedButton.icon(
-                  onPressed: isUploading ? null : onUpload,
-                  icon: const Icon(Icons.upload_file),
-                  label: Text(
-                    isUploading
-                        ? 'Uploading...'
-                        : document.needsReplacement
-                        ? 'Upload Replacement'
-                        : 'Upload File',
-                  ),
+              ElevatedButton.icon(
+                onPressed: isUploading ? null : onUpload,
+                icon: Icon(
+                  document.isSubmitted
+                      ? Icons.swap_horiz_rounded
+                      : Icons.upload_file,
                 ),
+                label: Text(
+                  isUploading
+                      ? (document.isSubmitted
+                            ? 'Replacing...'
+                            : 'Uploading...')
+                      : document.isSubmitted
+                          ? 'Replace Document'
+                          : 'Upload File',
+                ),
+              ),
               if (onOpen != null)
                 OutlinedButton.icon(
                   onPressed: isUploading ? null : onOpen,

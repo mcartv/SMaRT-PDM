@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import {
   ArrowRight,
   ArrowUp,
@@ -24,7 +25,6 @@ import {
 } from 'lucide-react';
 import useLandingTheme from '@/hooks/useLandingTheme';
 import { buildApiUrl } from '@/api';
-import { useSocketEvent } from '@/hooks/useSocket';
 import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
 import { DEFAULT_POLICY_CONTENT, mergePolicyContent } from '@/constants/policyContent';
 import LandingInstitutionHeader from '@/components/landing/LandingInstitutionHeader';
@@ -875,9 +875,15 @@ export default function SmartPDMLanding() {
     };
   }, []);
 
-  useSocketEvent(
-    'maintenance:updated',
-    (payload) => {
+  useEffect(() => {
+    const socket = io(`${buildApiUrl('').replace(/\/+$/, '')}/public`, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      transports: ['websocket', 'polling'],
+    });
+    const handleGeneralSettingsUpdated = (payload = {}) => {
       if (payload?.source !== 'general_settings') return;
       const settings = payload?.settings || {};
       if (settings?.policy_content) {
@@ -905,9 +911,14 @@ export default function SmartPDMLanding() {
           ? normalizePublicFaqItems(settings.landing_faqs)
           : current.landing_faqs,
       }));
-    },
-    []
-  );
+    };
+
+    socket.on('general-settings:updated', handleGeneralSettingsUpdated);
+    return () => {
+      socket.off('general-settings:updated', handleGeneralSettingsUpdated);
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const boundary = Date.parse(generalSettings.featured_notice_next_change_at || '');

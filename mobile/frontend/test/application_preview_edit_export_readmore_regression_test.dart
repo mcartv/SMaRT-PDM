@@ -9,20 +9,28 @@ void main() {
     expect(const ApplicationFormPreviewScreen(), isA<Widget>());
   });
 
-  test('Edit Form is controlled by backend correction permission', () {
+  test('Edit Form follows backend lifecycle permission and keeps correction context', () {
     final source = File(
       'lib/features/applicant/presentation/screens/application_form_preview_screen.dart',
     ).readAsStringSync();
 
     expect(source, contains('final canEdit = _data != null && _canEdit;'));
     expect(source, contains('data == null || !_canEdit'));
+    expect(source, contains("'Editing available'"));
     expect(source, contains("'Correction requested'"));
     expect(source, contains("'Editing locked'"));
     expect(
       source,
-      contains('Edit Form will become available only if OSFA/Admin requests'),
+      isNot(
+        contains('Edit Form will become available only if OSFA/Admin requests'),
+      ),
+    );
+    expect(
+      source,
+      contains("_correctionRequested = editability['correction_requested'] == true"),
     );
     expect(source, contains("_optional(editability['correction_comment'])"));
+    expect(source, contains('_editabilityMessage()'));
   });
 
   test('Personal Statement remains collapsible after three lines', () {

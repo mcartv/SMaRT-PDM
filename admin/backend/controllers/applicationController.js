@@ -634,6 +634,54 @@ exports.approveApplication = async (req, res) => {
     }
 };
 
+exports.requestApplicationFormReedit = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const data =
+            await applicationService.requestApplicationFormReedit({
+                applicationId: id,
+                reasonCode: req.body?.reason_code,
+                comment: req.body?.comment,
+                user: req.user,
+            });
+
+        const io = req.app.get('io');
+
+        socketEvents.applicationDocumentReviewed(io, {
+            application_id: id,
+            document_key: 'application_form',
+            status: 'reupload_required',
+            updated_at: new Date().toISOString(),
+            source: 'application_form_reedit_request',
+        });
+
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            document_key: 'application_form',
+            updated_at: new Date().toISOString(),
+            source: 'application_form_reedit_request',
+        });
+
+        return res.status(200).json({
+            message:
+                'Application Form re-edit requested and applicant notified.',
+            data,
+        });
+    } catch (error) {
+        console.error(
+            'REQUEST APPLICATION FORM RE-EDIT ERROR:',
+            error
+        );
+
+        return res.status(error.statusCode || 500).json({
+            error:
+                error.message ||
+                'Failed to request Application Form re-edit.',
+        });
+    }
+};
+
 exports.disqualifyApplication = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;

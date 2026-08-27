@@ -95,12 +95,33 @@ function deriveVerificationOutcome(reviews = []) {
     return allVerified ? 'verified' : 'pending';
 }
 
-function buildReplacementNotification(applicationId) {
+// SMART_PDM_MOBILE_APPLICATION_FORM_CORRECTION_NOTIFICATION_V2
+function buildReplacementNotification(applicationId, reviews = []) {
+    const applicationFormReview = reviews.find(
+        (review) =>
+            review.documentKey === 'application_form' &&
+            review.reviewStatus === 'reupload_required'
+    );
+
+    if (applicationFormReview) {
+        const remark = String(applicationFormReview.comment || '').trim();
+
+        return {
+            type: 'Application Form',
+            title: 'Application Form Edit Required',
+            message: remark
+                ? `OSFA/Admin requested changes to your Application Form. Remark: ${remark} Open Preview Form, tap Edit Form, correct the requested information, and submit the updated form for verification.`
+                : 'OSFA/Admin requested changes to your Application Form. Open Preview Form, tap Edit Form, carefully review all important information, and submit the updated form for verification.',
+            referenceType: 'application_form',
+            referenceId: applicationId,
+        };
+    }
+
     return {
         type: 'Application',
         title: 'Application Correction Required',
         message:
-            'One or more application requirements need correction. Open your application to review the administrator remarks. Re-upload affected documents or edit the Application Form when requested.',
+            'One or more application requirements need correction. Open your application to review the administrator remarks.',
         referenceType: 'application',
         referenceId: applicationId,
     };
@@ -697,6 +718,7 @@ function buildVerificationOutcomeNotification({
     outcome,
     applicationId,
     scholarId = null,
+    reviews = [],
 }) {
     if (outcome === 'approved') {
         return {
@@ -713,7 +735,7 @@ function buildVerificationOutcomeNotification({
     }
 
     if (outcome === 'reupload_required') {
-        return buildReplacementNotification(applicationId);
+        return buildReplacementNotification(applicationId, reviews);
     }
 
     return null;
@@ -811,11 +833,13 @@ async function deliverVerificationOutcomeNotification({
     applicationId,
     userId,
     scholarId = null,
+    reviews = [],
 }) {
     const notification = buildVerificationOutcomeNotification({
         outcome,
         applicationId,
         scholarId,
+        reviews,
     });
 
     if (!notification || !userId) {
@@ -878,6 +902,180 @@ async function deliverVerificationOutcomeNotification({
         }
     }
 }
+
+exports.requestApplicationFormReedit = async ({
+    applicationId,
+    reasonCode,
+    comment,
+    user,
+}) => {
+    if (!applicationId) {
+        throw buildHttpError(400, 'Application ID is required.');
+    }
+
+    const reviewedAt = new Date().toISOString();
+
+    const normalizedReasonCode =
+        normalizeReasonCode(reasonCode) ||
+        'APPLICATION_FORM_CORRECTION';
+
+    const adminComment = String(comment || '').trim();
+
+    // Resolve the Admin profile.
+    let reviewedBy = user?.admin_id || null;
+
+    if (!reviewedBy && (user?.user_id || user?.userId)) {
+        const authUserId = user.user_id || user.userId;
+
+        const { data: adminProfile, error: adminProfileError } =
+            await supabase
+                .from('admin_profiles')
+                .select('admin_id')
+                .eq('user_id', authUserId)
+                .maybeSingle();
+
+        if (adminProfileError) {
+            throw new Error(adminProfileError.message);
+        }
+
+        reviewedBy = adminProfile?.admin_id || null;
+    }
+
+    // Get the application/student.
+    const { data: application, error: applicationError } =
+        await supabase
+            .from('applications')
+            .select('application_id, student_id')
+            .eq('application_id', applicationId)
+            .single();
+
+    if (applicationError || !application) {
+        throw buildHttpError(
+            404,
+            applicationError?.message || 'Application not found.'
+        );
+    }
+
+    // Save the Application Form correction immediately.
+    // This does NOT wait for all six requirements.
+    const { data: review, error: reviewError } =
+        await supabase
+            .from('application_document_reviews')
+            .upsert(
+                {
+                    application_id: applicationId,
+                    document_key: 'application_form',
+                    document_name: 'Application Form',
+                    review_status: 'reupload_required',
+                    issue_severity: 'minor',
+                    reason_code: normalizedReasonCode,
+                    admin_comment: adminComment,
+                    reviewed_by: reviewedBy,
+                    reviewed_at: reviewedAt,
+                    updated_at: reviewedAt,
+                },
+                {
+                    onConflict: 'application_id,document_key',
+                }
+            )
+            .select()
+            .single();
+
+    if (reviewError) {
+        throw new Error(reviewError.message);
+    }
+
+    // Resolve the student's user account.
+    const { data: student, error: studentError } =
+        await supabase
+            .from('students')
+            .select('user_id')
+            .eq('student_id', application.student_id)
+            .maybeSingle();
+
+    if (studentError) {
+        throw new Error(studentError.message);
+    }
+
+    if (!student?.user_id) {
+        throw buildHttpError(
+            409,
+            'The applicant does not have an active user account.'
+        );
+    }
+
+    const notification = {
+        type: 'Application Form',
+        title: 'Application Form Edit Required',
+
+        message: adminComment
+            ? `OSFA/Admin requested changes to your Application Form. ` +
+            `Remark: ${adminComment} ` +
+            `Open Preview Form, tap Edit Form, correct the requested ` +
+            `information, and submit the updated form for verification.`
+            : `OSFA/Admin requested changes to your Application Form. ` +
+            `Open Preview Form, tap Edit Form, carefully review all ` +
+            `important information, and submit the updated form for verification.`,
+
+        referenceId: applicationId,
+        referenceType: 'application_form',
+    };
+
+    const createdAt = new Date().toISOString();
+
+    let notificationDelivery;
+
+    try {
+        const relayPayload = await relayStudentNotification({
+            userId: student.user_id,
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            referenceId: notification.referenceId,
+            referenceType: notification.referenceType,
+            createdAt,
+        });
+
+        notificationDelivery = {
+            delivery: 'relay',
+            notification:
+                relayPayload?.notification ||
+                relayPayload?.data ||
+                null,
+        };
+    } catch (relayError) {
+        console.error(
+            'APPLICATION FORM RE-EDIT NOTIFICATION RELAY ERROR:',
+            relayError.message || relayError
+        );
+
+        // Fallback: insert directly into notifications.
+        const fallbackNotification =
+            await insertNotificationFallback({
+                userId: student.user_id,
+                type: notification.type,
+                title: notification.title,
+                message: notification.message,
+                referenceId: notification.referenceId,
+                referenceType: notification.referenceType,
+                createdAt,
+            });
+
+        notificationDelivery = {
+            delivery: 'database_fallback',
+            notification: fallbackNotification,
+            relayError:
+                relayError.message ||
+                String(relayError),
+        };
+    }
+
+    return {
+        application_id: applicationId,
+        review,
+        notification: notificationDelivery,
+    };
+};
 
 function normalizeDocumentType(value) {
     const normalized = String(value || '')
@@ -3580,8 +3778,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         if (!documentKey || !REQUIRED_REVIEW_DOCUMENT_KEYS.includes(documentKey)) {
             throw buildHttpError(
                 400,
-                `Unsupported review document: ${
-                    doc.name || doc.document_key || 'unknown'
+                `Unsupported review document: ${doc.name || doc.document_key || 'unknown'
                 }`
             );
         }
@@ -3589,8 +3786,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         if (reviewStatus === 'rejected' && issueSeverity !== 'major') {
             throw buildHttpError(
                 400,
-                `Major severity is required before rejecting the entire application for ${
-                    doc.name || documentKey
+                `Major severity is required before rejecting the entire application for ${doc.name || documentKey
                 }.`
             );
         }
@@ -3846,6 +4042,8 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
                 applicationId,
                 userId: studentRow.user_id,
                 scholarId: null,
+
+                reviews: requiredReviews,
             });
         }
     }
@@ -4168,28 +4366,49 @@ module.exports = {
     fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,
     fetchApplicationDocumentViewUrl: exports.fetchApplicationDocumentViewUrl,
     runApplicationDocumentIotOcr: exports.runApplicationDocumentIotOcr,
-    fetchApplicationDocumentOcrSnapshot: exports.fetchApplicationDocumentOcrSnapshot,
-    saveApplicationDocumentOcrSnapshot: exports.saveApplicationDocumentOcrSnapshot,
-    getApplicationDocumentIotOcr: exports.getApplicationDocumentIotOcr,
-    confirmApplicationDocumentIotOcr: exports.confirmApplicationDocumentIotOcr,
-    retryApplicationDocumentIotOcr: exports.retryApplicationDocumentIotOcr,
-    cancelApplicationDocumentIotOcr: exports.cancelApplicationDocumentIotOcr,
-    rejectApplicationDocumentIotOcr: exports.rejectApplicationDocumentIotOcr,
-    rescanApplicationDocumentIotOcr: exports.rescanApplicationDocumentIotOcr,
-    uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
-    markApplicationDisqualified: exports.markApplicationDisqualified,
-    saveApplicationVerification: exports.saveApplicationVerification,
+    fetchApplicationDocumentOcrSnapshot:
+        exports.fetchApplicationDocumentOcrSnapshot,
+    saveApplicationDocumentOcrSnapshot:
+        exports.saveApplicationDocumentOcrSnapshot,
+    getApplicationDocumentIotOcr:
+        exports.getApplicationDocumentIotOcr,
+    confirmApplicationDocumentIotOcr:
+        exports.confirmApplicationDocumentIotOcr,
+    retryApplicationDocumentIotOcr:
+        exports.retryApplicationDocumentIotOcr,
+    cancelApplicationDocumentIotOcr:
+        exports.cancelApplicationDocumentIotOcr,
+    rejectApplicationDocumentIotOcr:
+        exports.rejectApplicationDocumentIotOcr,
+    rescanApplicationDocumentIotOcr:
+        exports.rescanApplicationDocumentIotOcr,
+    uploadStudentApplicationDocument:
+        exports.uploadStudentApplicationDocument,
+    markApplicationDisqualified:
+        exports.markApplicationDisqualified,
+    saveApplicationVerification:
+        exports.saveApplicationVerification,
+    requestApplicationFormReedit:
+        exports.requestApplicationFormReedit,
+
     fetchApplicationReadiness,
     fetchApplicationReadinessMap,
     decorateApplicationRecordsWithReadiness,
-    attemptScholarActivationIfReady: exports.attemptScholarActivationIfReady,
-    markApplicationReviewed: exports.markApplicationReviewed,
-    saveApplicationRemarks: exports.saveApplicationRemarks,
-    assignApplicationProgram: exports.assignApplicationProgram,
-    moveApplicationToWaiting: exports.moveApplicationToWaiting,
-    approveApplicationWithSlotCheck: exports.approveApplicationWithSlotCheck,
+    attemptScholarActivationIfReady:
+        exports.attemptScholarActivationIfReady,
+    markApplicationReviewed:
+        exports.markApplicationReviewed,
+    saveApplicationRemarks:
+        exports.saveApplicationRemarks,
+    assignApplicationProgram:
+        exports.assignApplicationProgram,
+    moveApplicationToWaiting:
+        exports.moveApplicationToWaiting,
+    approveApplicationWithSlotCheck:
+        exports.approveApplicationWithSlotCheck,
     normalizeDocumentType,
-    getDocumentTypeName: (documentKey) => DOCUMENT_TYPE_TO_NAME[documentKey] || null,
+    getDocumentTypeName: (documentKey) =>
+        DOCUMENT_TYPE_TO_NAME[documentKey] || null,
     normalizeOcrPayload,
     sanitizeStructuredOcrFields,
     sanitizeOcrProcessingMetadata,

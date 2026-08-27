@@ -1,86 +1,8 @@
 const db = require('../config/db');
-const supabase = require('../config/supabase');
 const auditLogService = require('../services/auditLogService');
 const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
-const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
-
-
-const RO_PROOFS_BUCKET =
-  process.env.RO_PROOFS_BUCKET || 'ro-proofs';
-
-function getAttendanceProofStoragePath(proof = {}) {
-  const directPath = String(proof.file_path || '').trim();
-
-  if (directPath) {
-    return directPath
-      .replace(new RegExp(`^${RO_PROOFS_BUCKET}/`), '')
-      .replace(/^\/+/, '');
-  }
-
-  const rawUrl = String(proof.file_url || '').trim();
-  if (!rawUrl) return '';
-
-  const markers = [
-    `/storage/v1/object/public/${RO_PROOFS_BUCKET}/`,
-    `/storage/v1/object/sign/${RO_PROOFS_BUCKET}/`,
-    `/storage/v1/object/authenticated/${RO_PROOFS_BUCKET}/`,
-  ];
-
-  for (const marker of markers) {
-    const index = rawUrl.indexOf(marker);
-    if (index >= 0) {
-      return rawUrl
-        .slice(index + marker.length)
-        .split('?')[0];
-    }
-  }
-
-  return '';
-}
-
-async function resolveAttendanceProofUrl(proof = {}) {
-  const storagePath = getAttendanceProofStoragePath(proof);
-
-  if (!storagePath) {
-    return String(proof.file_url || '').trim();
-  }
-
-  const { data, error } = await supabase.storage
-    .from(RO_PROOFS_BUCKET)
-    .createSignedUrl(storagePath, 60 * 60);
-
-  if (error) {
-    console.error(
-      'RO COORDINATOR PROOF SIGNED URL ERROR:',
-      error.message
-    );
-    return '';
-  }
-
-  return data?.signedUrl || '';
-}
-
-async function hydrateAttendanceProofUrls(rows = []) {
-  return Promise.all(
-    (Array.isArray(rows) ? rows : []).map(async (row) => {
-      const proofs = await Promise.all(
-        (Array.isArray(row.proofs) ? row.proofs : []).map(
-          async (proof) => ({
-            ...proof,
-            file_url: await resolveAttendanceProofUrl(proof),
-          })
-        )
-      );
-
-      return {
-        ...row,
-        proofs,
-      };
-    })
-  );
-}
 function currentUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.sub || null;
 }
@@ -635,8 +557,7 @@ exports.getAttendanceQueue = async (req, res) => {
       [coordinator.assignmentIds, statusValue]
     );
 
-    const items = await hydrateAttendanceProofUrls(result.rows);
-    return res.json({ items, department: coordinator.department });
+    return res.json({ items: result.rows, department: coordinator.department });
   } catch (error) {
     return res.status(error.statusCode || 500).json({
       message: error.message || 'Failed to load RO attendance evidence.',
@@ -738,7 +659,6 @@ exports.validateAttendance = async (req, res) => {
              ) IS NOT NULL
              AND proof.latitude IS NOT NULL
              AND proof.longitude IS NOT NULL
-             AND proof.captured_at_device IS NOT NULL
              AND COALESCE(proof.proof_status, 'Pending Review') <> 'Rejected'`,
           [req.params.logId]
         );
@@ -928,44 +848,6 @@ exports.validateAttendance = async (req, res) => {
         ...studentNotification,
         target_user_id: studentUserId,
       });
-    }
-
-    if (
-      studentUserId &&
-      typeof studentRealtimeRelayService?.relayRoEvent === 'function'
-    ) {
-      studentRealtimeRelayService
-        .relayRoEvent({
-          event: 'ro:updated',
-          targetUserIds: [studentUserId],
-          payload: {
-            source: 'ro-coordinator',
-            action: `attendance-${decision}`,
-            ro_id: log.ro_id,
-            roId: log.ro_id,
-            log_id: log.log_id,
-            logId: log.log_id,
-            student_id: log.student_id,
-            studentId: log.student_id,
-            validation_status: log.validation_status,
-            validationStatus: log.validation_status,
-            department_validation_status:
-              log.department_validation_status,
-            departmentValidationStatus:
-              log.department_validation_status,
-            validated_minutes:
-              Number(log.validated_minutes || 0),
-            validatedMinutes:
-              Number(log.validated_minutes || 0),
-            updated_at: new Date().toISOString(),
-          },
-        })
-        .catch((relayError) => {
-          console.error(
-            'RO ATTENDANCE STUDENT REALTIME RELAY ERROR:',
-            relayError.message
-          );
-        });
     }
 
     const adminNotifications = await notificationService.createStaffNotifications({

@@ -665,23 +665,12 @@ export default function ROCoordinatorQueue({
           <div className="space-y-3">
             {attendance.map((log) => {
               const proofs = Array.isArray(log.proofs) ? log.proofs : [];
-              const hasValidProof = (type) =>
-                proofs.some((proof) => {
-                  const proofStatus = String(
-                    proof.proof_status || 'Pending Review'
-                  )
-                    .trim()
-                    .toLowerCase();
-
-                  return (
-                    proof.proof_type === type &&
-                    Boolean(proof.file_url) &&
-                    proof.captured_at_device != null &&
-                    proof.latitude != null &&
-                    proof.longitude != null &&
-                    proofStatus !== 'rejected'
-                  );
-                });
+              const hasValidProof = (type) => proofs.some((proof) =>
+                proof.proof_type === type &&
+                Boolean(proof.file_url || proof.file_path) &&
+                proof.latitude != null &&
+                proof.longitude != null
+              );
               const evidenceComplete = hasValidProof('time_in') && hasValidProof('time_out');
 
               return (

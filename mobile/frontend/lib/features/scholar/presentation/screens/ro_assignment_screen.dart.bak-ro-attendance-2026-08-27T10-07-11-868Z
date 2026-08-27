@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -79,9 +77,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _noteController = TextEditingController();
 
-
-  NotificationProvider? _notificationProvider;
-  int _lastRoRevision = 0;
   late final TabController _tabController;
 
   bool _isLoading = true;
@@ -112,39 +107,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       }
     });
   }
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final provider = context.read<NotificationProvider>();
-    if (identical(_notificationProvider, provider)) {
-      return;
-    }
-
-    _notificationProvider?.removeListener(_handleRealtimeRoUpdates);
-    _notificationProvider = provider;
-    _lastRoRevision = provider.roRevision;
-    provider.addListener(_handleRealtimeRoUpdates);
-  }
-
-  void _handleRealtimeRoUpdates() {
-    final provider = _notificationProvider;
-    if (provider == null || provider.roRevision == _lastRoRevision) {
-      return;
-    }
-
-    _lastRoRevision = provider.roRevision;
-
-    if (mounted && !_isLoading) {
-      _loadRo();
-    }
-  }
-
-
 
   @override
   void dispose() {
-    _notificationProvider?.removeListener(_handleRealtimeRoUpdates);
     _activeTimer?.cancel();
     _tabController.dispose();
     _noteController.dispose();
@@ -295,6 +260,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         timeLimit: Duration(seconds: 12),
       ),
     );
+    final capturedAt = DateTime.now();
     final pickedFile = await _imagePicker.pickImage(
       source: ImageSource.camera,
       imageQuality: 88,
@@ -302,7 +268,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       preferredCameraDevice: CameraDevice.rear,
     );
     if (pickedFile == null) return null;
-    final capturedAt = DateTime.now();
 
     final originalBytes = await pickedFile.readAsBytes();
     final decoded = img.decodeImage(originalBytes);
@@ -734,7 +699,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                             Icons.camera_alt_rounded,
                                             size: 18,
                                           ),
-                                          label: Text(selectedPhoto == null ? 'Take Photo' : 'Retake Photo'),
+                                          label: const Text('Camera'),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: const Color(
                                               0xFF4A2400,
@@ -846,7 +811,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     String? studentNote,
     RoPickedPhoto? photo,
   }) async {
-    final capturedAt = photo?.capturedAtDevice ?? DateTime.now();
+    final capturedAt = DateTime.now();
     final fields = <String, String>{
       'captured_at_device': capturedAt.toUtc().toIso8601String(),
       'device_timezone': capturedAt.timeZoneName,

@@ -368,33 +368,6 @@ async function saveRoTimeLogProof({
       .update(file.buffer)
       .digest('hex');
 
-  // SMART-PDM RO attendance: a previously submitted image must never be
-  // accepted as a new Time-In/Time-Out proof.
-  const {
-    data: reusedAttendanceProof,
-    error: reusedAttendanceProofError,
-  } = await supabase
-    .from('ro_time_log_proofs')
-    .select('proof_id, log_id, proof_type, created_at')
-    .eq('student_id', studentId)
-    .eq('photo_sha256', photoHash)
-    .limit(1)
-    .maybeSingle();
-
-  if (reusedAttendanceProofError) {
-    throw createHttpError(
-      500,
-      `Failed to verify attendance photo uniqueness: ${reusedAttendanceProofError.message}`
-    );
-  }
-
-  if (reusedAttendanceProof) {
-    throw createHttpError(
-      409,
-      'This attendance photo was already submitted before. Take a new live camera photo.'
-    );
-  }
-
   const { error: uploadError } =
     await supabase.storage
       .from(RO_PROOFS_BUCKET)

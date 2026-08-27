@@ -257,33 +257,6 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                 ],
               ),
             ),
-            // SMART_PDM_MENU_ENDORSEMENT_ACCESS_V1
-            const SizedBox(height: 22),
-            Text(
-              'Application',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: titleColor,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : AppColors.brown.withValues(alpha: 0.09),
-                ),
-              ),
-              child: _MenuListTile(
-                icon: Icons.assignment_turned_in_outlined,
-                title: 'Endorsement',
-                subtitle: 'Track office review and access your official slip',
-                onTap: () => _openRoute(AppRoutes.endorsement),
-              ),
-            ),
             const SizedBox(height: 22),
             Text(
               'Information',

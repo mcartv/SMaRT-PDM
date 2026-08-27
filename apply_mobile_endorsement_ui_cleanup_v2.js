@@ -1,38 +1,165 @@
-import 'dart:async';
+const fs = require('fs');
+const path = require('path');
+const { spawnSync } = require('child_process');
 
-import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
-import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
-import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+const PATCH_NAME = 'SMaRT-PDM Mobile Endorsement UI Cleanup v2';
+const PATCH_MARKER = 'SMART_PDM_ENDORSEMENT_UI_CLEANUP_V1';
+const REQUIRED_SLIP_MARKER = 'SMART_PDM_ENDORSEMENT_SLIP_VIEW_DOWNLOAD_V1';
 
-class EndorsementScreen extends StatefulWidget {
-  const EndorsementScreen({super.key});
+function parseArgs(argv) {
+  let dryRun = false;
+  let root = '.';
 
-  @override
-  State<EndorsementScreen> createState() => _EndorsementScreenState();
+  for (const arg of argv) {
+    if (arg === '--dry-run') dryRun = true;
+    else root = arg;
+  }
+
+  return { dryRun, root: path.resolve(root) };
 }
 
-class _EndorsementScreenState extends State<EndorsementScreen> {
-  final ApplicationService _applicationService = ApplicationService();
+function normalize(value) {
+  return String(value || '').replace(/\r\n/g, '\n');
+}
 
-  ApplicationStatusSummary? _summary;
-  bool _isLoading = true;
+function readRequired(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Required file not found: ${filePath}`);
+  }
+
+  return normalize(fs.readFileSync(filePath, 'utf8'));
+}
+
+function replaceOnce(source, before, after, label) {
+  const first = source.indexOf(before);
+
+  if (first < 0) {
+    throw new Error(`${label}: expected source block was not found.`);
+  }
+
+  const second = source.indexOf(before, first + before.length);
+
+  if (second >= 0) {
+    throw new Error(
+      `${label}: expected exactly one source block, found more than one.`
+    );
+  }
+
+  return source.slice(0, first) + after + source.slice(first + before.length);
+}
+
+function ensureIncludes(source, needles, label) {
+  for (const needle of needles) {
+    if (!source.includes(needle)) {
+      throw new Error(`${label}: missing expected contract: ${needle}`);
+    }
+  }
+}
+
+function ensureExcludes(source, needles, label) {
+  for (const needle of needles) {
+    if (source.includes(needle)) {
+      throw new Error(`${label}: obsolete UI/behavior remains: ${needle}`);
+    }
+  }
+}
+
+function run(command, args, cwd, label) {
+  console.log(`\n> ${[command, ...args].join(' ')}`);
+
+  let executable = command;
+  let executableArgs = args;
+
+  if (
+    process.platform === 'win32' &&
+    (command === 'npm' || command === 'flutter' || command === 'dart')
+  ) {
+    executable = process.env.ComSpec || 'cmd.exe';
+    executableArgs = ['/d', '/s', '/c', [command, ...args].join(' ')];
+  }
+
+  const result = spawnSync(executable, executableArgs, {
+    cwd,
+    stdio: 'inherit',
+    shell: false,
+    env: process.env,
+  });
+
+  if (result.error) {
+    throw new Error(`${label}: ${result.error.message}`);
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`${label} failed with exit code ${result.status}.`);
+  }
+}
+
+function makeBackup(root, originals) {
+  const backupRoot = path.join(
+    root,
+    '.smart-pdm-patch-backup',
+    `mobile-endorsement-ui-cleanup-v2-${Date.now()}`
+  );
+
+  for (const [filePath, original] of originals.entries()) {
+    if (original == null) continue;
+
+    const destination = path.join(backupRoot, path.relative(root, filePath));
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, original, 'utf8');
+  }
+
+  return backupRoot;
+}
+
+function rollback(originals) {
+  for (const [filePath, original] of originals.entries()) {
+    if (original == null) {
+      if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
+      continue;
+    }
+
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, original, 'utf8');
+  }
+}
+
+function patchRefreshBehavior(source) {
+  source = replaceOnce(
+    source,
+`import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';`,
+`import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';`,
+    'AppColors import'
+  );
+
+  source = replaceOnce(
+    source,
+`  bool _isLoading = true;
+  bool _isViewingSlip = false;
+  bool _isDownloadingSlip = false;
+  String? _errorMessage;`,
+`  bool _isLoading = true;
   bool _isRefreshingStatus = false;
   bool _isViewingSlip = false;
   bool _isDownloadingSlip = false;
-  String? _errorMessage;
-  NotificationProvider? _notificationProvider;
-  int _lastScholarAccessRevision = 0;
-  int _lastApplicationRevision = 0;
-  Timer? _pollingTimer;
+  String? _errorMessage;`,
+    'Endorsement refresh state'
+  );
 
-  @override
+  source = replaceOnce(
+    source,
+`  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) {
+        _loadStatus();
+      }
+    });
+  }`,
+`  @override
   void initState() {
     super.initState();
     _loadStatus(showLoading: true);
@@ -44,23 +171,29 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
         _loadStatus(silent: true);
       }
     });
-  }
+  }`,
+    'Endorsement polling behavior'
+  );
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  source = replaceOnce(
+    source,
+`  void _handleNotificationProviderChange() {
+    final provider = _notificationProvider;
+    if (provider == null) return;
 
-    final provider = context.read<NotificationProvider>();
-    if (_notificationProvider == provider) return;
+    if (provider.scholarAccessRevision == _lastScholarAccessRevision &&
+        provider.applicationRevision == _lastApplicationRevision) {
+      return;
+    }
 
-    _notificationProvider?.removeListener(_handleNotificationProviderChange);
-    _notificationProvider = provider;
     _lastScholarAccessRevision = provider.scholarAccessRevision;
     _lastApplicationRevision = provider.applicationRevision;
-    _notificationProvider?.addListener(_handleNotificationProviderChange);
-  }
 
-  void _handleNotificationProviderChange() {
+    if (mounted) {
+      _loadStatus();
+    }
+  }`,
+`  void _handleNotificationProviderChange() {
     final provider = _notificationProvider;
     if (provider == null) return;
 
@@ -75,9 +208,34 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     if (mounted) {
       _loadStatus(silent: true);
     }
-  }
+  }`,
+    'Realtime silent refresh'
+  );
 
-  // SMART_PDM_ENDORSEMENT_UI_CLEANUP_V1
+  source = replaceOnce(
+    source,
+`  Future<void> _loadStatus() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
+      if (!mounted) return;
+      setState(() => _summary = summary);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _summary = null;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }`,
+`  // ${PATCH_MARKER}
   Future<void> _loadStatus({
     bool showLoading = false,
     bool silent = false,
@@ -128,150 +286,29 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
 
   Future<void> _refreshStatus() => _loadStatus(silent: true);
 
-  Future<void> _retryStatus() => _loadStatus(showLoading: true);
+  Future<void> _retryStatus() => _loadStatus(showLoading: true);`,
+    'Non-blocking Endorsement status loader'
+  );
 
-  // SMART_PDM_ENDORSEMENT_SLIP_VIEW_DOWNLOAD_V1
-  String _endorsementSlipErrorMessage(Object error) {
-    final message = error
-        .toString()
-        .replaceFirst('Exception: ', '')
-        .trim();
+  source = replaceOnce(
+    source,
+`        onRefresh: _loadStatus,`,
+`        onRefresh: _refreshStatus,`,
+    'Pull-to-refresh'
+  );
 
-    if (message.toLowerCase().contains('not available') ||
-        message.toLowerCase().contains('only available after')) {
-      return 'The official Endorsement Slip is not available yet. '
-          'The page has been refreshed to check the latest endorsement status.';
-    }
+  source = replaceOnce(
+    source,
+`                onPrimaryAction: _loadStatus,`,
+`                onPrimaryAction: _retryStatus,`,
+    'Retry action'
+  );
 
-    return message.isEmpty
-        ? 'Unable to load the official Endorsement Slip. Please try again.'
-        : message;
-  }
-
-  Future<void> _viewEndorsementSlip() async {
-    if (_isViewingSlip || _isDownloadingSlip) return;
-
-    setState(() => _isViewingSlip = true);
-
-    try {
-      // Fetch fresh bytes from the protected backend route every time.
-      // No expiring signed storage URL is cached in the mobile client.
-      final download = await _applicationService.downloadMyEndorsementSlip();
-
-      final message = await openDownloadedFilePreview(
-        bytes: download.bytes,
-        fileName: download.fileName,
-        contentType: download.contentType,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_endorsementSlipErrorMessage(error))),
-      );
-
-      await _loadStatus();
-    } finally {
-      if (mounted) setState(() => _isViewingSlip = false);
-    }
-  }
-
-  Future<void> _downloadEndorsementSlip() async {
-    if (_isDownloadingSlip || _isViewingSlip) return;
-
-    setState(() => _isDownloadingSlip = true);
-
-    try {
-      // This is the same official, finalized PDF used by Admin. Mobile does
-      // not generate a second endorsement slip.
-      final download = await _applicationService.downloadMyEndorsementSlip();
-
-      final message = await saveDownloadedFile(
-        bytes: download.bytes,
-        fileName: download.fileName,
-        contentType: download.contentType,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_endorsementSlipErrorMessage(error))),
-      );
-
-      await _loadStatus();
-    } finally {
-      if (mounted) setState(() => _isDownloadingSlip = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _pollingTimer?.cancel();
-    _notificationProvider?.removeListener(_handleNotificationProviderChange);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Endorsement')),
-      selectedIndex: 0,
-      child: RefreshIndicator(
-        onRefresh: _refreshStatus,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 64),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_errorMessage != null)
-              _EndorsementMessageCard(
-                icon: Icons.cloud_off,
-                title: 'Unable to load endorsement',
-                message: _errorMessage!,
-                primaryActionLabel: 'Try Again',
-                onPrimaryAction: _retryStatus,
-              )
-            else if (_summary == null || _summary!.hasApplication == false)
-              _EndorsementMessageCard(
-                icon: Icons.assignment_late_outlined,
-                title: 'No endorsement yet',
-                message:
-                    'Submit a scholarship application first before endorsement tracking becomes available.',
-                primaryActionLabel: 'View Scholarship Openings',
-                onPrimaryAction: () =>
-                    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
-              )
-            else
-              _EndorsementView(
-                summary: _summary!,
-                isViewingSlip: _isViewingSlip,
-                isDownloadingSlip: _isDownloadingSlip,
-                onViewSlip: _viewEndorsementSlip,
-                onDownloadSlip: _downloadEndorsementSlip,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  return source;
 }
 
-class _EndorsementView extends StatelessWidget {
+function buildRedesignedView() {
+  return `class _EndorsementView extends StatelessWidget {
   const _EndorsementView({
     required this.summary,
     required this.isViewingSlip,
@@ -858,7 +895,7 @@ class _EndorsementRoadmap extends StatelessWidget {
       'Submitted',
       'SDO',
       'Guidance',
-      'Program\nDirector',
+      'Program\\nDirector',
       'Done',
     ];
 
@@ -1024,7 +1061,7 @@ class _ReviewTile extends StatelessWidget {
     return decision
         .split('_')
         .where((part) => part.isNotEmpty)
-        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .map((part) => '\${part[0].toUpperCase()}\${part.substring(1)}')
         .join(' ');
   }
 
@@ -1385,4 +1422,362 @@ class _EndorsementMessageCard extends StatelessWidget {
       ),
     );
   }
+}
+`;
+}
+
+function patchView(source) {
+  const start = source.indexOf('class _EndorsementView extends StatelessWidget {');
+
+  if (start < 0) {
+    throw new Error(
+      'Endorsement UI redesign: _EndorsementView class was not found.'
+    );
+  }
+
+  return source.slice(0, start) + buildRedesignedView();
+}
+
+function buildContractTest() {
+  return `const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+
+const backendRoot = path.resolve(__dirname, '..');
+const mobileRoot = path.resolve(backendRoot, '..');
+const frontendRoot = path.join(mobileRoot, 'frontend');
+
+const screen = fs.readFileSync(
+  path.join(
+    frontendRoot,
+    'lib',
+    'features',
+    'forms',
+    'presentation',
+    'screens',
+    'endorsement_screen.dart'
+  ),
+  'utf8'
+);
+
+test('Uses the shared mobile light and dark color scheme', () => {
+  assert.match(screen, /app\\/theme\\/app_colors\\.dart/);
+  assert.match(screen, /AppColors\\.applicantLightSurface/);
+  assert.match(screen, /AppColors\\.applicantDarkSurface/);
+  assert.match(screen, /AppColors\\.applicantLightOutline/);
+  assert.match(screen, /AppColors\\.applicantDarkOutline/);
+});
+
+test('Removes noisy metadata from the Endorsement header', () => {
+  assert.doesNotMatch(screen, /Realtime tracking on/);
+  assert.doesNotMatch(screen, /Code:/);
+  assert.doesNotMatch(screen, /Now in:/);
+  assert.doesNotMatch(screen, /_EndorsementTag/);
+});
+
+test('Current Step becomes Done after all endorsement reviews complete', () => {
+  assert.match(screen, /String _currentStepLabel/);
+  assert.match(screen, /if \\(_isCompleted\\(endorsement\\)\\) return 'Done'/);
+  assert.match(screen, /'Current Step'/);
+});
+
+test('Removes the redundant Slip Status summary', () => {
+  assert.doesNotMatch(screen, /'Slip Status'/);
+  assert.doesNotMatch(screen, /_OverviewMiniItem/);
+});
+
+test('Renders a five-node connected Endorsement timeline', () => {
+  assert.match(screen, /class _EndorsementRoadmap/);
+  assert.match(screen, /'Submitted'/);
+  assert.match(screen, /'SDO'/);
+  assert.match(screen, /'Guidance'/);
+  assert.match(screen, /'Program\\\\nDirector'/);
+  assert.match(screen, /'Done'/);
+  assert.match(screen, /height: 2/);
+  assert.match(screen, /List\\.generate\\(labels\\.length/);
+});
+
+test('Keeps Office Results', () => {
+  assert.match(screen, /title: 'Office Results'/);
+  assert.match(screen, /_ReviewTile\\(label: 'SDO'/);
+  assert.match(screen, /label: 'Guidance'/);
+  assert.match(screen, /label: 'Program Director'/);
+});
+
+test('Office Results support dark mode', () => {
+  assert.match(screen, /class _ReviewTile/);
+  assert.match(screen, /AppColors\\.applicantDarkSurface/);
+  assert.doesNotMatch(screen, /color: Colors\\.white,[\\s\\S]*class _ReviewTile/);
+});
+
+test('Redesigns official slip information without exposing internal slip code', () => {
+  assert.match(screen, /title: 'Official Endorsement Slip'/);
+  assert.match(screen, /'PDF ready'/);
+  assert.match(screen, /'PDF not ready yet'/);
+  assert.doesNotMatch(screen, /'Slip Code'/);
+  assert.doesNotMatch(screen, /'Now in Office'/);
+});
+
+test('Keeps separate View and Download PDF actions', () => {
+  assert.match(screen, /'View Slip'/);
+  assert.match(screen, /'Download PDF'/);
+  assert.match(screen, /onViewSlip/);
+  assert.match(screen, /onDownloadSlip/);
+  assert.match(screen, /constraints\\.maxWidth < 390/);
+});
+
+test('Status refresh no longer blocks the page every few seconds', () => {
+  assert.match(screen, /bool _isRefreshingStatus = false/);
+  assert.match(screen, /Duration\\(seconds: 60\\)/);
+  assert.match(screen, /_loadStatus\\(silent: true\\)/);
+  assert.match(screen, /if \\(_isRefreshingStatus\\) return/);
+  assert.doesNotMatch(screen, /Duration\\(seconds: 8\\)/);
+});
+
+test('Background refresh preserves the currently visible status', () => {
+  assert.match(
+    screen,
+    /A background refresh must not erase a valid page that is already on/
+  );
+  assert.doesNotMatch(
+    screen,
+    /catch \\(error\\)[\\s\\S]{0,300}_summary = null/
+  );
+});
+
+test('Realtime updates remain enabled', () => {
+  assert.match(screen, /provider\\.scholarAccessRevision/);
+  assert.match(screen, /provider\\.applicationRevision/);
+  assert.match(screen, /_handleNotificationProviderChange/);
+});
+
+test('Uses responsive controls and compact status components', () => {
+  assert.match(screen, /LayoutBuilder\\(/);
+  assert.match(screen, /constraints\\.maxWidth < 390/);
+  assert.match(screen, /BoxConstraints\\(maxWidth: 180\\)/);
+});
+
+test('Removes the old vertical stage list and extra clutter sections', () => {
+  assert.doesNotMatch(screen, /class _EndorsementStageList/);
+  assert.doesNotMatch(screen, /'Where Your Slip Is Now'/);
+  assert.doesNotMatch(screen, /'What Still Needs To Happen'/);
+  assert.doesNotMatch(screen, /'Quick Actions'/);
+});
+`;
+}
+
+function validate(screen, contract) {
+  ensureIncludes(
+    screen,
+    [
+      PATCH_MARKER,
+      "app/theme/app_colors.dart",
+      'bool _isRefreshingStatus = false',
+      'Duration(seconds: 60)',
+      'class _EndorsementRoadmap extends StatelessWidget',
+      "title: 'Endorsement Timeline'",
+      "title: 'Official Endorsement Slip'",
+      "title: 'Office Results'",
+      "'Current Step'",
+      "return 'Done'",
+      "'Submitted'",
+      "'Program\\nDirector'",
+      "'View Slip'",
+      "'Download PDF'",
+      'AppColors.applicantDarkSurface',
+      'AppColors.applicantLightSurface',
+    ],
+    'Redesigned Endorsement screen'
+  );
+
+  ensureExcludes(
+    screen,
+    [
+      'Realtime tracking on',
+      'Code:',
+      'Now in:',
+      "'Slip Status'",
+      "'Slip Code'",
+      "'Now in Office'",
+      "'Where Your Slip Is Now'",
+      "'What Still Needs To Happen'",
+      "'Quick Actions'",
+      'class _EndorsementStageList',
+      'class _EndorsementTag',
+      'class _OverviewMiniItem',
+      'Duration(seconds: 8)',
+    ],
+    'Endorsement UI cleanup'
+  );
+
+  ensureIncludes(
+    contract,
+    [
+      'Removes noisy metadata from the Endorsement header',
+      'Current Step becomes Done after all endorsement reviews complete',
+      'Renders a five-node connected Endorsement timeline',
+      'Keeps Office Results',
+      'Redesigns official slip information without exposing internal slip code',
+      'Status refresh no longer blocks the page every few seconds',
+    ],
+    'Endorsement cleanup tests'
+  );
+}
+
+function main() {
+  const { dryRun, root } = parseArgs(process.argv.slice(2));
+
+  const files = {
+    screen: path.join(
+      root,
+      'mobile',
+      'frontend',
+      'lib',
+      'features',
+      'forms',
+      'presentation',
+      'screens',
+      'endorsement_screen.dart'
+    ),
+    contract: path.join(
+      root,
+      'mobile',
+      'backend',
+      'test',
+      'endorsement-ui-cleanup-contract.test.js'
+    ),
+  };
+
+  console.log(PATCH_NAME);
+  console.log(`Repository: ${root}`);
+  console.log(`Mode: ${dryRun ? 'dry-run' : 'apply'}\n`);
+
+  const originalScreen = readRequired(files.screen);
+  const originalContract = fs.existsSync(files.contract)
+    ? normalize(fs.readFileSync(files.contract, 'utf8'))
+    : null;
+
+  console.log('[1/6] Verifying current Endorsement View + Download workflow...');
+  ensureIncludes(
+    originalScreen,
+    [
+      REQUIRED_SLIP_MARKER,
+      'bool _isViewingSlip = false',
+      'openDownloadedFilePreview',
+      'saveDownloadedFile',
+      'onViewSlip',
+      'onDownloadSlip',
+    ],
+    'Existing Endorsement Slip workflow'
+  );
+  console.log('      PASS');
+
+  console.log('[2/6] Removing blocking 8-second refresh behavior...');
+  let stagedScreen = patchRefreshBehavior(originalScreen);
+  console.log('      PASS');
+
+  console.log('[3/6] Rebuilding Endorsement UI with mobile theme colors + dark mode...');
+  stagedScreen = patchView(stagedScreen);
+  console.log('      PASS');
+
+  console.log('[4/6] Building five-step horizontal Endorsement timeline with Dart-safe multiline label...');
+  ensureIncludes(
+    stagedScreen,
+    [
+      'class _EndorsementRoadmap extends StatelessWidget',
+      "'Submitted'",
+      "'SDO'",
+      "'Guidance'",
+      "'Program\\nDirector'",
+      "'Done'",
+      'height: 2',
+    ],
+    'Horizontal Endorsement timeline'
+  );
+  console.log('      PASS');
+
+  console.log('[5/6] Cleaning summary + redesigning slip information while preserving Office Results...');
+  validate(stagedScreen, buildContractTest());
+  console.log('      PASS');
+
+  console.log('[6/6] Building targeted Endorsement UI regression tests...');
+  const stagedContract = buildContractTest();
+  validate(stagedScreen, stagedContract);
+  console.log('      PASS');
+
+  console.log('\nFiles affected by this installer:');
+  console.log('  1. mobile/frontend/lib/features/forms/presentation/screens/endorsement_screen.dart');
+  console.log('  2. mobile/backend/test/endorsement-ui-cleanup-contract.test.js (new)');
+  console.log('\nNot modified:');
+  console.log('  - mobile/backend/src/services/applicationService.js');
+  console.log('  - mobile/backend/src/controllers/applicationController.js');
+  console.log('  - mobile/backend/src/routes/applicationRoutes.js');
+  console.log('  - mobile/frontend/lib/app/theme/app_colors.dart');
+  console.log('  - Supabase schema/storage');
+
+  if (dryRun) {
+    console.log('\nPASS: dry-run completed. No files were changed.');
+    return;
+  }
+
+  const originals = new Map([
+    [files.screen, originalScreen],
+    [files.contract, originalContract],
+  ]);
+
+  const backupRoot = makeBackup(root, originals);
+  let wroteFiles = false;
+
+  try {
+    fs.writeFileSync(files.screen, stagedScreen, 'utf8');
+    fs.mkdirSync(path.dirname(files.contract), { recursive: true });
+    fs.writeFileSync(files.contract, stagedContract, 'utf8');
+    wroteFiles = true;
+
+    run(
+      process.execPath,
+      ['--test', files.contract],
+      path.join(root, 'mobile', 'backend'),
+      'Endorsement UI cleanup contract tests'
+    );
+
+    run(
+      'dart',
+      ['format', '--output=none', files.screen],
+      path.join(root, 'mobile', 'frontend'),
+      'Endorsement Dart formatter/syntax validation'
+    );
+
+    console.log('\nPASS: Endorsement UI cleanup completed.');
+    console.log('\nVerified behavior:');
+    console.log('  [x] Uses the mobile light/dark color scheme');
+    console.log('  [x] Removes realtime/code/opening/current-office metadata chips');
+    console.log('  [x] Current Step shows Done after SDO + Guidance + PD complete');
+    console.log('  [x] Removes redundant Slip Status');
+    console.log('  [x] Uses a 5-node horizontal connected timeline');
+    console.log('  [x] Keeps Office Results');
+    console.log('  [x] Redesigns official slip information');
+    console.log('  [x] Keeps View Slip + Download PDF');
+    console.log('  [x] Buttons stack on narrow screens');
+    console.log('  [x] Realtime refresh stays enabled');
+    console.log('  [x] Fallback polling reduced from 8s to 60s');
+    console.log('  [x] Background refresh no longer replaces the page with a spinner');
+    console.log(`\nBackup: ${backupRoot}`);
+  } catch (error) {
+    if (wroteFiles) {
+      console.error('\nPatch verification failed. Restoring previous files...');
+      rollback(originals);
+      console.error(`Rollback completed. Backup: ${backupRoot}`);
+    }
+
+    throw error;
+  }
+}
+
+try {
+  main();
+} catch (error) {
+  console.error(`\nFAIL: ${error.message}`);
+  process.exitCode = 1;
 }

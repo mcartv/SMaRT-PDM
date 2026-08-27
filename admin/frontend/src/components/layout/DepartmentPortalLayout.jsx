@@ -21,7 +21,6 @@ import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
-import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -81,7 +80,6 @@ export default function DepartmentPortalLayout({
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
-  const headerGreeting = useHeaderGreeting(profile);
   const {
     notifications,
     newNotifications,
@@ -346,11 +344,7 @@ export default function DepartmentPortalLayout({
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {headerGreeting}
-            </h1>
-          </div>
+          <div aria-hidden="true" />
 
           <div className="flex items-center gap-3">
             <div className="relative" ref={notifRef}>

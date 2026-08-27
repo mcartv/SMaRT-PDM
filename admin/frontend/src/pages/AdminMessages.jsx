@@ -434,12 +434,14 @@ function messagesBelongTogether(older, newer) {
   return newerTime - olderTime <= 5 * 60 * 1000
 }
 
-function MessageDateDivider({ value }) {
+function MessageDateDivider({ value, timeOnly = false }) {
   return (
     <div className="my-4 flex items-center gap-3">
       <div className="h-px flex-1 bg-stone-200/80" />
       <span className="shrink-0 text-xs font-medium text-stone-500">
-        {formatMessageDay(value)}
+        {timeOnly
+          ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(value))
+          : formatMessageDay(value)}
       </span>
       <div className="h-px flex-1 bg-stone-200/80" />
     </div>
@@ -784,7 +786,23 @@ function ArchivedThreadsModal({
   )
 }
 
-function MessageText({ value }) {
+function parseSafeExternalUrl(rawValue) {
+  try {
+    const normalized = /^www\./i.test(rawValue) ? `https://${rawValue}` : rawValue
+    const parsed = new URL(normalized)
+    if (!['https:', 'http:'].includes(parsed.protocol)) return null
+    if (parsed.username || parsed.password) return null
+    return {
+      href: parsed.href,
+      hostname: parsed.hostname,
+      isInsecure: parsed.protocol === 'http:',
+    }
+  } catch {
+    return null
+  }
+}
+
+function MessageText({ value, onOpenExternalLink }) {
   const text = String(value || '')
   const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi
   const parts = text.split(urlPattern)
@@ -798,16 +816,23 @@ function MessageText({ value }) {
 
         const trailingPunctuation = part.match(/[.,!?;:\]\)}]+$/)?.[0] || ''
         const url = trailingPunctuation ? part.slice(0, -trailingPunctuation.length) : part
-        const href = /^www\./i.test(url) ? `https://${url}` : url
+        const safeUrl = parseSafeExternalUrl(url)
+
+        if (!safeUrl) {
+          return <span key={`text-${index}`}>{part}</span>
+        }
 
         return (
           <span key={`link-${index}`}>
             <a
-              href={href}
-              target="_blank"
+              href={safeUrl.href}
               rel="noopener noreferrer"
               className="font-medium underline decoration-current/60 underline-offset-2 hover:decoration-current"
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onOpenExternalLink?.(safeUrl)
+              }}
             >
               {url}
             </a>
@@ -911,6 +936,7 @@ function MessageBubble({
   onLoadEditHistory,
   onDelete,
   onRetry,
+  onOpenExternalLink,
 }) {
   const [actionsOpen, setActionsOpen] = useState(false)
   const [timestampOpen, setTimestampOpen] = useState(false)
@@ -1144,7 +1170,7 @@ function MessageBubble({
                 : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
                 } ${isCurrentSearchMatch ? 'ring-2 ring-[var(--portal-base)] ring-offset-2' : isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
             >
-              <MessageText value={message.messageBody} />
+              <MessageText value={message.messageBody} onOpenExternalLink={onOpenExternalLink} />
             </div>
             {actionMenu}
           </div>
@@ -1984,6 +2010,7 @@ export default function AdminMessages({
   const [replyingTo, setReplyingTo] = useState(null)
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState(null)
   const [deleteMessageBusy, setDeleteMessageBusy] = useState(false)
+  const [pendingExternalLink, setPendingExternalLink] = useState(null)
   const [typingUserIds, setTypingUserIds] = useState([])
 
   useEffect(() => {
@@ -4374,6 +4401,22 @@ export default function AdminMessages({
       />
 
       <ConfirmActionModal
+        open={Boolean(pendingExternalLink)}
+        title="Open external link?"
+        description={pendingExternalLink
+          ? `You are leaving SMaRT-PDM and opening ${pendingExternalLink.hostname}.${pendingExternalLink.isInsecure ? ' This connection is not encrypted (HTTP).' : ' Continue only if you trust this destination.'}`
+          : ''}
+        confirmLabel="Open link"
+        variant="primary"
+        onCancel={() => setPendingExternalLink(null)}
+        onConfirm={() => {
+          if (!pendingExternalLink?.href) return
+          window.open(pendingExternalLink.href, '_blank', 'noopener,noreferrer')
+          setPendingExternalLink(null)
+        }}
+      />
+
+      <ConfirmActionModal
         open={Boolean(pendingRemoveMember)}
         title="Remove member?"
         description={pendingRemoveMember ? `${pendingRemoveMember.name} will lose access to this group and its future messages.` : ''}
@@ -4756,7 +4799,16 @@ export default function AdminMessages({
                                     : 'pointer-events-none select-none opacity-40'
                                   : undefined}
                               >
-                                {showDateDivider ? <MessageDateDivider value={message.sentAt} /> : null}
+                                {showDateDivider ? (
+                                  <MessageDateDivider
+                                    value={message.sentAt}
+                                    timeOnly={Boolean(
+                                      previousMessage &&
+                                      messageDayKey(previousMessage.sentAt) === messageDayKey(message.sentAt) &&
+                                      messageDayKey(message.sentAt) === messageDayKey(new Date())
+                                    )}
+                                  />
+                                ) : null}
                                 {firstUnreadMessageId === message.messageId ? <NewMessagesDivider /> : null}
                                 <MessageBubble
                                   message={message}
@@ -4779,6 +4831,7 @@ export default function AdminMessages({
                                   onLoadEditHistory={handleLoadEditHistory}
                                   onDelete={setPendingDeleteMessage}
                                   onRetry={handleRetryFailedMessage}
+                                  onOpenExternalLink={setPendingExternalLink}
                                 />
                               </div>
                             )

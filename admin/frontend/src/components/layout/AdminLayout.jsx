@@ -27,7 +27,6 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
-import useHeaderGreeting from '../../hooks/useHeaderGreeting';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -66,7 +65,6 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
-  const headerGreeting = useHeaderGreeting(adminData, 'Administrator');
   const [profilePhotoPreviewOpen, setProfilePhotoPreviewOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('admin');
@@ -321,11 +319,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold leading-tight text-stone-800">
-              {headerGreeting}
-            </h1>
-          </div>
+          <div aria-hidden="true" />
 
           <div className="flex items-center gap-3">
             <div className="relative" ref={notifRef}>

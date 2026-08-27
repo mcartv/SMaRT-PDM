@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { resolveAvatarUrl } = require('./avatarService');
+const { resolveStaffRole } = require('../utils/staffRoles');
 
 let adminProfilePhotoColumnPromise = null;
 
@@ -39,10 +40,13 @@ async function getUserSummary(userId) {
       u.role,
       u.email,
       u.username,
+      st.student_id,
       ap.department,
       ap.position,
+      roa.ro_area,
       COALESCE(
         st.pdm_id,
+        roa.ro_area,
         ap.department,
         INITCAP(REPLACE(COALESCE(u.role, 'user'), '_', ' '))
       ) AS student_number,
@@ -64,6 +68,15 @@ async function getUserSummary(userId) {
       ON st.user_id = u.user_id
     LEFT JOIN admin_profiles ap
       ON ap.user_id = u.user_id
+    LEFT JOIN LATERAL (
+      SELECT STRING_AGG(DISTINCT rd.department_name, ', ' ORDER BY rd.department_name) AS ro_area
+      FROM ro_area_coordinators rac
+      JOIN ro_departments rd
+        ON rd.department_id = rac.ro_area_id
+      WHERE rac.user_id = u.user_id
+        AND rac.is_active = true
+        AND rd.is_active = true
+    ) roa ON true
     WHERE u.user_id = $1
     LIMIT 1;
     `,
@@ -76,8 +89,25 @@ async function getUserSummary(userId) {
     return null;
   }
 
+  const resolvedRole = row.student_id
+    ? row.role
+    : resolveStaffRole({
+        user_role: row.role,
+        position: row.position,
+        department: row.department,
+      });
+
   return {
     ...row,
+    role: resolvedRole,
+    student_number: row.student_id
+      ? row.student_number
+      : row.ro_area || (
+          resolvedRole === 'ro_coordinator'
+            ? row.position || 'RO Coordinator'
+            : row.department || row.position || resolvedRole
+        ),
+    department: resolvedRole === 'ro_coordinator' ? null : row.department,
     is_disabled: row.is_disabled === true,
     profile_photo_url: row.profile_photo_url || null,
     avatar_url: await resolveAvatarUrl(row.profile_photo_url),
@@ -1173,6 +1203,7 @@ exports.fetchRoomMembers = async (currentUserId, roomId) => {
       role: summary?.role || null,
       email: summary?.email || null,
       department: summary?.department || null,
+      ro_area: summary?.ro_area || null,
       position: summary?.position || null,
       profile_photo_url: summary?.profile_photo_url || null,
       avatar_url: summary?.avatar_url || null,
@@ -1180,7 +1211,12 @@ exports.fetchRoomMembers = async (currentUserId, roomId) => {
       is_current_user: row.user_id === currentUserId,
       joined_at: null,
     };
-  });
+  }).sort((left, right) =>
+    String(left.name || '').localeCompare(String(right.name || ''), 'en', {
+      sensitivity: 'base',
+      numeric: true,
+    })
+  );
 
   return {
     room_id: roomId,

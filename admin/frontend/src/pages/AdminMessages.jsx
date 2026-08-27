@@ -164,6 +164,7 @@ function normalizeRoomMember(raw = {}) {
     role: raw.role?.toString() || '',
     email: raw.email?.toString() || '',
     department: raw.department?.toString() || '',
+    roArea: raw.roArea?.toString() || raw.ro_area?.toString() || '',
     position: raw.position?.toString() || '',
     avatarUrl:
       raw.avatarUrl?.toString() ||
@@ -1317,6 +1318,7 @@ function MemberProfileModal({ member, onClose, onMessage }) {
           {member.studentNumber ? <div><span className="text-stone-500">ID</span><p className="font-medium text-stone-900">{member.studentNumber}</p></div> : null}
           {member.position ? <div><span className="text-stone-500">Position</span><p className="font-medium text-stone-900">{member.position}</p></div> : null}
           {member.department ? <div><span className="text-stone-500">Office</span><p className="font-medium text-stone-900">{member.department}</p></div> : null}
+          {member.roArea ? <div><span className="text-stone-500">RO Area</span><p className="font-medium text-stone-900">{member.roArea}</p></div> : null}
           {member.role ? <div><span className="text-stone-500">Role</span><p className="font-medium text-stone-900">{member.role}</p></div> : null}
           {member.email ? <div><span className="text-stone-500">Email</span><p className="break-all font-medium text-stone-900">{member.email}</p></div> : null}
         </div>
@@ -2488,7 +2490,9 @@ export default function AdminMessages({
           Array.isArray(payload.roomMembers) ||
           payload.member_count != null ||
           payload.memberCount != null
-        const roomMembers = (payload.members || payload.roomMembers || []).map(normalizeRoomMember)
+        const roomMembers = (payload.members || payload.roomMembers || [])
+          .map(normalizeRoomMember)
+          .sort((left, right) => left.name.localeCompare(right.name, 'en', { sensitivity: 'base', numeric: true }))
         const resolvedMemberCount = Number(
           payload.member_count ?? payload.memberCount ?? roomMembers.length
         )
@@ -2547,7 +2551,9 @@ export default function AdminMessages({
         )
         const payload = await parseApiResponse(response, 'Failed to load group members.')
         const hasMemberPayload = Array.isArray(payload.members) || Array.isArray(payload.roomMembers)
-        const items = (payload.members || payload.roomMembers || []).map(normalizeRoomMember)
+        const items = (payload.members || payload.roomMembers || [])
+          .map(normalizeRoomMember)
+          .sort((left, right) => left.name.localeCompare(right.name, 'en', { sensitivity: 'base', numeric: true }))
         if (hasMemberPayload) {
           setGroupMembers(items)
           setRooms((current) => current.map((room) =>
@@ -3909,13 +3915,56 @@ export default function AdminMessages({
     async (data) => {
       if (data?.module && data.module !== 'accounts') return
 
+      const activeRoom = activeRoomRef.current || activeRoomId
       await Promise.all([
         fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoom),
+        activeRoom ? fetchRoomMembers(activeRoom) : Promise.resolve(),
         isOpen ? fetchScholarMembers() : Promise.resolve(),
       ])
     },
-    [activeConversationId, fetchConversations, fetchScholarMembers, isOpen]
+    [
+      activeConversationId,
+      activeRoomId,
+      fetchConversations,
+      fetchRooms,
+      fetchRoomMembers,
+      fetchScholarMembers,
+      isOpen,
+    ]
   )
+
+  useSocketEvent(
+    'ro:updated',
+    async (data = {}) => {
+      if (!['ro_area_coordinator', 'ro_department'].includes(data?.source)) return
+
+      const activeRoom = activeRoomRef.current || activeRoomId
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoom),
+        activeRoom ? fetchRoomMembers(activeRoom) : Promise.resolve(),
+        isOpen ? fetchScholarMembers() : Promise.resolve(),
+      ])
+    },
+    [
+      activeConversationId,
+      activeRoomId,
+      fetchConversations,
+      fetchRooms,
+      fetchRoomMembers,
+      fetchScholarMembers,
+      isOpen,
+    ]
+  )
+
+  useEffect(() => {
+    if (!selectedMemberProfile?.userId) return
+    const refreshedMember = groupMembers.find(
+      (member) => member.userId === selectedMemberProfile.userId
+    )
+    if (refreshedMember) setSelectedMemberProfile(refreshedMember)
+  }, [groupMembers, selectedMemberProfile?.userId])
 
   useSocketEvent(
     'message:new',

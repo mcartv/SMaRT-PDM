@@ -2457,7 +2457,9 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const { data: targetDocument, error: targetDocumentError } = await supabase
         .from('application_documents')
-        .select('document_id, application_id, document_type, file_path, preview_path')
+        .select(
+            'document_id, application_id, document_type, file_path, preview_path, current_version_id, is_submitted, review_status'
+        )
         .eq('document_id', documentId)
         .maybeSingle();
 
@@ -2469,7 +2471,9 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const { data: application, error: appError } = await supabase
         .from('applications')
-        .select('application_id, student_id, opening_id, program_id, document_status')
+        .select(
+            'application_id, student_id, opening_id, program_id, application_status, document_status, verification_status, selection_status, activation_status, activated_at, is_archived'
+        )
         .eq('application_id', targetDocument.application_id)
         .eq('student_id', student.student_id)
         .maybeSingle();
@@ -2478,6 +2482,38 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     if (!application) {
         throw createHttpError(403, 'You are not allowed to upload to this document.');
+    }
+
+    // SMART_PDM_REQUIRED_DOCUMENT_REPLACE_BACKEND_V1
+    const isReplacement =
+        targetDocument.is_submitted === true &&
+        Boolean(safeText(targetDocument.current_version_id)) &&
+        Boolean(safeText(targetDocument.file_path));
+
+    const normalizedApplicationStatus = normalizeWorkflowKey(
+        application.application_status
+    );
+    const normalizedSelectionStatus = normalizeWorkflowKey(
+        application.selection_status
+    );
+    const normalizedActivationStatus = normalizeWorkflowKey(
+        application.activation_status
+    );
+
+    if (
+        application.is_archived === true ||
+        normalizedApplicationStatus === 'approved' ||
+        normalizedApplicationStatus === 'rejected' ||
+        ['selected', 'promoted', 'waitlisted', 'not selected'].includes(
+            normalizedSelectionStatus
+        ) ||
+        normalizedActivationStatus === 'activated' ||
+        Boolean(application.activated_at)
+    ) {
+        throw createHttpError(
+            409,
+            'Required documents can no longer be replaced after final selection or scholar activation.'
+        );
     }
 
     const normalizedType = normalizeRequiredDocumentType(targetDocument.document_type);
@@ -2584,20 +2620,67 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
         }
     }
 
-    if (targetDocument.file_path && targetDocument.file_path !== filePath) {
-        const { error: oldFileDeleteError } = await supabase.storage
-            .from(APPLICATION_DOCUMENT_BUCKET)
-            .remove([targetDocument.file_path]);
+    /*
+     * Replacement history:
+     * finalize_application_document_upload creates a NEW version row and moves
+     * application_documents.current_version_id to that version. Do not delete
+     * targetDocument.file_path here because previous version rows still point
+     * to that storage object for audit/history.
+     *
+     * The preview is not versioned, so the old generated preview can be cleaned
+     * after the new upload has finalized successfully.
+     */
+    if (
+        isReplacement &&
+        targetDocument.preview_path &&
+        targetDocument.file_path !== filePath
+    ) {
+        await removeDocumentPreview({
+            bucket: APPLICATION_DOCUMENT_BUCKET,
+            previewPath: targetDocument.preview_path,
+        });
+    }
 
-        if (oldFileDeleteError) {
-            console.warn('OLD DOCUMENT FILE CLEANUP ERROR:', oldFileDeleteError);
+    if (isReplacement) {
+        const replacementReviewKey =
+            reviewKeyForRequiredDocumentType(normalizedType);
+        const replacementSubmittedAt = new Date().toISOString();
+
+        const { error: replacementReviewError } = await supabase
+            .from('application_document_reviews')
+            .upsert(
+                {
+                    application_id: application.application_id,
+                    document_key: replacementReviewKey,
+                    document_name: normalizedType,
+                    review_status: 'pending',
+                    admin_comment: '',
+                    issue_severity: null,
+                    reason_code: null,
+                    reviewed_by: null,
+                    reviewed_at: null,
+                    updated_at: replacementSubmittedAt,
+                },
+                {
+                    onConflict: 'application_id,document_key',
+                }
+            );
+
+        if (replacementReviewError) {
+            throw replacementReviewError;
         }
 
-        if (targetDocument.preview_path) {
-            await removeDocumentPreview({
-                bucket: APPLICATION_DOCUMENT_BUCKET,
-                previewPath: targetDocument.preview_path,
-            });
+        const { error: replacementApplicationResetError } = await supabase
+            .from('applications')
+            .update({
+                verification_status: 'pending',
+                requirements_verified_at: null,
+                updated_at: replacementSubmittedAt,
+            })
+            .eq('application_id', application.application_id);
+
+        if (replacementApplicationResetError) {
+            throw replacementApplicationResetError;
         }
     }
 
@@ -2651,6 +2734,21 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
         );
     }
 
+    if (isReplacement) {
+        await createStaffNotificationsSafely(
+            {
+                roles: ['admin'],
+                type: 'Application Documents',
+                title: 'Replacement document ready for review',
+                message:
+                    `${studentName} replaced ${normalizedType}. Review the latest document version.`,
+                referenceId: application.application_id,
+                referenceType: 'application_document',
+            },
+            'DOCUMENT REPLACEMENT'
+        );
+    }
+
     if (normalizedType === 'Grade Report') {
         const { data: activeSlip, error: activeSlipError } = await supabase
             .from('endorsement_slips')
@@ -2678,6 +2776,32 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     }
 
     return getMyDocuments(userId);
+}
+
+function reviewKeyForRequiredDocumentType(value) {
+    const normalized = normalizeRequiredDocumentType(value);
+
+    if (normalized === 'Birth Certificate / PSA') {
+        return 'birth_certificate';
+    }
+
+    if (normalized === 'Certificate of Registration') {
+        return 'certificate_of_registration';
+    }
+
+    if (normalized === 'Certificate of Indigency') {
+        return 'certificate_of_indigency';
+    }
+
+    if (normalized === 'Grade Report') {
+        return 'student_grade_forms';
+    }
+
+    if (normalized === 'Letter of Request') {
+        return 'letter_of_request';
+    }
+
+    return normalizeDocumentReviewKey(normalized);
 }
 
 function normalizeRequiredDocumentType(value) {

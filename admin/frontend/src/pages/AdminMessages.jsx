@@ -38,6 +38,7 @@ import API_BASE_URL from '@/api'
 const MESSAGING_API_BASE = API_BASE_URL
 // SMART-PDM_ADMIN_MESSAGES_RESPONSIVE_V1
 // SMART-PDM_ADMIN_MESSAGES_EMBEDDED_GROUP_INFO_V2
+// SMART_PDM_ADMIN_MESSAGES_COMPACT_LAYOUT_V1
 
 function createClientMessageId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -482,11 +483,22 @@ function ThreadIcon({ item }) {
   )
 }
 
-function ThreadRow({ item, isActive, currentUserId, onClick, onToggleRead, onArchive, inboxStyle = false }) {
+function ThreadRow({
+  item,
+  isActive,
+  currentUserId,
+  onClick,
+  onToggleRead,
+  onArchive,
+  inboxStyle = false,
+  density = 'full',
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState(null)
   const menuButtonRef = useRef(null)
   const hasUnread = Number(item.unreadCount || 0) > 0
+  const iconOnly = density === 'icons'
+  const compact = density === 'compact'
 
   const closeMenu = () => {
     setMenuOpen(false)
@@ -538,78 +550,107 @@ function ThreadRow({ item, isActive, currentUserId, onClick, onToggleRead, onArc
     }
   }, [menuOpen])
 
+  const rowClass = inboxStyle
+    ? `group relative border-b border-stone-100 transition ${isActive
+      ? 'bg-[var(--portal-accent-soft)] before:absolute before:bottom-2 before:left-0 before:top-2 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]'
+      : hasUnread
+        ? 'bg-[var(--portal-accent-soft)] hover:brightness-[0.99]'
+        : 'bg-white hover:bg-stone-50'
+      }`
+    : `group relative ${iconOnly ? 'mx-1.5 my-1 rounded-xl' : 'mx-2 my-1 rounded-2xl'} overflow-hidden transition ${isActive
+      ? 'bg-[var(--portal-accent-soft)]'
+      : hasUnread
+        ? 'bg-[var(--portal-accent-soft)]'
+        : 'bg-white hover:bg-stone-50'
+      } ${isActive ? 'before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]' : ''}`
+
   return (
-    <div
-      className={inboxStyle
-        ? `group relative border-b border-stone-100 transition ${isActive
-          ? 'bg-[var(--portal-accent-soft)] before:absolute before:bottom-2 before:left-0 before:top-2 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]'
-          : hasUnread
-            ? 'bg-[var(--portal-accent-soft)] hover:brightness-[0.99]'
-            : 'bg-white hover:bg-stone-50'
-          }`
-        : `group relative mx-2 my-1 overflow-hidden rounded-2xl transition ${isActive
-          ? 'bg-[var(--portal-accent-soft)]'
-          : hasUnread
-            ? 'bg-[var(--portal-accent-soft)]'
-            : 'bg-white hover:bg-stone-50'
-          } ${isActive ? 'before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-r-full before:bg-[var(--portal-base)]' : ''}`}
-    >
+    <div className={rowClass}>
       <button
         type="button"
         onClick={onClick}
-        className={inboxStyle
-          ? 'flex w-full items-center gap-3 px-3.5 py-3.5 text-left'
-          : 'flex w-full items-center gap-3 px-3 py-3 text-left'}
+        title={iconOnly ? item.name : undefined}
+        aria-label={iconOnly ? `Open ${item.name}` : undefined}
+        className={iconOnly
+          ? 'relative flex w-full items-center justify-center px-2 py-2.5 text-left'
+          : inboxStyle
+            ? 'flex w-full items-center gap-3 px-3.5 py-3.5 text-left'
+            : 'flex w-full items-center gap-3 px-3 py-3 text-left'}
       >
-        <ThreadIcon item={item} />
+        <div className="relative shrink-0">
+          <ThreadIcon item={item} />
+          {iconOnly && hasUnread ? (
+            <span
+              className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-red-500"
+              aria-label={`${item.unreadCount} unread`}
+            />
+          ) : null}
+          {iconOnly && item.type === 'private' && item.isDisabled ? (
+            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-stone-400" />
+          ) : null}
+        </div>
 
-        <div className="min-w-0 flex-1 pr-8">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <p
-                  className={`truncate text-sm ${hasUnread ? 'font-bold text-stone-950' : 'font-medium text-stone-900'
-                    }`}
-                >
-                  {item.name}
-                </p>
-                {item.type === 'private' && item.isDisabled ? (
-                  <span className="shrink-0 rounded-full bg-stone-200 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-stone-600">
-                    Account Disabled
-                  </span>
+        {!iconOnly ? (
+          <div className={`min-w-0 flex-1 ${compact ? 'pr-7' : 'pr-8'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p
+                    className={`truncate text-sm ${hasUnread ? 'font-bold text-stone-950' : 'font-medium text-stone-900'}`}
+                  >
+                    {item.name}
+                  </p>
+                  {!compact && item.type === 'private' && item.isDisabled ? (
+                    <span className="shrink-0 rounded-full bg-stone-200 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-stone-600">
+                      Account Disabled
+                    </span>
+                  ) : null}
+                </div>
+
+                {!compact ? (
+                  <p className="truncate text-xs text-stone-500">
+                    {item.type === 'group' ? 'Group chat' : item.studentNumber || 'No student number'}
+                  </p>
                 ) : null}
               </div>
 
-              <p className="truncate text-xs text-stone-500">
-                {item.type === 'group' ? 'Group chat' : item.studentNumber || 'No student number'}
+              {!compact ? (
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className={inboxStyle
+                    ? 'text-[11px] font-medium text-stone-400'
+                    : 'text-xs font-medium text-stone-400'}>
+                    {formatConversationTime(item.lastSentAt)}
+                  </span>
+
+                  {hasUnread ? (
+                    <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+                      {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                    </span>
+                  ) : null}
+                </div>
+              ) : hasUnread ? (
+                <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-label={`${item.unreadCount} unread`} />
+              ) : null}
+            </div>
+
+            {!compact ? (
+              <p
+                className={`mt-1 truncate text-xs ${hasUnread ? 'font-semibold text-stone-700' : 'text-stone-500'}`}
+              >
+                {formatThreadPreview(item, currentUserId)}
               </p>
-            </div>
-
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className={inboxStyle
-                ? 'text-[11px] font-medium text-stone-400'
-                : 'text-xs font-medium text-stone-400'}>
-                {formatConversationTime(item.lastSentAt)}
-              </span>
-
-              {hasUnread && (
-                <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
-                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
-                </span>
-              )}
-            </div>
+            ) : (
+              <p className="mt-1 truncate text-[11px] text-stone-500">
+                {item.type === 'group'
+                  ? formatThreadPreview(item, currentUserId)
+                  : item.studentNumber || formatThreadPreview(item, currentUserId)}
+              </p>
+            )}
           </div>
-
-          <p
-            className={`mt-1 truncate text-xs ${hasUnread ? 'font-semibold text-stone-700' : 'text-stone-500'
-              }`}
-          >
-            {formatThreadPreview(item, currentUserId)}
-          </p>
-        </div>
+        ) : null}
       </button>
 
-      {!item.isSearchResult && (
+      {!item.isSearchResult && !iconOnly ? (
         <div className="absolute right-2 top-3">
           <button
             ref={menuButtonRef}
@@ -624,7 +665,7 @@ function ThreadRow({ item, isActive, currentUserId, onClick, onToggleRead, onArc
             <MoreVertical className="h-4 w-4" />
           </button>
 
-          {menuOpen && (
+          {menuOpen ? (
             <>
               <button
                 type="button"
@@ -677,9 +718,9 @@ function ThreadRow({ item, isActive, currentUserId, onClick, onToggleRead, onArc
                 </button>
               </div>
             </>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -1387,25 +1428,18 @@ function GroupInfoModal({
   loading,
   currentUserId,
   onClose,
-  searchTerm,
-  matchCount,
-  onSearchChange,
+  onSearchChat,
   onViewProfile,
   onMessage,
   onRemove,
   onPromote,
   onAddMember,
   onLeave,
-  overlay = false,
-  embedded = false,
-  responsive = false,
 }) {
   const [menuMemberId, setMenuMemberId] = useState('')
 
   useEffect(() => {
-    if (!open) {
-      setMenuMemberId('')
-    }
+    if (!open) setMenuMemberId('')
   }, [open])
 
   useEffect(() => {
@@ -1419,43 +1453,59 @@ function GroupInfoModal({
 
   if (!open || !room) return null
 
-  const memberQuery = String(searchTerm || '').trim().toLowerCase()
-  const filteredMembers = memberQuery
-    ? members.filter((member) =>
-        [member.name, member.studentNumber, member.subtitle, member.role, member.department, member.position]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-          .includes(memberQuery)
-      )
-    : members
-  const currentMember = members.find((member) => member.userId === currentUserId || member.isCurrentUser)
-  const viewerIsAdmin = currentMember?.isAdmin === true || room.viewerIsAdmin === true
+  const currentMember = members.find(
+    (member) => member.userId === currentUserId || member.isCurrentUser
+  )
+  const viewerIsAdmin =
+    currentMember?.isAdmin === true || room.viewerIsAdmin === true
   const adminCount = members.filter((member) => member.isAdmin).length
   const displayedMemberCount = Number(room.memberCount || members.length || 0)
-  const mustAssignAdminBeforeLeaving = viewerIsAdmin && displayedMemberCount > 1 && adminCount <= 1
-  const filteredAdmins = filteredMembers.filter((member) => member.isAdmin)
-  const filteredRegularMembers = filteredMembers.filter((member) => !member.isAdmin)
+  const mustAssignAdminBeforeLeaving =
+    viewerIsAdmin && displayedMemberCount > 1 && adminCount <= 1
+  const adminMembers = members.filter((member) => member.isAdmin)
+  const regularMembers = members.filter((member) => !member.isAdmin)
 
   const renderMemberRow = (member) => {
-    const canPromote = viewerIsAdmin && !member.isCurrentUser && member.userId !== currentUserId && !member.isAdmin
-    const canRemove = viewerIsAdmin && !member.isCurrentUser && member.userId !== currentUserId && !member.isAdmin
+    const canPromote =
+      viewerIsAdmin &&
+      !member.isCurrentUser &&
+      member.userId !== currentUserId &&
+      !member.isAdmin
+    const canRemove =
+      viewerIsAdmin &&
+      !member.isCurrentUser &&
+      member.userId !== currentUserId &&
+      !member.isAdmin
 
     return (
-      <div key={member.userId} className="relative flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-stone-50">
+      <div
+        key={member.userId}
+        className="relative flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-stone-50"
+      >
         <MemberAvatar member={member} sizeClass="h-9 w-9" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-medium text-stone-900">{member.name}</p>
+            <p className="truncate text-sm font-medium text-stone-900">
+              {member.name}
+            </p>
             {member.isCurrentUser || member.userId === currentUserId ? (
-              <span className="shrink-0 text-xs font-medium text-stone-400">You</span>
+              <span className="shrink-0 text-xs font-medium text-stone-400">
+                You
+              </span>
             ) : null}
           </div>
-          <p className="mt-0.5 truncate text-xs text-stone-500">{member.subtitle || member.role || 'Group member'}</p>
+          <p className="mt-0.5 truncate text-xs text-stone-500">
+            {member.subtitle || member.role || 'Group member'}
+          </p>
         </div>
+
         <button
           type="button"
-          onClick={() => setMenuMemberId((current) => current === member.userId ? '' : member.userId)}
+          onClick={() =>
+            setMenuMemberId((current) =>
+              current === member.userId ? '' : member.userId
+            )
+          }
           className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100"
           title={`Actions for ${member.name}`}
           aria-label={`Actions for ${member.name}`}
@@ -1464,12 +1514,61 @@ function GroupInfoModal({
         >
           <MoreVertical className="h-4 w-4" />
         </button>
+
         {menuMemberId === member.userId ? (
-          <div className="absolute right-2 top-10 z-20 w-44 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl" role="menu">
-            <button type="button" onClick={() => { setMenuMemberId(''); onViewProfile(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><Eye className="h-3.5 w-3.5" /> View profile</button>
-            {!member.isCurrentUser && member.userId !== currentUserId ? <button type="button" onClick={() => { setMenuMemberId(''); onMessage(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"><MessageSquareMore className="h-3.5 w-3.5" /> Message</button> : null}
-            {canPromote ? <button type="button" onClick={() => { setMenuMemberId(''); onPromote(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[var(--portal-base)] hover:bg-[var(--portal-accent-soft)]"><ShieldCheck className="h-3.5 w-3.5" /> Make group admin</button> : null}
-            {canRemove ? <button type="button" onClick={() => { setMenuMemberId(''); onRemove(member) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"><UserMinus className="h-3.5 w-3.5" /> Remove member</button> : null}
+          <div
+            className="absolute right-2 top-10 z-20 w-44 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl"
+            role="menu"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMenuMemberId('')
+                onViewProfile(member)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
+            >
+              <Eye className="h-3.5 w-3.5" /> View profile
+            </button>
+
+            {!member.isCurrentUser && member.userId !== currentUserId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuMemberId('')
+                  onMessage(member)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
+              >
+                <MessageSquareMore className="h-3.5 w-3.5" /> Message
+              </button>
+            ) : null}
+
+            {canPromote ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuMemberId('')
+                  onPromote(member)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[var(--portal-base)] hover:bg-[var(--portal-accent-soft)]"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" /> Make group admin
+              </button>
+            ) : null}
+
+            {canRemove ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuMemberId('')
+                  onRemove(member)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+              >
+                <UserMinus className="h-3.5 w-3.5" /> Remove member
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -1477,115 +1576,133 @@ function GroupInfoModal({
   }
 
   return (
-    <aside
+    <section
       aria-label="Group information"
-      className={embedded
-        ? 'flex h-full min-h-0 w-full flex-col bg-white'
-        : overlay
-          ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl'
-          : responsive
-            ? 'fixed inset-y-0 right-0 z-[90] flex min-h-0 w-[min(380px,100vw)] flex-col border-l border-stone-200 bg-white shadow-2xl xl:static xl:z-auto xl:w-auto xl:shadow-none'
-            : 'flex min-h-0 flex-col border-l border-stone-200 bg-white'}
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white"
     >
-      <div className="border-b border-stone-100 px-4 py-4">
+      <div className="shrink-0 border-b border-stone-100 px-4 py-4 sm:px-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
               <Users className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-stone-900">{room.name}</p>
+              <p className="truncate text-sm font-semibold text-stone-900">
+                {room.name}
+              </p>
               <p className="mt-0.5 text-xs text-stone-500">Group chat</p>
             </div>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-stone-100"
-            title={embedded ? 'Back to conversation' : 'Close group info'}
-            aria-label={embedded ? 'Back to conversation' : 'Close group info'}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-500 transition hover:bg-stone-50"
+            title="Back to conversation"
+            aria-label="Back to conversation"
           >
-            {embedded ? <ArrowLeft className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            <ArrowLeft className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="relative mt-3">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-          <input
-            value={searchTerm}
-            onChange={(event) => onSearchChange?.(event.target.value)}
-            placeholder="Search members"
-            aria-label="Search group members"
-            className="h-9 w-full rounded-lg border border-stone-200 pl-9 pr-3 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
-          />
-        </div>
-        {searchTerm?.trim() ? (
-          <p className="mt-1.5 text-xs text-stone-500">{filteredMembers.length} match{filteredMembers.length === 1 ? '' : 'es'}</p>
-        ) : null}
+        <button
+          type="button"
+          onClick={onSearchChat}
+          className="mt-3 flex h-10 w-full items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-left text-sm text-stone-500 transition hover:border-stone-300 hover:bg-white"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span>Search chat</span>
+        </button>
       </div>
 
-      <div className="px-4 pt-4">
-        <div className="mb-2 flex items-center justify-end gap-3">
-          {viewerIsAdmin ? (
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="mx-auto w-full max-w-3xl">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">Members</h3>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  Manage group participants and permissions.
+                </p>
+              </div>
+
+              {viewerIsAdmin ? (
+                <button
+                  type="button"
+                  onClick={onAddMember}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[var(--portal-accent-soft)] px-3 text-xs font-semibold text-[var(--portal-base)] transition hover:brightness-95"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Add member</span>
+                  <span className="sm:hidden">Add</span>
+                </button>
+              ) : null}
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center gap-2 rounded-2xl border border-stone-100 bg-stone-50 px-4 py-10 text-sm text-stone-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading members
+              </div>
+            ) : members.length ? (
+              <div className="space-y-5">
+                {adminMembers.length ? (
+                  <section>
+                    <p className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      Group Admins
+                    </p>
+                    <div className="space-y-1">
+                      {adminMembers.map(renderMemberRow)}
+                    </div>
+                  </section>
+                ) : null}
+
+                {regularMembers.length ? (
+                  <section>
+                    <p className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      Members
+                    </p>
+                    <div className="space-y-1">
+                      {regularMembers.map(renderMemberRow)}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
+                {Number(room.memberCount || 0) > 0
+                  ? 'Member details could not be loaded.'
+                  : 'No members in this group.'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-stone-100 bg-stone-50/70 px-4 py-4 lg:w-[280px] lg:border-l lg:border-t-0 sm:px-5">
+          <div className="mx-auto max-w-3xl lg:mx-0">
             <button
               type="button"
-              onClick={onAddMember}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--portal-accent-soft)] px-2.5 text-xs font-semibold text-[var(--portal-base)] transition hover:brightness-95"
+              onClick={onLeave}
+              disabled={mustAssignAdminBeforeLeaving}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
+              title={
+                mustAssignAdminBeforeLeaving
+                  ? 'Assign another group admin before leaving.'
+                  : 'Leave group'
+              }
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Add member
+              <LogOut className="h-4 w-4" /> Leave group
             </button>
-          ) : null}
+
+            <p className="mt-2 text-center text-xs leading-5 text-stone-400">
+              {mustAssignAdminBeforeLeaving
+                ? 'Assign another group admin before leaving so the group is not left without an administrator.'
+                : 'Leaving removes you from the group and moves it to your personal Archived Messages.'}
+            </p>
+          </div>
         </div>
       </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {loading ? (
-          <div className="flex justify-center gap-2 py-10 text-sm text-stone-500"><LoaderCircle className="h-4 w-4 animate-spin" /> Loading members</div>
-        ) : filteredMembers.length ? (
-          <div className="space-y-5">
-            {filteredAdmins.length ? (
-              <section>
-                <div className="mb-1.5 px-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Group Admins</p>
-                </div>
-                <div className="space-y-1">{filteredAdmins.map(renderMemberRow)}</div>
-              </section>
-            ) : null}
-
-            {filteredRegularMembers.length ? (
-              <section>
-                <div className="mb-1.5 px-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Members</p>
-                </div>
-                <div className="space-y-1">{filteredRegularMembers.map(renderMemberRow)}</div>
-              </section>
-            ) : null}
-          </div>
-        ) : (
-          <div className="py-10 text-center text-sm text-stone-500">
-            {memberQuery ? 'No members match your search.' : Number(room.memberCount || 0) > 0 ? 'Member details could not be loaded.' : 'No members in this group.'}
-          </div>
-        )}
-
-        <div className="mt-6 border-t border-stone-100 pt-4">
-          <button
-            type="button"
-            onClick={onLeave}
-            disabled={mustAssignAdminBeforeLeaving}
-            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400 disabled:hover:bg-stone-50"
-            title={mustAssignAdminBeforeLeaving ? 'Assign another group admin before leaving.' : 'Leave group'}
-          >
-            <LogOut className="h-4 w-4" /> Leave group
-          </button>
-          <p className="mt-2 text-center text-xs leading-5 text-stone-400">
-            {mustAssignAdminBeforeLeaving
-              ? 'Assign another group admin before leaving so the group is not left without an administrator.'
-              : 'Leaving removes you from the group and moves it to your personal Archived Messages.'}
-          </p>
-        </div>
-      </div>
-    </aside>
+    </section>
   )
 }
 
@@ -1968,6 +2085,39 @@ export default function AdminMessages({
   const [searchTerm, setSearchTerm] = useState('')
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [compactPane, setCompactPane] = useState('list')
+  const conversationPaneModes = ['full', 'compact', 'icons']
+  const [conversationPaneMode, setConversationPaneMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('smart-pdm-admin-messages-pane-mode')
+      return conversationPaneModes.includes(saved) ? saved : 'full'
+    } catch {
+      return 'full'
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'smart-pdm-admin-messages-pane-mode',
+        conversationPaneMode
+      )
+    } catch {
+      // Local preference storage is optional.
+    }
+  }, [conversationPaneMode])
+
+  const conversationPaneGridClass = {
+    full: 'lg:grid-cols-[340px_minmax(0,1fr)]',
+    compact: 'lg:grid-cols-[240px_minmax(0,1fr)]',
+    icons: 'lg:grid-cols-[76px_minmax(0,1fr)]',
+  }[conversationPaneMode]
+
+  const cycleConversationPaneMode = () => {
+    setConversationPaneMode((current) => {
+      const index = conversationPaneModes.indexOf(current)
+      return conversationPaneModes[(index + 1) % conversationPaneModes.length]
+    })
+  }
 
   const [conversations, setConversations] = useState([])
   const [rooms, setRooms] = useState([])
@@ -4352,7 +4502,7 @@ export default function AdminMessages({
     ]
   )
 
-  const renderGroupInfo = ({ embedded = false, responsive = false } = {}) => (
+  const renderGroupInfo = ({ embedded = false } = {}) => (
     <GroupInfoModal
       open={groupInfoOpen}
       room={selectedItem?.type === 'group' ? selectedItem : null}
@@ -4360,9 +4510,11 @@ export default function AdminMessages({
       loading={loadingGroupMembers}
       currentUserId={currentUserId}
       onClose={() => setGroupInfoOpen(false)}
-      searchTerm={groupMemberSearchTerm}
-      matchCount={groupMembers.length}
-      onSearchChange={setGroupMemberSearchTerm}
+      onSearchChat={() => {
+        setGroupInfoOpen(false)
+        setChatSearchOpen(true)
+        setChatMatchIndex(0)
+      }}
       onViewProfile={setSelectedMemberProfile}
       onMessage={handleMessageMember}
       onRemove={setPendingRemoveMember}
@@ -4374,7 +4526,6 @@ export default function AdminMessages({
       }}
       onLeave={() => setLeaveGroupOpen(true)}
       embedded={embedded}
-      responsive={responsive}
     />
   )
 
@@ -4517,7 +4668,7 @@ export default function AdminMessages({
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'archived' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
                 >
                   <Archive className="h-4 w-4" />
-                  <span>Archived</span>
+                  <span className="hidden sm:inline">Archived</span>
                 </button>
 
                 <button
@@ -4532,7 +4683,7 @@ export default function AdminMessages({
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${mainView === 'create-group' ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'}`}
                 >
                   <Users className="h-4 w-4" />
-                  <span>Group</span>
+                  <span className="hidden sm:inline">Group</span>
                 </button>
 
                 <button
@@ -4602,41 +4753,61 @@ export default function AdminMessages({
               />
             ) : (
             <div
-              className={`grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]' : 'lg:grid-cols-[340px_minmax(0,1fr)]'}`}
+              className={`grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'grid-cols-1' : conversationPaneGridClass}`}
             >
               <section
-                className={`${compactPane === 'thread' ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-stone-200 bg-white lg:border-r`}
+                className={`${groupInfoOpen ? 'hidden' : compactPane === 'thread' ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-stone-200 bg-white lg:border-r`}
               >
-                <div className="space-y-3 border-b border-stone-100 px-4 py-4">
-                  <div>
-                    <p className="text-base font-semibold text-stone-900">Chats</p>
-                  </div>
+                <div className={`${conversationPaneMode === 'icons' ? 'px-2 py-3' : 'space-y-3 px-4 py-4'} border-b border-stone-100`}>
+                  <div className={`flex items-center ${conversationPaneMode === 'icons' ? 'justify-center' : 'justify-between'} gap-2`}>
+                    {conversationPaneMode !== 'icons' ? (
+                      <p className="text-base font-semibold text-stone-900">Chats</p>
+                    ) : null}
 
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search name, PDM ID, or message"
-                      className="h-10 w-full rounded-full border-0 bg-stone-100 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3">
                     <button
                       type="button"
-                      onClick={() => setShowUnreadOnly((current) => !current)}
-                      className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${showUnreadOnly
-                        ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]'
-                        : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
-                        }`}
+                      onClick={cycleConversationPaneMode}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 transition hover:bg-stone-50 hover:text-stone-800"
+                      title={`Resize chat list · ${conversationPaneMode}`}
+                      aria-label={`Resize chat list. Current size: ${conversationPaneMode}`}
                     >
-                      <Filter className="h-3.5 w-3.5" />
-                      Unread only
+                      <span className="flex h-4 w-4 items-end gap-[2px]" aria-hidden="true">
+                        <span className={`block h-4 rounded-[2px] bg-current transition-all ${conversationPaneMode === 'full' ? 'w-2' : conversationPaneMode === 'compact' ? 'w-1.5' : 'w-1'}`} />
+                        <span className="block h-4 flex-1 rounded-[2px] border border-current opacity-50" />
+                      </span>
                     </button>
-
                   </div>
+
+                  {conversationPaneMode !== 'icons' ? (
+                    <>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                        <input
+                          type="text"
+                          value={searchTerm}
+                          onChange={(event) => setSearchTerm(event.target.value)}
+                          placeholder={conversationPaneMode === 'compact' ? 'Search chats' : 'Search name, PDM ID, or message'}
+                          className="h-10 w-full rounded-full border-0 bg-stone-100 pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowUnreadOnly((current) => !current)}
+                          className={`inline-flex h-8 items-center gap-2 rounded-lg border ${conversationPaneMode === 'compact' ? 'px-2' : 'px-3'} text-xs font-medium transition ${showUnreadOnly
+                            ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]'
+                            : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
+                            }`}
+                        >
+                          <Filter className="h-3.5 w-3.5" />
+                          <span className={conversationPaneMode === 'compact' ? 'sr-only' : ''}>
+                            Unread only
+                          </span>
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto">
@@ -4661,6 +4832,7 @@ export default function AdminMessages({
                           onToggleRead={toggleThreadReadState}
                           onArchive={setPendingArchiveThread}
                           inboxStyle={false}
+                          density={conversationPaneMode}
                           onClick={() => {
                             setTransientPrivateContact(null)
                             const hasUnread = Number(item.unreadCount || 0) > 0
@@ -4717,7 +4889,7 @@ export default function AdminMessages({
               </section>
 
               <section
-                className={`${compactPane === 'thread' ? 'flex' : 'hidden lg:flex'} min-h-0 flex-col bg-white`}
+                className={`${groupInfoOpen ? 'hidden' : compactPane === 'thread' ? 'flex' : 'hidden lg:flex'} min-h-0 flex-col bg-white`}
               >
                 {selectedItem ? (
                   <>
@@ -5057,7 +5229,7 @@ export default function AdminMessages({
                 )}
               </section>
 
-              {renderGroupInfo({ responsive: true })}
+              {renderGroupInfo({ embedded: true })}
             </div>
             )}
           </div>

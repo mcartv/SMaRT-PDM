@@ -23,6 +23,8 @@ class _ApplicationFormPreviewScreenState
   Map<String, dynamic> _application = const {};
   Map<String, dynamic> _submittedFormPayload = const {};
   bool _canEdit = false;
+  bool _correctionRequested = false;
+  bool _awaitingVerification = false;
   bool _loading = true;
   bool _isExportingPdf = false;
   String? _lockReason;
@@ -56,6 +58,8 @@ class _ApplicationFormPreviewScreenState
           _application = const {};
           _submittedFormPayload = const {};
           _canEdit = false;
+          _correctionRequested = false;
+          _awaitingVerification = false;
           _lockReason = null;
           _correctionComment = null;
           _error = 'No submitted application is available yet.';
@@ -82,6 +86,8 @@ class _ApplicationFormPreviewScreenState
         _application = rawApplication;
         _submittedFormPayload = rawForm;
         _canEdit = editability['can_edit'] == true;
+        _correctionRequested = editability['correction_requested'] == true;
+        _awaitingVerification = editability['awaiting_verification'] == true;
         _lockReason = _optional(editability['reason']);
         _correctionComment = _optional(editability['correction_comment']);
         _loading = false;
@@ -113,6 +119,22 @@ class _ApplicationFormPreviewScreenState
     if (!mounted) return;
 
     if (updated == true) {
+      // SMART_PDM_APPLICATION_FORM_IMMEDIATE_DISABLE_V4
+      // Disable the button immediately after a successful edit before the
+      // refreshed server state arrives, so the user never sees it re-enabled
+      // during the transition back to Preview Form.
+      if (mounted) {
+        setState(() {
+          _canEdit = false;
+          _correctionRequested = false;
+          _awaitingVerification = true;
+          _lockReason =
+              'Your updated Application Form is waiting for verification. '
+              'Edit Form is temporarily disabled until OSFA/Admin completes '
+              'the review or requests another correction.';
+        });
+      }
+
       await _load();
     }
   }
@@ -171,6 +193,35 @@ class _ApplicationFormPreviewScreenState
   String? _optional(dynamic value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  // SMART_PDM_MOBILE_APPLICATION_FORM_EDIT_PREVIEW_V1
+  // SMART_PDM_APPLICATION_FORM_AWAITING_VERIFICATION_LOCK_V3
+  String _editabilityMessage() {
+    if (_awaitingVerification) {
+      return _lockReason ??
+          'Your updated Application Form is waiting for verification. '
+              'Edit Form is temporarily disabled until OSFA/Admin completes '
+              'the review or requests another correction.';
+    }
+
+    if (!_canEdit) {
+      return _lockReason ??
+          'Editing is no longer available for this application.';
+    }
+
+    if (_correctionRequested) {
+      if (_correctionComment == null) {
+        return 'OSFA/Admin requested a correction to your application form. '
+            'Edit the requested information and save the updated form.';
+      }
+
+      return 'OSFA/Admin requested a correction to your application form. '
+          'Admin remark: $_correctionComment';
+    }
+
+    return 'You can still edit your Application Form while this application '
+        'is eligible for changes. Saved changes will appear here in Preview Form.';
   }
 
   String _text(String value) {
@@ -521,12 +572,18 @@ class _ApplicationFormPreviewScreenState
                         text: applicationStatus,
                       ),
                       _pill(
-                        icon: _canEdit
-                            ? Icons.edit_note_outlined
-                            : Icons.lock_outline_rounded,
-                        text: _canEdit
-                            ? 'Correction requested'
-                            : 'Editing locked',
+                        icon: _awaitingVerification
+                            ? Icons.hourglass_top_rounded
+                            : _canEdit
+                                ? Icons.edit_note_outlined
+                                : Icons.lock_outline_rounded,
+                        text: _awaitingVerification
+                            ? 'Awaiting verification'
+                            : _canEdit
+                                ? (_correctionRequested
+                                      ? 'Correction requested'
+                                      : 'Editing available')
+                                : 'Editing locked',
                       ),
                     ],
                   ),
@@ -776,15 +833,7 @@ class _ApplicationFormPreviewScreenState
                     const SizedBox(width: 7),
                     Expanded(
                       child: Text(
-                        canEdit
-                            ? _correctionComment == null
-                                  ? 'OSFA/Admin requested a correction to your application form. '
-                                        'Edit the requested information and save the updated form.'
-                                  : 'OSFA/Admin requested a correction to your application form. '
-                                        'Admin remark: $_correctionComment'
-                            : 'Your application form is locked while it is being checked. '
-                                  'Edit Form will become available only if OSFA/Admin requests '
-                                  'a correction.',
+                        _editabilityMessage(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           height: 1.35,
                           fontWeight: FontWeight.w600,
@@ -892,7 +941,7 @@ class _ApplicationFormPreviewScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Application Form'),
+        title: const Text('Preview Form'),
         backgroundColor: AppColors.gold,
         foregroundColor: AppColors.darkBrown,
       ),

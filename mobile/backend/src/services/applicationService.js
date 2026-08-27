@@ -3293,6 +3293,14 @@ async function getMySubmittedFormData(userId) {
     const applicationFormCorrectionRequested =
         applicationFormReviewStatus === 'reupload_required';
 
+    // SMART_PDM_APPLICATION_FORM_AWAITING_VERIFICATION_LOCK_V3
+    // Distinguish the initial editable submitted form from a correction that
+    // the applicant has already resubmitted and must now wait to be verified.
+    const applicationFormAwaitingVerification =
+        applicationFormReviewStatus === 'pending' &&
+        safeText(applicationFormReview?.reason_code).toUpperCase() ===
+            'APPLICATION_FORM_RESUBMITTED';
+
     const documentReviewStarted = reviewRows.some(
         (document) => {
             if (document.reviewed_at) return true;
@@ -3351,11 +3359,20 @@ async function getMySubmittedFormData(userId) {
         applicationStatus === 'rejected' ||
         applicationStatus === 'approved';
 
-    const canEdit =
-        applicationFormCorrectionRequested &&
+    // SMART_PDM_MOBILE_APPLICATION_FORM_EDIT_PREVIEW_V1
+    // The initial submitted form remains editable while lifecycle rules allow.
+    // After the applicant submits a requested correction, lock Edit Form until
+    // OSFA/Admin finishes verification or requests another correction.
+    const lifecycleCanEdit =
+        application.is_archived !== true &&
         !terminalApplicationStatus &&
         !selectionStarted &&
         !activated;
+
+    const canEdit =
+        lifecycleCanEdit &&
+        !applicationFormAwaitingVerification &&
+        applicationFormReviewStatus !== 'verified';
 
     let reason = null;
 
@@ -3365,11 +3382,12 @@ async function getMySubmittedFormData(userId) {
     } else if (activated || selectionStarted) {
         reason =
             'Editing is unavailable after FCFS selection or scholar activation begins.';
-    } else if (!applicationFormCorrectionRequested) {
+    } else if (applicationFormAwaitingVerification) {
         reason =
-            applicationFormReviewStatus === 'verified'
-                ? 'The application form has been reviewed and no correction was requested.'
-                : 'Editing is locked until OSFA/Admin requests a correction to the application form.';
+            'Your updated Application Form is waiting for verification. Edit Form is temporarily disabled until OSFA/Admin completes the review or requests another correction.';
+    } else if (applicationFormReviewStatus === 'verified') {
+        reason =
+            'Your Application Form has been verified. Edit Form is disabled unless OSFA/Admin requests another correction.';
     }
 
     const normalizedFormData = await getMyFormData(
@@ -3433,6 +3451,8 @@ async function getMySubmittedFormData(userId) {
             can_edit: canEdit,
             correction_requested:
                 applicationFormCorrectionRequested,
+            awaiting_verification:
+                applicationFormAwaitingVerification,
             correction_comment:
                 applicationFormCorrectionRequested
                     ? safeText(applicationFormReview?.admin_comment) || null
@@ -4265,27 +4285,63 @@ async function submitMyApplicationForm(userId, payload = {}) {
         );
     }
 
-    // A corrected digital Application Form is now a new review version.
-    // Lock editing again and return only this review item to pending.
+    // An edited digital Application Form becomes a new review version.
+    // Return only this review item to pending while lifecycle-based editing
+    // remains available until the application is finalized/selected.
     if (editExistingApplication && application?.application_id) {
         const correctionSubmittedAt = new Date().toISOString();
 
-        const { error: resetApplicationFormReviewError } = await supabase
-            .from('application_document_reviews')
-            .update({
-                review_status: 'pending',
-                admin_comment: '',
-                issue_severity: null,
-                reason_code: null,
-                reviewed_by: null,
-                reviewed_at: null,
-                updated_at: correctionSubmittedAt,
-            })
-            .eq('application_id', application.application_id)
-            .eq('document_key', 'application_form');
+        // SMART_PDM_APPLICATION_FORM_REVIEW_ROW_ENSURE_V4
+        // Do not rely on UPDATE-only semantics here. Some applications can
+        // reach Edit Form without an application_form review row yet. In that
+        // case an UPDATE affects zero rows without returning an error, which
+        // made the backend return can_edit=true again after submission.
+        const applicationFormReviewReset = {
+            review_status: 'pending',
+            admin_comment: '',
+            issue_severity: null,
+            reason_code: 'APPLICATION_FORM_RESUBMITTED',
+            reviewed_by: null,
+            reviewed_at: null,
+            updated_at: correctionSubmittedAt,
+        };
 
-        if (resetApplicationFormReviewError) {
-            throw resetApplicationFormReviewError;
+        const {
+            data: existingApplicationFormReview,
+            error: existingApplicationFormReviewError,
+        } = await supabase
+            .from('application_document_reviews')
+            .select('review_id')
+            .eq('application_id', application.application_id)
+            .eq('document_key', 'application_form')
+            .maybeSingle();
+
+        if (existingApplicationFormReviewError) {
+            throw existingApplicationFormReviewError;
+        }
+
+        if (existingApplicationFormReview?.review_id) {
+            const { error: resetApplicationFormReviewError } = await supabase
+                .from('application_document_reviews')
+                .update(applicationFormReviewReset)
+                .eq('review_id', existingApplicationFormReview.review_id);
+
+            if (resetApplicationFormReviewError) {
+                throw resetApplicationFormReviewError;
+            }
+        } else {
+            const { error: createApplicationFormReviewError } = await supabase
+                .from('application_document_reviews')
+                .insert({
+                    application_id: application.application_id,
+                    document_key: 'application_form',
+                    document_name: 'Application Form',
+                    ...applicationFormReviewReset,
+                });
+
+            if (createApplicationFormReviewError) {
+                throw createApplicationFormReviewError;
+            }
         }
 
         const {

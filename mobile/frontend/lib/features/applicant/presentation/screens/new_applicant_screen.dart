@@ -415,6 +415,30 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       provider.resetApplication();
 
       if (widget.editExistingApplication) {
+        // SMART_PDM_MOBILE_APPLICATION_FORM_CORRECTION_NOTIFICATION_V2
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Text('Application Form Submitted for Verification'),
+              content: const Text(
+                'Your updated Application Form has been submitted for verification. '
+                'Please make sure all important information you entered is complete and correct. '
+                'Wait for the next verification update from OSFA/Admin before making further changes. '
+                'You will receive a notification if another correction is required or when the review status changes.',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Got it'),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (!mounted) return;
         Navigator.of(context).pop(true);
         return;
       }

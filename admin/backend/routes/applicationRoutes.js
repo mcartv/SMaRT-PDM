@@ -32,6 +32,11 @@ router.get('/:id/documents/:documentKey/iot-ocr/:requestId/review-image', ...adm
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
 router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.saveApplicationDocumentOcrSnapshot);
 router.post(
+    '/:id/application-form/request-reedit',
+    ...adminOnly,
+    applicationController.requestApplicationFormReedit
+);
+router.post(
     '/:id/verify',
     ...adminOnly,
     notifySdoAfterSuccessfulVerification,

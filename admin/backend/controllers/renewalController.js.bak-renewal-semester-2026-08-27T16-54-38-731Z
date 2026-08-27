@@ -1,7 +1,6 @@
 const renewalService = require('../services/renewalService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
-const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function getStatusCode(error) {
     const statusCode = Number(error?.statusCode || error?.status || 500);
@@ -30,33 +29,6 @@ function emitRenewalUpdated(req, action, payload = {}) {
     } else {
         io.emit('renewal:updated', realtimePayload);
         io.emit(`renewal:${action}`, realtimePayload);
-    }
-
-
-    if (
-        typeof studentRealtimeRelayService?.relayRenewalEvent ===
-        'function'
-    ) {
-        studentRealtimeRelayService
-            .relayRenewalEvent({
-                event: 'renewal:updated',
-                payload: {
-                    source: 'admin-renewal-controller',
-                    action,
-                    renewal_id:
-                        payload?.renewal_id ||
-                        payload?.renewalId ||
-                        null,
-                    status: payload?.status || null,
-                    updated_at: realtimePayload.updated_at,
-                },
-            })
-            .catch((relayError) => {
-                console.error(
-                    'RENEWAL STUDENT REALTIME RELAY ERROR:',
-                    relayError.message
-                );
-            });
     }
 }
 

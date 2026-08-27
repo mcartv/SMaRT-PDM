@@ -260,8 +260,7 @@ async function ensurePeriodCycles(client, period) {
             LEFT JOIN LATERAL (
                 SELECT
                     app.application_id,
-                    app.program_id,
-                    app.opening_id
+                    app.program_id
                 FROM applications app
                 WHERE app.student_id = s.student_id
                   AND COALESCE(app.is_archived, false) = false
@@ -274,18 +273,6 @@ async function ensurePeriodCycles(client, period) {
             WHERE s.is_active_scholar = true
               AND COALESCE(s.is_archived, false) = false
               AND COALESCE(s.scholar_is_archived, false) = false
-              -- SMART-PDM_RENEWAL_SAME_PERIOD_GUARD_V1
-              -- Do not generate a renewal for the same semester in which
-              -- the scholar's approved scholarship opening belongs.
-              AND (
-                    a.opening_id IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1
-                        FROM program_openings source_opening
-                        WHERE source_opening.opening_id = a.opening_id
-                          AND source_opening.period_id = $2
-                    )
-              )
         )
         INSERT INTO renewals (
             student_id,

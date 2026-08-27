@@ -104,11 +104,6 @@ class ScholarRenewalPackage {
     required this.benefactorName,
     required this.semesterLabel,
     required this.schoolYearLabel,
-    this.isRenewalAvailable = true,
-    this.availabilityReason = '',
-    this.availabilityReasonCode = '',
-    this.availabilityPeriodId = '',
-
   });
 
   final ScholarRenewal renewal;
@@ -119,13 +114,8 @@ class ScholarRenewalPackage {
   final String? benefactorName;
   final String semesterLabel;
   final String schoolYearLabel;
-  final bool isRenewalAvailable;
-  final String availabilityReason;
-  final String availabilityReasonCode;
-  final String availabilityPeriodId;
 
   bool get allRequiredUploaded =>
-      documents.isNotEmpty &&
       documents.every((document) => document.hasFile);
 
   factory ScholarRenewalPackage.fromJson(Map<String, dynamic> json) {
@@ -150,15 +140,6 @@ class ScholarRenewalPackage {
             (json['cycle'] as Map?) ?? const <String, dynamic>{},
           );
 
-    final availabilityJson =
-        json['availability'] is Map<String, dynamic>
-        ? json['availability'] as Map<String, dynamic>
-        : Map<String, dynamic>.from(
-            (json['availability'] as Map?) ??
-                const <String, dynamic>{},
-          );
-
-
     final documents = (json['documents'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map(
@@ -176,19 +157,6 @@ class ScholarRenewalPackage {
       benefactorName: scholarJson['benefactor_name']?.toString(),
       semesterLabel: cycleJson['semester_label']?.toString() ?? '',
       schoolYearLabel: cycleJson['school_year_label']?.toString() ?? '',
-      isRenewalAvailable:
-          availabilityJson['is_available'] != false &&
-          availabilityJson['isAvailable'] != false,
-      availabilityReason:
-          availabilityJson['reason']?.toString() ?? '',
-      availabilityReasonCode:
-          availabilityJson['reason_code']?.toString() ??
-          availabilityJson['reasonCode']?.toString() ??
-          '',
-      availabilityPeriodId:
-          availabilityJson['period_id']?.toString() ??
-          availabilityJson['periodId']?.toString() ??
-          '',
     );
   }
 }

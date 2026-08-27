@@ -1,7 +1,6 @@
 const academicYearService = require('../services/academicYearService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
-const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function sendError(res, err, fallbackMessage) {
     const message =
@@ -95,33 +94,6 @@ function emitAcademicUpdate(
                 period.academic_year_id,
             updated_at: payload.updated_at,
         });
-    }
-
-
-    if (
-        typeof studentRealtimeRelayService?.relayRenewalEvent ===
-        'function'
-    ) {
-        studentRealtimeRelayService
-            .relayRenewalEvent({
-                event: 'renewal:updated',
-                payload: {
-                    source: 'academic-period-configuration',
-                    action,
-                    academic_year_id:
-                        period?.academic_year_id ||
-                        academicYear?.academic_year_id ||
-                        null,
-                    period_id: period?.period_id || null,
-                    updated_at: payload.updated_at,
-                },
-            })
-            .catch((relayError) => {
-                console.error(
-                    'RENEWAL STUDENT REALTIME RELAY ERROR:',
-                    relayError.message
-                );
-            });
     }
 }
 

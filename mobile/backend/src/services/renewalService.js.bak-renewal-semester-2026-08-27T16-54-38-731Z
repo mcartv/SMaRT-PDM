@@ -420,210 +420,6 @@ async function getBenefactor(benefactorId) {
     return data || null;
 }
 
-
-
-async function getActivePeriodForRenewalAvailability() {
-    const { data, error } = await supabase
-        .from('academic_period')
-        .select('*')
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-    if (error) {
-        throw createHttpError(500, error.message);
-    }
-
-    return data || null;
-}
-
-async function getOpeningPeriodId(openingId) {
-    if (!openingId) return null;
-
-    const { data, error } = await supabase
-        .from('program_openings')
-        .select('opening_id, period_id')
-        .eq('opening_id', openingId)
-        .maybeSingle();
-
-    if (error) {
-        throw createHttpError(500, error.message);
-    }
-
-    return data?.period_id || null;
-}
-
-async function getRenewalAvailability(student) {
-    const period = await getActivePeriodForRenewalAvailability();
-
-    if (!period) {
-        return {
-            is_available: false,
-            reason_code: 'NO_ACTIVE_ACADEMIC_PERIOD',
-            reason:
-                'Renewal is currently unavailable because no academic semester is active. Please wait for OSFA to configure the current semester.',
-            period: null,
-            application: null,
-            semester_label: '',
-            school_year_label: '',
-        };
-    }
-
-    const schoolYearLabel = await getAcademicYearLabel(
-        period.academic_year_id
-    );
-
-    const semesterLabel =
-        period.semester ||
-        period.term ||
-        period.current_semester ||
-        'Current Semester';
-
-    const application = await getLatestApprovedApplication(student);
-
-    if (!application) {
-        return {
-            is_available: false,
-            reason_code: 'NO_APPROVED_SCHOLARSHIP_APPLICATION',
-            reason:
-                'Renewal is unavailable because an approved scholarship application could not be found for this scholar.',
-            period,
-            application: null,
-            semester_label: semesterLabel,
-            school_year_label: schoolYearLabel,
-        };
-    }
-
-    const sourcePeriodId = await getOpeningPeriodId(
-        application.opening_id
-    );
-
-    if (
-        sourcePeriodId &&
-        String(sourcePeriodId) === String(period.period_id)
-    ) {
-        return {
-            is_available: false,
-            reason_code: 'CURRENT_SCHOLARSHIP_SEMESTER_STILL_ACTIVE',
-            reason:
-                `Renewal is not yet available for ${semesterLabel}${schoolYearLabel ? ` · AY ${schoolYearLabel}` : ''}. Your current scholarship application belongs to this same semester. Renewal will automatically become available when OSFA activates the next academic semester.`,
-            period,
-            application,
-            source_period_id: sourcePeriodId,
-            semester_label: semesterLabel,
-            school_year_label: schoolYearLabel,
-        };
-    }
-
-    return {
-        is_available: true,
-        reason_code: 'AVAILABLE_FOR_ACTIVE_SEMESTER',
-        reason:
-            `Renewal is available for ${semesterLabel}${schoolYearLabel ? ` · AY ${schoolYearLabel}` : ''}.`,
-        period,
-        application,
-        source_period_id: sourcePeriodId,
-        semester_label: semesterLabel,
-        school_year_label: schoolYearLabel,
-    };
-}
-
-function serializeRenewalAvailability(availability = {}) {
-    return {
-        is_available: availability.is_available === true,
-        isAvailable: availability.is_available === true,
-
-        reason_code: availability.reason_code || '',
-        reasonCode: availability.reason_code || '',
-
-        reason: availability.reason || '',
-
-        period_id: availability.period?.period_id || null,
-        periodId: availability.period?.period_id || null,
-
-        semester_label: availability.semester_label || '',
-        semesterLabel: availability.semester_label || '',
-
-        school_year_label: availability.school_year_label || '',
-        schoolYearLabel: availability.school_year_label || '',
-    };
-}
-
-async function buildUnavailableRenewalPackage(
-    student,
-    availability
-) {
-    const application = availability.application || null;
-    const program = await getProgram(application?.program_id);
-    const benefactor = await getBenefactor(program?.benefactor_id);
-
-    const semesterLabel = availability.semester_label || '';
-    const schoolYearLabel = availability.school_year_label || '';
-
-    return {
-        renewal: {
-            renewal_id: '',
-            scholar_id: '',
-            student_id: student.student_id,
-            program_id: application?.program_id || '',
-            semester_label: semesterLabel,
-            school_year_label: schoolYearLabel,
-            renewal_status: 'Unavailable',
-            document_status: 'Not Open',
-            admin_comment: availability.reason || '',
-            submitted_at: null,
-            reviewed_at: null,
-        },
-
-        documents: [],
-
-        scholar: {
-            program_name:
-                program?.program_name ||
-                'Scholarship',
-            benefactor_name:
-                benefactor?.benefactor_name ||
-                null,
-        },
-
-        student: {
-            name:
-                [
-                    student.first_name,
-                    student.middle_name,
-                    student.last_name,
-                ]
-                    .filter(Boolean)
-                    .join(' ')
-                    .replace(/\s+/g, ' ')
-                    .trim() || 'Scholar',
-            pdm_id: student.pdm_id || '',
-        },
-
-        cycle: {
-            period_id: availability.period?.period_id || null,
-            semester_label: semesterLabel,
-            school_year_label: schoolYearLabel,
-        },
-
-        availability:
-            serializeRenewalAvailability(availability),
-    };
-}
-
-async function assertRenewalAvailable(student) {
-    const availability = await getRenewalAvailability(student);
-
-    if (!availability.is_available) {
-        throw createHttpError(
-            409,
-            availability.reason ||
-                'Renewal is not currently available for this academic semester.'
-        );
-    }
-
-    return availability;
-}
 async function getOrCreateCurrentRenewal(student) {
     const application = await getLatestApprovedApplication(student);
     const period = await getCurrentPeriod();
@@ -806,16 +602,6 @@ async function serializeDocument(document = {}) {
 
 async function buildRenewalPackage(userId) {
     const student = await getStudentByUserId(userId);
-
-    const availability =
-        await getRenewalAvailability(student);
-
-    if (!availability.is_available) {
-        return buildUnavailableRenewalPackage(
-            student,
-            availability
-        );
-    }
     const { renewal, period } = await getOrCreateCurrentRenewal(student);
     const documents = await ensureRenewalDocuments(renewal.renewal_id);
     const program = await getProgram(renewal.program_id);
@@ -876,9 +662,6 @@ async function buildRenewalPackage(userId) {
             school_year_label: schoolYearLabel,
         },
 
-        availability:
-            serializeRenewalAvailability(availability),
-
         documents: serializedDocuments,
     };
 }
@@ -923,7 +706,6 @@ exports.uploadDocument = async ({
     }
 
     const student = await getStudentByUserId(userId);
-    await assertRenewalAvailable(student);
     const { renewal } = await getOrCreateCurrentRenewal(student);
 
     if (
@@ -1034,7 +816,6 @@ exports.uploadDocument = async ({
 
 exports.submitRenewal = async (userId) => {
     const student = await getStudentByUserId(userId);
-    await assertRenewalAvailable(student);
     const { renewal } = await getOrCreateCurrentRenewal(student);
     const documents = await ensureRenewalDocuments(renewal.renewal_id);
 

@@ -200,18 +200,6 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   Future<void> _submitRenewal() async {
-
-    if (_renewalPackage?.isRenewalAvailable == false) {
-      final reason =
-          _renewalPackage?.availabilityReason.trim() ?? '';
-
-      _showSnackBar(
-        reason.isNotEmpty
-            ? reason
-            : 'Renewal is not currently available for this academic semester.',
-      );
-      return;
-    }
     if (_renewalPackage == null || !_renewalPackage!.allRequiredUploaded) {
       _showSnackBar('Please upload both required renewal documents first.');
       return;
@@ -410,12 +398,6 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   String _renewalSummary(ScholarRenewalPackage package) {
-
-    if (!package.isRenewalAvailable) {
-      return package.availabilityReason.trim().isNotEmpty
-          ? package.availabilityReason
-          : 'Renewal is not currently available for this academic semester.';
-    }
     final status = package.renewal.renewalStatus;
 
     if (status == 'Approved') {
@@ -465,15 +447,12 @@ class _ScholarRenewalRequirementsScreenState
 
     final submitDisabled =
         _isSubmitting ||
-        _renewalPackage?.isRenewalAvailable == false ||
         _renewalPackage?.renewal.isLockedForReview == true ||
         _renewalPackage?.allRequiredUploaded != true ||
         _hasPendingReupload;
 
     final submitLabel = _isSubmitting
         ? 'Submitting...'
-        : _renewalPackage?.isRenewalAvailable == false
-        ? 'Renewal Not Yet Available'
         : _hasPendingReupload
         ? 'Replace Re-upload Documents First'
         : _renewalPackage?.renewal.isLockedForReview == true

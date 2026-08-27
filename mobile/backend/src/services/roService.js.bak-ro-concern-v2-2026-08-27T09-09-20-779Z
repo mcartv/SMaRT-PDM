@@ -1964,78 +1964,23 @@ async function reportMyRoConflict(
     );
   }
 
-  if (
-    ro.assignment_status ===
-    'Conflict Reported'
-  ) {
-    throw createHttpError(
-      409,
-      'A concern has already been submitted for this RO assignment and is waiting for OSFA review.'
-    );
-  }
-
-  const allowedCategories =
-    new Set([
-      'Schedule Conflict',
-      'Location / Transportation',
-      'Medical / Health',
-      'Academic Conflict',
-      'RO Area / Assignment Issue',
-      'Other',
-    ]);
-
-  const category =
-    normalizeValue(
-      body.category ||
-      body.concernCategory ||
-      body.concern_category
-    ) || 'Other';
-
-  if (!allowedCategories.has(category)) {
-    throw createHttpError(
-      400,
-      'Select a valid RO concern category.'
-    );
-  }
-
   const reason =
     normalizeValue(
       body.reason ||
-      body.conflictReason ||
-      body.description
+      body.conflictReason
     );
 
   if (!reason) {
     throw createHttpError(
       400,
-      'Please provide a description for the concern.'
+      'Please provide a reason for the concern.'
     );
   }
-
-  if (reason.length < 10) {
-    throw createHttpError(
-      400,
-      'Concern description must be at least 10 characters.'
-    );
-  }
-
-  if (reason.length > 1000) {
-    throw createHttpError(
-      400,
-      'Concern description must not exceed 1,000 characters.'
-    );
-  }
-
-  const persistedReason =
-    `${category}: ${reason}`;
 
   const now =
     new Date().toISOString();
 
-  const {
-    data: updatedRo,
-    error,
-  } =
+  const { error } =
     await supabase
       .from('return_of_obligations')
       .update({
@@ -2043,7 +1988,7 @@ async function reportMyRoConflict(
           'Conflict Reported',
 
         conflict_reason:
-          persistedReason,
+          reason,
 
         progress_status:
           'Revision Needed',
@@ -2054,25 +1999,10 @@ async function reportMyRoConflict(
       .eq(
         'student_id',
         student.student_id
-      )
-      .neq(
-        'assignment_status',
-        'Conflict Reported'
-      )
-      .select(
-        'ro_id, assignment_status, conflict_reason, progress_status, updated_at'
-      )
-      .maybeSingle();
+      );
 
   if (error) {
     throw error;
-  }
-
-  if (!updatedRo) {
-    throw createHttpError(
-      409,
-      'A concern has already been submitted for this RO assignment and is waiting for OSFA review.'
-    );
   }
 
   const result =
@@ -2084,18 +2014,7 @@ async function reportMyRoConflict(
     ...result,
 
     message:
-      'RO concern submitted successfully. OSFA can now review it.',
-
-    concern: {
-      category,
-      description: reason,
-      status:
-        updatedRo.assignment_status ||
-        'Conflict Reported',
-      updatedAt:
-        updatedRo.updated_at ||
-        now,
-    },
+      'RO concern submitted.',
 
     realtime: {
       action: 'conflict',

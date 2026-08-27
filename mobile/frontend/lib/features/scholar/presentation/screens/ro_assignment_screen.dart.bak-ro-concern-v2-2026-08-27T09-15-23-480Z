@@ -60,16 +60,6 @@ class RoActionInput {
   final RoPickedPhoto? photo;
 }
 
-class RoConcernInput {
-  const RoConcernInput({
-    required this.category,
-    required this.description,
-  });
-
-  final String category;
-  final String description;
-}
-
 class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     with SingleTickerProviderStateMixin {
   final ApiClient _apiClient = ApiClient();
@@ -81,7 +71,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
   bool _isLoading = true;
   bool _isSubmitting = false;
-  bool _isConcernSheetOpen = false;
   String? _errorMessage;
 
   List<RoAssignment> _items = [];
@@ -929,34 +918,16 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
-    Future<void> _reportConcern(RoAssignment item) async {
-    if (_isSubmitting || _isConcernSheetOpen || item.hasConflict) {
-      if (item.hasConflict) {
-        _showSnack(
-          'A concern has already been submitted for this RO assignment.',
-        );
-      }
-      return;
-    }
+  Future<void> _reportConcern(RoAssignment item) async {
+    final concern = await _showNoteSheet(
+      title: 'Report Required-Assignment Conflict',
+      hint:
+          'Explain the legitimate schedule, location, medical, or academic conflict. This report is sent to OSFA for review and does not automatically cancel the assignment.',
+      primaryLabel: 'Submit Concern',
+      requiredInput: true,
+    );
 
-    setState(() => _isConcernSheetOpen = true);
-
-    RoConcernInput? concern;
-
-    try {
-      concern = await _showConcernSheet(
-        title: 'Report an RO Concern',
-        hint:
-            'Describe the schedule, location, medical, academic, or assignment issue clearly. This report is sent to OSFA for review and does not automatically cancel the assignment.',
-        primaryLabel: 'Submit Concern',
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isConcernSheetOpen = false);
-      }
-    }
-
-    if (concern == null || !mounted) return;
+    if (concern == null) return;
 
     setState(() {
       _isSubmitting = true;
@@ -966,24 +937,13 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     try {
       final response = await _apiClient.postJson(
         '/api/ro/${item.roId}/conflict',
-        body: {
-          'category': concern.category,
-          'reason': concern.description,
-        },
+        body: {'reason': concern.trim()},
       );
 
       _applyResponse(response);
-
-      _showSnack(
-        response['message']?.toString() ??
-            'Concern submitted successfully. OSFA can now review it.',
-      );
+      _showSnack(response['message']?.toString() ?? 'Concern submitted.');
     } catch (error) {
-      if (!mounted) return;
-
-      _showSnack(
-        'Unable to submit concern: ${_cleanError(error)}',
-      );
+      setState(() => _errorMessage = _cleanError(error));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1120,171 +1080,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     });
   }
 
-    Future<RoConcernInput?> _showConcernSheet({
-    required String title,
-    required String hint,
-    required String primaryLabel,
-  }) async {
-    const categories = <String>[
-      'Schedule Conflict',
-      'Location / Transportation',
-      'Medical / Health',
-      'Academic Conflict',
-      'RO Area / Assignment Issue',
-      'Other',
-    ];
-
-    _noteController.clear();
-    var selectedCategory = categories.first;
-    String? validationMessage;
-
-    return showModalBottomSheet<RoConcernInput>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-            void submit() {
-              final text = _noteController.text.trim();
-
-              if (text.length < 10) {
-                setSheetState(() {
-                  validationMessage =
-                      'Describe the concern in at least 10 characters.';
-                });
-                return;
-              }
-
-              if (text.length > 1000) {
-                setSheetState(() {
-                  validationMessage =
-                      'Keep the concern description within 1,000 characters.';
-                });
-                return;
-              }
-
-              Navigator.pop(
-                sheetContext,
-                RoConcernInput(
-                  category: selectedCategory,
-                  description: text,
-                ),
-              );
-            }
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(18, 18, 18, bottom + 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(
-                    child: Container(
-                      width: 44,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.black26,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Select the concern type and provide enough detail for OSFA to review the assignment.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedCategory,
-                    decoration: InputDecoration(
-                      labelText: 'Concern Category',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    items: categories
-                        .map(
-                          (category) => DropdownMenuItem<String>(
-                            value: category,
-                            child: Text(category),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-
-                      setSheetState(() {
-                        selectedCategory = value;
-                        validationMessage = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: _noteController,
-                    minLines: 4,
-                    maxLines: 6,
-                    maxLength: 1000,
-                    textInputAction: TextInputAction.newline,
-                    onChanged: (_) {
-                      if (validationMessage == null) return;
-                      setSheetState(() => validationMessage = null);
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Concern Description',
-                      hintText: hint,
-                      alignLabelWithHint: true,
-                      errorText: validationMessage,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Supporting attachments are not requested here because the current RO concern endpoint stores text concerns only. Attendance proof uploads remain separate.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.black45,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.darkBrown,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: submit,
-                      icon: const Icon(Icons.report_problem_outlined),
-                      label: Text(primaryLabel),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-Future<String?> _showNoteSheet({
+  Future<String?> _showNoteSheet({
     required String title,
     required String hint,
     required String primaryLabel,

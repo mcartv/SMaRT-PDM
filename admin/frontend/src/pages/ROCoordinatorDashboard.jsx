@@ -51,7 +51,7 @@ function SummaryCard({ icon, label, value, detail, theme }) {
           </div>
           <span
             className="flex h-11 w-11 items-center justify-center rounded-2xl"
-            style={{ background: theme.accentSoft, color: theme.base }}
+            style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}
           >
             {createElement(icon, { className: 'h-5 w-5' })}
           </span>
@@ -157,7 +157,7 @@ export default function ROCoordinatorDashboard() {
                   onClick={() => navigate('/ro-coordinator/queue')}
                   className="flex w-full items-center gap-4 py-4 text-left transition hover:bg-stone-50"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: theme.accentSoft, color: theme.base }}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}>
                     <ClipboardCheck className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">

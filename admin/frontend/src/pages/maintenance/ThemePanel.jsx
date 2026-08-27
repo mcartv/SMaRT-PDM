@@ -125,7 +125,7 @@ function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
           <span className="inline-flex rounded-full px-2 py-1 text-[10px] font-semibold text-white" style={{ background: theme.active }}>
             Active
           </span>
-          <span className="inline-flex rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: theme.accentSoft, color: theme.base }}>
+          <span className="inline-flex rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}>
             Accent
           </span>
           <span className="inline-flex rounded-full px-2 py-1 text-[10px] font-semibold text-white" style={{ background: theme.chartSecondary }}>

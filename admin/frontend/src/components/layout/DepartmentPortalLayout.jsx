@@ -256,6 +256,7 @@ export default function DepartmentPortalLayout({
         background: theme.mainBg,
         '--portal-base': theme.base,
         '--portal-accent': theme.accent,
+        '--portal-fg-accent': theme.base,
         '--portal-accent-soft': theme.accentSoft,
         '--portal-main-bg': theme.mainBg,
         '--portal-chart-primary': theme.chartPrimary,
@@ -358,7 +359,7 @@ export default function DepartmentPortalLayout({
                 aria-label="Open notifications"
                 aria-expanded={notifOpen}
               >
-                <Bell className="h-4 w-4" style={{ color: theme.base }} />
+                <Bell className="h-4 w-4" style={{ color: 'var(--portal-fg-accent)' }} />
                 {unreadCount > 0 ? (
                   <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 ) : null}

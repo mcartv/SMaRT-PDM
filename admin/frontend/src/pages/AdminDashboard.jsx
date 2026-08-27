@@ -561,7 +561,7 @@ export default function AdminDashboard() {
               type="button"
               variant="outline"
               className="h-9 bg-white px-3 text-xs font-medium"
-              style={{ borderColor: theme.border, color: theme.base }}
+              style={{ borderColor: theme.border, color: 'var(--portal-fg-accent)' }}
               onClick={() => loadDashboard({ audit: true })}
             >
               <RefreshCw className="mr-2 h-3.5 w-3.5" />
@@ -585,7 +585,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-3">
                     <div
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
-                      style={{ background: theme.accentSoft, color: theme.base }}
+                      style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}
                     >
                       <Icon className="h-4 w-4" />
                     </div>

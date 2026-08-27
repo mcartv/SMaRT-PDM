@@ -902,13 +902,13 @@ function AnnouncementRow({
   return (
     <article className="group overflow-hidden rounded-xl border border-stone-200 bg-white transition hover:border-stone-300 hover:shadow-sm">
       <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:gap-5">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <div
-            className="announcement-icon mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            className="announcement-icon mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
             style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-base)' }}
             aria-hidden="true"
           >
-            <Megaphone className="h-5 w-5" />
+            <Megaphone className="h-3.5 w-3.5" />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -924,23 +924,23 @@ function AnnouncementRow({
             </p>
 
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-stone-500">
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              <Calendar size={13} />
-              {announcement.date
-                ? new Date(announcement.date).toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })
-                : 'No date'}
-            </span>
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
+                <Calendar size={13} />
+                {announcement.date
+                  ? new Date(announcement.date).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })
+                  : 'No date'}
+              </span>
 
-            <span className="flex min-w-0 items-center gap-1.5">
-              <Users size={13} className="shrink-0" />
-              <span className="truncate">{announcement.audience || 'Audience'}</span>
-            </span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <Users size={13} className="shrink-0" />
+                <span className="truncate">{announcement.audience || 'Audience'}</span>
+              </span>
 
               {effectiveStatus === 'Published' && (
                 <span className="flex items-center gap-1.5 whitespace-nowrap text-stone-600">
@@ -952,7 +952,7 @@ function AnnouncementRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-stone-100 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 pt-3 lg:pl-4 lg:pt-0">
           {tab === 'active' ? (
             <>
               <Button

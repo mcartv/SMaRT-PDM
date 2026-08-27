@@ -488,7 +488,7 @@ export default function ROCoordinatorQueue({
 
       <div className="flex flex-col gap-4 rounded-[24px] border border-stone-200 bg-white p-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>My RO Area</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--portal-fg-accent)' }}>My RO Area</p>
           <h1 className="mt-1 text-2xl font-semibold text-stone-900">RO Request</h1>
           <p className="mt-1 text-sm text-stone-500">{department || 'Your assigned area'} · Manage placement approvals, attendance validation, and scholar requests.</p>
         </div>
@@ -575,7 +575,7 @@ export default function ROCoordinatorQueue({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h2 className="text-base font-semibold text-stone-900">{request.first_name} {request.last_name}</h2>
-                            <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide" style={{ background: theme.accentSoft, color: theme.base }}>
+                            <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide" style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}>
                               {request.coordinator_status === 'Rejected' ? 'Returned' : request.coordinator_status}
                             </span>
                           </div>
@@ -654,7 +654,7 @@ export default function ROCoordinatorQueue({
       ) : (
         <section className="space-y-3 rounded-[24px] border border-stone-200 bg-white p-5">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>Completion Validation</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--portal-fg-accent)' }}>Completion Validation</p>
           <h2 className="mt-1 text-xl font-semibold text-stone-900">Attendance Evidence</h2>
           <p className="mt-1 text-sm text-stone-500">Validate the scholar's time-in and time-out evidence before OSFA can mark the obligation cleared.</p>
         </div>

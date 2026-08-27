@@ -222,6 +222,7 @@ export default function AdminLayout() {
         background: theme.mainBg,
         '--portal-base': theme.base,
         '--portal-accent': theme.accent,
+        '--portal-fg-accent': theme.base,
         '--portal-accent-soft': theme.accentSoft,
         '--portal-main-bg': theme.mainBg,
         '--portal-chart-primary': theme.chartPrimary,

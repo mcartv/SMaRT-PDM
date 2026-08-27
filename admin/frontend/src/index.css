@@ -181,17 +181,19 @@
   --bg-elevated: #2d2e30;
   --bg-subtle: #303031;
   --bg-muted: #3a3b3c;
-  --bg-hover: #3a3b3c;
-  --bg-active: #4e4f50;
+  --bg-hover: #323335;
+  --bg-active: #3a3b3c;
+  --button-hover-surface: #3b3c3e;
+  --button-hover-surface-strong: #434447;
   --bg-overlay: rgb(11 12 13 / 0.74);
 
-  --text-main: #e4e6eb;
-  --text-secondary: #c5c8ce;
-  --text-muted: #b0b3b8;
-  --text-disabled: #8a8d91;
+  --text-main: #f7f8fa;
+  --text-secondary: #d7dbe0;
+  --text-muted: #b8bdc5;
+  --text-disabled: #92979d;
   --text-inverse: #18202a;
-  --icon-main: #e4e6eb;
-  --icon-muted: #b0b3b8;
+  --icon-main: #f7f8fa;
+  --icon-muted: #b8bdc5;
 
   --border-subtle: #323436;
   --border-default: #3e4042;
@@ -243,6 +245,7 @@ html.smartpdm-force-dark .portal-shell {
   --portal-border: var(--border-default) !important;
   --portal-muted: var(--text-muted) !important;
   --portal-text: var(--text-main) !important;
+  --portal-fg-accent: color-mix(in srgb, var(--portal-accent) 55%, white 45%) !important;
   background: var(--bg-primary) !important;
 }
 
@@ -433,6 +436,21 @@ html.smartpdm-force-dark .dark-mode-summary-card {
 html.smartpdm-force-dark [class~="bg-[var(--portal-accent-soft)]"] {
   background-color: var(--accent-soft) !important;
   color: var(--text-main) !important;
+}
+
+/* Portal base colors are intentionally dark for sidebars. On dark surfaces,
+ * use the brighter portal accent for themed foreground labels and icons. */
+html.smartpdm-force-dark [class~="text-[var(--portal-base)]"] {
+  color: var(--portal-fg-accent) !important;
+}
+
+html.smartpdm-force-dark [class~="hover:text-[var(--portal-base)]"]:hover {
+  color: var(--portal-fg-accent) !important;
+}
+
+html.smartpdm-force-dark [style*="color: var(--portal-base)"],
+html.smartpdm-force-dark [style*="color:var(--portal-base)"] {
+  color: var(--portal-fg-accent) !important;
 }
 
 html.smartpdm-force-dark .text-stone-950,
@@ -635,15 +653,80 @@ html.smartpdm-force-dark textarea::placeholder {
 }
 
 html.smartpdm-force-dark .hover\:bg-white:hover,
-html.smartpdm-force-dark .hover\:bg-white\/70:hover {
+html.smartpdm-force-dark .hover\:bg-white\/70:hover,
+html.smartpdm-force-dark .hover\:bg-white\/90:hover {
   background-color: var(--bg-hover) !important;
 }
 
 html.smartpdm-force-dark .hover\:bg-stone-50:hover,
 html.smartpdm-force-dark .hover\:bg-stone-50\/60:hover,
 html.smartpdm-force-dark .hover\:bg-stone-50\/70:hover,
-html.smartpdm-force-dark .hover\:bg-stone-100:hover {
+html.smartpdm-force-dark .hover\:bg-stone-50\/80:hover,
+html.smartpdm-force-dark .hover\:bg-stone-100:hover,
+html.smartpdm-force-dark .hover\:bg-stone-200:hover,
+html.smartpdm-force-dark .hover\:bg-stone-300:hover,
+html.smartpdm-force-dark .hover\:bg-slate-50:hover,
+html.smartpdm-force-dark .hover\:bg-gray-50:hover,
+html.smartpdm-force-dark .hover\:bg-neutral-50:hover {
   background-color: var(--bg-hover) !important;
+}
+
+/* Keep dark-mode hover feedback close to the current surface instead of
+ * flashing the light-theme pastel utility colors. */
+html.smartpdm-force-dark .hover\:bg-red-50:hover,
+html.smartpdm-force-dark .hover\:bg-red-100:hover,
+html.smartpdm-force-dark .hover\:bg-rose-50:hover,
+html.smartpdm-force-dark .hover\:bg-rose-100:hover,
+html.smartpdm-force-dark .hover\:bg-red-500\/20:hover {
+  background-color: color-mix(in srgb, var(--status-danger-bg) 72%, var(--bg-elevated) 28%) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-amber-50:hover,
+html.smartpdm-force-dark .hover\:bg-amber-50\/20:hover,
+html.smartpdm-force-dark .hover\:bg-amber-100:hover,
+html.smartpdm-force-dark .hover\:bg-orange-50:hover,
+html.smartpdm-force-dark .hover\:bg-\[\#f2cf00\]:hover {
+  background-color: color-mix(in srgb, var(--status-warning-bg) 72%, var(--bg-elevated) 28%) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-green-50:hover,
+html.smartpdm-force-dark .hover\:bg-green-100:hover,
+html.smartpdm-force-dark .hover\:bg-emerald-50:hover,
+html.smartpdm-force-dark .hover\:bg-emerald-100:hover {
+  background-color: color-mix(in srgb, var(--status-success-bg) 72%, var(--bg-elevated) 28%) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-blue-50:hover,
+html.smartpdm-force-dark .hover\:bg-blue-100:hover,
+html.smartpdm-force-dark .hover\:bg-sky-50:hover,
+html.smartpdm-force-dark .hover\:bg-cyan-50:hover {
+  background-color: color-mix(in srgb, var(--status-info-bg) 72%, var(--bg-elevated) 28%) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-violet-50:hover,
+html.smartpdm-force-dark .hover\:bg-purple-50:hover {
+  background-color: color-mix(in srgb, var(--status-special-bg) 72%, var(--bg-elevated) 28%) !important;
+}
+
+/* Portal-accent hover should read as a tint, not a light card. */
+html.smartpdm-force-dark .hover\:bg-\[var\(--portal-accent-soft\)\]:hover {
+  background-color: color-mix(in srgb, var(--portal-accent) 12%, var(--bg-elevated) 88%) !important;
+}
+
+/* White translucent hover utilities are used by dark sidebars/toolbars.
+ * Cap their brightness so the hover remains understated. */
+html.smartpdm-force-dark .hover\:bg-white\/8:hover,
+html.smartpdm-force-dark .hover\:bg-white\/10:hover,
+html.smartpdm-force-dark .hover\:bg-white\/12:hover {
+  background-color: rgb(255 255 255 / 0.06) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-white\/15:hover {
+  background-color: rgb(255 255 255 / 0.08) !important;
+}
+
+html.smartpdm-force-dark .hover\:bg-white\/20:hover {
+  background-color: rgb(255 255 255 / 0.10) !important;
 }
 
 html.smartpdm-force-dark .hover\:text-stone-900:hover,
@@ -657,10 +740,87 @@ html.smartpdm-force-dark [role="button"]:not([aria-disabled="true"]) {
   --tw-ring-offset-color: var(--bg-secondary);
 }
 
+/* Buttons should lift slightly on hover in dark mode. Keep this brighter than
+ * the surrounding card/row hover, but nowhere near a light-theme surface. */
+html.smartpdm-force-dark [data-slot="button"][data-variant="outline"]:not(:disabled):hover,
+html.smartpdm-force-dark [data-slot="button"][data-variant="ghost"]:not(:disabled):hover,
+html.smartpdm-force-dark [data-slot="button"][data-variant="secondary"]:not(:disabled):hover {
+  background-color: var(--button-hover-surface) !important;
+}
+
+html.smartpdm-force-dark [data-slot="button"][data-variant="destructive"]:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--status-danger-bg) 88%, white 12%) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-white:hover,
+html.smartpdm-force-dark button.hover\:bg-white\/70:hover,
+html.smartpdm-force-dark button.hover\:bg-white\/90:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-50:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-50\/60:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-50\/70:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-50\/80:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-100:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-200:hover,
+html.smartpdm-force-dark button.hover\:bg-stone-300:hover,
+html.smartpdm-force-dark button.hover\:bg-slate-50:hover,
+html.smartpdm-force-dark button.hover\:bg-gray-50:hover,
+html.smartpdm-force-dark button.hover\:bg-neutral-50:hover {
+  background-color: var(--button-hover-surface) !important;
+}
+
+/* Dark neutral action buttons (Save/Apply/Finalize) should brighten on hover,
+ * not fall back to Tailwind's darker stone-800 value. */
+html.smartpdm-force-dark button.hover\:bg-stone-800:hover {
+  background-color: var(--button-hover-surface-strong) !important;
+}
+
+/* Keep colored action buttons vivid but only one small step lighter on hover. */
+html.smartpdm-force-dark button.hover\:bg-red-700:hover,
+html.smartpdm-force-dark button.hover\:bg-red-800:hover {
+  background-color: color-mix(in srgb, #dc2626 92%, white 8%) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-amber-600:hover,
+html.smartpdm-force-dark button.hover\:bg-amber-700:hover,
+html.smartpdm-force-dark button.hover\:bg-amber-800:hover {
+  background-color: color-mix(in srgb, #d97706 92%, white 8%) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-green-700:hover,
+html.smartpdm-force-dark button.hover\:bg-green-800:hover {
+  background-color: color-mix(in srgb, #16a34a 92%, white 8%) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-emerald-700:hover {
+  background-color: color-mix(in srgb, #059669 92%, white 8%) !important;
+}
+
+/* Portal-colored buttons historically use hover:brightness-95, which makes
+ * them darker. In dark mode the interaction should lift instead. */
+html.smartpdm-force-dark button.hover\:brightness-95:not(:disabled):hover {
+  filter: brightness(1.08) !important;
+}
+
+/* Sidebar/tool buttons using translucent white get a slightly clearer lift
+ * than rows while remaining comfortably dark. */
+html.smartpdm-force-dark button.hover\:bg-white\/8:hover,
+html.smartpdm-force-dark button.hover\:bg-white\/10:hover,
+html.smartpdm-force-dark button.hover\:bg-white\/12:hover {
+  background-color: rgb(255 255 255 / 0.09) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-white\/15:hover {
+  background-color: rgb(255 255 255 / 0.11) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-white\/20:hover {
+  background-color: rgb(255 255 255 / 0.13) !important;
+}
+
 html.smartpdm-force-dark button[class~="bg-[var(--portal-base)]"]:not(:disabled),
 html.smartpdm-force-dark a[class~="bg-[var(--portal-base)]"] {
   background-color: color-mix(in srgb, var(--portal-base) 72%, var(--text-main) 28%) !important;
-  color: var(--accent-on-primary) !important;
+  color: #ffffff !important;
 }
 
 html.smartpdm-force-dark button.messages-launcher:not(:disabled) {
@@ -1112,4 +1272,261 @@ body {
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
   }
+}
+
+/* Dark-mode semantic action buttons: give actionable controls a slightly
+ * clearer lift than passive rows/cards while preserving their meaning. */
+html.smartpdm-force-dark button.hover\:bg-emerald-50:hover,
+html.smartpdm-force-dark button.hover\:bg-emerald-100:hover,
+html.smartpdm-force-dark button.hover\:bg-green-50:hover,
+html.smartpdm-force-dark button.hover\:bg-green-100:hover {
+  background-color: color-mix(in srgb, var(--status-success-bg) 78%, white 22%) !important;
+  border-color: color-mix(in srgb, var(--status-success-border) 78%, white 22%) !important;
+  color: var(--status-success-text) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-amber-50:hover,
+html.smartpdm-force-dark button.hover\:bg-amber-100:hover,
+html.smartpdm-force-dark button.hover\:bg-orange-50:hover {
+  background-color: color-mix(in srgb, var(--status-warning-bg) 78%, white 22%) !important;
+  border-color: color-mix(in srgb, var(--status-warning-border) 78%, white 22%) !important;
+  color: var(--status-warning-text) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-red-50:hover,
+html.smartpdm-force-dark button.hover\:bg-red-100:hover,
+html.smartpdm-force-dark button.hover\:bg-rose-50:hover,
+html.smartpdm-force-dark button.hover\:bg-rose-100:hover,
+html.smartpdm-force-dark button.hover\:bg-destructive\/20:hover,
+html.smartpdm-force-dark button.hover\:bg-destructive\/30:hover {
+  background-color: color-mix(in srgb, var(--status-danger-bg) 78%, white 22%) !important;
+  border-color: color-mix(in srgb, var(--status-danger-border) 78%, white 22%) !important;
+  color: var(--status-danger-text) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-blue-50:hover,
+html.smartpdm-force-dark button.hover\:bg-blue-100:hover,
+html.smartpdm-force-dark button.hover\:bg-sky-50:hover,
+html.smartpdm-force-dark button.hover\:bg-cyan-50:hover {
+  background-color: color-mix(in srgb, var(--status-info-bg) 78%, white 22%) !important;
+  border-color: color-mix(in srgb, var(--status-info-border) 78%, white 22%) !important;
+  color: var(--status-info-text) !important;
+}
+
+html.smartpdm-force-dark button.hover\:bg-violet-50:hover,
+html.smartpdm-force-dark button.hover\:bg-purple-50:hover,
+html.smartpdm-force-dark button.hover\:bg-\[var\(--portal-accent-soft\)\]:hover {
+  background-color: color-mix(in srgb, var(--portal-accent) 18%, var(--bg-elevated) 82%) !important;
+  border-color: color-mix(in srgb, var(--portal-accent) 42%, var(--border-default) 58%) !important;
+  color: var(--portal-fg-accent) !important;
+}
+
+/* Filled/default action buttons should also lift rather than darken. */
+html.smartpdm-force-dark [data-slot="button"][data-variant="default"]:not(:disabled):hover,
+html.smartpdm-force-dark button.bg-primary:not(:disabled):hover {
+  filter: brightness(1.08) !important;
+}
+
+html.smartpdm-force-dark button[class~="bg-[var(--portal-base)]"]:not(:disabled):hover,
+html.smartpdm-force-dark button.report-action-button:not(:disabled):hover,
+html.smartpdm-force-dark button.opening-edit-button:not(:disabled):hover {
+  filter: brightness(1.08) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dark-mode interaction polish: hover affordance + reduced decorative rims   */
+/* -------------------------------------------------------------------------- */
+/*
+ * Keep actual structure/focus borders intact. Only outline-style action
+ * buttons lose the decorative rim in dark mode and become quiet filled
+ * controls. Hover then lifts them one small step so clickability is obvious.
+ */
+html.smartpdm-force-dark .portal-shell :is(
+  button:not(:disabled),
+  a[href],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [data-slot="select-item"]:not([data-disabled]),
+  [data-slot="dropdown-menu-item"]:not([data-disabled]),
+  summary
+) {
+  cursor: pointer;
+  transition-property: background-color, border-color, color, box-shadow, filter, opacity, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Neutral secondary actions: no extra rim on an already bordered dark card. */
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--bg-subtle) 92%, var(--bg-elevated) 8%) !important;
+  box-shadow: none !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):hover {
+  border-color: transparent !important;
+  background-color: var(--button-hover-surface) !important;
+}
+
+/* Semantic outline actions keep their meaning through a dark tint, not a rim. */
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-red-100,
+  .border-red-200,
+  .border-rose-100,
+  .border-rose-200
+) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--status-danger-bg) 86%, var(--bg-elevated) 14%) !important;
+  color: var(--status-danger-text) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-red-100,
+  .border-red-200,
+  .border-rose-100,
+  .border-rose-200
+):hover {
+  background-color: color-mix(in srgb, var(--status-danger-bg) 76%, white 24%) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-amber-100,
+  .border-amber-200,
+  .border-orange-100,
+  .border-orange-200
+) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--status-warning-bg) 86%, var(--bg-elevated) 14%) !important;
+  color: var(--status-warning-text) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-amber-100,
+  .border-amber-200,
+  .border-orange-100,
+  .border-orange-200
+):hover {
+  background-color: color-mix(in srgb, var(--status-warning-bg) 76%, white 24%) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-green-100,
+  .border-green-200,
+  .border-emerald-100,
+  .border-emerald-200
+) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--status-success-bg) 86%, var(--bg-elevated) 14%) !important;
+  color: var(--status-success-text) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-green-100,
+  .border-green-200,
+  .border-emerald-100,
+  .border-emerald-200
+):hover {
+  background-color: color-mix(in srgb, var(--status-success-bg) 76%, white 24%) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-blue-100,
+  .border-blue-200,
+  .border-sky-100,
+  .border-sky-200,
+  .border-cyan-100,
+  .border-cyan-200
+) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--status-info-bg) 86%, var(--bg-elevated) 14%) !important;
+  color: var(--status-info-text) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-blue-100,
+  .border-blue-200,
+  .border-sky-100,
+  .border-sky-200,
+  .border-cyan-100,
+  .border-cyan-200
+):hover {
+  background-color: color-mix(in srgb, var(--status-info-bg) 76%, white 24%) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-violet-100,
+  .border-violet-200,
+  .border-purple-100,
+  .border-purple-200
+) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--status-special-bg) 86%, var(--bg-elevated) 14%) !important;
+  color: var(--status-special-text) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"]:not(:disabled):is(
+  .border-violet-100,
+  .border-violet-200,
+  .border-purple-100,
+  .border-purple-200
+):hover {
+  background-color: color-mix(in srgb, var(--status-special-bg) 76%, white 24%) !important;
+}
+
+/* Portal-themed outline actions use the user's accent as a quiet tint. */
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"][style*="var(--portal-base)"]:not(:disabled),
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"][style*="var(--portal-base"]:not(:disabled) {
+  border-color: transparent !important;
+  background-color: color-mix(in srgb, var(--portal-base) 18%, var(--bg-elevated) 82%) !important;
+  color: var(--portal-fg-accent) !important;
+}
+
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"][style*="var(--portal-base)"]:not(:disabled):hover,
+html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"][style*="var(--portal-base"]:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--portal-base) 25%, var(--bg-elevated) 75%) !important;
+}
+
+/* Tabs, menus, and picker options need a clear but restrained hover surface. */
+html.smartpdm-force-dark .portal-shell [role="tab"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover,
+html.smartpdm-force-dark .portal-shell [role="menuitem"]:not([aria-disabled="true"]):hover,
+html.smartpdm-force-dark .portal-shell [data-slot="select-item"]:not([data-disabled]):hover,
+html.smartpdm-force-dark .portal-shell [data-slot="select-item"][data-highlighted],
+html.smartpdm-force-dark .portal-shell [data-slot="dropdown-menu-item"]:not([data-disabled]):hover,
+html.smartpdm-force-dark .portal-shell [data-slot="dropdown-menu-item"][data-highlighted] {
+  background-color: var(--button-hover-surface) !important;
+  color: var(--text-main) !important;
+}
+
+/* Form controls keep their structural border, but strengthen it on hover. */
+html.smartpdm-force-dark .portal-shell :is(
+  input,
+  textarea,
+  select,
+  [role="combobox"],
+  [data-slot="select-trigger"]
+):not(:disabled):hover {
+  border-color: var(--border-strong) !important;
+}
+
+/* Switches/checkboxes are click targets too; lift without adding a pale halo. */
+html.smartpdm-force-dark .portal-shell :is(
+  [data-slot="switch"],
+  [data-slot="checkbox"]
+):not([data-disabled]):hover {
+  filter: brightness(1.08);
+}
+
+/* Non-button elements that already declare themselves clickable get a tiny
+ * brightness lift. Modal backdrops are excluded because they use cursor rules
+ * only for dismissal and should not visually react. */
+html.smartpdm-force-dark .portal-shell .cursor-pointer:not(button):not(a):not([class*="fixed"]):not([class*="absolute"]):hover {
+  filter: brightness(1.045);
+}
+
+/* Preserve accessibility: decorative borders may disappear, focus does not. */
+html.smartpdm-force-dark .portal-shell [data-slot="button"]:focus-visible,
+html.smartpdm-force-dark .portal-shell :is(a[href], [role="button"], [role="tab"]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 52%, transparent) !important;
 }

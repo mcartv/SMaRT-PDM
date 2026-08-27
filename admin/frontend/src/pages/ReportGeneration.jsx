@@ -748,7 +748,7 @@ export default function ReportGeneration({
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row">
+            <div className="flex flex-col gap-3 pt-4 sm:flex-row">
               <Button
                 variant="outline"
                 className="report-action-button h-11 rounded-xl text-sm font-semibold"

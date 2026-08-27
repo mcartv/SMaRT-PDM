@@ -361,7 +361,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
           <Button
             variant="outline"
             className="bg-white"
-            style={{ borderColor: theme.border, color: theme.base }}
+            style={{ borderColor: theme.border, color: 'var(--portal-fg-accent)' }}
             onClick={() => loadRows({ soft: true })}
           >
             {refreshing ? (
@@ -397,7 +397,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               </div>
               <Badge
                 className="border-none"
-                style={{ background: theme.accentSoft, color: theme.base }}
+                style={{ background: 'var(--portal-accent-soft)', color: 'var(--portal-fg-accent)' }}
               >
                 {pendingCount} waiting
               </Badge>
@@ -466,7 +466,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
             </CardHeader>
             <CardContent className="space-y-3 p-5">
               <div className="rounded-[20px] border border-stone-200 px-4 py-3" style={{ background: theme.accentSoft }}>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--portal-fg-accent)' }}>
                   Daily Focus
                 </p>
                 <p className="mt-2 text-sm font-medium text-stone-800">
@@ -534,7 +534,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
             </div>
             <Badge
               variant="outline"
-              style={{ borderColor: theme.border, color: theme.base }}
+              style={{ borderColor: theme.border, color: 'var(--portal-fg-accent)' }}
             >
               {recentRows.length} shown
             </Badge>
@@ -570,7 +570,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                     </Badge>
                     <Badge
                       variant="outline"
-                      style={{ borderColor: theme.border, color: theme.base }}
+                      style={{ borderColor: theme.border, color: 'var(--portal-fg-accent)' }}
                     >
                       {row.current_stage_label}
                     </Badge>

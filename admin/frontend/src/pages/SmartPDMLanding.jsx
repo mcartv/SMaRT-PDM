@@ -1228,12 +1228,7 @@ export default function SmartPDMLanding() {
 
         <div className="landing-hero-inner relative z-10 mx-auto grid min-h-[calc(90svh-7rem)] w-full max-w-[90rem] items-center px-4 py-10 sm:px-5 sm:py-12 md:px-8 md:py-16 lg:min-h-[calc(90svh-8rem)] lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)] lg:px-10 lg:py-20">
           <div className="landing-hero-copy max-w-[44rem]">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80 backdrop-blur-[2px]">
-              <span className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
-              {generalSettings.landing_content.hero_badge}
-            </div>
-
-            <h1 className="mt-5 max-w-2xl text-[2rem] font-bold leading-tight text-white sm:text-3xl md:text-4xl lg:text-[2.75rem]">
+            <h1 className="max-w-2xl text-[2rem] font-bold leading-tight text-white sm:text-3xl md:text-4xl lg:text-[2.75rem]">
               {generalSettings.landing_content.hero_title}
             </h1>
 
@@ -1253,13 +1248,6 @@ export default function SmartPDMLanding() {
                 <FileCheck2 size={16} aria-hidden="true" />
                 View requirements
               </button>
-              <a
-                href="#guide"
-                className="inline-flex cursor-pointer items-center justify-center gap-2 px-1 py-2.5 text-sm font-semibold text-white/72 transition duration-200 hover:-translate-y-px hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 sm:ml-1"
-              >
-                How it works
-                <ArrowRight size={16} aria-hidden="true" />
-              </a>
             </div>
 
             <p className="mt-4 max-w-2xl text-xs leading-5 text-white/58">
@@ -1816,7 +1804,7 @@ export default function SmartPDMLanding() {
 
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>
-                Public Links
+                Privacy &amp; Legal
               </p>
               <div className="mt-4 flex flex-col items-start gap-3 text-sm">
                 <button type="button" onClick={() => setActivePolicy('privacy')} className="cursor-pointer rounded-sm text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">

@@ -1750,12 +1750,13 @@ export default function GeneralPanel() {
                 {activeSection === 'system' ? (
                     <SectionFrame
                         title="System"
-                        description="Review core service status and access system maintenance tools from General settings."
+                        description="Monitor current system activity, review core service status, and access maintenance tools."
                     >
                         {/* SMART-PDM_SYSTEM_PANEL_LIVE_V1 */}
                         <SystemPanel embedded editing={generalEditing} />
                     </SectionFrame>
                 ) : null}
+
             </div>
         </div>
     );

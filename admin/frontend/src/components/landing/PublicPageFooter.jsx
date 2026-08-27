@@ -118,7 +118,7 @@ export default function PublicPageFooter({ theme }) {
 
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>
-              Public Links
+              Privacy &amp; Legal
             </p>
             <div className="mt-4 grid grid-cols-1 items-start gap-3 text-sm sm:grid-cols-2 md:grid-cols-1">
               <Link to="/privacy" className="text-white/70 transition hover:text-white">

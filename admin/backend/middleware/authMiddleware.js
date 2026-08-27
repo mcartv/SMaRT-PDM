@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const adminSessionService = require('../services/adminSessionService');
 const staffSessionService = require('../services/staffSessionService');
+const systemActivityService = require('../services/systemActivityService');
 const { attachSystemAuditCoverage } = require('./systemAuditCoverageMiddleware');
 
 const protect = async (req, res, next) => {
@@ -46,6 +47,12 @@ const protect = async (req, res, next) => {
                 rawToken: token,
             });
         }
+
+        systemActivityService.recordAuthenticatedRequest({
+            req,
+            user: req.user,
+            rawToken: token,
+        });
 
         // Every authenticated mutation gets a fallback System Log only when
         // its controller did not already create a purpose-built audit entry.

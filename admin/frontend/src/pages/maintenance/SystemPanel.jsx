@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import { buildApiUrl } from '@/api';
 import { GroupCard, Toggle } from './components/MaintenanceShared';
+import SystemActivityPanel from './SystemActivityPanel';
 import {
     MAINTENANCE_CARD_SUBTITLE_CLASS,
     MAINTENANCE_CARD_TITLE_CLASS,
@@ -29,6 +30,11 @@ const DEFAULT_STATUS = {
         review: 'Gemini V2',
         gemini_model: 'gemini-3.6-flash',
         gemini_configured: false,
+        iot: {
+            online: false,
+            device_count: 0,
+            last_seen_at: null,
+        },
         jobs: {
             completed: 0,
             review_required: 0,
@@ -47,6 +53,13 @@ const DEFAULT_STATUS = {
         pg_dump_available: false,
         pg_dump_version: '',
         fallback_available: true,
+    },
+    activity: {
+        api_requests_24h: 0,
+        active_sessions: 0,
+        web_visitors_24h: 0,
+        active_window_minutes: 10,
+        measured_at: null,
     },
 };
 
@@ -70,10 +83,12 @@ function fileNameFromDisposition(value) {
 }
 
 export default function SystemPanel({ embedded = false, editing = true }) {
+    const [activeSystemSection, setActiveSystemSection] = useState('monitor');
     const [status, setStatus] = useState(DEFAULT_STATUS);
     const [loading, setLoading] = useState(true);
     const [savingMaintenance, setSavingMaintenance] = useState(false);
     const [creatingBackup, setCreatingBackup] = useState(false);
+    const [statusAvailable, setStatusAvailable] = useState(false);
 
     const loadStatus = useCallback(async ({ silent = false } = {}) => {
         try {
@@ -89,6 +104,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                 throw new Error(responseMessage(payload, 'Failed to load system status.'));
             }
 
+            setStatusAvailable(true);
             setStatus((current) => ({
                 ...current,
                 ...payload,
@@ -118,6 +134,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                 },
             }));
         } catch (error) {
+            setStatusAvailable(false);
             if (!silent) {
                 toast.error('System status unavailable', {
                     description: error.message || 'Failed to load system status.',
@@ -231,9 +248,7 @@ export default function SystemPanel({ embedded = false, editing = true }) {
     };
 
     const jobs = status.ocr?.jobs || DEFAULT_STATUS.ocr.jobs;
-    const geminiSubtitle = status.ocr?.gemini_configured
-        ? 'Tesseract + OpenCV · Gemini ready'
-        : 'Tesseract + OpenCV · Gemini not configured';
+    const iotOcrOnline = status.ocr?.iot?.online === true;
     const backupDescription = status.backup?.pg_dump_available
         ? status.backup?.pg_dump_version || 'Full PostgreSQL pg_dump available'
         : 'pg_dump unavailable · SQL data fallback ready';
@@ -247,6 +262,57 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                 </div>
             ) : null}
 
+            <div className="inline-flex flex-wrap rounded-xl bg-stone-100 p-1">
+                <button
+                    type="button"
+                    onClick={() => setActiveSystemSection('monitor')}
+                    className={`h-9 rounded-lg px-3 text-sm font-medium transition ${
+                        activeSystemSection === 'monitor'
+                            ? 'text-white shadow-sm'
+                            : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                    }`}
+                    style={activeSystemSection === 'monitor' ? { background: 'var(--portal-base)' } : undefined}
+                >
+                    System Monitor
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActiveSystemSection('maintenance')}
+                    className={`h-9 rounded-lg px-3 text-sm font-medium transition ${
+                        activeSystemSection === 'maintenance'
+                            ? 'text-white shadow-sm'
+                            : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                    }`}
+                    style={activeSystemSection === 'maintenance' ? { background: 'var(--portal-base)' } : undefined}
+                >
+                    Status & Maintenance
+                </button>
+            </div>
+
+            {activeSystemSection === 'monitor' ? (
+                <div className="space-y-3">
+                    <div>
+                        <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>System Monitor</h3>
+                        <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                            Current authenticated traffic, active sessions, and public-web visitors
+                        </p>
+                    </div>
+
+                    <SystemActivityPanel
+                        activity={status.activity}
+                        loading={loading}
+                        available={statusAvailable}
+                    />
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <div>
+                        <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>System Status & Maintenance</h3>
+                        <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                            Core service status and system maintenance controls
+                        </p>
+                    </div>
+
             <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Card className="flex min-h-28 min-w-0 flex-row items-center gap-3 border-stone-200 px-5 py-4 text-left shadow-none">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-stone-100">
@@ -254,7 +320,14 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                     </div>
                     <div className="min-w-0">
                         <p className="break-words text-base font-semibold leading-tight text-stone-900">OCR Processing</p>
-                        <p className="mt-1 break-words text-xs font-medium text-stone-500">{geminiSubtitle}</p>
+                        <p className="mt-1 break-words text-xs font-medium text-stone-500">Tesseract + OpenCV</p>
+                        <p className={`mt-1 inline-flex items-center gap-1.5 text-xs font-medium ${iotOcrOnline ? 'text-emerald-600' : 'text-stone-500'}`}>
+                            <span
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${iotOcrOnline ? 'bg-emerald-500' : 'bg-stone-400'}`}
+                                aria-hidden="true"
+                            />
+                            IoT OCR is {iotOcrOnline ? 'Online' : 'Offline'}
+                        </p>
                     </div>
                 </Card>
 
@@ -341,6 +414,8 @@ export default function SystemPanel({ embedded = false, editing = true }) {
                     </Button>
                 </div>
             </GroupCard>
+                </div>
+            )}
         </div>
     );
 }

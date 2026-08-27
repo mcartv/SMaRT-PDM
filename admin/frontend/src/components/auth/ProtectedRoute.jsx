@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Loader2, ShieldAlert } from 'lucide-react';
 
+import { buildApiUrl } from '@/api';
 import { authService, AuthRequestError } from '@/services/authService';
 import {
   clearPortalSession,
@@ -67,6 +68,37 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
 
     return () => window.removeEventListener('online', retry);
   }, [validate]);
+
+  useEffect(() => {
+    if (status !== 'allowed') return undefined;
+
+    const heartbeat = () => {
+      if (document.visibilityState !== 'visible') return;
+      const token = getStoredItem(storageKey);
+      if (!token) return;
+
+      void fetch(buildApiUrl('/api/system-maintenance/activity/heartbeat'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => {
+        // Presence diagnostics are best-effort and must not interrupt portal use.
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') heartbeat();
+    };
+
+    const timer = window.setInterval(heartbeat, 4 * 60 * 1000);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [status, storageKey]);
 
   if (status === 'denied') {
     return <Navigate to={redirectTo} replace />;

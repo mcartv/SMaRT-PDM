@@ -37,7 +37,7 @@ export default function UnifiedLogin() {
   const { theme } = useLandingTheme();
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f7f4ec]" style={{ minHeight: '100dvh' }}>
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[#f7f4ec]" style={{ height: '100dvh' }}>
       <style>{`
         @keyframes smartpdm-login-fade {
           from { opacity: 0; }
@@ -106,7 +106,7 @@ export default function UnifiedLogin() {
 
       <LandingInstitutionHeader theme={theme} />
 
-      <main className="relative flex flex-1 overflow-x-hidden overflow-y-auto">
+      <main className="relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <nav
           className="smartpdm-login-fade pointer-events-none absolute right-4 top-3 z-30 sm:right-5 md:right-6 lg:right-8"
           aria-label="Login page navigation"
@@ -173,7 +173,7 @@ export default function UnifiedLogin() {
           color={theme.accent}
         />
         <HexCluster
-          className="pointer-events-none absolute -bottom-10 right-[-24px] hidden h-[210px] w-[260px] opacity-55 lg:block"
+          className="pointer-events-none absolute bottom-0 right-[-24px] hidden h-[210px] w-[260px] opacity-55 lg:block"
           color={theme.base}
           mirrored
         />

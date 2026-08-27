@@ -743,7 +743,7 @@ export default function ForgotPassword() {
                 className="mt-3 max-w-[520px] text-4xl font-black leading-[1.02] tracking-[-0.035em] xl:text-5xl"
                 style={{ color: theme.dark }}
               >
-                Scholarship Monitoring System
+                SMaRT-PDM: Scholarship System
               </h2>
 
               <div className="mt-7 flex items-center gap-3" aria-hidden="true">

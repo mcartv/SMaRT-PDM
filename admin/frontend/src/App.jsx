@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import PublicVisitorTracker from './components/system/PublicVisitorTracker';
 import { getStoredPortalSession } from './utils/authStorage';
 
 // --- LAYOUTS ---
@@ -75,6 +76,7 @@ const LegacyRenewalDetailRedirect = () => {
 export default function App() {
   return (
     <BrowserRouter>
+      <PublicVisitorTracker />
       <Routes>
         <Route path="/" element={<PortalEntryRedirect />} />
 

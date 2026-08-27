@@ -65,17 +65,28 @@ const DEFAULT_LANDING_CONTENT = {
     "SMaRT-PDM is the scholarship monitoring platform of Pambayang Dalubhasaan ng Marilao and OSFA. Confirm important announcements through this site, the OSFA office, or PDM's official Facebook page.",
 };
 
+const LEGACY_POLICY_EFFECTIVE_DATE = '2026-07-23';
+const LEGACY_PRIVACY_INTRO =
+  'This notice explains how Pambayang Dalubhasaan ng Marilao, through the Office for Scholarship and Financial Assistance, handles personal information in SMaRT-PDM. It should be read together with scholarship-specific notices and consent statements shown during application.';
+
 const DEFAULT_POLICY_CONTENT = {
-  effective_date: '2026-07-23',
+  effective_date: '2026-08-28',
   privacy_icon: 'shield-check',
   privacy_intro:
-    'This notice explains how Pambayang Dalubhasaan ng Marilao, through the Office for Scholarship and Financial Assistance, handles personal information in SMaRT-PDM. It should be read together with scholarship-specific notices and consent statements shown during application.',
+    'This notice explains how Pambayang Dalubhasaan ng Marilao, through the Office for Scholarship and Financial Assistance, handles personal information in SMaRT-PDM. It applies to applicants, scholars, website visitors, administrators, and other authorized personnel. It should be read together with scholarship-specific notices and consent statements shown at the relevant point of collection.',
   privacy_sections: [
     { title: 'Information covered by this notice', body: 'SMaRT-PDM may process identity and contact details, enrollment and academic information, scholarship application responses, uploaded supporting documents, endorsement and review records, account activity, and technical information needed to operate and secure the service.' },
     { title: 'Why information is processed', body: 'Information is used to receive and evaluate scholarship applications, verify eligibility and requirements, coordinate authorized office reviews, communicate updates, administer scholar obligations and benefits, maintain records, prevent misuse, and comply with applicable institutional and legal responsibilities.' },
+    { title: 'Document processing and verification', body: 'Uploaded documents may undergo automated text extraction and document-quality checks to assist authorized personnel during verification. These tools support the review process but do not independently approve, reject, endorse, or determine scholarship eligibility. Final decisions remain with authorized PDM personnel.' },
     { title: 'Access and disclosure', body: 'Access is limited to authorized PDM and OSFA personnel and designated reviewing offices according to their responsibilities. Information may also be disclosed when required by law, regulation, audit, or a lawful request. SMaRT-PDM does not present student records as public information.' },
     { title: 'Retention and protection', body: 'Records are retained only for as long as needed for scholarship administration, institutional recordkeeping, dispute resolution, audit, and applicable legal requirements. PDM applies administrative and technical safeguards, but no electronic system can guarantee absolute security.' },
     { title: 'Your privacy rights', body: 'Subject to applicable rules, data subjects may request access or correction, raise a concern about processing, and ask about retention or disposal. Some records may need to be preserved when required for an active application, scholarship administration, audit, or legal obligation.' },
+    { title: 'Responsibility and scope', body: 'Pambayang Dalubhasaan ng Marilao, through OSFA and the authorized offices participating in scholarship administration, is responsible for the institutional processing described in this notice. The notice covers public website use, applicant and scholar services, authorized administrative workspaces, messaging, document review, endorsements, obligations, payouts, reports, and security monitoring.' },
+    { title: 'Philippine privacy law and basis for processing', body: 'SMaRT-PDM processes personal data in accordance with Republic Act No. 10173, the Data Privacy Act of 2012, its Implementing Rules and Regulations, applicable issuances of the National Privacy Commission, and NPC Circular No. 16-01 on the security of personal data in government agencies. Processing follows the principles of transparency, legitimate purpose, and proportionality. Personal information is processed only when supported by consent or another lawful basis, including the delivery of requested scholarship services, performance of PDM and OSFA public and institutional functions, compliance with legal obligations, and protection of the platform and its users. Withdrawing consent affects future consent-based processing but does not invalidate prior lawful processing or records retained under another applicable basis.' },
+    { title: 'Website and account activity', body: 'The public website uses an anonymous browser identifier to estimate unique visitors and prevent repeated page activity from being counted as different visitors. Authenticated portals record hashed session presence, authorized API traffic, account actions, and audit information for security, availability, accountability, and System Monitor reporting. These diagnostics do not store raw visitor identifiers or raw authentication tokens.' },
+    { title: 'Service providers and data handling', body: 'PDM may use authorized service providers for hosting, database and file storage, communications, security, backup, and document-processing support. They may process only the information necessary to provide those services under applicable safeguards and PDM instructions. Information may also be shared with an authorized scholarship partner or government office when required for the relevant program, audit, public function, or lawful request.' },
+    { title: 'Data retention and disposal', body: 'Public visitor, active-session, and authenticated-traffic records are retained temporarily for security, availability, and System Monitor reporting, then removed through the system cleanup process when they are no longer required. Scholarship, academic, financial, endorsement, messaging, audit, and account records are retained only while needed for their continuing administrative purpose, applicable institutional retention rules, dispute or audit requirements, and legal obligations. Records are then securely deleted, anonymized, or archived as appropriate.' },
+    { title: 'Rights under the Data Privacy Act', body: 'Under Republic Act No. 10173, data subjects have the right to be informed, object to qualifying processing, obtain reasonable access, dispute inaccuracies and request correction, request blocking, removal, or destruction when the legal conditions are met, obtain data portability where applicable, lodge a complaint with the National Privacy Commission, and seek indemnification for damage caused by unlawful or inaccurate processing. These rights may be subject to lawful limitations and record-retention duties. Requests may be sent to OSFA using the official email, telephone number, office address, or office hours published on this website. PDM may verify identity before fulfilling a request.' },
   ],
   consent_icon: 'database',
   consent_title: 'Data Processing Consent',
@@ -258,6 +269,31 @@ function sanitizePolicySections(items, defaults) {
   return normalized.length ? normalized : defaults.map((item) => ({ ...item }));
 }
 
+function ensureRequiredPrivacySections(sections) {
+  const upgradedSections = sections.map((section) => {
+    const title = section.title.toLowerCase();
+    if (title === 'basis for processing') {
+      return { ...DEFAULT_POLICY_CONTENT.privacy_sections[7] };
+    }
+    if (title === 'exercising your rights and contacting pdm') {
+      return { ...DEFAULT_POLICY_CONTENT.privacy_sections[11] };
+    }
+    if (title === 'retention periods') {
+      return { ...DEFAULT_POLICY_CONTENT.privacy_sections[10] };
+    }
+    return section;
+  });
+  const includedTitles = new Set(
+    upgradedSections.map((section) => section.title.toLowerCase())
+  );
+  const missingSections = DEFAULT_POLICY_CONTENT.privacy_sections.filter(
+    (section) => !includedTitles.has(section.title.toLowerCase())
+  );
+  return [...upgradedSections, ...missingSections]
+    .slice(0, 12)
+    .map((section) => ({ ...section }));
+}
+
 function sanitizePolicyIcon(value, fallback) {
   const icon = safeText(value, 40).toLowerCase();
   return POLICY_ICONS.has(icon) ? icon : fallback;
@@ -265,11 +301,21 @@ function sanitizePolicyIcon(value, fallback) {
 
 function sanitizePolicyContent(content = {}) {
   const defaults = DEFAULT_POLICY_CONTENT;
+  const effectiveDate = normalizeDate(content.effective_date);
+  const privacyIntro = safeText(content.privacy_intro, 1600);
   return {
-    effective_date: normalizeDate(content.effective_date) || defaults.effective_date,
+    effective_date:
+      effectiveDate === LEGACY_POLICY_EFFECTIVE_DATE
+        ? defaults.effective_date
+        : effectiveDate || defaults.effective_date,
     privacy_icon: sanitizePolicyIcon(content.privacy_icon, defaults.privacy_icon),
-    privacy_intro: safeText(content.privacy_intro, 1600) || defaults.privacy_intro,
-    privacy_sections: sanitizePolicySections(content.privacy_sections, defaults.privacy_sections),
+    privacy_intro:
+      privacyIntro === LEGACY_PRIVACY_INTRO
+        ? defaults.privacy_intro
+        : privacyIntro || defaults.privacy_intro,
+    privacy_sections: ensureRequiredPrivacySections(
+      sanitizePolicySections(content.privacy_sections, defaults.privacy_sections)
+    ),
     consent_icon: sanitizePolicyIcon(content.consent_icon, defaults.consent_icon),
     consent_title: safeText(content.consent_title, 160) || defaults.consent_title,
     consent_body: safeText(content.consent_body, 1800) || defaults.consent_body,

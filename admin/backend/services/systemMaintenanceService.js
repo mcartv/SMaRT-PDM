@@ -3,6 +3,8 @@ const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const pool = require('../config/db');
+const systemActivityService = require('./systemActivityService');
+const iotOcrPresenceService = require('./iotOcrPresenceService');
 
 const DEFAULT_MAINTENANCE_MESSAGE =
   'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.';
@@ -177,7 +179,7 @@ function formatBytes(bytes) {
 }
 
 async function getSystemStatus() {
-  const [maintenance, databaseResult, storage, ocrJobs] = await Promise.all([
+  const [maintenance, databaseResult, storage, ocrJobs, activity] = await Promise.all([
     getMaintenanceState(),
     pool.query(`
       SELECT
@@ -188,11 +190,13 @@ async function getSystemStatus() {
     `),
     safeStorageUsage(),
     safeOcrJobCounts(),
+    systemActivityService.getActivitySummary(),
   ]);
 
   const database = databaseResult.rows[0] || {};
   const dump = checkPgDump();
   const geminiModel = String(process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
+  const iotOcr = iotOcrPresenceService.getAvailability();
 
   return {
     maintenance,
@@ -201,6 +205,7 @@ async function getSystemStatus() {
       review: 'Gemini V2',
       gemini_model: geminiModel,
       gemini_configured: Boolean(String(process.env.GEMINI_API_KEY || '').trim()),
+      iot: iotOcr,
       jobs: ocrJobs,
     },
     database: {
@@ -215,6 +220,7 @@ async function getSystemStatus() {
       pg_dump_version: dump.version,
       fallback_available: true,
     },
+    activity,
     checked_at: new Date().toISOString(),
   };
 }

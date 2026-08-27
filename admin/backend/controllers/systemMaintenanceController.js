@@ -2,6 +2,7 @@ const fs = require('fs');
 const socketEvents = require('../utils/socketEvents');
 const auditLogService = require('../services/auditLogService');
 const systemMaintenanceService = require('../services/systemMaintenanceService');
+const systemActivityService = require('../services/systemActivityService');
 
 function actorUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -106,6 +107,28 @@ async function getStatus(_req, res) {
   }
 }
 
+async function recordPublicVisit(req, res) {
+  try {
+    await systemActivityService.recordPublicVisit({
+      visitorId: req.body?.visitor_id,
+      path: req.body?.path,
+    });
+    return res.sendStatus(204);
+  } catch (error) {
+    const code = statusCode(error);
+    if (code >= 500) {
+      console.error('PUBLIC WEB VISIT TRACK ERROR:', error);
+    }
+    return res.status(code).json({
+      error: error.message || 'Failed to record web visit.',
+    });
+  }
+}
+
+async function heartbeatActivity(_req, res) {
+  return res.sendStatus(204);
+}
+
 async function downloadBackup(req, res) {
   let backup = null;
 
@@ -159,5 +182,7 @@ module.exports = {
   getState,
   updateState,
   getStatus,
+  recordPublicVisit,
+  heartbeatActivity,
   downloadBackup,
 };

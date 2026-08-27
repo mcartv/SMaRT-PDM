@@ -3,6 +3,7 @@ const fs = require('fs');
 const http = require('http');
 const { ensureCanonicalIotOcrMigration } = require('../services/liveMigrationService');
 const { ensureSystemMaintenanceMigration } = require('../services/systemMaintenanceMigrationService'); // SMART-PDM_SYSTEM_MAINTENANCE_SERVER_V1
+const { ensureSystemActivityMigration } = require('../services/systemActivityMigrationService');
 const socketIO = require('socket.io');
 
 if (process.env.NODE_ENV !== 'production') {
@@ -91,6 +92,7 @@ const socketEvents = require('../utils/socketEvents');
 const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
+const systemActivityService = require('../services/systemActivityService');
 
 const app = express();
 
@@ -654,6 +656,8 @@ async function startServer() {
   try {
     await ensureCanonicalIotOcrMigration();
     await ensureSystemMaintenanceMigration();
+    await ensureSystemActivityMigration();
+    systemActivityService.startMetricsFlushTimer();
     require('../services/birthOcrV2Service').cleanupPendingArtifacts().catch((error) => {
       console.warn('IOT_OCR_ARTIFACT_CLEANUP_RETRY_FAILED', { code: error.code || 'CLEANUP_FAILED' });
     });

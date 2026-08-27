@@ -22,6 +22,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
 
   ApplicationStatusSummary? _summary;
   bool _isLoading = true;
+  bool _isViewingSlip = false;
   bool _isDownloadingSlip = false;
   String? _errorMessage;
   NotificationProvider? _notificationProvider;
@@ -93,16 +94,40 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     }
   }
 
-  Future<void> _downloadEndorsementSlip() async {
-    setState(() => _isDownloadingSlip = true);
+  // SMART_PDM_ENDORSEMENT_SLIP_VIEW_DOWNLOAD_V1
+  String _endorsementSlipErrorMessage(Object error) {
+    final message = error
+        .toString()
+        .replaceFirst('Exception: ', '')
+        .trim();
+
+    if (message.toLowerCase().contains('not available') ||
+        message.toLowerCase().contains('only available after')) {
+      return 'The official Endorsement Slip is not available yet. '
+          'The page has been refreshed to check the latest endorsement status.';
+    }
+
+    return message.isEmpty
+        ? 'Unable to load the official Endorsement Slip. Please try again.'
+        : message;
+  }
+
+  Future<void> _viewEndorsementSlip() async {
+    if (_isViewingSlip || _isDownloadingSlip) return;
+
+    setState(() => _isViewingSlip = true);
 
     try {
+      // Fetch fresh bytes from the protected backend route every time.
+      // No expiring signed storage URL is cached in the mobile client.
       final download = await _applicationService.downloadMyEndorsementSlip();
-      final message = await saveAndOpenDownloadedFile(
+
+      final message = await openDownloadedFilePreview(
         bytes: download.bytes,
         fileName: download.fileName,
         contentType: download.contentType,
       );
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(
@@ -110,13 +135,46 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
       ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceFirst('Exception: ', '').trim(),
-          ),
-        ),
+        SnackBar(content: Text(_endorsementSlipErrorMessage(error))),
       );
+
+      await _loadStatus();
+    } finally {
+      if (mounted) setState(() => _isViewingSlip = false);
+    }
+  }
+
+  Future<void> _downloadEndorsementSlip() async {
+    if (_isDownloadingSlip || _isViewingSlip) return;
+
+    setState(() => _isDownloadingSlip = true);
+
+    try {
+      // This is the same official, finalized PDF used by Admin. Mobile does
+      // not generate a second endorsement slip.
+      final download = await _applicationService.downloadMyEndorsementSlip();
+
+      final message = await saveDownloadedFile(
+        bytes: download.bytes,
+        fileName: download.fileName,
+        contentType: download.contentType,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_endorsementSlipErrorMessage(error))),
+      );
+
+      await _loadStatus();
     } finally {
       if (mounted) setState(() => _isDownloadingSlip = false);
     }
@@ -165,7 +223,9 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
             else
               _EndorsementView(
                 summary: _summary!,
+                isViewingSlip: _isViewingSlip,
                 isDownloadingSlip: _isDownloadingSlip,
+                onViewSlip: _viewEndorsementSlip,
                 onDownloadSlip: _downloadEndorsementSlip,
               ),
           ],
@@ -178,12 +238,16 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
 class _EndorsementView extends StatelessWidget {
   const _EndorsementView({
     required this.summary,
+    required this.isViewingSlip,
     required this.isDownloadingSlip,
+    required this.onViewSlip,
     required this.onDownloadSlip,
   });
 
   final ApplicationStatusSummary summary;
+  final bool isViewingSlip;
   final bool isDownloadingSlip;
+  final VoidCallback onViewSlip;
   final VoidCallback onDownloadSlip;
 
   String _friendlyStatusLabel(String status) {
@@ -580,8 +644,8 @@ class _EndorsementView extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         slip.available
-                            ? 'Your printable endorsement slip is ready. Download it here.'
-                            : 'Your PDF copy becomes available after the endorsement slip is completed.',
+                            ? 'Your official Endorsement Slip is ready. View it first or download a copy for your records.'
+                            : 'Your official PDF will appear here after all endorsement offices complete the slip and the finalized PDF is generated.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           height: 1.35,
                           color: const Color(0xFF57534E),
@@ -591,39 +655,127 @@ class _EndorsementView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: slip.available && !isDownloadingSlip
-                        ? onDownloadSlip
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(54),
-                      backgroundColor: const Color(0xFF0F766E),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE7E5E4),
-                      disabledForegroundColor: const Color(0xFF78716C),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                if (slip.available)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final stackActions = constraints.maxWidth < 360;
+                      final actionsBusy =
+                          isViewingSlip || isDownloadingSlip;
+
+                      final viewButton = OutlinedButton.icon(
+                        onPressed: actionsBusy ? null : onViewSlip,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          foregroundColor: const Color(0xFF0F766E),
+                          side: const BorderSide(
+                            color: Color(0xFF99CFC7),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: isViewingSlip
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.visibility_outlined),
+                        label: Text(
+                          isViewingSlip
+                              ? 'Opening...'
+                              : 'View Endorsement Slip',
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+
+                      final downloadButton = ElevatedButton.icon(
+                        onPressed: actionsBusy ? null : onDownloadSlip,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          backgroundColor: const Color(0xFF0F766E),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: isDownloadingSlip
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.download_rounded),
+                        label: Text(
+                          isDownloadingSlip
+                              ? 'Downloading...'
+                              : 'Download PDF',
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+
+                      if (stackActions) {
+                        return Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.stretch,
+                          children: [
+                            viewButton,
+                            const SizedBox(height: 10),
+                            downloadButton,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: viewButton),
+                          const SizedBox(width: 10),
+                          Expanded(child: downloadButton),
+                        ],
+                      );
+                    },
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFE7E5E4),
                       ),
-                      elevation: slip.available ? 0 : 0,
                     ),
-                    icon: isDownloadingSlip
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.picture_as_pdf),
-                    label: Text(
-                      isDownloadingSlip
-                          ? 'Downloading Endorsement Slip...'
-                          : slip.available
-                          ? 'Download My Endorsement Slip'
-                          : 'PDF Available After Completion',
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          color: Color(0xFF78716C),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Official PDF pending. View and Download will become available automatically once the finalized Endorsement Slip is generated.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: const Color(0xFF57534E),
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
               ],
             ),
           ),

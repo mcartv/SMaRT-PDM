@@ -848,25 +848,24 @@ class _EndorsementRoadmap extends StatelessWidget {
       case 'completed':
         return 4;
       default:
-        return 0;
+        return 1;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // SMART_PDM_ENDORSEMENT_TIMELINE_POLISH_V2
-    const steps = <({String label, String semanticLabel})>[
-      (label: 'Submitted', semanticLabel: 'Application submitted'),
-      (label: 'SDO', semanticLabel: 'SDO review'),
-      (label: 'Guidance', semanticLabel: 'Guidance review'),
-      (label: 'Program Director', semanticLabel: 'Program Director review'),
-      (label: 'Done', semanticLabel: 'Endorsement completed'),
+    const labels = [
+      'Submitted',
+      'SDO',
+      'Guidance',
+      'Program\nDirector',
+      'Done',
     ];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mutedSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : AppColors.applicantLightSurfaceMuted;
+    final surface = isDark
+        ? AppColors.applicantDarkSurface
+        : AppColors.applicantLightSurface;
     final outline = isDark
         ? AppColors.applicantDarkOutline
         : AppColors.applicantLightOutline;
@@ -883,143 +882,99 @@ class _EndorsementRoadmap extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      padding: const EdgeInsets.fromLTRB(10, 18, 10, 16),
       decoration: BoxDecoration(
-        color: mutedSurface,
-        borderRadius: BorderRadius.circular(20),
+        color: surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: outline),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const nodeSize = 32.0;
-          final trackWidth = constraints.maxWidth - nodeSize;
-          final safeTrackWidth = trackWidth < 0 ? 0.0 : trackWidth;
-          final progressFraction = allDone
-              ? 1.0
-              : (activeIndex / (steps.length - 1)).clamp(0.0, 1.0);
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(labels.length, (index) {
+          final isDone = allDone || index < activeIndex;
+          final isActive = !allDone && index == activeIndex;
+          final nodeColor = isDone
+              ? completedColor
+              : isActive
+              ? activeColor
+              : outline;
+          final connectorLeftDone = allDone || index <= activeIndex;
+          final connectorRightDone = allDone || index < activeIndex;
 
-          return Column(
-            children: [
-              SizedBox(
-                height: nodeSize,
-                child: Stack(
-                  alignment: Alignment.centerLeft,
+          return Expanded(
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Positioned(
-                      left: nodeSize / 2,
-                      right: nodeSize / 2,
-                      top: (nodeSize / 2) - 1.5,
-                      child: Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: outline.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(999),
+                    if (index > 0)
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          color: connectorLeftDone
+                              ? completedColor
+                              : outline,
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: nodeSize / 2,
-                      top: (nodeSize / 2) - 1.5,
-                      child: Container(
-                        width: safeTrackWidth * progressFraction,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: completedColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(steps.length, (index) {
-                        final isDone = allDone || index < activeIndex;
-                        final isActive = !allDone && index == activeIndex;
-                        final nodeColor = isDone
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: isDone
                             ? completedColor
                             : isActive
-                            ? activeColor
-                            : outline;
-
-                        return Semantics(
-                          label: steps[index].semanticLabel,
-                          value: isDone
-                              ? 'Completed'
-                              : isActive
-                              ? 'Current'
-                              : 'Pending',
-                          child: Container(
-                            width: nodeSize,
-                            height: nodeSize,
-                            decoration: BoxDecoration(
-                              color: isDone
-                                  ? completedColor
-                                  : isActive
-                                  ? activeColor
-                                  : mutedSurface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: nodeColor,
-                                width: 2,
-                              ),
-                            ),
-                            child: isDone
-                                ? Icon(
-                                    Icons.check_rounded,
-                                    size: 18,
-                                    color: isDark
-                                        ? AppColors.darkBrown
-                                        : Colors.white,
-                                  )
-                                : isActive
-                                ? const Icon(
-                                    Icons.circle,
-                                    size: 8,
-                                    color: AppColors.darkBrown,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(steps.length, (index) {
-                  final isDone = allDone || index < activeIndex;
-                  final isActive = !allDone && index == activeIndex;
-
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: index == 0 || index == steps.length - 1
-                            ? 0
-                            : 3,
-                      ),
-                      child: Text(
-                        steps[index].label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isDone || isActive
-                              ? primaryText
-                              : secondaryText,
-                          fontWeight: isDone || isActive
-                              ? FontWeight.w800
-                              : FontWeight.w600,
-                          fontSize: 10.5,
-                          height: 1.15,
+                            ? activeColor.withValues(alpha: 0.16)
+                            : surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: nodeColor,
+                          width: 2,
                         ),
                       ),
+                      child: Icon(
+                        isDone
+                            ? Icons.check_rounded
+                            : isActive
+                            ? Icons.circle
+                            : Icons.circle_outlined,
+                        size: isDone ? 17 : 9,
+                        color: isDone
+                            ? (isDark
+                                  ? AppColors.darkBrown
+                                  : Colors.white)
+                            : nodeColor,
+                      ),
                     ),
-                  );
-                }),
-              ),
-            ],
+                    if (index < labels.length - 1)
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          color: connectorRightDone
+                              ? completedColor
+                              : outline,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                Text(
+                  labels[index],
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isDone || isActive
+                        ? primaryText
+                        : secondaryText,
+                    fontWeight: isDone || isActive
+                        ? FontWeight.w800
+                        : FontWeight.w600,
+                    height: 1.15,
+                  ),
+                ),
+              ],
+            ),
           );
-        },
+        }),
       ),
     );
   }

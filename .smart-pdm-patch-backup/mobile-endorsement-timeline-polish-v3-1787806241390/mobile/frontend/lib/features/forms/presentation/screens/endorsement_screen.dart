@@ -854,19 +854,19 @@ class _EndorsementRoadmap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // SMART_PDM_ENDORSEMENT_TIMELINE_POLISH_V2
-    const steps = <({String label, String semanticLabel})>[
-      (label: 'Submitted', semanticLabel: 'Application submitted'),
-      (label: 'SDO', semanticLabel: 'SDO review'),
-      (label: 'Guidance', semanticLabel: 'Guidance review'),
-      (label: 'Program Director', semanticLabel: 'Program Director review'),
-      (label: 'Done', semanticLabel: 'Endorsement completed'),
+    // SMART_PDM_ENDORSEMENT_TIMELINE_POLISH_V1
+    const steps = <({String shortLabel, String semanticLabel})>[
+      (shortLabel: 'Submitted', semanticLabel: 'Application submitted'),
+      (shortLabel: 'SDO', semanticLabel: 'SDO review'),
+      (shortLabel: 'Guidance', semanticLabel: 'Guidance review'),
+      (shortLabel: 'PD', semanticLabel: 'Program Director review'),
+      (shortLabel: 'Done', semanticLabel: 'Endorsement completed'),
     ];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mutedSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : AppColors.applicantLightSurfaceMuted;
+    final surface = isDark
+        ? AppColors.applicantDarkSurface
+        : AppColors.applicantLightSurface;
     final outline = isDark
         ? AppColors.applicantDarkOutline
         : AppColors.applicantLightOutline;
@@ -883,14 +883,15 @@ class _EndorsementRoadmap extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
       decoration: BoxDecoration(
-        color: mutedSurface,
-        borderRadius: BorderRadius.circular(20),
+        color: surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: outline),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          const nodeSize = 32.0;
+          const nodeSize = 28.0;
           final trackWidth = constraints.maxWidth - nodeSize;
           final safeTrackWidth = trackWidth < 0 ? 0.0 : trackWidth;
           final progressFraction = allDone
@@ -907,21 +908,21 @@ class _EndorsementRoadmap extends StatelessWidget {
                     Positioned(
                       left: nodeSize / 2,
                       right: nodeSize / 2,
-                      top: (nodeSize / 2) - 1.5,
+                      top: (nodeSize / 2) - 1,
                       child: Container(
-                        height: 3,
+                        height: 2,
                         decoration: BoxDecoration(
-                          color: outline.withValues(alpha: 0.65),
+                          color: outline,
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
                     ),
                     Positioned(
                       left: nodeSize / 2,
-                      top: (nodeSize / 2) - 1.5,
+                      top: (nodeSize / 2) - 1,
                       child: Container(
                         width: safeTrackWidth * progressFraction,
-                        height: 3,
+                        height: 2,
                         decoration: BoxDecoration(
                           color: completedColor,
                           borderRadius: BorderRadius.circular(999),
@@ -953,27 +954,38 @@ class _EndorsementRoadmap extends StatelessWidget {
                               color: isDone
                                   ? completedColor
                                   : isActive
-                                  ? activeColor
-                                  : mutedSurface,
+                                  ? activeColor.withValues(alpha: 0.16)
+                                  : surface,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: nodeColor,
                                 width: 2,
                               ),
+                              boxShadow: isActive
+                                  ? [
+                                      BoxShadow(
+                                        color: activeColor.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        blurRadius: 8,
+                                        spreadRadius: 2,
+                                      ),
+                                    ]
+                                  : null,
                             ),
                             child: isDone
                                 ? Icon(
                                     Icons.check_rounded,
-                                    size: 18,
+                                    size: 16,
                                     color: isDark
                                         ? AppColors.darkBrown
                                         : Colors.white,
                                   )
                                 : isActive
-                                ? const Icon(
+                                ? Icon(
                                     Icons.circle,
                                     size: 8,
-                                    color: AppColors.darkBrown,
+                                    color: activeColor,
                                   )
                                 : null,
                           ),
@@ -983,7 +995,7 @@ class _EndorsementRoadmap extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: List.generate(steps.length, (index) {
@@ -992,15 +1004,15 @@ class _EndorsementRoadmap extends StatelessWidget {
 
                   return Expanded(
                     child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: index == 0 || index == steps.length - 1
-                            ? 0
-                            : 3,
+                      padding: EdgeInsets.only(
+                        left: index == 0 ? 0 : 2,
+                        right: index == steps.length - 1 ? 0 : 2,
                       ),
                       child: Text(
-                        steps[index].label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        steps[index].shortLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: isDone || isActive
@@ -1010,7 +1022,7 @@ class _EndorsementRoadmap extends StatelessWidget {
                               ? FontWeight.w800
                               : FontWeight.w600,
                           fontSize: 10.5,
-                          height: 1.15,
+                          height: 1.1,
                         ),
                       ),
                     ),

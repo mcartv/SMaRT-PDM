@@ -46,18 +46,15 @@ test('Removes the redundant Slip Status summary', () => {
   assert.doesNotMatch(screen, /_OverviewMiniItem/);
 });
 
-test('Renders a market-style five-node Endorsement timeline', () => {
-  assert.match(screen, /SMART_PDM_ENDORSEMENT_TIMELINE_POLISH_V2/);
-  assert.match(screen, /label: 'Submitted'/);
-  assert.match(screen, /label: 'SDO'/);
-  assert.match(screen, /label: 'Guidance'/);
-  assert.match(screen, /label: 'Program Director'/);
-  assert.match(screen, /label: 'Done'/);
-  assert.match(screen, /height: 3/);
-  assert.match(screen, /nodeSize = 32\.0/);
-  assert.match(screen, /maxLines: 2/);
-  assert.match(screen, /color: mutedSurface/);
-  assert.doesNotMatch(screen, /shortLabel: 'PD'/);
+test('Renders a five-node connected Endorsement timeline', () => {
+  assert.match(screen, /class _EndorsementRoadmap/);
+  assert.match(screen, /'Submitted'/);
+  assert.match(screen, /'SDO'/);
+  assert.match(screen, /'Guidance'/);
+  assert.match(screen, /'Program\\nDirector'/);
+  assert.match(screen, /'Done'/);
+  assert.match(screen, /height: 2/);
+  assert.match(screen, /List\.generate\(labels\.length/);
 });
 
 test('Keeps Office Results', () => {

@@ -5,7 +5,6 @@ import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
@@ -23,8 +22,6 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
 
   ApplicationStatusSummary? _summary;
   bool _isLoading = true;
-  bool _isRefreshingStatus = false;
-  bool _isViewingSlip = false;
   bool _isDownloadingSlip = false;
   String? _errorMessage;
   NotificationProvider? _notificationProvider;
@@ -35,13 +32,10 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadStatus(showLoading: true);
-
-    // Realtime notifications are the primary refresh path. Keep a much slower
-    // polling fallback without replacing the current page with a spinner.
-    _pollingTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    _loadStatus();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (mounted) {
-        _loadStatus(silent: true);
+        _loadStatus();
       }
     });
   }
@@ -73,131 +67,42 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     _lastApplicationRevision = provider.applicationRevision;
 
     if (mounted) {
-      _loadStatus(silent: true);
+      _loadStatus();
     }
   }
 
-  // SMART_PDM_ENDORSEMENT_UI_CLEANUP_V1
-  Future<void> _loadStatus({
-    bool showLoading = false,
-    bool silent = false,
-  }) async {
-    if (_isRefreshingStatus) return;
-
-    _isRefreshingStatus = true;
-    final shouldBlockPage = showLoading && _summary == null;
-
-    if (mounted && shouldBlockPage) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-    }
+  Future<void> _loadStatus() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final summary = await _applicationService
           .fetchMyApplicationStatusSummary();
-
       if (!mounted) return;
-
+      setState(() => _summary = summary);
+    } catch (error) {
+      if (!mounted) return;
       setState(() {
-        _summary = summary;
-        _errorMessage = null;
+        _summary = null;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
       });
-    } catch (error) {
-      if (!mounted) return;
-
-      // A background refresh must not erase a valid page that is already on
-      // screen. Only surface the error when no usable status is available.
-      if (!silent || _summary == null) {
-        setState(() {
-          _errorMessage = error
-              .toString()
-              .replaceFirst('Exception: ', '')
-              .trim();
-        });
-      }
     } finally {
-      _isRefreshingStatus = false;
-
-      if (mounted && _isLoading) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _refreshStatus() => _loadStatus(silent: true);
-
-  Future<void> _retryStatus() => _loadStatus(showLoading: true);
-
-  // SMART_PDM_ENDORSEMENT_SLIP_VIEW_DOWNLOAD_V1
-  String _endorsementSlipErrorMessage(Object error) {
-    final message = error
-        .toString()
-        .replaceFirst('Exception: ', '')
-        .trim();
-
-    if (message.toLowerCase().contains('not available') ||
-        message.toLowerCase().contains('only available after')) {
-      return 'The official Endorsement Slip is not available yet. '
-          'The page has been refreshed to check the latest endorsement status.';
-    }
-
-    return message.isEmpty
-        ? 'Unable to load the official Endorsement Slip. Please try again.'
-        : message;
-  }
-
-  Future<void> _viewEndorsementSlip() async {
-    if (_isViewingSlip || _isDownloadingSlip) return;
-
-    setState(() => _isViewingSlip = true);
-
-    try {
-      // Fetch fresh bytes from the protected backend route every time.
-      // No expiring signed storage URL is cached in the mobile client.
-      final download = await _applicationService.downloadMyEndorsementSlip();
-
-      final message = await openDownloadedFilePreview(
-        bytes: download.bytes,
-        fileName: download.fileName,
-        contentType: download.contentType,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_endorsementSlipErrorMessage(error))),
-      );
-
-      await _loadStatus();
-    } finally {
-      if (mounted) setState(() => _isViewingSlip = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _downloadEndorsementSlip() async {
-    if (_isDownloadingSlip || _isViewingSlip) return;
-
     setState(() => _isDownloadingSlip = true);
 
     try {
-      // This is the same official, finalized PDF used by Admin. Mobile does
-      // not generate a second endorsement slip.
       final download = await _applicationService.downloadMyEndorsementSlip();
-
-      final message = await saveDownloadedFile(
+      final message = await saveAndOpenDownloadedFile(
         bytes: download.bytes,
         fileName: download.fileName,
         contentType: download.contentType,
       );
-
       if (!mounted) return;
 
       ScaffoldMessenger.of(
@@ -205,12 +110,13 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
       ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_endorsementSlipErrorMessage(error))),
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', '').trim(),
+          ),
+        ),
       );
-
-      await _loadStatus();
     } finally {
       if (mounted) setState(() => _isDownloadingSlip = false);
     }
@@ -229,7 +135,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
       appBar: AppBar(title: const Text('Endorsement')),
       selectedIndex: 0,
       child: RefreshIndicator(
-        onRefresh: _refreshStatus,
+        onRefresh: _loadStatus,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -244,7 +150,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
                 title: 'Unable to load endorsement',
                 message: _errorMessage!,
                 primaryActionLabel: 'Try Again',
-                onPrimaryAction: _retryStatus,
+                onPrimaryAction: _loadStatus,
               )
             else if (_summary == null || _summary!.hasApplication == false)
               _EndorsementMessageCard(
@@ -259,9 +165,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
             else
               _EndorsementView(
                 summary: _summary!,
-                isViewingSlip: _isViewingSlip,
                 isDownloadingSlip: _isDownloadingSlip,
-                onViewSlip: _viewEndorsementSlip,
                 onDownloadSlip: _downloadEndorsementSlip,
               ),
           ],
@@ -274,24 +178,16 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
 class _EndorsementView extends StatelessWidget {
   const _EndorsementView({
     required this.summary,
-    required this.isViewingSlip,
     required this.isDownloadingSlip,
-    required this.onViewSlip,
     required this.onDownloadSlip,
   });
 
   final ApplicationStatusSummary summary;
-  final bool isViewingSlip;
   final bool isDownloadingSlip;
-  final VoidCallback onViewSlip;
   final VoidCallback onDownloadSlip;
 
-  bool _isCompleted(EndorsementStateSummary endorsement) {
-    return endorsement.status.trim().toLowerCase() == 'completed';
-  }
-
   String _friendlyStatusLabel(String status) {
-    final normalized = status.trim().toLowerCase();
+    final normalized = status.toLowerCase();
 
     if (normalized.contains('pending sdo') || normalized == 'pending_sdo') {
       return 'Waiting for SDO';
@@ -304,87 +200,97 @@ class _EndorsementView extends StatelessWidget {
         normalized == 'pending_pd') {
       return 'Waiting for Program Director';
     }
-    if (normalized.contains('held')) return 'On Hold';
-    if (normalized.contains('major')) return 'Endorsement Stopped';
-    if (normalized.contains('rejected')) return 'Endorsement Stopped';
-    if (normalized.contains('completed')) return 'Completed';
+    if (normalized.contains('held')) {
+      return 'Historical Guidance Hold';
+    }
+    if (normalized.contains('major')) {
+      return 'Stopped by Major Offense';
+    }
+    if (normalized.contains('rejected')) {
+      return 'Historical Rejected Endorsement';
+    }
+    if (normalized.contains('completed')) {
+      return 'Completed';
+    }
 
     return status;
   }
 
-  String _currentStepLabel(EndorsementStateSummary endorsement) {
-    if (_isCompleted(endorsement)) return 'Done';
-
-    switch (endorsement.currentStage.trim().toLowerCase()) {
-      case 'pending_sdo':
-        return 'SDO';
-      case 'pending_guidance':
-        return 'Guidance';
-      case 'pending_pd':
-        return 'Program Director';
-      case 'completed':
-        return 'Done';
-      default:
-        final office = endorsement.currentOffice?.trim() ?? '';
-        return office.isEmpty ? 'Processing' : office;
+  String _friendlyDecisionLabel(String? decision) {
+    final normalized = (decision ?? '').trim().toLowerCase();
+    if (normalized.isEmpty) return 'Pending';
+    if (normalized == 'no_offense' || normalized == 'cleared') {
+      return 'No Disciplinary Offense';
     }
+    if (normalized == 'minor_offense' || normalized == 'disqualified_minor') {
+      return 'With Minor Offense/s';
+    }
+    if (normalized == 'major_offense' || normalized == 'disqualified_major') {
+      return 'With Major Offense/s';
+    }
+    if (normalized == 'good_moral_standing') return 'Good Moral Standing';
+    if (normalized == 'good_scholastic_standing') {
+      return 'Good Scholastic Standing';
+    }
+    if (normalized == 'average_scholastic_standing') {
+      return 'Average Scholastic Standing';
+    }
+    if (normalized == 'approved') {
+      return 'Legacy Approved — Standing Not Recorded';
+    }
+    if (normalized == 'held') return 'Legacy Guidance Hold';
+    if (normalized == 'rejected') return 'Legacy Rejected';
+
+    return decision!
+        .split('_')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
   }
 
-  Color _statusColor(BuildContext context, String status) {
-    final normalized = status.trim().toLowerCase();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final success = isDark ? AppColors.lightBlue : AppColors.teal;
+  String _friendlyCurrentOffice(String? office) {
+    final text = office?.trim() ?? '';
+    return text.isEmpty ? 'Not assigned yet' : office!;
+  }
+
+  Color _statusColor(String status) {
+    final normalized = status.toLowerCase();
 
     if (normalized.contains('rejected') ||
         normalized.contains('major') ||
         normalized.contains('offense')) {
-      return Theme.of(context).colorScheme.error;
+      return Colors.red;
     }
-
     if (normalized.contains('held') || normalized.contains('missing')) {
-      return AppColors.orange;
+      return Colors.orange;
+    }
+    if (normalized.contains('completed') || normalized.contains('approved')) {
+      return Colors.green;
+    }
+    if (normalized.contains('pending')) {
+      return Colors.blue;
     }
 
-    if (normalized.contains('completed') ||
-        normalized.contains('approved') ||
-        normalized.contains('verified')) {
-      return success;
-    }
-
-    if (normalized.contains('pending') ||
-        normalized.contains('waiting') ||
-        normalized.contains('review')) {
-      return AppColors.gold;
-    }
-
-    return isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
+    return Colors.blueGrey;
   }
 
   IconData _statusIcon(String status) {
-    final normalized = status.trim().toLowerCase();
+    final normalized = status.toLowerCase();
 
     if (normalized.contains('rejected') ||
         normalized.contains('major') ||
         normalized.contains('offense')) {
-      return Icons.cancel_rounded;
+      return Icons.cancel;
     }
-
-    if (normalized.contains('held')) {
-      return Icons.pause_circle_filled_rounded;
+    if (normalized.contains('held')) return Icons.pause_circle_filled;
+    if (normalized.contains('completed') || normalized.contains('approved')) {
+      return Icons.check_circle;
     }
-
-    if (normalized.contains('completed') ||
-        normalized.contains('approved')) {
-      return Icons.check_circle_rounded;
-    }
-
-    return Icons.schedule_rounded;
+    return Icons.access_time;
   }
 
   String _formatDate(DateTime? value) {
-    if (value == null) return '';
+    if (value == null) return 'Not available';
     return DateFormat('MMM d, yyyy').format(value.toLocal());
   }
 
@@ -393,65 +299,19 @@ class _EndorsementView extends StatelessWidget {
     EndorsementStateSummary endorsement,
   ) {
     final blocker = workflow.primaryBlocker;
-
     if (blocker?.source == 'endorsement') {
       return blocker!.message;
     }
 
-    if (_isCompleted(endorsement)) {
-      return endorsement.slip.available
-          ? 'All three office reviews are complete. Your official Endorsement Slip is ready.'
-          : 'All three office reviews are complete. The official PDF is being finalized.';
+    if (endorsement.currentOffice?.trim().isNotEmpty == true) {
+      return 'Your endorsement slip is currently waiting in ${endorsement.currentOffice}.';
     }
 
-    return 'Your Endorsement Slip is moving through the required office reviews.';
-  }
-
-  Widget? _buildBlocker(
-    BuildContext context,
-    ApplicationWorkflowSummary workflow,
-  ) {
-    final blockerCode = workflow.primaryBlocker?.code ?? '';
-
-    if (blockerCode == 'endorsement.grade_document_missing') {
-      return _EndorsementAlertCard(
-        color: AppColors.orange,
-        icon: Icons.warning_amber_rounded,
-        title: 'Grade Report Required',
-        message:
-            'Upload your current grades PDF before the Program Director can complete the review.',
-        primaryLabel: 'Open Documents',
-        onPrimaryAction: () =>
-            Navigator.pushNamed(context, AppRoutes.documents),
-      );
+    if (endorsement.status == 'completed') {
+      return 'Your endorsement slip is complete. Final scholar activation still depends on your requirements status.';
     }
 
-    if (blockerCode == 'endorsement.held') {
-      return _EndorsementAlertCard(
-        color: AppColors.orange,
-        icon: Icons.pause_circle_filled_rounded,
-        title: 'Endorsement On Hold',
-        message:
-            'Guidance placed this endorsement on hold. Check the office result below for details.',
-        primaryLabel: 'View Application Status',
-        onPrimaryAction: () => Navigator.pushNamed(context, AppRoutes.status),
-      );
-    }
-
-    if (blockerCode == 'endorsement.major_offense' ||
-        blockerCode == 'endorsement.rejected') {
-      return _EndorsementAlertCard(
-        color: Theme.of(context).colorScheme.error,
-        icon: Icons.report_gmailerrorred_rounded,
-        title: 'Endorsement Stopped',
-        message:
-            'An office review stopped this endorsement. Check the office result below for the recorded decision.',
-        primaryLabel: 'View Application Status',
-        onPrimaryAction: () => Navigator.pushNamed(context, AppRoutes.status),
-      );
-    }
-
-    return null;
+    return 'Your endorsement slip is currently being processed.';
   }
 
   @override
@@ -461,338 +321,317 @@ class _EndorsementView extends StatelessWidget {
 
     if (workflow == null || endorsement == null) {
       return _EndorsementMessageCard(
-        icon: Icons.assignment_outlined,
+        icon: Icons.info_outline,
         title: 'Endorsement not available yet',
         message:
-            'Your endorsement timeline will appear once your application enters office review.',
-        primaryActionLabel: 'View Application Status',
+            'The endorsement workflow will appear here once your application enters office review.',
+        primaryActionLabel: 'Open Application Status',
         onPrimaryAction: () => Navigator.pushNamed(context, AppRoutes.status),
       );
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = isDark
-        ? AppColors.applicantDarkSurface
-        : AppColors.applicantLightSurface;
-    final mutedSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : AppColors.applicantLightSurfaceMuted;
-    final outline = isDark
-        ? AppColors.applicantDarkOutline
-        : AppColors.applicantLightOutline;
-    final primaryText = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.applicantLightText;
-    final secondaryText = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
-    final accent = isDark ? AppColors.lightBlue : AppColors.teal;
-    final statusColor = _statusColor(context, endorsement.statusLabel);
-    final blocker = _buildBlocker(context, workflow);
+    final statusColor = _statusColor(endorsement.statusLabel);
+    final statusIcon = _statusIcon(endorsement.statusLabel);
     final slip = endorsement.slip;
-    final completedDate = _formatDate(
-      endorsement.completedAt ?? slip.completedAt,
-    );
+    final blockerCode = workflow.primaryBlocker?.code ?? '';
+    final friendlyStatus = _friendlyStatusLabel(endorsement.statusLabel);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: outline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _statusIcon(endorsement.statusLabel),
-                      color: statusColor,
-                      size: 23,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _friendlyStatusLabel(endorsement.statusLabel),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: primaryText,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _nextActionMessage(workflow, endorsement),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: secondaryText,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: mutedSurface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
+        Card(
+          color: statusColor.withOpacity(0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Icon(
-                      _isCompleted(endorsement)
-                          ? Icons.done_all_rounded
-                          : Icons.near_me_outlined,
-                      color: _isCompleted(endorsement)
-                          ? accent
-                          : AppColors.gold,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Current Step',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: secondaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    Flexible(
+                    Icon(statusIcon, color: statusColor),
+                    const SizedBox(width: 12),
+                    Expanded(
                       child: Text(
-                        _currentStepLabel(endorsement),
-                        textAlign: TextAlign.end,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: primaryText,
-                          fontWeight: FontWeight.w900,
+                        friendlyStatus,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-        if (blocker != null) ...[
-          const SizedBox(height: 16),
-          blocker,
-        ],
-        const SizedBox(height: 22),
-        const _EndorsementSectionHeading(
-          title: 'Endorsement Timeline',
-          subtitle: 'Track your slip from submission through final review.',
-        ),
-        const SizedBox(height: 10),
-        _EndorsementRoadmap(
-          currentStage: endorsement.currentStage,
-          overallStatus: endorsement.status,
-        ),
-        const SizedBox(height: 22),
-        const _EndorsementSectionHeading(
-          title: 'Official Endorsement Slip',
-          subtitle: 'View or save the finalized PDF when it is ready.',
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: outline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: (slip.available ? accent : AppColors.gold)
-                          .withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      slip.available
-                          ? Icons.picture_as_pdf_rounded
-                          : Icons.hourglass_top_rounded,
-                      color: slip.available ? accent : AppColors.gold,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          slip.available
-                              ? 'PDF ready'
-                              : 'PDF not ready yet',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                color: primaryText,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          slip.available
-                              ? 'This is the official finalized Endorsement Slip.'
-                              : 'The PDF becomes available after the endorsement is completed and finalized.',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: secondaryText,
-                            height: 1.4,
-                          ),
-                        ),
-                        if (completedDate.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Completed $completedDate',
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: secondaryText,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (endorsement.remarks?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _nextActionMessage(workflow, endorsement),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(height: 1.45),
+                ),
                 const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    const _EndorsementTag(label: 'Realtime tracking on'),
+                    _EndorsementTag(
+                      label: 'Code: ${slip.slipCode ?? 'Pending'}',
+                    ),
+                    _EndorsementTag(
+                      label:
+                          'Now in: ${_friendlyCurrentOffice(endorsement.currentOffice)}',
+                    ),
+                    if (summary.openingTitle?.trim().isNotEmpty == true)
+                      _EndorsementTag(label: summary.openingTitle!),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _OverviewMiniItem(
+                        label: 'Current Step',
+                        value: _friendlyCurrentOffice(
+                          endorsement.currentOffice,
+                        ),
+                        icon: Icons.location_on_outlined,
+                        color: statusColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _OverviewMiniItem(
+                        label: 'Slip Status',
+                        value: friendlyStatus,
+                        icon: statusIcon,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: mutedSurface,
+                    color: statusColor.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    endorsement.remarks!,
+                    'Your endorsement moves in this order: SDO, Guidance, then Program Director.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: secondaryText,
-                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
                     ),
                   ),
                 ),
               ],
-              if (slip.available) ...[
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stackActions = constraints.maxWidth < 390;
-                    final actionsBusy =
-                        isViewingSlip || isDownloadingSlip;
-
-                    final viewButton = OutlinedButton.icon(
-                      onPressed: actionsBusy ? null : onViewSlip,
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                        foregroundColor: accent,
-                        side: BorderSide(
-                          color: accent.withValues(alpha: 0.55),
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: isViewingSlip
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.visibility_outlined),
-                      label: Text(
-                        isViewingSlip
-                            ? 'Opening...'
-                            : 'View Slip',
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-
-                    final downloadButton = FilledButton.icon(
-                      onPressed: actionsBusy ? null : onDownloadSlip,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: AppColors.darkBrown,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: isDownloadingSlip
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.download_rounded),
-                      label: Text(
-                        isDownloadingSlip
-                            ? 'Downloading...'
-                            : 'Download PDF',
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-
-                    if (stackActions) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          viewButton,
-                          const SizedBox(height: 10),
-                          downloadButton,
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(child: viewButton),
-                        const SizedBox(width: 10),
-                        Expanded(child: downloadButton),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ],
+            ),
           ),
         ),
-        const SizedBox(height: 22),
-        const _EndorsementSectionHeading(
+        if (blockerCode == 'endorsement.grade_document_missing') ...[
+          const SizedBox(height: 16),
+          _EndorsementAlertCard(
+            color: const Color(0xFFC76917),
+            icon: Icons.warning_amber_rounded,
+            title: 'Grade Report Required',
+            message:
+                'Upload your current grades PDF in Documents before the Program Director can record your scholastic standing.',
+            primaryLabel: 'Open Documents',
+            onPrimaryAction: () =>
+                Navigator.pushNamed(context, AppRoutes.documents),
+          ),
+        ] else if (blockerCode == 'endorsement.held') ...[
+          const SizedBox(height: 16),
+          _EndorsementAlertCard(
+            color: const Color(0xFFC76917),
+            icon: Icons.pause_circle_filled_rounded,
+            title: 'Historical Guidance Hold',
+            message:
+                'This application contains a Guidance hold recorded under the previous endorsement workflow. Review the historical remarks for context.',
+            primaryLabel: 'Open Application Status',
+            onPrimaryAction: () =>
+                Navigator.pushNamed(context, AppRoutes.status),
+          ),
+        ] else if (blockerCode == 'endorsement.major_offense' ||
+            blockerCode == 'endorsement.rejected') ...[
+          const SizedBox(height: 16),
+          _EndorsementAlertCard(
+            color: const Color(0xFFD14343),
+            icon: Icons.report_gmailerrorred_rounded,
+            title: 'Endorsement Stopped',
+            message:
+                'A major offense or a historical rejection was recorded on this endorsement. Review the office results and remarks for the final outcome.',
+            primaryLabel: 'Open Application Status',
+            onPrimaryAction: () =>
+                Navigator.pushNamed(context, AppRoutes.status),
+          ),
+        ] else if (workflow.stage == 'ready_for_activation') ...[
+          const SizedBox(height: 16),
+          _EndorsementAlertCard(
+            color: const Color(0xFF2E8B57),
+            icon: Icons.verified_rounded,
+            title: 'Endorsement Complete',
+            message:
+                'Your endorsement is already complete. Final scholar activation now depends on the remaining admin activation step.',
+            primaryLabel: 'Open Application Status',
+            onPrimaryAction: () =>
+                Navigator.pushNamed(context, AppRoutes.status),
+          ),
+        ] else if (workflow.stage == 'scholar_activated') ...[
+          const SizedBox(height: 16),
+          _EndorsementAlertCard(
+            color: const Color(0xFF2E8B57),
+            icon: Icons.celebration_rounded,
+            title: 'Scholar Activated',
+            message:
+                'Your endorsement flow is complete and your scholar access is already active in the system.',
+            primaryLabel: 'Open Application Status',
+            onPrimaryAction: () =>
+                Navigator.pushNamed(context, AppRoutes.status),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _EndorsementSectionHeading(
+          title: 'Where Your Slip Is Now',
+          subtitle:
+              'Follow the endorsement path from SDO to Guidance to Program Director',
+        ),
+        const SizedBox(height: 10),
+        _EndorsementStageList(
+          currentStage: endorsement.currentStage,
+          overallStatus: endorsement.status,
+        ),
+        const SizedBox(height: 16),
+        _EndorsementSectionHeading(
+          title: 'Slip Information',
+          subtitle: 'Basic endorsement details and PDF availability',
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DetailRow(
+                  label: 'Slip Code',
+                  value: slip.slipCode ?? 'Pending',
+                ),
+                _DetailRow(
+                  label: 'Current Step',
+                  value: _friendlyStatusLabel(
+                    endorsement.currentStage.replaceAll('_', ' '),
+                  ),
+                ),
+                _DetailRow(
+                  label: 'Now in Office',
+                  value: _friendlyCurrentOffice(endorsement.currentOffice),
+                ),
+                _DetailRow(
+                  label: 'Completed',
+                  value: _formatDate(
+                    endorsement.completedAt ?? slip.completedAt,
+                  ),
+                ),
+                if (endorsement.remarks?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    endorsement.remarks!,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(height: 1.4),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: slip.available
+                        ? const Color(0xFFE8F1FF)
+                        : const Color(0xFFF6F6F4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: slip.available
+                          ? const Color(0xFFB8D4FF)
+                          : const Color(0xFFE7E5E4),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Endorsement Slip PDF',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1C1917),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        slip.available
+                            ? 'Your printable endorsement slip is ready. Download it here.'
+                            : 'Your PDF copy becomes available after the endorsement slip is completed.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          height: 1.35,
+                          color: const Color(0xFF57534E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: slip.available && !isDownloadingSlip
+                        ? onDownloadSlip
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                      backgroundColor: const Color(0xFF0F766E),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFE7E5E4),
+                      disabledForegroundColor: const Color(0xFF78716C),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: slip.available ? 0 : 0,
+                    ),
+                    icon: isDownloadingSlip
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.picture_as_pdf),
+                    label: Text(
+                      isDownloadingSlip
+                          ? 'Downloading Endorsement Slip...'
+                          : slip.available
+                          ? 'Download My Endorsement Slip'
+                          : 'PDF Available After Completion',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _EndorsementSectionHeading(
           title: 'Office Results',
-          subtitle: 'Decisions and remarks recorded by each reviewing office.',
+          subtitle: 'See what each office recorded for your slip',
         ),
         const SizedBox(height: 10),
         _ReviewTile(label: 'SDO', review: workflow.officeReviews['sdo']),
@@ -804,20 +643,67 @@ class _EndorsementView extends StatelessWidget {
           label: 'Program Director',
           review: workflow.officeReviews['pd'],
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.status),
-            icon: const Icon(Icons.fact_check_outlined),
-            label: const Text('View Full Application Status'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: primaryText,
-              side: BorderSide(color: outline),
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+        const SizedBox(height: 16),
+        _EndorsementSectionHeading(
+          title: 'What Still Needs To Happen',
+          subtitle:
+              'Endorsement is only one part. Your requirements and final activation still matter too.',
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _RelatedStatusRow(
+                  label: 'Requirements',
+                  value: workflow.requirements.statusLabel,
+                  color: _statusColor(workflow.requirements.statusLabel),
+                ),
+                const SizedBox(height: 10),
+                _RelatedStatusRow(
+                  label: 'Scholar Activation',
+                  value: workflow.scholarActivation.statusLabel,
+                  color: _statusColor(workflow.scholarActivation.statusLabel),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Quick Actions',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.documents),
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('Open My Documents'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.status),
+                    icon: const Icon(Icons.fact_check_rounded),
+                    label: const Text('Open Full Application Status'),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -826,8 +712,8 @@ class _EndorsementView extends StatelessWidget {
   }
 }
 
-class _EndorsementRoadmap extends StatelessWidget {
-  const _EndorsementRoadmap({
+class _EndorsementStageList extends StatelessWidget {
+  const _EndorsementStageList({
     required this.currentStage,
     required this.overallStatus,
   });
@@ -835,225 +721,106 @@ class _EndorsementRoadmap extends StatelessWidget {
   final String currentStage;
   final String overallStatus;
 
-  int _activeIndex() {
-    if (overallStatus.trim().toLowerCase() == 'completed') return 4;
-
-    switch (currentStage.trim().toLowerCase()) {
-      case 'pending_sdo':
-        return 1;
-      case 'pending_guidance':
-        return 2;
-      case 'pending_pd':
-        return 3;
-      case 'completed':
-        return 4;
-      default:
-        return 0;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // SMART_PDM_ENDORSEMENT_TIMELINE_POLISH_V2
-    const steps = <({String label, String semanticLabel})>[
-      (label: 'Submitted', semanticLabel: 'Application submitted'),
-      (label: 'SDO', semanticLabel: 'SDO review'),
-      (label: 'Guidance', semanticLabel: 'Guidance review'),
-      (label: 'Program Director', semanticLabel: 'Program Director review'),
-      (label: 'Done', semanticLabel: 'Endorsement completed'),
+    const steps = [
+      ('pending_sdo', 'SDO'),
+      ('pending_guidance', 'Guidance'),
+      ('pending_pd', 'Program Director'),
+      ('completed', 'Completed'),
     ];
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mutedSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : AppColors.applicantLightSurfaceMuted;
-    final outline = isDark
-        ? AppColors.applicantDarkOutline
-        : AppColors.applicantLightOutline;
-    final primaryText = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.applicantLightText;
-    final secondaryText = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
-    final completedColor = isDark ? AppColors.lightBlue : AppColors.teal;
-    final activeColor = AppColors.gold;
-    final activeIndex = _activeIndex();
-    final allDone = overallStatus.trim().toLowerCase() == 'completed';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: steps.map((entry) {
+            final key = entry.$1;
+            final label = entry.$2;
+            final isActive =
+                currentStage == key ||
+                (key == 'completed' && overallStatus == 'completed');
+            final isDone = key == 'pending_sdo'
+                ? currentStage != 'pending_sdo'
+                : key == 'pending_guidance'
+                ? ['pending_pd', 'completed'].contains(currentStage) ||
+                      overallStatus == 'completed'
+                : key == 'pending_pd'
+                ? overallStatus == 'completed'
+                : overallStatus == 'completed';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-      decoration: BoxDecoration(
-        color: mutedSurface,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const nodeSize = 32.0;
-          final trackWidth = constraints.maxWidth - nodeSize;
-          final safeTrackWidth = trackWidth < 0 ? 0.0 : trackWidth;
-          final progressFraction = allDone
-              ? 1.0
-              : (activeIndex / (steps.length - 1)).clamp(0.0, 1.0);
+            final color = isActive
+                ? const Color(0xFF3366CC)
+                : isDone
+                ? Colors.green
+                : Colors.grey.shade400;
 
-          return Column(
-            children: [
-              SizedBox(
-                height: nodeSize,
-                child: Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    Positioned(
-                      left: nodeSize / 2,
-                      right: nodeSize / 2,
-                      top: (nodeSize / 2) - 1.5,
-                      child: Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: outline.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isDone ? Icons.check : Icons.circle,
+                      size: isDone ? 18 : 10,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: isActive
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                       ),
                     ),
-                    Positioned(
-                      left: nodeSize / 2,
-                      top: (nodeSize / 2) - 1.5,
-                      child: Container(
-                        width: safeTrackWidth * progressFraction,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: completedColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(steps.length, (index) {
-                        final isDone = allDone || index < activeIndex;
-                        final isActive = !allDone && index == activeIndex;
-                        final nodeColor = isDone
-                            ? completedColor
-                            : isActive
-                            ? activeColor
-                            : outline;
-
-                        return Semantics(
-                          label: steps[index].semanticLabel,
-                          value: isDone
-                              ? 'Completed'
-                              : isActive
-                              ? 'Current'
-                              : 'Pending',
-                          child: Container(
-                            width: nodeSize,
-                            height: nodeSize,
-                            decoration: BoxDecoration(
-                              color: isDone
-                                  ? completedColor
-                                  : isActive
-                                  ? activeColor
-                                  : mutedSurface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: nodeColor,
-                                width: 2,
-                              ),
-                            ),
-                            child: isDone
-                                ? Icon(
-                                    Icons.check_rounded,
-                                    size: 18,
-                                    color: isDark
-                                        ? AppColors.darkBrown
-                                        : Colors.white,
-                                  )
-                                : isActive
-                                ? const Icon(
-                                    Icons.circle,
-                                    size: 8,
-                                    color: AppColors.darkBrown,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
+                  ),
+                  _StatusBadge(
+                    label: isActive
+                        ? 'You are here'
+                        : isDone
+                        ? 'Done'
+                        : 'Pending',
+                    color: color,
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(steps.length, (index) {
-                  final isDone = allDone || index < activeIndex;
-                  final isActive = !allDone && index == activeIndex;
-
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: index == 0 || index == steps.length - 1
-                            ? 0
-                            : 3,
-                      ),
-                      child: Text(
-                        steps[index].label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isDone || isActive
-                              ? primaryText
-                              : secondaryText,
-                          fontWeight: isDone || isActive
-                              ? FontWeight.w800
-                              : FontWeight.w600,
-                          fontSize: 10.5,
-                          height: 1.15,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          );
-        },
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 }
 
 class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({
-    required this.label,
-    required this.review,
-  });
+  const _ReviewTile({required this.label, required this.review});
 
   final String label;
   final OfficeReviewSummary? review;
 
   String _decisionLabel() {
-    final decision = review?.decision?.trim() ?? '';
-    if (decision.isEmpty) return 'Pending';
-
-    final normalized = decision.toLowerCase();
-
+    final decision = review?.decision;
+    if (decision == null || decision.trim().isEmpty) return 'Pending';
+    final normalized = decision.trim().toLowerCase();
     if (normalized == 'no_offense' || normalized == 'cleared') {
       return 'No Disciplinary Offense';
     }
-    if (normalized == 'minor_offense' ||
-        normalized == 'disqualified_minor') {
+    if (normalized == 'minor_offense' || normalized == 'disqualified_minor') {
       return 'With Minor Offense/s';
     }
-    if (normalized == 'major_offense' ||
-        normalized == 'disqualified_major') {
+    if (normalized == 'major_offense' || normalized == 'disqualified_major') {
       return 'With Major Offense/s';
     }
-    if (normalized == 'good_moral_standing') {
-      return 'Good Moral Standing';
-    }
+    if (normalized == 'good_moral_standing') return 'Good Moral Standing';
     if (normalized == 'good_scholastic_standing') {
       return 'Good Scholastic Standing';
     }
@@ -1061,11 +828,10 @@ class _ReviewTile extends StatelessWidget {
       return 'Average Scholastic Standing';
     }
     if (normalized == 'approved') {
-      return 'Approved';
+      return 'Legacy Approved — Standing Not Recorded';
     }
-    if (normalized == 'held') return 'On Hold';
-    if (normalized == 'rejected') return 'Rejected';
-
+    if (normalized == 'held') return 'Legacy Guidance Hold';
+    if (normalized == 'rejected') return 'Legacy Rejected';
     return decision
         .split('_')
         .where((part) => part.isNotEmpty)
@@ -1073,123 +839,158 @@ class _ReviewTile extends StatelessWidget {
         .join(' ');
   }
 
-  Color _decisionColor(BuildContext context) {
-    final normalized = (review?.decision ?? '').trim().toLowerCase();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+  Color _decisionColor() {
+    final normalized = (review?.decision ?? '').toLowerCase();
     if (normalized.contains('reject') || normalized.contains('major')) {
-      return Theme.of(context).colorScheme.error;
+      return Colors.red;
     }
-
     if (normalized.contains('hold') || normalized.contains('minor')) {
-      return AppColors.orange;
+      return Colors.orange;
     }
-
-    if (normalized.isEmpty) {
-      return AppColors.gold;
+    if (normalized == 'no_offense' ||
+        normalized == 'cleared' ||
+        normalized == 'good_moral_standing' ||
+        normalized == 'good_scholastic_standing' ||
+        normalized == 'average_scholastic_standing' ||
+        normalized == 'approved') {
+      return Colors.green;
     }
-
-    return isDark ? AppColors.lightBlue : AppColors.teal;
+    return Colors.blueGrey;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = isDark
-        ? AppColors.applicantDarkSurface
-        : AppColors.applicantLightSurface;
-    final mutedSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : AppColors.applicantLightSurfaceMuted;
-    final outline = isDark
-        ? AppColors.applicantDarkOutline
-        : AppColors.applicantLightOutline;
-    final primaryText = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.applicantLightText;
-    final secondaryText = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
     final actedAt = review?.actedAt;
-    final actedByName = review?.actedByName?.trim() ?? '';
-    final remarks = review?.remarks?.trim() ?? '';
+    final actedByName = review?.actedByName;
+    final remarks = review?.remarks;
 
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: outline),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
                   label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: primaryText,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-              const SizedBox(width: 10),
-              _StatusBadge(
-                label: _decisionLabel(),
-                color: _decisionColor(context),
-              ),
+              _StatusBadge(label: _decisionLabel(), color: _decisionColor()),
             ],
           ),
-          if (actedAt != null || actedByName.isNotEmpty) ...[
-            const SizedBox(height: 9),
-            Wrap(
-              spacing: 10,
-              runSpacing: 4,
-              children: [
-                if (actedAt != null)
-                  Text(
-                    DateFormat(
-                      'MMM d, yyyy',
-                    ).format(actedAt.toLocal()),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: secondaryText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                if (actedByName.isNotEmpty)
-                  Text(
-                    'Reviewed by $actedByName',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: secondaryText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
+          if (actedAt != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              DateFormat('MMM d, yyyy').format(actedAt.toLocal()),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-          if (remarks.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                color: mutedSurface,
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Text(
-                remarks,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: secondaryText,
-                  height: 1.4,
-                ),
+          if (actedByName?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Reviewed by: $actedByName',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
+          if (remarks?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(
+              remarks!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(height: 1.35),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RelatedStatusRow extends StatelessWidget {
+  const _RelatedStatusRow({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        _StatusBadge(label: value, color: color),
+      ],
+    );
+  }
+}
+
+class _OverviewMiniItem extends StatelessWidget {
+  const _OverviewMiniItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
@@ -1215,64 +1016,38 @@ class _EndorsementAlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = isDark
-        ? AppColors.applicantDarkSurface
-        : AppColors.applicantLightSurface;
-    final outline = isDark
-        ? AppColors.applicantDarkOutline
-        : AppColors.applicantLightOutline;
-    final primaryText = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.applicantLightText;
-    final secondaryText = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: primaryText,
-                    fontWeight: FontWeight.w900,
+    return Card(
+      color: color.withOpacity(0.08),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: secondaryText,
-              height: 1.4,
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: onPrimaryAction,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: color,
-              side: BorderSide(color: color.withValues(alpha: 0.45)),
+            const SizedBox(height: 10),
+            Text(message, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: onPrimaryAction,
+              icon: const Icon(Icons.upload_file),
+              label: Text(primaryLabel),
             ),
-            child: Text(primaryLabel),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1289,29 +1064,20 @@ class _EndorsementSectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryText = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.applicantLightText;
-    final secondaryText = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: primaryText,
-            fontWeight: FontWeight.w900,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: secondaryText,
+            color: Colors.grey.shade700,
             height: 1.35,
           ),
         ),
@@ -1320,35 +1086,79 @@ class _EndorsementSectionHeading extends StatelessWidget {
   }
 }
 
+class _EndorsementTag extends StatelessWidget {
+  const _EndorsementTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-  });
+  const _StatusBadge({required this.label, required this.color});
 
   final String label;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      constraints: const BoxConstraints(maxWidth: 180),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.18 : 0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        style: TextStyle(
           color: color,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
         ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 116,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(value)),
+        ],
       ),
     );
   }
@@ -1371,62 +1181,37 @@ class _EndorsementMessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = isDark
-        ? AppColors.applicantDarkSurface
-        : AppColors.applicantLightSurface;
-    final outline = isDark
-        ? AppColors.applicantDarkOutline
-        : AppColors.applicantLightOutline;
-    final primaryText = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.applicantLightText;
-    final secondaryText = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.applicantLightTextMuted;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 32, color: AppColors.gold),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: primaryText,
-              fontWeight: FontWeight.w900,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 34),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: secondaryText,
-              height: 1.45,
+            const SizedBox(height: 10),
+            Text(
+              message,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.45),
             ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onPrimaryAction,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.darkBrown,
-                minimumSize: const Size.fromHeight(48),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: onPrimaryAction,
+                child: Text(primaryActionLabel),
               ),
-              child: Text(primaryActionLabel),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

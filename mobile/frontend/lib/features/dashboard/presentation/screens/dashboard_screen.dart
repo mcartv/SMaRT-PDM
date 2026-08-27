@@ -870,86 +870,35 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             ),
           ],
           const SizedBox(height: 14),
-          // SMART_PDM_DASHBOARD_ENDORSEMENT_ACCESS_V1
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stackActions = constraints.maxWidth < 360;
-
-              final manageDocumentsButton = FilledButton.icon(
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  AppRoutes.documents,
-                  arguments: <String, dynamic>{
-                    'initialTitle': _safeText(
-                      summary.openingTitle,
-                      fallback: title,
-                    ),
-                    'initialProgramName': _safeText(
-                      summary.programName,
-                      fallback: title,
-                    ),
-                  },
-                ),
-                icon: const Icon(Icons.folder_copy_rounded, size: 18),
-                label: const Text(
-                  'Manage Documents',
-                  textAlign: TextAlign.center,
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: AppColors.darkBrown,
-                  elevation: 0,
-                  minimumSize: const Size.fromHeight(44),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                AppRoutes.documents,
+                arguments: <String, dynamic>{
+                  'initialTitle': _safeText(
+                    summary.openingTitle,
+                    fallback: title,
                   ),
-                ),
-              );
-
-              final endorsementButton = OutlinedButton.icon(
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.endorsement),
-                icon: const Icon(
-                  Icons.assignment_turned_in_outlined,
-                  size: 18,
-                ),
-                label: const Text(
-                  'View Endorsement',
-                  textAlign: TextAlign.center,
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: BorderSide(
-                    color: _isDark
-                        ? Colors.white.withValues(alpha: 0.18)
-                        : AppColors.brown.withValues(alpha: 0.22),
+                  'initialProgramName': _safeText(
+                    summary.programName,
+                    fallback: title,
                   ),
-                  minimumSize: const Size.fromHeight(44),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                },
+              ),
+              icon: const Icon(Icons.folder_copy_rounded, size: 18),
+              label: const Text('Manage Documents'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.darkBrown,
+                elevation: 0,
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              );
-
-              if (stackActions) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    manageDocumentsButton,
-                    const SizedBox(height: 8),
-                    endorsementButton,
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(child: manageDocumentsButton),
-                  const SizedBox(width: 10),
-                  Expanded(child: endorsementButton),
-                ],
-              );
-            },
+              ),
+            ),
           ),
         ],
       ),

@@ -40,7 +40,6 @@ const MESSAGING_API_BASE = API_BASE_URL
 // SMART-PDM_ADMIN_MESSAGES_EMBEDDED_GROUP_INFO_V2
 // SMART_PDM_ADMIN_MESSAGES_COMPACT_LAYOUT_V1
 // SMART_PDM_ADMIN_MESSAGES_TWO_MODE_ICON_COMPACT_V1
-// SMART_PDM_ADMIN_MESSAGES_TWO_MODE_ICON_COMPACT_ANIMATED_V2
 
 function createClientMessageId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -4757,12 +4756,12 @@ export default function AdminMessages({
               />
             ) : (
               <div
-                className={`grid min-h-0 flex-1 gap-0 transition-[grid-template-columns] duration-300 ease-in-out motion-reduce:transition-none ${groupInfoOpen && selectedItem?.type === 'group' ? 'grid-cols-1' : conversationPaneGridClass}`}
+                className={`grid min-h-0 flex-1 gap-0 ${groupInfoOpen && selectedItem?.type === 'group' ? 'grid-cols-1' : conversationPaneGridClass}`}
               >
                 <section
                   className={`${groupInfoOpen ? 'hidden' : compactPane === 'thread' ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-stone-200 bg-white lg:border-r`}
                 >
-                  <div className={`${conversationPaneMode === 'compact' ? 'px-2 py-3' : 'space-y-3 px-4 py-4'} border-b border-stone-100 transition-[padding] duration-300 ease-in-out motion-reduce:transition-none`}>
+                  <div className={`${conversationPaneMode === 'compact' ? 'px-2 py-3' : 'space-y-3 px-4 py-4'} border-b border-stone-100`}>
                     <div className={`flex items-center ${conversationPaneMode === 'compact' ? 'justify-center' : 'justify-between'} gap-2`}>
                       {conversationPaneMode !== 'compact' ? (
                         <p className="text-base font-semibold text-stone-900">Chats</p>
@@ -4771,7 +4770,7 @@ export default function AdminMessages({
                       <button
                         type="button"
                         onClick={toggleConversationPaneMode}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 transition-all duration-300 ease-in-out hover:bg-stone-50 hover:text-stone-800 motion-reduce:transition-none"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 transition hover:bg-stone-50 hover:text-stone-800"
                         title={
                           conversationPaneMode === 'full'
                             ? 'Compact chat list'

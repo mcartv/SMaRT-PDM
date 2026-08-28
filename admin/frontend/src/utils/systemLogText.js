@@ -7,6 +7,16 @@ const TECHNICAL_ACTION_LABELS = Object.freeze({
     RESCANAPPLICATIONDOCUMENTIOTOCR: 'Request OCR Rescan',
     SAVEAPPLICATIONDOCUMENTOCRSNAPSHOT: 'Save OCR Result',
     CHANGEOWNPASSWORD: 'Password Changed',
+    CREATESTAFFACCOUNT: 'Create Account',
+    CREATEADMINACCOUNT: 'Create Account',
+    UPDATESTAFFACCOUNT: 'Update Account',
+    ARCHIVESTAFFACCOUNT: 'Archive Account',
+    RESTORESTAFFACCOUNT: 'Restore Account',
+    RESETACCOUNTPASSWORD: 'Reset Password',
+    CREATEACCOUNT: 'Create Account',
+    UPDATEACCOUNT: 'Update Account',
+    ARCHIVEACCOUNT: 'Archive Account',
+    RESTOREACCOUNT: 'Restore Account',
 });
 
 const TECHNICAL_DESCRIPTION_RULES = [

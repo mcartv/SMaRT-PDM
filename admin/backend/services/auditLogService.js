@@ -23,6 +23,10 @@ const VISIBLE_SYSTEM_LOG_SQL = `
         'UPDATED_AUTH'
     )
     and coalesce(a.module, '') <> 'Pi IoT OCR Worker'
+    and coalesce(a.metadata ->> 'path', '') not in (
+        '/api/system-maintenance/activity/heartbeat',
+        '/api/system-maintenance/public-visit'
+    )
 `;
 
 function getRequestPath(req) {
@@ -251,7 +255,6 @@ async function listAuditLogs({
             a.entity_id,
             a.description,
             a.metadata,
-            a.ip_address,
             a.user_agent,
             a.timestamp
         from audit_logs a
@@ -295,7 +298,6 @@ async function listRecentActivityForUser({
             a.entity_id,
             a.description,
             a.metadata,
-            a.ip_address,
             a.timestamp
         from audit_logs a
         where a.user_id = $1
@@ -318,6 +320,7 @@ async function logAudit({
     entityId = null,
     description = null,
     metadata = {},
+    allowMultipleForRequest = false,
 }) {
     const normalizedAction = normalizeActionTaken(req, actionTaken, module);
 
@@ -327,11 +330,14 @@ async function logAudit({
 
     // A controller may have both a purpose-built log call and a generic wrapper.
     // Keep one authoritative System Log entry per successful request.
-    if (req?.__systemAuditLogged === true || req?.__systemAuditPending === true) {
+    if (
+        !allowMultipleForRequest &&
+        (req?.__systemAuditLogged === true || req?.__systemAuditPending === true)
+    ) {
         return { logged: false, reason: 'duplicate' };
     }
 
-    if (req) {
+    if (req && !allowMultipleForRequest) {
         req.__systemAuditPending = true;
     }
 
@@ -383,6 +389,9 @@ async function logAudit({
         );
 
         if (req) {
+            // Any explicit successful audit event suppresses the generic fallback.
+            // allowMultipleForRequest only permits another purpose-built event from
+            // the same controller request (for example UPDATE ACCOUNT + RESET PASSWORD).
             req.__systemAuditLogged = true;
         }
 
@@ -391,7 +400,7 @@ async function logAudit({
         console.error('AUDIT LOG ERROR:', err.message);
         return { logged: false, reason: 'error' };
     } finally {
-        if (req) {
+        if (req && !allowMultipleForRequest) {
             req.__systemAuditPending = false;
         }
     }

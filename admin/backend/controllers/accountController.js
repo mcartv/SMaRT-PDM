@@ -304,7 +304,7 @@ exports.createStaffAccount = async (req, res) => {
 
         await auditLogService.logAudit({
             req,
-            actionTaken: 'CREATE_STAFF_ACCOUNT',
+            actionTaken: 'CREATE_ACCOUNT',
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account?.user_id || null,
@@ -340,7 +340,7 @@ exports.createAdminAccount = async (req, res) => {
 
         await auditLogService.logAudit({
             req,
-            actionTaken: 'CREATE_ADMIN_ACCOUNT',
+            actionTaken: 'CREATE_ACCOUNT',
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account?.user_id || null,
@@ -391,7 +391,7 @@ exports.updateStaffAccount = async (req, res) => {
 
         await auditLogService.logAudit({
             req,
-            actionTaken: 'UPDATE_STAFF_ACCOUNT',
+            actionTaken: 'UPDATE_ACCOUNT',
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account.user_id || req.params.id,
@@ -411,27 +411,51 @@ exports.updateStaffAccount = async (req, res) => {
         });
 
         if (passwordResetRequested) {
-            await auditLogService.logAudit({
-                req,
-                actionTaken: isSelfUpdate ? 'CHANGE_OWN_PASSWORD' : 'RESET_ACCOUNT_PASSWORD',
-                module: 'Accounts',
-                entityType: 'staff_account',
-                entityId: account.user_id || req.params.id,
-                description: isSelfUpdate
-                    ? 'Changed own account password. Current session retained. Password values are not stored in System Logs.'
-                    : `Reset password for account: ${account.email || req.params.id}. Target sessions were invalidated.`,
-                metadata: {
-                    target_user_id: account.user_id || req.params.id,
-                    target_email: account.email || null,
-                    target_role: account.role || null,
-                    password_changed: true,
-                    credential_values_stored: false,
-                    self_change: isSelfUpdate,
-                    session_invalidated: account.session_invalidated === true,
-                },
-            }).catch((auditError) => {
-                console.error('ACCOUNT PASSWORD CHANGE AUDIT ERROR:', auditError.message);
-            });
+            if (isSelfUpdate) {
+                await auditLogService.logAudit({
+                    req,
+                    actionTaken: 'CHANGE_OWN_PASSWORD',
+                    module: 'Accounts',
+                    entityType: 'staff_account',
+                    entityId: account.user_id || req.params.id,
+                    description: 'Changed own account password. Current session retained. Password values are not stored in System Logs.',
+                    metadata: {
+                        target_user_id: account.user_id || req.params.id,
+                        target_email: account.email || null,
+                        target_role: account.role || null,
+                        password_changed: true,
+                        credential_values_stored: false,
+                        self_change: true,
+                        session_invalidated: account.session_invalidated === true,
+                    },
+                    allowMultipleForRequest: true,
+                }).catch((auditError) => {
+                    console.error('OWN PASSWORD CHANGE AUDIT ERROR:', auditError.message);
+                });
+            } else {
+                await auditLogService.logAudit({
+                    req,
+                    actionTaken: 'RESET_ACCOUNT_PASSWORD',
+                    module: 'Accounts',
+                    entityType: 'staff_account',
+                    entityId: account.user_id || req.params.id,
+                    description: `Reset password for account: ${account.email || req.params.id}. Target sessions were invalidated.`,
+                    metadata: {
+                        target_user_id: account.user_id || req.params.id,
+                        target_email: account.email || null,
+                        target_role: account.role || null,
+                        password_changed: true,
+                        credential_values_stored: false,
+                        self_change: false,
+                        session_invalidated: account.session_invalidated === true,
+                    },
+                    // Account edits and password resets are separate security events.
+                    // Keep both while still suppressing the generic mutation fallback.
+                    allowMultipleForRequest: true,
+                }).catch((auditError) => {
+                    console.error('ACCOUNT PASSWORD RESET AUDIT ERROR:', auditError.message);
+                });
+            }
         }
 
         emitAccountUpdate(req, 'update', account);
@@ -485,7 +509,7 @@ exports.archiveStaffAccount = async (req, res) => {
 
         await auditLogService.logAudit({
             req,
-            actionTaken: 'ARCHIVE_STAFF_ACCOUNT',
+            actionTaken: 'ARCHIVE_ACCOUNT',
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account.user_id || req.params.id,
@@ -534,7 +558,7 @@ exports.restoreStaffAccount = async (req, res) => {
 
         await auditLogService.logAudit({
             req,
-            actionTaken: 'RESTORE_STAFF_ACCOUNT',
+            actionTaken: 'RESTORE_ACCOUNT',
             module: 'Accounts',
             entityType: 'staff_account',
             entityId: account.user_id || req.params.id,

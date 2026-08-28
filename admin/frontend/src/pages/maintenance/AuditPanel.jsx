@@ -423,7 +423,7 @@ export default function AuditPanel() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[980px] text-xs">
+                        <table className="w-full min-w-[860px] text-xs">
                             <thead className="bg-stone-50 text-stone-500">
                                 <tr>
                                     <th className="border-b px-4 py-3 text-left font-semibold">
@@ -440,9 +440,6 @@ export default function AuditPanel() {
                                     </th>
                                     <th className="border-b px-4 py-3 text-left font-semibold">
                                         Description
-                                    </th>
-                                    <th className="border-b px-4 py-3 text-left font-semibold">
-                                        IP Address
                                     </th>
                                 </tr>
                             </thead>
@@ -489,9 +486,6 @@ export default function AuditPanel() {
                                             </div>
                                         </td>
 
-                                        <td className="whitespace-nowrap px-4 py-3 text-stone-500">
-                                            {log.ip_address || '-'}
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

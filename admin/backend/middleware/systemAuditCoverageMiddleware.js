@@ -15,6 +15,9 @@ const QUIET_PATHS = [
     /^\/api\/notifications\/[^/]+\/(?:read|seen)(?:\/|$)/i,
     // Session keep-alive/page lifecycle calls must not flood System Logs.
     /^\/api\/auth\/session\/(?:resume|heartbeat|release|release-beacon)(?:\/|$)/i,
+    // Presence and visitor counters are diagnostics, not meaningful user actions.
+    /^\/api\/system-maintenance\/activity\/heartbeat(?:\/|$)/i,
+    /^\/api\/system-maintenance\/public-visit(?:\/|$)/i,
 ];
 
 const MODULE_RULES = [

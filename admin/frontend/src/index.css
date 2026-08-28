@@ -2721,3 +2721,284 @@ body {
     padding: 1.25rem !important;
   }
 }
+
+/* ========================================================================== */
+/* AUTH PAGE: NARROW / SHORT SCREEN CORRECTION                                */
+/* ========================================================================== */
+/*
+ * Keep the branded two-column composition for genuinely wide desktop space.
+ * Laptop windows and Windows display scaling often expose only 1024–1279 CSS
+ * pixels, where the decorative left column makes the login card unnecessarily
+ * cramped. In that range the existing card is centered without redesigning it.
+ */
+@media (max-width: 1279px) {
+  .smartpdm-auth-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: center !important;
+    gap: 0 !important;
+    padding-inline: clamp(1rem, 4vw, 2rem) !important;
+  }
+
+  .smartpdm-auth-copy,
+  .smartpdm-auth-ribbon,
+  .smartpdm-auth-page .smartpdm-auth-main > svg {
+    display: none !important;
+  }
+
+  .smartpdm-auth-card {
+    width: min(100%, 430px) !important;
+    max-width: 430px !important;
+    justify-self: center !important;
+    margin-inline: auto !important;
+  }
+}
+
+/* Small-width authentication pages: preserve the card design while ensuring
+ * every control fits without horizontal overflow. */
+@media (max-width: 640px) {
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 4.25rem !important;
+    min-height: 4.25rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner {
+    gap: 0.5rem !important;
+    padding: 0.45rem 0.75rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a {
+    gap: 0.5rem !important;
+    min-width: 0 !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:first-child {
+    gap: 0.35rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:first-child {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:last-child {
+    width: 1.9rem !important;
+    height: 1.9rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:last-child > span:first-child {
+    font-size: clamp(0.68rem, 3.2vw, 0.78rem) !important;
+    line-height: 0.98rem !important;
+    white-space: normal !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:last-child > span:last-child {
+    display: none !important;
+  }
+
+  .smartpdm-auth-back-nav {
+    right: 0.75rem !important;
+    top: 0.65rem !important;
+  }
+
+  .smartpdm-auth-back-link {
+    gap: 0.35rem !important;
+    padding: 0.45rem 0.65rem !important;
+    font-size: 0.69rem !important;
+  }
+
+  .smartpdm-auth-grid {
+    align-items: flex-start !important;
+    padding-top: 3.7rem !important;
+    padding-bottom: 1.25rem !important;
+    padding-left: clamp(0.75rem, 3vw, 1rem) !important;
+    padding-right: clamp(0.75rem, 3vw, 1rem) !important;
+  }
+
+  .smartpdm-auth-card {
+    width: 100% !important;
+    max-width: 430px !important;
+  }
+
+  .smartpdm-login-card-frame {
+    border-radius: 1.1rem !important;
+    padding: 4px !important;
+  }
+
+  .smartpdm-login-card-surface {
+    border-radius: 0.9rem !important;
+    padding: 1rem !important;
+  }
+
+  .smartpdm-login-card-heading {
+    margin-bottom: 1rem !important;
+    gap: 0.65rem !important;
+    padding-bottom: 0.8rem !important;
+  }
+
+  .smartpdm-login-card-heading > span:first-child {
+    width: 2rem !important;
+    height: 2rem !important;
+    border-radius: 0.65rem !important;
+  }
+
+  #login-heading,
+  #recovery-heading {
+    font-size: clamp(1.25rem, 6vw, 1.55rem) !important;
+    line-height: 1.15 !important;
+  }
+
+  .smartpdm-login-form {
+    row-gap: 0.8rem !important;
+  }
+
+  .smartpdm-login-input {
+    height: 3rem !important;
+  }
+
+  .smartpdm-login-submit {
+    height: 2.85rem !important;
+  }
+
+  .smartpdm-login-password-row {
+    align-items: flex-start !important;
+    flex-wrap: wrap !important;
+    row-gap: 0.25rem !important;
+  }
+
+  .smartpdm-login-password-row > button {
+    max-width: 100% !important;
+    white-space: normal !important;
+    text-align: right !important;
+  }
+
+  .smartpdm-auth-card [aria-label="Security verification"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 3.85rem !important;
+    min-height: 3.85rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner {
+    padding-inline: 0.6rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:first-child {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:last-child {
+    width: 1.7rem !important;
+    height: 1.7rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:last-child > span:first-child {
+    font-size: 0.67rem !important;
+    line-height: 0.9rem !important;
+  }
+
+  .smartpdm-auth-back-link span:last-child {
+    display: none !important;
+  }
+
+  .smartpdm-auth-back-link {
+    width: 2.1rem !important;
+    height: 2.1rem !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    font-size: 0.88rem !important;
+  }
+
+  .smartpdm-auth-grid {
+    padding-top: 3.1rem !important;
+    padding-left: 0.625rem !important;
+    padding-right: 0.625rem !important;
+    padding-bottom: 0.8rem !important;
+  }
+
+  .smartpdm-login-card-surface {
+    padding: 0.875rem !important;
+  }
+
+  .smartpdm-login-password-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .smartpdm-login-password-row > button {
+    justify-self: start !important;
+    text-align: left !important;
+  }
+}
+
+/* Short laptop/browser windows: reduce vertical chrome, never form scale. */
+@media (max-height: 680px) {
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 3.85rem !important;
+    min-height: 3.85rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner {
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+  }
+
+  .smartpdm-auth-grid {
+    align-items: flex-start !important;
+    padding-top: 2.9rem !important;
+    padding-bottom: 0.9rem !important;
+  }
+
+  .smartpdm-login-card-surface {
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.9rem !important;
+  }
+
+  .smartpdm-login-card-heading {
+    margin-bottom: 0.8rem !important;
+    padding-bottom: 0.7rem !important;
+  }
+
+  .smartpdm-login-form {
+    row-gap: 0.7rem !important;
+  }
+
+  .smartpdm-login-input {
+    height: 2.85rem !important;
+  }
+
+  .smartpdm-login-submit {
+    height: 2.7rem !important;
+  }
+}
+
+/* Landscape phones / extremely short browser windows retain a scrollable main
+ * surface rather than clipping the login button or security widget. */
+@media (max-height: 540px) {
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 3.4rem !important;
+    min-height: 3.4rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:first-child {
+    width: 1.9rem !important;
+    height: 1.9rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:last-child {
+    width: 1.6rem !important;
+    height: 1.6rem !important;
+  }
+
+  .smartpdm-auth-grid {
+    padding-top: 2.55rem !important;
+    padding-bottom: 0.6rem !important;
+  }
+}

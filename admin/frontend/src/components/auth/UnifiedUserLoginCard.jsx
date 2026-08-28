@@ -138,14 +138,14 @@ export default function UnifiedUserLoginCard({ theme }) {
       aria-labelledby="login-heading"
     >
       <div
-        className="relative rounded-[1.35rem] border p-[5px] shadow-[0_20px_44px_rgba(63,39,23,0.14)] backdrop-blur-sm"
+        className="smartpdm-login-card-frame relative rounded-[1.35rem] border p-[5px] shadow-[0_20px_44px_rgba(63,39,23,0.14)] backdrop-blur-sm"
         style={{
           borderColor: `${theme.base}30`,
           background: `linear-gradient(145deg, rgba(255,255,255,0.74), ${theme.soft}b8)`,
         }}
       >
         <div
-          className="relative overflow-hidden rounded-[1.08rem] border bg-[#fffdfa] px-4 py-5 min-[360px]:px-5 sm:px-6 sm:py-6"
+          className="smartpdm-login-card-surface relative overflow-hidden rounded-[1.08rem] border bg-[#fffdfa] px-5 py-5 sm:px-6 sm:py-6"
           style={{ borderColor: `${theme.base}18` }}
         >
           <span
@@ -154,7 +154,7 @@ export default function UnifiedUserLoginCard({ theme }) {
             aria-hidden="true"
           />
 
-          <div className="mb-5 flex items-center gap-3 border-b border-stone-200/80 pb-4 pt-1">
+          <div className="smartpdm-login-card-heading mb-5 flex items-center gap-3 border-b border-stone-200/80 pb-4 pt-1">
             <span
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border bg-white shadow-sm"
               style={{ borderColor: `${theme.base}24`, color: theme.base }}
@@ -177,7 +177,7 @@ export default function UnifiedUserLoginCard({ theme }) {
             </div>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4" aria-busy={isLoading}>
+          <form onSubmit={handleLogin} className="smartpdm-login-form space-y-4" aria-busy={isLoading}>
             {sessionFeedback ? (
               <div
                 role="status"
@@ -228,7 +228,7 @@ export default function UnifiedUserLoginCard({ theme }) {
                     setEmail(event.target.value);
                     if (error) setError('');
                   }}
-                  className="h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-4 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
+                  className="smartpdm-login-input h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-4 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{
                     '--tw-ring-color': `${theme.base}1c`,
                     borderColor: email ? `${theme.base}38` : undefined,
@@ -238,7 +238,7 @@ export default function UnifiedUserLoginCard({ theme }) {
             </div>
 
             <div>
-              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="smartpdm-login-password-row mb-1.5 flex items-center justify-between gap-3">
                 <label htmlFor="unified-user-password" className="block text-xs font-bold text-stone-700">
                   Password
                 </label>
@@ -278,7 +278,7 @@ export default function UnifiedUserLoginCard({ theme }) {
                   onFocus={updateCapsLockState}
                   onBlur={() => setCapsLockOn(false)}
                   aria-describedby={capsLockOn ? 'unified-user-caps-lock' : undefined}
-                  className="h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-12 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
+                  className="smartpdm-login-input h-[52px] w-full rounded-xl border border-stone-200 bg-white pl-10 pr-12 text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{
                     '--tw-ring-color': `${theme.base}1c`,
                     borderColor: password ? `${theme.base}38` : undefined,
@@ -340,7 +340,7 @@ export default function UnifiedUserLoginCard({ theme }) {
               type="submit"
               disabled={isLoading || !turnstileToken}
               title={loginTooltip}
-              className="mt-1 flex h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition duration-200 hover:-translate-y-px hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
+              className="smartpdm-login-submit mt-1 flex h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition duration-200 hover:-translate-y-px hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
               style={{ background: theme.base }}
             >
               {isLoading ? (

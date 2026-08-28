@@ -108,12 +108,12 @@ export default function UnifiedLogin() {
 
       <main className="smartpdm-auth-main relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <nav
-          className="smartpdm-login-fade pointer-events-none absolute right-4 top-3 z-30 sm:right-5 md:right-6 lg:right-8"
+          className="smartpdm-auth-back-nav smartpdm-login-fade pointer-events-none absolute right-4 top-3 z-30 sm:right-5 md:right-6 lg:right-8"
           aria-label="Login page navigation"
         >
           <Link
             to="/landing"
-            className="pointer-events-auto inline-flex cursor-pointer items-center gap-2 rounded-lg border border-stone-300/80 bg-white/72 px-3 py-2 text-xs font-bold text-stone-700 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-px hover:border-stone-400 hover:bg-white hover:text-stone-900 hover:shadow-md"
+            className="smartpdm-auth-back-link pointer-events-auto inline-flex cursor-pointer items-center gap-2 rounded-lg border border-stone-300/80 bg-white/72 px-3 py-2 text-xs font-bold text-stone-700 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-px hover:border-stone-400 hover:bg-white hover:text-stone-900 hover:shadow-md"
             aria-label="Back to Home"
           >
             <span aria-hidden="true">←</span>

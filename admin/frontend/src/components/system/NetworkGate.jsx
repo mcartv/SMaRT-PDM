@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import pdmLogo from '@/assets/pdm-logo.png';
 
@@ -29,143 +29,12 @@ function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-function SkeletonBlock({ className = '', style }) {
-  return (
-    <div
-      className={`animate-pulse rounded-xl bg-stone-200/80 ${className}`}
-      style={style}
-    />
-  );
-}
-
-function NetworkSkeleton({ status, isRetrying, onRetry }) {
-  const checking = status === 'checking' || isRetrying;
-
-  return (
-    <div className="min-h-screen bg-stone-100" role="status" aria-live="polite">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-stone-200 bg-white p-5 lg:block">
-          <div className="flex items-center gap-3 border-b border-stone-100 pb-5">
-            <SkeletonBlock className="h-11 w-11 rounded-2xl" />
-            <div className="flex-1 space-y-2">
-              <SkeletonBlock className="h-3 w-28" />
-              <SkeletonBlock className="h-2.5 w-20" />
-            </div>
-          </div>
-          <div className="mt-6 space-y-3">
-            {[78, 62, 85, 70, 80, 58, 74].map((width, index) => (
-              <div key={`${width}-${index}`} className="flex items-center gap-3 rounded-xl px-2 py-2.5">
-                <SkeletonBlock className="h-8 w-8 rounded-lg" />
-                <SkeletonBlock className="h-3" style={{ width: `${width}%` }} />
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <div className="min-w-0 flex-1">
-          <header className="flex h-16 items-center justify-between border-b border-stone-200 bg-white px-5 sm:px-7">
-            <div className="flex items-center gap-3">
-              <SkeletonBlock className="h-9 w-9 lg:hidden" />
-              <SkeletonBlock className="h-4 w-36" />
-            </div>
-            <div className="flex items-center gap-3">
-              <SkeletonBlock className="h-9 w-9 rounded-full" />
-              <SkeletonBlock className="hidden h-9 w-28 sm:block" />
-            </div>
-          </header>
-
-          <main className="mx-auto max-w-7xl space-y-6 p-5 sm:p-7">
-            <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-stone-500">
-                  {checking ? (
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <WifiOff className="h-5 w-5" aria-hidden="true" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-stone-800">
-                    {checking ? 'Reconnecting to SMaRT-PDM' : 'Connection interrupted'}
-                  </p>
-                  <p className="mt-0.5 text-xs text-stone-500">
-                    {checking
-                      ? 'Restoring the latest page data…'
-                      : 'Your work is paused until the server is reachable.'}
-                  </p>
-                </div>
-              </div>
-              {!checking ? (
-                <button
-                  type="button"
-                  onClick={onRetry}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-xs font-semibold text-white hover:bg-stone-800"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                  Try again
-                </button>
-              ) : null}
-            </div>
-
-            <div className="space-y-3">
-              <SkeletonBlock className="h-4 w-28" />
-              <SkeletonBlock className="h-8 w-72 max-w-full" />
-              <SkeletonBlock className="h-3 w-96 max-w-full" />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {[0, 1, 2, 3].map((item) => (
-                <div key={item} className="rounded-2xl border border-stone-200 bg-white p-5">
-                  <SkeletonBlock className="h-10 w-10" />
-                  <SkeletonBlock className="mt-5 h-7 w-20" />
-                  <SkeletonBlock className="mt-3 h-3 w-28" />
-                </div>
-              ))}
-            </div>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="rounded-2xl border border-stone-200 bg-white p-5">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <SkeletonBlock className="h-4 w-40" />
-                    <SkeletonBlock className="h-3 w-64 max-w-full" />
-                  </div>
-                  <SkeletonBlock className="h-9 w-24" />
-                </div>
-                <div className="mt-6 space-y-3">
-                  {[0, 1, 2, 3, 4].map((item) => (
-                    <SkeletonBlock key={item} className="h-14 w-full" />
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-stone-200 bg-white p-5">
-                  <SkeletonBlock className="h-4 w-32" />
-                  <SkeletonBlock className="mt-5 h-24 w-full" />
-                  <SkeletonBlock className="mt-3 h-24 w-full" />
-                </div>
-                <div className="rounded-2xl border border-stone-200 bg-white p-5">
-                  <SkeletonBlock className="h-4 w-28" />
-                  <SkeletonBlock className="mt-5 h-32 w-full" />
-                </div>
-              </div>
-            </div>
-          </main>
-        </div>
-      </div>
-      <span className="sr-only">
-        {checking ? 'Checking connection to the server.' : 'The server is currently unreachable.'}
-      </span>
-    </div>
-  );
-}
-
-function PublicLogoLoader({ status, isRetrying, onRetry }) {
+export function PublicLogoLoader({ status, isRetrying, onRetry }) {
   const checking = status === 'checking' || isRetrying;
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-[#faf7f2] px-6"
+      className="flex min-h-screen items-center justify-center bg-white px-6"
       role="status"
       aria-live="polite"
       aria-busy={checking}
@@ -218,7 +87,7 @@ function PublicLogoLoader({ status, isRetrying, onRetry }) {
 
 export default function NetworkGate({ children }) {
   const contentRef = useRef(null);
-  const [status, setStatus] = useState('checking');
+  const [status, setStatus] = useState(() => (isPublicEntryPath() ? 'checking' : 'online'));
   const [isRetrying, setIsRetrying] = useState(false);
   const [slowConnection, setSlowConnection] = useState(false);
 
@@ -276,7 +145,10 @@ export default function NetworkGate({ children }) {
   }, []);
 
   useEffect(() => {
-    checkConnection();
+    // Public entry pages use the logo loader while the API is checked.
+    // Protected portal routes already validate the session against the backend,
+    // so another blocking health-check loader here would be duplicate loading UI.
+    if (isPublicEntryPath()) checkConnection();
 
     const handleOnline = () => checkConnection();
     const handleOffline = () => setStatus('offline');
@@ -296,8 +168,9 @@ export default function NetworkGate({ children }) {
     };
   }, [checkConnection]);
 
-  const blocked = status !== 'online';
   const publicEntryPath = isPublicEntryPath();
+  const blocked = publicEntryPath && status !== 'online';
+  const privateConnectionInterrupted = !publicEntryPath && status === 'offline';
 
   useEffect(() => {
     const content = contentRef.current;
@@ -332,7 +205,7 @@ export default function NetworkGate({ children }) {
         {children}
       </div>
 
-      {blocked && publicEntryPath ? (
+      {blocked ? (
         <PublicLogoLoader
           status={status}
           isRetrying={isRetrying}
@@ -340,12 +213,33 @@ export default function NetworkGate({ children }) {
         />
       ) : null}
 
-      {blocked && !publicEntryPath ? (
-        <NetworkSkeleton
-          status={status}
-          isRetrying={isRetrying}
-          onRetry={() => checkConnection({ manual: true })}
-        />
+      {privateConnectionInterrupted ? (
+        <div
+          className="fixed left-1/2 top-4 z-[120] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
+            <WifiOff className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-stone-900">
+              {isRetrying ? 'Reconnecting to SMaRT-PDM…' : 'Connection interrupted'}
+            </p>
+            <p className="mt-0.5 text-[11px] text-stone-500">
+              Your current page stays open while the server reconnects.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => checkConnection({ manual: true })}
+            disabled={isRetrying}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 text-[11px] font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-wait disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRetrying ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Retry
+          </button>
+        </div>
       ) : null}
     </>
   );

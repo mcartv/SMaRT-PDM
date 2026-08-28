@@ -176,7 +176,7 @@ async function recordPublicVisit({ visitorId, path }) {
 
   await pool.query(
     `
-      WITH recorded_visitor AS (
+      WITH lifetime_visit AS (
         INSERT INTO public.public_web_visitors (
           visitor_hash,
           first_seen_at,
@@ -192,54 +192,27 @@ async function recordPublicVisit({ visitorId, path }) {
           last_path = EXCLUDED.last_path
         RETURNING visitor_hash
       )
-      INSERT INTO public.public_web_visitor_days (
-        visitor_hash,
+      INSERT INTO public.public_web_visitor_daily (
         visit_date,
+        visitor_hash,
         first_seen_at,
         last_seen_at,
         visit_count
       )
       SELECT
+        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date,
         visitor_hash,
-        (NOW() AT TIME ZONE 'Asia/Manila')::date,
         NOW(),
         NOW(),
         1
-      FROM recorded_visitor
-      ON CONFLICT (visitor_hash, visit_date)
+      FROM lifetime_visit
+      ON CONFLICT (visit_date, visitor_hash)
       DO UPDATE SET
         last_seen_at = NOW(),
-        visit_count = public.public_web_visitor_days.visit_count + 1
+        visit_count = public.public_web_visitor_daily.visit_count + 1
     `,
     [visitorHash, cleanPath]
   );
-}
-
-async function getPublicVisitorCounts() {
-  const result = await pool.query(`
-    SELECT
-      COUNT(DISTINCT visitor_hash) FILTER (
-        WHERE visit_date = (NOW() AT TIME ZONE 'Asia/Manila')::date
-      )::integer AS today,
-      COUNT(DISTINCT visitor_hash) FILTER (
-        WHERE visit_date = (NOW() AT TIME ZONE 'Asia/Manila')::date - 1
-      )::integer AS yesterday,
-      COUNT(DISTINCT visitor_hash) FILTER (
-        WHERE visit_date >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Manila')::date
-          AND visit_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date
-      )::integer AS this_month
-    FROM public.public_web_visitor_days
-    WHERE visit_date >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Manila')::date - 1
-  `);
-  const counts = result.rows[0] || {};
-
-  return {
-    today: Number(counts.today || 0),
-    yesterday: Number(counts.yesterday || 0),
-    this_month: Number(counts.this_month || 0),
-    timezone: 'Asia/Manila',
-    measured_at: new Date().toISOString(),
-  };
 }
 
 async function cleanupOldActivity() {
@@ -247,14 +220,14 @@ async function cleanupOldActivity() {
     pool.query(`DELETE FROM public.system_activity_hourly WHERE bucket_hour < NOW() - INTERVAL '8 days'`),
     pool.query(`DELETE FROM public.system_active_sessions WHERE last_seen_at < NOW() - INTERVAL '7 days'`),
     pool.query(`DELETE FROM public.public_web_visitors WHERE last_seen_at < NOW() - INTERVAL '30 days'`),
-    pool.query(`DELETE FROM public.public_web_visitor_days WHERE visit_date < (NOW() AT TIME ZONE 'Asia/Manila')::date - 93`),
+    pool.query(`DELETE FROM public.public_web_visitor_daily WHERE visit_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date - INTERVAL '90 days')::date`),
   ]);
 }
 
 async function getActivitySummary() {
   await flushRequestMetrics();
 
-  const [requestsResult, sessionsResult, visitorsResult] = await Promise.all([
+  const [requestsResult, sessionsResult, visitorsResult, visitorCalendarResult] = await Promise.all([
     pool.query(`
       SELECT COALESCE(SUM(authenticated_requests), 0)::bigint AS count
       FROM public.system_activity_hourly
@@ -273,6 +246,23 @@ async function getActivitySummary() {
       FROM public.public_web_visitors
       WHERE last_seen_at >= NOW() - INTERVAL '24 hours'
     `),
+    pool.query(`
+      WITH params AS (
+        SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date AS today
+      )
+      SELECT
+        COUNT(DISTINCT visitor_hash)
+          FILTER (WHERE visit_date = params.today)::integer AS today,
+        COUNT(DISTINCT visitor_hash)
+          FILTER (WHERE visit_date = params.today - 1)::integer AS yesterday,
+        COUNT(DISTINCT visitor_hash)
+          FILTER (
+            WHERE visit_date >= date_trunc('month', params.today::timestamp)::date
+              AND visit_date <= params.today
+          )::integer AS this_month
+      FROM public.public_web_visitor_daily
+      CROSS JOIN params
+    `),
   ]);
 
   void cleanupOldActivity().catch((error) => {
@@ -283,6 +273,9 @@ async function getActivitySummary() {
     api_requests_24h: Number(requestsResult.rows[0]?.count || 0),
     active_sessions: Number(sessionsResult.rows[0]?.count || 0),
     web_visitors_24h: Number(visitorsResult.rows[0]?.count || 0),
+    web_visitors_today: Number(visitorCalendarResult.rows[0]?.today || 0),
+    web_visitors_yesterday: Number(visitorCalendarResult.rows[0]?.yesterday || 0),
+    web_visitors_this_month: Number(visitorCalendarResult.rows[0]?.this_month || 0),
     active_window_minutes: ACTIVE_WINDOW_MINUTES,
     measured_at: new Date().toISOString(),
   };
@@ -293,7 +286,6 @@ module.exports = {
   PUBLIC_WEB_PATH_PREFIXES,
   flushRequestMetrics,
   getActivitySummary,
-  getPublicVisitorCounts,
   normalizePublicPath,
   normalizeVisitorId,
   recordAuthenticatedRequest,

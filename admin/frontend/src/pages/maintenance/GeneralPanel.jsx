@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
 import {
     DEFAULT_POLICY_CONTENT,
@@ -98,23 +99,81 @@ const DEFAULT_APPLICATION = {
 };
 
 const DEFAULT_FEATURED_NOTICE = {
+    notice_id: 'notice-default',
     title: 'Welcome to SMaRT-PDM',
     message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
     link_label: '',
     link_url: '',
     is_visible: false,
+    is_archived: false,
     start_date: '',
     end_date: '',
+    created_at: '',
 };
 
-function normalizeFeaturedNotice(notice) {
+function normalizeFeaturedNotice(notice, index = 0) {
     return {
         ...DEFAULT_FEATURED_NOTICE,
         ...(notice && typeof notice === 'object' ? notice : {}),
+        notice_id: String(notice?.notice_id || `notice-legacy-${index + 1}`),
         start_date: String(notice?.start_date || ''),
         end_date: String(notice?.end_date || ''),
+        created_at: String(notice?.created_at || ''),
         is_visible: notice?.is_visible === true,
+        is_archived: notice?.is_archived === true,
     };
+}
+
+function normalizeFeaturedNotices(value) {
+    const source = Array.isArray(value)
+        ? value
+        : value && typeof value === 'object'
+            ? [value]
+            : [];
+    return source.slice(0, 20).map((notice, index) => normalizeFeaturedNotice(notice, index));
+}
+
+function getManilaDateInputValue() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function createFeaturedNotice() {
+    return {
+        ...DEFAULT_FEATURED_NOTICE,
+        notice_id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: '',
+        message: '',
+        start_date: getManilaDateInputValue(),
+        end_date: '',
+        created_at: new Date().toISOString(),
+        is_archived: false,
+    };
+}
+
+function getFeaturedNoticeValidationError(notice = {}) {
+    const title = String(notice?.title || '').trim();
+    const message = String(notice?.message || '').trim();
+    const startDate = String(notice?.start_date || '').trim();
+    const endDate = String(notice?.end_date || '').trim();
+    const today = getManilaDateInputValue();
+
+    if (!title) return 'Notice Title is required.';
+    if (!message) return 'Public Message is required.';
+    if (!startDate && !endDate) return 'Show From and Show Until are required.';
+    if (!startDate) return 'Show From is required.';
+    if (!endDate) return 'Show Until is required.';
+    if (startDate < today) return 'Show From cannot be earlier than today.';
+    if (endDate < startDate) {
+        return 'Show Until must be the same as or later than Show From.';
+    }
+    return '';
 }
 
 const DEFAULT_FAQ_FORM = {
@@ -214,6 +273,7 @@ function FaqEditorDialog({
     saving,
     onSubmit,
     editing,
+    themeBase,
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -252,11 +312,11 @@ function FaqEditorDialog({
                     </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="gap-2 sm:gap-2">
                     <Button
                         type="button"
                         variant="outline"
-                        className="border-stone-200"
+                        className="h-9 min-w-[104px] rounded-lg border-stone-200 px-4 text-sm"
                         onClick={() => onOpenChange(false)}
                         disabled={saving}
                     >
@@ -264,8 +324,8 @@ function FaqEditorDialog({
                     </Button>
                     <Button
                         type="button"
-                        className="text-white"
-                        style={{ background: C.brownMid }}
+                        className="h-9 min-w-[104px] rounded-lg border-none px-4 text-sm font-medium text-white shadow-sm hover:brightness-95"
+                        style={{ backgroundColor: themeBase, color: '#ffffff' }}
                         onClick={onSubmit}
                         disabled={saving}
                     >
@@ -279,6 +339,7 @@ function FaqEditorDialog({
 }
 
 export default function GeneralPanel() {
+    const { theme: userTheme } = usePortalTheme('admin');
     const SECTION_OPTIONS = [
         { key: 'office', label: 'Office & Contact' },
         { key: 'landing', label: 'Landing Content' },
@@ -298,7 +359,7 @@ export default function GeneralPanel() {
     const [savedLandingContent, setSavedLandingContent] = useState(DEFAULT_LANDING_CONTENT);
     const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
     const [savedPolicyContent, setSavedPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
-    const [featuredNotice, setFeaturedNotice] = useState(DEFAULT_FEATURED_NOTICE);
+    const [featuredNotices, setFeaturedNotices] = useState(() => normalizeFeaturedNotices(DEFAULT_FEATURED_NOTICE));
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
     const [appOpen, setAppOpen] = useState(DEFAULT_APPLICATION.applications_open);
@@ -309,6 +370,7 @@ export default function GeneralPanel() {
     const [activeAboutGroup, setActiveAboutGroup] = useState(null);
     const [activeCopyGroup, setActiveCopyGroup] = useState(null);
     const [activePolicyGroup, setActivePolicyGroup] = useState(null);
+    const [activeNoticeTab, setActiveNoticeTab] = useState('current');
     const [activeFaqTab, setActiveFaqTab] = useState('current');
     const [faqDialogOpen, setFaqDialogOpen] = useState(false);
     const [faqForm, setFaqForm] = useState(DEFAULT_FAQ_FORM);
@@ -316,6 +378,7 @@ export default function GeneralPanel() {
     const [savingKey, setSavingKey] = useState('');
     const [savedKey, setSavedKey] = useState('');
     const [faqActionId, setFaqActionId] = useState('');
+    const [pendingNoticeRemovalId, setPendingNoticeRemovalId] = useState(null);
 
     const showSuccess = useCallback((message, key = '') => {
         setSavedKey(key);
@@ -358,7 +421,7 @@ export default function GeneralPanel() {
             setSavedLandingContent(nextLandingContent);
             setPolicyContent(nextPolicyContent);
             setSavedPolicyContent(nextPolicyContent);
-            setFeaturedNotice(normalizeFeaturedNotice(payload?.featured_notice));
+            setFeaturedNotices(normalizeFeaturedNotices(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
             setAppOpen(typeof payload?.applications_open === 'boolean' ? payload.applications_open : DEFAULT_APPLICATION.applications_open);
@@ -415,8 +478,8 @@ export default function GeneralPanel() {
                 if (typeof payload?.eligibility_summary === 'string') {
                     setEligibilitySummary(payload.eligibility_summary);
                 }
-                if (payload?.featured_notice && typeof payload.featured_notice === 'object') {
-                    setFeaturedNotice(normalizeFeaturedNotice(payload.featured_notice));
+                if (payload?.featured_notice) {
+                    setFeaturedNotices(normalizeFeaturedNotices(payload.featured_notice));
                 }
                 if (typeof payload?.institution_name === 'string') {
                     setInstName(payload.institution_name);
@@ -480,8 +543,20 @@ export default function GeneralPanel() {
     };
 
     const saveFeaturedNotice = async () => {
+        const invalidNotice = featuredNotices.find(
+            (notice) => notice.is_archived !== true && getFeaturedNoticeValidationError(notice)
+        );
+        if (invalidNotice) {
+            const noticeLabel = invalidNotice.title?.trim() || 'Featured notice';
+            const validationMessage = `${noticeLabel}: ${getFeaturedNoticeValidationError(invalidNotice)}`;
+            toast.error('Complete the required notice fields', {
+                description: validationMessage,
+            });
+            return;
+        }
+
         await updateGeneralSettings(
-            { featured_notice: featuredNotice },
+            { featured_notice: featuredNotices },
             'notice',
             'Featured public notice saved successfully.'
         );
@@ -493,8 +568,6 @@ export default function GeneralPanel() {
             hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
             guide: ['guide_title', 'guide_description', 'guide_steps'],
             requirements: ['requirements_title', 'requirements_description', 'requirement_items', 'requirement_notices'],
-            features: ['features_title', 'features_description', 'feature_items'],
-            campus: ['campus_title', 'campus_description', 'credibility_title', 'credibility_description'],
         };
         const nextContent = { ...savedLandingContent };
         fieldsByGroup[group].forEach((field) => {
@@ -563,8 +636,6 @@ export default function GeneralPanel() {
             hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
             guide: ['guide_title', 'guide_description', 'guide_steps'],
             requirements: ['requirements_title', 'requirements_description', 'requirement_items', 'requirement_notices'],
-            features: ['features_title', 'features_description', 'feature_items'],
-            campus: ['campus_title', 'campus_description', 'credibility_title', 'credibility_description'],
         };
         setLandingContent((current) => {
             const next = { ...current };
@@ -700,18 +771,55 @@ export default function GeneralPanel() {
         }));
     };
 
-    const restoreFeaturedNoticeDefaults = () => {
-        setFeaturedNotice(DEFAULT_FEATURED_NOTICE);
-        showSuccess('Featured notice restored locally. Save to apply.');
+    const addFeaturedNotice = () => {
+        setFeaturedNotices((current) => {
+            if (current.length >= 20) {
+                toast.error('A maximum of 20 featured notices is allowed.');
+                return current;
+            }
+            return [createFeaturedNotice(), ...current];
+        });
     };
 
-    const restoreFaqDefaults = async () => {
-        await updateGeneralSettings(
-            { landing_faqs: DEFAULT_FAQS },
-            'faq',
-            'Landing FAQs restored to defaults.'
+    const updateFeaturedNotice = (noticeId, field, value) => {
+        setFeaturedNotices((current) => current.map((notice) =>
+            notice.notice_id === noticeId ? { ...notice, [field]: value } : notice
+        ));
+    };
+
+    const currentNotices = featuredNotices.filter((notice) => notice.is_archived !== true);
+    const archivedNotices = featuredNotices.filter((notice) => notice.is_archived === true);
+    const visibleNotices = activeNoticeTab === 'archived' ? archivedNotices : currentNotices;
+
+    const handleNoticeArchiveRestore = (noticeId) => {
+        const target = featuredNotices.find((notice) => notice.notice_id === noticeId);
+        if (!target) return;
+        setFeaturedNotices((current) => current.map((notice) =>
+            notice.notice_id === noticeId
+                ? {
+                    ...notice,
+                    is_archived: !notice.is_archived,
+                    is_visible: notice.is_archived ? notice.is_visible : false,
+                }
+                : notice
+        ));
+        if (target.is_archived) setActiveNoticeTab('current');
+    };
+
+    const removeFeaturedNotice = (noticeId) => {
+        setPendingNoticeRemovalId(noticeId);
+    };
+
+    const pendingNoticeRemoval = pendingNoticeRemovalId
+        ? featuredNotices.find((notice) => notice.notice_id === pendingNoticeRemovalId) || null
+        : null;
+
+    const confirmFeaturedNoticeRemoval = () => {
+        if (!pendingNoticeRemovalId) return;
+        setFeaturedNotices((current) =>
+            current.filter((notice) => notice.notice_id !== pendingNoticeRemovalId)
         );
-        setActiveFaqTab('current');
+        setPendingNoticeRemovalId(null);
     };
 
     const restoreApplicationDefaults = () => {
@@ -875,7 +983,45 @@ export default function GeneralPanel() {
                 saving={savingKey === 'faq'}
                 onSubmit={submitFaq}
                 editing={Boolean(editingFaqId)}
+                themeBase={userTheme.base}
             />
+
+            <Dialog
+                open={Boolean(pendingNoticeRemovalId)}
+                onOpenChange={(open) => {
+                    if (!open) setPendingNoticeRemovalId(null);
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Remove featured notice?</DialogTitle>
+                        <DialogDescription>
+                            {pendingNoticeRemoval?.title?.trim()
+                                ? `Remove “${pendingNoticeRemoval.title.trim()}” from the notice list?`
+                                : 'Remove this notice from the notice list?'}{' '}
+                            Save Changes is still required to apply the removal.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="h-9 min-w-[104px] rounded-lg border-stone-200 px-4 text-sm"
+                            onClick={() => setPendingNoticeRemovalId(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            className="h-9 min-w-[104px] rounded-lg border-none px-4 text-sm font-medium text-white shadow-sm hover:brightness-95"
+                            style={{ backgroundColor: userTheme.base, color: '#ffffff' }}
+                            onClick={confirmFeaturedNoticeRemoval}
+                        >
+                            Remove
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {error ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -1201,11 +1347,10 @@ export default function GeneralPanel() {
                                             onToggle={() => setActiveCopyGroup((current) => current === 'hero' ? null : 'hero')}
                                         >
                                             <div className="grid gap-4 md:grid-cols-2">
-                                                <div><FieldLabel>Hero Badge</FieldLabel><Input value={landingContent.hero_badge} onChange={(e) => updateLandingField('hero_badge', e.target.value)} maxLength={80} /></div>
                                                 <div><FieldLabel>Hero Title</FieldLabel><Input value={landingContent.hero_title} onChange={(e) => updateLandingField('hero_title', e.target.value)} maxLength={180} /></div>
-                                                <div className="md:col-span-2"><FieldLabel>Hero Description</FieldLabel><textarea value={landingContent.hero_description} onChange={(e) => updateLandingField('hero_description', e.target.value)} rows={3} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                                 <div><FieldLabel>Mobile App Title</FieldLabel><Input value={landingContent.mobile_app_title} onChange={(e) => updateLandingField('mobile_app_title', e.target.value)} maxLength={100} /></div>
-                                                <div><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
+                                                <div className="md:col-span-2"><FieldLabel>Hero Description</FieldLabel><textarea value={landingContent.hero_description} onChange={(e) => updateLandingField('hero_description', e.target.value)} rows={3} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                                <div className="md:col-span-2"><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
                                             </div>
                                             {renderContentGroupActions('copy', 'hero')}
                                         </LandingContentAccordion>
@@ -1305,62 +1450,7 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('copy', 'requirements')}
                                         </LandingContentAccordion>
 
-                                        <div className="hidden" aria-hidden="true">
-                                        <LandingContentAccordion
-                                            title="Platform Features"
-                                            description="Heading, introduction, and public feature descriptions."
-                                            summary={`${landingContent.feature_items.length} platform features`}
-                                            open={activeCopyGroup === 'features'}
-                                            editing={generalEditing}
-                                            onToggle={() => setActiveCopyGroup((current) => current === 'features' ? null : 'features')}
-                                        >
-                                            <FieldLabel>Features Heading</FieldLabel>
-                                            <Input value={landingContent.features_title} onChange={(e) => updateLandingField('features_title', e.target.value)} maxLength={160} />
-                                            <div className="mt-3"><FieldLabel>Features Introduction</FieldLabel><Input value={landingContent.features_description} onChange={(e) => updateLandingField('features_description', e.target.value)} maxLength={400} /></div>
-                                            <div className="mt-4 flex items-center justify-between gap-3">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Feature Cards</p>
-                                                <Button type="button" variant="outline" size="sm" onClick={() => addLandingObjectItem('feature_items', { title: '', description: '' }, 'Feature')} disabled={landingContent.feature_items.length >= 12}>
-                                                    <Plus size={14} className="mr-1" /> Add
-                                                </Button>
-                                            </div>
-                                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                                {landingContent.feature_items.map((item, index) => (
-                                                    <div key={`feature-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                        <div className="mb-1.5 flex items-center justify-between">
-                                                            <FieldLabel>Feature {index + 1}</FieldLabel>
-                                                            <button type="button" onClick={() => removeLandingObjectItem('feature_items', index, 'Feature')} disabled={landingContent.feature_items.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove feature ${index + 1}`}>
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                        <Input value={item.title} onChange={(e) => updateLandingItem('feature_items', index, 'title', e.target.value)} maxLength={120} />
-                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('feature_items', index, 'description', e.target.value)} rows={2} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {renderContentGroupActions('copy', 'features')}
-                                        </LandingContentAccordion>
 
-                                        <LandingContentAccordion
-                                            title="Campus & Credibility"
-                                            description="Institutional campus message and official-platform verification guidance."
-                                            summary="Campus message and platform verification copy"
-                                            open={activeCopyGroup === 'campus'}
-                                            editing={generalEditing}
-                                            onToggle={() => setActiveCopyGroup((current) => current === 'campus' ? null : 'campus')}
-                                        >
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                <FieldLabel>Campus Heading</FieldLabel><Input value={landingContent.campus_title} onChange={(e) => updateLandingField('campus_title', e.target.value)} maxLength={160} />
-                                                <div className="mt-3"><FieldLabel>Campus Description</FieldLabel><textarea value={landingContent.campus_description} onChange={(e) => updateLandingField('campus_description', e.target.value)} rows={4} maxLength={400} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
-                                                </div>
-                                                <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                <FieldLabel>Official Platform Heading</FieldLabel><Input value={landingContent.credibility_title} onChange={(e) => updateLandingField('credibility_title', e.target.value)} maxLength={180} />
-                                                <div className="mt-3"><FieldLabel>Verification Description</FieldLabel><textarea value={landingContent.credibility_description} onChange={(e) => updateLandingField('credibility_description', e.target.value)} rows={4} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
-                                                </div>
-                                            </div>
-                                            {renderContentGroupActions('copy', 'campus')}
-                                        </LandingContentAccordion>
-                                        </div>
                                     </div>
                                 </GroupCard>
                             ) : null}
@@ -1488,89 +1578,194 @@ export default function GeneralPanel() {
                                 <EditableRegion editing={generalEditing}>
                                 <GroupCard title="Featured Public Notice" icon={Megaphone}>
                                     <div className="space-y-4">
-                                        <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <p className="text-xs font-semibold text-stone-800">Landing-page notice</p>
-                                                <p className="mt-1 text-xs text-stone-500">
-                                                    Publish one important public update without exposing internal office notifications.
-                                                </p>
+                                        <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50/80 p-4 md:flex-row md:items-center md:justify-between">
+                                            <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-stone-100 p-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveNoticeTab('current')}
+                                                    className={`h-9 rounded-lg px-3 text-sm font-medium transition ${activeNoticeTab === 'current' ? 'text-white shadow-sm' : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'}`}
+                                                    style={activeNoticeTab === 'current' ? { background: 'var(--portal-base)' } : undefined}
+                                                >
+                                                    Current
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveNoticeTab('archived')}
+                                                    className={`h-9 rounded-lg px-3 text-sm font-medium transition ${activeNoticeTab === 'archived' ? 'text-white shadow-sm' : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'}`}
+                                                    style={activeNoticeTab === 'archived' ? { background: 'var(--portal-base)' } : undefined}
+                                                >
+                                                    Archived
+                                                </button>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                {renderSectionActions(restoreFeaturedNoticeDefaults, saveFeaturedNotice, 'notice')}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    className="h-9 rounded-lg border-none px-3 text-sm text-white"
+                                                    style={{ background: C.brownMid }}
+                                                    onClick={addFeaturedNotice}
+                                                    disabled={!generalEditing || featuredNotices.length >= 20 || savingKey === 'notice'}
+                                                >
+                                                    <Plus size={13} className="mr-1.5" />
+                                                    Add Notice
+                                                </Button>
                                             </div>
                                         </div>
 
-                                        <div className="rounded-2xl border border-stone-200 bg-white p-4">
-                                            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500">Visibility</p>
-                                            <Toggle
-                                                value={featuredNotice.is_visible}
-                                                onChange={(value) => setFeaturedNotice((current) => ({ ...current, is_visible: value }))}
-                                                labels={['Published', 'Hidden']}
-                                            />
-                                        </div>
+                                        {visibleNotices.length ? (
+                                            <div className="space-y-4">
+                                                {visibleNotices.map((notice, index) => {
+                                                    return (
+                                                    <section
+                                                        key={notice.notice_id}
+                                                        className="overflow-hidden rounded-2xl border border-stone-200 bg-white"
+                                                    >
+                                                        <div className="flex flex-col gap-3 border-b border-stone-100 bg-stone-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                                            <div className="min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <p className="truncate text-sm font-semibold text-stone-900">
+                                                                        {notice.title?.trim() || `New Notice ${visibleNotices.length - index}`}
+                                                                    </p>
+                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${notice.is_archived ? 'bg-stone-200 text-stone-600' : 'bg-amber-50 text-amber-700'}`}>
+                                                                        {notice.is_archived ? 'Archived Notice' : 'Current Notice'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="mt-1 text-xs text-stone-500">
+                                                                    Notice {index + 1} of {visibleNotices.length}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div
+                                                                    className={`rounded-md px-1 py-0.5 transition ${
+                                                                        generalEditing && !notice.is_archived
+                                                                            ? 'cursor-pointer hover:bg-stone-100/80 [&_button]:cursor-pointer [&_span]:!font-medium [&_span]:!text-stone-700 [&_svg]:!opacity-100'
+                                                                            : 'pointer-events-none grayscale opacity-40'
+                                                                    }`}
+                                                                    style={
+                                                                        generalEditing && !notice.is_archived
+                                                                            ? { color: userTheme.base }
+                                                                            : undefined
+                                                                    }
+                                                                    aria-disabled={!generalEditing || notice.is_archived}
+                                                                    title={notice.is_archived ? 'Restore this notice before changing its visibility.' : !generalEditing ? 'Enable Edit mode to change notice visibility.' : undefined}
+                                                                >
+                                                                    <Toggle
+                                                                        value={notice.is_visible}
+                                                                        onChange={(value) => updateFeaturedNotice(notice.notice_id, 'is_visible', value)}
+                                                                        labels={['Visible', 'Hidden']}
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleNoticeArchiveRestore(notice.notice_id)}
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-300 disabled:opacity-40"
+                                                                    style={generalEditing ? { color: userTheme.base } : undefined}
+                                                                    aria-label={`${notice.is_archived ? 'Restore' : 'Archive'} ${notice.title || 'featured notice'}`}
+                                                                    title={notice.is_archived ? 'Restore notice' : 'Archive notice'}
+                                                                >
+                                                                    {notice.is_archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeFeaturedNotice(notice.notice_id)}
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-stone-300 disabled:opacity-40"
+                                                                    aria-label={`Remove ${notice.title || 'featured notice'}`}
+                                                                    title="Remove notice"
+                                                                >
+                                                                    <Trash2 size={15} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
 
-                                        <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 md:grid-cols-2">
-                                            <div className="md:col-span-2">
-                                                <FieldLabel>Notice Title</FieldLabel>
-                                                <Input
-                                                    value={featuredNotice.title}
-                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, title: event.target.value }))}
-                                                    maxLength={140}
-                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                                                    placeholder="Important scholarship update"
-                                                />
+                                                        <div className="grid gap-4 p-4 md:grid-cols-2">
+                                                            <div className="md:col-span-2">
+                                                                <FieldLabel>Notice Title</FieldLabel>
+                                                                <Input
+                                                                    value={notice.title}
+                                                                    onChange={(event) => updateFeaturedNotice(notice.notice_id, 'title', event.target.value)}
+                                                                    maxLength={140}
+                                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                                    placeholder="Important scholarship update"
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <FieldLabel>Public Message</FieldLabel>
+                                                                <textarea
+                                                                    value={notice.message}
+                                                                    onChange={(event) => updateFeaturedNotice(notice.notice_id, 'message', event.target.value)}
+                                                                    maxLength={500}
+                                                                    rows={5}
+                                                                    className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
+                                                                    placeholder="Write a short public notice for applicants and families."
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <FieldLabel>Button Label (Optional)</FieldLabel>
+                                                                <Input
+                                                                    value={notice.link_label}
+                                                                    onChange={(event) => updateFeaturedNotice(notice.notice_id, 'link_label', event.target.value)}
+                                                                    maxLength={60}
+                                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                                    placeholder="Learn more"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <FieldLabel>Button Link (Optional)</FieldLabel>
+                                                                <Input
+                                                                    value={notice.link_url}
+                                                                    onChange={(event) => updateFeaturedNotice(notice.notice_id, 'link_url', event.target.value)}
+                                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                                    placeholder="https://... or /landing"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <FieldLabel>Show From</FieldLabel>
+                                                                <Input
+                                                                    type="date"
+                                                                    value={notice.start_date}
+                                                                    min={getManilaDateInputValue()}
+                                                                    max={notice.end_date || undefined}
+                                                                    required
+                                                                    aria-required="true"
+                                                                    onChange={(event) => updateFeaturedNotice(notice.notice_id, 'start_date', event.target.value)}
+                                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <FieldLabel>Show Until</FieldLabel>
+                                                                <Input
+                                                                    type="date"
+                                                                    value={notice.end_date}
+                                                                    min={notice.start_date && notice.start_date > getManilaDateInputValue() ? notice.start_date : getManilaDateInputValue()}
+                                                                    required
+                                                                    aria-required="true"
+                                                                    onChange={(event) => updateFeaturedNotice(notice.notice_id, 'end_date', event.target.value)}
+                                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </section>
+                                                    );
+                                                })}
                                             </div>
-                                            <div className="md:col-span-2">
-                                                <FieldLabel>Public Message</FieldLabel>
-                                                <textarea
-                                                    value={featuredNotice.message}
-                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, message: event.target.value }))}
-                                                    maxLength={500}
-                                                    rows={5}
-                                                    className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
-                                                    placeholder="Write a short public notice for applicants and families."
-                                                />
+                                        ) : (
+                                            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 px-4 py-8 text-center">
+                                                <Megaphone size={24} className="mx-auto text-stone-400" />
+                                                <p className="mt-2 text-sm font-semibold text-stone-800">{activeNoticeTab === 'archived' ? 'No archived notices' : 'No current notices'}</p>
                                             </div>
-                                            <div>
-                                                <FieldLabel>Button Label (Optional)</FieldLabel>
-                                                <Input
-                                                    value={featuredNotice.link_label}
-                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, link_label: event.target.value }))}
-                                                    maxLength={60}
-                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                                                    placeholder="Learn more"
-                                                />
-                                            </div>
-                                            <div>
-                                                <FieldLabel>Button Link (Optional)</FieldLabel>
-                                                <Input
-                                                    value={featuredNotice.link_url}
-                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, link_url: event.target.value }))}
-                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                                                    placeholder="https://... or /landing"
-                                                />
-                                            </div>
-                                            <div>
-                                                <FieldLabel>Publish From (Optional)</FieldLabel>
-                                                <Input
-                                                    type="date"
-                                                    value={featuredNotice.start_date}
-                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, start_date: event.target.value }))}
-                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                                                />
-                                            </div>
-                                            <div>
-                                                <FieldLabel>Publish Until (Optional)</FieldLabel>
-                                                <Input
-                                                    type="date"
-                                                    value={featuredNotice.end_date}
-                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, end_date: event.target.value }))}
-                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                                                />
-                                            </div>
+                                        )}
+
+                                        <div className="flex justify-end border-t border-stone-200 pt-4">
+                                            <Button
+                                                onClick={saveFeaturedNotice}
+                                                className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                                                style={{ background: savedKey === 'notice' ? C.green : C.brownMid }}
+                                                disabled={!generalEditing || savingKey === 'notice'}
+                                            >
+                                                {savingKey === 'notice' ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : savedKey === 'notice' ? <Check size={14} className="mr-1.5" /> : <Save size={14} className="mr-1.5" />}
+                                                {savingKey === 'notice' ? 'Saving' : savedKey === 'notice' ? 'Saved' : 'Save Changes'}
+                                            </Button>
                                         </div>
                                     </div>
-
                                 </GroupCard>
                                 </EditableRegion>
                             ) : null}
@@ -1610,19 +1805,8 @@ export default function GeneralPanel() {
                                         <div className="flex flex-wrap items-center gap-2">
                                             <Button
                                                 type="button"
-                                                variant="outline"
-                                                className="h-9 rounded-lg border-stone-200 px-3 text-sm"
-                                                onClick={restoreFaqDefaults}
-                                                disabled={!generalEditing || savingKey === 'faq'}
-                                            >
-                                                <RotateCcw size={13} className="mr-1.5" />
-                                                Restore Defaults
-                                            </Button>
-
-                                            <Button
-                                                type="button"
-                                                className="h-9 rounded-lg border-none px-3 text-sm text-white"
-                                                style={{ background: C.brownMid }}
+                                                className="h-9 rounded-lg border-none px-3 text-sm font-medium text-white shadow-sm hover:brightness-95"
+                                                style={{ backgroundColor: userTheme.base, color: '#ffffff' }}
                                                 onClick={openCreateFaq}
                                                 disabled={!generalEditing || savingKey === 'faq'}
                                             >
@@ -1664,28 +1848,36 @@ export default function GeneralPanel() {
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
-                                                                className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+                                                                className="h-8 rounded-lg border-stone-300 bg-white px-3 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-300 disabled:opacity-45"
+                                                                style={generalEditing ? { borderColor: userTheme.base } : undefined}
                                                                 onClick={() => openEditFaq(faq)}
                                                                 disabled={!generalEditing || savingKey === 'faq'}
                                                             >
-                                                                <Pencil size={13} className="mr-1.5" />
+                                                                <Pencil
+                                                                    size={13}
+                                                                    className="mr-1.5"
+                                                                    style={generalEditing ? { color: userTheme.base } : undefined}
+                                                                />
                                                                 Edit
                                                             </Button>
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
-                                                                className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+                                                                size="icon"
+                                                                className="h-8 w-8 rounded-lg border-stone-300 bg-white text-stone-700 transition hover:bg-stone-50 disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-300 disabled:opacity-45"
+                                                                style={generalEditing ? { color: userTheme.base } : undefined}
                                                                 onClick={() => handleFaqArchiveRestore(faq)}
                                                                 disabled={!generalEditing || faqActionId === faq.faq_id || savingKey === 'faq'}
+                                                                aria-label={faq.is_archived ? `Restore ${faq.question}` : `Archive ${faq.question}`}
+                                                                title={faq.is_archived ? 'Restore FAQ' : 'Archive FAQ'}
                                                             >
                                                                 {faqActionId === faq.faq_id ? (
-                                                                    <Loader2 size={13} className="mr-1.5 animate-spin" />
+                                                                    <Loader2 size={13} className="animate-spin" />
                                                                 ) : faq.is_archived ? (
-                                                                    <ArchiveRestore size={13} className="mr-1.5" />
+                                                                    <ArchiveRestore size={14} />
                                                                 ) : (
-                                                                    <Archive size={13} className="mr-1.5" />
+                                                                    <Archive size={14} />
                                                                 )}
-                                                                {faq.is_archived ? 'Restore' : 'Archive'}
                                                             </Button>
                                                         </div>
                                                     </div>

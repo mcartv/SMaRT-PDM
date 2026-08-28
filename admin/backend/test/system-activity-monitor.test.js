@@ -54,48 +54,6 @@ test('privacy-mode visitor fallback remains stable and throttled in memory', () 
   assert.match(tracker, /fallbackVisitorId \|\|= createVisitorId\(\)/);
   assert.match(tracker, /fallbackLastPingAt = timestamp/);
   assert.match(tracker, /now - lastPing < PING_INTERVAL_MS/);
-  assert.match(tracker, /smartpdm:public-visit-recorded/);
-});
-
-test('landing page exposes compact footer visitor counts', () => {
-  const landing = readFrontend('pages/SmartPDMLanding.jsx');
-  const routes = fs.readFileSync(
-    path.join(repositoryRoot, 'admin/backend/routes/systemMaintenanceRoutes.js'),
-    'utf8'
-  );
-
-  assert.match(landing, /WebsiteVisitorCounter/);
-  assert.match(landing, /public-visitor-counts/);
-  assert.match(landing, /Website visitors/);
-  assert.match(landing, /Thank you for visiting SMaRT-PDM website\./);
-  assert.match(landing, /max-w-\[18rem\]/);
-  assert.match(landing, /xl:grid-cols-\[1\.15fr_1\.1fr_0\.7fr_0\.8fr\]/);
-  assert.ok(landing.includes('bg-white/[0.045]'));
-  assert.match(landing, /border-white\/10/);
-  assert.doesNotMatch(landing, /Live site activity/);
-  assert.doesNotMatch(landing, /sm:grid-cols-3/);
-  assert.doesNotMatch(landing, /rounded-xl border bg-white shadow-sm/);
-  assert.match(routes, /get\('\/public-visitor-counts'/);
-});
-
-test('daily visitor aggregates are private and use Philippine calendar boundaries', () => {
-  const migration = fs.readFileSync(
-    path.join(
-      repositoryRoot,
-      'supabase/migrations/20260828120000_public_website_visitor_counts.sql'
-    ),
-    'utf8'
-  );
-  const activityServiceSource = fs.readFileSync(
-    path.join(repositoryRoot, 'admin/backend/services/systemActivityService.js'),
-    'utf8'
-  );
-
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.public_web_visitor_days/i);
-  assert.match(migration, /ALTER TABLE public\.public_web_visitor_days ENABLE ROW LEVEL SECURITY/i);
-  assert.match(migration, /REVOKE ALL ON TABLE public\.public_web_visitor_days FROM anon, authenticated/i);
-  assert.match(activityServiceSource, /COUNT\(DISTINCT visitor_hash\)/);
-  assert.match(activityServiceSource, /Asia\/Manila/);
 });
 
 test('System Monitor tables are protected from direct Data API access', () => {
@@ -116,3 +74,25 @@ test('System Monitor tables are protected from direct Data API access', () => {
     assert.match(migration, new RegExp(`REVOKE ALL ON TABLE public\\.${table} FROM anon, authenticated`, 'i'));
   }
 });
+
+test('daily website visitor metrics are stored in a protected rollup table', () => {
+  const migration = fs.readFileSync(
+    path.join(
+      repositoryRoot,
+      'supabase/migrations/20260828163000_system_activity_daily_visitors.sql'
+    ),
+    'utf8'
+  );
+
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.public_web_visitor_daily/i);
+  assert.match(migration, /PRIMARY KEY \(visit_date, visitor_hash\)/i);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/i);
+  assert.match(migration, /REVOKE ALL ON TABLE public\.public_web_visitor_daily FROM anon, authenticated/i);
+
+  const monitor = readFrontend('pages/maintenance/SystemActivityPanel.jsx');
+  assert.match(monitor, /Website Visitors/);
+  assert.match(monitor, /web_visitors_today/);
+  assert.match(monitor, /web_visitors_yesterday/);
+  assert.match(monitor, /web_visitors_this_month/);
+});
+

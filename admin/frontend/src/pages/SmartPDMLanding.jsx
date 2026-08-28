@@ -5,6 +5,7 @@ import {
   ArrowRight,
   ArrowUp,
   Check,
+  CalendarDays,
   ChevronDown,
   Database,
   Phone,
@@ -53,6 +54,38 @@ function normalizePublicFaqItems(items = []) {
       answer: String(item?.answer || '').trim(),
     }))
     .filter((item) => item.question && item.answer);
+}
+
+
+function normalizePublicFeaturedNotices(value) {
+  const source = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object'
+      ? [value]
+      : [];
+
+  return source
+    .map((notice, index) => ({
+      ...notice,
+      notice_id: String(notice?.notice_id || `notice-public-${index + 1}`),
+      title: String(notice?.title || '').trim(),
+      message: String(notice?.message || '').trim(),
+      link_label: String(notice?.link_label || '').trim(),
+      link_url: String(notice?.link_url || '').trim(),
+      start_date: String(notice?.start_date || ''),
+      end_date: String(notice?.end_date || ''),
+      created_at: String(notice?.created_at || ''),
+    }))
+    .filter((notice) => notice.title && notice.message)
+    .sort((a, b) => {
+      const createdA = Date.parse(a.created_at || '') || 0;
+      const createdB = Date.parse(b.created_at || '') || 0;
+      if (createdA !== createdB) return createdB - createdA;
+
+      const startA = Date.parse(a.start_date || '') || 0;
+      const startB = Date.parse(b.start_date || '') || 0;
+      return startB - startA;
+    });
 }
 
 const benefactorLogos = {
@@ -305,58 +338,126 @@ function FaqCard({ item, theme, isOpen, onToggle, panelId }) {
   );
 }
 
-const visitorCountFormatter = new Intl.NumberFormat('en-PH');
+function formatFeaturedNoticeDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
 
-function WebsiteVisitorCounter({ counts, loading, theme }) {
-  const stats = [
-    { key: 'today', label: 'Today' },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'this_month', label: 'This month' },
-  ];
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T00:00:00`)
+    : new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
+function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   return (
-    <section
-      id="website-visitors"
-      aria-labelledby="website-visitors-title"
-      className="w-full max-w-[18rem]"
+    <div
+      className="fixed inset-0 z-[110] flex h-[100dvh] w-[100dvw] items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
-      <div className="flex items-center gap-2.5">
-        <span className="relative flex h-2 w-2" aria-hidden="true">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 motion-reduce:animate-none" style={{ background: theme.accent }} />
-          <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: theme.accent }} />
-        </span>
-        <h2 id="website-visitors-title" className="text-sm font-bold text-white">
-          Website visitors
-        </h2>
-      </div>
-      <span className="mt-2 block h-0.5 w-8 rounded-full" style={{ background: theme.accent }} aria-hidden="true" />
-
-      <div
-        className="mt-3 overflow-hidden rounded-xl border bg-white/[0.045] shadow-[0_10px_25px_-18px_rgba(0,0,0,0.9)]"
-        style={{ borderColor: `${theme.accent}45` }}
-        aria-live="polite"
-        aria-busy={loading}
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="featured-notice-modal-title"
+        className="flex max-h-[86dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_28px_90px_-24px_rgba(0,0,0,0.58)]"
       >
-        {stats.map(({ key, label }, index) => (
-          <div
-            key={key}
-            className={`flex min-h-10 items-center justify-between gap-3 px-3 py-2 ${index ? 'border-t border-white/10' : ''}`}
+        <header className="flex min-h-16 items-center gap-3 border-b border-stone-200 px-5 py-4 sm:px-6">
+          <Megaphone size={20} strokeWidth={2.4} style={{ color: theme.dark }} aria-hidden="true" />
+          <h2
+            id="featured-notice-modal-title"
+            className="text-base font-extrabold uppercase tracking-[0.02em] text-stone-900 sm:text-lg"
           >
-            <span className="text-[11px] font-medium text-white/75">{label}</span>
-            <span
-              className={`min-w-14 rounded-full border px-2.5 py-1 text-center text-[10px] font-bold tabular-nums ${loading ? 'animate-pulse opacity-60' : ''}`}
-              style={{ background: theme.base, borderColor: `${theme.accent}70`, color: theme.accent }}
-            >
-              {counts ? visitorCountFormatter.format(counts[key]) : '\u2014'}
-            </span>
-          </div>
-        ))}
-      </div>
+            Featured Notice
+          </h2>
+        </header>
 
-      <p className="mt-2.5 text-[10px] leading-4 text-white/60">
-        Thank you for visiting SMaRT-PDM website.
-      </p>
-    </section>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50/55 px-5 py-5 sm:px-6">
+          <div className="space-y-4">
+            {notices.map((notice, index) => {
+              const publishedDate = formatFeaturedNoticeDate(
+                notice?.start_date || notice?.created_at || fallbackPublishedAt
+              );
+              const hasLink = Boolean(notice?.link_label && isSafePublicLink(notice?.link_url));
+
+              return (
+                <article
+                  key={notice.notice_id || `${notice.title}-${index}`}
+                  className="relative overflow-hidden rounded-xl border bg-white px-4 py-5 sm:px-5"
+                  style={{ borderColor: theme.border }}
+                >
+                  <span
+                    className="absolute inset-y-0 left-0 w-1"
+                    style={{ background: theme.base }}
+                    aria-hidden="true"
+                  />
+
+                  <div className="pl-1">
+                    <div className="flex min-h-5 items-center gap-2 text-xs font-medium text-stone-500">
+                      <CalendarDays size={14} aria-hidden="true" />
+                      <span>{publishedDate || 'Official OSFA notice'}</span>
+                    </div>
+
+                    <h3 className="mt-3 text-base font-extrabold leading-6 text-stone-950 sm:text-lg">
+                      {notice.title}
+                    </h3>
+
+                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-600">
+                      {notice.message}
+                    </p>
+
+                    {hasLink ? (
+                      <a
+                        href={notice.link_url}
+                        target={isExternalUrl(notice.link_url) ? '_blank' : undefined}
+                        rel={isExternalUrl(notice.link_url) ? 'noreferrer' : undefined}
+                        className="mt-5 inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                        style={{ background: theme.base, '--tw-ring-color': theme.base }}
+                      >
+                        {notice.link_label}
+                        <ArrowRight size={15} aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+
+        <footer className="flex items-center justify-end border-t border-stone-200 bg-white px-5 py-3.5 sm:px-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 min-w-20 items-center justify-center rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ background: theme.base, '--tw-ring-color': theme.base }}
+          >
+            Close
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }
 
@@ -744,10 +845,10 @@ export default function SmartPDMLanding() {
   const [activePolicy, setActivePolicy] = useState(null);
   const [showRequirements, setShowRequirements] = useState(false);
   const [processModalView, setProcessModalView] = useState(null);
+  const [featuredNoticeOpen, setFeaturedNoticeOpen] = useState(false);
+  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState('');
   const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [visitorCounts, setVisitorCounts] = useState(null);
-  const [visitorCountsLoading, setVisitorCountsLoading] = useState(true);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
     office_email: 'osfa@pdm.edu.ph',
@@ -759,11 +860,24 @@ export default function SmartPDMLanding() {
     eligibility_summary:
       'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
     landing_content: DEFAULT_LANDING_CONTENT,
-    featured_notice: null,
+    featured_notices: [],
     featured_notice_next_change_at: null,
+    updated_at: null,
     landing_faqs: defaultFaqItems,
   });
-  const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
+  const hasFeaturedNotice = generalSettings.featured_notices.length > 0;
+  const currentFeaturedNoticeSignature = generalSettings.featured_notices.length
+    ? JSON.stringify(generalSettings.featured_notices.map((notice) => ({
+        notice_id: notice.notice_id || '',
+        title: notice.title || '',
+        message: notice.message || '',
+        link_label: notice.link_label || '',
+        link_url: notice.link_url || '',
+        start_date: notice.start_date || '',
+        end_date: notice.end_date || '',
+        created_at: notice.created_at || '',
+      })))
+    : '';
   const applicationJourneySteps = [
     { title: 'Register with your Student ID', description: 'Create an account using a verified PDM Student ID.' },
     { title: 'Verify your email', description: 'Confirm the email address connected to your applicant account.' },
@@ -811,45 +925,6 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-
-    const loadVisitorCounts = async () => {
-      try {
-        const response = await fetch(buildApiUrl('/api/system-maintenance/public-visitor-counts'));
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error('Failed to load visitor counts');
-
-        const nextCounts = {
-          today: Math.max(0, Number(payload?.today) || 0),
-          yesterday: Math.max(0, Number(payload?.yesterday) || 0),
-          this_month: Math.max(0, Number(payload?.this_month) || 0),
-        };
-        if (active) setVisitorCounts(nextCounts);
-      } catch {
-        // The public landing page remains fully usable when diagnostics are offline.
-      } finally {
-        if (active) setVisitorCountsLoading(false);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void loadVisitorCounts();
-    };
-
-    void loadVisitorCounts();
-    const refreshId = window.setInterval(loadVisitorCounts, 60 * 1000);
-    window.addEventListener('smartpdm:public-visit-recorded', loadVisitorCounts);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      active = false;
-      window.clearInterval(refreshId);
-      window.removeEventListener('smartpdm:public-visit-recorded', loadVisitorCounts);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  useEffect(() => {
     const handleScroll = () => setShowBackToTop(window.scrollY > 640);
 
     handleScroll();
@@ -893,6 +968,18 @@ export default function SmartPDMLanding() {
       if (frameId !== undefined) window.cancelAnimationFrame(frameId);
     };
   }, [benefactors.length, generalSettings.landing_faqs.length]);
+
+  useEffect(() => {
+    if (!currentFeaturedNoticeSignature) {
+      setFeaturedNoticeOpen(false);
+      return;
+    }
+
+    if (currentFeaturedNoticeSignature !== lastFeaturedNoticeSignature) {
+      setLastFeaturedNoticeSignature(currentFeaturedNoticeSignature);
+      setFeaturedNoticeOpen(true);
+    }
+  }, [currentFeaturedNoticeSignature, lastFeaturedNoticeSignature]);
 
   useEffect(() => {
     const sections = Array.from(
@@ -950,8 +1037,9 @@ export default function SmartPDMLanding() {
             about_osfa: payload?.about_osfa || current.about_osfa,
             eligibility_summary: payload?.eligibility_summary || current.eligibility_summary,
             landing_content: mergeLandingContent(payload?.landing_content),
-            featured_notice: payload?.featured_notice || null,
+            featured_notices: normalizePublicFeaturedNotices(payload?.featured_notices ?? payload?.featured_notice),
             featured_notice_next_change_at: payload?.featured_notice_next_change_at || null,
+            updated_at: payload?.updated_at || current.updated_at,
             landing_faqs: Array.isArray(payload?.landing_faqs)
               ? normalizePublicFaqItems(payload.landing_faqs)
               : current.landing_faqs,
@@ -995,14 +1083,15 @@ export default function SmartPDMLanding() {
         about_osfa: settings?.about_osfa || current.about_osfa,
         eligibility_summary: settings?.eligibility_summary || current.eligibility_summary,
         landing_content: mergeLandingContent(settings?.landing_content),
-        featured_notice:
-          Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
-            ? settings.featured_notice
-            : current.featured_notice,
+        featured_notices:
+          Object.prototype.hasOwnProperty.call(settings, 'featured_notices') || Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
+            ? normalizePublicFeaturedNotices(settings.featured_notices ?? settings.featured_notice)
+            : current.featured_notices,
         featured_notice_next_change_at:
           Object.prototype.hasOwnProperty.call(settings, 'featured_notice_next_change_at')
             ? settings.featured_notice_next_change_at
             : current.featured_notice_next_change_at,
+        updated_at: settings?.updated_at || current.updated_at,
         landing_faqs: Array.isArray(settings?.landing_faqs)
           ? normalizePublicFaqItems(settings.landing_faqs)
           : current.landing_faqs,
@@ -1040,8 +1129,9 @@ export default function SmartPDMLanding() {
 
           setGeneralSettings((current) => ({
             ...current,
-            featured_notice: payload?.featured_notice || null,
+            featured_notices: normalizePublicFeaturedNotices(payload?.featured_notices ?? payload?.featured_notice),
             featured_notice_next_change_at: payload?.featured_notice_next_change_at || null,
+            updated_at: payload?.updated_at || current.updated_at,
           }));
         } catch {
           // The next socket update or page visit will retry public settings.
@@ -1356,54 +1446,6 @@ export default function SmartPDMLanding() {
       </section>
 
       <main>
-      {generalSettings.featured_notice ? (
-        <section className="landing-zone-notice mx-auto w-full max-w-[84rem] px-5 pb-8 pt-8 md:px-8">
-          <div
-            className="relative overflow-hidden rounded-[1.75rem] border px-5 py-5 shadow-sm md:px-7"
-            style={{ background: theme.soft, borderColor: theme.border }}
-          >
-            <div
-              className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full opacity-40 blur-2xl"
-              style={{ background: theme.accent }}
-            />
-            <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-              <div className="flex min-w-0 items-start gap-4">
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white"
-                  style={{ background: theme.base }}
-                >
-                  <Megaphone size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.danger }}>
-                    Featured OSFA Notice
-                  </p>
-                  <h2 className="mt-1.5 text-lg font-bold text-stone-900 md:text-xl">
-                    {generalSettings.featured_notice.title}
-                  </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-                    {generalSettings.featured_notice.message}
-                  </p>
-                </div>
-              </div>
-
-              {generalSettings.featured_notice.link_label &&
-              isSafePublicLink(generalSettings.featured_notice.link_url) ? (
-                <Button
-                  href={generalSettings.featured_notice.link_url}
-                  variant="primary"
-                  size="sm"
-                  icon={ArrowRight}
-                  theme={theme}
-                >
-                  {generalSettings.featured_notice.link_label}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
       <section id="mobile-app" aria-labelledby="landing-mobile-app-title" className="mx-auto w-full max-w-[84rem] scroll-mt-16 px-4 pb-12 pt-4 sm:px-5 md:px-8 md:pt-8">
         <div
           className="relative overflow-hidden rounded-[1.75rem] border px-5 py-8 shadow-[0_22px_60px_-48px_rgba(55,32,18,0.65)] sm:px-7 md:px-10 md:py-10"
@@ -1823,7 +1865,7 @@ export default function SmartPDMLanding() {
         }}
       >
         <div className="mx-auto w-full max-w-[96rem]">
-          <div className="grid gap-8 border-b border-white/15 pb-7 md:grid-cols-2 xl:grid-cols-[1.15fr_1.1fr_0.7fr_0.8fr]">
+          <div className="grid gap-8 border-b border-white/15 pb-7 lg:grid-cols-[1.15fr_1.25fr_0.8fr]">
             <div>
               <div className="flex items-center gap-4">
                 <div className="flex shrink-0 items-center gap-2.5" aria-label="PDM and Municipality of Marilao">
@@ -1898,12 +1940,6 @@ export default function SmartPDMLanding() {
               </div>
             </div>
 
-            <WebsiteVisitorCounter
-              counts={visitorCounts}
-              loading={visitorCountsLoading}
-              theme={theme}
-            />
-
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>
                 Privacy &amp; Legal
@@ -1955,6 +1991,15 @@ export default function SmartPDMLanding() {
         </div>
       </footer>
 
+      {featuredNoticeOpen && generalSettings.featured_notices.length ? (
+        <FeaturedNoticeModal
+          notices={generalSettings.featured_notices}
+          theme={theme}
+          fallbackPublishedAt={generalSettings.updated_at}
+          onClose={() => setFeaturedNoticeOpen(false)}
+        />
+      ) : null}
+
       {activePolicy ? (
         <PolicyModal
           type={activePolicy}
@@ -1981,20 +2026,35 @@ export default function SmartPDMLanding() {
         />
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-5 right-5 z-40 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:brightness-95 hover:shadow-xl focus:outline-none focus:ring-4 md:bottom-7 md:right-7 ${
-          showBackToTop
-            ? 'pointer-events-auto translate-y-0 opacity-100'
-            : 'pointer-events-none translate-y-3 opacity-0'
-        }`}
-        style={{ background: theme.base, '--tw-ring-color': `${theme.base}33` }}
-        aria-label="Back to top"
-        title="Back to top"
-      >
-        <ArrowUp size={19} strokeWidth={2.4} />
-      </button>
+      <div className="fixed bottom-5 right-5 z-40 flex flex-col items-center gap-2 md:bottom-7 md:right-7">
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className={`flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:brightness-95 hover:shadow-xl focus:outline-none focus:ring-4 ${
+            showBackToTop
+              ? 'pointer-events-auto translate-y-0 opacity-100'
+              : 'pointer-events-none translate-y-3 opacity-0'
+          }`}
+          style={{ background: theme.base, '--tw-ring-color': `${theme.base}33` }}
+          aria-label="Back to top"
+          title="Back to top"
+        >
+          <ArrowUp size={19} strokeWidth={2.4} />
+        </button>
+
+        {hasFeaturedNotice ? (
+          <button
+            type="button"
+            onClick={() => setFeaturedNoticeOpen(true)}
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/20 text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:brightness-95 hover:shadow-xl focus:outline-none focus:ring-4"
+            style={{ background: theme.base, '--tw-ring-color': `${theme.base}33` }}
+            aria-label="Open featured notice"
+            title="Featured notice"
+          >
+            <Megaphone size={18} strokeWidth={2.3} />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

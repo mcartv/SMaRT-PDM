@@ -6,6 +6,9 @@ const DEFAULT_ACTIVITY = {
     api_requests_24h: 0,
     active_sessions: 0,
     web_visitors_24h: 0,
+    web_visitors_today: 0,
+    web_visitors_yesterday: 0,
+    web_visitors_this_month: 0,
     active_window_minutes: 10,
 };
 
@@ -45,9 +48,11 @@ export default function SystemActivityPanel({
             icon: Globe2,
             iconWrap: 'bg-violet-50',
             iconColor: 'text-violet-600',
-            label: 'Web Visitors',
-            value: loading ? 'Loading...' : formatMetric(activity.web_visitors_24h),
-            description: 'Unique public-web browsers · last 24 hours',
+            label: 'Website Visitors',
+            value: loading ? 'Loading...' : `${formatMetric(activity.web_visitors_today)} Today`,
+            description: loading
+                ? 'Loading visitor totals...'
+                : `${formatMetric(activity.web_visitors_yesterday)} yesterday · ${formatMetric(activity.web_visitors_this_month)} this month`,
         },
     ];
 

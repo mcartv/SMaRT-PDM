@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Loader2, ShieldAlert } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
+import { PublicLogoLoader } from '@/components/system/NetworkGate';
 import { authService, AuthRequestError } from '@/services/authService';
 import {
   clearPortalSession,
@@ -14,7 +14,7 @@ import {
 export default function ProtectedRoute({ children, storageKey, redirectTo }) {
   const portalName = getPortalNameFromTokenKey(storageKey);
   const [status, setStatus] = useState('checking');
-  const [message, setMessage] = useState('Checking your session...');
+  const [showCheckingLoader, setShowCheckingLoader] = useState(false);
 
   const validate = useCallback(async () => {
     const token = getStoredItem(storageKey);
@@ -25,11 +25,6 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
     }
 
     setStatus('checking');
-    setMessage(
-      portalName === 'admin'
-        ? 'Restoring your Admin session...'
-        : 'Checking your account access...'
-    );
 
     try {
       if (portalName === 'admin') {
@@ -44,7 +39,6 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         error instanceof AuthRequestError &&
         error.code === 'NETWORK_ERROR'
       ) {
-        setMessage('Waiting for the server connection...');
         return;
       }
 
@@ -68,6 +62,20 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
 
     return () => window.removeEventListener('online', retry);
   }, [validate]);
+
+  useEffect(() => {
+    if (status !== 'checking') {
+      setShowCheckingLoader(false);
+      return undefined;
+    }
+
+    // Avoid flashing a loader for session checks that finish almost immediately.
+    const timer = window.setTimeout(() => {
+      setShowCheckingLoader(true);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'allowed') return undefined;
@@ -105,22 +113,16 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
   }
 
   if (status === 'checking') {
+    if (!showCheckingLoader) {
+      return <div className="min-h-screen bg-white" aria-hidden="true" />;
+    }
+
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center px-6">
-        <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-7 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-700">
-            {navigator.onLine ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <ShieldAlert className="h-6 w-6" />
-            )}
-          </div>
-          <p className="text-sm font-semibold text-stone-800">{message}</p>
-          <p className="mt-1 text-xs text-stone-500">
-            The portal will continue automatically when the session is available.
-          </p>
-        </div>
-      </div>
+      <PublicLogoLoader
+        status="checking"
+        isRetrying={false}
+        onRetry={validate}
+      />
     );
   }
 

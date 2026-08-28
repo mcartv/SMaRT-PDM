@@ -121,15 +121,18 @@ const DEFAULT_GENERAL_SETTINGS = {
     'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
   landing_content: DEFAULT_LANDING_CONTENT,
   policy_content: DEFAULT_POLICY_CONTENT,
-  featured_notice: {
+  featured_notice: [{
+    notice_id: 'notice-default',
     title: 'Welcome to SMaRT-PDM',
     message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
     link_label: '',
     link_url: '',
     is_visible: false,
+    is_archived: false,
     start_date: null,
     end_date: null,
-  },
+    created_at: null,
+  }],
   landing_faqs: [
     {
       faq_id: 'faq-1',
@@ -185,16 +188,95 @@ function normalizeDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
-function sanitizeFeaturedNotice(notice = {}) {
+function normalizeDateTime(value) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+
+function sanitizeFeaturedNotice(notice = {}, fallbackId = '') {
   return {
+    notice_id: safeText(notice.notice_id, 80) || safeText(fallbackId, 80),
     title: safeText(notice.title, 140),
     message: safeText(notice.message, 500),
     link_label: safeText(notice.link_label, 60),
     link_url: safeText(notice.link_url, 500),
     is_visible: notice.is_visible === true,
+    is_archived: notice.is_archived === true,
     start_date: normalizeDate(notice.start_date),
     end_date: normalizeDate(notice.end_date),
+    created_at: normalizeDateTime(notice.created_at),
   };
+}
+
+function sanitizeFeaturedNotices(value) {
+  const source = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object'
+      ? [value]
+      : [];
+
+  return source
+    .slice(0, 20)
+    .map((notice, index) => sanitizeFeaturedNotice(notice, `notice-legacy-${index + 1}`))
+    .filter((notice) => notice.title || notice.message);
+}
+
+function getManilaDateValue() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function validateFeaturedNoticeDateRanges(value) {
+  const source = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object'
+      ? [value]
+      : [];
+  const today = getManilaDateValue();
+
+  source.slice(0, 20).forEach((notice, index) => {
+    if (notice?.is_archived === true) return;
+    const rawTitle = String(notice?.title ?? '').trim();
+    const rawMessage = String(notice?.message ?? '').trim();
+    const rawStartDate = String(notice?.start_date ?? '').trim();
+    const rawEndDate = String(notice?.end_date ?? '').trim();
+    const startDate = normalizeDate(rawStartDate);
+    const endDate = normalizeDate(rawEndDate);
+    const noticeLabel = safeText(notice?.title, 140) || `Notice ${index + 1}`;
+
+    if (!rawTitle) {
+      throw createHttpError(400, `Notice ${index + 1}: Notice Title is required.`);
+    }
+    if (!rawMessage) {
+      throw createHttpError(400, `${noticeLabel}: Public Message is required.`);
+    }
+    if (!rawStartDate) {
+      throw createHttpError(400, `${noticeLabel}: Show From is required.`);
+    }
+    if (!rawEndDate) {
+      throw createHttpError(400, `${noticeLabel}: Show Until is required.`);
+    }
+    if (!startDate) {
+      throw createHttpError(400, `${noticeLabel}: Show From must be a valid date.`);
+    }
+    if (!endDate) {
+      throw createHttpError(400, `${noticeLabel}: Show Until must be a valid date.`);
+    }
+    if (startDate < today) {
+      throw createHttpError(400, `${noticeLabel}: Show From cannot be earlier than today.`);
+    }
+    if (endDate < startDate) {
+      throw createHttpError(400, `${noticeLabel}: Show Until must be the same as or later than Show From.`);
+    }
+  });
 }
 
 function sanitizeLandingItems(items, defaults) {
@@ -361,6 +443,34 @@ function getFeaturedNoticeNextChangeAt(notice = {}) {
   return null;
 }
 
+function sortFeaturedNoticesNewestFirst(notices = []) {
+  return notices
+    .map((notice, index) => ({ notice, index }))
+    .sort((a, b) => {
+      const createdA = Date.parse(a.notice.created_at || '') || 0;
+      const createdB = Date.parse(b.notice.created_at || '') || 0;
+      if (createdA !== createdB) return createdB - createdA;
+
+      const startA = Date.parse(a.notice.start_date || '') || 0;
+      const startB = Date.parse(b.notice.start_date || '') || 0;
+      if (startA !== startB) return startB - startA;
+
+      return a.index - b.index;
+    })
+    .map(({ notice }) => notice);
+}
+
+function getFeaturedNoticesNextChangeAt(notices = []) {
+  const boundaries = notices
+    .map((notice) => getFeaturedNoticeNextChangeAt(notice))
+    .filter(Boolean)
+    .map((value) => Date.parse(value))
+    .filter(Number.isFinite);
+
+  if (!boundaries.length) return null;
+  return new Date(Math.min(...boundaries)).toISOString();
+}
+
 function isMissingTableError(error, tableName) {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
@@ -395,7 +505,7 @@ function sanitizeSettings(payload = {}) {
       safeText(payload.eligibility_summary, 1200) || DEFAULT_GENERAL_SETTINGS.eligibility_summary,
     landing_content: sanitizeLandingContent(payload.landing_content),
     policy_content: sanitizePolicyContent(payload.policy_content),
-    featured_notice: sanitizeFeaturedNotice(payload.featured_notice),
+    featured_notice: sanitizeFeaturedNotices(payload.featured_notice),
     landing_faqs: sanitizeFaqs(payload.landing_faqs),
     global_deadline:
       normalizeDate(payload.global_deadline) || DEFAULT_GENERAL_SETTINGS.global_deadline,
@@ -444,7 +554,7 @@ function buildFallbackSettings() {
     ...DEFAULT_GENERAL_SETTINGS,
     landing_content: sanitizeLandingContent(DEFAULT_GENERAL_SETTINGS.landing_content),
     policy_content: sanitizePolicyContent(DEFAULT_GENERAL_SETTINGS.policy_content),
-    featured_notice: sanitizeFeaturedNotice(DEFAULT_GENERAL_SETTINGS.featured_notice),
+    featured_notice: sanitizeFeaturedNotices(DEFAULT_GENERAL_SETTINGS.featured_notice),
     landing_faqs: sanitizeFaqs(DEFAULT_GENERAL_SETTINGS.landing_faqs),
   };
 }
@@ -474,18 +584,27 @@ async function getGeneralSettings() {
     ...source,
     landing_content: sanitizeLandingContent(source.landing_content),
     policy_content: sanitizePolicyContent(source.policy_content),
-    featured_notice: sanitizeFeaturedNotice(source.featured_notice),
+    featured_notice: sanitizeFeaturedNotices(source.featured_notice),
     landing_faqs: sanitizeFaqs(source.landing_faqs),
   };
 }
 
 async function getPublicGeneralSettings() {
   const settings = await getGeneralSettings();
-  const featuredNotice = sanitizeFeaturedNotice(settings.featured_notice);
+  const featuredNotices = sanitizeFeaturedNotices(settings.featured_notice);
+  const publishedFeaturedNotices = sortFeaturedNoticesNewestFirst(
+    featuredNotices.filter(
+      (notice) => notice.is_archived !== true && isFeaturedNoticePublished(notice)
+    )
+  );
   return {
     ...settings,
-    featured_notice: isFeaturedNoticePublished(featuredNotice) ? featuredNotice : null,
-    featured_notice_next_change_at: getFeaturedNoticeNextChangeAt(featuredNotice),
+    featured_notices: publishedFeaturedNotices,
+    // Keep the newest item for compatibility with older frontend builds.
+    featured_notice: publishedFeaturedNotices[0] || null,
+    featured_notice_next_change_at: getFeaturedNoticesNextChangeAt(
+      featuredNotices.filter((notice) => notice.is_archived !== true)
+    ),
     landing_faqs: sanitizeFaqs(settings.landing_faqs).filter((item) => item.is_archived !== true),
   };
 }
@@ -493,6 +612,10 @@ async function getPublicGeneralSettings() {
 async function updateGeneralSettings(payload = {}, actor = {}) {
   if (!canManage(actor)) {
     throw createHttpError(403, 'Access denied for general settings.');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'featured_notice')) {
+    validateFeaturedNoticeDateRanges(payload.featured_notice);
   }
 
   const currentSettings = await getGeneralSettings();

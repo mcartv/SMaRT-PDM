@@ -3691,6 +3691,7 @@ body {
   }
 }
 
+
 /* Tablet/mobile remains the only range where the decorative hero is hidden. */
 @media (max-width: 1199px) {
   .smartpdm-auth-main > .smartpdm-auth-ribbon,

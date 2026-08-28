@@ -11,6 +11,8 @@ Flow:
 6. Submit the result to POST /api/pi/iot-ocr/:requestId/result
 """
 
+from __future__ import annotations
+
 import logging
 import json
 import os
@@ -20,7 +22,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -62,7 +64,7 @@ from extraction.psa_form_registration import (
 from ocr import extract_text, get_last_ocr_confidence
 from pipeline.result_serializer import candidate_from_worker_payload
 from pipeline.grade_form_v1 import scan_grade_form
-from runtime.worker_state import build_worker_state
+from runtime.worker_state import build_worker_state, utc_timestamp
 
 WORKER_ENV_PATH = Path(__file__).resolve().with_name(".env")
 load_dotenv(dotenv_path=WORKER_ENV_PATH, override=True)
@@ -76,6 +78,13 @@ HEARTBEAT_INTERVAL_SECONDS = min(
     max(
         0.25,
         float(os.getenv("IOT_OCR_HEARTBEAT_INTERVAL_SECONDS", "0.50")),
+    ),
+)
+LOCAL_WORKER_HEARTBEAT_SECONDS = min(
+    3.0,
+    max(
+        2.0,
+        float(os.getenv("SMART_PDM_WORKER_HEARTBEAT_SECONDS", "2.5")),
     ),
 )
 REQUEST_STOPPED_DISPLAY_SECONDS = max(
@@ -142,28 +151,61 @@ WORKER_ACTIVITY_PATH = Path(
     )
 )
 _state_sequence = 0
+_state_publish_lock = threading.RLock()
+_latest_worker_snapshot: Optional[Dict[str, Any]] = None
+
+
+def _write_worker_snapshot(snapshot: Dict[str, Any]) -> None:
+    WORKER_ACTIVITY_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = WORKER_ACTIVITY_PATH.with_suffix(".tmp")
+    temporary.write_text(json.dumps(snapshot), encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, WORKER_ACTIVITY_PATH)
 
 
 def publish_worker_activity(state: str, *, request=None, camera_status="unknown") -> None:
-    global _state_sequence
-    _state_sequence += 1
+    global _state_sequence, _latest_worker_snapshot
     request = request or {}
-    snapshot = build_worker_state(
-        sequence=_state_sequence,
-        worker_state=state,
-        request_reference=get_request_id(request),
-        application_reference=request.get("application_id"),
-        document_key=request.get("document_key"),
-        camera_status=camera_status,
-    ).to_dict()
-    try:
-        WORKER_ACTIVITY_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        temporary = WORKER_ACTIVITY_PATH.with_suffix(".tmp")
-        temporary.write_text(json.dumps(snapshot), encoding="utf-8")
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, WORKER_ACTIVITY_PATH)
-    except OSError:
-        log.warning("Unable to publish local OCR worker state")
+    with _state_publish_lock:
+        _state_sequence += 1
+        snapshot = build_worker_state(
+            sequence=_state_sequence,
+            worker_state=state,
+            request_reference=get_request_id(request),
+            application_reference=request.get("application_id"),
+            document_key=request.get("document_key"),
+            camera_status=camera_status,
+        ).to_dict()
+        try:
+            _write_worker_snapshot(snapshot)
+            _latest_worker_snapshot = snapshot
+        except OSError:
+            log.warning("Unable to publish local OCR worker state")
+
+
+def refresh_worker_heartbeat() -> bool:
+    """Refresh only the local heartbeat without changing operational state."""
+
+    global _state_sequence, _latest_worker_snapshot
+    with _state_publish_lock:
+        if not _latest_worker_snapshot:
+            return False
+        _state_sequence += 1
+        snapshot = dict(_latest_worker_snapshot)
+        snapshot["sequence"] = _state_sequence
+        snapshot["updated_at"] = utc_timestamp()
+        try:
+            _write_worker_snapshot(snapshot)
+            _latest_worker_snapshot = snapshot
+            return True
+        except OSError:
+            log.warning("Unable to refresh local OCR worker heartbeat")
+            return False
+
+
+def run_local_worker_heartbeat() -> None:
+    while not _shutdown_requested.wait(LOCAL_WORKER_HEARTBEAT_SECONDS):
+        refresh_worker_heartbeat()
 
 
 def lifecycle_worker_state(status: str) -> tuple[str, str]:
@@ -1824,6 +1866,12 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict, request=No
 def main():
     api = ApiClient()
     publish_worker_activity("idle", camera_status="ready")
+    local_heartbeat_thread = threading.Thread(
+        target=run_local_worker_heartbeat,
+        name="ocr-local-state-heartbeat",
+        daemon=True,
+    )
+    local_heartbeat_thread.start()
     removed_workspaces = cleanup_expired_workspaces()
     if removed_workspaces:
         log.info("Expired OCR workspaces removed count=%s", removed_workspaces)
@@ -1995,6 +2043,7 @@ def main():
         if not _shutdown_requested.is_set():
             _shutdown_requested.wait(POLL_INTERVAL_SECONDS)
 
+    local_heartbeat_thread.join(timeout=1.0)
     publish_worker_activity("stopping", camera_status="stopped")
     log.info("Worker stopped")
 

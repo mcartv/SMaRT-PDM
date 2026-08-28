@@ -69,15 +69,15 @@ DEFAULT_MESSAGES = {
 }
 
 DOCUMENT_LABELS = {
-    "birth_certificate": "Birth Certificate / PSA",
-    "certificate_of_birth": "Birth Certificate / PSA",
-    "certificate_of_live_birth": "Birth Certificate / PSA",
-    "psa_birth_certificate": "Birth Certificate / PSA",
+    "birth_certificate": "Birth Certificate",
+    "certificate_of_birth": "Birth Certificate",
+    "certificate_of_live_birth": "Birth Certificate",
+    "psa_birth_certificate": "Birth Certificate",
     "certificate_of_indigency": "Certificate of Indigency",
     "indigency": "Certificate of Indigency",
-    "student_grade_forms": "Grade Report",
-    "grade_report": "Grade Report",
-    "grade_form": "Grade Report",
+    "student_grade_forms": "Grade Form",
+    "grade_report": "Grade Form",
+    "grade_form": "Grade Form",
     "certificate_of_registration": "Certificate of Registration",
     "letter_of_request": "Letter of Request",
     "application_form": "Application Form",

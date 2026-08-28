@@ -1,6 +1,8 @@
 import inspect
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
@@ -1205,6 +1207,27 @@ class JobWorkerTest(unittest.TestCase):
                 "calibration": {},
             },
         )
+
+
+class WorkerHeartbeatTest(unittest.TestCase):
+    def test_local_heartbeat_refreshes_timestamp_without_changing_state(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            job_worker,
+            "WORKER_ACTIVITY_PATH",
+            Path(directory) / "worker_activity.json",
+        ):
+            job_worker._state_sequence = 0
+            job_worker._latest_worker_snapshot = None
+            job_worker.publish_worker_activity("running_ocr", camera_status="captured")
+            before = dict(job_worker._latest_worker_snapshot)
+            self.assertTrue(job_worker.refresh_worker_heartbeat())
+            after = dict(job_worker._latest_worker_snapshot)
+
+        self.assertEqual(after["worker_state"], before["worker_state"])
+        self.assertEqual(after["camera_status"], before["camera_status"])
+        self.assertGreater(after["sequence"], before["sequence"])
+        self.assertGreaterEqual(job_worker.LOCAL_WORKER_HEARTBEAT_SECONDS, 2.0)
+        self.assertLessEqual(job_worker.LOCAL_WORKER_HEARTBEAT_SECONDS, 3.0)
 
 
 if __name__ == "__main__":

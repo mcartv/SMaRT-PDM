@@ -24,7 +24,7 @@ class WorkerStateContractTest(unittest.TestCase):
     def test_known_document_key_gets_controlled_label(self):
         self.assertEqual(
             safe_document_label("student_grade_forms"),
-            "Grade Report",
+            "Grade Form",
         )
         self.assertEqual(safe_document_label("unexpected value"), "Document")
 
@@ -40,7 +40,7 @@ class WorkerStateContractTest(unittest.TestCase):
 
         self.assertEqual(snapshot["schema_version"], SCHEMA_VERSION)
         self.assertEqual(snapshot["worker_state"], "waiting_for_capture")
-        self.assertEqual(snapshot["document_label"], "Grade Report")
+        self.assertEqual(snapshot["document_label"], "Grade Form")
         self.assertNotIn("student_name", snapshot)
         self.assertNotIn("raw_text", snapshot)
         self.assertNotIn("extracted_fields", snapshot)

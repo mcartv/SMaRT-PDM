@@ -38,10 +38,4 @@ class AppConfig {
         host == '0.0.0.0' ||
         host == '::1';
   }
-
-  static const String _recaptchaAndroidSiteKey = String.fromEnvironment(
-    'RECAPTCHA_ANDROID_SITE_KEY',
-  );
-
-  static String get recaptchaAndroidSiteKey => _recaptchaAndroidSiteKey.trim();
 }

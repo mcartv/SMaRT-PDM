@@ -95,7 +95,7 @@ npm install
 npm start
 ```
 
-The student API uses port `5000` by default. Configure its Supabase, database, JWT, email, SMS, and reCAPTCHA credentials before starting it. See [`mobile/backend/PRODUCTION_DEPLOYMENT.md`](mobile/backend/PRODUCTION_DEPLOYMENT.md) for the required variables and deployment checklist.
+The student API uses port `5000` by default. Configure its Supabase, database, JWT, email, and SMS credentials before starting it. See [`mobile/backend/PRODUCTION_DEPLOYMENT.md`](mobile/backend/PRODUCTION_DEPLOYMENT.md) for the required variables and deployment checklist.
 
 ### Flutter App
 
@@ -105,12 +105,11 @@ flutter pub get
 flutter run --dart-define=API_BASE_URL=http://YOUR_LAN_IP:5000
 ```
 
-Use the development machine's LAN address when testing on a physical Android device. For production builds, pass the deployed HTTPS API URL and the Android reCAPTCHA site key:
+Use the development machine's LAN address when testing on a physical Android device. For production builds, pass the deployed HTTPS API URL:
 
 ```bash
 flutter build apk --release \
-  --dart-define=API_BASE_URL=https://your-api.example.com \
-  --dart-define=RECAPTCHA_ANDROID_SITE_KEY=your-site-key
+  --dart-define=API_BASE_URL=https://your-api.example.com
 ```
 
 Never place a Supabase service-role key or other server credential in the Flutter application.

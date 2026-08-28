@@ -41,7 +41,6 @@ android {
 }
 
 dependencies {
-    implementation("com.google.android.recaptcha:recaptcha:18.9.0-beta02")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

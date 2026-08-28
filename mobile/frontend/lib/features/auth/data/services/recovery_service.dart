@@ -57,15 +57,10 @@ class RecoveryService {
   Future<RecoverySession> startRecovery({
     required String userId,
     required RecoveryChannel channel,
-    required String captchaToken,
   }) async {
     final response = await _apiClient.postJson(
       '/api/auth/recovery/start',
-      body: {
-        'user_id': userId,
-        'channel': channel.wireValue,
-        'captcha_token': captchaToken,
-      },
+      body: {'user_id': userId, 'channel': channel.wireValue},
     );
 
     return RecoverySession.fromJson(response);

@@ -2847,9 +2847,6 @@ router.post('/api/auth/recovery/start', async (req, res) => {
     const payload = await accountRecoveryService.startRecovery({
       userId: req.body?.user_id,
       channel: req.body?.channel,
-      captchaToken: req.body?.captcha_token,
-      userAgent: req.get('user-agent') || '',
-      userIpAddress: req.ip || req.socket?.remoteAddress || '',
     });
 
     return res.status(200).json(payload);

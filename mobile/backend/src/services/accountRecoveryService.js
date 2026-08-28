@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { RecaptchaEnterpriseServiceClient } = require('@google-cloud/recaptcha-enterprise');
 const twilio = require('twilio');
 
 const RECOVERY_TABLE = 'account_recovery_sessions';
@@ -10,8 +9,6 @@ const RECOVERY_CODE_EXPIRY_SECONDS = 60;
 const RESEND_COOLDOWN_SECONDS = 30;
 const MAX_VERIFY_ATTEMPTS = 5;
 const RESET_TOKEN_EXPIRY = '10m';
-const DEFAULT_RECAPTCHA_MIN_SCORE = 0.5;
-const RECOVERY_ACTION = 'password_reset';
 const COMMON_PASSWORDS = new Set([
   '12345678',
   '123456789',
@@ -48,11 +45,6 @@ function createAccountRecoveryService({
     process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
       ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
       : null;
-  const recaptchaClient =
-    process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.RECAPTCHA_ANDROID_SITE_KEY
-      ? new RecaptchaEnterpriseServiceClient()
-      : null;
-
   function normalizeEmail(value = '') {
     return String(value || '').trim().toLowerCase();
   }
@@ -335,64 +327,6 @@ function createAccountRecoveryService({
     }
   }
 
-  async function verifyRecoveryCaptcha({ token, userAgent, userIpAddress }) {
-    if (!token) {
-      throw createHttpError(400, 'captcha_token is required.');
-    }
-
-    if (!recaptchaClient) {
-      throw createHttpError(
-        500,
-        'reCAPTCHA Enterprise is not configured on the backend.'
-      );
-    }
-
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
-    const siteKey = process.env.RECAPTCHA_ANDROID_SITE_KEY;
-    const minimumScore = Number(process.env.RECAPTCHA_MIN_SCORE || DEFAULT_RECAPTCHA_MIN_SCORE);
-
-    const request = {
-      assessment: {
-        event: {
-          token,
-          siteKey,
-          userAgent: userAgent || '',
-          userIpAddress: userIpAddress || '',
-        },
-      },
-      parent: recaptchaClient.projectPath(projectId),
-    };
-
-    let response;
-    try {
-      [response] = await recaptchaClient.createAssessment(request);
-    } catch (error) {
-      throw createHttpError(502, 'Unable to verify the reCAPTCHA challenge.');
-    }
-
-    if (!response?.tokenProperties?.valid) {
-      throw createHttpError(400, 'The reCAPTCHA challenge was not valid.');
-    }
-
-    if (response.tokenProperties.action !== RECOVERY_ACTION) {
-      throw createHttpError(400, 'The reCAPTCHA challenge action did not match the recovery flow.');
-    }
-
-    const score = Number(response.riskAnalysis?.score ?? 0);
-    if (score < minimumScore) {
-      throw createHttpError(403, 'We could not verify this recovery attempt.');
-    }
-
-    return {
-      assessmentName: response.name || null,
-      score,
-      reasons: Array.isArray(response.riskAnalysis?.reasons)
-        ? response.riskAnalysis.reasons.map((reason) => String(reason))
-        : [],
-      action: response.tokenProperties.action || RECOVERY_ACTION,
-    };
-  }
-
   async function sendRecoveryEmail(email, code, displayName) {
     const mailOptions = {
       from: mailFrom,
@@ -442,7 +376,6 @@ function createAccountRecoveryService({
     user,
     student,
     channel,
-    captchaAssessment,
   }) {
     const normalizedEmail = normalizeEmail(user.email);
     const normalizedPhone = normalizePhilippineMobile(user.phone_number);
@@ -481,10 +414,6 @@ function createAccountRecoveryService({
       attempt_count: 0,
       max_attempts: MAX_VERIFY_ATTEMPTS,
       resend_count: 0,
-      captcha_assessment_name: captchaAssessment.assessmentName,
-      captcha_score: captchaAssessment.score,
-      captcha_reasons: captchaAssessment.reasons,
-      captcha_action: captchaAssessment.action,
       last_sent_at: now.toISOString(),
       resend_available_at: resendAvailableAt.toISOString(),
       expires_at: expiresAt.toISOString(),
@@ -550,9 +479,6 @@ function createAccountRecoveryService({
   async function startRecovery({
     userId,
     channel,
-    captchaToken,
-    userAgent,
-    userIpAddress,
   }) {
     const safeChannel = String(channel || '').trim().toLowerCase();
     if (!['email', 'sms'].includes(safeChannel)) {
@@ -574,17 +500,11 @@ function createAccountRecoveryService({
     }
 
     const student = await resolveStudentByUserId(user.user_id);
-    const captchaAssessment = await verifyRecoveryCaptcha({
-      token: captchaToken,
-      userAgent,
-      userIpAddress,
-    });
 
     return createRecoverySession({
       user,
       student,
       channel: safeChannel,
-      captchaAssessment,
     });
   }
 

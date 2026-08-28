@@ -16,15 +16,11 @@ Required variables:
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_PHONE`
-- `GOOGLE_CLOUD_PROJECT_ID`
-- `GOOGLE_APPLICATION_CREDENTIALS`
-- `RECAPTCHA_ANDROID_SITE_KEY`
 - `PORT`
 
 Optional variables:
 - `JWT_EXPIRES_IN`
 - `FCM_SERVER_KEY`
-- `RECAPTCHA_MIN_SCORE`
 
 Notes:
 - `PORT` now falls back to `3000` when unset.
@@ -45,11 +41,9 @@ The mobile base URL is controlled in `mobile/frontend/lib/core/config/app_config
 Development:
 - Default LAN URL can stay for local testing.
 - Override when needed with `--dart-define=API_BASE_URL=http://<local-ip>:3000`.
-- Override the Android reCAPTCHA site key when needed with `--dart-define=RECAPTCHA_ANDROID_SITE_KEY=<your-android-site-key>`.
 
 Production:
 - Always build with `--dart-define=API_BASE_URL=https://<your-backend-domain>`.
-- Include `--dart-define=RECAPTCHA_ANDROID_SITE_KEY=<your-android-site-key>` in Android builds that use account recovery.
 - Do not add Supabase secrets to Flutter config.
 
 ## Route -> Supabase mapping
@@ -82,7 +76,7 @@ Production:
 - Reads: `users`
 - Reads: `students`
 - Writes: `account_recovery_sessions`
-- Side effects: creates a reCAPTCHA assessment and sends email or SMS
+- Side effect: sends email or SMS
 
 ### `POST /api/auth/recovery/resend-code`
 - Reads/Writes: `account_recovery_sessions`
@@ -233,9 +227,6 @@ Production:
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_FROM_PHONE`
-   - `GOOGLE_CLOUD_PROJECT_ID`
-   - `GOOGLE_APPLICATION_CREDENTIALS`
-   - `RECAPTCHA_ANDROID_SITE_KEY`
    - `PORT` (optional if Render provides one)
 6. Deploy and copy the public HTTPS URL.
 7. Smoke test:

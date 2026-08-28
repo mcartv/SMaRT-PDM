@@ -320,26 +320,32 @@ function WebsiteVisitorCounter({ counts, loading, theme }) {
       aria-labelledby="website-visitors-title"
       className="w-full max-w-[18rem]"
     >
-      <h2 id="website-visitors-title" className="text-sm font-bold text-white">
-        Website visitors
-      </h2>
+      <div className="flex items-center gap-2.5">
+        <span className="relative flex h-2 w-2" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 motion-reduce:animate-none" style={{ background: theme.accent }} />
+          <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: theme.accent }} />
+        </span>
+        <h2 id="website-visitors-title" className="text-sm font-bold text-white">
+          Website visitors
+        </h2>
+      </div>
       <span className="mt-2 block h-0.5 w-8 rounded-full" style={{ background: theme.accent }} aria-hidden="true" />
 
       <div
-        className="mt-3 overflow-hidden rounded-xl border bg-white shadow-sm"
-        style={{ borderColor: `${theme.accent}55` }}
+        className="mt-3 overflow-hidden rounded-xl border bg-white/[0.045] shadow-[0_10px_25px_-18px_rgba(0,0,0,0.9)]"
+        style={{ borderColor: `${theme.accent}45` }}
         aria-live="polite"
         aria-busy={loading}
       >
         {stats.map(({ key, label }, index) => (
           <div
             key={key}
-            className={`flex min-h-10 items-center justify-between gap-3 px-3 py-2 ${index ? 'border-t border-stone-200' : ''}`}
+            className={`flex min-h-10 items-center justify-between gap-3 px-3 py-2 ${index ? 'border-t border-white/10' : ''}`}
           >
-            <span className="text-[11px] font-medium text-stone-600">{label}</span>
+            <span className="text-[11px] font-medium text-white/75">{label}</span>
             <span
-              className={`min-w-12 rounded-full px-2.5 py-1 text-center text-[10px] font-bold tabular-nums text-white ${loading ? 'animate-pulse opacity-60' : ''}`}
-              style={{ background: theme.base }}
+              className={`min-w-14 rounded-full border px-2.5 py-1 text-center text-[10px] font-bold tabular-nums ${loading ? 'animate-pulse opacity-60' : ''}`}
+              style={{ background: theme.base, borderColor: `${theme.accent}70`, color: theme.accent }}
             >
               {counts ? visitorCountFormatter.format(counts[key]) : '\u2014'}
             </span>
@@ -347,7 +353,7 @@ function WebsiteVisitorCounter({ counts, loading, theme }) {
         ))}
       </div>
 
-      <p className="mt-2.5 text-[10px] leading-4 text-white/55">
+      <p className="mt-2.5 text-[10px] leading-4 text-white/60">
         Thank you for visiting SMaRT-PDM website.
       </p>
     </section>

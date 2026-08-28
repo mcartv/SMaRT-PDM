@@ -70,8 +70,11 @@ test('landing page exposes compact footer visitor counts', () => {
   assert.match(landing, /Thank you for visiting SMaRT-PDM website\./);
   assert.match(landing, /max-w-\[18rem\]/);
   assert.match(landing, /xl:grid-cols-\[1\.15fr_1\.1fr_0\.7fr_0\.8fr\]/);
+  assert.ok(landing.includes('bg-white/[0.045]'));
+  assert.match(landing, /border-white\/10/);
   assert.doesNotMatch(landing, /Live site activity/);
   assert.doesNotMatch(landing, /sm:grid-cols-3/);
+  assert.doesNotMatch(landing, /rounded-xl border bg-white shadow-sm/);
   assert.match(routes, /get\('\/public-visitor-counts'/);
 });
 

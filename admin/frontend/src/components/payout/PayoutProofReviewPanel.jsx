@@ -204,11 +204,11 @@ export default function PayoutProofReviewPanel() {
         {loading ? (
           <SectionLoadingSkeleton label="Loading payout proofs" rows={3} />
         ) : filtered.length === 0 ? (
-          <div className="py-8 text-center text-sm text-stone-400">
+          <div className="py-12 text-center text-sm text-stone-400">
             No payout proofs match the selected filter.
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {filtered.map((item) => {
               const meta = STATUS_META[item.proof_status] || STATUS_META['Pending Review'];
               return (

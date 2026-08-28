@@ -1071,31 +1071,11 @@ export default function GeneralPanel() {
                             <h2 className={MAINTENANCE_CARD_TITLE_CLASS}>
                                 General Configuration
                             </h2>
-                            
+                            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+                                System preferences, public content, application settings, and system tools
+                            </p>
                         </div>
 
-                        
-                    </div>
-                    <div className="mt-4 flex min-w-0 items-center gap-3">
-                        {/* SMART-PDM_GENERAL_EDIT_TOGGLE_WITH_TABS */}
-                        <div className="inline-flex min-w-0 flex-1 flex-wrap rounded-xl bg-stone-100 p-1">
-                        {SECTION_OPTIONS.map((section) => (
-                            <button
-                                key={section.key}
-                                type="button"
-                                onClick={() => setActiveSection(section.key)}
-                                className={`h-9 rounded-lg px-3 text-sm font-medium transition ${
-                                    activeSection === section.key
-                                        ? 'text-white shadow-sm'
-                                        : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
-                                }`}
-                                style={activeSection === section.key ? { background: 'var(--portal-base)' } : undefined}
-                            >
-                                {section.label}
-                            </button>
-                        ))}
-                    
-                        </div>
                         <button
                             type="button"
                             aria-pressed={generalEditing}
@@ -1107,7 +1087,7 @@ export default function GeneralPanel() {
                                 setGeneralEditing((current) => !current);
                             }}
                             disabled={loading || Boolean(savingKey)}
-                            className={`ml-auto inline-flex h-10 w-[150px] shrink-0 items-center justify-between rounded-xl border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                            className={`inline-flex h-10 w-[150px] shrink-0 items-center justify-between self-start rounded-xl border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto ${
                                 generalEditing
                                     ? 'border-emerald-300 bg-emerald-50 text-emerald-800 shadow-sm'
                                     : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400 hover:bg-stone-50'
@@ -1127,6 +1107,23 @@ export default function GeneralPanel() {
                                 />
                             </span>
                         </button>
+                    </div>
+                    <div className="mt-4 inline-flex flex-wrap rounded-xl bg-stone-100 p-1">
+                        {SECTION_OPTIONS.map((section) => (
+                            <button
+                                key={section.key}
+                                type="button"
+                                onClick={() => setActiveSection(section.key)}
+                                className={`h-9 rounded-lg px-3 text-sm font-medium transition ${
+                                    activeSection === section.key
+                                        ? 'text-white shadow-sm'
+                                        : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
+                                }`}
+                                style={activeSection === section.key ? { background: 'var(--portal-base)' } : undefined}
+                            >
+                                {section.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 

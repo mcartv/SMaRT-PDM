@@ -185,43 +185,6 @@ function ActionRow({ item, onOpen }) {
   );
 }
 
-
-const EMPTY_ENDORSEMENT_WORKFLOW = Object.freeze({
-  active: 0,
-  sdo: 0,
-  guidance: 0,
-  pd: 0,
-  completed: 0,
-});
-
-function summarizeEndorsementWorkflow(rows = []) {
-  const list = Array.isArray(rows) ? rows : [];
-  const finished = new Set([
-    'completed',
-    'disqualified_major',
-    'rejected',
-    'guidance_rejected',
-  ]);
-
-  return {
-    active: list.filter(
-      (row) => !finished.has(String(row?.overall_status || '').trim().toLowerCase())
-    ).length,
-    sdo: list.filter(
-      (row) => String(row?.current_stage || '').trim().toLowerCase() === 'pending_sdo'
-    ).length,
-    guidance: list.filter(
-      (row) => String(row?.current_stage || '').trim().toLowerCase() === 'pending_guidance'
-    ).length,
-    pd: list.filter(
-      (row) => String(row?.current_stage || '').trim().toLowerCase() === 'pending_pd'
-    ).length,
-    completed: list.filter(
-      (row) => String(row?.overall_status || '').trim().toLowerCase() === 'completed'
-    ).length,
-  };
-}
-
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { theme } = usePortalTheme('admin');
@@ -234,9 +197,6 @@ export default function AdminDashboard() {
     recentApplications: [],
     generatedAt: null,
   });
-
-  const [endorsementWorkflow, setEndorsementWorkflow] =
-    useState(EMPTY_ENDORSEMENT_WORKFLOW);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -297,47 +257,9 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const loadEndorsementWorkflow = useCallback(async () => {
-    try {
-      const token = sessionStorage.getItem('adminToken') || '';
-      const response = await fetch(
-        buildApiUrl('/api/endorsement-slips?scope=all'),
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const payload = await response.json().catch(() => []);
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.message ||
-            payload?.error ||
-            'Failed to load endorsement workflow.'
-        );
-      }
-
-      setEndorsementWorkflow(
-        summarizeEndorsementWorkflow(payload)
-      );
-    } catch (workflowError) {
-      console.warn(
-        'DASHBOARD ENDORSEMENT WORKFLOW LOAD ERROR:',
-        workflowError
-      );
-    }
-  }, []);
-
   useEffect(() => {
     loadDashboard({ audit: true });
   }, [loadDashboard]);
-
-  useEffect(() => {
-    loadEndorsementWorkflow();
-  }, [loadEndorsementWorkflow]);
 
   const refreshRealtime = useCallback(() => {
     loadDashboard({ silent: true });
@@ -354,9 +276,7 @@ export default function AdminDashboard() {
   useSocketEvent('application-document:reviewed', refreshRealtime, [refreshRealtime]);
 
   useSocketEvent('endorsement:updated', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('endorsement:updated', loadEndorsementWorkflow, [loadEndorsementWorkflow]);
   useSocketEvent('endorsement:completed', refreshRealtime, [refreshRealtime]);
-  useSocketEvent('endorsement:completed', loadEndorsementWorkflow, [loadEndorsementWorkflow]);
 
   useSocketEvent('scholar:created', refreshRealtime, [refreshRealtime]);
   useSocketEvent('scholar:updated', refreshRealtime, [refreshRealtime]);
@@ -581,7 +501,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-4" style={{ background: C.bg }}>
+    <div className="space-y-5 py-2" style={{ background: C.bg }}>
       <section
         className="overflow-hidden rounded-[28px] text-white shadow-sm"
         style={{ background: `linear-gradient(135deg, ${theme.base} 0%, ${theme.active} 55%, ${theme.accent} 100%)` }}
@@ -684,9 +604,9 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      <div className="grid items-start gap-4 xl:grid-cols-12">
+      <div className="grid gap-5 2xl:grid-cols-[0.92fr_1.08fr]">
         <Card
-          className="rounded-[24px] shadow-none xl:col-span-4"
+          className="rounded-[24px] shadow-none"
           style={{ borderColor: C.border, background: C.surface }}
         >
           <CardHeader className="border-b border-stone-100">
@@ -701,7 +621,7 @@ export default function AdminDashboard() {
             </p>
           </CardHeader>
 
-          <CardContent className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-1">
+          <CardContent className="grid gap-3 p-5 sm:grid-cols-2 2xl:grid-cols-1">
             {actionSummary.map((item) => (
               <ActionRow
                 key={item.key}
@@ -709,60 +629,10 @@ export default function AdminDashboard() {
                 onOpen={(path) => navigate(path)}
               />
             ))}
-          
-
-            {/* SMART-PDM_ENDORSEMENT_WORKFLOW_DASHBOARD */}
-            <div
-              className="sm:col-span-2 2xl:col-span-1 rounded-[18px] border border-stone-200 bg-stone-50/60 p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-stone-500" />
-                    <p className="text-sm font-semibold text-stone-800">
-                      Endorsement Workflow
-                    </p>
-                  </div>
-                  <p className="mt-1 text-xs text-stone-500">
-                    SDO → GCO → PD progress at a glance.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => navigate('/admin/endorsements')}
-                  className="shrink-0 text-xs font-semibold text-stone-600 transition hover:text-stone-900"
-                >
-                  View all
-                </button>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {[
-                  ['In Progress', endorsementWorkflow.active],
-                  ['SDO Review', endorsementWorkflow.sdo],
-                  ['GCO Review', endorsementWorkflow.guidance],
-                  ['PD Review', endorsementWorkflow.pd],
-                  ['Completed', endorsementWorkflow.completed],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-stone-100 bg-white px-3 py-2.5"
-                  >
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">
-                      {label}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold leading-none text-stone-900 tabular-nums">
-                      {formatNumber(value)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 xl:col-span-8 xl:grid-cols-2">
+        <div className="grid gap-5">
           <Card
             className="min-w-0 rounded-[24px] shadow-none"
             style={{ borderColor: C.border, background: C.surface }}
@@ -849,7 +719,7 @@ export default function AdminDashboard() {
               </p>
             </CardHeader>
 
-            <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-4 p-5 2xl:grid-cols-[minmax(0,0.92fr)_minmax(200px,1fr)]">
+            <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(220px,1fr)]">
               {dashboard.scholarsByBenefactor.length ? (
                 <>
                   <div className="h-[220px] min-w-0">

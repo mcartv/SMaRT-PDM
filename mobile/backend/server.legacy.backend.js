@@ -2846,7 +2846,6 @@ router.post('/api/auth/recovery/start', async (req, res) => {
   try {
     const payload = await accountRecoveryService.startRecovery({
       userId: req.body?.user_id,
-      channel: req.body?.channel,
     });
 
     return res.status(200).json(payload);

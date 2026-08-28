@@ -13,9 +13,6 @@ Required variables:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `JWT_SECRET`
 - `GMAIL_APP_PASSWORD`
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM_PHONE`
 - `PORT`
 
 Optional variables:
@@ -76,11 +73,11 @@ Production:
 - Reads: `users`
 - Reads: `students`
 - Writes: `account_recovery_sessions`
-- Side effect: sends email or SMS
+- Side effect: sends a recovery email
 
 ### `POST /api/auth/recovery/resend-code`
 - Reads/Writes: `account_recovery_sessions`
-- Side effects: sends email or SMS
+- Side effect: sends a recovery email
 
 ### `POST /api/auth/recovery/verify-code`
 - Reads/Writes: `account_recovery_sessions`
@@ -224,9 +221,6 @@ Production:
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `JWT_SECRET`
    - `GMAIL_APP_PASSWORD`
-   - `TWILIO_ACCOUNT_SID`
-   - `TWILIO_AUTH_TOKEN`
-   - `TWILIO_FROM_PHONE`
    - `PORT` (optional if Render provides one)
 6. Deploy and copy the public HTTPS URL.
 7. Smoke test:

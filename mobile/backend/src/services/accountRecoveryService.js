@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const twilio = require('twilio');
 
 const RECOVERY_TABLE = 'account_recovery_sessions';
 const RECOVERY_CODE_LENGTH = 6;
@@ -41,10 +40,6 @@ function createAccountRecoveryService({
     throw new Error('Account recovery service is missing required dependencies.');
   }
 
-  const twilioClient =
-    process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-      ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-      : null;
   function normalizeEmail(value = '') {
     return String(value || '').trim().toLowerCase();
   }
@@ -97,15 +92,6 @@ function createAccountRecoveryService({
     throw createHttpError(400, 'Enter a valid mobile number or email address.');
   }
 
-  function toE164(value = '') {
-    const normalized = normalizePhilippineMobile(value);
-    if (!isValidPhilippineMobile(normalized)) {
-      return '';
-    }
-
-    return `+63${normalized.slice(1)}`;
-  }
-
   function maskEmail(email = '') {
     const normalized = normalizeEmail(email);
     if (!isValidEmail(normalized)) {
@@ -118,18 +104,6 @@ function createAccountRecoveryService({
     const maskedDomain = '*'.repeat(Math.max(domainPart.length, 7));
 
     return `${maskedLocal}@${maskedDomain}`;
-  }
-
-  function maskPhone(phoneNumber = '') {
-    const normalized = normalizePhilippineMobile(phoneNumber);
-    if (!isValidPhilippineMobile(normalized)) {
-      return null;
-    }
-
-    const e164 = toE164(normalized);
-    const visiblePrefix = e164.slice(0, 5);
-    const visibleSuffix = e164.slice(-2);
-    return `${visiblePrefix}${'*'.repeat(Math.max(e164.length - 7, 4))}${visibleSuffix}`;
   }
 
   function buildDisplayName(user = {}, student = null) {
@@ -154,9 +128,7 @@ function createAccountRecoveryService({
       student_id: String(student?.pdm_id || user.username || '').trim(),
       avatar_url: avatarUrl,
       masked_email: maskEmail(user.email),
-      masked_phone: maskPhone(user.phone_number),
       has_email: isValidEmail(user.email),
-      has_phone: isValidPhilippineMobile(user.phone_number),
     };
   }
 
@@ -204,13 +176,11 @@ function createAccountRecoveryService({
 
   function buildRecoverySessionResponse(row = {}) {
     const snapshot = row.destination_snapshot || {};
-    const maskedDestination =
-      row.channel === 'sms' ? snapshot.masked_phone || null : snapshot.masked_email || null;
 
     return {
       session_id: row.recovery_session_id,
-      channel: row.channel,
-      masked_destination: maskedDestination,
+      channel: 'email',
+      masked_destination: snapshot.masked_email || null,
       expires_at: row.expires_at || null,
       resend_available_at: row.resend_available_at || null,
     };
@@ -299,6 +269,10 @@ function createAccountRecoveryService({
       throw createHttpError(404, 'Recovery session not found.');
     }
 
+    if (data.channel !== 'email') {
+      throw createHttpError(410, 'This recovery session is no longer supported. Start again.');
+    }
+
     return data;
   }
 
@@ -346,48 +320,19 @@ function createAccountRecoveryService({
     return null;
   }
 
-  async function sendRecoverySms(phoneNumber, code) {
-    if (!twilioClient || !process.env.TWILIO_FROM_PHONE) {
-      throw createHttpError(500, 'Twilio SMS delivery is not configured on the backend.');
-    }
-
-    const message = await twilioClient.messages.create({
-      body: `Your SMaRT-PDM recovery code is ${code}. It expires in ${RECOVERY_CODE_EXPIRY_SECONDS} seconds.`,
-      from: process.env.TWILIO_FROM_PHONE,
-      to: toE164(phoneNumber),
-    });
-
-    return message.sid || null;
-  }
-
-  async function deliverRecoveryCode({ channel, destination, code, displayName }) {
-    if (channel === 'email') {
-      return sendRecoveryEmail(destination, code, displayName);
-    }
-
-    if (channel === 'sms') {
-      return sendRecoverySms(destination, code);
-    }
-
-    throw createHttpError(400, 'Unsupported recovery channel.');
+  async function deliverRecoveryCode({ destination, code, displayName }) {
+    return sendRecoveryEmail(destination, code, displayName);
   }
 
   async function createRecoverySession({
     user,
     student,
-    channel,
   }) {
     const normalizedEmail = normalizeEmail(user.email);
-    const normalizedPhone = normalizePhilippineMobile(user.phone_number);
-    const destination =
-      channel === 'email' ? normalizedEmail : normalizedPhone;
+    const destination = normalizedEmail;
 
-    if (channel === 'email' && !isValidEmail(destination)) {
+    if (!isValidEmail(destination)) {
       throw createHttpError(400, 'This account does not have a valid recovery email.');
-    }
-
-    if (channel === 'sms' && !isValidPhilippineMobile(destination)) {
-      throw createHttpError(400, 'This account does not have a valid recovery mobile number.');
     }
 
     await invalidateOpenSessionsForUser(user.user_id);
@@ -398,17 +343,15 @@ function createAccountRecoveryService({
     const expiresAt = new Date(now.getTime() + RECOVERY_CODE_EXPIRY_SECONDS * 1000);
     const resendAvailableAt = new Date(now.getTime() + RESEND_COOLDOWN_SECONDS * 1000);
     const destinationSnapshot = {
-      email: isValidEmail(normalizedEmail) ? normalizedEmail : null,
-      phone_number: isValidPhilippineMobile(normalizedPhone) ? normalizedPhone : null,
+      email: normalizedEmail,
       masked_email: maskEmail(normalizedEmail),
-      masked_phone: maskPhone(normalizedPhone),
       display_name: buildDisplayName(user, student),
     };
 
     const insertPayload = {
       recovery_session_id: sessionId,
       user_id: user.user_id,
-      channel,
+      channel: 'email',
       destination_snapshot: destinationSnapshot,
       code_hash: hashRecoveryCode(sessionId, code),
       attempt_count: 0,
@@ -431,7 +374,6 @@ function createAccountRecoveryService({
 
     try {
       const deliveryReference = await deliverRecoveryCode({
-        channel,
         destination,
         code,
         displayName: destinationSnapshot.display_name,
@@ -472,22 +414,14 @@ function createAccountRecoveryService({
     );
 
     return accounts
-      .filter((account) => account.has_email || account.has_phone)
+      .filter((account) => account.has_email)
       .sort((left, right) => left.display_name.localeCompare(right.display_name));
   }
 
-  async function startRecovery({
-    userId,
-    channel,
-  }) {
-    const safeChannel = String(channel || '').trim().toLowerCase();
-    if (!['email', 'sms'].includes(safeChannel)) {
-      throw createHttpError(400, 'channel must be either email or sms.');
-    }
-
+  async function startRecovery({ userId }) {
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('user_id, username, email, phone_number')
+      .select('user_id, username, email')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -504,7 +438,6 @@ function createAccountRecoveryService({
     return createRecoverySession({
       user,
       student,
-      channel: safeChannel,
     });
   }
 
@@ -525,8 +458,7 @@ function createAccountRecoveryService({
     }
 
     const snapshot = session.destination_snapshot || {};
-    const destination =
-      session.channel === 'sms' ? snapshot.phone_number : snapshot.email;
+    const destination = snapshot.email;
     const displayName = snapshot.display_name || 'your SMaRT-PDM account';
 
     if (!destination) {
@@ -559,7 +491,6 @@ function createAccountRecoveryService({
 
     try {
       const deliveryReference = await deliverRecoveryCode({
-        channel: session.channel,
         destination,
         code,
         displayName,

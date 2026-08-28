@@ -54,13 +54,10 @@ class RecoveryService {
         .toList();
   }
 
-  Future<RecoverySession> startRecovery({
-    required String userId,
-    required RecoveryChannel channel,
-  }) async {
+  Future<RecoverySession> startRecovery({required String userId}) async {
     final response = await _apiClient.postJson(
       '/api/auth/recovery/start',
-      body: {'user_id': userId, 'channel': channel.wireValue},
+      body: {'user_id': userId},
     );
 
     return RecoverySession.fromJson(response);

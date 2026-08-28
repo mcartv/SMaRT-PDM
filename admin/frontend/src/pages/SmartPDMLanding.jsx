@@ -44,6 +44,7 @@ import mobileSubmittedScreenshot from '../assets/mobile-app/application-submitte
 const APP_DOWNLOAD_URL =
   'https://github.com/mcartv/SMaRT-PDM/releases/latest/download/SMaRT-PDM.apk';
 const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
+const FEATURED_NOTICE_SEEN_KEY = 'smartpdm:featured-notice-seen-signature';
 
 
 function normalizePublicFaqItems(items = []) {
@@ -423,7 +424,7 @@ function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
                       {notice.title}
                     </h3>
 
-                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-600">
+                    <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-stone-600">
                       {notice.message}
                     </p>
 
@@ -846,7 +847,13 @@ export default function SmartPDMLanding() {
   const [showRequirements, setShowRequirements] = useState(false);
   const [processModalView, setProcessModalView] = useState(null);
   const [featuredNoticeOpen, setFeaturedNoticeOpen] = useState(false);
-  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState('');
+  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(FEATURED_NOTICE_SEEN_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
   const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
@@ -977,6 +984,19 @@ export default function SmartPDMLanding() {
 
     if (currentFeaturedNoticeSignature !== lastFeaturedNoticeSignature) {
       setLastFeaturedNoticeSignature(currentFeaturedNoticeSignature);
+
+      // Mark this exact notice set as seen before opening it. This prevents the
+      // same notice from auto-opening again when the user navigates to another
+      // public page and returns Home in the same browser tab/session.
+      try {
+        window.sessionStorage.setItem(
+          FEATURED_NOTICE_SEEN_KEY,
+          currentFeaturedNoticeSignature
+        );
+      } catch {
+        // The in-memory state still prevents repeat opening until this mount ends.
+      }
+
       setFeaturedNoticeOpen(true);
     }
   }, [currentFeaturedNoticeSignature, lastFeaturedNoticeSignature]);
@@ -1018,7 +1038,7 @@ export default function SmartPDMLanding() {
 
     const loadGeneralSettings = async () => {
       try {
-        const response = await fetch(buildApiUrl('/api/general-settings/public'));
+        const response = await fetch(buildApiUrl('/api/general-settings/public'), { cache: 'no-store' });
         const payload = await response.json().catch(() => ({}));
 
         if (!response.ok) {
@@ -1060,19 +1080,15 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
-    const socket = io(`${buildApiUrl('').replace(/\/+$/, '')}/public`, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
-      transports: ['websocket', 'polling'],
-    });
-    const handleGeneralSettingsUpdated = (payload = {}) => {
-      if (payload?.source !== 'general_settings') return;
-      const settings = payload?.settings || {};
+    let active = true;
+
+    const applyPublicSettings = (settings = {}) => {
+      if (!active) return;
+
       if (settings?.policy_content) {
         setPolicyContent(mergePolicyContent(settings.policy_content));
       }
+
       setGeneralSettings((current) => ({
         ...current,
         office_name: settings?.office_name || current.office_name,
@@ -1082,10 +1098,15 @@ export default function SmartPDMLanding() {
         office_hours: settings?.office_hours || current.office_hours,
         about_osfa: settings?.about_osfa || current.about_osfa,
         eligibility_summary: settings?.eligibility_summary || current.eligibility_summary,
-        landing_content: mergeLandingContent(settings?.landing_content),
+        landing_content: settings?.landing_content
+          ? mergeLandingContent(settings.landing_content)
+          : current.landing_content,
         featured_notices:
-          Object.prototype.hasOwnProperty.call(settings, 'featured_notices') || Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
-            ? normalizePublicFeaturedNotices(settings.featured_notices ?? settings.featured_notice)
+          Object.prototype.hasOwnProperty.call(settings, 'featured_notices') ||
+          Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
+            ? normalizePublicFeaturedNotices(
+                settings.featured_notices ?? settings.featured_notice
+              )
             : current.featured_notices,
         featured_notice_next_change_at:
           Object.prototype.hasOwnProperty.call(settings, 'featured_notice_next_change_at')
@@ -1098,10 +1119,84 @@ export default function SmartPDMLanding() {
       }));
     };
 
+    const syncPublicSettings = async () => {
+      try {
+        const response = await fetch(buildApiUrl('/api/general-settings/public'), {
+          cache: 'no-store',
+        });
+        const settings = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        applyPublicSettings(settings);
+      } catch {
+        // The active socket or the next reconciliation will retry.
+      }
+    };
+
+    const socket = io(`${buildApiUrl('').replace(/\/+$/, '')}/public`, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      transports: ['websocket', 'polling'],
+    });
+
+    const handleGeneralSettingsUpdated = (payload = {}) => {
+      if (payload?.source !== 'general_settings') return;
+
+      // Socket payload is already the public/sanitized settings object.
+      if (payload?.settings && typeof payload.settings === 'object') {
+        applyPublicSettings(payload.settings);
+        return;
+      }
+
+      // Defensive fallback if an older backend emits only a change signal.
+      void syncPublicSettings();
+    };
+
+    const handleVisibleRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        void syncPublicSettings();
+      }
+    };
+
+    const handleBroadcastRefresh = (event) => {
+      if (event?.data?.type === 'general-settings:updated') {
+        void syncPublicSettings();
+      }
+    };
+
+    let broadcastChannel = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        broadcastChannel = new BroadcastChannel('smartpdm-public-settings');
+        broadcastChannel.addEventListener('message', handleBroadcastRefresh);
+      } catch {
+        broadcastChannel = null;
+      }
+    }
+
     socket.on('general-settings:updated', handleGeneralSettingsUpdated);
+    socket.on('connect', syncPublicSettings);
+    window.addEventListener('focus', syncPublicSettings);
+    document.addEventListener('visibilitychange', handleVisibleRefresh);
+
+    // Socket.IO is the realtime path. This only repairs a missed event or a
+    // temporarily suspended browser tab without requiring a manual refresh.
+    const reconciliationId = window.setInterval(syncPublicSettings, 15000);
+
     return () => {
+      active = false;
+      window.clearInterval(reconciliationId);
+      window.removeEventListener('focus', syncPublicSettings);
+      document.removeEventListener('visibilitychange', handleVisibleRefresh);
       socket.off('general-settings:updated', handleGeneralSettingsUpdated);
+      socket.off('connect', syncPublicSettings);
       socket.disconnect();
+
+      if (broadcastChannel) {
+        broadcastChannel.removeEventListener('message', handleBroadcastRefresh);
+        broadcastChannel.close();
+      }
     };
   }, []);
 
@@ -1123,7 +1218,7 @@ export default function SmartPDMLanding() {
         }
 
         try {
-          const response = await fetch(buildApiUrl('/api/general-settings/public'));
+          const response = await fetch(buildApiUrl('/api/general-settings/public'), { cache: 'no-store' });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) return;
 
@@ -1155,6 +1250,14 @@ export default function SmartPDMLanding() {
         html {
           scroll-behavior: smooth;
           scroll-padding-top: 4.25rem;
+        }
+        .landing-page button:not(:disabled),
+        .landing-page a[href],
+        .landing-page [role="button"]:not([aria-disabled="true"]) {
+          cursor: pointer;
+        }
+        .landing-page button:disabled {
+          cursor: not-allowed;
         }
         @keyframes landing-hero-enter {
           from { opacity: 0; transform: translateY(22px); }

@@ -199,7 +199,7 @@ function sanitizeFeaturedNotice(notice = {}, fallbackId = '') {
   return {
     notice_id: safeText(notice.notice_id, 80) || safeText(fallbackId, 80),
     title: safeText(notice.title, 140),
-    message: safeText(notice.message, 500),
+    message: safeText(notice.message, 5000),
     link_label: safeText(notice.link_label, 60),
     link_url: safeText(notice.link_url, 500),
     is_visible: notice.is_visible === true,

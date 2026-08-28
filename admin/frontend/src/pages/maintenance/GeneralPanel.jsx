@@ -277,7 +277,7 @@ function FaqEditorDialog({
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-xl [&_button:not(:disabled)]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
                 <DialogHeader>
                     <DialogTitle>{editing ? 'Edit landing FAQ' : 'Add landing FAQ'}</DialogTitle>
                     <DialogDescription>
@@ -470,6 +470,22 @@ export default function GeneralPanel() {
 
                 if (!response.ok) {
                     throw new Error(payload?.error || 'Failed to save general settings.');
+                }
+
+                // Keep another open landing-page tab in sync immediately.
+                // The landing page still fetches the public endpoint so hidden/scheduled
+                // notice data is never exposed through this browser message.
+                if (typeof BroadcastChannel !== 'undefined') {
+                    try {
+                        const channel = new BroadcastChannel('smartpdm-public-settings');
+                        channel.postMessage({
+                            type: 'general-settings:updated',
+                            updated_at: payload?.updated_at || new Date().toISOString(),
+                        });
+                        channel.close();
+                    } catch {
+                        // Socket.IO and the landing-page reconciliation remain available.
+                    }
                 }
 
                 if (Array.isArray(payload?.landing_faqs)) {
@@ -974,7 +990,20 @@ export default function GeneralPanel() {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="maintenance-general-panel space-y-4">
+            <style>{`
+                .maintenance-general-panel button:not(:disabled),
+                .maintenance-general-panel a[href],
+                .maintenance-general-panel [role="button"]:not([aria-disabled="true"]),
+                .maintenance-general-panel input[type="date"]:not(:disabled) {
+                    cursor: pointer;
+                }
+                .maintenance-general-panel button:disabled,
+                .maintenance-general-panel input:disabled,
+                .maintenance-general-panel textarea:disabled {
+                    cursor: not-allowed;
+                }
+            `}</style>
             <FaqEditorDialog
                 open={faqDialogOpen}
                 onOpenChange={closeFaqDialog}
@@ -992,7 +1021,7 @@ export default function GeneralPanel() {
                     if (!open) setPendingNoticeRemovalId(null);
                 }}
             >
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-md [&_button:not(:disabled)]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
                     <DialogHeader>
                         <DialogTitle>Remove featured notice?</DialogTitle>
                         <DialogDescription>
@@ -1692,11 +1721,16 @@ export default function GeneralPanel() {
                                                                 <textarea
                                                                     value={notice.message}
                                                                     onChange={(event) => updateFeaturedNotice(notice.notice_id, 'message', event.target.value)}
-                                                                    maxLength={500}
-                                                                    rows={5}
-                                                                    className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
-                                                                    placeholder="Write a short public notice for applicants and families."
+                                                                    maxLength={5000}
+                                                                    rows={8}
+                                                                    className="w-full resize-y rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm leading-6 text-stone-700 outline-none"
+                                                                    placeholder="Write the public notice for applicants and families."
                                                                 />
+                                                                <div className="mt-1 flex justify-end">
+                                                                    <span className="text-[11px] tabular-nums text-stone-400">
+                                                                        {String(notice.message || '').length.toLocaleString()} / 5,000
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                             <div>
                                                                 <FieldLabel>Button Label (Optional)</FieldLabel>

@@ -3063,6 +3063,70 @@ body {
   }
 }
 
+/* Final phone-width guardrails. Keep the existing mobile composition while
+ * making its usable width independent of browser minimum-window behavior. */
+@media (max-width: 640px) {
+  .smartpdm-auth-page,
+  .smartpdm-auth-main,
+  .smartpdm-login-grid,
+  .smartpdm-auth-card,
+  .smartpdm-login-card-frame,
+  .smartpdm-login-card-surface {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .smartpdm-login-grid {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    padding-inline: 0.625rem !important;
+  }
+
+  .smartpdm-auth-card {
+    width: min(100%, calc(100dvw - 1.25rem)) !important;
+  }
+
+  .smartpdm-auth-page .public-responsive-header-inner > a {
+    max-width: 100% !important;
+    overflow: hidden;
+  }
+
+  .smartpdm-auth-page .public-responsive-header-inner > a > span:last-child {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .smartpdm-auth-page .public-responsive-header-inner > a > span:last-child > span:first-child {
+    overflow-wrap: anywhere !important;
+  }
+
+  .smartpdm-login-password-row > button {
+    overflow-wrap: anywhere;
+  }
+
+  .public-responsive-modal {
+    overflow-x: hidden !important;
+  }
+
+  .public-responsive-modal > :not([class~="absolute"]) {
+    box-sizing: border-box;
+    width: min(100%, calc(100dvw - 1rem)) !important;
+    max-width: calc(100dvw - 1rem) !important;
+  }
+
+  .public-responsive-modal :where(article, p, h2, h3, a, button) {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .public-responsive-content > article {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: calc(100dvw - 2rem);
+  }
+}
+
 /* Medium laptop widths keep the institution identity readable without using
  * unnecessary horizontal space in the header. */
 @media (max-width: 1399px) {
@@ -3490,7 +3554,8 @@ body {
  * These rules deliberately target the original login classes as well as the
  * responsive hooks so they remain effective even if an older JSX copy is used.
  */
-@media (min-width: 1200px) and (max-width: 1799px) {
+@media (min-width: 1200px) and (max-width: 1799px),
+       (min-width: 1200px) and (max-height: 950px) {
   .smartpdm-login-grid {
     grid-template-columns: minmax(0, 1fr) minmax(372px, 408px) !important;
     width: min(100%, 82rem) !important;
@@ -3597,6 +3662,18 @@ body {
 
 /* Short laptop windows: retain both columns, trim only vertical whitespace. */
 @media (min-width: 1200px) and (max-height: 800px) {
+  /* Short laptop viewports can hold the entrance animation at its initial
+   * opacity during first paint, leaving the form and hero invisible. Keep the
+   * same responsive composition but render its essential content immediately. */
+  .smartpdm-login-fade,
+  .smartpdm-login-slide-left,
+  .smartpdm-login-slide-right,
+  .smartpdm-login-facade {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   .smartpdm-login-grid {
     align-items: center !important;
     padding-top: 1.75rem !important;

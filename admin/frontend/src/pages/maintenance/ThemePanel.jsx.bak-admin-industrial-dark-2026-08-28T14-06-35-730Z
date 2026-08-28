@@ -227,7 +227,6 @@ export default function ThemePanel({
   allowedPortals = ['admin', 'sdo', 'guidance', 'pd'],
   title = 'Theme Presets',
   subtitle = 'Choose a personal color preset for your signed-in layout and dashboard charts.',
-  hideIntro = false,
 }) {
   const normalizedPortals = useMemo(
     () => (Array.isArray(allowedPortals) && allowedPortals.length ? allowedPortals : ['admin']).map((portalKey) => String(portalKey || '').trim().toLowerCase()),
@@ -559,45 +558,32 @@ export default function ThemePanel({
         }}
         onSave={saveCustomTheme}
       />
-      {!hideIntro ? (
-        <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white">
-              <Palette className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{title}</h3>
-              <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>{subtitle}</p>
-              <p className="mt-1 text-xs text-stone-500">
-                Click a preset to save it immediately. Use Restore Default anytime.
-              </p>
-              {feedback.message ? (
-                <div
-                  className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
-                    feedback.type === 'error'
-                      ? 'border border-red-200 bg-red-50 text-red-700'
-                      : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                  }`}
-                >
-                  {feedback.type === 'error' ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  {feedback.message}
-                </div>
-              ) : null}
-            </div>
+      <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white">
+            <Palette className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>{title}</h3>
+            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>{subtitle}</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Click a preset to save it immediately. Use Restore Default anytime.
+            </p>
+            {feedback.message ? (
+              <div
+                className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                  feedback.type === 'error'
+                    ? 'border border-red-200 bg-red-50 text-red-700'
+                    : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                }`}
+              >
+                {feedback.type === 'error' ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {feedback.message}
+              </div>
+            ) : null}
           </div>
         </div>
-      ) : feedback.message ? (
-        <div
-          className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
-            feedback.type === 'error'
-              ? 'border border-red-200 bg-red-50 text-red-700'
-              : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-          }`}
-        >
-          {feedback.type === 'error' ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-          {feedback.message}
-        </div>
-      ) : null}
+      </div>
 
       <div className="space-y-5">
         {normalizedPortals.map((portalKey) => {

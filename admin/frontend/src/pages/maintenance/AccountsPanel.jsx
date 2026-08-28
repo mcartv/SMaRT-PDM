@@ -1695,6 +1695,14 @@ export default function AccountsPanel() {
 
     const handleArchiveRestore = async (account) => {
         const isRestore = account.is_archived === true;
+        const accountName =
+            [account.first_name, account.last_name].filter(Boolean).join(' ') ||
+            account.email ||
+            'this account';
+
+        if (!isRestore && !window.confirm(`Archive "${accountName}"? The account will no longer be active.`)) {
+            return;
+        }
 
         try {
             setActionLoadingId(account.user_id);

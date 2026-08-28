@@ -435,6 +435,13 @@ export default function BenefactorsPanel() {
     };
 
     const handleArchiveToggle = async (benefactor) => {
+        if (
+            !benefactor.is_archived &&
+            !window.confirm(`Archive "${benefactor.benefactor_name || 'this benefactor'}"? This will move it to Archived.`)
+        ) {
+            return;
+        }
+
         try {
             const res = await fetch(
                 buildApiUrl(`/api/benefactors/${benefactor.benefactor_id}`),

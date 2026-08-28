@@ -1726,6 +1726,10 @@ export default function ScholarshipOpenings() {
     };
 
     const handleArchiveOpening = async (openingId) => {
+        const opening = openings.find((item) => item.opening_id === openingId);
+        const openingName = opening?.opening_title || opening?.title || 'this scholarship opening';
+        if (!window.confirm(`Archive "${openingName}"? This will move it to Archived.`)) return;
+
         await updateOpeningStatus(openingId, 'archived', { is_archived: true });
     };
 

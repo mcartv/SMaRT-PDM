@@ -1688,6 +1688,10 @@ export default function AnnouncementsManagement() {
   };
 
   const handleArchive = async (id) => {
+    const announcement = items.find((item) => item.id === id);
+    const announcementName = announcement?.subject || announcement?.title || 'this announcement';
+    if (!window.confirm(`Archive "${announcementName}"? This will move it to Archived.`)) return;
+
     await loadAnnouncements({ silent: true });
 
     try {

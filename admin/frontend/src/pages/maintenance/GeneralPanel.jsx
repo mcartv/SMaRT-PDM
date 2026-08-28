@@ -810,6 +810,12 @@ export default function GeneralPanel() {
     const handleNoticeArchiveRestore = (noticeId) => {
         const target = featuredNotices.find((notice) => notice.notice_id === noticeId);
         if (!target) return;
+        if (
+            !target.is_archived &&
+            !window.confirm(`Archive "${target.title || 'this featured notice'}"? This will move it to Archived.`)
+        ) {
+            return;
+        }
         setFeaturedNotices((current) => current.map((notice) =>
             notice.notice_id === noticeId
                 ? {
@@ -916,6 +922,13 @@ export default function GeneralPanel() {
     };
 
     const handleFaqArchiveRestore = async (faq) => {
+        if (
+            !faq.is_archived &&
+            !window.confirm(`Archive "${faq.question || 'this FAQ'}"? This will move it to Archived.`)
+        ) {
+            return;
+        }
+
         try {
             setFaqActionId(faq.faq_id);
             const nextFaqs = landingFaqs.map((item) =>

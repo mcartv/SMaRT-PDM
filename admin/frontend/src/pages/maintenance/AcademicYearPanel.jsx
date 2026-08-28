@@ -838,6 +838,9 @@ export default function AcademicYearPanel() {
     };
 
     const archiveYear = async (row) => {
+        const yearName = row.academic_year || row.year_name || row.label || 'this academic year';
+        if (!window.confirm(`Archive "${yearName}"? This will move it to Archived.`)) return;
+
         try {
             setActionId(
                 `archive-${row.academic_year_id}`

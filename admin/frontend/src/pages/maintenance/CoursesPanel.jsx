@@ -310,6 +310,9 @@ export default function CoursesPanel() {
     };
 
     const handleArchive = async (course) => {
+        const courseName = course.course_name || course.course_code || 'this course';
+        if (!window.confirm(`Archive "${courseName}"? This will move it to Archived.`)) return;
+
         try {
             setActionLoadingId(course.course_id);
 

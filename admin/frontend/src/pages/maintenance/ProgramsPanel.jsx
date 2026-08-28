@@ -488,6 +488,13 @@ export default function ProgramsPanel() {
     };
 
     const handleArchiveToggle = async (program) => {
+        if (
+            !program.is_archived &&
+            !window.confirm(`Archive "${program.program_name || 'this program'}"? This will move it to Archived.`)
+        ) {
+            return;
+        }
+
         try {
             const res = await fetch(
                 buildApiUrl(`/api/scholarship-program/${program.program_id}`),

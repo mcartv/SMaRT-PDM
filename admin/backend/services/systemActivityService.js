@@ -176,22 +176,70 @@ async function recordPublicVisit({ visitorId, path }) {
 
   await pool.query(
     `
-      INSERT INTO public.public_web_visitors (
+      WITH recorded_visitor AS (
+        INSERT INTO public.public_web_visitors (
+          visitor_hash,
+          first_seen_at,
+          last_seen_at,
+          visit_count,
+          last_path
+        )
+        VALUES ($1, NOW(), NOW(), 1, $2)
+        ON CONFLICT (visitor_hash)
+        DO UPDATE SET
+          last_seen_at = NOW(),
+          visit_count = public.public_web_visitors.visit_count + 1,
+          last_path = EXCLUDED.last_path
+        RETURNING visitor_hash
+      )
+      INSERT INTO public.public_web_visitor_days (
         visitor_hash,
+        visit_date,
         first_seen_at,
         last_seen_at,
-        visit_count,
-        last_path
+        visit_count
       )
-      VALUES ($1, NOW(), NOW(), 1, $2)
-      ON CONFLICT (visitor_hash)
+      SELECT
+        visitor_hash,
+        (NOW() AT TIME ZONE 'Asia/Manila')::date,
+        NOW(),
+        NOW(),
+        1
+      FROM recorded_visitor
+      ON CONFLICT (visitor_hash, visit_date)
       DO UPDATE SET
         last_seen_at = NOW(),
-        visit_count = public.public_web_visitors.visit_count + 1,
-        last_path = EXCLUDED.last_path
+        visit_count = public.public_web_visitor_days.visit_count + 1
     `,
     [visitorHash, cleanPath]
   );
+}
+
+async function getPublicVisitorCounts() {
+  const result = await pool.query(`
+    SELECT
+      COUNT(DISTINCT visitor_hash) FILTER (
+        WHERE visit_date = (NOW() AT TIME ZONE 'Asia/Manila')::date
+      )::integer AS today,
+      COUNT(DISTINCT visitor_hash) FILTER (
+        WHERE visit_date = (NOW() AT TIME ZONE 'Asia/Manila')::date - 1
+      )::integer AS yesterday,
+      COUNT(DISTINCT visitor_hash) FILTER (
+        WHERE visit_date >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Manila')::date
+          AND visit_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date
+      )::integer AS this_month
+    FROM public.public_web_visitor_days
+    WHERE visit_date >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Manila')::date - 1
+  `);
+  const counts = result.rows[0] || {};
+
+  return {
+    today: Number(counts.today || 0),
+    yesterday: Number(counts.yesterday || 0),
+    this_month: Number(counts.this_month || 0),
+    timezone: 'Asia/Manila',
+    measured_at: new Date().toISOString(),
+  };
 }
 
 async function cleanupOldActivity() {
@@ -199,6 +247,7 @@ async function cleanupOldActivity() {
     pool.query(`DELETE FROM public.system_activity_hourly WHERE bucket_hour < NOW() - INTERVAL '8 days'`),
     pool.query(`DELETE FROM public.system_active_sessions WHERE last_seen_at < NOW() - INTERVAL '7 days'`),
     pool.query(`DELETE FROM public.public_web_visitors WHERE last_seen_at < NOW() - INTERVAL '30 days'`),
+    pool.query(`DELETE FROM public.public_web_visitor_days WHERE visit_date < (NOW() AT TIME ZONE 'Asia/Manila')::date - 93`),
   ]);
 }
 
@@ -244,6 +293,7 @@ module.exports = {
   PUBLIC_WEB_PATH_PREFIXES,
   flushRequestMetrics,
   getActivitySummary,
+  getPublicVisitorCounts,
   normalizePublicPath,
   normalizeVisitorId,
   recordAuthenticatedRequest,

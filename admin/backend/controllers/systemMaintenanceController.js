@@ -125,6 +125,19 @@ async function recordPublicVisit(req, res) {
   }
 }
 
+async function getPublicVisitorCounts(_req, res) {
+  try {
+    const result = await systemActivityService.getPublicVisitorCounts();
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('GET PUBLIC VISITOR COUNTS ERROR:', error);
+    return res.status(statusCode(error)).json({
+      error: error.message || 'Failed to load website visitor counts.',
+    });
+  }
+}
+
 async function heartbeatActivity(_req, res) {
   return res.sendStatus(204);
 }
@@ -182,6 +195,7 @@ module.exports = {
   getState,
   updateState,
   getStatus,
+  getPublicVisitorCounts,
   recordPublicVisit,
   heartbeatActivity,
   downloadBackup,

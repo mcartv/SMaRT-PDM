@@ -14,6 +14,7 @@ const publicVisitLimiter = rateLimit({
 });
 
 router.get('/public', systemMaintenanceController.getPublicState);
+router.get('/public-visitor-counts', publicVisitLimiter, systemMaintenanceController.getPublicVisitorCounts);
 router.post('/public-visit', publicVisitLimiter, systemMaintenanceController.recordPublicVisit);
 router.post('/activity/heartbeat', protect, systemMaintenanceController.heartbeatActivity);
 router.get('/', ...adminOnly, systemMaintenanceController.getState);

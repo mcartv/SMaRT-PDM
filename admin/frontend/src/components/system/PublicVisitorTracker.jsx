@@ -104,6 +104,7 @@ export default function PublicVisitorTracker() {
         // Only throttle future registrations after the backend actually
         // accepted this browser. A failed/offline request can retry later.
         rememberLastPing();
+        window.dispatchEvent(new CustomEvent('smartpdm:public-visit-recorded'));
       })
       .catch(() => {
         // Visitor diagnostics must never interfere with public-page rendering.

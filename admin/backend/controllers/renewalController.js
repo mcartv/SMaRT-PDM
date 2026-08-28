@@ -93,7 +93,11 @@ exports.getRenewals = async (req, res) => {
         // academic period only. Historical semester records remain in the
         // database and are still addressable directly by renewal ID.
         const currentPeriodRenewals = (Array.isArray(payload) ? payload : [])
-            .filter((renewal) => renewal?.is_current_period === true);
+            .filter(
+                (renewal) =>
+                    renewal?.is_current_period === true &&
+                    renewal?.is_renewal_period !== false
+            );
 
         return res.status(200).json(currentPeriodRenewals);
     } catch (error) {

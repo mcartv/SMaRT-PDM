@@ -279,6 +279,108 @@ function mapBy(rows = [], key) {
     return new Map(rows.map((row) => [row[key], row]));
 }
 
+// SMART-PDM_RENEWAL_PERIOD_ELIGIBILITY_V2
+// Renewal is operational only for a later academic period than the scholar's
+// approved scholarship opening. Old same-semester rows stay in the database,
+// but they cannot enter the current Renewal Queue or be reviewed directly.
+async function getRenewalSourcePeriodMap(renewalRows = []) {
+    const applicationIds = [
+        ...new Set(
+            (renewalRows || [])
+                .map((row) => row?.application_id)
+                .filter(Boolean)
+        ),
+    ];
+
+    if (!applicationIds.length) {
+        return new Map();
+    }
+
+    const applications = await getRowsByIds(
+        'applications',
+        'application_id',
+        applicationIds,
+        'application_id, opening_id'
+    );
+
+    const applicationMap = mapBy(
+        applications,
+        'application_id'
+    );
+
+    const openingIds = [
+        ...new Set(
+            applications
+                .map((application) => application?.opening_id)
+                .filter(Boolean)
+        ),
+    ];
+
+    const openings = openingIds.length
+        ? await getRowsByIds(
+            'program_openings',
+            'opening_id',
+            openingIds,
+            'opening_id, period_id'
+        )
+        : [];
+
+    const openingMap = mapBy(openings, 'opening_id');
+    const result = new Map();
+
+    for (const renewal of renewalRows || []) {
+        const application =
+            applicationMap.get(renewal?.application_id) || null;
+        const opening =
+            application?.opening_id
+                ? openingMap.get(application.opening_id) || null
+                : null;
+
+        result.set(
+            renewal?.renewal_id,
+            opening?.period_id || null
+        );
+    }
+
+    return result;
+}
+
+function isRenewalPeriodEligible(
+    renewal = {},
+    sourceOpeningPeriodId = null
+) {
+    if (!renewal?.period_id || !sourceOpeningPeriodId) {
+        return true;
+    }
+
+    return (
+        String(renewal.period_id) !==
+        String(sourceOpeningPeriodId)
+    );
+}
+
+async function assertRenewalPeriodEligible(renewal = {}) {
+    const sourcePeriodMap =
+        await getRenewalSourcePeriodMap([renewal]);
+
+    const sourceOpeningPeriodId =
+        sourcePeriodMap.get(renewal?.renewal_id) || null;
+
+    if (
+        !isRenewalPeriodEligible(
+            renewal,
+            sourceOpeningPeriodId
+        )
+    ) {
+        throw createHttpError(
+            409,
+            'Renewal is not available for the same academic semester as the scholar\'s current scholarship opening. Activate the next semester in Maintenance > Academic Years before reviewing a renewal.'
+        );
+    }
+
+    return sourceOpeningPeriodId;
+}
+
 async function loadRenewalDocuments(renewalIds = []) {
     const ids = [...new Set(renewalIds.filter(Boolean))];
 
@@ -577,12 +679,21 @@ exports.fetchRenewals = async () => {
     );
 
     const benefactorMap = mapBy(benefactors, 'benefactor_id');
+    const sourcePeriodMap =
+        await getRenewalSourcePeriodMap(renewalRows);
 
     return renewalRows.map((renewal) => {
         const student = studentMap.get(renewal.student_id) || {};
         const program = programMap.get(renewal.program_id) || {};
         const benefactor = benefactorMap.get(program.benefactor_id) || {};
         const period = periodMap.get(renewal.period_id) || {};
+        const sourceOpeningPeriodId =
+            sourcePeriodMap.get(renewal.renewal_id) || null;
+        const isRenewalPeriod =
+            isRenewalPeriodEligible(
+                renewal,
+                sourceOpeningPeriodId
+            );
         const documents = ensureDocumentCoverage(
             documentsMap.get(renewal.renewal_id) || []
         );
@@ -601,6 +712,10 @@ exports.fetchRenewals = async () => {
             school_year_label: period.school_year_label || '',
             is_current_period: period.is_active === true,
             period_status: period.is_active === true ? 'Current' : 'Historical',
+            source_opening_period_id:
+                sourceOpeningPeriodId,
+            is_renewal_period:
+                isRenewalPeriod,
 
             renewal_status: renewal.status,
             document_status: deriveDocumentStatus(documents, renewal.status),
@@ -797,6 +912,8 @@ exports.saveRenewalReview = async (renewalId, payload = {}, user = {}) => {
     if (!renewal) {
         throw createHttpError(404, 'Renewal record not found.');
     }
+
+    await assertRenewalPeriodEligible(renewal);
 
     const { data: renewalPeriod, error: renewalPeriodError } = await supabase
         .from('academic_period')

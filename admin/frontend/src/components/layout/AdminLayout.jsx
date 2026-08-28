@@ -526,7 +526,7 @@ export default function AdminLayout() {
         </header>
 
         <main
-          className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 md:px-5 md:pb-5 md:pt-4 xl:px-6 xl:pb-6 xl:pt-4"
+          className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6"
           style={{ background: theme.mainBg }}
         >
           <div

@@ -981,11 +981,11 @@ function OpeningCard({
 
     return (
         <Card
-            className="h-full overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300 hover:shadow-sm"
+            className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300 hover:shadow-sm"
             style={{ borderLeft: '4px solid var(--portal-base)' }}
         >
             <CardContent className="p-0">
-                <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-3.5 2xl:flex-row 2xl:items-start 2xl:justify-between sm:px-5">
+                <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-3.5 lg:flex-row lg:items-start lg:justify-between sm:px-5">
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-semibold leading-6 text-stone-900">
@@ -1140,7 +1140,7 @@ function OpeningCard({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 px-4 py-3 2xl:grid-cols-4 sm:px-5">
+                <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4 sm:px-5">
                     {[
                         ['Academic Year', opening.academic_year || 'N/A'],
                         ['Allocated Slots', allocatedSlots],
@@ -1880,15 +1880,11 @@ export default function ScholarshipOpenings() {
                 style={{ borderColor: C.line }}
             >
                 <div className="space-y-3">
-                    
-
-                    <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
-                        {/* SMART-PDM_OPENINGS_TABS_IN_TOOLBAR */}
-                        <div className="inline-flex shrink-0 rounded-xl bg-stone-100 p-1">
+                    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
                         <button
                             type="button"
                             onClick={() => setPageTab('templates')}
-                            className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition lg:px-3 lg:text-sm ${pageTab === 'templates'
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'templates'
                                 ? 'bg-white text-stone-900 shadow-sm'
                                 : 'text-stone-600'
                                 }`}
@@ -1899,7 +1895,7 @@ export default function ScholarshipOpenings() {
                         <button
                             type="button"
                             onClick={() => setPageTab('current')}
-                            className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition lg:px-3 lg:text-sm ${pageTab === 'current'
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'current'
                                 ? 'bg-white text-stone-900 shadow-sm'
                                 : 'text-stone-600'
                                 }`}
@@ -1910,7 +1906,7 @@ export default function ScholarshipOpenings() {
                         <button
                             type="button"
                             onClick={() => setPageTab('archived')}
-                            className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition lg:px-3 lg:text-sm ${pageTab === 'archived'
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'archived'
                                 ? 'bg-white text-stone-900 shadow-sm'
                                 : 'text-stone-600'
                                 }`}
@@ -1918,7 +1914,9 @@ export default function ScholarshipOpenings() {
                             Archived
                         </button>
                     </div>
-                        <div className="relative min-w-[180px] flex-1">
+
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="relative w-full xl:max-w-xl">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
                                 placeholder={
@@ -2060,7 +2058,7 @@ export default function ScholarshipOpenings() {
                                 }
                             />
                         ) : (
-                            <div className="grid gap-3 xl:grid-cols-2">
+                            <div className="space-y-3">
                                 {filteredOpenings.map((opening) => (
                                     <OpeningCard
                                         key={opening.opening_id}

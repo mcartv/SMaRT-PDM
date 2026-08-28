@@ -150,5 +150,5 @@ export default function TurnstileWidget({
     };
   }, [siteKey, resetSignal]);
 
-  return <div ref={containerRef} className="w-full" aria-label="Security verification" />;
+  return <div ref={containerRef} className="min-w-0 max-w-full overflow-hidden" aria-label="Security verification" />;
 }

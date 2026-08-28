@@ -145,7 +145,7 @@ export default function UnifiedUserLoginCard({ theme }) {
         }}
       >
         <div
-          className="relative overflow-hidden rounded-[1.08rem] border bg-[#fffdfa] px-5 py-5 sm:px-6 sm:py-6"
+          className="relative overflow-hidden rounded-[1.08rem] border bg-[#fffdfa] px-4 py-5 min-[360px]:px-5 sm:px-6 sm:py-6"
           style={{ borderColor: `${theme.base}18` }}
         >
           <span
@@ -238,7 +238,7 @@ export default function UnifiedUserLoginCard({ theme }) {
             </div>
 
             <div>
-              <div className="mb-1.5 flex items-center justify-between gap-3">
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <label htmlFor="unified-user-password" className="block text-xs font-bold text-stone-700">
                   Password
                 </label>

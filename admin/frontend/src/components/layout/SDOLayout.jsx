@@ -281,7 +281,7 @@ export default function SDOLayout() {
 
   return (
     <div
-      className="portal-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
+      className="portal-shell portal-responsive-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -304,7 +304,7 @@ export default function SDOLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
+        className="portal-responsive-sidebar flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
         style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
       >
         {/* Logo Section */}
@@ -314,7 +314,7 @@ export default function SDOLayout() {
           </div>
 
           {!collapsed && (
-            <div className="min-w-0">
+            <div className="portal-responsive-sidebar-copy min-w-0">
               <p className="text-white text-sm font-semibold truncate leading-tight">
                 PDM · SDO
               </p>
@@ -346,7 +346,7 @@ export default function SDOLayout() {
               title={collapsed ? item.label : ''}
             >
               <item.icon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="font-medium truncate">{item.label}</span>}
+              {!collapsed && <span className="portal-responsive-sidebar-label font-medium truncate">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
@@ -362,7 +362,7 @@ export default function SDOLayout() {
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            {!collapsed && <span className="font-medium">Collapse</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Collapse</span>}
           </button>
 
           <button
@@ -374,18 +374,18 @@ export default function SDOLayout() {
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="w-4 h-4" />
-            {!collapsed && <span className="font-medium">Logout</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="portal-responsive-frame flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
+        <header className="portal-responsive-header h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
           <div aria-hidden="true" />
 
-          <div className="flex items-center gap-3">
+          <div className="portal-responsive-header-actions flex items-center gap-3">
             {/* Notifications */}
             <div className="relative" ref={notifRef}>
               <button
@@ -555,7 +555,7 @@ export default function SDOLayout() {
                 </div>
               )}
 
-              <div className="hidden sm:block leading-tight truncate max-w-[160px] text-left">
+              <div className="portal-responsive-profile-copy hidden sm:block leading-tight truncate max-w-[160px] text-left">
                 <p className="text-[12px] font-semibold text-stone-800 truncate">
                   {getDisplayName()}
                 </p>
@@ -569,8 +569,8 @@ export default function SDOLayout() {
         </header>
 
         {/* Viewport */}
-        <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
-          <div key={outletKey} className="max-w-7xl mx-auto">
+        <main className="portal-responsive-main flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
+          <div key={outletKey} className="portal-responsive-content max-w-7xl mx-auto w-full">
             <Outlet />
           </div>
         </main>

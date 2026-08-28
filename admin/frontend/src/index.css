@@ -2062,3 +2062,662 @@ html.smartpdm-admin-active.smartpdm-admin-modal-open :is(
 .admin-responsive-content [role="tablist"] > * {
   flex: 0 0 auto;
 }
+
+/* ========================================================================== */
+/* Whole-site responsive hardening                                            */
+/* ========================================================================== */
+/*
+ * Shared responsiveness for the public site, unified authentication, Admin,
+ * SDO, Guidance, PD and RO Coordinator portals. These rules preserve each
+ * page's visual hierarchy; they only release fixed widths, wrap controls, and
+ * adapt spacing to the actual viewport/content width.
+ */
+
+html,
+body,
+#root {
+  max-width: 100%;
+}
+
+body {
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Authenticated portal shells: Admin + all department portals                */
+/* -------------------------------------------------------------------------- */
+.portal-responsive-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.portal-responsive-shell > *,
+.portal-responsive-frame,
+.portal-responsive-header,
+.portal-responsive-header > *,
+.portal-responsive-header-actions,
+.portal-responsive-main,
+.portal-responsive-content,
+.portal-responsive-content > * {
+  min-width: 0;
+}
+
+.portal-responsive-sidebar {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: min(248px, 22vw);
+}
+
+.portal-responsive-frame {
+  width: 0;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+.portal-responsive-header {
+  width: 100%;
+  min-width: 0;
+  gap: clamp(0.5rem, 1vw, 0.875rem);
+  padding-inline: clamp(0.75rem, 1.25vw, 1.5rem) !important;
+}
+
+.portal-responsive-header-actions {
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+  gap: clamp(0.45rem, 0.85vw, 0.75rem) !important;
+}
+
+.portal-responsive-header-actions > * {
+  flex: 0 0 auto;
+}
+
+.portal-responsive-main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: clamp(0.75rem, 1.25vw, 1.5rem) !important;
+  overscroll-behavior: contain;
+}
+
+.portal-responsive-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 80rem;
+}
+
+.portal-responsive-content:not(.admin-responsive-content) {
+  container-name: portal-content;
+  container-type: inline-size;
+}
+
+/* Keep controls and media inside the card/column that owns them. */
+.portal-responsive-content :where(
+  input,
+  textarea,
+  select,
+  img,
+  video,
+  canvas,
+  iframe,
+  [role="combobox"],
+  [data-slot="select-trigger"],
+  [data-slot="table-container"]
+) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.portal-responsive-content :where(p, td, th, label) {
+  overflow-wrap: anywhere;
+}
+
+.portal-responsive-content :where([data-slot="table-container"], .overflow-x-auto, .overflow-auto) {
+  width: 100%;
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Tab/filter bars remain one row but scroll locally instead of widening the page. */
+.portal-responsive-content :where([role="tablist"]) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.portal-responsive-content :where([role="tablist"]) > * {
+  flex: 0 0 auto;
+}
+
+/* Department/SDO pages use the actual post-sidebar content width, not only the
+ * browser width, when deciding when grids should wrap. */
+@container portal-content (max-width: 1080px) {
+  .portal-responsive-content :where(
+    [class~="xl:grid-cols-5"],
+    [class~="lg:grid-cols-5"],
+    [class~="md:grid-cols-5"],
+    [class~="grid-cols-5"],
+    [class~="xl:grid-cols-4"],
+    [class~="lg:grid-cols-4"],
+    [class~="md:grid-cols-4"],
+    [class~="grid-cols-4"]
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-responsive-content :where(
+    [class~="xl:grid-cols-3"],
+    [class~="lg:grid-cols-3"],
+    [class~="md:grid-cols-3"],
+    [class~="grid-cols-3"]
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@container portal-content (max-width: 860px) {
+  .portal-responsive-content :where(.flex[class~="justify-between"]) {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
+
+  .portal-responsive-content :where([class~="lg:flex-row"]) {
+    flex-direction: column !important;
+  }
+
+  .portal-responsive-content :where(
+    [class~="xl:grid-cols-4"],
+    [class~="lg:grid-cols-4"],
+    [class~="md:grid-cols-4"],
+    [class~="grid-cols-4"],
+    [class~="xl:grid-cols-3"],
+    [class~="lg:grid-cols-3"],
+    [class~="md:grid-cols-3"],
+    [class~="grid-cols-3"]
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@container portal-content (max-width: 680px) {
+  .portal-responsive-content :where(
+    [class~="xl:grid-cols-5"],
+    [class~="lg:grid-cols-5"],
+    [class~="md:grid-cols-5"],
+    [class~="grid-cols-5"],
+    [class~="xl:grid-cols-4"],
+    [class~="lg:grid-cols-4"],
+    [class~="md:grid-cols-4"],
+    [class~="grid-cols-4"],
+    [class~="xl:grid-cols-3"],
+    [class~="lg:grid-cols-3"],
+    [class~="md:grid-cols-3"],
+    [class~="grid-cols-3"],
+    [class~="xl:grid-cols-2"],
+    [class~="lg:grid-cols-2"],
+    [class~="md:grid-cols-2"],
+    [class~="grid-cols-2"]
+  ) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-responsive-content :where([class~="sm:flex-row"], [class~="md:flex-row"], [class~="lg:flex-row"]) {
+    flex-direction: column !important;
+  }
+}
+
+/* Header utility popovers must never exceed a laptop/windowed viewport. */
+.portal-responsive-header .portal-quick-planner-popover {
+  width: min(660px, calc(100dvw - 1.5rem)) !important;
+  max-height: calc(100dvh - 5.5rem);
+  overflow: auto !important;
+}
+
+.portal-responsive-header :where(
+  .portal-quick-planner-popover,
+  [class*="w-[min(390px"],
+  [class*="w-[min(360px"]
+) {
+  max-width: calc(100dvw - 1rem);
+}
+
+/* Keep custom full-screen dialogs in every portal inside the viewport. Admin
+ * retains its stronger dedicated modal/backdrop rules above. */
+.portal-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"] {
+  box-sizing: border-box;
+  max-width: 100dvw;
+  max-height: 100dvh;
+  padding: clamp(0.5rem, 1.25vw, 1.25rem);
+}
+
+.portal-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"] > :not([class~="absolute"]) {
+  min-width: 0;
+  max-height: calc(100dvh - 1rem);
+}
+
+/* Sidebar/header compaction for narrower desktop windows. */
+@media (max-width: 1180px) {
+  .portal-responsive-sidebar {
+    max-width: 212px !important;
+  }
+
+  .portal-responsive-profile-copy {
+    display: none !important;
+  }
+
+  .portal-responsive-header-actions > button:last-child svg:last-child {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1040px) {
+  .portal-responsive-sidebar {
+    max-width: 190px !important;
+  }
+
+  .portal-responsive-main {
+    padding: 0.875rem !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .portal-responsive-sidebar {
+    width: 76px !important;
+    max-width: 76px !important;
+  }
+
+  .portal-responsive-sidebar > div:first-child {
+    justify-content: center;
+    padding-inline: 0.75rem !important;
+  }
+
+  .portal-responsive-sidebar-copy,
+  .portal-responsive-sidebar-label {
+    display: none !important;
+  }
+
+  .portal-responsive-sidebar nav {
+    padding-inline: 0.5rem !important;
+  }
+
+  .portal-responsive-sidebar nav a,
+  .portal-responsive-sidebar > div:last-child button {
+    justify-content: center !important;
+    gap: 0 !important;
+    padding-inline: 0.625rem !important;
+  }
+
+  .portal-responsive-sidebar > div:last-child {
+    padding-inline: 0.5rem !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .portal-responsive-header {
+    padding-inline: 0.625rem !important;
+  }
+
+  .portal-responsive-header-actions {
+    gap: 0.375rem !important;
+  }
+
+  .portal-responsive-main {
+    padding: 0.625rem !important;
+  }
+}
+
+/* Short laptop viewports: preserve the same shell, reduce chrome only. */
+@media (max-height: 720px) {
+  .portal-responsive-header,
+  .portal-responsive-sidebar > div:first-child {
+    height: 3.5rem !important;
+  }
+
+  .portal-responsive-sidebar nav {
+    padding-block: 0.5rem !important;
+  }
+
+  .portal-responsive-sidebar nav a,
+  .portal-responsive-sidebar > div:last-child button {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  .portal-responsive-sidebar > div:last-child {
+    padding-block: 0.5rem !important;
+  }
+
+  .portal-responsive-main {
+    padding-block: 0.625rem !important;
+  }
+}
+
+@media (max-height: 620px) {
+  .portal-responsive-header,
+  .portal-responsive-sidebar > div:first-child {
+    height: 3.25rem !important;
+  }
+
+  .portal-responsive-main {
+    padding: 0.5rem !important;
+  }
+}
+
+/* Ultrawide monitors: allow useful growth but keep ordinary pages readable. */
+@media (min-width: 1920px) {
+  .portal-responsive-content:not(.admin-responsive-content) {
+    max-width: 92rem;
+  }
+}
+
+@media (min-width: 2400px) {
+  .portal-responsive-content:not(.admin-responsive-content) {
+    max-width: 104rem;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public landing/about/how-to/policy pages                                   */
+/* -------------------------------------------------------------------------- */
+.public-responsive-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.public-responsive-page :where(.grid > *, .flex > *) {
+  min-width: 0;
+}
+
+.public-responsive-page :where(img, video, canvas, iframe, svg) {
+  max-width: 100%;
+}
+
+.public-responsive-page :where(p, h1, h2, h3, h4, li, a, button, label) {
+  overflow-wrap: anywhere;
+}
+
+.public-responsive-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.public-responsive-content :where(.overflow-x-auto, .overflow-auto, [data-slot="table-container"]) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+
+.public-responsive-header,
+.public-responsive-header-inner,
+.public-responsive-nav,
+.public-responsive-footer {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.public-responsive-modal {
+  box-sizing: border-box;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100dvw;
+  max-height: 100dvh;
+  padding: clamp(0.5rem, 1.5vw, 1.25rem) !important;
+}
+
+.public-responsive-modal > :not([class~="absolute"]) {
+  min-width: 0;
+  max-height: calc(100dvh - 1rem) !important;
+}
+
+/* Landing-page desktop/windowed tuning. */
+@media (max-width: 1180px) {
+  .landing-page .landing-hero-inner {
+    padding-inline: clamp(1.25rem, 3vw, 2.5rem) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .landing-page .landing-mobile-preview-stage {
+    height: clamp(330px, 68vw, 470px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-responsive-header-inner {
+    gap: 0.625rem !important;
+    padding-inline: 0.875rem !important;
+  }
+
+  .public-responsive-header-inner > a {
+    gap: 0.625rem !important;
+  }
+
+  .public-responsive-header-inner > a img:first-child {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+
+  .public-responsive-header-inner > a img:last-child {
+    width: 2.15rem !important;
+    height: 2.15rem !important;
+  }
+
+  .public-responsive-header-inner > a > span:last-child > span:first-child {
+    font-size: 0.78rem !important;
+    line-height: 1.05rem !important;
+  }
+
+  .public-responsive-header-inner > a > span:last-child > span:last-child {
+    font-size: 0.68rem !important;
+    line-height: 0.95rem !important;
+  }
+
+  .landing-page .landing-mobile-preview-stage {
+    height: clamp(280px, 88vw, 390px) !important;
+  }
+
+  .public-responsive-content :where([class~="px-6"], [class~="px-8"], [class~="px-10"]) {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .public-responsive-header-inner > a > span:last-child > span:last-child {
+    display: none;
+  }
+
+  .landing-page .landing-mobile-preview-stage {
+    height: clamp(250px, 92vw, 340px) !important;
+  }
+}
+
+/* Short-screen landing pages remain naturally scrollable and avoid hero
+ * whitespace dominating the first viewport. */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .landing-page .landing-hero,
+  .landing-page .landing-hero-inner {
+    min-height: clamp(460px, 68svh, 560px) !important;
+  }
+
+  .landing-page .landing-hero-inner {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Unified login + Admin password recovery                                    */
+/* -------------------------------------------------------------------------- */
+.smartpdm-auth-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.smartpdm-auth-main {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior: contain;
+}
+
+.smartpdm-auth-grid {
+  width: 100%;
+  min-width: 0;
+  max-width: 92rem;
+}
+
+.smartpdm-auth-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 430px;
+}
+
+.smartpdm-auth-card :where(input, button, form, fieldset) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* The two-column presentation remains on normal desktop monitors. Windowed
+ * desktops/tablets switch to the same centered login card rather than
+ * compressing the left story and form into narrow columns. */
+@media (max-width: 1120px) {
+  .smartpdm-auth-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: center !important;
+    padding-inline: clamp(1rem, 4vw, 2rem) !important;
+  }
+
+  .smartpdm-auth-copy,
+  .smartpdm-auth-ribbon {
+    display: none !important;
+  }
+
+  .smartpdm-auth-page .smartpdm-auth-main > svg {
+    display: none !important;
+  }
+
+  .smartpdm-auth-card {
+    justify-self: center !important;
+    margin-inline: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .smartpdm-auth-grid {
+    padding-left: 0.875rem !important;
+    padding-right: 0.875rem !important;
+  }
+
+  .smartpdm-auth-card > div > div {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}
+
+/* Browser chrome can leave 600-700 CSS px on common 1366x768 laptops. Keep
+ * the card scrollable instead of shrinking form controls or clipping actions. */
+@media (max-height: 760px) {
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 4.5rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:first-child {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:last-child {
+    width: 2.15rem !important;
+    height: 2.15rem !important;
+  }
+
+  .smartpdm-auth-grid {
+    align-items: flex-start !important;
+    padding-top: 3.25rem !important;
+    padding-bottom: 1.5rem !important;
+  }
+}
+
+@media (max-height: 620px) {
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 4rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner {
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+  }
+
+  .smartpdm-auth-grid {
+    padding-top: 2.75rem !important;
+    padding-bottom: 1rem !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shared portalled UI surfaces                                               */
+/* -------------------------------------------------------------------------- */
+:where(
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="sheet-content"],
+  [data-slot="drawer-content"]
+) {
+  max-height: calc(100dvh - 1rem);
+}
+
+:where(
+  [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="select-content"]
+) {
+  max-width: calc(100dvw - 1rem);
+  max-height: min(24rem, calc(100dvh - 1rem));
+}
+
+/* Standalone public verification route. */
+.standalone-responsive-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.standalone-responsive-page :where(.grid > *, .flex > *) {
+  min-width: 0;
+}
+
+.standalone-responsive-page :where(p, h1, h2, h3, span) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .standalone-responsive-page {
+    padding: 1rem !important;
+  }
+
+  .standalone-responsive-page [data-slot="card-content"] {
+    padding: 1.25rem !important;
+  }
+}

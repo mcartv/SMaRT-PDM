@@ -37,7 +37,7 @@ export default function UnifiedLogin() {
   const { theme } = useLandingTheme();
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f7f4ec]" style={{ minHeight: '100dvh' }}>
+    <div className="smartpdm-auth-page flex h-screen min-h-0 flex-col overflow-hidden bg-[#f7f4ec]" style={{ height: '100dvh' }}>
       <style>{`
         @keyframes smartpdm-login-fade {
           from { opacity: 0; }
@@ -106,7 +106,7 @@ export default function UnifiedLogin() {
 
       <LandingInstitutionHeader theme={theme} />
 
-      <main className="relative flex min-h-0 flex-1 overflow-x-hidden">
+      <main className="smartpdm-auth-main relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <nav
           className="smartpdm-login-fade pointer-events-none absolute right-4 top-3 z-30 sm:right-5 md:right-6 lg:right-8"
           aria-label="Login page navigation"
@@ -145,7 +145,7 @@ export default function UnifiedLogin() {
         </div>
 
         <div
-          className="smartpdm-login-slide-left pointer-events-none absolute inset-y-0 left-0 hidden w-[21vw] min-w-[175px] max-w-[305px] lg:block"
+          className="smartpdm-auth-ribbon smartpdm-login-slide-left pointer-events-none absolute inset-y-0 left-0 hidden w-[21vw] min-w-[175px] max-w-[305px] lg:block"
           aria-hidden="true"
         >
           <div
@@ -178,8 +178,8 @@ export default function UnifiedLogin() {
           mirrored
         />
 
-        <div className="smartpdm-login-grid relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-3 pb-8 pt-20 min-[360px]:px-4 sm:px-6 sm:pb-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
-          <section className="smartpdm-login-slide-left hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
+        <div className="smartpdm-login-grid smartpdm-auth-grid relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 pb-8 pt-20 sm:px-6 sm:pb-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
+          <section className="smartpdm-login-slide-left smartpdm-auth-copy hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
             <div className="max-w-[560px]">
               <p
                 className="text-xs font-black uppercase tracking-[0.2em]"
@@ -202,7 +202,7 @@ export default function UnifiedLogin() {
             </div>
           </section>
 
-          <div className="smartpdm-login-slide-right w-full justify-self-center lg:justify-self-end">
+          <div className="smartpdm-login-slide-right smartpdm-auth-card w-full justify-self-center lg:justify-self-end">
             <UnifiedUserLoginCard theme={theme} />
           </div>
         </div>

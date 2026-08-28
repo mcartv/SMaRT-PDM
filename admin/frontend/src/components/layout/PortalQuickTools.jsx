@@ -119,7 +119,6 @@ export default function PortalQuickTools({
   tokenStorageKey,
   noteTitle = 'Quick Notes',
   forceDarkMode = false,
-  adminOverlayScope = false,
   notificationOpen = false,
   onToolOpen,
   accentClassName = 'hover:bg-stone-100',
@@ -382,7 +381,7 @@ export default function PortalQuickTools({
 
   return (
     <>
-      <div className="relative" ref={notesRef}>
+      <div className="portal-quick-notes relative" ref={notesRef}>
         <button
           type="button"
           onClick={() => {
@@ -415,10 +414,7 @@ export default function PortalQuickTools({
         </button>
 
         {notesOpen && (
-          <div
-            data-admin-floating-panel={adminOverlayScope ? 'notes' : undefined}
-            className={`${adminOverlayScope ? 'admin-header-popover ' : ''}absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl`}
-          >
+          <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
               <div className="flex items-center gap-3">
                 <div
@@ -509,7 +505,7 @@ export default function PortalQuickTools({
         )}
       </div>
 
-      <div className="relative hidden xl:block" ref={calendarRef}>
+      <div className="portal-quick-planner relative hidden xl:block" ref={calendarRef}>
         <button
           type="button"
           onClick={() => {
@@ -517,7 +513,7 @@ export default function PortalQuickTools({
             setNotesOpen(false);
             onToolOpen?.();
           }}
-          className="group flex h-14 min-w-[310px] cursor-pointer items-center rounded-[20px] border border-stone-200 bg-white px-3 shadow-[0_2px_7px_rgba(28,25,23,0.08)] transition-colors duration-200 hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] active:brightness-[0.98] focus:outline-none focus:ring-4 focus:ring-[var(--portal-accent-soft)]"
+          className="portal-quick-planner-trigger group flex h-14 min-w-[310px] cursor-pointer items-center rounded-[20px] border border-stone-200 bg-white px-3 shadow-[0_2px_7px_rgba(28,25,23,0.08)] transition-colors duration-200 hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] active:brightness-[0.98] focus:outline-none focus:ring-4 focus:ring-[var(--portal-accent-soft)]"
           title="Open personal planner"
           aria-label={`${dayName}, ${monthShort} ${dayNumber}, ${year}. ${timeLabel}:${seconds} ${dayPeriod}. Open calendar and reminders.`}
           aria-expanded={calendarOpen}
@@ -570,10 +566,7 @@ export default function PortalQuickTools({
         </button>
 
         {calendarOpen && (
-          <div
-            data-admin-floating-panel={adminOverlayScope ? 'planner' : undefined}
-            className={`${adminOverlayScope ? 'admin-header-popover ' : ''}absolute right-0 z-50 mt-2 w-[660px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl`}
-          >
+          <div className="portal-quick-planner-popover absolute right-0 z-50 mt-2 w-[660px] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-stone-100 bg-white px-4 py-4">
               <div className="flex items-center gap-3">
                 <div

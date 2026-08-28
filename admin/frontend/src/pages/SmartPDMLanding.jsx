@@ -44,7 +44,6 @@ import mobileSubmittedScreenshot from '../assets/mobile-app/application-submitte
 const APP_DOWNLOAD_URL =
   'https://github.com/mcartv/SMaRT-PDM/releases/latest/download/SMaRT-PDM.apk';
 const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
-const FEATURED_NOTICE_SEEN_KEY = 'smartpdm:featured-notice-seen-signature';
 
 
 function normalizePublicFaqItems(items = []) {
@@ -372,7 +371,7 @@ function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex h-[100dvh] w-[100dvw] items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+      className="public-responsive-modal fixed inset-0 z-[110] flex h-[100dvh] w-full items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -424,7 +423,7 @@ function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
                       {notice.title}
                     </h3>
 
-                    <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-stone-600">
+                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-600">
                       {notice.message}
                     </p>
 
@@ -486,7 +485,7 @@ function PolicyModal({ type, content, theme, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      className="public-responsive-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -561,7 +560,7 @@ function RequirementsModal({ content, theme, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      className="public-responsive-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -674,7 +673,7 @@ function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = fals
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="public-responsive-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section role="dialog" aria-modal="true" aria-labelledby="process-modal-title" className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[0_28px_90px_-24px_rgba(0,0,0,0.5)]">
         <header className="relative shrink-0 overflow-hidden px-6 pb-7 pt-6 text-white md:px-8 md:pb-8" style={{ background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 100%)` }}>
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
@@ -796,7 +795,7 @@ function AboutInfoModal({ type, theme, onClose }) {
   const Icon = content.icon;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="public-responsive-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section role="dialog" aria-modal="true" aria-labelledby="about-info-title" className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[0_28px_90px_-24px_rgba(0,0,0,0.5)]">
         <header className="relative shrink-0 overflow-hidden px-6 pb-7 pt-6 text-white md:px-8 md:pb-8" style={{ background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 100%)` }}>
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
@@ -847,13 +846,7 @@ export default function SmartPDMLanding() {
   const [showRequirements, setShowRequirements] = useState(false);
   const [processModalView, setProcessModalView] = useState(null);
   const [featuredNoticeOpen, setFeaturedNoticeOpen] = useState(false);
-  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState(() => {
-    try {
-      return window.sessionStorage.getItem(FEATURED_NOTICE_SEEN_KEY) || '';
-    } catch {
-      return '';
-    }
-  });
+  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState('');
   const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
@@ -984,19 +977,6 @@ export default function SmartPDMLanding() {
 
     if (currentFeaturedNoticeSignature !== lastFeaturedNoticeSignature) {
       setLastFeaturedNoticeSignature(currentFeaturedNoticeSignature);
-
-      // Mark this exact notice set as seen before opening it. This prevents the
-      // same notice from auto-opening again when the user navigates to another
-      // public page and returns Home in the same browser tab/session.
-      try {
-        window.sessionStorage.setItem(
-          FEATURED_NOTICE_SEEN_KEY,
-          currentFeaturedNoticeSignature
-        );
-      } catch {
-        // The in-memory state still prevents repeat opening until this mount ends.
-      }
-
       setFeaturedNoticeOpen(true);
     }
   }, [currentFeaturedNoticeSignature, lastFeaturedNoticeSignature]);
@@ -1038,7 +1018,7 @@ export default function SmartPDMLanding() {
 
     const loadGeneralSettings = async () => {
       try {
-        const response = await fetch(buildApiUrl('/api/general-settings/public'), { cache: 'no-store' });
+        const response = await fetch(buildApiUrl('/api/general-settings/public'));
         const payload = await response.json().catch(() => ({}));
 
         if (!response.ok) {
@@ -1080,15 +1060,19 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-
-    const applyPublicSettings = (settings = {}) => {
-      if (!active) return;
-
+    const socket = io(`${buildApiUrl('').replace(/\/+$/, '')}/public`, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      transports: ['websocket', 'polling'],
+    });
+    const handleGeneralSettingsUpdated = (payload = {}) => {
+      if (payload?.source !== 'general_settings') return;
+      const settings = payload?.settings || {};
       if (settings?.policy_content) {
         setPolicyContent(mergePolicyContent(settings.policy_content));
       }
-
       setGeneralSettings((current) => ({
         ...current,
         office_name: settings?.office_name || current.office_name,
@@ -1098,15 +1082,10 @@ export default function SmartPDMLanding() {
         office_hours: settings?.office_hours || current.office_hours,
         about_osfa: settings?.about_osfa || current.about_osfa,
         eligibility_summary: settings?.eligibility_summary || current.eligibility_summary,
-        landing_content: settings?.landing_content
-          ? mergeLandingContent(settings.landing_content)
-          : current.landing_content,
+        landing_content: mergeLandingContent(settings?.landing_content),
         featured_notices:
-          Object.prototype.hasOwnProperty.call(settings, 'featured_notices') ||
-          Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
-            ? normalizePublicFeaturedNotices(
-                settings.featured_notices ?? settings.featured_notice
-              )
+          Object.prototype.hasOwnProperty.call(settings, 'featured_notices') || Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
+            ? normalizePublicFeaturedNotices(settings.featured_notices ?? settings.featured_notice)
             : current.featured_notices,
         featured_notice_next_change_at:
           Object.prototype.hasOwnProperty.call(settings, 'featured_notice_next_change_at')
@@ -1119,84 +1098,10 @@ export default function SmartPDMLanding() {
       }));
     };
 
-    const syncPublicSettings = async () => {
-      try {
-        const response = await fetch(buildApiUrl('/api/general-settings/public'), {
-          cache: 'no-store',
-        });
-        const settings = await response.json().catch(() => ({}));
-        if (!response.ok) return;
-        applyPublicSettings(settings);
-      } catch {
-        // The active socket or the next reconciliation will retry.
-      }
-    };
-
-    const socket = io(`${buildApiUrl('').replace(/\/+$/, '')}/public`, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
-      transports: ['websocket', 'polling'],
-    });
-
-    const handleGeneralSettingsUpdated = (payload = {}) => {
-      if (payload?.source !== 'general_settings') return;
-
-      // Socket payload is already the public/sanitized settings object.
-      if (payload?.settings && typeof payload.settings === 'object') {
-        applyPublicSettings(payload.settings);
-        return;
-      }
-
-      // Defensive fallback if an older backend emits only a change signal.
-      void syncPublicSettings();
-    };
-
-    const handleVisibleRefresh = () => {
-      if (document.visibilityState === 'visible') {
-        void syncPublicSettings();
-      }
-    };
-
-    const handleBroadcastRefresh = (event) => {
-      if (event?.data?.type === 'general-settings:updated') {
-        void syncPublicSettings();
-      }
-    };
-
-    let broadcastChannel = null;
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        broadcastChannel = new BroadcastChannel('smartpdm-public-settings');
-        broadcastChannel.addEventListener('message', handleBroadcastRefresh);
-      } catch {
-        broadcastChannel = null;
-      }
-    }
-
     socket.on('general-settings:updated', handleGeneralSettingsUpdated);
-    socket.on('connect', syncPublicSettings);
-    window.addEventListener('focus', syncPublicSettings);
-    document.addEventListener('visibilitychange', handleVisibleRefresh);
-
-    // Socket.IO is the realtime path. This only repairs a missed event or a
-    // temporarily suspended browser tab without requiring a manual refresh.
-    const reconciliationId = window.setInterval(syncPublicSettings, 15000);
-
     return () => {
-      active = false;
-      window.clearInterval(reconciliationId);
-      window.removeEventListener('focus', syncPublicSettings);
-      document.removeEventListener('visibilitychange', handleVisibleRefresh);
       socket.off('general-settings:updated', handleGeneralSettingsUpdated);
-      socket.off('connect', syncPublicSettings);
       socket.disconnect();
-
-      if (broadcastChannel) {
-        broadcastChannel.removeEventListener('message', handleBroadcastRefresh);
-        broadcastChannel.close();
-      }
     };
   }, []);
 
@@ -1218,7 +1123,7 @@ export default function SmartPDMLanding() {
         }
 
         try {
-          const response = await fetch(buildApiUrl('/api/general-settings/public'), { cache: 'no-store' });
+          const response = await fetch(buildApiUrl('/api/general-settings/public'));
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) return;
 
@@ -1243,21 +1148,13 @@ export default function SmartPDMLanding() {
 
   return (
     <div
-      className="landing-page min-h-screen text-stone-900"
+      className="landing-page public-responsive-page min-h-screen text-stone-900"
       style={{ background: theme.pageBg, fontFamily: "'Inter', sans-serif" }}
     >
       <style>{`
         html {
           scroll-behavior: smooth;
           scroll-padding-top: 4.25rem;
-        }
-        .landing-page button:not(:disabled),
-        .landing-page a[href],
-        .landing-page [role="button"]:not([aria-disabled="true"]) {
-          cursor: pointer;
-        }
-        .landing-page button:disabled {
-          cursor: not-allowed;
         }
         @keyframes landing-hero-enter {
           from { opacity: 0; transform: translateY(22px); }
@@ -1398,7 +1295,7 @@ export default function SmartPDMLanding() {
 
       <nav
         aria-label="Landing page navigation"
-        className="sticky top-0 z-50 border-b shadow-md"
+        className="public-responsive-nav sticky top-0 z-50 border-b shadow-md"
         style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent, '--nav-background': theme.dark }}
       >
         <div className="flex w-full items-center px-3 sm:px-5 md:px-8 lg:px-10">
@@ -1548,7 +1445,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <main>
+      <main className="public-responsive-content">
       <section id="mobile-app" aria-labelledby="landing-mobile-app-title" className="mx-auto w-full max-w-[84rem] scroll-mt-16 px-4 pb-12 pt-4 sm:px-5 md:px-8 md:pt-8">
         <div
           className="relative overflow-hidden rounded-[1.75rem] border px-5 py-8 shadow-[0_22px_60px_-48px_rgba(55,32,18,0.65)] sm:px-7 md:px-10 md:py-10"
@@ -1606,7 +1503,7 @@ export default function SmartPDMLanding() {
               <p className="mt-3 text-[11px] text-white/50">Official PDM release · Android installation package</p>
             </div>
 
-            <div className="relative mx-auto h-[390px] w-full max-w-[620px] sm:h-[470px] lg:h-[520px]" aria-label="SMaRT-PDM mobile application previews">
+            <div className="landing-mobile-preview-stage relative mx-auto h-[390px] w-full max-w-[620px] sm:h-[470px] lg:h-[520px]" aria-label="SMaRT-PDM mobile application previews">
               <div className="absolute bottom-0 left-[2%] z-10 w-[31%] -rotate-[5deg] overflow-hidden rounded-[1.35rem] border-[3px] border-stone-900 bg-stone-900 shadow-2xl transform-gpu motion-safe:transition-[transform,box-shadow] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:-translate-y-1.5 motion-safe:hover:scale-[1.018] motion-safe:hover:shadow-[0_26px_52px_rgba(0,0,0,0.34)] motion-reduce:transition-none sm:left-[4%] sm:rounded-[1.7rem] sm:border-[4px]">
                 <img
                   src={mobileLoginScreenshot}

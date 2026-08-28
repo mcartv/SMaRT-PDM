@@ -22,7 +22,7 @@ export default function PublicPageNav({ theme }) {
 
   return (
     <nav
-      className="sticky top-0 z-50 border-b shadow-md"
+      className="public-responsive-nav sticky top-0 z-50 border-b shadow-md"
       style={{
         background: theme.dark,
         borderBottomColor: theme.accent,

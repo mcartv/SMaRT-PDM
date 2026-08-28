@@ -85,10 +85,10 @@ export default function AboutPage() {
   const pageKey = bannerContent[routeKey] ? routeKey : 'smart-pdm';
 
   return (
-    <div className="min-h-screen text-stone-900" style={{ background: theme.pageBg }}>
+    <div className="public-responsive-page min-h-screen text-stone-900" style={{ background: theme.pageBg }}>
       <LandingInstitutionHeader theme={theme} />
       <PublicPageNav theme={theme} />
-      <main className="mx-auto w-full max-w-[80rem] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+      <main className="public-responsive-content mx-auto w-full max-w-[80rem] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         {pageKey !== 'developers' && <PublicPageBanner {...bannerContent[pageKey]} theme={theme} />}
         <div className={pageKey === 'developers' ? '' : 'mt-6 md:mt-8'}>
           {pageKey === 'pdm' && <PdmContent theme={theme} />}

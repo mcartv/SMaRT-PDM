@@ -56,7 +56,7 @@ export default function EndorsementVerification() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-50 px-5 py-8 sm:px-8">
+      <div className="standalone-responsive-page min-h-screen bg-stone-50 px-5 py-8 sm:px-8">
         <div className="mx-auto max-w-5xl">
           <PageLoadingSkeleton label="Verifying endorsement slip" variant="cards" />
         </div>
@@ -66,7 +66,7 @@ export default function EndorsementVerification() {
 
   if (error || !payload) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50 p-6">
+      <div className="standalone-responsive-page flex min-h-screen items-center justify-center bg-stone-50 p-6">
         <Card className="w-full max-w-xl border-red-100 bg-red-50 shadow-none">
           <CardContent className="p-8 text-center">
             <XCircle className="mx-auto h-8 w-8 text-red-400" />
@@ -79,7 +79,7 @@ export default function EndorsementVerification() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stone-50 p-6">
+    <div className="standalone-responsive-page flex min-h-screen items-center justify-center bg-stone-50 p-6">
       <Card className="w-full max-w-2xl border-stone-200 bg-white shadow-none">
         <CardContent className="space-y-5 p-8">
           <div className="text-center">

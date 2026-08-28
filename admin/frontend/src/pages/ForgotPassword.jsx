@@ -666,12 +666,12 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f7f4ec]" style={{ minHeight: '100dvh' }}>
+    <div className="smartpdm-auth-page flex min-h-screen flex-col bg-[#f7f4ec]" style={{ minHeight: '100dvh' }}>
 
 
       <LandingInstitutionHeader theme={theme} />
 
-      <main className="relative flex flex-1 overflow-hidden">
+      <main className="smartpdm-auth-main relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
 
 
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -697,7 +697,7 @@ export default function ForgotPassword() {
         </div>
 
         <div
-          className="pointer-events-none absolute inset-y-0 left-0 hidden w-[21vw] min-w-[175px] max-w-[305px] lg:block"
+          className="smartpdm-auth-ribbon pointer-events-none absolute inset-y-0 left-0 hidden w-[21vw] min-w-[175px] max-w-[305px] lg:block"
           aria-hidden="true"
         >
           <div
@@ -730,8 +730,8 @@ export default function ForgotPassword() {
           mirrored
         />
 
-        <div className="relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
-          <section className="hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
+        <div className="smartpdm-auth-grid relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
+          <section className="smartpdm-auth-copy hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
             <div className="max-w-[560px]">
               <p
                 className="text-xs font-black uppercase tracking-[0.2em]"
@@ -755,7 +755,7 @@ export default function ForgotPassword() {
           </section>
 
           <section
-            className="mx-auto w-full max-w-[430px] justify-self-center lg:mx-0 lg:justify-self-end"
+            className="smartpdm-auth-card mx-auto w-full max-w-[430px] justify-self-center lg:mx-0 lg:justify-self-end"
             aria-labelledby="recovery-heading"
           >
             <div

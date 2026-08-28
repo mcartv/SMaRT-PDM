@@ -251,7 +251,7 @@ export default function DepartmentPortalLayout({
 
   return (
     <div
-      className="portal-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
+      className="portal-shell portal-responsive-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -273,7 +273,7 @@ export default function DepartmentPortalLayout({
       }}
     >
       <aside
-        className="flex h-full shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className="portal-responsive-sidebar flex h-full shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
@@ -282,7 +282,7 @@ export default function DepartmentPortalLayout({
           </div>
 
           {!collapsed && (
-            <div className="min-w-0">
+            <div className="portal-responsive-sidebar-copy min-w-0">
               <p className="truncate text-sm font-semibold leading-tight text-white">
                 PDM · {portalDisplayName}
               </p>
@@ -313,7 +313,7 @@ export default function DepartmentPortalLayout({
               title={collapsed ? item.label : ''}
             >
               <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="truncate font-medium">{item.label}</span>}
+              {!collapsed && <span className="portal-responsive-sidebar-label truncate font-medium">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
@@ -328,7 +328,7 @@ export default function DepartmentPortalLayout({
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            {!collapsed && <span className="font-medium">Collapse</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Collapse</span>}
           </button>
 
           <button
@@ -340,16 +340,16 @@ export default function DepartmentPortalLayout({
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="h-4 w-4" />
-            {!collapsed && <span className="font-medium">Logout</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
           </button>
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
+      <div className="portal-responsive-frame flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="portal-responsive-header flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div aria-hidden="true" />
 
-          <div className="flex items-center gap-3">
+          <div className="portal-responsive-header-actions flex items-center gap-3">
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen((current) => !current)}
@@ -531,7 +531,7 @@ export default function DepartmentPortalLayout({
                 </div>
               )}
 
-              <div className="hidden max-w-[160px] truncate text-left leading-tight sm:block">
+              <div className="portal-responsive-profile-copy hidden max-w-[160px] truncate text-left leading-tight sm:block">
                 <p className="truncate text-[12px] font-semibold text-stone-800">{displayName}</p>
                 <p className="truncate text-[10px] font-medium text-stone-500">{displayPosition}</p>
               </div>
@@ -540,8 +540,8 @@ export default function DepartmentPortalLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
-          <div key={outletKey} className="mx-auto max-w-7xl">
+        <main className="portal-responsive-main flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
+          <div key={outletKey} className="portal-responsive-content mx-auto w-full max-w-7xl">
             <Outlet />
           </div>
         </main>

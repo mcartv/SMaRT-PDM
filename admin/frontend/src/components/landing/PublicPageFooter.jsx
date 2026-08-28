@@ -46,7 +46,7 @@ export default function PublicPageFooter({ theme }) {
 
   return (
     <footer
-      className="overflow-hidden border-t-4 px-4 pt-7 text-white sm:px-5 md:px-8 lg:px-10"
+      className="public-responsive-footer overflow-hidden border-t-4 px-4 pt-7 text-white sm:px-5 md:px-8 lg:px-10"
       style={{
         borderTopColor: theme.accent,
         background: `linear-gradient(135deg, ${theme.dark} 0%, #24140d 100%)`,

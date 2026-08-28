@@ -259,7 +259,7 @@ export default function AdminLayout() {
 
   return (
     <div
-      className="portal-shell admin-responsive-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
+      className="portal-shell portal-responsive-shell admin-responsive-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -282,7 +282,7 @@ export default function AdminLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className="portal-responsive-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{
           width: collapsed ? '76px' : 'clamp(218px, 18vw, 248px)',
           background: theme.base,
@@ -294,7 +294,7 @@ export default function AdminLayout() {
           </div>
 
           {!collapsed && (
-            <div className="min-w-0">
+            <div className="portal-responsive-sidebar-copy min-w-0">
               <p className="truncate text-sm font-semibold leading-tight text-white">
                 PDM · Admin
               </p>
@@ -329,7 +329,7 @@ export default function AdminLayout() {
               title={collapsed ? item.label : ''}
             >
               <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="truncate font-medium">{item.label}</span>}
+              {!collapsed && <span className="portal-responsive-sidebar-label truncate font-medium">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
@@ -346,7 +346,7 @@ export default function AdminLayout() {
             ) : (
               <ChevronLeft className="h-4 w-4" />
             )}
-            {!collapsed && <span className="font-medium">Collapse</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Collapse</span>}
           </button>
 
           <button
@@ -356,17 +356,17 @@ export default function AdminLayout() {
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="h-4 w-4" />
-            {!collapsed && <span className="font-medium">Logout</span>}
+            {!collapsed && <span className="portal-responsive-sidebar-label font-medium">Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="admin-responsive-header flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
+      <div className="portal-responsive-frame flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="portal-responsive-header admin-responsive-header flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
           <div aria-hidden="true" />
 
-          <div className="flex items-center gap-3">
+          <div className="portal-responsive-header-actions flex items-center gap-3">
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
@@ -554,7 +554,7 @@ export default function AdminLayout() {
                 </div>
               )}
 
-              <div className="hidden max-w-[160px] truncate text-left leading-tight xl:block">
+              <div className="portal-responsive-profile-copy hidden max-w-[160px] truncate text-left leading-tight xl:block">
                 <p className="truncate text-[12px] font-semibold text-stone-800">
                   {adminData?.name || 'Admin'}
                 </p>
@@ -568,12 +568,12 @@ export default function AdminLayout() {
         </header>
 
         <main
-          className="admin-responsive-main min-h-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6"
+          className="portal-responsive-main admin-responsive-main min-h-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6"
           style={{ background: theme.mainBg }}
         >
           <div
             key={outletKey}
-            className={`admin-responsive-content ${isWidePage ? 'admin-responsive-content--wide w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
+            className={`portal-responsive-content admin-responsive-content ${isWidePage ? 'admin-responsive-content--wide w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
           >
             <Outlet />
           </div>

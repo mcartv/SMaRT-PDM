@@ -50,7 +50,7 @@ function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, c
   }, [title]);
 
   return (
-    <div className="min-h-screen bg-[#f2f3ef] text-[#28160d]">
+    <div className="public-responsive-page min-h-screen bg-[#f2f3ef] text-[#28160d]">
       <header className="border-b-4 border-[#f2cf00] bg-[#f7f8f4]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4 md:py-5">
           <Link to="/landing" className="flex min-w-0 items-center gap-3">
@@ -71,7 +71,7 @@ function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, c
         </div>
       </header>
 
-      <main className="relative isolate overflow-hidden px-5 pb-14 pt-16 md:pb-20 md:pt-20">
+      <main className="public-responsive-content relative isolate overflow-hidden px-5 pb-14 pt-16 md:pb-20 md:pt-20">
         <img
           src={pdmFacade}
           alt=""

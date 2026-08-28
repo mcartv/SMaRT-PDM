@@ -127,7 +127,7 @@ export default function PublicPageFooter({ theme }) {
               <Link to="/terms" className="text-white/70 transition hover:text-white">
                 Terms of Use
               </Link>
-              <Link to="/privacy#data-processing-consent" className="text-left text-white/70 transition hover:text-white">
+              <Link to="/data-processing-consent" className="text-left text-white/70 transition hover:text-white">
                 Data Processing Consent
               </Link>
               <a

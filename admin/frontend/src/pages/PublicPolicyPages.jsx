@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowLeft,
   Database,
   FileText,
   Landmark,
@@ -8,10 +7,12 @@ import {
   Scale,
   ShieldCheck,
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
 import { buildApiUrl } from '@/api';
 import { DEFAULT_POLICY_CONTENT, mergePolicyContent } from '@/constants/policyContent';
-import pdmLogo from '../assets/pdm-logo.png';
+import useLandingTheme from '@/hooks/useLandingTheme';
+import LandingInstitutionHeader from '@/components/landing/LandingInstitutionHeader';
+import PublicPageNav from '@/components/landing/PublicPageNav';
+import PublicPageFooter from '@/components/landing/PublicPageFooter';
 import pdmFacade from '../assets/PDM-Facade-optimized.jpg';
 
 const policyIcons = {
@@ -43,6 +44,7 @@ function usePublicPolicyContent() {
 }
 
 function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, children }) {
+  const { theme } = useLandingTheme();
   const Icon = policyIcons[iconName] || ShieldCheck;
 
   useEffect(() => {
@@ -50,26 +52,9 @@ function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, c
   }, [title]);
 
   return (
-    <div className="public-responsive-page min-h-screen bg-[#f2f3ef] text-[#28160d]">
-      <header className="border-b-4 border-[#f2cf00] bg-[#f7f8f4]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4 md:py-5">
-          <Link to="/landing" className="flex min-w-0 items-center gap-3">
-            <img src={pdmLogo} alt="PDM seal" className="h-14 w-14 shrink-0 object-contain md:h-16 md:w-16" />
-            <span className="min-w-0">
-              <span className="block text-sm font-black uppercase leading-tight tracking-tight text-[#321b0f] md:text-xl">
-                Pambayang Dalubhasaan ng Marilao
-              </span>
-              <span className="mt-0.5 block text-xs font-semibold italic text-stone-600 md:text-sm">
-                Abangan Norte, Marilao, Bulacan
-              </span>
-            </span>
-          </Link>
-          <Link to="/landing" className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#4b2a18]/20 bg-white px-3 py-2 text-xs font-bold text-[#4b2a18] shadow-sm transition hover:bg-[#f2cf00] md:px-4">
-            <ArrowLeft size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">Back to landing</span>
-          </Link>
-        </div>
-      </header>
+    <div className="public-responsive-page min-h-screen text-[#28160d]" style={{ background: theme.pageBg }}>
+      <LandingInstitutionHeader theme={theme} />
+      <PublicPageNav theme={theme} />
 
       <main className="public-responsive-content relative isolate overflow-hidden px-5 pb-14 pt-16 md:pb-20 md:pt-20">
         <img
@@ -109,27 +94,22 @@ function PublicPolicyLayout({ title, intro, sections, iconName, effectiveDate, c
             {children}
           </div>
 
-          <div className="-mx-5 mt-10 h-2 bg-[#f2cf00] md:-mx-10" />
-          <div className="-mx-5 -mb-8 flex flex-col gap-1 bg-[#321b0f] px-5 py-4 text-xs text-white/75 sm:flex-row sm:items-center sm:justify-between md:-mx-10 md:-mb-10 md:px-10">
+          <div className="-mx-5 -mb-8 mt-10 overflow-hidden rounded-b-[calc(2rem-3px)] md:-mx-10 md:-mb-10">
+            <div className="h-2 bg-[#f2cf00]" />
+            <div className="flex flex-col gap-1 bg-[#321b0f] px-5 py-4 text-xs text-white/75 sm:flex-row sm:items-center sm:justify-between md:px-10">
             <span className="font-bold text-white">#PDMians · SMaRT-PDM</span>
             <span>Office for Scholarship and Financial Assistance</span>
+            </div>
           </div>
         </article>
       </main>
+      <PublicPageFooter theme={theme} />
     </div>
   );
 }
 
 export function PrivacyNotice() {
-  const { hash } = useLocation();
   const content = usePublicPolicyContent();
-  const ConsentIcon = policyIcons[content.consent_icon] || Database;
-
-  useEffect(() => {
-    if (hash === '#data-processing-consent') {
-      window.setTimeout(() => document.getElementById('data-processing-consent')?.scrollIntoView(), 0);
-    }
-  }, [hash]);
 
   return (
     <PublicPolicyLayout
@@ -138,18 +118,26 @@ export function PrivacyNotice() {
       sections={content.privacy_sections}
       iconName={content.privacy_icon}
       effectiveDate={content.effective_date}
-    >
-      <section id="data-processing-consent" className="scroll-mt-6 rounded-xl border-2 border-[#f2cf00] bg-[#fffbea] p-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f2cf00] text-[#321b0f]">
-            {React.createElement(ConsentIcon, { size: 19, 'aria-hidden': true })}
-          </span>
-          <h2 className="text-lg font-black uppercase tracking-wide text-[#321b0f]">{content.consent_title}</h2>
-        </div>
-        <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-600">{content.consent_body}</p>
-        <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-600">{content.consent_note}</p>
-      </section>
-    </PublicPolicyLayout>
+    />
+  );
+}
+
+export function DataProcessingConsent() {
+  const content = usePublicPolicyContent();
+
+  return (
+    <PublicPolicyLayout
+      title={content.consent_title}
+      intro={content.consent_body}
+      sections={[
+        {
+          title: 'Consent, withdrawal, and record retention',
+          body: content.consent_note,
+        },
+      ]}
+      iconName={content.consent_icon}
+      effectiveDate={content.effective_date}
+    />
   );
 }
 

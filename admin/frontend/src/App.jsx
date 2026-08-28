@@ -49,7 +49,7 @@ import AboutPage from './pages/AboutPage';
 import HowToApplyPage from './pages/HowToApplyPage';
 import UnifiedLogin from './pages/UnifiedLogin';
 import AdminLogin from './pages/AdminLogin';
-import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
+import { DataProcessingConsent, PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 
 // --- SDO PAGES ---
 
@@ -91,6 +91,7 @@ export default function App() {
         <Route path="/how-to-apply/requirements" element={<HowToApplyPage />} />
         <Route path="/how-to-apply/obligations" element={<HowToApplyPage />} />
         <Route path="/privacy" element={<PrivacyNotice />} />
+        <Route path="/data-processing-consent" element={<DataProcessingConsent />} />
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/endorsement/verify/:token" element={<EndorsementVerification />} />
 

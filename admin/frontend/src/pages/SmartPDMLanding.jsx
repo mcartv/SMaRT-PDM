@@ -27,7 +27,6 @@ import {
 import useLandingTheme from '@/hooks/useLandingTheme';
 import { buildApiUrl } from '@/api';
 import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
-import { DEFAULT_POLICY_CONTENT, mergePolicyContent } from '@/constants/policyContent';
 import LandingInstitutionHeader from '@/components/landing/LandingInstitutionHeader';
 
 import pdmLogo from '../assets/pdm-logo.png';
@@ -461,88 +460,6 @@ function FeaturedNoticeModal({ notices, theme, fallbackPublishedAt, onClose }) {
   );
 }
 
-function PolicyModal({ type, content, theme, onClose }) {
-  const isPrivacy = type === 'privacy';
-  const isTerms = type === 'terms';
-  const title = isPrivacy ? 'Privacy Notice' : isTerms ? 'Terms of Use' : content.consent_title;
-  const intro = isPrivacy ? content.privacy_intro : isTerms ? content.terms_intro : content.consent_body;
-  const sections = isPrivacy ? content.privacy_sections : isTerms ? content.terms_sections : [];
-  const Icon = isPrivacy ? ShieldCheck : isTerms ? FileText : Database;
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') onClose();
-    };
-
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      className="public-responsive-modal fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="policy-modal-title"
-        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-      >
-        <header className="flex items-start justify-between gap-4 px-5 py-5 text-white md:px-7" style={{ background: theme.dark }}>
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: theme.accent, color: theme.dark }}>
-              <Icon size={20} aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">OSFA Public Information</p>
-              <h2 id="policy-modal-title" className="mt-1 text-xl font-bold md:text-2xl">{title}</h2>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-            aria-label={`Close ${title}`}
-          >
-            <X size={18} />
-          </button>
-        </header>
-
-        <div className="overflow-y-auto px-5 py-6 md:px-7">
-          <p className="text-sm leading-7 text-stone-600">{intro}</p>
-          <p className="mt-4 text-xs font-bold uppercase tracking-wide" style={{ color: theme.danger }}>
-            Effective {content.effective_date}
-          </p>
-
-          {sections.length ? (
-            <div className="mt-6 divide-y divide-stone-200 border-y border-stone-200">
-              {sections.map((section) => (
-                <section key={section.title} className="py-5">
-                  <h3 className="text-sm font-bold text-stone-900 md:text-base">{section.title}</h3>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-600">{section.body}</p>
-                </section>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-6 border-t border-stone-200 pt-5">
-              <p className="whitespace-pre-line text-sm leading-7 text-stone-600">{content.consent_note}</p>
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function RequirementsModal({ content, theme, onClose }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -865,12 +782,10 @@ export default function SmartPDMLanding() {
   const [benefactors, setBenefactors] = useState([]);
   const [activeFaq, setActiveFaq] = useState(-1);
   const [activeSection, setActiveSection] = useState('home');
-  const [activePolicy, setActivePolicy] = useState(null);
   const [showRequirements, setShowRequirements] = useState(false);
   const [processModalView, setProcessModalView] = useState(null);
   const [featuredNoticeOpen, setFeaturedNoticeOpen] = useState(false);
   const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState(readFeaturedNoticeSessionSignature);
-  const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
@@ -1050,7 +965,6 @@ export default function SmartPDMLanding() {
         }
 
         if (active) {
-          setPolicyContent(mergePolicyContent(payload?.policy_content));
           setGeneralSettings((current) => ({
             ...current,
             office_name: payload?.office_name || current.office_name,
@@ -1094,9 +1008,6 @@ export default function SmartPDMLanding() {
     const handleGeneralSettingsUpdated = (payload = {}) => {
       if (payload?.source !== 'general_settings') return;
       const settings = payload?.settings || {};
-      if (settings?.policy_content) {
-        setPolicyContent(mergePolicyContent(settings.policy_content));
-      }
       setGeneralSettings((current) => ({
         ...current,
         office_name: settings?.office_name || current.office_name,
@@ -1969,15 +1880,15 @@ export default function SmartPDMLanding() {
                 Privacy &amp; Legal
               </p>
               <div className="mt-4 flex flex-col items-start gap-3 text-sm">
-                <button type="button" onClick={() => setActivePolicy('privacy')} className="cursor-pointer rounded-sm text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
+                <Link to="/privacy" className="cursor-pointer rounded-sm text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
                   Privacy Notice
-                </button>
-                <button type="button" onClick={() => setActivePolicy('terms')} className="cursor-pointer rounded-sm text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
+                </Link>
+                <Link to="/terms" className="cursor-pointer rounded-sm text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
                   Terms of Use
-                </button>
-                <button type="button" onClick={() => setActivePolicy('consent')} className="cursor-pointer rounded-sm text-left text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
+                </Link>
+                <Link to="/data-processing-consent" className="cursor-pointer rounded-sm text-left text-white/70 transition hover:text-white hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
                   Data Processing Consent
-                </button>
+                </Link>
                 <a
                   href={PDM_FACEBOOK_URL}
                   target="_blank"
@@ -2021,15 +1932,6 @@ export default function SmartPDMLanding() {
           theme={theme}
           fallbackPublishedAt={generalSettings.updated_at}
           onClose={() => setFeaturedNoticeOpen(false)}
-        />
-      ) : null}
-
-      {activePolicy ? (
-        <PolicyModal
-          type={activePolicy}
-          content={policyContent}
-          theme={theme}
-          onClose={() => setActivePolicy(null)}
         />
       ) : null}
 

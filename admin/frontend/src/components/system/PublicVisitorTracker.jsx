@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   '/about',
   '/how-to-apply',
   '/privacy',
+  '/data-processing-consent',
   '/terms',
   '/login',
   '/admin/login',

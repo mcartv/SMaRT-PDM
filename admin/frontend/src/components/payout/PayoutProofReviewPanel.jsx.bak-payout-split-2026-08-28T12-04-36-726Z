@@ -156,7 +156,7 @@ export default function PayoutProofReviewPanel() {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-      <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-4">
+      <div className="flex flex-col gap-3 border-b border-stone-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-stone-800">Payout Proof Review</h2>
           <p className="mt-1 text-xs text-stone-500">
@@ -164,11 +164,11 @@ export default function PayoutProofReviewPanel() {
           </p>
         </div>
 
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
-            className="h-10 w-[155px] shrink-0 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-stone-700"
+            className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-stone-700"
           >
             {['Pending Review', 'Verified', 'Resubmission Required', 'Rejected', 'All'].map(
               (option) => (
@@ -178,7 +178,7 @@ export default function PayoutProofReviewPanel() {
               )
             )}
           </select>
-          <div className="relative min-w-0 flex-1">
+          <div className="relative min-w-[250px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <Input
               value={search}
@@ -208,7 +208,7 @@ export default function PayoutProofReviewPanel() {
             No payout proofs match the selected filter.
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {filtered.map((item) => {
               const meta = STATUS_META[item.proof_status] || STATUS_META['Pending Review'];
               return (

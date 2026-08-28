@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { confirmArchive } from '@/utils/confirmArchive';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
 import {
@@ -807,12 +808,12 @@ export default function GeneralPanel() {
     const archivedNotices = featuredNotices.filter((notice) => notice.is_archived === true);
     const visibleNotices = activeNoticeTab === 'archived' ? archivedNotices : currentNotices;
 
-    const handleNoticeArchiveRestore = (noticeId) => {
+    const handleNoticeArchiveRestore = async (noticeId) => {
         const target = featuredNotices.find((notice) => notice.notice_id === noticeId);
         if (!target) return;
         if (
             !target.is_archived &&
-            !window.confirm(`Archive "${target.title || 'this featured notice'}"? This will move it to Archived.`)
+            !(await confirmArchive({ itemName: target.title || 'This featured notice' }))
         ) {
             return;
         }
@@ -924,7 +925,7 @@ export default function GeneralPanel() {
     const handleFaqArchiveRestore = async (faq) => {
         if (
             !faq.is_archived &&
-            !window.confirm(`Archive "${faq.question || 'this FAQ'}"? This will move it to Archived.`)
+            !(await confirmArchive({ itemName: faq.question || 'This FAQ' }))
         ) {
             return;
         }

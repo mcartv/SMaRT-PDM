@@ -19,6 +19,7 @@ import {
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { confirmArchive } from '@/utils/confirmArchive';
 
 function ProgramModal({
     open,
@@ -490,7 +491,7 @@ export default function ProgramsPanel() {
     const handleArchiveToggle = async (program) => {
         if (
             !program.is_archived &&
-            !window.confirm(`Archive "${program.program_name || 'this program'}"? This will move it to Archived.`)
+            !(await confirmArchive({ itemName: program.program_name || 'This program' }))
         ) {
             return;
         }

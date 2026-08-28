@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/tooltip';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { confirmArchive } from '@/utils/confirmArchive';
 import {
     C,
     EmptyState,
@@ -1700,7 +1701,10 @@ export default function AccountsPanel() {
             account.email ||
             'this account';
 
-        if (!isRestore && !window.confirm(`Archive "${accountName}"? The account will no longer be active.`)) {
+        if (!isRestore && !(await confirmArchive({
+            itemName: accountName,
+            description: `“${accountName}” will be archived and will no longer be able to use this staff account.`,
+        }))) {
             return;
         }
 

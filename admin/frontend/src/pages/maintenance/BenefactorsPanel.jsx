@@ -20,6 +20,7 @@ import {
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { confirmArchive } from '@/utils/confirmArchive';
 
 function BenefactorOnlyModal({
     open,
@@ -437,7 +438,7 @@ export default function BenefactorsPanel() {
     const handleArchiveToggle = async (benefactor) => {
         if (
             !benefactor.is_archived &&
-            !window.confirm(`Archive "${benefactor.benefactor_name || 'this benefactor'}"? This will move it to Archived.`)
+            !(await confirmArchive({ itemName: benefactor.benefactor_name || 'This benefactor' }))
         ) {
             return;
         }

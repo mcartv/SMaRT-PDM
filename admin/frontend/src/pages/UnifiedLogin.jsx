@@ -187,12 +187,12 @@ export default function UnifiedLogin() {
               >
                 Pambayang Dalubhasaan ng Marilao
               </p>
-              <h1
+              <h2
                 className="mt-3 max-w-[520px] text-4xl font-black leading-[1.02] tracking-[-0.035em] xl:text-5xl"
                 style={{ color: theme.dark }}
               >
                 SMaRT-PDM: Scholarship System
-              </h1>
+              </h2>
 
               <div className="mt-7 flex items-center gap-3" aria-hidden="true">
                 <span className="h-px w-16" style={{ background: theme.accent }} />

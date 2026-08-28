@@ -37,6 +37,7 @@ import {
 } from './components/maintenanceTypography';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { confirmArchive } from '@/utils/confirmArchive';
 
 const EMPTY_BENEFACTOR = {
   benefactor_name: '',
@@ -634,11 +635,7 @@ export default function ScholarshipProgramsPanel() {
     const nextArchived = !benefactor.is_archived;
     const verb = nextArchived ? 'archive' : 'restore';
 
-    if (
-      !window.confirm(
-        `Are you sure you want to ${verb} ${benefactor.benefactor_name}?`
-      )
-    ) {
+    if (nextArchived && !(await confirmArchive({ itemName: benefactor.benefactor_name }))) {
       return;
     }
 
@@ -737,7 +734,7 @@ export default function ScholarshipProgramsPanel() {
     const nextArchived = !program.is_archived;
     const verb = nextArchived ? 'archive' : 'restore';
 
-    if (!window.confirm(`Are you sure you want to ${verb} ${program.program_name}?`)) {
+    if (nextArchived && !(await confirmArchive({ itemName: program.program_name }))) {
       return;
     }
 

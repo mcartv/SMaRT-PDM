@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { showAppToast } from '@/utils/appToast';
+import { confirmArchive } from '@/utils/confirmArchive';
 
 const C = {
   brown: 'var(--portal-base)',
@@ -1690,7 +1691,7 @@ export default function AnnouncementsManagement() {
   const handleArchive = async (id) => {
     const announcement = items.find((item) => item.id === id);
     const announcementName = announcement?.subject || announcement?.title || 'this announcement';
-    if (!window.confirm(`Archive "${announcementName}"? This will move it to Archived.`)) return;
+    if (!(await confirmArchive({ itemName: announcementName }))) return;
 
     await loadAnnouncements({ silent: true });
 

@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { buildApiUrl } from '@/api';
 import { showAppToast } from '@/utils/appToast';
+import { confirmArchive } from '@/utils/confirmArchive';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { MAINTENANCE_CARD_TITLE_CLASS } from './components/maintenanceTypography';
 
@@ -839,7 +840,7 @@ export default function AcademicYearPanel() {
 
     const archiveYear = async (row) => {
         const yearName = row.academic_year || row.year_name || row.label || 'this academic year';
-        if (!window.confirm(`Archive "${yearName}"? This will move it to Archived.`)) return;
+        if (!(await confirmArchive({ itemName: yearName }))) return;
 
         try {
             setActionId(

@@ -35,6 +35,7 @@ import {
     SlidersHorizontal,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { confirmArchive } from '@/utils/confirmArchive';
 
 const C = {
     brownMid: 'var(--portal-base)',
@@ -1728,7 +1729,7 @@ export default function ScholarshipOpenings() {
     const handleArchiveOpening = async (openingId) => {
         const opening = openings.find((item) => item.opening_id === openingId);
         const openingName = opening?.opening_title || opening?.title || 'this scholarship opening';
-        if (!window.confirm(`Archive "${openingName}"? This will move it to Archived.`)) return;
+        if (!(await confirmArchive({ itemName: openingName }))) return;
 
         await updateOpeningStatus(openingId, 'archived', { is_archived: true });
     };

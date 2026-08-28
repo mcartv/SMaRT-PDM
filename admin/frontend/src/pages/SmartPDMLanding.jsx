@@ -837,6 +837,29 @@ function AboutInfoModal({ type, theme, onClose }) {
   );
 }
 
+const FEATURED_NOTICE_SESSION_KEY = 'smartpdm:featured-notice:shown-signature';
+
+function readFeaturedNoticeSessionSignature() {
+  if (typeof window === 'undefined') return '';
+
+  try {
+    return window.sessionStorage.getItem(FEATURED_NOTICE_SESSION_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function rememberFeaturedNoticeSessionSignature(signature) {
+  if (!signature || typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(FEATURED_NOTICE_SESSION_KEY, signature);
+  } catch {
+    // Storage can be unavailable in hardened/private browser contexts. The
+    // in-memory signature still prevents repeated opening for this mount.
+  }
+}
+
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
@@ -846,7 +869,7 @@ export default function SmartPDMLanding() {
   const [showRequirements, setShowRequirements] = useState(false);
   const [processModalView, setProcessModalView] = useState(null);
   const [featuredNoticeOpen, setFeaturedNoticeOpen] = useState(false);
-  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState('');
+  const [lastFeaturedNoticeSignature, setLastFeaturedNoticeSignature] = useState(readFeaturedNoticeSessionSignature);
   const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
@@ -977,6 +1000,7 @@ export default function SmartPDMLanding() {
 
     if (currentFeaturedNoticeSignature !== lastFeaturedNoticeSignature) {
       setLastFeaturedNoticeSignature(currentFeaturedNoticeSignature);
+      rememberFeaturedNoticeSessionSignature(currentFeaturedNoticeSignature);
       setFeaturedNoticeOpen(true);
     }
   }, [currentFeaturedNoticeSignature, lastFeaturedNoticeSignature]);

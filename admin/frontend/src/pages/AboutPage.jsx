@@ -510,7 +510,7 @@ function DeveloperTeamSection({ theme, onOpenDeveloper }) {
   return (
     <section
       aria-labelledby="meet-the-team-title"
-      className="relative isolate overflow-hidden rounded-[1.2rem]"
+      className="developers-team-section relative isolate overflow-hidden rounded-[1.2rem]"
     >
       <span
         className="absolute inset-0 -z-30 bg-cover bg-center"
@@ -554,7 +554,7 @@ function DeveloperTeamSection({ theme, onOpenDeveloper }) {
           </p>
         </div>
 
-        <div className="mt-9 grid gap-x-7 gap-y-10 sm:grid-cols-2 md:mt-11 xl:grid-cols-4">
+        <div className="developers-team-grid mt-9 grid gap-x-7 gap-y-10 md:mt-11">
           {developerTeam.map((developer) => (
             <DeveloperPortrait
               key={developer.name}
@@ -575,7 +575,7 @@ function DeveloperPortrait({ developer, theme, onOpen }) {
     <button
       type="button"
       onClick={(event) => onOpen(event.currentTarget)}
-      className="group mx-auto flex w-full max-w-[18.4rem] cursor-pointer flex-col items-center text-center outline-none transition-transform duration-200 ease-out hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+      className="developer-portrait-card group mx-auto flex w-full max-w-[18.4rem] cursor-pointer flex-col items-center text-center outline-none transition-transform duration-200 ease-out hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
       style={{ '--tw-ring-color': theme.base }}
       aria-label={`Open ${developer.name}'s developer profile`}
     >
@@ -604,7 +604,7 @@ function DeveloperArtwork({ developer, theme, compact = false, floating = false 
       <img
         src={developer.image}
         alt={`${developer.name} developer portrait card`}
-        className={`absolute left-1/2 h-auto max-w-none -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out ${compact ? 'top-[58%] w-[532%]' : 'top-1/2 w-[490%] group-hover:scale-[1.018] group-focus-visible:scale-[1.018]'}`}
+        className={`developer-artwork-image absolute left-1/2 h-auto max-w-none -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out ${compact ? 'top-[58%] w-[532%]' : 'top-1/2 w-[490%] group-hover:scale-[1.018] group-focus-visible:scale-[1.018]'}`}
         draggable="false"
       />
     </div>
@@ -957,7 +957,7 @@ function DeveloperProfileModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-[3px] sm:p-4"
+      className="developer-profile-overlay fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-[3px] sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
@@ -970,7 +970,7 @@ function DeveloperProfileModal({
         aria-labelledby="developer-profile-name"
         aria-describedby="developer-profile-summary"
         onKeyDown={handleKeyDown}
-        className="relative max-h-[94vh] w-full max-w-[54rem] overflow-y-auto rounded-[1.25rem] border bg-white sm:max-h-none sm:overflow-visible sm:rounded-[1.4rem]"
+        className="developer-profile-dialog relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[54rem] overflow-y-auto rounded-[1.25rem] border bg-white sm:max-h-[calc(100dvh-2rem)] sm:rounded-[1.4rem]"
         style={{
           borderColor: colorWithAlpha(theme.base, 0.22),
           boxShadow: `0 0 0 1px ${colorWithAlpha(theme.base, 0.06)}, 0 28px 80px rgba(0,0,0,0.30)`,
@@ -994,7 +994,7 @@ function DeveloperProfileModal({
 
         <div>
           <div
-            className="relative isolate overflow-hidden border-b px-5 pb-6 pt-6 sm:px-8 sm:pb-7 sm:pt-8"
+            className="developer-profile-hero relative isolate overflow-hidden border-b px-5 pb-6 pt-6 sm:px-8 sm:pb-7 sm:pt-8"
             style={{
               borderColor: theme.border,
               background: `linear-gradient(135deg, ${theme.soft} 0%, #ffffff 76%)`,
@@ -1018,12 +1018,12 @@ function DeveloperProfileModal({
               aria-hidden="true"
             />
 
-            <div className="relative grid items-start gap-5 sm:grid-cols-[10.75rem_minmax(0,1fr)] sm:gap-8">
-              <div className="mx-auto w-full max-w-[9.5rem] rounded-[1.15rem] p-1 sm:mx-0 sm:max-w-[10.75rem]" style={{ background: colorWithAlpha(theme.base, 0.08) }}>
+            <div className="developer-profile-layout relative grid items-start gap-5 sm:grid-cols-[10.75rem_minmax(0,1fr)] sm:gap-8">
+              <div className="developer-profile-artwork mx-auto w-full max-w-[9.5rem] rounded-[1.15rem] p-1 sm:mx-0 sm:max-w-[10.75rem]" style={{ background: colorWithAlpha(theme.base, 0.08) }}>
                 <DeveloperArtwork developer={developer} theme={theme} compact />
               </div>
 
-              <div className="min-w-0 pr-8 sm:pt-1">
+              <div className="developer-profile-copy min-w-0 pr-8 sm:pt-1">
                 <span
                   className="inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]"
                   style={{ borderColor: theme.border, background: '#fff', color: theme.base }}
@@ -1054,7 +1054,7 @@ function DeveloperProfileModal({
                   </div>
                 )}
 
-                <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+                <div className="developer-profile-contact-grid mt-5 grid gap-2.5 sm:grid-cols-2">
                   <div className="flex min-w-0 items-center rounded-[0.9rem] border bg-white transition hover:-translate-y-0.5 hover:shadow-sm" style={{ borderColor: theme.border }}>
                     <a
                       href={`mailto:${developer.email}`}
@@ -1111,7 +1111,7 @@ function DeveloperProfileModal({
             </div>
           </div>
 
-          <div className="px-5 pb-7 pt-6 sm:px-8 sm:pb-8">
+          <div className="developer-profile-body px-5 pb-7 pt-6 sm:px-8 sm:pb-8">
             <section>
               <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
                 Contribution to SMaRT-PDM
@@ -1131,7 +1131,7 @@ function DeveloperProfileModal({
                 </h3>
               </div>
 
-              <div className={`mt-5 grid auto-rows-fr gap-x-6 ${
+              <div className={`developer-profile-contributions mt-5 grid auto-rows-fr gap-x-6 ${
                   developer.contributions.length === 3
                     ? 'sm:grid-cols-2 lg:grid-cols-3'
                     : 'sm:grid-cols-2'
@@ -1139,7 +1139,7 @@ function DeveloperProfileModal({
                 {developer.contributions.map((item) => (
                   <article
                     key={item.title}
-                    className="h-full border-t py-4"
+                    className="developer-profile-contribution-card h-full border-t py-4"
                     style={{ borderColor: theme.border }}
                   >
                     <h4 className="text-[15px] font-semibold leading-6" style={{ color: theme.dark }}>

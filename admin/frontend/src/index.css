@@ -2445,7 +2445,7 @@ body {
   min-width: 0;
 }
 
-.public-responsive-page :where(img, video, canvas, iframe, svg) {
+.public-responsive-page :where(img:not(.max-w-none), video, canvas, iframe, svg) {
   max-width: 100%;
 }
 
@@ -3000,5 +3000,354 @@ body {
   .smartpdm-auth-grid {
     padding-top: 2.55rem !important;
     padding-bottom: 0.6rem !important;
+  }
+}
+
+/* ========================================================================== */
+/* AUTH PAGE: LAPTOP / SCALED-DESKTOP MODE                                    */
+/* ========================================================================== */
+/*
+ * A 1920px laptop using 125% Windows scaling exposes roughly 1536 CSS pixels,
+ * while 1600/1680-class laptop panels can still expose enough width to trip
+ * Tailwind's desktop grid. Treat those as compact auth surfaces. Only genuinely
+ * wide/tall desktop viewports retain the decorative two-column login hero.
+ */
+@media (max-width: 1799px), (max-height: 880px) {
+  .smartpdm-auth-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: center !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    max-width: 38rem !important;
+    margin-inline: auto !important;
+    padding-left: clamp(1rem, 3vw, 2rem) !important;
+    padding-right: clamp(1rem, 3vw, 2rem) !important;
+  }
+
+  .smartpdm-auth-copy,
+  .smartpdm-auth-ribbon,
+  .smartpdm-auth-page .smartpdm-auth-main > svg {
+    display: none !important;
+  }
+
+  .smartpdm-auth-card {
+    width: min(100%, 430px) !important;
+    max-width: 430px !important;
+    justify-self: center !important;
+    margin-inline: auto !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header {
+    height: 5rem !important;
+    min-height: 5rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner {
+    padding-top: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:first-child {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header img:last-child {
+    width: 2.35rem !important;
+    height: 2.35rem !important;
+  }
+
+  .smartpdm-auth-back-nav {
+    top: 0.9rem !important;
+    right: clamp(1rem, 2.5vw, 2rem) !important;
+  }
+}
+
+/* Medium laptop widths keep the institution identity readable without using
+ * unnecessary horizontal space in the header. */
+@media (max-width: 1399px) {
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > div:last-child {
+    display: none !important;
+  }
+
+  .smartpdm-auth-page > .public-responsive-header .public-responsive-header-inner > a > span:last-child > span:first-child {
+    font-size: clamp(0.9rem, 1.6vw, 1.08rem) !important;
+  }
+}
+
+
+/* ========================================================================== */
+/* ABOUT > DEVELOPERS: RESPONSIVE PORTRAIT COMPOSITION                        */
+/* ========================================================================== */
+/*
+ * Developer source artwork intentionally uses an oversized 16:9 image inside
+ * a portrait crop. Do not let generic public-page media constraints collapse
+ * that crop back to the source canvas, which produces a tiny portrait inside
+ * a large black frame.
+ */
+.developer-artwork-image {
+  max-width: none !important;
+}
+
+.developers-team-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-items: start;
+  justify-items: center;
+  gap: clamp(1.25rem, 2vw, 2rem) !important;
+}
+
+.developer-portrait-card {
+  width: 100%;
+  max-width: 18.4rem;
+}
+
+/* Typical laptop / scaled-desktop browser widths: keep four team members on
+ * one row, but reduce each portrait instead of letting the cards dominate the
+ * entire first viewport. */
+@media (min-width: 1280px) and (max-width: 1799px) {
+  .developer-portrait-card {
+    max-width: 15.5rem !important;
+  }
+
+  .developers-team-section .developers-team-grid {
+    gap: clamp(1rem, 1.5vw, 1.5rem) !important;
+  }
+}
+
+/* When four readable portrait columns no longer fit, use two real columns.
+ * This avoids squashed cards while preserving the existing team-card design. */
+@media (min-width: 640px) and (max-width: 1279px) {
+  .developers-team-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 2rem 1.5rem !important;
+  }
+
+  .developer-portrait-card {
+    max-width: min(18rem, 42vw) !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .developers-team-section > div:last-child {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .developers-team-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 1.75rem !important;
+  }
+
+  .developer-portrait-card {
+    max-width: min(18rem, 86vw) !important;
+  }
+}
+
+/* Short laptops should show more than just the artwork in the first viewport. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .developers-team-section .developers-team-grid {
+    margin-top: 1.75rem !important;
+  }
+
+  .developer-portrait-card {
+    max-width: 14.25rem !important;
+  }
+
+  .developer-portrait-card > div:last-child {
+    margin-top: 0.75rem !important;
+  }
+}
+
+/* ========================================================================== */
+/* ABOUT > DEVELOPERS: PROFILE MODAL RESPONSIVENESS                           */
+/* ========================================================================== */
+/* Keep the developer profile inside the real viewport on laptops and short
+ * desktop windows. The dialog scrolls internally instead of growing beyond
+ * the top/bottom of the browser window. */
+.developer-profile-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.developer-profile-dialog {
+  width: min(54rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem) !important;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* Laptop / scaled-desktop mode: preserve the same visual hierarchy while
+ * reducing dead space so the summary and responsibilities are reachable
+ * without the modal itself extending outside the viewport. */
+@media (min-width: 900px) and (max-width: 1799px) {
+  .developer-profile-dialog {
+    width: min(50rem, calc(100vw - 3rem));
+  }
+
+  .developer-profile-hero {
+    padding: 1.35rem 1.5rem 1.25rem !important;
+  }
+
+  .developer-profile-layout {
+    grid-template-columns: 8.75rem minmax(0, 1fr) !important;
+    gap: 1.35rem !important;
+  }
+
+  .developer-profile-artwork {
+    max-width: 8.75rem !important;
+  }
+
+  .developer-profile-copy {
+    padding-right: 2.25rem !important;
+  }
+
+  .developer-profile-copy h2 {
+    margin-top: 0.55rem !important;
+    font-size: 1.45rem !important;
+    line-height: 1.8rem !important;
+  }
+
+  .developer-profile-copy > p {
+    margin-top: 0.35rem !important;
+    font-size: 0.925rem !important;
+    line-height: 1.35rem !important;
+  }
+
+  .developer-profile-contact-grid {
+    margin-top: 1rem !important;
+  }
+
+  .developer-profile-body {
+    padding: 1.25rem 1.5rem 1.4rem !important;
+  }
+
+  .developer-profile-body #developer-profile-summary {
+    margin-top: 0.4rem !important;
+    font-size: 0.875rem !important;
+    line-height: 1.55rem !important;
+  }
+
+  .developer-profile-body section + section {
+    margin-top: 1.15rem !important;
+    padding-top: 1.15rem !important;
+  }
+
+  .developer-profile-contributions {
+    margin-top: 0.9rem !important;
+    gap: 0 1rem !important;
+  }
+
+  .developer-profile-contribution-card {
+    padding-top: 0.8rem !important;
+    padding-bottom: 0.8rem !important;
+  }
+
+  .developer-profile-contribution-card p {
+    margin-top: 0.25rem !important;
+    font-size: 0.825rem !important;
+    line-height: 1.45rem !important;
+  }
+}
+
+/* Short laptop windows need a denser hero so the body starts higher. */
+@media (min-width: 900px) and (max-height: 820px) {
+  .developer-profile-dialog {
+    max-height: calc(100dvh - 1rem) !important;
+  }
+
+  .developer-profile-overlay {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  .developer-profile-hero {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .developer-profile-layout {
+    grid-template-columns: 7.75rem minmax(0, 1fr) !important;
+    gap: 1rem !important;
+  }
+
+  .developer-profile-artwork {
+    max-width: 7.75rem !important;
+  }
+
+  .developer-profile-contact-grid {
+    margin-top: 0.75rem !important;
+  }
+
+  .developer-profile-contact-grid a,
+  .developer-profile-contact-grid > div > a {
+    padding-top: 0.6rem !important;
+    padding-bottom: 0.6rem !important;
+  }
+
+  .developer-profile-body {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+}
+
+/* Tablet / narrow window: stack the identity artwork above the information and
+ * avoid two cramped contact cards. */
+@media (max-width: 899px) {
+  .developer-profile-dialog {
+    width: min(42rem, calc(100vw - 1.25rem));
+  }
+
+  .developer-profile-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .developer-profile-artwork {
+    max-width: 8.5rem !important;
+  }
+
+  .developer-profile-copy {
+    padding-right: 0 !important;
+    text-align: center;
+  }
+
+  .developer-profile-copy > div:nth-of-type(1),
+  .developer-profile-copy > div:nth-of-type(2) {
+    justify-content: center;
+  }
+
+  .developer-profile-contact-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: left;
+  }
+
+  .developer-profile-contributions {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .developer-profile-overlay {
+    padding: 0.5rem !important;
+  }
+
+  .developer-profile-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem) !important;
+    border-radius: 1rem !important;
+  }
+
+  .developer-profile-hero,
+  .developer-profile-body {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .developer-profile-copy h2 {
+    font-size: 1.3rem !important;
+    line-height: 1.65rem !important;
   }
 }

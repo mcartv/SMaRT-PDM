@@ -422,7 +422,7 @@ function EmptyState({ onAssignMode }) {
 
 function ToolbarSegment({ options, value, onChange }) {
   return (
-    <div className="inline-flex shrink-0 rounded-xl bg-stone-100 p-1">
+    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
       {options.map((option) => {
         const active = value === option.value;
 
@@ -431,7 +431,7 @@ function ToolbarSegment({ options, value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`inline-flex shrink-0 items-center justify-center rounded-lg px-2.5 py-2 text-xs font-medium transition lg:px-3 lg:text-sm ${active
+            className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${active
               ? 'bg-white text-stone-900 shadow-sm'
               : 'text-stone-600'
               }`}
@@ -2107,7 +2107,7 @@ export default function ROAdmin() {
             </div>
           )}
 
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <ToolbarSegment
               options={TOP_TABS}
               value={topTab}
@@ -2120,7 +2120,7 @@ export default function ROAdmin() {
               variant="outline"
               size="sm"
               onClick={() => setFilterOpen(true)}
-              className="h-10 shrink-0 rounded-xl border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 lg:px-3 lg:text-sm"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />
               Filters
@@ -2136,7 +2136,7 @@ export default function ROAdmin() {
               onClick={() => refreshAll()}
               variant="outline"
               size="sm"
-              className="h-10 shrink-0 rounded-xl border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 lg:px-3 lg:text-sm"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-sm font-medium text-stone-700"
               disabled={filterLoading}
             >
               {filterLoading ? (

@@ -381,7 +381,45 @@ export default function AllEndorsementsTracker({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 py-1.5">
+      {!isAdminView ? (
+        <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+            {officeConfig?.eyebrow || 'Endorsement Office'}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-stone-900">{title}</h1>
+          <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-stone-200 bg-white px-5 py-5">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Endorsements
+            </p>
+            <h1 className="text-xl font-semibold text-stone-900">All Endorsement Slips</h1>
+          </div>
+
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+            {adminSummaryPills.map((item) => (
+              <div
+                key={item.label}
+                className="dark-mode-summary-card min-h-[76px] rounded-2xl border px-4 py-3"
+                style={{
+                  background: 'color-mix(in srgb, var(--portal-chart-primary) 10%, white)',
+                  borderColor: 'color-mix(in srgb, var(--portal-chart-primary) 24%, white)',
+                  color: 'var(--portal-chart-primary)',
+                }}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">
+                  {item.label}
+                </p>
+                <p className="mt-1.5 text-2xl font-semibold leading-none">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {isAdminView ? (
         <Card className="border-stone-200 bg-white shadow-none">
           <CardContent className="p-3">

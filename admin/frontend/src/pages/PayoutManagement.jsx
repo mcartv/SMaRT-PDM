@@ -1371,7 +1371,7 @@ export default function PayoutManagement() {
   }
 
   return (
-    <div className="dark-mode-route-canvas space-y-4" style={{ background: C.bg }}>
+    <div className="dark-mode-route-canvas space-y-4 py-3" style={{ background: C.bg }}>
       <PostPayoutCreatePrompt
         open={postCreateOpen}
         payout={newPayoutForPrompt}
@@ -1516,7 +1516,7 @@ export default function PayoutManagement() {
               {sectionMeta.empty}
             </div>
           ) : (
-            <section className="grid gap-4 lg:grid-cols-2">
+            <section className="grid gap-4 2xl:grid-cols-2">
               {pageData.map(renderBatchCard)}
             </section>
           )}

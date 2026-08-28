@@ -6,15 +6,30 @@ const {
   migrationBody,
 } = require('./liveMigrationService');
 
-const MIGRATION_KEY = '20260827232500_system_activity_metrics';
-const MIGRATION_PATH = path.resolve(
-  __dirname,
-  '../../../supabase/migrations/20260827232500_system_activity_metrics.sql'
-);
+const MIGRATIONS = Object.freeze([
+  {
+    key: '20260827232500_system_activity_metrics',
+    path: path.resolve(
+      __dirname,
+      '../../../supabase/migrations/20260827232500_system_activity_metrics.sql'
+    ),
+  },
+  {
+    key: '20260828120000_public_website_visitor_counts',
+    path: path.resolve(
+      __dirname,
+      '../../../supabase/migrations/20260828120000_public_website_visitor_counts.sql'
+    ),
+  },
+]);
+const MIGRATION_KEY = MIGRATIONS.at(-1).key;
+const MIGRATION_PATH = MIGRATIONS.at(-1).path;
 
 async function ensureSystemActivityMigration() {
-  if (!fs.existsSync(MIGRATION_PATH)) {
-    throw new Error(`System activity migration file missing: ${MIGRATION_PATH}`);
+  for (const migration of MIGRATIONS) {
+    if (!fs.existsSync(migration.path)) {
+      throw new Error(`System activity migration file missing: ${migration.path}`);
+    }
   }
 
   const pool = new Pool({
@@ -42,31 +57,34 @@ async function ensureSystemActivityMigration() {
       )
     `);
 
-    const existing = await client.query(
-      'SELECT 1 FROM public.smart_pdm_runtime_migrations WHERE migration_key = $1',
-      [MIGRATION_KEY]
-    );
-
-    if (!existing.rowCount) {
-      const sql = migrationBody(fs.readFileSync(MIGRATION_PATH, 'utf8'));
-      if (!sql) throw new Error('System activity migration is empty.');
-      await client.query(sql);
-      await client.query(
-        'INSERT INTO public.smart_pdm_runtime_migrations (migration_key) VALUES ($1)',
-        [MIGRATION_KEY]
+    for (const migration of MIGRATIONS) {
+      const existing = await client.query(
+        'SELECT 1 FROM public.smart_pdm_runtime_migrations WHERE migration_key = $1',
+        [migration.key]
       );
-      console.log(`SYSTEM_ACTIVITY_MIGRATION_APPLIED=${MIGRATION_KEY}`);
+
+      if (!existing.rowCount) {
+        const sql = migrationBody(fs.readFileSync(migration.path, 'utf8'));
+        if (!sql) throw new Error(`System activity migration is empty: ${migration.key}`);
+        await client.query(sql);
+        await client.query(
+          'INSERT INTO public.smart_pdm_runtime_migrations (migration_key) VALUES ($1)',
+          [migration.key]
+        );
+        console.log(`SYSTEM_ACTIVITY_MIGRATION_APPLIED=${migration.key}`);
+      }
     }
 
     const verification = await client.query(`
       SELECT
         to_regclass('public.system_activity_hourly') IS NOT NULL AS has_hourly,
         to_regclass('public.system_active_sessions') IS NOT NULL AS has_sessions,
-        to_regclass('public.public_web_visitors') IS NOT NULL AS has_visitors
+        to_regclass('public.public_web_visitors') IS NOT NULL AS has_visitors,
+        to_regclass('public.public_web_visitor_days') IS NOT NULL AS has_visitor_days
     `);
 
     const row = verification.rows[0] || {};
-    if (!row.has_hourly || !row.has_sessions || !row.has_visitors) {
+    if (!row.has_hourly || !row.has_sessions || !row.has_visitors || !row.has_visitor_days) {
       throw new Error('System activity migration verification failed.');
     }
 
@@ -93,4 +111,5 @@ module.exports = {
   ensureSystemActivityMigration,
   MIGRATION_KEY,
   MIGRATION_PATH,
+  MIGRATIONS,
 };

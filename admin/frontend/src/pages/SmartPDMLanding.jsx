@@ -4,6 +4,8 @@ import { io } from 'socket.io-client';
 import {
   ArrowRight,
   ArrowUp,
+  CalendarDays,
+  CalendarRange,
   Check,
   ChevronDown,
   Database,
@@ -11,6 +13,7 @@ import {
   Download,
   FileCheck2,
   FileText,
+  Eye,
   MapPin,
   Clock3,
   Globe2,
@@ -20,6 +23,7 @@ import {
   Megaphone,
   ShieldCheck,
   Smartphone,
+  Sun,
   UserRound,
   X,
 } from 'lucide-react';
@@ -302,6 +306,89 @@ function FaqCard({ item, theme, isOpen, onToggle, panelId }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+const visitorCountFormatter = new Intl.NumberFormat('en-PH');
+
+function WebsiteVisitorCounter({ counts, loading, theme }) {
+  const stats = [
+    { key: 'today', label: 'Today', Icon: Sun },
+    { key: 'yesterday', label: 'Yesterday', Icon: CalendarDays },
+    { key: 'this_month', label: 'This month', Icon: CalendarRange },
+  ];
+
+  return (
+    <section
+      id="website-visitors"
+      aria-labelledby="website-visitors-title"
+      className="landing-zone-support mx-auto w-full max-w-[84rem] px-4 pb-14 pt-2 sm:px-5 md:px-8 md:pb-16"
+    >
+      <div
+        className="relative overflow-hidden rounded-[1.65rem] border bg-white p-5 shadow-[0_18px_55px_-36px_rgba(72,44,25,0.5)] sm:rounded-[2rem] sm:p-7 md:p-8"
+        style={{ borderColor: theme.border }}
+      >
+        <div
+          className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-60 blur-3xl"
+          style={{ background: theme.soft }}
+          aria-hidden="true"
+        />
+
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex items-start gap-3.5">
+            <span
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
+              style={{ background: theme.soft, borderColor: theme.border, color: theme.base }}
+            >
+              <Eye size={23} strokeWidth={1.8} aria-hidden="true" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 motion-reduce:animate-none" style={{ background: theme.accent }} />
+                  <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: theme.accent }} />
+                </span>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.base }}>
+                  Live site activity
+                </p>
+              </div>
+              <h2 id="website-visitors-title" className="mt-1.5 text-2xl font-bold tracking-[-0.025em] text-stone-900 md:text-[2rem]">
+                Website visitors
+              </h2>
+            </div>
+          </div>
+
+          <p className="max-w-md text-sm leading-6 text-stone-500">
+            A transparent look at the people discovering SMaRT-PDM and its scholarship services.
+          </p>
+        </div>
+
+        <div className="relative mt-6 grid gap-3 sm:grid-cols-3" aria-live="polite" aria-busy={loading}>
+          {stats.map(({ key, label, Icon }) => (
+            <article
+              key={key}
+              className="group flex items-center justify-between gap-4 rounded-2xl border bg-stone-50/70 px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm sm:min-h-36 sm:flex-col sm:items-start sm:justify-between sm:p-5"
+              style={{ borderColor: theme.border }}
+            >
+              <div className="flex items-center gap-2.5 text-stone-500">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: theme.soft, color: theme.base }}>
+                  {React.createElement(Icon, { size: 16, 'aria-hidden': true })}
+                </span>
+                <h3 className="text-xs font-bold uppercase tracking-[0.12em]">{label}</h3>
+              </div>
+              <p className={`text-2xl font-bold tabular-nums tracking-[-0.035em] sm:text-3xl ${loading ? 'animate-pulse text-stone-300' : 'text-stone-900'}`}>
+                {counts ? visitorCountFormatter.format(counts[key]) : '\u2014'}
+              </p>
+            </article>
+          ))}
+        </div>
+
+        <div className="relative mt-5 flex items-center gap-2 border-t border-stone-100 pt-4 text-xs text-stone-500">
+          <ShieldCheck size={15} style={{ color: theme.base }} aria-hidden="true" />
+          <p>Anonymous unique-browser counts <span className="px-1 text-stone-300" aria-hidden="true">•</span> Updated automatically</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -691,6 +778,8 @@ export default function SmartPDMLanding() {
   const [processModalView, setProcessModalView] = useState(null);
   const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [visitorCounts, setVisitorCounts] = useState(null);
+  const [visitorCountsLoading, setVisitorCountsLoading] = useState(true);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
     office_email: 'osfa@pdm.edu.ph',
@@ -751,6 +840,45 @@ export default function SmartPDMLanding() {
 
   useEffect(() => {
     document.title = 'SMaRT-PDM';
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadVisitorCounts = async () => {
+      try {
+        const response = await fetch(buildApiUrl('/api/system-maintenance/public-visitor-counts'));
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error('Failed to load visitor counts');
+
+        const nextCounts = {
+          today: Math.max(0, Number(payload?.today) || 0),
+          yesterday: Math.max(0, Number(payload?.yesterday) || 0),
+          this_month: Math.max(0, Number(payload?.this_month) || 0),
+        };
+        if (active) setVisitorCounts(nextCounts);
+      } catch {
+        // The public landing page remains fully usable when diagnostics are offline.
+      } finally {
+        if (active) setVisitorCountsLoading(false);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void loadVisitorCounts();
+    };
+
+    void loadVisitorCounts();
+    const refreshId = window.setInterval(loadVisitorCounts, 60 * 1000);
+    window.addEventListener('smartpdm:public-visit-recorded', loadVisitorCounts);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.clearInterval(refreshId);
+      window.removeEventListener('smartpdm:public-visit-recorded', loadVisitorCounts);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -1715,6 +1843,12 @@ export default function SmartPDMLanding() {
         </div>
       </section>
       ) : null}
+
+      <WebsiteVisitorCounter
+        counts={visitorCounts}
+        loading={visitorCountsLoading}
+        theme={theme}
+      />
 
       </main>
 

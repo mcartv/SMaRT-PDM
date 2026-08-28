@@ -77,18 +77,18 @@ function getAuthHeaders(tokenStorageKey = 'adminToken') {
   };
 }
 
-function TemplateCard({ report, active, onClick, theme, compact = false }) {
+function TemplateCard({ report, active, onClick, theme }) {
   return (
     <button
       type="button"
       onClick={() => onClick(report.id)}
-      className={`report-template-card w-full rounded-2xl border text-left transition-all ${compact ? 'p-2.5' : 'p-4'} ${active
+      className={`report-template-card w-full rounded-2xl border p-4 text-left transition-all ${active
         ? ''
         : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
         }`}
       style={active ? { borderColor: theme.base, background: theme.accentSoft } : undefined}
     >
-      <div className={`flex ${compact ? 'items-center gap-3' : 'items-start gap-4'}`}>
+      <div className="flex items-start gap-4">
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active
             ? 'text-white'
@@ -103,7 +103,7 @@ function TemplateCard({ report, active, onClick, theme, compact = false }) {
           <p className="report-template-title truncate text-sm font-semibold" style={{ color: active ? theme.base : '#1c1917' }}>
             {report.name}
           </p>
-          {compact ? null : <p className="mt-1 text-xs text-stone-500">{report.sub}</p>}
+          <p className="mt-1 text-xs text-stone-500">{report.sub}</p>
         </div>
       </div>
     </button>
@@ -555,8 +555,8 @@ export default function ReportGeneration({
         </div>
       ) : null}
 
-      <div className={`grid grid-cols-1 xl:grid-cols-12 ${portalKey === 'admin' ? 'gap-3' : 'gap-5'}`}>
-        <Card className={`overflow-hidden border-stone-200 bg-white shadow-none ${portalKey === 'admin' ? 'xl:col-span-3' : 'xl:col-span-4'}`}>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+        <Card className="overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-4">
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <h2 className="report-section-title text-sm font-semibold text-stone-800">
               Report Templates
@@ -566,7 +566,7 @@ export default function ReportGeneration({
             </p>
           </div>
 
-          <CardContent className={portalKey === 'admin' ? 'space-y-2 p-3' : 'space-y-3 p-4'}>
+          <CardContent className="space-y-3 p-4">
             {visibleReportTypes.map((report) => (
               <TemplateCard
                 key={report.id}
@@ -574,13 +574,12 @@ export default function ReportGeneration({
                 active={selected === report.id}
                 onClick={setSelected}
                 theme={theme}
-                compact={portalKey === 'admin'}
               />
             ))}
           </CardContent>
         </Card>
 
-        <Card className={`overflow-hidden border-stone-200 bg-white shadow-none ${portalKey === 'admin' ? 'xl:col-span-9' : 'xl:col-span-8'}`}>
+        <Card className="overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-8">
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
@@ -595,8 +594,8 @@ export default function ReportGeneration({
             </div>
           </div>
 
-          <CardContent className={portalKey === 'admin' ? 'space-y-4 p-4' : 'space-y-6 p-5'}>
-            <div className={portalKey === 'admin' ? 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4' : 'grid grid-cols-1 gap-5 md:grid-cols-2'}>
+          <CardContent className="space-y-6 p-5">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               {supportsPeriodFilters ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Academic Year
@@ -884,7 +883,7 @@ export default function ReportGeneration({
                 </p>
               </div>
             ) : (
-              <div className={portalKey === 'admin' ? 'min-h-[360px] max-h-[calc(100vh-300px)] overflow-auto' : 'max-h-[420px] overflow-auto'}>
+              <div className="max-h-[420px] overflow-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-stone-50 text-stone-500">
                     <tr>

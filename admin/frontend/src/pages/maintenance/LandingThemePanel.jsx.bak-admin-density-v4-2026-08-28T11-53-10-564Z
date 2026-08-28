@@ -293,13 +293,19 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
         }}
         onSave={handleSaveCustom}
       />
-      <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+      <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white">
             <Palette className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>Landing Page Theme</h3>
+            <p className={MAINTENANCE_CARD_SUBTITLE_CLASS}>
+              Adjust the public landing page and unified login colors separately from each user's portal theme.
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              You can apply a preset quickly, or use manual color pickers and save a custom landing palette.
+            </p>
             {feedback.message ? (
               <div
                 className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${

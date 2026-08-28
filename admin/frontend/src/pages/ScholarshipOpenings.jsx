@@ -981,11 +981,11 @@ function OpeningCard({
 
     return (
         <Card
-            className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300 hover:shadow-sm"
+            className="h-full overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300 hover:shadow-sm"
             style={{ borderLeft: '4px solid var(--portal-base)' }}
         >
             <CardContent className="p-0">
-                <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-3.5 lg:flex-row lg:items-start lg:justify-between sm:px-5">
+                <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-3.5 2xl:flex-row 2xl:items-start 2xl:justify-between sm:px-5">
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-semibold leading-6 text-stone-900">
@@ -1140,7 +1140,7 @@ function OpeningCard({
                     </div>
                 </div>
 
-                <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4 sm:px-5">
+                <div className="grid grid-cols-2 gap-2 px-4 py-3 2xl:grid-cols-4 sm:px-5">
                     {[
                         ['Academic Year', opening.academic_year || 'N/A'],
                         ['Allocated Slots', allocatedSlots],
@@ -2060,7 +2060,7 @@ export default function ScholarshipOpenings() {
                                 }
                             />
                         ) : (
-                            <div className="space-y-3">
+                            <div className="grid gap-3 xl:grid-cols-2">
                                 {filteredOpenings.map((opening) => (
                                     <OpeningCard
                                         key={opening.opening_id}

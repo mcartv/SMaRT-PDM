@@ -24,9 +24,7 @@ import {
   Search,
   Loader2,
   AlertCircle,
-  ArrowRight,
-  LayoutGrid,
-  Table2,
+  ArrowRight,  Table2,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -469,11 +467,7 @@ function Toolbar({
         <div className="relative min-w-[160px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
           <Input
-            placeholder={
-              viewType === 'cards'
-                ? 'Search opening, scholarship, or academic year'
-                : 'Search applicant, PDM ID, scholarship, or opening'
-            }
+            placeholder="Search applicant, PDM ID, scholarship, or opening"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
@@ -482,18 +476,6 @@ function Toolbar({
 
         <div className="flex shrink-0 items-center gap-2">
           <div className="inline-flex shrink-0 rounded-xl bg-stone-100 p-1">
-            <button
-              type="button"
-              onClick={() => setViewType('cards')}
-              className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition lg:px-3 lg:text-sm ${viewType === 'cards'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
-                }`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              Cards
-            </button>
-
             <button
               type="button"
               onClick={() => setViewType('table')}

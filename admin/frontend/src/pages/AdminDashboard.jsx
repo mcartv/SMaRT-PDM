@@ -165,11 +165,11 @@ function ActionRow({ item, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(item.path)}
-      className="flex w-full items-center justify-between gap-3 rounded-[18px] border border-stone-200 bg-white p-4 text-left transition hover:border-stone-300 hover:bg-stone-50"
+      className="flex min-h-[84px] w-full items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-3.5 py-3 text-left transition hover:border-stone-300 hover:bg-stone-50"
     >
       <div className="min-w-0">
         <p className="text-sm font-semibold text-stone-800">{item.label}</p>
-        <p className="mt-1 text-sm leading-5 text-stone-500">{item.sub}</p>
+        <p className="mt-1 text-xs leading-4 text-stone-500">{item.sub}</p>
       </div>
 
       <span
@@ -686,7 +686,7 @@ export default function AdminDashboard() {
 
       <div className="grid items-start gap-4 xl:grid-cols-12">
         <Card
-          className="rounded-[24px] shadow-none xl:col-span-4"
+          className="min-w-0 rounded-[24px] shadow-none xl:col-span-12"
           style={{ borderColor: C.border, background: C.surface }}
         >
           <CardHeader className="border-b border-stone-100">
@@ -701,7 +701,7 @@ export default function AdminDashboard() {
             </p>
           </CardHeader>
 
-          <CardContent className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-1">
+          <CardContent className="grid gap-2.5 p-4 md:grid-cols-2 xl:grid-cols-3">
             {actionSummary.map((item) => (
               <ActionRow
                 key={item.key}
@@ -713,7 +713,7 @@ export default function AdminDashboard() {
 
             {/* SMART-PDM_ENDORSEMENT_WORKFLOW_DASHBOARD */}
             <div
-              className="sm:col-span-2 2xl:col-span-1 rounded-[18px] border border-stone-200 bg-stone-50/60 p-4"
+              className="md:col-span-2 xl:col-span-3 rounded-2xl border border-stone-200 bg-stone-50/60 p-3.5"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -737,7 +737,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {[
                   ['In Progress', endorsementWorkflow.active],
                   ['SDO Review', endorsementWorkflow.sdo],
@@ -747,7 +747,7 @@ export default function AdminDashboard() {
                 ].map(([label, value]) => (
                   <div
                     key={label}
-                    className="rounded-xl border border-stone-100 bg-white px-3 py-2.5"
+                    className="min-w-0 rounded-xl border border-stone-100 bg-white px-3 py-2"
                   >
                     <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">
                       {label}
@@ -762,9 +762,9 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 xl:col-span-8 xl:grid-cols-2">
+        <div className="grid min-w-0 gap-4 xl:col-span-12 xl:grid-cols-12">
           <Card
-            className="min-w-0 rounded-[24px] shadow-none"
+            className="min-w-0 rounded-[24px] shadow-none xl:col-span-7 xl:h-full"
             style={{ borderColor: C.border, background: C.surface }}
           >
             <CardHeader className="border-b border-stone-100">
@@ -834,7 +834,7 @@ export default function AdminDashboard() {
           </Card>
 
           <Card
-            className="min-w-0 rounded-[24px] shadow-none"
+            className="min-w-0 rounded-[24px] shadow-none xl:col-span-5 xl:h-full"
             style={{ borderColor: C.border, background: C.surface }}
           >
             <CardHeader className="border-b border-stone-100">
@@ -849,7 +849,7 @@ export default function AdminDashboard() {
               </p>
             </CardHeader>
 
-            <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-4 p-5 2xl:grid-cols-[minmax(0,0.92fr)_minmax(200px,1fr)]">
+            <CardContent className="grid min-h-[250px] min-w-0 grid-cols-1 gap-4 p-4 2xl:grid-cols-[minmax(0,0.92fr)_minmax(190px,1fr)]">
               {dashboard.scholarsByBenefactor.length ? (
                 <>
                   <div className="h-[220px] min-w-0">

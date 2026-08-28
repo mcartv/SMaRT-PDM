@@ -569,13 +569,13 @@ export default function ProfilePhotoQueue() {
         )}
 
         <ProfilePhotoPreviewDialog
-        open={Boolean(photoPreview?.src)}
-        onOpenChange={(open) => {
-          if (!open) closePhotoPreview();
-        }}
-        src={photoPreview?.src || ''}
-        name={photoPreview?.label || 'Profile photo'}
-      />
+          open={Boolean(photoPreview?.src)}
+          onOpenChange={(open) => {
+            if (!open) closePhotoPreview();
+          }}
+          src={photoPreview?.src || ''}
+          name={photoPreview?.label || 'Profile photo'}
+        />
 
         {showRejectModal ? (
           <RejectModal
@@ -592,46 +592,39 @@ export default function ProfilePhotoQueue() {
     <div className="min-w-0 space-y-4 py-3" style={{ background: 'var(--portal-main-bg, #faf7f2)' }}>
       <div>
         <section className="mb-4 rounded-2xl border border-stone-200 bg-white p-4">
-          <div className="mb-4">
-            <p className="text-base font-semibold text-stone-900">Profile Photos</p>
-            <p className="mt-1 text-sm text-stone-500">Review submitted student profile pictures before they become the active profile photo.</p>
-          </div>
-
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="grid w-full grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:inline-flex sm:w-auto sm:flex-wrap">
-            {STATUS_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => handleStatusChange(option)}
-                className={`h-9 rounded-lg px-4 text-sm font-medium capitalize transition ${
-                  status === option
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600 hover:text-stone-900'
-                }`}
-              >
-                <span>{option}</span>
-                <span
-                  className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                    status === option
-                      ? 'bg-stone-100 text-stone-700'
-                      : 'bg-white/80 text-stone-500'
-                  }`}
+            <div className="grid w-full grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:inline-flex sm:w-auto sm:flex-wrap">
+              {STATUS_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => handleStatusChange(option)}
+                  className={`h-9 rounded-lg px-4 text-sm font-medium capitalize transition ${status === option
+                      ? 'bg-white text-stone-900 shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                    }`}
                 >
-                  {statusCounts[option] ?? 0}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="relative w-full lg:w-80">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search student"
-              className="h-9 w-full rounded-lg border border-stone-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
-            />
-          </div>
+                  <span>{option}</span>
+                  <span
+                    className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${status === option
+                        ? 'bg-stone-100 text-stone-700'
+                        : 'bg-white/80 text-stone-500'
+                      }`}
+                  >
+                    {statusCounts[option] ?? 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full lg:w-80">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search student"
+                className="h-9 w-full rounded-lg border border-stone-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+              />
+            </div>
           </div>
         </section>
 
@@ -807,13 +800,13 @@ export default function ProfilePhotoQueue() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap items-center gap-2">
-                          <StatusPill status={item.status} />
-                          {item.is_current_profile_photo ? (
-                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
-                              Current
-                            </span>
-                          ) : null}
-                        </div>
+                            <StatusPill status={item.status} />
+                            {item.is_current_profile_photo ? (
+                              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
+                                Current
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button

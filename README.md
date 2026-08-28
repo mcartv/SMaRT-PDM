@@ -95,7 +95,7 @@ npm install
 npm start
 ```
 
-The student API uses port `5000` by default. Configure its Supabase, database, JWT, email, and SMS credentials before starting it. See [`mobile/backend/PRODUCTION_DEPLOYMENT.md`](mobile/backend/PRODUCTION_DEPLOYMENT.md) for the required variables and deployment checklist.
+The student API uses port `5000` by default. Configure its Supabase, database, JWT, and email credentials before starting it. See [`mobile/backend/PRODUCTION_DEPLOYMENT.md`](mobile/backend/PRODUCTION_DEPLOYMENT.md) for the required variables and deployment checklist.
 
 ### Flutter App
 

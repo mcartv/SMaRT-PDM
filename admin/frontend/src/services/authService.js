@@ -78,7 +78,7 @@ let lifecycleInstalled = false;
 let validationInFlight = false;
 
 export const authService = {
-  login: async ({ email, password, stayLoggedIn = false }) => {
+  login: async ({ email, password, stayLoggedIn = false, turnstileToken = '' }) => {
     return requestJson('/api/auth/login', {
       body: {
         email: String(email || '').trim().toLowerCase(),
@@ -86,6 +86,7 @@ export const authService = {
         stayLoggedIn: Boolean(stayLoggedIn),
         deviceId: getAdminDeviceId(),
         pageId: PAGE_INSTANCE_ID,
+        turnstileToken: String(turnstileToken || ''),
       },
       fallbackMessage: 'Invalid credentials',
     });

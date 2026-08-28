@@ -11,12 +11,15 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { authService } from '@/services/authService';
 import { getLoginErrorMessage } from '@/utils/loginErrors';
+import TurnstileWidget from '@/components/auth/TurnstileWidget';
 import {
   consumePortalSessionFeedback,
   getStoredPortalSession,
   PORTAL_CONFIG,
   savePortalSession,
 } from '@/utils/authStorage';
+
+const TURNSTILE_SITE_KEY = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
 
 function consumeAnyPortalFeedback() {
   for (const portalName of Object.keys(PORTAL_CONFIG)) {
@@ -35,6 +38,11 @@ export default function UnifiedUserLoginCard({ theme }) {
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileStatus, setTurnstileStatus] = useState(
+    TURNSTILE_SITE_KEY ? 'loading' : 'misconfigured'
+  );
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [sessionFeedback] = useState(consumeAnyPortalFeedback);
   const emailInputRef = useRef(null);
   const loginRequestRef = useRef(false);
@@ -44,7 +52,11 @@ export default function UnifiedUserLoginCard({ theme }) {
       ? 'Enter your email to continue.'
       : !password
         ? 'Enter your password to continue.'
-        : 'Sign in to SMaRT-PDM.';
+        : !turnstileToken
+          ? ['error', 'unsupported', 'misconfigured'].includes(turnstileStatus)
+            ? 'Security verification is unavailable.'
+            : 'Wait for security verification to complete.'
+          : 'Sign in to SMaRT-PDM.';
 
   useEffect(() => {
     const existingSession = getStoredPortalSession();
@@ -65,6 +77,15 @@ export default function UnifiedUserLoginCard({ theme }) {
     event.preventDefault();
     if (loginRequestRef.current || isLoading) return;
 
+    if (!turnstileToken) {
+      setError(
+        turnstileStatus === 'misconfigured'
+          ? 'Security verification is not configured for this site.'
+          : 'Wait for security verification to complete, then try again.'
+      );
+      return;
+    }
+
     loginRequestRef.current = true;
     setError('');
     setIsLoading(true);
@@ -74,6 +95,7 @@ export default function UnifiedUserLoginCard({ theme }) {
         email: email.trim(),
         password,
         stayLoggedIn: false,
+        turnstileToken,
       });
 
       const portalName = String(data?.user?.role || '').trim().toLowerCase();
@@ -97,6 +119,9 @@ export default function UnifiedUserLoginCard({ theme }) {
       navigate(portal.redirectPath, { replace: true });
     } catch (err) {
       setError(getLoginErrorMessage(err, 'User'));
+      setTurnstileToken('');
+      setTurnstileStatus(TURNSTILE_SITE_KEY ? 'loading' : 'misconfigured');
+      setTurnstileResetSignal((current) => current + 1);
       loginRequestRef.current = false;
       setIsLoading(false);
     }
@@ -287,9 +312,33 @@ export default function UnifiedUserLoginCard({ theme }) {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <TurnstileWidget
+                siteKey={TURNSTILE_SITE_KEY}
+                resetSignal={turnstileResetSignal}
+                onTokenChange={setTurnstileToken}
+                onStatusChange={setTurnstileStatus}
+              />
+
+              {['error', 'unsupported', 'misconfigured'].includes(turnstileStatus) ? (
+                <p
+                  role="alert"
+                  className="text-[11px] font-semibold leading-4 text-red-600"
+                >
+                  {turnstileStatus === 'misconfigured' ? (
+                    'Security verification is not configured for this site.'
+                  ) : turnstileStatus === 'unsupported' ? (
+                    'This browser cannot complete security verification.'
+                  ) : (
+                    'Security verification could not load. Refresh the page and try again.'
+                  )}
+                </p>
+              ) : null}
+            </div>
+
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !turnstileToken}
               title={loginTooltip}
               className="mt-1 flex h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition duration-200 hover:-translate-y-px hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-70"
               style={{ background: theme.base }}
@@ -298,6 +347,11 @@ export default function UnifiedUserLoginCard({ theme }) {
                 <>
                   <Loader2 size={17} className="animate-spin" />
                   Signing in...
+                </>
+              ) : turnstileStatus === 'loading' ? (
+                <>
+                  <Loader2 size={17} className="animate-spin" />
+                  Checking security...
                 </>
               ) : (
                 <>
@@ -308,7 +362,13 @@ export default function UnifiedUserLoginCard({ theme }) {
             </button>
 
             <span className="sr-only" role="status" aria-live="polite">
-              {isLoading ? 'Signing in. Please wait.' : ''}
+              {isLoading
+                ? 'Signing in. Please wait.'
+                : turnstileStatus === 'loading'
+                  ? 'Checking browser security. Please wait.'
+                  : turnstileStatus === 'verified'
+                    ? 'Security verification complete. Login is ready.'
+                    : ''}
             </span>
           </form>
         </div>

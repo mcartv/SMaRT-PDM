@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { requireTurnstile } = require('../middleware/turnstileMiddleware');
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -25,7 +26,7 @@ const recoveryLimiter = rateLimit({
     },
 });
 
-router.post('/login', loginLimiter, authController.staffLogin);
+router.post('/login', loginLimiter, requireTurnstile, authController.staffLogin);
 
 // Lightweight current-session probe for every staff portal. The protect
 // middleware performs the authoritative archive, role, token-version, and

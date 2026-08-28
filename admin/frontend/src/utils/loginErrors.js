@@ -14,6 +14,14 @@ const LOGIN_ERROR_MESSAGES = {
     'An Admin session is already active on this device. Refresh the page and try again.',
   ADMIN_DEVICE_LIMIT_REACHED:
     'This Admin account is already active on 3 devices. Log out from one device and try again.',
+  TURNSTILE_REQUIRED:
+    'Complete the security verification and try again.',
+  TURNSTILE_FAILED:
+    'Security verification failed. Please try again.',
+  TURNSTILE_NOT_CONFIGURED:
+    'Security verification is not configured on the server. Please contact the administrator.',
+  TURNSTILE_UNAVAILABLE:
+    'Security verification is temporarily unavailable. Please try again shortly.',
   SERVER_ERROR:
     'The server could not complete the sign-in request. Please try again shortly.',
 };

@@ -293,28 +293,6 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
         }}
         onSave={handleSaveCustom}
       />
-      <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white">
-            <Palette className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <h3 className={MAINTENANCE_CARD_TITLE_CLASS}>Landing Page Theme</h3>
-            {feedback.message ? (
-              <div
-                className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
-                  feedback.type === 'error'
-                    ? 'border border-red-200 bg-red-50 text-red-700'
-                    : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                }`}
-              >
-                {feedback.type === 'error' ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                {feedback.message}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
       <Card className="overflow-hidden border-stone-200 shadow-none">
         <div className="border-b border-stone-100 px-5 py-4">

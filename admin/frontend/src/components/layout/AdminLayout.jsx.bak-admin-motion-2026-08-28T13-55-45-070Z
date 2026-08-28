@@ -240,7 +240,7 @@ export default function AdminLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="admin-motion-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{
           width: collapsed ? '76px' : 'clamp(218px, 18vw, 248px)',
           background: theme.base,
@@ -275,7 +275,7 @@ export default function AdminLayout() {
                 item.path === '/admin/endorsements'
               }
               className={({ isActive }) =>
-                `admin-motion-nav group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
+                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'text-white shadow-sm'
                   : 'hover:bg-white/10'
                 }`
@@ -321,7 +321,7 @@ export default function AdminLayout() {
 
       {/* Main Content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="admin-motion-topbar flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
           <div aria-hidden="true" />
 
           <div className="flex items-center gap-3">
@@ -341,7 +341,7 @@ export default function AdminLayout() {
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
                   <span
-                    className="admin-motion-badge absolute right-[-4px] top-[-4px] z-10 inline-grid h-[17px] min-w-[17px] place-items-center rounded-full bg-red-500 px-1 pt-px text-center text-[9px] font-semibold leading-none text-white shadow-sm ring-2 ring-white"
+                    className="absolute right-[-4px] top-[-4px] z-10 inline-grid h-[17px] min-w-[17px] place-items-center rounded-full bg-red-500 px-1 pt-px text-center text-[9px] font-semibold leading-none text-white shadow-sm ring-2 ring-white"
                     aria-label={`${unreadCount} unread notifications`}
                   >
                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -350,7 +350,7 @@ export default function AdminLayout() {
               </button>
 
               {notifOpen && (
-                <div className="admin-motion-popover absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
                   <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -531,7 +531,7 @@ export default function AdminLayout() {
         >
           <div
             key={outletKey}
-            className={`admin-route-motion ${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
+            className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
           >
             <Outlet />
           </div>

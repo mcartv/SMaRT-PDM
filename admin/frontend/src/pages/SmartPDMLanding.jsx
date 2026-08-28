@@ -4,8 +4,6 @@ import { io } from 'socket.io-client';
 import {
   ArrowRight,
   ArrowUp,
-  CalendarDays,
-  CalendarRange,
   Check,
   ChevronDown,
   Database,
@@ -13,7 +11,6 @@ import {
   Download,
   FileCheck2,
   FileText,
-  Eye,
   MapPin,
   Clock3,
   Globe2,
@@ -23,7 +20,6 @@ import {
   Megaphone,
   ShieldCheck,
   Smartphone,
-  Sun,
   UserRound,
   X,
 } from 'lucide-react';
@@ -313,81 +309,47 @@ const visitorCountFormatter = new Intl.NumberFormat('en-PH');
 
 function WebsiteVisitorCounter({ counts, loading, theme }) {
   const stats = [
-    { key: 'today', label: 'Today', Icon: Sun },
-    { key: 'yesterday', label: 'Yesterday', Icon: CalendarDays },
-    { key: 'this_month', label: 'This month', Icon: CalendarRange },
+    { key: 'today', label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
+    { key: 'this_month', label: 'This month' },
   ];
 
   return (
     <section
       id="website-visitors"
       aria-labelledby="website-visitors-title"
-      className="landing-zone-support mx-auto w-full max-w-[84rem] px-4 pb-14 pt-2 sm:px-5 md:px-8 md:pb-16"
+      className="w-full max-w-[18rem]"
     >
+      <h2 id="website-visitors-title" className="text-sm font-bold text-white">
+        Website visitors
+      </h2>
+      <span className="mt-2 block h-0.5 w-8 rounded-full" style={{ background: theme.accent }} aria-hidden="true" />
+
       <div
-        className="relative overflow-hidden rounded-[1.65rem] border bg-white p-5 shadow-[0_18px_55px_-36px_rgba(72,44,25,0.5)] sm:rounded-[2rem] sm:p-7 md:p-8"
-        style={{ borderColor: theme.border }}
+        className="mt-3 overflow-hidden rounded-xl border bg-white shadow-sm"
+        style={{ borderColor: `${theme.accent}55` }}
+        aria-live="polite"
+        aria-busy={loading}
       >
-        <div
-          className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-60 blur-3xl"
-          style={{ background: theme.soft }}
-          aria-hidden="true"
-        />
-
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex items-start gap-3.5">
+        {stats.map(({ key, label }, index) => (
+          <div
+            key={key}
+            className={`flex min-h-10 items-center justify-between gap-3 px-3 py-2 ${index ? 'border-t border-stone-200' : ''}`}
+          >
+            <span className="text-[11px] font-medium text-stone-600">{label}</span>
             <span
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
-              style={{ background: theme.soft, borderColor: theme.border, color: theme.base }}
+              className={`min-w-12 rounded-full px-2.5 py-1 text-center text-[10px] font-bold tabular-nums text-white ${loading ? 'animate-pulse opacity-60' : ''}`}
+              style={{ background: theme.base }}
             >
-              <Eye size={23} strokeWidth={1.8} aria-hidden="true" />
+              {counts ? visitorCountFormatter.format(counts[key]) : '\u2014'}
             </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2" aria-hidden="true">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 motion-reduce:animate-none" style={{ background: theme.accent }} />
-                  <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: theme.accent }} />
-                </span>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.base }}>
-                  Live site activity
-                </p>
-              </div>
-              <h2 id="website-visitors-title" className="mt-1.5 text-2xl font-bold tracking-[-0.025em] text-stone-900 md:text-[2rem]">
-                Website visitors
-              </h2>
-            </div>
           </div>
-
-          <p className="max-w-md text-sm leading-6 text-stone-500">
-            A transparent look at the people discovering SMaRT-PDM and its scholarship services.
-          </p>
-        </div>
-
-        <div className="relative mt-6 grid gap-3 sm:grid-cols-3" aria-live="polite" aria-busy={loading}>
-          {stats.map(({ key, label, Icon }) => (
-            <article
-              key={key}
-              className="group flex items-center justify-between gap-4 rounded-2xl border bg-stone-50/70 px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm sm:min-h-36 sm:flex-col sm:items-start sm:justify-between sm:p-5"
-              style={{ borderColor: theme.border }}
-            >
-              <div className="flex items-center gap-2.5 text-stone-500">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: theme.soft, color: theme.base }}>
-                  {React.createElement(Icon, { size: 16, 'aria-hidden': true })}
-                </span>
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em]">{label}</h3>
-              </div>
-              <p className={`text-2xl font-bold tabular-nums tracking-[-0.035em] sm:text-3xl ${loading ? 'animate-pulse text-stone-300' : 'text-stone-900'}`}>
-                {counts ? visitorCountFormatter.format(counts[key]) : '\u2014'}
-              </p>
-            </article>
-          ))}
-        </div>
-
-        <div className="relative mt-5 flex items-center gap-2 border-t border-stone-100 pt-4 text-xs text-stone-500">
-          <ShieldCheck size={15} style={{ color: theme.base }} aria-hidden="true" />
-          <p>Anonymous unique-browser counts <span className="px-1 text-stone-300" aria-hidden="true">•</span> Updated automatically</p>
-        </div>
+        ))}
       </div>
+
+      <p className="mt-2.5 text-[10px] leading-4 text-white/55">
+        Thank you for visiting SMaRT-PDM website.
+      </p>
     </section>
   );
 }
@@ -1844,12 +1806,6 @@ export default function SmartPDMLanding() {
       </section>
       ) : null}
 
-      <WebsiteVisitorCounter
-        counts={visitorCounts}
-        loading={visitorCountsLoading}
-        theme={theme}
-      />
-
       </main>
 
       <footer
@@ -1861,7 +1817,7 @@ export default function SmartPDMLanding() {
         }}
       >
         <div className="mx-auto w-full max-w-[96rem]">
-          <div className="grid gap-8 border-b border-white/15 pb-7 lg:grid-cols-[1.15fr_1.25fr_0.8fr]">
+          <div className="grid gap-8 border-b border-white/15 pb-7 md:grid-cols-2 xl:grid-cols-[1.15fr_1.1fr_0.7fr_0.8fr]">
             <div>
               <div className="flex items-center gap-4">
                 <div className="flex shrink-0 items-center gap-2.5" aria-label="PDM and Municipality of Marilao">
@@ -1935,6 +1891,12 @@ export default function SmartPDMLanding() {
                 </div>
               </div>
             </div>
+
+            <WebsiteVisitorCounter
+              counts={visitorCounts}
+              loading={visitorCountsLoading}
+              theme={theme}
+            />
 
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>

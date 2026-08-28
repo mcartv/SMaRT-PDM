@@ -57,7 +57,7 @@ test('privacy-mode visitor fallback remains stable and throttled in memory', () 
   assert.match(tracker, /smartpdm:public-visit-recorded/);
 });
 
-test('landing page exposes responsive anonymous visitor counts', () => {
+test('landing page exposes compact footer visitor counts', () => {
   const landing = readFrontend('pages/SmartPDMLanding.jsx');
   const routes = fs.readFileSync(
     path.join(repositoryRoot, 'admin/backend/routes/systemMaintenanceRoutes.js'),
@@ -66,9 +66,12 @@ test('landing page exposes responsive anonymous visitor counts', () => {
 
   assert.match(landing, /WebsiteVisitorCounter/);
   assert.match(landing, /public-visitor-counts/);
-  assert.match(landing, /Live site activity/);
-  assert.match(landing, /Anonymous unique-browser counts/);
-  assert.match(landing, /sm:grid-cols-3/);
+  assert.match(landing, /Website visitors/);
+  assert.match(landing, /Thank you for visiting SMaRT-PDM website\./);
+  assert.match(landing, /max-w-\[18rem\]/);
+  assert.match(landing, /xl:grid-cols-\[1\.15fr_1\.1fr_0\.7fr_0\.8fr\]/);
+  assert.doesNotMatch(landing, /Live site activity/);
+  assert.doesNotMatch(landing, /sm:grid-cols-3/);
   assert.match(routes, /get\('\/public-visitor-counts'/);
 });
 

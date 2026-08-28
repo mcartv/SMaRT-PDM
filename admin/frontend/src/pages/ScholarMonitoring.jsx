@@ -825,7 +825,7 @@ function ObligationHistoryPanel({ studentId }) {
 
                   {expanded ? (
                     <div className="border-t border-stone-100 bg-stone-50/60 p-3.5">
-                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <HistoryMetric
                           label="Required"
                           value={formatMinutes(requiredMinutes)}
@@ -844,7 +844,7 @@ function ObligationHistoryPanel({ studentId }) {
                         />
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+                      <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                         <HistoryMetric
                           label="Attendance Logs"
                           value={String(logs.length)}
@@ -936,11 +936,11 @@ function ObligationHistoryPanel({ studentId }) {
 
 function HistoryMetric({ label, value }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-white px-3 py-2.5">
-      <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+    <div className="min-w-0 rounded-lg border border-stone-200 bg-white px-3.5 py-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">
         {label}
       </p>
-      <p className="mt-1 text-sm font-medium text-stone-800">{value}</p>
+      <p className="mt-1.5 text-sm font-medium leading-5 text-stone-800">{value}</p>
     </div>
   );
 }
@@ -1000,7 +1000,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
       onClick={onClose}
     >
       <Card
-        className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl"
+        className="flex h-[90vh] w-full max-w-[68rem] flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-100 bg-white px-5 py-4">
@@ -1030,9 +1030,9 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
             </p>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <section className="min-h-0 overflow-y-auto border-b border-stone-100 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r">
-              <div className="space-y-4">
+          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+            <section className="min-h-0 overflow-y-auto border-b border-stone-100 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r lg:p-6">
+              <div className="space-y-5">
                 <div className="flex items-start gap-4">
                   <button
                     type="button"
@@ -1216,7 +1216,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
               </div>
             </section>
 
-            <section className="min-h-0 overflow-y-auto bg-stone-50/45 p-4 sm:p-5">
+            <section className="min-h-0 overflow-y-auto bg-stone-50/45 p-4 sm:p-5 lg:p-6">
               <ObligationHistoryPanel
                 studentId={s.student_id || s.scholar_id}
               />

@@ -87,6 +87,48 @@ export default function AdminLayout() {
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
 
+  // Keep Admin-only portal/overlay state on <html>. Custom Admin dialogs live
+  // inside the route tree while Radix/Vaul dialogs are portalled to <body>.
+  // Observing both lets the shell freeze the underlying page scrollbars for
+  // the exact lifetime of any modal without changing the modal components.
+  useEffect(() => {
+    const rootElement = document.documentElement;
+    const overlaySelector = [
+      '.admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]',
+      '[data-slot="dialog-overlay"]',
+      '[data-slot="alert-dialog-overlay"]',
+      '[data-slot="sheet-overlay"]',
+      '[data-slot="drawer-overlay"]',
+    ].join(',');
+
+    const syncModalState = () => {
+      const hasOpenOverlay = Array.from(document.querySelectorAll(overlaySelector)).some((element) => {
+        if (element.getAttribute('data-state') === 'closed') return false;
+        const style = window.getComputedStyle(element);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+
+      rootElement.classList.toggle('smartpdm-admin-modal-open', hasOpenOverlay);
+    };
+
+    rootElement.classList.add('smartpdm-admin-active');
+    syncModalState();
+
+    const observer = new MutationObserver(syncModalState);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'data-state', 'style'],
+    });
+
+    return () => {
+      observer.disconnect();
+      rootElement.classList.remove('smartpdm-admin-modal-open');
+      rootElement.classList.remove('smartpdm-admin-active');
+    };
+  }, []);
+
   useSocketEvent('profile:updated', (payload) => {
     const incoming = payload?.profile || payload?.account || null;
     if (!incoming) return;
@@ -217,7 +259,7 @@ export default function AdminLayout() {
 
   return (
     <div
-      className="portal-shell admin-industrial-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
+      className="portal-shell admin-responsive-shell flex h-[100dvh] min-h-[100dvh] w-full min-w-0 overflow-hidden"
       style={{
         background: theme.mainBg,
         '--portal-base': theme.base,
@@ -240,7 +282,7 @@ export default function AdminLayout() {
     >
       {/* Sidebar */}
       <aside
-        className="admin-motion-sidebar flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
+        className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{
           width: collapsed ? '76px' : 'clamp(218px, 18vw, 248px)',
           background: theme.base,
@@ -275,7 +317,7 @@ export default function AdminLayout() {
                 item.path === '/admin/endorsements'
               }
               className={({ isActive }) =>
-                `admin-motion-nav group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
+                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'text-white shadow-sm'
                   : 'hover:bg-white/10'
                 }`
@@ -321,7 +363,7 @@ export default function AdminLayout() {
 
       {/* Main Content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="admin-motion-topbar flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
+        <header className="admin-responsive-header flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 lg:px-5 xl:px-6">
           <div aria-hidden="true" />
 
           <div className="flex items-center gap-3">
@@ -341,7 +383,7 @@ export default function AdminLayout() {
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
                   <span
-                    className="admin-motion-badge absolute right-[-4px] top-[-4px] z-10 inline-grid h-[17px] min-w-[17px] place-items-center rounded-full bg-red-500 px-1 pt-px text-center text-[9px] font-semibold leading-none text-white shadow-sm ring-2 ring-white"
+                    className="absolute right-[-4px] top-[-4px] z-10 inline-grid h-[17px] min-w-[17px] place-items-center rounded-full bg-red-500 px-1 pt-px text-center text-[9px] font-semibold leading-none text-white shadow-sm ring-2 ring-white"
                     aria-label={`${unreadCount} unread notifications`}
                   >
                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -350,7 +392,7 @@ export default function AdminLayout() {
               </button>
 
               {notifOpen && (
-                <div className="admin-motion-popover absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
                   <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -526,12 +568,12 @@ export default function AdminLayout() {
         </header>
 
         <main
-          className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6"
+          className="admin-responsive-main min-h-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6"
           style={{ background: theme.mainBg }}
         >
           <div
             key={outletKey}
-            className={`admin-route-motion ${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
+            className={`admin-responsive-content ${isWidePage ? 'admin-responsive-content--wide w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
           >
             <Outlet />
           </div>

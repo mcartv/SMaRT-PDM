@@ -1224,26 +1224,93 @@ body {
   height: auto;
 }
 
-/* Full-screen modal backdrops must cover the actual viewport at every desktop
-   resolution and browser zoom level. This intentionally does not resize the
-   modal/card itself. */
-[class~="fixed"][class~="inset-0"] {
-  inset: 0 !important;
-  width: 100vw !important;
-  width: 100dvw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
-  min-width: 100vw;
-  min-height: 100vh;
-  min-height: 100dvh;
-  max-width: none !important;
-  max-height: none !important;
+/* Admin modal viewport + backdrop hardening.
+ *
+ * The Admin modules still contain a number of hand-built `fixed inset-0`
+ * dialogs. A transformed/filtered/contained ancestor makes CSS fixed
+ * positioning use that ancestor instead of the browser viewport. Explicitly
+ * keep only the Admin shell path neutral so those existing dialogs cover the
+ * sidebar, header, page canvas, and floating Messages launcher as intended.
+ * This does not resize or redesign any modal card. */
+html.smartpdm-admin-active {
+  --admin-modal-backdrop: rgb(0 0 0 / 0.42);
+  --admin-modal-backdrop-blur: 4px;
 }
 
-[class~="fixed"][class~="inset-0"][class*="bg-black"] {
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+html.smartpdm-admin-active.smartpdm-force-dark {
+  --admin-modal-backdrop: rgb(0 0 0 / 0.58);
 }
+
+html.smartpdm-admin-active #root,
+html.smartpdm-admin-active .portal-shell,
+html.smartpdm-admin-active .portal-shell > div,
+html.smartpdm-admin-active .portal-shell > div > main,
+html.smartpdm-admin-active .portal-shell > div > main > div {
+  transform: none !important;
+  filter: none !important;
+  perspective: none !important;
+  contain: none !important;
+  will-change: auto !important;
+}
+
+/* Existing Admin custom modals. `inset: 0` is enough for true viewport
+ * coverage and avoids the horizontal overflow that can be introduced by
+ * forcing 100vw/100dvw while a vertical scrollbar is present. */
+html.smartpdm-admin-active .portal-shell [class~="fixed"][class~="inset-0"][class*="bg-black"] {
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  background-color: var(--admin-modal-backdrop) !important;
+  -webkit-backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
+  backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
+}
+
+/* Radix/Vaul overlays are portalled to <body>, so they need an Admin route
+ * marker rather than a `.portal-shell` descendant selector. Keep their
+ * existing z-index ordering; only normalize the backdrop visual. */
+html.smartpdm-admin-active :is(
+  [data-slot="dialog-overlay"],
+  [data-slot="alert-dialog-overlay"],
+  [data-slot="sheet-overlay"],
+  [data-slot="drawer-overlay"]
+) {
+  inset: 0 !important;
+  background-color: var(--admin-modal-backdrop) !important;
+  -webkit-backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
+  backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
+}
+
+/* Prevent native page scrollbars from slicing through an otherwise full-screen
+ * modal backdrop. Custom Admin modals are rendered inside the route tree, so
+ * freeze only the scrollable ancestors that actually contain an active modal.
+ * The modal card's own overflow-y-auto areas are descendants, not ancestors,
+ * and remain scrollable. */
+html.smartpdm-admin-active .portal-shell [class*="overflow-"]:has(
+  [class~="fixed"][class~="inset-0"][class*="bg-black"]
+) {
+  overflow: hidden !important;
+}
+
+/* Radix/Vaul overlays are portalled to <body>, so they cannot be detected as
+ * descendants of the Admin scroll containers. When one exists, freeze the
+ * underlying Admin page scroll containers for the lifetime of that overlay.
+ * Dialog/sheet/drawer content is portalled outside `.portal-shell`, therefore
+ * its internal scrolling is unaffected. */
+html.smartpdm-admin-active:has(
+  :is(
+    [data-slot="dialog-overlay"],
+    [data-slot="alert-dialog-overlay"],
+    [data-slot="sheet-overlay"],
+    [data-slot="drawer-overlay"]
+  )
+) .portal-shell [class*="overflow-"] {
+  overflow: hidden !important;
+}
+
 
 /* Preserve the original cards and grids. Only recover shell space on narrower
    laptop widths; collapsed sidebars remain 76px because max-width does not
@@ -1577,632 +1644,421 @@ html.smartpdm-force-dark .portal-shell :is(a[href], [role="button"], [role="tab"
   cursor: not-allowed !important;
 }
 
-/* SMART-PDM_ADMIN_MOTION_SYSTEM_V1
-   Subtle, layout-safe motion for the Admin portal only. */
-@keyframes smartpdm-admin-route-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 6px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
+/* ========================================================================== */
+/* Admin desktop/laptop responsiveness + modal viewport hardening             */
+/* ========================================================================== */
+/*
+ * Scope every rule below to AdminLayout. The goal is to keep the current
+ * visual hierarchy while allowing the same screens to breathe correctly on
+ * short laptops, 1366/1440/1536/1600 widths, Full HD, QHD and ultrawide
+ * monitors. No module markup or business logic is changed here.
+ */
+html.smartpdm-admin-active {
+  --admin-shell-gutter: clamp(0.75rem, 1.15vw, 1.5rem);
+  --admin-modal-gutter: clamp(0.625rem, 1.15vw, 1.25rem);
+  --admin-modal-backdrop: rgb(0 0 0 / 0.42);
+  --admin-modal-backdrop-blur: 4px;
 }
 
-@keyframes smartpdm-admin-sidebar-enter {
-  from {
-    opacity: 0.92;
-    transform: translate3d(-8px, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
+html.smartpdm-admin-active.smartpdm-force-dark {
+  --admin-modal-backdrop: rgb(0 0 0 / 0.58);
 }
 
-@keyframes smartpdm-admin-topbar-enter {
-  from {
-    opacity: 0.92;
-    transform: translate3d(0, -5px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
+.admin-responsive-shell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
 }
 
-@keyframes smartpdm-admin-popover-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(0, -5px, 0) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
+.admin-responsive-shell > aside,
+.admin-responsive-shell > div,
+.admin-responsive-header,
+.admin-responsive-header > *,
+.admin-responsive-main,
+.admin-responsive-content,
+.admin-responsive-content > * {
+  min-width: 0;
 }
 
-@keyframes smartpdm-admin-badge-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.72);
-  }
-  70% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+/* The sidebar keeps the Department layout identity but releases horizontal
+ * space progressively on narrower laptop windows. The inline width from
+ * AdminLayout still controls expanded/collapsed state. */
+.admin-responsive-shell > aside {
+  max-width: min(248px, 22vw);
 }
 
-.portal-shell .admin-route-motion {
-  animation: smartpdm-admin-route-enter 190ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  transform-origin: top center;
+.admin-responsive-header {
+  width: 100%;
+  min-width: 0;
+  gap: clamp(0.5rem, 1vw, 0.875rem);
+  padding-inline: clamp(0.75rem, 1.2vw, 1.5rem) !important;
 }
 
-.portal-shell .admin-motion-sidebar {
-  animation: smartpdm-admin-sidebar-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.admin-responsive-header > :last-child {
+  min-width: 0;
+  max-width: 100%;
+  gap: clamp(0.5rem, 0.9vw, 0.75rem) !important;
 }
 
-.portal-shell .admin-motion-topbar {
-  animation: smartpdm-admin-topbar-enter 190ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.admin-responsive-main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--admin-shell-gutter) !important;
+  overscroll-behavior: contain;
 }
 
-.portal-shell .admin-motion-popover {
-  animation: smartpdm-admin-popover-enter 155ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  transform-origin: top right;
+.admin-responsive-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 80rem;
+  container-name: admin-content;
+  container-type: inline-size;
 }
 
-.portal-shell .admin-motion-badge {
-  animation: smartpdm-admin-badge-pop 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.admin-responsive-content--wide {
+  max-width: none !important;
 }
 
-.portal-shell .admin-motion-nav {
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    translate 150ms ease;
-}
-
-.portal-shell .admin-motion-nav:hover {
-  translate: 2px 0;
-}
-
-.portal-shell .admin-motion-nav:active {
-  translate: 1px 0;
-}
-
-.portal-shell [data-slot="button"]:not(:disabled) {
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    opacity 150ms ease,
-    translate 130ms ease,
-    scale 130ms ease;
-}
-
-.portal-shell [data-slot="button"]:not(:disabled):hover {
-  translate: 0 -1px;
-}
-
-.portal-shell [data-slot="button"]:not(:disabled):active {
-  translate: 0 0;
-  scale: 0.985;
-}
-
-.portal-shell input,
-.portal-shell select,
-.portal-shell textarea {
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease,
-    background-color 150ms ease;
-}
-
-.portal-shell tbody tr {
-  transition:
-    background-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.portal-shell [data-slot="card"] {
-  transition:
-    border-color 170ms ease,
-    box-shadow 170ms ease,
-    background-color 170ms ease;
-}
-
-/* Preserve accessibility and avoid motion for users who request less motion. */
-@media (prefers-reduced-motion: reduce) {
-  .portal-shell .admin-route-motion,
-  .portal-shell .admin-motion-sidebar,
-  .portal-shell .admin-motion-topbar,
-  .portal-shell .admin-motion-popover,
-  .portal-shell .admin-motion-badge {
-    animation: none !important;
-  }
-
-  .portal-shell .admin-motion-nav,
-  .portal-shell [data-slot="button"],
-  .portal-shell [data-slot="card"],
-  .portal-shell input,
-  .portal-shell select,
-  .portal-shell textarea,
-  .portal-shell tbody tr {
-    transition-duration: 0.01ms !important;
-  }
-
-  .portal-shell .admin-motion-nav:hover,
-  .portal-shell .admin-motion-nav:active,
-  .portal-shell [data-slot="button"]:not(:disabled):hover,
-  .portal-shell [data-slot="button"]:not(:disabled):active {
-    translate: none !important;
-    scale: 1 !important;
+/* Allow ordinary Admin pages to use more of QHD/ultrawide monitors without
+ * stretching them edge-to-edge. Wide review workspaces already opt out. */
+@media (min-width: 1920px) {
+  .admin-responsive-content:not(.admin-responsive-content--wide) {
+    max-width: 92rem !important;
   }
 }
 
-/* SMART-PDM_ADMIN_INDUSTRIAL_DARK_V1
-   Admin-only dark palette: warm graphite + gunmetal + brown/copper identity. */
-html.smartpdm-force-dark .admin-industrial-shell {
-  --bg-primary: #141311 !important;
-  --bg-secondary: #1c1a18 !important;
-  --bg-elevated: #24211e !important;
-  --bg-subtle: #2a2723 !important;
-  --bg-muted: #35302b !important;
-  --bg-hover: #302b27 !important;
-  --bg-active: #3a312a !important;
-  --button-hover-surface: #352f2a !important;
-  --button-hover-surface-strong: #43382f !important;
-  --bg-overlay: rgb(8 7 6 / 0.78) !important;
-
-  --text-main: #f2ede7 !important;
-  --text-secondary: #d2c8bd !important;
-  --text-muted: #a99d91 !important;
-  --text-disabled: #7f756c !important;
-  --text-inverse: #171310 !important;
-  --icon-main: #eee7df !important;
-  --icon-muted: #aa9d91 !important;
-
-  --border-subtle: #302c28 !important;
-  --border-default: #48413a !important;
-  --border-strong: #65594e !important;
-
-  --industrial-copper: color-mix(in srgb, var(--portal-base) 62%, #c98150 38%);
-  --industrial-copper-hover: color-mix(in srgb, var(--portal-base) 52%, #dd9360 48%);
-  --industrial-copper-soft: color-mix(in srgb, var(--portal-base) 22%, #211b17 78%);
-
-  --focus-ring: var(--industrial-copper) !important;
-  --accent-primary: var(--industrial-copper) !important;
-  --accent-primary-hover: var(--industrial-copper-hover) !important;
-  --accent-soft: var(--industrial-copper-soft) !important;
-  --accent-on-primary: #fff8f1 !important;
-
-  --status-danger-bg: #382126 !important;
-  --status-danger-text: #f1a7ad !important;
-  --status-danger-border: #70434a !important;
-  --status-warning-bg: #392d1e !important;
-  --status-warning-text: #e7c47a !important;
-  --status-warning-border: #6e5732 !important;
-  --status-success-bg: #203229 !important;
-  --status-success-text: #9bd0ad !important;
-  --status-success-border: #42634f !important;
-  --status-info-bg: #222f35 !important;
-  --status-info-text: #9bc6d3 !important;
-  --status-info-border: #435f68 !important;
-  --status-special-bg: #30283a !important;
-  --status-special-text: #cab8dc !important;
-  --status-special-border: #5e506d !important;
-
-  --background: var(--bg-primary) !important;
-  --foreground: var(--text-main) !important;
-  --card: var(--bg-secondary) !important;
-  --card-foreground: var(--text-main) !important;
-  --popover: var(--bg-elevated) !important;
-  --popover-foreground: var(--text-main) !important;
-  --primary: var(--accent-primary) !important;
-  --primary-foreground: var(--accent-on-primary) !important;
-  --secondary: var(--bg-subtle) !important;
-  --secondary-foreground: var(--text-main) !important;
-  --muted: var(--bg-subtle) !important;
-  --muted-foreground: var(--text-secondary) !important;
-  --accent: var(--accent-soft) !important;
-  --accent-foreground: var(--text-main) !important;
-  --border: var(--border-default) !important;
-  --input: var(--border-default) !important;
-  --ring: var(--focus-ring) !important;
-
-  --portal-main-bg: var(--bg-primary) !important;
-  --portal-surface: var(--bg-secondary) !important;
-  --portal-surface-soft: var(--accent-soft) !important;
-  --portal-border: var(--border-default) !important;
-  --portal-muted: var(--text-muted) !important;
-  --portal-text: var(--text-main) !important;
-  --portal-fg-accent: color-mix(in srgb, var(--portal-base) 48%, #f1d3bc 52%) !important;
-
-  background: var(--bg-primary) !important;
-  color: var(--text-main);
+@media (min-width: 2400px) {
+  .admin-responsive-content:not(.admin-responsive-content--wide) {
+    max-width: 104rem !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell header {
-  background-color: #1b1917 !important;
-  border-color: var(--border-default) !important;
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.025);
+/* All controls and media stay inside their local card/column. */
+.admin-responsive-content :where(input, textarea, select, [role="combobox"], [data-slot="select-trigger"], img, video, canvas, svg) {
+  max-width: 100%;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell [data-slot="card"],
-html.smartpdm-force-dark .admin-industrial-shell [role="dialog"],
-html.smartpdm-force-dark .admin-industrial-shell .bg-white {
-  border-color: var(--border-default) !important;
+.admin-responsive-content :where(p, span, td, th, label, button, a) {
+  overflow-wrap: anywhere;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell [data-slot="card"] {
-  background-color: var(--bg-secondary) !important;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.018),
-    0 1px 2px rgb(0 0 0 / 0.18);
+.admin-responsive-content :where([class~="overflow-x-auto"], [class~="overflow-auto"]) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell input:not([type="color"]),
-html.smartpdm-force-dark .admin-industrial-shell select,
-html.smartpdm-force-dark .admin-industrial-shell textarea {
-  background-color: #201e1b !important;
-  border-color: var(--border-default) !important;
-  color: var(--text-main) !important;
+/* Viewport breakpoints are not enough inside a portal with a sidebar. These
+ * container rules react to the actual Admin content width. */
+@container admin-content (max-width: 1080px) {
+  .admin-responsive-content :where(
+    [class~="xl:grid-cols-4"],
+    [class~="lg:grid-cols-4"],
+    [class~="md:grid-cols-4"],
+    [class~="grid-cols-4"]
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .admin-responsive-content :where(
+    [class~="xl:grid-cols-3"],
+    [class~="lg:grid-cols-3"],
+    [class~="md:grid-cols-3"],
+    [class~="grid-cols-3"]
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell input::placeholder,
-html.smartpdm-force-dark .admin-industrial-shell textarea::placeholder {
-  color: #887d73 !important;
+@container admin-content (max-width: 900px) {
+  .admin-responsive-content :where(.flex[class~="justify-between"]) {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
+
+  .admin-responsive-content :where([class~="lg:flex-row"]) {
+    flex-direction: column !important;
+  }
+
+  .admin-responsive-content :where(
+    [class~="lg:grid-cols-3"],
+    [class~="md:grid-cols-3"],
+    [class~="grid-cols-3"]
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell input:focus,
-html.smartpdm-force-dark .admin-industrial-shell select:focus,
-html.smartpdm-force-dark .admin-industrial-shell textarea:focus {
-  border-color: var(--industrial-copper) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--industrial-copper) 22%, transparent) !important;
+@container admin-content (max-width: 720px) {
+  .admin-responsive-content :where(
+    [class~="xl:grid-cols-4"],
+    [class~="lg:grid-cols-4"],
+    [class~="md:grid-cols-4"],
+    [class~="grid-cols-4"],
+    [class~="xl:grid-cols-3"],
+    [class~="lg:grid-cols-3"],
+    [class~="md:grid-cols-3"],
+    [class~="grid-cols-3"],
+    [class~="xl:grid-cols-2"],
+    [class~="lg:grid-cols-2"],
+    [class~="md:grid-cols-2"],
+    [class~="grid-cols-2"]
+  ) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-responsive-content :where([class~="sm:flex-row"], [class~="md:flex-row"], [class~="lg:flex-row"]) {
+    flex-direction: column !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell thead {
-  background-color: #1d1b18 !important;
+/* -------------------------------------------------------------------------- */
+/* Modal state: eliminate the bottom/right native scrollbar cut               */
+/* -------------------------------------------------------------------------- */
+html.smartpdm-admin-modal-open,
+html.smartpdm-admin-modal-open body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell tbody tr {
-  border-color: var(--border-subtle) !important;
+html.smartpdm-admin-modal-open .admin-responsive-main {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell tbody tr:hover {
-  background-color: #24211d !important;
+html.smartpdm-admin-modal-open .admin-responsive-main::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell [aria-pressed="true"],
-html.smartpdm-force-dark .admin-industrial-shell [data-state="checked"] {
-  border-color: color-mix(in srgb, var(--portal-base) 46%, var(--border-default) 54%) !important;
+/* Custom in-route Admin backdrops. Inset positioning is intentionally used
+ * instead of 100vw/100dvw so browser scrollbar gutters cannot create a second
+ * horizontal viewport. */
+html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"] {
+  position: fixed !important;
+  inset: 0 !important;
+  box-sizing: border-box !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: max(var(--admin-modal-gutter), env(safe-area-inset-top, 0px))
+           max(var(--admin-modal-gutter), env(safe-area-inset-right, 0px))
+           max(var(--admin-modal-gutter), env(safe-area-inset-bottom, 0px))
+           max(var(--admin-modal-gutter), env(safe-area-inset-left, 0px)) !important;
+  overflow: hidden !important;
+  background-color: var(--admin-modal-backdrop) !important;
+  -webkit-backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
+  backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell [data-maintenance-viewport-fit="true"] {
-  background-color: var(--bg-primary) !important;
+/* Preserve each modal's authored max-width while guaranteeing that its card
+ * can never be wider/taller than the available browser viewport. */
+html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+  > :not([class~="absolute"]) {
+  min-width: 0 !important;
+  max-height: calc(100dvh - var(--admin-modal-gutter) - var(--admin-modal-gutter)) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell [data-maintenance-viewport-fit="true"] .bg-stone-100 {
-  background-color: #28241f !important;
+/* Keep large desktop dialogs substantial without allowing them to become
+ * near-full-screen sheets on high-DPI laptops or Windows display scaling.
+ * Smaller authored modal tiers remain untouched. */
+html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+  > [class~="max-w-6xl"] {
+  max-width: min(64rem, 90dvw) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell [data-maintenance-viewport-fit="true"] .bg-stone-900 {
-  background-color: #3b3028 !important;
+html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+  > [class~="max-w-5xl"] {
+  max-width: min(60rem, 90dvw) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell,
-html.smartpdm-force-dark .admin-industrial-shell * {
-  scrollbar-color: #675346 #1b1917;
+html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+  > [class~="max-w-4xl"] {
+  max-width: min(56rem, 92dvw) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell ::-webkit-scrollbar-track {
-  background: #1b1917;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell ::-webkit-scrollbar-thumb {
-  background: #57483d;
-  border: 2px solid #1b1917;
-  border-radius: 999px;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell ::-webkit-scrollbar-thumb:hover {
-  background: #705847;
-}
-
-/* SMART-PDM_ADMIN_ALL_MODULES_DARK_V1
-   Industrial dark compatibility for all Admin modules.
-   Layout-safe: surface, text, border, state and focus treatment only. */
-
-html.smartpdm-force-dark .admin-industrial-shell {
-  --admin-dark-canvas: #141311;
-  --admin-dark-section: #1a1816;
-  --admin-dark-card: #1f1d1a;
-  --admin-dark-card-raised: #26221f;
-  --admin-dark-soft: #2b2723;
-  --admin-dark-soft-strong: #342e29;
-  --admin-dark-line: #484038;
-  --admin-dark-line-soft: #332e29;
-  --admin-dark-copper-soft: color-mix(in srgb, var(--industrial-copper) 18%, var(--admin-dark-card) 82%);
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .dark-mode-route-canvas,
-html.smartpdm-force-dark .admin-industrial-shell [data-maintenance-viewport-fit="true"] {
-  background-color: var(--admin-dark-canvas) !important;
-  color: var(--text-main);
-}
-
-html.smartpdm-force-dark .admin-industrial-shell [data-slot="card"],
-html.smartpdm-force-dark .admin-industrial-shell section.bg-white,
-html.smartpdm-force-dark .admin-industrial-shell div.bg-white {
-  background-color: var(--admin-dark-card) !important;
-  border-color: var(--admin-dark-line) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .bg-stone-50 {
-  background-color: var(--admin-dark-section) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .bg-stone-100 {
-  background-color: var(--admin-dark-soft) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .bg-stone-200 {
-  background-color: var(--admin-dark-soft-strong) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .bg-stone-300 {
-  background-color: #403830 !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .bg-slate-50,
-  .bg-gray-50,
-  .bg-neutral-50,
-  .bg-zinc-50
+/* Radix/Vaul backdrops are body-portalled. Match custom Admin dialogs exactly. */
+html.smartpdm-admin-active :is(
+  [data-slot="dialog-overlay"],
+  [data-slot="alert-dialog-overlay"],
+  [data-slot="sheet-overlay"],
+  [data-slot="drawer-overlay"]
 ) {
-  background-color: var(--admin-dark-section) !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  background-color: var(--admin-modal-backdrop) !important;
+  -webkit-backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
+  backdrop-filter: blur(var(--admin-modal-backdrop-blur)) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .bg-slate-100,
-  .bg-gray-100,
-  .bg-neutral-100,
-  .bg-zinc-100
+/* Portalled dialog cards also stay inside short laptop viewports. Their own
+ * overflow-y-auto regions remain in control when present. */
+html.smartpdm-admin-active :is(
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="sheet-content"],
+  [data-slot="drawer-content"]
 ) {
-  background-color: var(--admin-dark-soft) !important;
+  max-height: calc(100dvh - var(--admin-modal-gutter) - var(--admin-modal-gutter)) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .border-stone-50,
-  .border-stone-100,
-  .border-gray-100,
-  .border-slate-100,
-  .border-neutral-100
+/* Dropdowns/selects opened from a modal must stay inside the current viewport
+ * and above the dialog card, including at browser zoom > 100%. */
+html.smartpdm-admin-active.smartpdm-admin-modal-open :is(
+  [data-slot="select-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="popover-content"]
 ) {
-  border-color: var(--admin-dark-line-soft) !important;
+  z-index: 1200 !important;
+  max-width: calc(100dvw - 1rem) !important;
+  max-height: min(22rem, calc(100dvh - 1rem)) !important;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .border-stone-200,
-  .border-gray-200,
-  .border-slate-200,
-  .border-neutral-200,
-  .border-zinc-200
-) {
-  border-color: var(--admin-dark-line) !important;
+/* -------------------------------------------------------------------------- */
+/* Laptop width/height tuning                                                 */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 1180px) {
+  .admin-responsive-shell > aside {
+    max-width: 208px !important;
+  }
+
+  .admin-responsive-main {
+    --admin-shell-gutter: 0.875rem;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .border-stone-300,
-  .border-gray-300,
-  .border-slate-300,
-  .border-neutral-300
-) {
-  border-color: var(--border-strong) !important;
+@media (max-width: 1024px) {
+  .admin-responsive-shell > aside {
+    max-width: 190px !important;
+  }
+
+  .admin-responsive-header {
+    padding-inline: 0.75rem !important;
+  }
+
+  .admin-responsive-main {
+    padding: 0.75rem !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell table {
-  color: var(--text-main);
+/* Windowed desktop mode: compact the existing sidebar rather than letting it
+ * squeeze or horizontally scroll the modules. This is still the same sidebar,
+ * only its labels are hidden when there is not enough desktop width. */
+@media (max-width: 900px) {
+  .admin-responsive-shell > aside {
+    width: 76px !important;
+    max-width: 76px !important;
+  }
+
+  .admin-responsive-shell > aside > div:first-child {
+    justify-content: center;
+    padding-inline: 0.75rem !important;
+  }
+
+  .admin-responsive-shell > aside > div:first-child > div:nth-child(2),
+  .admin-responsive-shell > aside nav a span,
+  .admin-responsive-shell > aside > div:last-child button span {
+    display: none !important;
+  }
+
+  .admin-responsive-shell > aside nav a,
+  .admin-responsive-shell > aside > div:last-child button {
+    justify-content: center !important;
+    gap: 0 !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell thead,
-html.smartpdm-force-dark .admin-industrial-shell thead.bg-stone-50 {
-  background-color: #1b1917 !important;
+/* 1366x768-class laptops commonly expose only ~680-720 CSS px after browser
+ * chrome. Reduce chrome, not the module/card hierarchy. */
+@media (max-height: 720px) {
+  html.smartpdm-admin-active {
+    --admin-shell-gutter: 0.625rem;
+    --admin-modal-gutter: 0.5rem;
+  }
+
+  .admin-responsive-header,
+  .admin-responsive-shell > aside > div:first-child {
+    height: 3.5rem !important;
+  }
+
+  .admin-responsive-shell > aside nav {
+    padding-block: 0.5rem !important;
+  }
+
+  .admin-responsive-shell > aside nav a,
+  .admin-responsive-shell > aside > div:last-child button {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  .admin-responsive-shell > aside > div:last-child {
+    padding: 0.5rem !important;
+  }
+
+  html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+    :where([class~="p-6"], [class~="p-5"]) {
+    padding: 1rem !important;
+  }
+
+  html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+    :where([class~="px-6"], [class~="px-5"]) {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  html.smartpdm-admin-active .admin-responsive-shell [class~="fixed"][class~="inset-0"][class*="bg-black"]
+    :where([class~="py-6"], [class~="py-5"], [class~="py-4"]) {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell th {
-  color: var(--text-secondary) !important;
-  border-color: var(--admin-dark-line-soft) !important;
+@media (max-height: 620px) {
+  html.smartpdm-admin-active {
+    --admin-modal-gutter: 0.375rem;
+  }
+
+  .admin-responsive-header,
+  .admin-responsive-shell > aside > div:first-child {
+    height: 3.25rem !important;
+  }
+
+  .admin-responsive-main {
+    padding: 0.5rem !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell td {
-  border-color: var(--admin-dark-line-soft) !important;
+/* Keep full layout semantics for print/screenshot/export contexts. */
+@media print {
+  html.smartpdm-admin-active,
+  html.smartpdm-admin-active body,
+  .admin-responsive-main {
+    overflow: visible !important;
+  }
 }
 
-html.smartpdm-force-dark .admin-industrial-shell tbody tr:hover {
-  background-color: #25211e !important;
+/* Dense maintenance/filter tab rows stay usable in narrower desktop windows
+ * without pushing the whole Admin page wider than its viewport. */
+.admin-responsive-content [role="tablist"] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
 }
 
-html.smartpdm-force-dark .admin-industrial-shell input:not([type="color"]),
-html.smartpdm-force-dark .admin-industrial-shell select,
-html.smartpdm-force-dark .admin-industrial-shell textarea,
-html.smartpdm-force-dark .admin-industrial-shell [role="combobox"] {
-  background-color: #201e1b !important;
-  border-color: var(--admin-dark-line) !important;
-  color: var(--text-main) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(input, select, textarea):disabled {
-  background-color: #191816 !important;
-  border-color: var(--admin-dark-line-soft) !important;
-  color: var(--text-disabled) !important;
-  opacity: 0.82;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell input::placeholder,
-html.smartpdm-force-dark .admin-industrial-shell textarea::placeholder {
-  color: #8f8378 !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  input,
-  select,
-  textarea,
-  [role="combobox"]
-):focus {
-  border-color: var(--industrial-copper) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--industrial-copper) 20%, transparent) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [aria-pressed="true"],
-  [aria-selected="true"],
-  [data-state="active"],
-  [data-state="checked"]
-) {
-  background-color: var(--admin-dark-copper-soft) !important;
-  border-color: color-mix(in srgb, var(--industrial-copper) 58%, var(--admin-dark-line) 42%) !important;
-  color: var(--text-main) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell button.bg-white,
-html.smartpdm-force-dark .admin-industrial-shell [data-slot="button"].bg-white {
-  background-color: var(--admin-dark-card-raised) !important;
-  border-color: var(--admin-dark-line) !important;
-  color: var(--text-main) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .hover\:bg-stone-50,
-  .hover\:bg-stone-100,
-  .hover\:bg-white
-):hover {
-  background-color: #312b26 !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  .bg-stone-800,
-  .bg-stone-900,
-  .bg-stone-950
-) {
-  background-color: #3b3028 !important;
-  color: #fff8f1 !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [class~="bg-[#F8F6F2]"],
-  [class~="bg-[#f8f6f2]"],
-  [class~="bg-[#F8FAFC]"],
-  [class~="bg-[#f8fafc]"],
-  [class~="bg-[#FAF7F2]"],
-  [class~="bg-[#faf7f2]"],
-  [class~="bg-[#F7F7F7]"],
-  [class~="bg-[#f7f7f7]"],
-  [class~="bg-[#FFFDF9]"],
-  [class~="bg-[#fffdf9]"],
-  [class~="bg-[#FFFDFA]"],
-  [class~="bg-[#fffdfa]"],
-  [class~="bg-[#F6F1E9]"],
-  [class~="bg-[#f6f1e9]"]
-) {
-  background-color: var(--admin-dark-card) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [style*="#F8F6F2" i],
-  [style*="#F8FAFC" i],
-  [style*="#FAF7F2" i],
-  [style*="rgb(248, 246, 242)" i],
-  [style*="rgb(248, 250, 252)" i],
-  [style*="rgb(250, 247, 242)" i]
-) {
-  background-color: var(--admin-dark-canvas) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [class~="bg-[#F0FDF4]"],
-  [class~="bg-[#f0fdf4]"],
-  [style*="#F0FDF4" i],
-  [style*="rgb(240, 253, 244)" i]
-) {
-  background-color: var(--status-success-bg) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [class~="bg-[#EFF6FF]"],
-  [class~="bg-[#eff6ff]"],
-  [style*="#EFF6FF" i],
-  [style*="rgb(239, 246, 255)" i]
-) {
-  background-color: var(--status-info-bg) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [class~="bg-[#FFF7ED]"],
-  [class~="bg-[#fff7ed]"],
-  [style*="#FFF7ED" i],
-  [style*="rgb(255, 247, 237)" i]
-) {
-  background-color: var(--status-warning-bg) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [class~="bg-[#FEF2F2]"],
-  [class~="bg-[#fef2f2]"],
-  [style*="#FEF2F2" i],
-  [style*="rgb(254, 242, 242)" i]
-) {
-  background-color: var(--status-danger-bg) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell :is(
-  [role="dialog"],
-  [role="menu"],
-  [role="listbox"]
-) {
-  color: var(--text-main);
-  border-color: var(--admin-dark-line) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .ocr-validation-hub {
-  background-color: var(--admin-dark-card) !important;
-  border-color: var(--admin-dark-line) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .message-thread-surface {
-  background-color: #171614 !important;
-}
-
-html.smartpdm-force-dark
-  .admin-industrial-shell
-  [data-maintenance-viewport-fit="true"]
-  [data-slot="card"] {
-  background-color: var(--admin-dark-card) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell .report-template-card {
-  background-color: var(--admin-dark-card) !important;
-  border-color: var(--admin-dark-line) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell a:focus-visible,
-html.smartpdm-force-dark .admin-industrial-shell button:focus-visible {
-  outline-color: var(--industrial-copper) !important;
-}
-
-html.smartpdm-force-dark .admin-industrial-shell ::selection {
-  background: color-mix(in srgb, var(--industrial-copper) 42%, transparent);
-  color: #fffaf5;
+.admin-responsive-content [role="tablist"] > * {
+  flex: 0 0 auto;
 }

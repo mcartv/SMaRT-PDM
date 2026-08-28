@@ -1413,128 +1413,128 @@ export default function PayoutManagement() {
         onConfirm={submitStatusUpdate}
       />
 
-            <PayoutProofReviewPanel />
+      <PayoutProofReviewPanel />
 
-            <section
-            className="rounded-2xl border bg-white p-3 sm:p-4"
-            style={{ borderColor: C.line }}
-            >
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="inline-flex w-full flex-wrap rounded-xl bg-stone-100 p-1 sm:w-auto">
+      <section
+        className="rounded-2xl border bg-white p-3 sm:p-4"
+        style={{ borderColor: C.line }}
+      >
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="inline-flex w-full flex-wrap rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
-            type="button"
-            onClick={() => setActiveSection('batches')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'batches'
-            ? 'bg-white text-stone-900 shadow-sm'
-            : 'text-stone-600'
-            }`}
+              type="button"
+              onClick={() => setActiveSection('batches')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'batches'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
             >
-            Active
+              Active
             </button>
 
             <button
-            type="button"
-            onClick={() => setActiveSection('status')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'status'
-            ? 'bg-white text-stone-900 shadow-sm'
-            : 'text-stone-600'
-            }`}
+              type="button"
+              onClick={() => setActiveSection('status')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'status'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
             >
-            Status Manager
-            {statusManagerBatches.length ? (
-            <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-            {statusManagerBatches.length}
-            </span>
-            ) : null}
+              Status Manager
+              {statusManagerBatches.length ? (
+                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {statusManagerBatches.length}
+                </span>
+              ) : null}
             </button>
 
             <button
-            type="button"
-            onClick={() => setActiveSection('completed')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'completed'
-            ? 'bg-white text-stone-900 shadow-sm'
-            : 'text-stone-600'
-            }`}
+              type="button"
+              onClick={() => setActiveSection('completed')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'completed'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
             >
-            Completed
+              Completed
             </button>
 
             <button
-            type="button"
-            onClick={() => setActiveSection('archived')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'archived'
-            ? 'bg-white text-stone-900 shadow-sm'
-            : 'text-stone-600'
-            }`}
+              type="button"
+              onClick={() => setActiveSection('archived')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'archived'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
             >
-            Archived
+              Archived
             </button>
-            </div>
+          </div>
 
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <div className="relative w-full lg:w-[320px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-            <Input
-            className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
-            placeholder="Search payout title, benefactor, program..."
-            value={search}
-            onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-            }}
-            />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <Input
+                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
+                placeholder="Search payout title, benefactor, program..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+              />
             </div>
 
             <Button
-            style={{ background: C.brownMid }}
-            className="h-10 rounded-xl text-white"
-            onClick={() => setShowCreateModal(true)}
+              style={{ background: C.brownMid }}
+              className="h-10 rounded-xl text-white"
+              onClick={() => setShowCreateModal(true)}
             >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Payout Batch
+              <Plus className="mr-2 h-4 w-4" />
+              Create Payout Batch
             </Button>
-            </div>
-            </div>
-            </section>
+          </div>
+        </div>
+      </section>
 
-            <section
-            className="overflow-hidden rounded-2xl border bg-white"
-            style={{ borderColor: C.line }}
-            >
-            <div className="border-b border-stone-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-stone-800">
+      <section
+        className="overflow-hidden rounded-2xl border bg-white"
+        style={{ borderColor: C.line }}
+      >
+        <div className="border-b border-stone-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-stone-800">
             {sectionMeta.title}
-            </h2>
-            <p className="mt-1 text-xs text-stone-500">
+          </h2>
+          <p className="mt-1 text-xs text-stone-500">
             {sectionMeta.subtitle}
-            </p>
-            </div>
+          </p>
+        </div>
 
-            <CardContent className="p-4">
-            {pageData.length === 0 ? (
+        <CardContent className="p-4">
+          {pageData.length === 0 ? (
             <div className="py-16 text-center text-sm text-stone-400">
-            {sectionMeta.empty}
+              {sectionMeta.empty}
             </div>
-            ) : (
+          ) : (
             <section className="grid gap-4 2xl:grid-cols-2">
-            {pageData.map(renderBatchCard)}
+              {pageData.map(renderBatchCard)}
             </section>
-            )}
-            </CardContent>
-            </section>
+          )}
+        </CardContent>
+      </section>
 
-            <PaginationFooter
-            total={filteredDisplayedBatches.length}
-            page={page}
-            totalPages={totalPages}
-            pageSize={PAGE_SIZE}
-            onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
-            onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-            />
+      <PaginationFooter
+        total={filteredDisplayedBatches.length}
+        page={page}
+        totalPages={totalPages}
+        pageSize={PAGE_SIZE}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+      />
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-semibold text-stone-900">
@@ -1829,7 +1829,7 @@ export default function PayoutManagement() {
 
       {selectedBatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-semibold text-stone-900">

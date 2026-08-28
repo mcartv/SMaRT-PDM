@@ -1828,7 +1828,7 @@ export default function AnnouncementsManagement() {
   }
 
   return (
-    <div className="space-y-3" style={{ background: C.bg }}>
+    <div className="space-y-4 py-2" style={{ background: C.bg }}>
       <ComposeAnnouncementModal
         open={showForm}
         onRequestClose={handleRequestCloseModal}
@@ -1872,15 +1872,11 @@ export default function AnnouncementsManagement() {
 
 
 
-      
-
-      <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-stone-100 px-4 py-3">
-          {/* SMART-PDM_ANNOUNCEMENT_CONTROLS_IN_TOOLBAR */}
-          <div className="inline-flex shrink-0 items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
           <button
             onClick={() => setTab('active')}
-            className={`h-9 rounded-lg px-3 text-xs font-medium transition lg:text-sm ${tab === 'active'
+            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'active'
               ? 'bg-white text-stone-900 shadow-sm'
               : 'text-stone-600 hover:text-stone-900'
               }`}
@@ -1890,7 +1886,7 @@ export default function AnnouncementsManagement() {
 
           <button
             onClick={() => setTab('archived')}
-            className={`h-9 rounded-lg px-3 text-xs font-medium transition lg:text-sm ${tab === 'archived'
+            className={`h-9 rounded-lg px-4 text-sm font-medium transition ${tab === 'archived'
               ? 'bg-white text-stone-900 shadow-sm'
               : 'text-stone-600 hover:text-stone-900'
               }`}
@@ -1899,7 +1895,22 @@ export default function AnnouncementsManagement() {
           </button>
         </div>
 
-          <div className="relative min-w-[180px] flex-1">
+        {tab === 'active' && (
+          <Button
+            onClick={handleOpenModal}
+            size="sm"
+            className="h-9 rounded-lg border-none px-3 text-sm font-medium text-white"
+            style={{ background: C.brownMid }}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            New
+          </Button>
+        )}
+      </div>
+
+      <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
+        <div className="flex flex-col gap-3 border-b border-stone-100 px-4 py-4 sm:flex-row sm:items-center">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-300" />
             <Input
               placeholder={`Search ${tab === 'archived' ? 'archived' : 'active'} announcements...`}
@@ -1940,18 +1951,6 @@ export default function AnnouncementsManagement() {
               Reset
             </Button>
           )}
-        
-          {tab === 'active' && (
-          <Button
-            onClick={handleOpenModal}
-            size="sm"
-            className="h-9 rounded-lg border-none px-3 text-sm font-medium text-white"
-            style={{ background: C.brownMid }}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New
-          </Button>
-        )}
         </div>
 
         <div className="space-y-2.5 p-4">

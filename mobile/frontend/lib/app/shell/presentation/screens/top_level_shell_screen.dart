@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
@@ -43,12 +44,15 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   late final List<Widget> _pages = <Widget>[
     const DashboardScreen(showBottomNav: false, showTopBar: false),
     const ScholarAccessGate(
+      redirectWhenDenied: false,
       child: PayoutScheduleScreen(showBottomNav: false, showTopBar: false),
     ),
     const ScholarAccessGate(
+      redirectWhenDenied: false,
       child: ROAssignmentScreen(showBottomNav: false, showTopBar: false),
     ),
     const ScholarAccessGate(
+      redirectWhenDenied: false,
       child: ScholarRenewalRequirementsScreen(
         showBottomNav: false,
         showTopBar: false,
@@ -93,6 +97,57 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     });
   }
 
+  bool _resolveScholarAccess(NotificationProvider provider) {
+    if (provider.scholarAccessRevision > 0) {
+      return provider.hasScholarAccess;
+    }
+
+    return provider.hasScholarAccess || _isVerifiedScholar;
+  }
+
+  String _routeForIndex(int index) {
+    switch (index) {
+      case 1:
+        return AppRoutes.payouts;
+      case 2:
+        return AppRoutes.roAssignment;
+      case 3:
+        return AppRoutes.renewalDocuments;
+      case 4:
+        return AppRoutes.menu;
+      case 0:
+      default:
+        return AppRoutes.home;
+    }
+  }
+
+  void _redirectLockedCurrentTabIfNeeded(bool hasScholarAccess) {
+    if (hasScholarAccess ||
+        !_scholarOnlyIndexes.contains(_currentIndex) ||
+        _isRevertingLockedSwipe) {
+      return;
+    }
+
+    _isRevertingLockedSwipe = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _isRevertingLockedSwipe = false;
+        return;
+      }
+
+      ScholarAccessService.dismissLockedMessage(context);
+
+      setState(() => _currentIndex = 0);
+
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+
+      _isRevertingLockedSwipe = false;
+    });
+  }
+
   @override
   void didUpdateWidget(covariant TopLevelShellScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -106,12 +161,14 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     if (!mounted) return;
 
     final notificationProvider = context.read<NotificationProvider>();
-    final hasScholarAccess =
-        notificationProvider.hasScholarAccess || _isVerifiedScholar;
+    final hasScholarAccess = _resolveScholarAccess(notificationProvider);
     final targetIndex = index.clamp(0, _pages.length - 1);
 
     if (_scholarOnlyIndexes.contains(targetIndex) && !hasScholarAccess) {
-      ScholarAccessService.showLockedMessage(context);
+      ScholarAccessService.showLockedMessage(
+        context,
+        route: _routeForIndex(targetIndex),
+      );
       return;
     }
 
@@ -120,9 +177,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       return;
     }
 
-    // Remove a previous scholar-only warning before opening an allowed tab
-    // such as Dashboard or Menu. This prevents the warning from remaining
-    // visible after the user has moved to a valid destination.
+    // Enabled destinations never need availability feedback.
     ScholarAccessService.dismissLockedMessage(context);
 
     setState(() => _currentIndex = targetIndex);
@@ -143,8 +198,9 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     if (_isRevertingLockedSwipe) return;
 
     if (_scholarOnlyIndexes.contains(index) && !hasScholarAccess) {
+      // Defensive fallback only. Disabled-module feedback is intentionally
+      // owned by explicit navigation taps, not automatic page changes.
       _isRevertingLockedSwipe = true;
-      ScholarAccessService.showLockedMessage(context);
 
       await _pageController.animateToPage(
         _currentIndex,
@@ -169,8 +225,8 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
-    final hasScholarAccess =
-        notificationProvider.hasScholarAccess || _isVerifiedScholar;
+    final hasScholarAccess = _resolveScholarAccess(notificationProvider);
+    _redirectLockedCurrentTabIfNeeded(hasScholarAccess);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -253,7 +309,9 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       ),
       body: PageView(
         controller: _pageController,
-        physics: const PageScrollPhysics(),
+        physics: hasScholarAccess
+            ? const PageScrollPhysics()
+            : const NeverScrollableScrollPhysics(),
         onPageChanged: (index) => _handlePageChanged(index, hasScholarAccess),
         children: _pages,
       ),

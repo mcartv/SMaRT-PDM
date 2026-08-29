@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 
@@ -165,6 +167,10 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final notificationProvider = context.watch<NotificationProvider>();
+    final hasScholarAccess = notificationProvider.scholarAccessRevision > 0
+        ? notificationProvider.hasScholarAccess
+        : notificationProvider.hasScholarAccess || _hasScholarAccess;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark
         ? AppColors.applicantDarkBackground
@@ -195,7 +201,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                 child: _ProfileSummaryCard(
                   displayName: _displayName,
                   studentId: _studentId,
-                  hasScholarAccess: _hasScholarAccess,
+                  hasScholarAccess: hasScholarAccess,
                   isRefreshing: _isRefreshing,
                   avatar: _buildAvatar(),
                 ),
@@ -284,7 +290,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     subtitle: 'Answers about applications and scholarships',
                     onTap: () => _openRoute(AppRoutes.faqs),
                   ),
-                  if (_hasScholarAccess) ...[
+                  if (hasScholarAccess) ...[
                     Divider(
                       height: 1,
                       indent: 72,
@@ -334,7 +340,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             ),
             const SizedBox(height: 14),
             Text(
-              _hasScholarAccess
+              hasScholarAccess
                   ? 'Scholar services are available from the navigation bar.'
                   : 'Scholar-only services remain locked until your application is accepted and activated.',
               textAlign: TextAlign.center,

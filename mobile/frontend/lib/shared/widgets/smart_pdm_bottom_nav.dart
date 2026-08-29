@@ -96,7 +96,10 @@ class SmartPdmBottomNav extends StatelessWidget {
     if (index == safeIndex) return;
 
     if (_scholarOnlyIndexes.contains(index) && !isVerifiedScholar) {
-      ScholarAccessService.showLockedMessage(context);
+      ScholarAccessService.showLockedMessage(
+        context,
+        route: _routes[index],
+      );
       return;
     }
 
@@ -150,8 +153,11 @@ class _NavDestination extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      enabled: !locked,
-      label: locked ? '$label, scholar access required' : label,
+      enabled: true,
+      label: locked ? '$label, unavailable' : label,
+      hint: locked
+          ? 'Tap to learn why this module is unavailable'
+          : null,
       child: InkWell(
         onTap: onPressed,
         splashColor: AppColors.gold.withValues(alpha: 0.10),

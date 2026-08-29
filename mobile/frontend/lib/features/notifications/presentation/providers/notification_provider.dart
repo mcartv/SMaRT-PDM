@@ -367,9 +367,6 @@ class NotificationProvider extends ChangeNotifier {
         return;
 
       case MobileRealtimeEvents.applicationCreated:
-      case MobileRealtimeEvents.applicationUpdated:
-      case MobileRealtimeEvents.applicationRejected:
-      case MobileRealtimeEvents.applicationDisqualified:
       case MobileRealtimeEvents.applicationDocumentUploaded:
       case MobileRealtimeEvents.applicationDocumentReviewed:
       case MobileRealtimeEvents.applicationOcrQueued:
@@ -379,6 +376,9 @@ class NotificationProvider extends ChangeNotifier {
         notifyListeners();
         return;
 
+      case MobileRealtimeEvents.applicationUpdated:
+      case MobileRealtimeEvents.applicationRejected:
+      case MobileRealtimeEvents.applicationDisqualified:
       case MobileRealtimeEvents.applicationApproved:
         _applicationRevision += 1;
         await _refreshScholarAccessFromProfile();

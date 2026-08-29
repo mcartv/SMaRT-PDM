@@ -142,8 +142,9 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
-    final hasScholarAccess =
-        notificationProvider.hasScholarAccess || _isScholar;
+    final hasScholarAccess = notificationProvider.scholarAccessRevision > 0
+        ? notificationProvider.hasScholarAccess
+        : notificationProvider.hasScholarAccess || _isScholar;
     final content = widget.applyPadding
         ? Padding(padding: const EdgeInsets.all(16.0), child: widget.child)
         : widget.child;

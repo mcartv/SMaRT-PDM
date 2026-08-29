@@ -154,6 +154,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   int _lastRenewalRevision = 0;
   int _lastRoRevision = 0;
   int _lastScholarRevision = 0;
+  int _lastScholarAccessRevision = 0;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
@@ -168,8 +169,14 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       _isDark ? Colors.white70 : AppColors.brown.withValues(alpha: 0.72);
 
   bool get _hasScholarAccess {
-    final liveAccess = _notificationProvider?.hasScholarAccess ?? false;
-    return liveAccess || _cachedScholarAccess;
+    final provider = _notificationProvider;
+    if (provider == null) return _cachedScholarAccess;
+
+    if (provider.scholarAccessRevision > 0) {
+      return provider.hasScholarAccess;
+    }
+
+    return provider.hasScholarAccess || _cachedScholarAccess;
   }
 
   @override
@@ -273,12 +280,15 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     _lastRenewalRevision = provider.renewalRevision;
     _lastRoRevision = provider.roRevision;
     _lastScholarRevision = provider.scholarRevision;
+    _lastScholarAccessRevision = provider.scholarAccessRevision;
   }
 
   void _handleProviderChange() {
     final provider = _notificationProvider;
     if (provider == null || _isRefreshing) return;
 
+    final accessChanged =
+        provider.scholarAccessRevision != _lastScholarAccessRevision;
     final statusChanged =
         provider.applicationRevision != _lastApplicationRevision ||
         provider.scholarRevision != _lastScholarRevision;
@@ -289,6 +299,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
         provider.announcementRevision != _lastAnnouncementRevision;
 
     final anythingChanged =
+        accessChanged ||
         statusChanged ||
         requirementsChanged ||
         openingsChanged ||

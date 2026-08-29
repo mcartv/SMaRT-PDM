@@ -271,14 +271,28 @@ class _SplashScreenState extends State<SplashScreen> {
                             TextField(
                               controller: _studentIdController,
                               keyboardType: TextInputType.number,
+                              style: const TextStyle(
+                                color: AppColors.darkBrown,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              cursorColor: AppColors.brown,
                               inputFormatters: const [
                                 StudentIdInputFormatter(),
                               ],
                               decoration: InputDecoration(
                                 prefixText: 'PDM-',
+                                prefixStyle: const TextStyle(
+                                  color: AppColors.darkBrown,
+                                  fontWeight: FontWeight.w700,
+                                ),
                                 hintText: '0000-000000',
+                                hintStyle: const TextStyle(
+                                  color: Color(0xFFB8AFA6),
+                                  fontWeight: FontWeight.w500,
+                                ),
                                 errorText: _error,
                                 prefixIcon: const Icon(Icons.badge_rounded),
+                                prefixIconColor: AppColors.brown,
                                 filled: true,
                                 fillColor: const Color(0xFFFAF8F4),
                                 border: OutlineInputBorder(

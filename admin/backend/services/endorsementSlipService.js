@@ -201,6 +201,43 @@ function ensureTrackerAccess(actor = {}) {
     }
 }
 
+// SMART-PDM_ENDORSEMENT_VERIFIED_GATE_V1
+function appendVerifiedApplicationGate(conditions = []) {
+    conditions.push(
+        `lower(trim(coalesce(a.verification_status, ''))) = 'verified'`
+    );
+    conditions.push('a.requirements_verified_at is not null');
+    conditions.push('coalesce(a.is_archived, false) = false');
+    conditions.push('coalesce(a.is_disqualified, false) = false');
+    conditions.push(
+        `lower(trim(coalesce(a.application_status, ''))) <> 'rejected'`
+    );
+}
+
+function assertVerifiedApplicationForEndorsement(row = {}) {
+    const verificationStatus = safeText(
+        row.application_verification_status || row.verification_status
+    ).toLowerCase();
+
+    const applicationStatus = safeText(
+        row.linked_application_status || row.application_status
+    ).toLowerCase();
+
+    const eligible =
+        verificationStatus === 'verified' &&
+        Boolean(row.requirements_verified_at) &&
+        row.application_is_archived !== true &&
+        row.application_is_disqualified !== true &&
+        applicationStatus !== 'rejected';
+
+    if (!eligible) {
+        throw createHttpError(
+            409,
+            'Endorsement is not available until Admin verifies all required application documents.'
+        );
+    }
+}
+
 function getTrackerSummary(status) {
     switch (status) {
         case 'pending_sdo':
@@ -477,6 +514,10 @@ async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) 
         : [];
     const conditions = [];
 
+    // Keep stale/premature endorsement rows in the database for history, but
+    // do not expose them to SDO/Guidance/PD until Admin finishes verification.
+    appendVerifiedApplicationGate(conditions);
+
     if (normalizedStages.length > 0) {
         params.push(normalizedStages);
         conditions.push(`es.current_stage = any($${params.length}::text[])`);
@@ -661,6 +702,11 @@ async function fetchSlipDetail(slipId, actor = null) {
         left join users sdo_user on sdo_user.user_id = es.sdo_acted_by_user_id
         left join admin_profiles sdo_profile on sdo_profile.user_id = es.sdo_acted_by_user_id
         where es.slip_id = $1
+          and lower(trim(coalesce(a.verification_status, ''))) = 'verified'
+          and a.requirements_verified_at is not null
+          and coalesce(a.is_archived, false) = false
+          and coalesce(a.is_disqualified, false) = false
+          and lower(trim(coalesce(a.application_status, ''))) <> 'rejected'
         limit 1
         `,
         [slipId]
@@ -1461,9 +1507,19 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
 
         const currentResult = await client.query(
             `
-            select es.*, st.course_id, st.gwa, trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name
+            select
+                es.*,
+                st.course_id,
+                st.gwa,
+                trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
+                a.verification_status as application_verification_status,
+                a.requirements_verified_at,
+                a.application_status as linked_application_status,
+                a.is_archived as application_is_archived,
+                a.is_disqualified as application_is_disqualified
             from endorsement_slips es
             join students st on st.student_id = es.student_id
+            join applications a on a.application_id = es.application_id
             where es.slip_id = $1
             for update
             `,
@@ -1475,6 +1531,10 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
         }
 
         const currentSlip = currentResult.rows[0];
+
+        // A stale/direct URL cannot bypass the same eligibility rule used by
+        // the visible SDO/Guidance/PD queues.
+        assertVerifiedApplicationForEndorsement(currentSlip);
         if (queueKey === 'pd') {
             await pdCourseAssignmentService.assertCourseAccess({
                 userId: actorUserId,

@@ -244,6 +244,17 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
     [tokenStorageKey]
   );
 
+  // Admin document verification changes endorsement eligibility even when the
+  // endorsement row itself was created earlier. Refresh the office queue as
+  // soon as the application verification state changes.
+  useSocketEvent(
+    'application:updated',
+    () => {
+      loadRows({ soft: true });
+    },
+    [tokenStorageKey]
+  );
+
   const cards = useMemo(() => config.cards(rows), [config, rows]);
 
   const pendingCount = useMemo(

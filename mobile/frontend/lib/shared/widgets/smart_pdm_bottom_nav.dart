@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
+import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -95,6 +97,8 @@ class SmartPdmBottomNav extends StatelessWidget {
   void _handleTap(BuildContext context, int index, int safeIndex) {
     if (index == safeIndex) return;
 
+    AppHaptics.selection(context);
+
     if (_scholarOnlyIndexes.contains(index) && !isVerifiedScholar) {
       ScholarAccessService.showLockedMessage(
         context,
@@ -181,7 +185,12 @@ class _NavDestination extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(icon, size: 27, color: foreground),
+                  AnimatedScale(
+                    duration: AppMotion.fast,
+                    curve: AppMotion.enterCurve,
+                    scale: selected ? 1.08 : 1,
+                    child: Icon(icon, size: 27, color: foreground),
+                  ),
                   if (locked)
                     Positioned(
                       right: -7,

@@ -2,11 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
@@ -168,6 +172,8 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
+    final interactionSettings =
+        context.watch<InteractionSettingsProvider>();
     final hasScholarAccess = notificationProvider.scholarAccessRevision > 0
         ? notificationProvider.hasScholarAccess
         : notificationProvider.hasScholarAccess || _hasScholarAccess;
@@ -192,9 +198,10 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(14, 16, 14, 118),
           children: [
-            Semantics(
-              button: true,
-              label: 'Open Profile and Account',
+            AppMotionReveal(
+              child: Semantics(
+                button: true,
+                label: 'Open Profile and Account',
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => _openRoute(AppRoutes.profile),
@@ -206,6 +213,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   avatar: _buildAvatar(),
                 ),
               ),
+            ),
             ),
             const SizedBox(height: 22),
             Text(
@@ -256,9 +264,30 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   ),
                   _MenuListTile(
                     icon: Icons.palette_rounded,
-                    title: 'Theme',
-                    subtitle: 'Light and dark appearance',
-                    onTap: () => showAppSettingsSheet(context),
+                    title: 'Appearance',
+                    subtitle: 'System, light, or dark',
+                    onTap: () => showAppearanceSheet(context),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 72,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : AppColors.brown.withValues(alpha: 0.08),
+                  ),
+                  _MenuSwitchTile(
+                    icon: Icons.vibration_rounded,
+                    title: 'Haptic Feedback',
+                    subtitle: 'Subtle vibration for navigation and menu taps',
+                    value: interactionSettings.hapticsEnabled,
+                    onChanged: (value) {
+                      if (value) {
+                        HapticFeedback.selectionClick();
+                      } else {
+                        AppHaptics.selection(context);
+                      }
+                      interactionSettings.setHapticsEnabled(value);
+                    },
                   ),
                 ],
               ),
@@ -289,6 +318,20 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     title: 'Frequently Asked Questions',
                     subtitle: 'Answers about applications and scholarships',
                     onTap: () => _openRoute(AppRoutes.faqs),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 72,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : AppColors.brown.withValues(alpha: 0.08),
+                  ),
+                  _MenuListTile(
+                    icon: Icons.explore_outlined,
+                    title: 'Getting Started Guide',
+                    subtitle: 'Review the SMaRT-PDM application walkthrough',
+                    onTap: () =>
+                        showSmartPdmGettingStartedGuide(context),
                   ),
                   if (hasScholarAccess) ...[
                     Divider(
@@ -609,6 +652,75 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
   }
 }
 
+class _MenuSwitchTile extends StatelessWidget {
+  const _MenuSwitchTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 5,
+      ),
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(
+            alpha: isDark ? 0.18 : 0.14,
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(
+          icon,
+          color: AppColors.gold,
+          size: 23,
+        ),
+      ),
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: isDark
+              ? AppColors.applicantDarkText
+              : AppColors.darkBrown,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: isDark
+                ? AppColors.applicantDarkTextMuted
+                : AppColors.brown.withValues(alpha: 0.63),
+          ),
+        ),
+      ),
+      trailing: Switch.adaptive(
+        value: value,
+        activeColor: AppColors.gold,
+        onChanged: onChanged,
+      ),
+      onTap: () => onChanged(!value),
+    );
+  }
+}
+
 class _MenuListTile extends StatelessWidget {
   const _MenuListTile({
     required this.icon,
@@ -627,7 +739,10 @@ class _MenuListTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ListTile(
-      onTap: onTap,
+      onTap: () {
+        AppHaptics.selection(context);
+        onTap();
+      },
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       leading: Container(
         width: 44,

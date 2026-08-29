@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/app.dart';
+import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/app/theme/theme_provider.dart';
 import 'package:smartpdm_mobileapp/core/networking/connectivity_controller.dart';
@@ -20,6 +21,8 @@ Future<void> bootstrapApp() async {
   unawaited(connectivityController.start());
 
   final themeProvider = await ThemeProvider.loadFromPreferences();
+  final interactionSettings =
+      await InteractionSettingsProvider.loadFromPreferences();
 
   runApp(
     MultiProvider(
@@ -28,6 +31,7 @@ Future<void> bootstrapApp() async {
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider.value(value: interactionSettings),
       ],
       child: OfflineGate(
         controller: connectivityController,

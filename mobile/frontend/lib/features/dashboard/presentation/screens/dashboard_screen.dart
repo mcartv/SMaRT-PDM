@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
@@ -20,6 +21,23 @@ import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dar
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+Future<void> showSmartPdmGettingStartedGuide(
+  BuildContext context, {
+  bool barrierDismissible = true,
+}) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (dialogContext) => _FirstTimeGuideDialog(
+      onFinish: () async {
+        if (dialogContext.mounted) {
+          Navigator.of(dialogContext).pop();
+        }
+      },
+    ),
+  );
+}
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
@@ -237,27 +255,13 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     }
     if (!mounted) return;
 
-    await showDialog<void>(
-      context: context,
+    await showSmartPdmGettingStartedGuide(
+      context,
       barrierDismissible: false,
-      builder: (dialogContext) => _FirstTimeGuideDialog(
-        onFinish: () async {
-          if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-        },
-      ),
     );
   }
 
-  Future<void> _openGuide() async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _FirstTimeGuideDialog(
-        onFinish: () async {
-          if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-        },
-      ),
-    );
-  }
+  // Manual guide access now lives in Menu > Information.
 
   @override
   void didChangeDependencies() {
@@ -1196,6 +1200,288 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
+  // SMART-PDM_MOBILE_BENTO_DASHBOARD_V1
+  Widget _buildBentoDashboard(
+    NotificationProvider provider,
+    List<AppNotification> announcements,
+  ) {
+    final summary = _statusSummary;
+    final workflow = summary?.workflow;
+    final hasApplication = summary?.hasApplication == true;
+    final package = _requirementsPackage;
+
+    final totalDocuments = package?.documents.length ?? 0;
+    final uploadedDocuments =
+        package?.documents.where((item) => item.isSubmitted).length ?? 0;
+    final remainingDocuments =
+        (totalDocuments - uploadedDocuments).clamp(0, totalDocuments);
+
+    final latestAnnouncement =
+        announcements.isNotEmpty ? announcements.first : null;
+
+    final renewal = _latestMatching(
+      provider,
+      (item) =>
+          item.type.toLowerCase().contains('renewal') ||
+          item.title.toLowerCase().contains('renewal'),
+    );
+    final obligation = _latestMatching(
+      provider,
+      (item) => item.isRoNotification,
+    );
+    final payout = _latestMatching(
+      provider,
+      (item) => item.isPayoutNotification,
+    );
+
+    final applicationValue = !hasApplication
+        ? 'No active application'
+        : _safeText(
+            workflow?.stageLabel,
+            fallback: _safeText(
+              summary?.applicationStatus,
+              fallback: 'Pending Review',
+            ),
+          );
+
+    final applicationDetail = !hasApplication
+        ? 'Browse available scholarships to begin.'
+        : _safeText(
+            summary?.programName,
+            fallback: _safeText(
+              summary?.openingTitle,
+              fallback: 'Scholarship Application',
+            ),
+          );
+
+    final requirementsValue = _isLoadingRequirements
+        ? 'Loading...'
+        : package == null
+            ? 'Not started'
+            : package.allRequiredUploaded
+                ? 'Complete'
+                : '$uploadedDocuments of $totalDocuments';
+
+    final requirementsDetail = package == null
+        ? 'Requirements appear after you start an application.'
+        : package.allRequiredUploaded
+            ? 'All required documents are uploaded.'
+            : '$remainingDocuments document${remainingDocuments == 1 ? '' : 's'} remaining.';
+
+    final nextStep = workflow?.primaryBlocker?.message.trim();
+    final nextStepValue = !hasApplication
+        ? 'Choose a scholarship'
+        : nextStep?.isNotEmpty == true
+            ? 'Action needed'
+            : 'Monitor your status';
+
+    final nextStepDetail = !hasApplication
+        ? 'Open the scholarship list when you are ready.'
+        : nextStep?.isNotEmpty == true
+            ? nextStep!
+            : 'Watch for OSFA review and endorsement updates.';
+
+    final scholarProgram = _safeText(
+      summary?.programName,
+      fallback: _safeText(
+        summary?.openingTitle,
+        fallback: 'Active Scholarship',
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale =
+            MediaQuery.textScalerOf(context).scale(16) / 16;
+        final useTwoColumns =
+            constraints.maxWidth >= 345 && textScale <= 1.12;
+        const gap = 12.0;
+        final halfWidth = useTwoColumns
+            ? (constraints.maxWidth - gap) / 2
+            : constraints.maxWidth;
+
+        Widget tile({
+          required double width,
+          required int order,
+          required IconData icon,
+          required String label,
+          required String value,
+          required String detail,
+          VoidCallback? onTap,
+          String? badge,
+          bool wide = false,
+        }) {
+          return SizedBox(
+            width: width,
+            child: AppMotionReveal(
+              delay: Duration(milliseconds: 45 * order),
+              child: _DashboardBentoTile(
+                icon: icon,
+                label: label,
+                value: value,
+                detail: detail,
+                badge: badge,
+                isDark: _isDark,
+                onTap: onTap,
+                wide: wide,
+              ),
+            ),
+          );
+        }
+
+        final cards = <Widget>[];
+
+        if (_hasScholarAccess) {
+          cards.addAll([
+            tile(
+              width: halfWidth,
+              order: 0,
+              icon: Icons.workspace_premium_rounded,
+              label: 'Scholarship',
+              value: scholarProgram,
+              detail: 'Your scholar account is active.',
+              badge: 'ACTIVE',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.profile),
+            ),
+            tile(
+              width: halfWidth,
+              order: 1,
+              icon: Icons.description_rounded,
+              label: 'Renewal',
+              value: renewal == null ? 'No new update' : 'Latest update',
+              detail: _safeText(
+                renewal?.previewText,
+                fallback: 'No renewal requirement has been posted.',
+              ),
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.renewalDocuments),
+            ),
+            tile(
+              width: halfWidth,
+              order: 2,
+              icon: Icons.work_history_rounded,
+              label: 'Obligation',
+              value: obligation == null ? 'No new update' : 'Latest update',
+              detail: _safeText(
+                obligation?.previewText,
+                fallback: 'No obligation update has been posted.',
+              ),
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.roAssignment),
+            ),
+            tile(
+              width: halfWidth,
+              order: 3,
+              icon: Icons.payments_rounded,
+              label: 'Payout',
+              value: payout == null ? 'No new update' : 'Latest update',
+              detail: _safeText(
+                payout?.previewText,
+                fallback: 'No payout update has been posted.',
+              ),
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.payouts),
+            ),
+          ]);
+        } else {
+          cards.addAll([
+            tile(
+              width: halfWidth,
+              order: 0,
+              icon: Icons.assignment_turned_in_rounded,
+              label: 'Application',
+              value: applicationValue,
+              detail: applicationDetail,
+              onTap: () => Navigator.pushNamed(
+                context,
+                hasApplication
+                    ? AppRoutes.documents
+                    : AppRoutes.scholarshipOpenings,
+              ),
+            ),
+            tile(
+              width: halfWidth,
+              order: 1,
+              icon: Icons.fact_check_rounded,
+              label: 'Requirements',
+              value: requirementsValue,
+              detail: requirementsDetail,
+              badge: package?.allRequiredUploaded == true
+                  ? 'COMPLETE'
+                  : null,
+              onTap: () => Navigator.pushNamed(
+                context,
+                hasApplication
+                    ? AppRoutes.documents
+                    : AppRoutes.scholarshipOpenings,
+              ),
+            ),
+            tile(
+              width: halfWidth,
+              order: 2,
+              icon: Icons.school_rounded,
+              label: 'Scholarships',
+              value: _latestOpenings.isEmpty
+                  ? 'Browse programs'
+                  : _cleanOpeningTitle(_latestOpenings.first),
+              detail: _latestOpenings.isEmpty
+                  ? 'New openings will appear when published.'
+                  : 'View current scholarship openings.',
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.scholarshipOpenings,
+              ),
+            ),
+            tile(
+              width: halfWidth,
+              order: 3,
+              icon: Icons.route_rounded,
+              label: 'Next Step',
+              value: nextStepValue,
+              detail: nextStepDetail,
+              onTap: () => Navigator.pushNamed(
+                context,
+                hasApplication
+                    ? AppRoutes.documents
+                    : AppRoutes.scholarshipOpenings,
+              ),
+            ),
+          ]);
+        }
+
+        cards.add(
+          tile(
+            width: constraints.maxWidth,
+            order: 4,
+            icon: Icons.campaign_rounded,
+            label: 'Latest Announcement',
+            value: latestAnnouncement?.title ?? 'No announcement yet',
+            detail: latestAnnouncement == null
+                ? 'New OSFA announcements will appear here.'
+                : _safeText(
+                    latestAnnouncement.previewText,
+                    fallback: 'Tap to read the latest OSFA announcement.',
+                  ),
+            wide: true,
+            onTap: latestAnnouncement == null
+                ? () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.announcements,
+                    )
+                : () => _openOfficeUpdate(latestAnnouncement),
+          ),
+        );
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cards,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
@@ -1233,62 +1519,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // The existing Welcome card remains intentionally unchanged.
                 _buildHero(),
-                const SizedBox(height: 12),
-                if (!_hasScholarAccess) ...[
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _openGuide,
-                      icon: const Icon(Icons.help_outline_rounded, size: 18),
-                      label: const Text('How to use SMaRT-PDM'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                const _SectionHeader(
-                  title: 'Current Status',
-                  subtitle: 'Your latest scholarship or application standing',
-                ),
-                const SizedBox(height: 12),
-                _buildCurrentStatus(),
-                const SizedBox(height: 24),
-                _SectionHeader(
-                  title: 'Latest Announcements',
-                  subtitle: 'Important notices published by OSFA',
-                  actionLabel: 'View all',
-                  onAction: () =>
-                      Navigator.pushNamed(context, AppRoutes.announcements),
-                ),
-                const SizedBox(height: 12),
-                _buildAnnouncements(announcements),
-                const SizedBox(height: 24),
-                _SectionHeader(
-                  title: _hasScholarAccess
-                      ? 'Scholar Responsibilities'
-                      : 'Upcoming Requirements',
-                  subtitle: _hasScholarAccess
-                      ? 'Renewal, obligation, and payout items to monitor'
-                      : 'Documents and tasks that may still need attention',
-                ),
-                const SizedBox(height: 12),
-                _hasScholarAccess
-                    ? _buildScholarResponsibilities(provider)
-                    : _buildApplicantRequirements(),
-                if (!_hasScholarAccess) ...[
-                  const SizedBox(height: 24),
-                  _SectionHeader(
-                    title: 'Available Scholarships',
-                    subtitle: 'Programs currently accepting applications',
-                    actionLabel: 'View all',
-                    onAction: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.scholarshipOpenings,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildAvailableScholarships(),
-                ],
+                const SizedBox(height: 14),
+                _buildBentoDashboard(provider, announcements),
               ],
             ),
           ),
@@ -1301,6 +1535,166 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   void dispose() {
     _notificationProvider?.removeListener(_handleProviderChange);
     super.dispose();
+  }
+}
+
+class _DashboardBentoTile extends StatelessWidget {
+  const _DashboardBentoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.isDark,
+    this.badge,
+    this.onTap,
+    this.wide = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String detail;
+  final bool isDark;
+  final String? badge;
+  final VoidCallback? onTap;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = isDark
+        ? AppColors.applicantDarkSurface
+        : Colors.white;
+    final outline = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : AppColors.brown.withValues(alpha: 0.09);
+    final titleColor = isDark
+        ? AppColors.applicantDarkText
+        : AppColors.darkBrown;
+    final mutedColor = isDark
+        ? AppColors.applicantDarkTextMuted
+        : AppColors.brown.withValues(alpha: 0.66);
+
+    final content = Container(
+      constraints: BoxConstraints(
+        minHeight: wide ? 126 : 166,
+      ),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: outline),
+        boxShadow: isDark
+            ? const []
+            : const [
+                BoxShadow(
+                  color: Color(0x0B000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 7),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(
+                    alpha: isDark ? 0.18 : 0.14,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: AppColors.gold,
+                  size: 21,
+                ),
+              ),
+              const Spacer(),
+              if (badge?.trim().isNotEmpty == true)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(
+                      alpha: isDark ? 0.18 : 0.14,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(
+                          color: isDark
+                              ? AppColors.gold
+                              : AppColors.darkBrown,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.4,
+                        ),
+                  ),
+                )
+              else if (onTap != null)
+                Icon(
+                  Icons.arrow_outward_rounded,
+                  size: 18,
+                  color: mutedColor,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mutedColor,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.65,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: wide ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: titleColor,
+              fontWeight: FontWeight.w900,
+              height: 1.12,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            detail,
+            maxLines: wide ? 2 : 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: mutedColor,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return content;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: content,
+      ),
+    );
   }
 }
 

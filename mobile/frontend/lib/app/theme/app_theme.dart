@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_typography.dart';
 
@@ -43,6 +44,7 @@ class AppTheme {
         backgroundColor: Colors.white,
         selectedItemColor: accentColor,
       ),
+      pageTransitionsTheme: AppMotion.pageTransitionsTheme,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       textTheme: AppTypography.textTheme(textColor: textColor),
     );
@@ -81,6 +83,7 @@ class AppTheme {
         unselectedItemColor: Colors.white70,
       ),
       dividerColor: Colors.white12,
+      pageTransitionsTheme: AppMotion.pageTransitionsTheme,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       textTheme: AppTypography.textTheme(textColor: darkTextColor),
       primaryTextTheme: AppTypography.textTheme(textColor: darkTextColor),

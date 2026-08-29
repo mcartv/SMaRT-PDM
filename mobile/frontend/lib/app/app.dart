@@ -31,6 +31,8 @@ class SmartPdmApp extends StatelessWidget {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: themeProvider.themeMode,
+          themeAnimationDuration: const Duration(milliseconds: 240),
+          themeAnimationCurve: Curves.easeOutCubic,
           initialRoute: AppRoutes.splash,
           onGenerateRoute: AppRouter.onGenerateRoute,
           builder: (context, child) {

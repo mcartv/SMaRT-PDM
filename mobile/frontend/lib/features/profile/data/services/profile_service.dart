@@ -43,6 +43,7 @@ class ProfileService {
     String? filePath,
     Uint8List? bytes,
     String? fileName,
+    String? contentType,
   }) async {
     final response = bytes != null
         ? await _apiClient.uploadBytes(
@@ -50,6 +51,7 @@ class ProfileService {
             fieldName: 'image',
             bytes: bytes,
             fileName: fileName ?? 'avatar.jpg',
+            contentType: contentType,
           )
         : await _apiClient.uploadFile(
             '/api/auth/upload-avatar',

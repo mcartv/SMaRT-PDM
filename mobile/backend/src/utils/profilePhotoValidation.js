@@ -130,18 +130,42 @@ function validateProfilePhoto(file) {
     throw createValidationError(413, 'Profile photo must be 5 MB or smaller.');
   }
 
-  const declaredMimeType = String(file.mimetype || '').trim().toLowerCase();
-  if (!ALLOWED_PROFILE_PHOTO_MIME_TYPES.has(declaredMimeType)) {
-    throw createValidationError(415, 'Use a JPG, PNG, or WebP profile photo.');
-  }
-
+  // SMART-PDM_PROFILE_PHOTO_CONTENT_SNIFF_V1
+  // Flutter Web byte uploads may arrive through multipart as
+  // application/octet-stream even when the bytes are a real PNG/JPG/WebP.
+  // Inspect the bytes first; only reject a declared type when it is specific
+  // and conflicts with the detected image contents.
   const metadata = inspectImage(file.buffer);
   if (!metadata) {
-    throw createValidationError(415, 'The selected file is not a valid JPG, PNG, or WebP image.');
+    throw createValidationError(
+      415,
+      'The selected file is not a valid JPG, PNG, or WebP image.'
+    );
   }
 
-  if (metadata.mimeType !== declaredMimeType) {
-    throw createValidationError(415, 'The selected file type does not match its image contents.');
+  const declaredMimeType = String(file.mimetype || '').trim().toLowerCase();
+  const hasGenericMimeType =
+    !declaredMimeType ||
+    declaredMimeType === 'application/octet-stream';
+
+  if (
+    !hasGenericMimeType &&
+    !ALLOWED_PROFILE_PHOTO_MIME_TYPES.has(declaredMimeType)
+  ) {
+    throw createValidationError(
+      415,
+      'Use a JPG, PNG, or WebP profile photo.'
+    );
+  }
+
+  if (
+    !hasGenericMimeType &&
+    metadata.mimeType !== declaredMimeType
+  ) {
+    throw createValidationError(
+      415,
+      'The selected file type does not match its image contents.'
+    );
   }
 
   const { width, height } = metadata;

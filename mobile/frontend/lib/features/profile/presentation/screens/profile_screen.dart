@@ -12,6 +12,7 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
+import 'package:smartpdm_mobileapp/features/profile/presentation/widgets/profile_photo_crop_dialog.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -215,10 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return 'Profile photo must not exceed 4096 × 4096 pixels.';
       }
 
-      final aspectRatio = width / height;
-      if (aspectRatio < 0.5 || aspectRatio > 1.35) {
-        return 'Use a clear portrait or square photo. Wide landscape and extremely narrow images are not accepted.';
-      }
+      // Aspect ratio is finalized in the crop dialog.
     } catch (_) {
       return 'The selected file could not be read as a valid image.';
     }
@@ -229,8 +227,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickAvatar() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      imageQuality: 88,
-      maxWidth: 1600,
+      imageQuality: 92,
+      maxWidth: 2000,
       maxHeight: 2000,
     );
 
@@ -238,6 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final validationMessage = await _validateAvatarSelection(picked);
     if (!mounted) return;
+
     if (validationMessage != null) {
       ScaffoldMessenger.of(
         context,
@@ -245,21 +244,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    final sourceBytes = await picked.readAsBytes();
+    if (!mounted) return;
+
+    final croppedBytes = await showProfilePhotoCropDialog(
+      context,
+      imageBytes: sourceBytes,
+    );
+
+    if (croppedBytes == null || !mounted) return;
+
     setState(() => _isUploading = true);
 
     try {
-      if (kIsWeb) {
-        final bytes = await picked.readAsBytes();
-        await _profileService.uploadAvatar(bytes: bytes, fileName: picked.name);
-      } else {
-        await _profileService.uploadAvatar(filePath: picked.path);
-      }
+      // Crop finalization always produces a square 768x768 JPEG. Sending an
+      // explicit MIME type prevents Flutter Web from declaring it as
+      // application/octet-stream.
+      await _profileService.uploadAvatar(
+        bytes: croppedBytes,
+        fileName: 'avatar.jpg',
+        contentType: 'image/jpeg',
+      );
 
       await _loadProfile(refreshRemote: true);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo submitted for review.')),
+        const SnackBar(
+          content: Text('Profile photo submitted for review.'),
+        ),
       );
     } on ApiException catch (error) {
       if (!mounted) return;
@@ -279,9 +292,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to upload photo: $error')));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to upload photo: $error')),
+      );
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);

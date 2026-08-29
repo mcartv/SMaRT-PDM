@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
@@ -314,6 +315,7 @@ class ApiClient {
     required String fieldName,
     required Uint8List bytes,
     required String fileName,
+    String? contentType,
     Map<String, String> fields = const {},
     Duration timeout = const Duration(seconds: 30),
   }) async {
@@ -322,7 +324,13 @@ class ApiClient {
       request.fields.addAll(fields);
       request.headers.addAll(await _buildHeaders());
       request.files.add(
-        http.MultipartFile.fromBytes(fieldName, bytes, filename: fileName),
+        http.MultipartFile.fromBytes(
+          fieldName,
+          bytes,
+          filename: fileName,
+          contentType:
+              contentType == null ? null : MediaType.parse(contentType),
+        ),
       );
 
       final streamedResponse = await request.send().timeout(timeout);

@@ -21,6 +21,14 @@ class GuiSourceContractTests(unittest.TestCase):
     def test_gui_refresh_latency_is_subsecond(self):
         self.assertLessEqual(main_window.POLL_INTERVAL_MS, 500)
 
+    def test_kiosk_window_is_enforced_after_initial_mapping(self):
+        source = inspect.getsource(main_window.ScannerStatusWindow._configure_root)
+        kiosk_source = inspect.getsource(main_window.ScannerStatusWindow._enforce_kiosk_window)
+        self.assertIn("after_idle", source)
+        self.assertIn("overrideredirect(True)", kiosk_source)
+        self.assertIn("winfo_screenwidth", kiosk_source)
+        self.assertIn("winfo_screenheight", kiosk_source)
+
 
 if __name__ == "__main__":
     unittest.main()

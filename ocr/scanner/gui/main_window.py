@@ -69,8 +69,18 @@ class ScannerStatusWindow:
         self.root.minsize(800, 480)
         self.root.config(cursor="none")
         self.root.protocol("WM_DELETE_WINDOW", self._ignore_close)
+        self.root.after_idle(self._enforce_kiosk_window)
         if os.getenv("SMART_PDM_GUI_ALLOW_ESCAPE", "0") == "1":
             self.root.bind("<Escape>", lambda _event: self.close())
+
+    def _enforce_kiosk_window(self) -> None:
+        """Apply fullscreen again after mapping for Pi XWayland compositors."""
+        width = self.root.winfo_screenwidth()
+        height = self.root.winfo_screenheight()
+        self.root.overrideredirect(True)
+        self.root.geometry(f"{width}x{height}+0+0")
+        self.root.attributes("-fullscreen", True)
+        self.root.lift()
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)

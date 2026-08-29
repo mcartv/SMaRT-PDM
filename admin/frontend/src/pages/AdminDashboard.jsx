@@ -790,104 +790,85 @@ export default function AdminDashboard() {
         className="min-w-0 rounded-[24px] shadow-none"
         style={{ borderColor: C.border, background: C.surface }}
       >
-        <CardHeader className="border-b border-stone-100">
+        <CardHeader className="border-b border-stone-100 px-5 py-4">
           <CardTitle className="text-base font-semibold">
             Recent Applicants
           </CardTitle>
-          <p className="text-sm text-stone-500">
-            Latest active application records across scholarship openings.
+          <p className="mt-1 text-sm text-stone-500">
+            Latest application activity and current processing stage.
           </p>
         </CardHeader>
 
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[170px]">Student</TableHead>
-                <TableHead className="min-w-[200px]">
-                  Program / Opening
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="min-w-[210px] pl-5">Student</TableHead>
+                <TableHead className="min-w-[230px]">Scholarship</TableHead>
+                <TableHead className="min-w-[210px]">Current Stage</TableHead>
+                <TableHead className="min-w-[110px] pr-5 text-right">
+                  Submitted
                 </TableHead>
-                <TableHead className="min-w-[140px]">
-                  Application Status
-                </TableHead>
-                <TableHead className="min-w-[140px]">
-                  Requirements Status
-                </TableHead>
-                <TableHead className="min-w-[130px]">
-                  FCFS / Activation
-                </TableHead>
-                <TableHead className="min-w-[110px]">Submitted</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
               {dashboard.recentApplications.length ? (
                 dashboard.recentApplications.map((row) => {
-                  const appMeta = getStatusMeta(row.application_status);
-                  const documentMeta = getStatusMeta(row.document_status);
-                  const workflowMeta = getStatusMeta(row.workflow_status);
+                  const workflowLabel = row.workflow_status || 'Processing';
+                  const workflowMeta = getStatusMeta(workflowLabel);
+                  const requirementsLabel = row.document_status || 'Unknown';
+                  const applicationLabel = row.application_status || 'Unknown';
 
                   return (
-                    <TableRow key={row.application_id}>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-medium text-stone-800">
+                    <TableRow
+                      key={row.application_id}
+                      className="transition-colors hover:bg-stone-50/70"
+                    >
+                      <TableCell className="py-3 pl-5 align-middle">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-stone-800">
                             {row.student_name || 'Unknown Student'}
                           </p>
-                          <p className="text-xs text-stone-400">
+                          <p className="mt-0.5 text-[11px] text-stone-400">
                             {row.student_number || 'No Student ID'}
                           </p>
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        <div>
-                          <p className="text-sm text-stone-700">
+                      <TableCell className="py-3 align-middle">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-stone-700">
                             {row.program_name || 'No Program'}
                           </p>
-                          <p className="text-xs text-stone-400">
+                          <p className="mt-0.5 truncate text-[11px] text-stone-400">
                             {row.opening_title || 'No Opening'}
                           </p>
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        <span
-                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                          style={{
-                            background: appMeta.bg,
-                            color: appMeta.color,
-                          }}
-                        >
-                          {row.application_status || 'Unknown'}
-                        </span>
+                      <TableCell className="py-3 align-middle">
+                        <div className="min-w-0">
+                          <span
+                            className="inline-flex max-w-full rounded-full px-2.5 py-1 text-xs font-semibold"
+                            style={{
+                              background: workflowMeta.bg,
+                              color: workflowMeta.color,
+                            }}
+                          >
+                            <span className="truncate">{workflowLabel}</span>
+                          </span>
+
+                          <p className="mt-1.5 truncate text-[11px] text-stone-400">
+                            {requirementsLabel}
+                            {applicationLabel !== 'Pending Review'
+                              ? ` · ${applicationLabel}`
+                              : ''}
+                          </p>
+                        </div>
                       </TableCell>
 
-                      <TableCell>
-                        <span
-                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                          style={{
-                            background: documentMeta.bg,
-                            color: documentMeta.color,
-                          }}
-                        >
-                          {row.document_status || 'Unknown'}
-                        </span>
-                      </TableCell>
-
-                      <TableCell>
-                        <span
-                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                          style={{
-                            background: workflowMeta.bg,
-                            color: workflowMeta.color,
-                          }}
-                        >
-                          {row.workflow_status || 'Processing'}
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="text-xs text-stone-500">
+                      <TableCell className="py-3 pr-5 text-right align-middle text-xs text-stone-500">
                         {formatDate(row.submission_date)}
                       </TableCell>
                     </TableRow>
@@ -895,7 +876,7 @@ export default function AdminDashboard() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={4}>
                     <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 text-center">
                       <AlertCircle className="h-5 w-5 text-stone-300" />
                       <p className="text-sm font-medium text-stone-500">

@@ -27,7 +27,7 @@ if [ -n "$(git -C "$repository_root" status --porcelain --untracked-files=no)" ]
 fi
 
 echo "pi_update_stage=fetch_main"
-git -C "$repository_root" fetch origin main
+git -C "$repository_root" fetch origin main:refs/remotes/origin/main
 git -C "$repository_root" merge --ff-only origin/main
 
 if [ ! -f "$scanner_directory/.env" ]; then

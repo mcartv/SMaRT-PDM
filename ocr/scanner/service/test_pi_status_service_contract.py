@@ -22,6 +22,7 @@ class PiStatusServiceContractTests(unittest.TestCase):
 
     def test_pi_update_is_fast_forward_only_and_validates_configuration(self):
         updater = (SERVICE_DIRECTORY / "update_pi_status_ui.sh").read_text(encoding="utf-8")
+        self.assertIn("fetch origin main:refs/remotes/origin/main", updater)
         self.assertIn("merge --ff-only origin/main", updater)
         self.assertIn("load_probe_config", updater)
         self.assertIn("tracked_worktree_changes", updater)

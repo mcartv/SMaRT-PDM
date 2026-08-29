@@ -6,6 +6,9 @@ const {
   resolveAvatarUrl,
 } = require('./avatarService');
 const { validateProfilePhoto } = require('../utils/profilePhotoValidation');
+const {
+  optimizeImageForStorage,
+} = require('./storageImageOptimizer');
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -495,17 +498,37 @@ async function uploadAvatar(userId, file) {
     throw createHttpError(409, 'You already have a profile picture pending review.');
   }
 
-  const sanitizedFileName = (file.originalname || 'avatar')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const storagePath = `${userId}/avatar/${Date.now()}-${sanitizedFileName}`;
+  // Always store a small review-ready avatar copy. The original selected
+  // image is never persisted in Supabase Storage.
+  const optimizedAvatar = await optimizeImageForStorage({
+    buffer: file.buffer,
+    mimeType: file.mimetype,
+    fileName: file.originalname,
+    maxWidth: 640,
+    maxHeight: 640,
+    quality: 74,
+    minQuality: 62,
+    targetBytes: 120 * 1024,
+  });
+
+  if (!optimizedAvatar) {
+    throw createHttpError(
+      415,
+      'The selected profile photo could not be compressed.'
+    );
+  }
+
+  const storagePath =
+    `${userId}/avatar/${Date.now()}-avatar.webp`;
 
   await ensureAvatarBucketExists();
 
   const { error: storageError } = await supabase.storage
     .from(AVATAR_BUCKET)
-    .upload(storagePath, file.buffer, {
-      contentType: file.mimetype,
-      upsert: true,
+    .upload(storagePath, optimizedAvatar.buffer, {
+      contentType: 'image/webp',
+      cacheControl: '31536000',
+      upsert: false,
     });
 
   if (storageError) throw storageError;

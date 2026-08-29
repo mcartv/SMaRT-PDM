@@ -1,6 +1,10 @@
 const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
 const crypto = require('crypto');
+const {
+  optimizeImageForStorage,
+  replaceFileExtension,
+} = require('./storageImageOptimizer');
 
 const RO_PROOFS_BUCKET =
   process.env.RO_PROOFS_BUCKET ||
@@ -327,8 +331,26 @@ async function saveRoTimeLogProof({
 
   const now = new Date().toISOString();
 
-  const mimeType =
+  const sourceMimeType =
     normalizeRoProofMimeType(file);
+
+  const optimizedImage =
+    await optimizeImageForStorage({
+      buffer: file.buffer,
+      mimeType: sourceMimeType,
+      fileName: file.originalname,
+      maxWidth: 1280,
+      maxHeight: 1600,
+      quality: 72,
+      minQuality: 62,
+      targetBytes: 300 * 1024,
+    });
+
+  const uploadBuffer =
+    optimizedImage?.buffer || file.buffer;
+
+  const mimeType =
+    optimizedImage?.mimeType || sourceMimeType;
 
   const extension =
     getRoProofExtensionFromMimeType(
@@ -345,11 +367,19 @@ async function saveRoTimeLogProof({
       file.originalname || ''
     );
 
-  const fileName =
+  const sourceFileName =
     rawOriginalName &&
       /\.(jpg|jpeg|png|webp)$/i.test(rawOriginalName)
       ? rawOriginalName
       : `${proofType}-${Date.now()}.${extension}`;
+
+  const fileName =
+    optimizedImage
+      ? replaceFileExtension(
+          sourceFileName,
+          'webp'
+        )
+      : sourceFileName;
 
   const filePath = [
     String(studentId),
@@ -400,11 +430,13 @@ async function saveRoTimeLogProof({
       .from(RO_PROOFS_BUCKET)
       .upload(
         filePath,
-        file.buffer,
+        uploadBuffer,
         {
           contentType: mimeType,
           upsert: false,
-          cacheControl: '3600',
+          cacheControl: optimizedImage
+            ? '31536000'
+            : '3600',
         }
       );
 
@@ -437,8 +469,7 @@ async function saveRoTimeLogProof({
     mime_type: mimeType,
 
     file_size_bytes:
-      file.size ||
-      file.buffer.length,
+      uploadBuffer.length,
 
     photo_sha256: photoHash,
 

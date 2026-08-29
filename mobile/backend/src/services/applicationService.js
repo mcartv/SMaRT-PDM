@@ -2,10 +2,11 @@
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
+const { removeDocumentPreview } = require('./documentPreviewService');
 const {
-    createDocumentPreview,
-    removeDocumentPreview,
-} = require('./documentPreviewService');
+    optimizeImageForStorage,
+    replaceFileExtension,
+} = require('./storageImageOptimizer');
 
 function normalizeStorageBucketName(value) {
     const normalized = String(value || '')
@@ -2518,31 +2519,51 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const normalizedType = normalizeRequiredDocumentType(targetDocument.document_type);
     const safeFileName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    // SMART-PDM_CANONICAL_COMPRESSED_IMAGE_V1
+    // Image documents are stored once as a compressed WebP. We no longer
+    // keep a full-resolution original plus another preview object.
+    // PDFs remain unchanged because they are source documents, not images.
+    const optimizedImage = await optimizeImageForStorage({
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+        fileName: originalName,
+        maxWidth: 2200,
+        maxHeight: 3000,
+        quality: 78,
+        minQuality: 68,
+        targetBytes: 850 * 1024,
+    });
+
+    const uploadBuffer = optimizedImage?.buffer || file.buffer;
+    const uploadMimeType = optimizedImage?.mimeType || file.mimetype;
+    const storageFileName = optimizedImage
+        ? replaceFileExtension(safeFileName, 'webp')
+        : safeFileName;
+
     const contentSha256 = crypto
         .createHash('sha256')
-        .update(file.buffer)
+        .update(uploadBuffer)
         .digest('hex');
 
     const filePath = `applications/${application.application_id}/${normalizedType.replace(
         /[^a-zA-Z0-9]/g,
         '_'
-    )}_${Date.now()}_${safeFileName}`;
+    )}_${Date.now()}_${storageFileName}`;
 
     const { error: uploadError } = await supabase.storage
         .from(APPLICATION_DOCUMENT_BUCKET)
-        .upload(filePath, file.buffer, {
-            contentType: file.mimetype || 'application/octet-stream',
+        .upload(filePath, uploadBuffer, {
+            contentType: uploadMimeType || 'application/octet-stream',
+            cacheControl: optimizedImage ? '31536000' : '3600',
             upsert: false,
         });
 
     if (uploadError) throw uploadError;
 
-    const generatedPreview = await createDocumentPreview({
-        bucket: APPLICATION_DOCUMENT_BUCKET,
-        filePath,
-        inputBuffer: file.buffer,
-        mimeType: file.mimetype,
-    });
+    // A compressed image file_path is already the display/review copy.
+    // Do not create a second Storage object for the same image.
+    const generatedPreview = null;
 
     const fileUrl = null;
 
@@ -2554,9 +2575,9 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
             p_created_by: userId,
             p_file_path: filePath,
             p_file_url: fileUrl,
-            p_file_name: originalName,
+            p_file_name: optimizedImage ? storageFileName : originalName,
             p_content_sha256: contentSha256,
-            p_file_size_bytes: file.buffer.length,
+            p_file_size_bytes: uploadBuffer.length,
         }
     );
 

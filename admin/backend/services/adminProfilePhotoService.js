@@ -12,6 +12,52 @@ function safeText(value) {
 }
 
 // SMART-PDM_PROFILE_PHOTO_PENDING_SUPERSEDED_V2
+// SMART-PDM_PROFILE_PHOTO_BLOB_LIFECYCLE_V1
+
+const AVATAR_BUCKET = 'avatars';
+
+async function purgeProfilePhotoBlobs(rows = []) {
+  const candidates = (rows || [])
+    .map((row) => ({
+      review_id: safeText(row?.review_id),
+      storage_path: safeText(row?.storage_path),
+    }))
+    .filter((row) => row.review_id && row.storage_path);
+
+  if (!candidates.length) return;
+
+  const paths = Array.from(
+    new Set(candidates.map((row) => row.storage_path))
+  );
+
+  for (let index = 0; index < paths.length; index += 100) {
+    const { error } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .remove(paths.slice(index, index + 100));
+
+    if (error) {
+      console.warn(
+        'PROFILE PHOTO BLOB CLEANUP WARNING:',
+        error.message
+      );
+      return;
+    }
+  }
+
+  const reviewIds = candidates.map((row) => row.review_id);
+
+  const { error: clearError } = await supabase
+    .from('profile_photo_reviews')
+    .update({ storage_path: null })
+    .in('review_id', reviewIds);
+
+  if (clearError) {
+    console.warn(
+      'PROFILE PHOTO PATH CLEANUP WARNING:',
+      clearError.message
+    );
+  }
+}
 
 async function getAdminProfileId(adminUserId) {
   if (!adminUserId) {
@@ -274,6 +320,15 @@ async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
 
   const now = new Date().toISOString();
 
+  const { data: staleReviews, error: staleReviewsError } = await supabase
+    .from('profile_photo_reviews')
+    .select('review_id, storage_path, status')
+    .eq('student_id', review.student_id)
+    .in('status', ['pending', 'approved'])
+    .neq('review_id', review.review_id);
+
+  if (staleReviewsError) throw staleReviewsError;
+
   const { error: supersedeError } = await supabase
     .from('profile_photo_reviews')
     .update({
@@ -340,6 +395,10 @@ async function approveProfilePhotoReview({ adminUserId, reviewId, remarks }) {
   if (notificationError) {
     console.warn('PROFILE PHOTO APPROVAL NOTIFICATION WARNING:', notificationError);
   }
+
+  // Metadata/history remains in profile_photo_reviews, but stale image bytes
+  // are removed after the new current avatar is safely approved.
+  await purgeProfilePhotoBlobs(staleReviews || []);
 
   return {
     message: 'Profile photo approved successfully.',
@@ -416,6 +475,11 @@ async function rejectProfilePhotoReview({
   if (notificationError) {
     console.warn('PROFILE PHOTO REJECTION NOTIFICATION WARNING:', notificationError);
   }
+
+  // Rejection metadata stays in the database; the rejected image itself is
+  // not useful after review and should not consume Storage indefinitely.
+  await purgeProfilePhotoBlobs([review]);
+  updatedReview.storage_path = null;
 
   return {
     message: 'Profile photo rejected successfully.',

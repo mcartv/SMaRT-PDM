@@ -40,6 +40,14 @@ class NotificationProvider extends ChangeNotifier {
   static const Duration _realtimeRefreshCoalesceWindow = Duration(
     milliseconds: 250,
   );
+
+  Timer? _scholarAccessRefreshDebounce;
+  Completer<void>? _scholarAccessRefreshCompleter;
+  bool _isScholarAccessRefreshing = false;
+  bool _hasQueuedScholarAccessRefresh = false;
+  static const Duration _scholarAccessRefreshCoalesceWindow = Duration(
+    milliseconds: 400,
+  );
   bool _isRoRealtimeNotification(MobileRealtimeEvent event) {
     final payload = event.payload;
 
@@ -381,7 +389,7 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.applicationDisqualified:
       case MobileRealtimeEvents.applicationApproved:
         _applicationRevision += 1;
-        await _refreshScholarAccessFromProfile();
+        await _queueScholarAccessRefresh();
         notifyListeners();
         return;
 
@@ -403,7 +411,7 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.scholarArchived:
       case MobileRealtimeEvents.scholarRestored:
         _scholarRevision += 1;
-        await _refreshScholarAccessFromProfile();
+        await _queueScholarAccessRefresh();
         notifyListeners();
         return;
 
@@ -675,6 +683,46 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _queueScholarAccessRefresh() {
+    if (_isScholarAccessRefreshing) {
+      _hasQueuedScholarAccessRefresh = true;
+      return _scholarAccessRefreshCompleter?.future ??
+          Future<void>.value();
+    }
+
+    _scholarAccessRefreshDebounce?.cancel();
+    final completer =
+        _scholarAccessRefreshCompleter ??= Completer<void>();
+
+    _scholarAccessRefreshDebounce = Timer(
+      _scholarAccessRefreshCoalesceWindow,
+      () async {
+        _scholarAccessRefreshDebounce = null;
+        _isScholarAccessRefreshing = true;
+
+        try {
+          await _refreshScholarAccessFromProfile();
+        } finally {
+          _isScholarAccessRefreshing = false;
+
+          final pending = _scholarAccessRefreshCompleter;
+          _scholarAccessRefreshCompleter = null;
+
+          if (pending != null && !pending.isCompleted) {
+            pending.complete();
+          }
+        }
+
+        if (_hasQueuedScholarAccessRefresh) {
+          _hasQueuedScholarAccessRefresh = false;
+          await _queueScholarAccessRefresh();
+        }
+      },
+    );
+
+    return completer.future;
+  }
+
   Future<void> _refreshScholarAccessFromProfile() async {
     try {
       final profile = await _profileService.fetchMyProfile();
@@ -752,6 +800,23 @@ class NotificationProvider extends ChangeNotifier {
     _hasScholarAccess = false;
     _isRealtimeRefreshing = false;
     _hasQueuedRealtimeRefresh = false;
+
+    _scholarAccessRefreshDebounce?.cancel();
+    _scholarAccessRefreshDebounce = null;
+
+    final pendingScholarAccessRefresh =
+        _scholarAccessRefreshCompleter;
+    _scholarAccessRefreshCompleter = null;
+
+    if (
+      pendingScholarAccessRefresh != null &&
+      !pendingScholarAccessRefresh.isCompleted
+    ) {
+      pendingScholarAccessRefresh.complete();
+    }
+
+    _isScholarAccessRefreshing = false;
+    _hasQueuedScholarAccessRefresh = false;
 
     _errorMessage = null;
     _initializedUserId = '';

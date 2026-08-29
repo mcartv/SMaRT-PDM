@@ -1,5 +1,9 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
+const {
+    optimizeImageForStorage,
+    replaceFileExtension,
+} = require('./storageImageOptimizer');
 
 const RENEWAL_DOCUMENTS_BUCKET =
     process.env.RENEWAL_DOCUMENTS_BUCKET || 'renewal-documents';
@@ -939,16 +943,34 @@ exports.uploadDocument = async ({
 
     await ensureRenewalDocuments(renewal.renewal_id);
 
-    const mimeType = normalizeMimeType(file);
+    const sourceMimeType = normalizeMimeType(file);
+
+    const optimizedImage = await optimizeImageForStorage({
+        buffer: file.buffer,
+        mimeType: sourceMimeType,
+        fileName: file.originalname,
+        maxWidth: 1800,
+        maxHeight: 2400,
+        quality: 76,
+        minQuality: 66,
+        targetBytes: 600 * 1024,
+    });
+
+    const uploadBuffer = optimizedImage?.buffer || file.buffer;
+    const mimeType = optimizedImage?.mimeType || sourceMimeType;
     const extension = extensionFromMimeType(mimeType);
     const safeOriginalName = sanitizeFileName(file.originalname || '');
     const random = crypto.randomBytes(8).toString('hex');
 
-    const fileName =
+    const sourceFileName =
         safeOriginalName &&
             /\.(pdf|jpg|jpeg|png|webp)$/i.test(safeOriginalName)
             ? safeOriginalName
             : `${requiredDocument.key}-${Date.now()}.${extension}`;
+
+    const fileName = optimizedImage
+        ? replaceFileExtension(sourceFileName, 'webp')
+        : sourceFileName;
 
     const filePath = [
         String(student.student_id),
@@ -958,10 +980,10 @@ exports.uploadDocument = async ({
 
     const { error: uploadError } = await supabase.storage
         .from(RENEWAL_DOCUMENTS_BUCKET)
-        .upload(filePath, file.buffer, {
+        .upload(filePath, uploadBuffer, {
             contentType: mimeType,
             upsert: false,
-            cacheControl: '3600',
+            cacheControl: optimizedImage ? '31536000' : '3600',
         });
 
     if (uploadError) {
@@ -992,7 +1014,7 @@ exports.uploadDocument = async ({
         file_path: filePath,
         file_name: fileName,
         mime_type: mimeType,
-        file_size_bytes: file.size || file.buffer.length,
+        file_size_bytes: uploadBuffer.length,
         is_submitted: true,
         review_status: 'uploaded',
         admin_comment: null,

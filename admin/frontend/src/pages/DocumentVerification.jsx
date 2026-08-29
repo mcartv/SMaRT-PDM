@@ -3874,6 +3874,59 @@ export default function DocumentVerification() {
     allRequiredDocsReviewed &&
     !requirementsReviewAlreadySaved;
 
+  // SMART-PDM_DOCUMENT_VERIFICATION_ENDORSEMENT_GATE_V1
+  // endorsement_slip_id alone is not enough. Old/premature slip rows can
+  // exist for audit history while the endorsement backend correctly hides
+  // them until Admin has verified the complete application requirements.
+  const requirementsVerifiedForEndorsement =
+    persistedVerificationStatus === 'verified' &&
+    Boolean(application?.requirements_verified_at);
+
+  const canOpenEndorsement =
+    requirementsVerifiedForEndorsement && Boolean(endorsementSlipId);
+
+  const endorsementHeaderStatus = (() => {
+    if (persistedVerificationStatus === 'rejected') {
+      return {
+        label: 'Application Rejected',
+        className:
+          'border-red-200 bg-red-50 text-red-700',
+      };
+    }
+
+    if (persistedVerificationStatus === 'requires_reupload') {
+      return {
+        label: 'Correction Required',
+        className:
+          'border-orange-200 bg-orange-50 text-orange-700',
+      };
+    }
+
+    if (requirementsVerifiedForEndorsement) {
+      return {
+        label: endorsementSlipId
+          ? 'Endorsement Active'
+          : 'Ready for Endorsement',
+        className:
+          'border-green-200 bg-green-50 text-green-700',
+      };
+    }
+
+    if (allRequiredDocsUploaded) {
+      return {
+        label: 'Ready for Verification',
+        className:
+          'border-amber-200 bg-amber-50 text-amber-700',
+      };
+    }
+
+    return {
+      label: 'Requirements Incomplete',
+      className:
+        'border-stone-200 bg-stone-50 text-stone-600',
+    };
+  })();
+
   const progress = docs.length ? Math.round((reviewedCount / docs.length) * 100) : 0;
   const hasUploadedDocument =
     activeDoc?.id === 'application_form' || isDocumentAvailable(activeDoc);
@@ -4977,7 +5030,7 @@ export default function DocumentVerification() {
 
         <div className="w-full sm:ml-auto sm:w-auto">
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-            {endorsementSlipId ? (
+            {canOpenEndorsement ? (
               <>
                 <Button
                   size="sm"
@@ -4989,7 +5042,19 @@ export default function DocumentVerification() {
                   Open Endorsement Slip
                 </Button>
               </>
-            ) : null}
+            ) : (
+              <Badge
+                variant="outline"
+                className={`h-9 rounded-full px-3 text-xs font-semibold ${endorsementHeaderStatus.className}`}
+                title={
+                  endorsementHeaderStatus.label === 'Ready for Verification'
+                    ? 'All required uploads are present. Save the Admin requirements review before endorsement becomes available.'
+                    : undefined
+                }
+              >
+                {endorsementHeaderStatus.label}
+              </Badge>
+            )}
             <Button
               variant="outline"
               size="sm"

@@ -57,13 +57,13 @@ const QUEUE_CONFIG = Object.freeze({
         allowedRoles: ['sdo'],
         stage: 'pending_sdo',
         nextRole: 'guidance',
-        nextTitle: 'Guidance clearance pending',
+        nextTitle: 'Guidance review pending',
     },
     guidance: {
         allowedRoles: ['guidance'],
         stage: 'pending_guidance',
         nextRole: 'pd',
-        nextTitle: 'PD approval pending',
+        nextTitle: 'Scholastic standing review pending',
     },
     pd: {
         allowedRoles: ['pd'],
@@ -946,23 +946,11 @@ async function notifyAdminOfEndorsementOutcome({
     const outcomes = {
         completed: {
             title: 'Endorsement completed',
-            message: `${studentName} completed SDO, Guidance, and Program Director endorsement.`,
-        },
-        rejected: {
-            title: 'Endorsement rejected by PD',
-            message: `${studentName}'s endorsement was rejected by the Program Director.`,
-        },
-        guidance_rejected: {
-            title: 'Endorsement rejected by Guidance',
-            message: `${studentName}'s endorsement was rejected by Guidance.`,
-        },
-        held: {
-            title: 'Endorsement placed on hold',
-            message: `${studentName}'s endorsement requires counseling or Guidance follow-up.`,
+            message: `${studentName} completed all endorsement reviews.`,
         },
         disqualified_major: {
-            title: 'Major offense recorded',
-            message: `${studentName}'s endorsement stopped in SDO because of a major offense.`,
+            title: `Endorsement stopped for ${studentName}`,
+            message: 'The endorsement stopped after SDO recorded a major offense.',
         },
     };
     const outcome = outcomes[status];

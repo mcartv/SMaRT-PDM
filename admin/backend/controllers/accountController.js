@@ -258,26 +258,6 @@ async function notifyAdminManagedAccountChange(req, account, actionLabel) {
             });
         }
 
-        if (
-            actorUserId &&
-            ['Updated', 'Archived', 'Restored'].includes(actionLabel)
-        ) {
-            const accountName = getProfileDisplayName(account);
-            const actorNotification = await notificationService.createUserNotification({
-                userId: actorUserId,
-                type: 'Account Activity',
-                title: `Account ${actionLabel}`,
-                message: `${accountName}'s account was ${actionLabel.toLowerCase()}.`,
-                referenceId: targetUserId,
-                referenceType: 'staff_account',
-            });
-
-            notifications.push({
-                ...actorNotification,
-                target_user_id: actorUserId,
-            });
-        }
-
         emitCreatedNotifications(req, notifications);
     } catch (error) {
         console.error('MANAGED ACCOUNT NOTIFICATION ERROR:', error.message || error);

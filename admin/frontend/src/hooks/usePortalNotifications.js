@@ -18,71 +18,6 @@ function normalizeNotification(raw = {}) {
 }
 
 
-function isEndorsementNotificationForPortal(portalRootPath, notification) {
-  const referenceType = String(notification.reference_type || '').toLowerCase();
-  if (!['endorsement_slip', 'endorsement', 'endorsement_stage'].includes(referenceType)) {
-    return false;
-  }
-
-  const descriptor = `${notification.title || ''} ${notification.message || ''}`.toLowerCase();
-
-  if (portalRootPath === '/sdo') {
-    return descriptor.includes('sdo');
-  }
-
-  if (portalRootPath === '/guidance') {
-    return descriptor.includes('guidance');
-  }
-
-  if (portalRootPath === '/pd') {
-    return descriptor.includes('pd') || descriptor.includes('program director');
-  }
-
-  return false;
-}
-
-function isRelevantPortalNotification(
-  portalRootPath,
-  notification,
-  { hasRoCoordinatorAccess = false } = {}
-) {
-  if (portalRootPath === '/admin') return true;
-
-  const referenceType = String(notification.reference_type || '').toLowerCase();
-  const type = String(notification.type || '').toLowerCase();
-
-  const common = new Set([
-    'staff_account',
-    'staff_profile',
-    'personal_reminder',
-  ]);
-
-  if (common.has(referenceType) || type === 'security' || type === 'account activity') {
-    return true;
-  }
-
-  if (['/sdo', '/guidance', '/pd'].includes(portalRootPath)) {
-    if (isEndorsementNotificationForPortal(portalRootPath, notification)) {
-      return true;
-    }
-  }
-
-  const roReferenceTypes = new Set([
-    'return_of_obligation',
-    'ro_time_log',
-    'ro_scholar_request',
-  ]);
-
-  if (roReferenceTypes.has(referenceType)) {
-    return (
-      hasRoCoordinatorAccess === true &&
-      ['/sdo', '/guidance', '/pd', '/ro-coordinator'].includes(portalRootPath)
-    );
-  }
-
-  return false;
-}
-
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -158,14 +93,14 @@ function buildNotificationTarget(portalRootPath, notification) {
     return `/admin/profile-photos/${referenceId}`;
   }
 
-  if (['staff_account', 'staff_profile'].includes(referenceType)) {
-    if (portalRootPath === '/admin') {
-      return referenceType === 'staff_profile'
-        ? '/admin/adminprofile'
-        : null;
-    }
+  if (referenceType === 'staff_account') {
+    return null;
+  }
 
-    return `${portalRootPath}/profile`;
+  if (referenceType === 'staff_profile') {
+    return portalRootPath === '/admin'
+      ? '/admin/adminprofile'
+      : `${portalRootPath}/profile`;
   }
 
   if (['message', 'message_room', 'chat'].includes(referenceType) && portalRootPath === '/admin') {
@@ -202,7 +137,6 @@ export default function usePortalNotifications({
   const knownNotificationIdsRef = useRef(new Set());
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
-  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
   const [sectionNow, setSectionNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -253,42 +187,6 @@ export default function usePortalNotifications({
     }
   }, [tokenStorageKey]);
 
-  const loadRoCoordinatorAccess = useCallback(async () => {
-    if (portalRootPath === '/admin') {
-      setHasRoCoordinatorAccess(false);
-      return;
-    }
-
-    const token = sessionStorage.getItem(tokenStorageKey);
-    if (!token) {
-      setHasRoCoordinatorAccess(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(buildApiUrl('/api/accounts/me'), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload?.error || payload?.message || 'Failed to resolve RO access.');
-      }
-
-      setHasRoCoordinatorAccess(payload?.data?.has_ro_coordinator_access === true);
-    } catch (error) {
-      console.error('NOTIFICATION RO CAPABILITY CHECK ERROR:', error);
-      setHasRoCoordinatorAccess(false);
-    }
-  }, [portalRootPath, tokenStorageKey]);
-
-  useEffect(() => {
-    loadRoCoordinatorAccess();
-  }, [loadRoCoordinatorAccess]);
-
   const loadNotifications = useCallback(async () => {
     const token = sessionStorage.getItem(tokenStorageKey);
     if (!token) {
@@ -314,13 +212,7 @@ export default function usePortalNotifications({
       }
 
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      const normalized = rows
-        .map(normalizeNotification)
-        .filter((item) =>
-          isRelevantPortalNotification(portalRootPath, item, {
-            hasRoCoordinatorAccess,
-          })
-        );
+      const normalized = rows.map(normalizeNotification);
       syncItems(normalized);
 
       const exactUnreadCount = await loadUnreadCount();
@@ -334,10 +226,8 @@ export default function usePortalNotifications({
       setLoading(false);
     }
   }, [
-    hasRoCoordinatorAccess,
     limit,
     loadUnreadCount,
-    portalRootPath,
     syncItems,
     tokenStorageKey,
   ]);
@@ -490,7 +380,6 @@ export default function usePortalNotifications({
   useSocketListener({
     'notification:created': (raw) => {
       const next = normalizeNotification(raw);
-      if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
 
       const wasKnown = knownNotificationIdsRef.current.has(next.notification_id);
       if (next.notification_id) {
@@ -507,7 +396,6 @@ export default function usePortalNotifications({
     },
     'notification:new': (raw) => {
       const next = normalizeNotification(raw);
-      if (!isRelevantPortalNotification(portalRootPath, next, { hasRoCoordinatorAccess })) return;
 
       const wasKnown = knownNotificationIdsRef.current.has(next.notification_id);
       if (next.notification_id) {

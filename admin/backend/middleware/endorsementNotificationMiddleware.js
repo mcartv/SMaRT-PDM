@@ -33,25 +33,51 @@ async function notifySdoForVerifiedApplication(req) {
     const row = rows[0];
     if (!row?.slip_id) return [];
 
-    const targets = await notificationService.getStaffTargets({ roles: ['sdo'] });
-    if (!targets.length) return [];
+    const [sdoTargets, adminTargets] = await Promise.all([
+        notificationService.getStaffTargets({ roles: ['sdo'] }),
+        notificationService.getStaffTargets({ roles: ['admin'] }),
+    ]);
+    if (!sdoTargets.length && !adminTargets.length) return [];
 
     const created = [];
     const io = req.app?.get?.('io');
     const studentName = String(row.student_name || '').trim() || 'A student';
 
-    for (const target of targets) {
+    for (const target of sdoTargets) {
         const notification = await notificationService.createUserNotificationOnce({
             userId: target.user_id,
             type: 'Endorsement Slip',
-            title: 'Applicant Ready for SDO Review',
-            message: `${studentName} is ready for SDO review.`,
+            title: 'New endorsement awaiting review',
+            message: `${studentName} is ready for disciplinary-standing assessment.`,
             referenceId: row.slip_id,
             referenceType: 'endorsement_slip',
         });
 
         // A null result means this exact notification already exists for the
         // SDO account, so repeated verification saves do not duplicate it.
+        if (!notification) continue;
+
+        const payload = {
+            ...notification,
+            target_user_id: target.user_id,
+        };
+        created.push(payload);
+
+        if (io && typeof socketEvents?.notificationCreated === 'function') {
+            socketEvents.notificationCreated(io, target.user_id, payload);
+        }
+    }
+
+    for (const target of adminTargets) {
+        const notification = await notificationService.createUserNotificationOnce({
+            userId: target.user_id,
+            type: 'Endorsement Update',
+            title: `Endorsement started for ${studentName}`,
+            message: `${studentName} is awaiting SDO review.`,
+            referenceId: row.slip_id,
+            referenceType: 'endorsement_slip',
+        });
+
         if (!notification) continue;
 
         const payload = {

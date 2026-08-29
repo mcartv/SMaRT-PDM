@@ -1241,6 +1241,41 @@ html.smartpdm-admin-active.smartpdm-force-dark {
   --admin-modal-backdrop: rgb(0 0 0 / 0.58);
 }
 
+/* Admin dark mode follows the selected personal theme instead of replacing it
+ * with a single blue/charcoal palette. Each surface carries a restrained tint
+ * of the active base color, while interactive accents use the brighter theme
+ * accent so every preset (including custom presets) has a matching dark pair. */
+html.smartpdm-admin-active.smartpdm-force-dark .admin-responsive-shell {
+  --bg-primary: color-mix(in srgb, var(--portal-base) 9%, #151617 91%);
+  --bg-secondary: color-mix(in srgb, var(--portal-base) 12%, #202224 88%);
+  --bg-elevated: color-mix(in srgb, var(--portal-base) 14%, #292b2e 86%);
+  --bg-subtle: color-mix(in srgb, var(--portal-base) 15%, #2d3033 85%);
+  --bg-muted: color-mix(in srgb, var(--portal-base) 17%, #373a3e 83%);
+  --bg-hover: color-mix(in srgb, var(--portal-base) 20%, #34373a 80%);
+  --bg-active: color-mix(in srgb, var(--portal-base) 24%, #3a3d41 76%);
+  --button-hover-surface: color-mix(in srgb, var(--portal-base) 22%, #3b3e42 78%);
+  --button-hover-surface-strong: color-mix(in srgb, var(--portal-base) 28%, #44474b 72%);
+
+  --border-subtle: color-mix(in srgb, var(--portal-base) 15%, #34373a 85%);
+  --border-default: color-mix(in srgb, var(--portal-base) 20%, #474b50 80%);
+  --border-strong: color-mix(in srgb, var(--portal-base) 25%, #62676d 75%);
+
+  --accent-primary: color-mix(in srgb, var(--portal-accent) 68%, white 32%);
+  --accent-primary-hover: color-mix(in srgb, var(--portal-accent) 58%, white 42%);
+  --accent-soft: color-mix(in srgb, var(--portal-base) 24%, #24272a 76%);
+  --accent-on-primary: #ffffff;
+  --focus-ring: color-mix(in srgb, var(--portal-accent) 62%, white 38%);
+
+  --portal-main-bg: var(--bg-primary) !important;
+  --portal-surface: var(--bg-secondary) !important;
+  --portal-surface-soft: var(--accent-soft) !important;
+  --portal-accent-soft: var(--accent-soft) !important;
+  --portal-border: var(--border-default) !important;
+  --portal-muted: var(--text-muted) !important;
+  --portal-text: var(--text-main) !important;
+  --portal-fg-accent: color-mix(in srgb, var(--portal-accent) 58%, white 42%) !important;
+}
+
 html.smartpdm-admin-active #root,
 html.smartpdm-admin-active .portal-shell,
 html.smartpdm-admin-active .portal-shell > div,
@@ -1599,14 +1634,14 @@ html.smartpdm-force-dark .portal-shell :is(a[href], [role="button"], [role="tab"
 }
 
 /* -------------------------------------------------------------------------- */
-/* Authenticated portal click cursor                                           */
+/* App-wide clickable cursor                                                   */
 /* -------------------------------------------------------------------------- */
 /*
- * Admin, SDO, Guidance, PD, and RO Coordinator all render inside
- * `.portal-shell`. Give every genuine click target a consistent pointer in
- * light and dark mode without changing card positions, sizing, or colors.
+ * Give every genuine click target a consistent pointer across public pages,
+ * authentication, portals, menus, dialogs, and form controls without changing
+ * layout or appearance.
  */
-.portal-shell :where(
+:where(
   button:not(:disabled),
   a[href],
   summary,
@@ -1626,6 +1661,11 @@ html.smartpdm-force-dark .portal-shell :is(a[href], [role="button"], [role="tab"
   [data-slot="select-trigger"]:not([data-disabled]),
   [data-slot="select-item"]:not([data-disabled]),
   [data-slot="dropdown-menu-item"]:not([data-disabled]),
+  [data-slot="context-menu-item"]:not([data-disabled]),
+  [data-slot="menubar-item"]:not([data-disabled]),
+  [data-slot="command-item"]:not([data-disabled]),
+  [data-slot="combobox-item"]:not([data-disabled]),
+  [data-slot="radio-group-item"]:not([data-disabled]),
   [data-slot="toggle"]:not([data-disabled]),
   [data-slot="toggle-group-item"]:not([data-disabled]),
   .cursor-pointer
@@ -1634,7 +1674,7 @@ html.smartpdm-force-dark .portal-shell :is(a[href], [role="button"], [role="tab"
 }
 
 /* Never advertise disabled controls as clickable. */
-.portal-shell :where(
+:where(
   button:disabled,
   select:disabled,
   input:disabled,
@@ -3061,6 +3101,19 @@ body {
     top: 0.9rem !important;
     right: clamp(1rem, 2.5vw, 2rem) !important;
   }
+}
+
+.landing-phone-teardrop {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  z-index: 40;
+  width: 7%;
+  aspect-ratio: 1.45 / 1;
+  transform: translateX(-50%);
+  border-radius: 0 0 999px 999px;
+  background: #000;
+  pointer-events: none;
 }
 
 /* Final phone-width guardrails. Keep the existing mobile composition while

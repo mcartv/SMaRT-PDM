@@ -1440,6 +1440,7 @@ export default function SmartPDMLanding() {
 
             <div className="landing-mobile-preview-stage relative mx-auto h-[390px] w-full max-w-[620px] sm:h-[470px] lg:h-[520px]" aria-label="SMaRT-PDM mobile application previews">
               <div className="absolute bottom-0 left-[2%] z-10 w-[31%] -rotate-[5deg] overflow-hidden rounded-[1.35rem] border-[3px] border-stone-900 bg-stone-900 shadow-2xl transform-gpu motion-safe:transition-[transform,box-shadow] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:-translate-y-1.5 motion-safe:hover:scale-[1.018] motion-safe:hover:shadow-[0_26px_52px_rgba(0,0,0,0.34)] motion-reduce:transition-none sm:left-[4%] sm:rounded-[1.7rem] sm:border-[4px]">
+                <span className="landing-phone-teardrop" aria-hidden="true" />
                 <img
                   src={mobileLoginScreenshot}
                   alt="SMaRT-PDM mobile login screen"
@@ -1452,6 +1453,7 @@ export default function SmartPDMLanding() {
               </div>
 
               <div className="absolute bottom-0 left-1/2 z-30 w-[38%] -translate-x-1/2 overflow-hidden rounded-[1.55rem] border-[4px] border-stone-950 bg-stone-950 shadow-[0_26px_55px_rgba(0,0,0,0.42)] transform-gpu motion-safe:transition-[transform,box-shadow] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:-translate-y-1.5 motion-safe:hover:scale-[1.018] motion-safe:hover:shadow-[0_32px_62px_rgba(0,0,0,0.44)] motion-reduce:transition-none sm:rounded-[2rem] sm:border-[5px]">
+                <span className="landing-phone-teardrop" aria-hidden="true" />
                 <img
                   src={mobileDashboardScreenshot}
                   alt="SMaRT-PDM scholar dashboard"
@@ -1464,6 +1466,7 @@ export default function SmartPDMLanding() {
               </div>
 
               <div className="absolute bottom-0 right-[2%] z-20 w-[31%] rotate-[5deg] overflow-hidden rounded-[1.35rem] border-[3px] border-stone-900 bg-stone-900 shadow-2xl transform-gpu motion-safe:transition-[transform,box-shadow] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:-translate-y-1.5 motion-safe:hover:scale-[1.018] motion-safe:hover:shadow-[0_26px_52px_rgba(0,0,0,0.34)] motion-reduce:transition-none sm:right-[4%] sm:rounded-[1.7rem] sm:border-[4px]">
+                <span className="landing-phone-teardrop" aria-hidden="true" />
                 <img
                   src={mobileSubmittedScreenshot}
                   alt="SMaRT-PDM application submitted confirmation"

@@ -129,7 +129,7 @@ class ApplicantDocumentsPackage {
     required this.programName,
     required this.applicationStatus,
     required this.documentStatus,
-    required this.uploadsLocked,
+    this.uploadsLocked = false,
     this.uploadLockReason,
     required this.documents,
   });

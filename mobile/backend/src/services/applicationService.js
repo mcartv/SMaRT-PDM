@@ -1404,6 +1404,70 @@ async function saveMyFormData(userId, payload = {}) {
     };
 }
 
+// SMART_PDM_VERIFIED_DOCUMENT_UPLOAD_LOCK_V1
+function getApplicationDocumentUploadLock(application = {}) {
+    const applicationStatus = normalizeWorkflowKey(
+        application.application_status
+    );
+    const verificationStatus = normalizeWorkflowKey(
+        application.verification_status
+    );
+    const selectionStatus = normalizeWorkflowKey(
+        application.selection_status
+    );
+    const activationStatus = normalizeWorkflowKey(
+        application.activation_status
+    );
+
+    if (
+        verificationStatus === 'verified' ||
+        Boolean(application.requirements_verified_at)
+    ) {
+        return {
+            locked: true,
+            reason:
+                'Your application documents are verified and locked. Uploads reopen only if Admin requests a correction or replacement.',
+        };
+    }
+
+    if (application.is_archived === true) {
+        return {
+            locked: true,
+            reason: 'Document uploads are unavailable for an archived application.',
+        };
+    }
+
+    if (
+        applicationStatus === 'approved' ||
+        applicationStatus === 'rejected'
+    ) {
+        return {
+            locked: true,
+            reason:
+                'Document uploads are unavailable because this application is already finalized.',
+        };
+    }
+
+    if (
+        ['selected', 'promoted', 'waitlisted', 'not selected'].includes(
+            selectionStatus
+        ) ||
+        activationStatus === 'activated' ||
+        Boolean(application.activated_at)
+    ) {
+        return {
+            locked: true,
+            reason:
+                'Document uploads are unavailable after final selection or scholar activation begins.',
+        };
+    }
+
+    return {
+        locked: false,
+        reason: null,
+    };
+}
+
 async function getMyDocuments(userId) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -1429,6 +1493,11 @@ async function getMyDocuments(userId) {
             application_status,
             document_status,
             verification_status,
+            requirements_verified_at,
+            selection_status,
+            activation_status,
+            activated_at,
+            is_archived,
             submission_date,
             created_at
         `)
@@ -1520,6 +1589,8 @@ async function getMyDocuments(userId) {
     if (docsError) throw docsError;
 
     const documentsWithSignedUrls = await attachSignedUrlsToDocuments(documents || []);
+    const uploadLock = getApplicationDocumentUploadLock(application);
+
     const uploadedCount = documentsWithSignedUrls.filter((doc) =>
         doc.is_submitted === true &&
         Boolean(safeText(doc.file_path)) &&
@@ -1536,7 +1607,13 @@ async function getMyDocuments(userId) {
             : 'Missing Docs',
         uploadedCount,
         allRequiredUploaded: uploadedCount >= requiredDocuments.length,
-        application,
+        uploads_locked: uploadLock.locked,
+        upload_lock_reason: uploadLock.reason,
+        application: {
+            ...application,
+            uploads_locked: uploadLock.locked,
+            upload_lock_reason: uploadLock.reason,
+        },
         documents: documentsWithSignedUrls,
     };
 }
@@ -2473,7 +2550,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     const { data: application, error: appError } = await supabase
         .from('applications')
         .select(
-            'application_id, student_id, opening_id, program_id, application_status, document_status, verification_status, selection_status, activation_status, activated_at, is_archived'
+            'application_id, student_id, opening_id, program_id, application_status, document_status, verification_status, requirements_verified_at, selection_status, activation_status, activated_at, is_archived'
         )
         .eq('application_id', targetDocument.application_id)
         .eq('student_id', student.student_id)
@@ -2491,29 +2568,13 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
         Boolean(safeText(targetDocument.current_version_id)) &&
         Boolean(safeText(targetDocument.file_path));
 
-    const normalizedApplicationStatus = normalizeWorkflowKey(
-        application.application_status
-    );
-    const normalizedSelectionStatus = normalizeWorkflowKey(
-        application.selection_status
-    );
-    const normalizedActivationStatus = normalizeWorkflowKey(
-        application.activation_status
-    );
+    const uploadLock = getApplicationDocumentUploadLock(application);
 
-    if (
-        application.is_archived === true ||
-        normalizedApplicationStatus === 'approved' ||
-        normalizedApplicationStatus === 'rejected' ||
-        ['selected', 'promoted', 'waitlisted', 'not selected'].includes(
-            normalizedSelectionStatus
-        ) ||
-        normalizedActivationStatus === 'activated' ||
-        Boolean(application.activated_at)
-    ) {
+    if (uploadLock.locked) {
         throw createHttpError(
             409,
-            'Required documents can no longer be replaced after final selection or scholar activation.'
+            uploadLock.reason ||
+                'Required documents are currently locked.'
         );
     }
 

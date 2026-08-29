@@ -67,6 +67,40 @@ function getPlacementApprovalState(scholar = {}) {
   };
 }
 
+// SMART-PDM_RO_ASSIGNMENT_CLASSIFICATION_V1
+// ro_id identifies the obligation record itself, not an actual RO assignment.
+function hasRoAssignment(scholar = {}) {
+  const assignmentStatus = normalizeStatus(
+    scholar.assignment_status || scholar.assignmentStatus
+  );
+
+  const assignedArea = String(
+    scholar.assigned_area || scholar.assignedArea || ''
+  ).trim();
+
+  const placements = Array.isArray(scholar.placements)
+    ? scholar.placements
+    : [];
+
+  const hasPlacement = placements.some((placement) => {
+    const status = normalizeStatus(
+      placement?.placement_status || placement?.placementStatus
+    );
+
+    return status && status !== 'cancelled';
+  });
+
+  if (
+    !assignmentStatus ||
+    assignmentStatus === 'unassigned' ||
+    assignmentStatus === 'not assigned'
+  ) {
+    return Boolean(assignedArea) || hasPlacement;
+  }
+
+  return assignmentStatus !== 'cleared';
+}
+
 function getDepartmentValidationStatus(log = {}) {
   const raw = normalizeStatus(
     log.departmentValidationStatus ||
@@ -316,7 +350,7 @@ function getMainStatusCapsule(scholar) {
     return { label: 'Assigned', tone: 'amber' };
   }
 
-  if (!scholar.ro_id) {
+  if (!hasRoAssignment(scholar)) {
     return { label: 'Unassigned', tone: 'default' };
   }
 
@@ -1180,7 +1214,7 @@ function RoDetailsModal({
   if (!open || !scholar) return null;
 
   const name = getScholarName(scholar);
-  const hasAssignment = !!scholar.ro_id;
+  const hasAssignment = hasRoAssignment(scholar);
   const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
 
   const {
@@ -1555,8 +1589,10 @@ export default function ROAdmin() {
         roStatus === 'cleared' ||
         assignmentStatus === 'cleared';
 
-      if (topTab === 'unassigned' && scholar.ro_id) return false;
-      if (topTab === 'assigned' && (!scholar.ro_id || isCleared)) return false;
+      const hasAssignment = hasRoAssignment(scholar);
+
+      if (topTab === 'unassigned' && hasAssignment) return false;
+      if (topTab === 'assigned' && (!hasAssignment || isCleared)) return false;
       if (topTab === 'cleared' && !isCleared) return false;
 
       const placementState = getPlacementApprovalState(scholar);
@@ -2249,7 +2285,7 @@ export default function ROAdmin() {
                   {displayedScholars.map((scholar) => {
                     const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
                     const name = getScholarName(scholar);
-                    const hasAssignment = !!scholar.ro_id;
+                    const hasAssignment = hasRoAssignment(scholar);
 
                     const selectable = isBatchSelectable(scholar);
                     const selected = selectedIds.includes(String(scholar.student_id));

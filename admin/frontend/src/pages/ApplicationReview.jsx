@@ -687,7 +687,7 @@ function OpeningsGrid({
   countsMap,
   navigate,
   unseenOpeningIds = new Set(),
-  onOpeningViewed = () => {},
+  onOpeningViewed = () => { },
 }) {
   return (
     <section className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
@@ -796,15 +796,219 @@ function OpeningsGrid({
   );
 }
 
+function ReadinessCompletionSummary({
+  row,
+  navigate,
+  onDownloadSlip,
+  onClose,
+}) {
+  if (!row) return null;
+
+  const selectionStatus = normalizeStatus(row.selection_status);
+  const isWaiting = selectionStatus === 'waitlisted';
+  const isPromoted = selectionStatus === 'promoted';
+
+  const selectionLabel = isWaiting
+    ? `Waiting #${Number(row.waitlist_position || 0) || '—'}`
+    : isPromoted
+      ? 'Promoted from Waiting List'
+      : 'Reserved by FCFS';
+
+  return (
+    <Dialog
+      open={Boolean(row)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="overflow-hidden rounded-2xl border-stone-200 p-0 sm:max-w-xl">
+        {/* Header */}
+        <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left sm:px-6">
+          <DialogTitle className="text-lg font-semibold text-stone-900">
+            Final Readiness Summary
+          </DialogTitle>
+
+          <p className="mt-1 text-sm text-stone-500">
+            {row.applicant_name} · {row.pdm_id}
+          </p>
+        </DialogHeader>
+
+        <div className="space-y-4 px-5 py-5 sm:px-6">
+          {/* Overall status */}
+          <div className="flex items-center gap-3 rounded-xl bg-green-50 px-4 py-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle2 className="h-4 w-4 text-green-700" />
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold text-green-900">
+                Ready for final activation
+              </p>
+              <p className="mt-0.5 text-xs text-green-700">
+                Requirements and endorsement have been completed.
+              </p>
+            </div>
+          </div>
+
+          {/* Completed process */}
+          <div className="overflow-hidden rounded-xl border border-stone-200">
+            <div className="flex items-start gap-3 border-b border-stone-100 px-4 py-3.5">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-stone-900">
+                    Application Requirements
+                  </p>
+
+                  <span className="text-xs font-semibold text-green-700">
+                    Verified
+                  </span>
+                </div>
+
+                <p className="mt-1 text-xs text-stone-500">
+                  Admin verification completed
+                  {row.requirements_verified_at
+                    ? ` · ${formatDate(row.requirements_verified_at)}`
+                    : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 px-4 py-3.5">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-stone-900">
+                    Endorsement
+                  </p>
+
+                  <span className="text-xs font-semibold text-green-700">
+                    Completed
+                  </span>
+                </div>
+
+                <p className="mt-1 text-xs text-stone-500">
+                  SDO · Guidance · Program Director
+                </p>
+
+                {row.endorsement_slip_code ? (
+                  <p className="mt-1 font-mono text-[11px] text-stone-400">
+                    {row.endorsement_slip_code}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* FCFS */}
+          <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-stone-200">
+            <div className="border-r border-stone-100 px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                FCFS Position
+              </p>
+
+              <p className="mt-1.5 text-base font-semibold text-stone-900">
+                {getFcfsLabel(row)}
+              </p>
+
+              <p className="mt-0.5 text-xs text-stone-500">
+                {row.fcfs_completed_at
+                  ? formatDate(row.fcfs_completed_at)
+                  : 'Not ranked'}
+              </p>
+            </div>
+
+            <div className="px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                Selection
+              </p>
+
+              <p className="mt-1.5 text-sm font-semibold text-stone-900">
+                {selectionLabel}
+              </p>
+
+              <p className="mt-0.5 text-xs text-stone-500">
+                {isWaiting
+                  ? 'Waiting for an available slot'
+                  : 'Scholarship slot reserved'}
+              </p>
+            </div>
+          </div>
+
+          {/* Scholarship */}
+          <div className="px-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+              Scholarship
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-stone-900">
+              {row.program_name}
+            </p>
+
+            <p className="mt-0.5 text-sm text-stone-500">
+              {row.opening_title}
+              {row.academic_year ? ` · ${row.academic_year}` : ''}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <DialogFooter className="border-t border-stone-100 bg-stone-50/70 px-5 py-3 sm:px-6">
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            {row.endorsement_slip_id ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 rounded-lg border-stone-200 bg-white"
+                  onClick={() =>
+                    navigate(
+                      `/admin/endorsements/${row.endorsement_slip_id}`
+                    )
+                  }
+                >
+                  View Endorsement
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 rounded-lg border-stone-200 bg-white"
+                  onClick={() => onDownloadSlip(row)}
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  Download PDF
+                </Button>
+              </>
+            ) : null}
+
+            <Button
+              size="sm"
+              className="h-9 rounded-lg border-none px-4 text-white"
+              style={{ background: C.brownMid }}
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function ReadinessOpeningCards({
   openings,
   rows,
   navigate,
+  onDownloadSlip,
   onApproveScholar,
   approvalLoadingId = '',
   unseenOpeningIds = new Set(),
-  onOpeningViewed = () => {},
+  onOpeningViewed = () => { },
 }) {
   const grouped = useMemo(() => {
     const map = new Map();
@@ -864,8 +1068,8 @@ function ReadinessOpeningCards({
       .filter((group) => {
         const statusGroup = getOpeningGroup(
           group.opening?.posting_status ||
-            group.opening?.status ||
-            ''
+          group.opening?.status ||
+          ''
         );
 
         return statusGroup === 'open';
@@ -879,6 +1083,7 @@ function ReadinessOpeningCards({
 
   const [selectedOpeningId, setSelectedOpeningId] =
     useState('');
+  const [summaryRow, setSummaryRow] = useState(null);
 
   useEffect(() => {
     if (!grouped.length) {
@@ -941,6 +1146,13 @@ function ReadinessOpeningCards({
 
   return (
     <div className="space-y-3">
+      <ReadinessCompletionSummary
+        row={summaryRow}
+        navigate={navigate}
+        onDownloadSlip={onDownloadSlip}
+        onClose={() => setSummaryRow(null)}
+      />
+
       <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-none">
         <div className="mb-2 flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -981,21 +1193,19 @@ function ReadinessOpeningCards({
                   setSelectedOpeningId(itemId);
                   onOpeningViewed(itemId);
                 }}
-                className={`min-w-[210px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition sm:min-w-[240px] ${
-                  selected
+                className={`min-w-[210px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition sm:min-w-[240px] ${selected
                     ? 'border-stone-300 bg-stone-900 text-white shadow-sm'
                     : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
-                }`}
+                  }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
                       <p
-                        className={`min-w-0 truncate text-sm font-semibold ${
-                          selected
+                        className={`min-w-0 truncate text-sm font-semibold ${selected
                             ? 'text-white'
                             : 'text-stone-900'
-                        }`}
+                          }`}
                       >
                         {itemOpening.opening_title ||
                           'Scholarship Opening'}
@@ -1010,11 +1220,10 @@ function ReadinessOpeningCards({
                     </div>
 
                     <p
-                      className={`mt-0.5 truncate text-xs ${
-                        selected
+                      className={`mt-0.5 truncate text-xs ${selected
                           ? 'text-white/70'
                           : 'text-stone-500'
-                      }`}
+                        }`}
                     >
                       {itemOpening.program_name ||
                         'Scholarship Program'}
@@ -1022,22 +1231,20 @@ function ReadinessOpeningCards({
                   </div>
 
                   <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      selected
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${selected
                         ? 'bg-white/15 text-white'
                         : 'bg-green-50 text-green-700'
-                    }`}
+                      }`}
                   >
                     {group.reserved.length} ready
                   </span>
                 </div>
 
                 <div
-                  className={`mt-2 flex items-center gap-3 text-[11px] ${
-                    selected
+                  className={`mt-2 flex items-center gap-3 text-[11px] ${selected
                       ? 'text-white/70'
                       : 'text-stone-500'
-                  }`}
+                    }`}
                 >
                   <span>
                     {group.reserved.length} reserved
@@ -1176,13 +1383,9 @@ function ReadinessOpeningCards({
                         size="sm"
                         variant="outline"
                         className="h-9 rounded-lg border-stone-200 text-sm"
-                        onClick={() =>
-                          navigate(
-                            `/admin/applications/${row.application_id}/documents`
-                          )
-                        }
+                        onClick={() => setSummaryRow(row)}
                       >
-                        View Application
+                        View Summary
                       </Button>
 
                       <Button
@@ -1200,7 +1403,7 @@ function ReadinessOpeningCards({
                         }
                       >
                         {approvalLoadingId ===
-                        row.application_id ? (
+                          row.application_id ? (
                           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                         ) : (
                           <CheckCircle2 className="mr-1.5 h-4 w-4" />
@@ -1320,9 +1523,8 @@ function RegistryTable({
         ) : (
           <div className="overflow-x-auto overscroll-x-contain [scrollbar-gutter:stable]">
             <table
-              className={`w-full border-collapse text-left ${
-                isReadinessMode ? 'min-w-[1680px]' : 'min-w-[1035px]'
-              }`}
+              className={`w-full border-collapse text-left ${isReadinessMode ? 'min-w-[1680px]' : 'min-w-[1035px]'
+                }`}
             >
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50/70">
@@ -1341,11 +1543,10 @@ function RegistryTable({
                     </>
                   ) : null}
                   <th
-                    className={`sticky right-0 z-20 border-l border-stone-200 bg-stone-50 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700 shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] ${
-                      isReadinessMode
+                    className={`sticky right-0 z-20 border-l border-stone-200 bg-stone-50 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-700 shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] ${isReadinessMode
                         ? 'w-[390px] min-w-[390px]'
                         : 'w-[160px] min-w-[160px]'
-                    }`}
+                      }`}
                   >
                     Action
                   </th>
@@ -1442,11 +1643,10 @@ function RegistryTable({
                       ) : null}
 
                       <td
-                        className={`sticky right-0 z-10 border-l border-stone-100 bg-white px-3 py-3.5 align-top text-center shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] transition-colors group-hover:bg-stone-50 ${
-                          isReadinessMode
+                        className={`sticky right-0 z-10 border-l border-stone-100 bg-white px-3 py-3.5 align-top text-center shadow-[-10px_0_18px_-18px_rgba(28,25,23,0.65)] transition-colors group-hover:bg-stone-50 ${isReadinessMode
                             ? 'w-[390px] min-w-[390px]'
                             : 'w-[160px] min-w-[160px]'
-                        }`}
+                          }`}
                       >
                         <div className="flex w-full flex-wrap justify-center gap-2 xl:flex-nowrap">
                           {isReadinessMode && row.endorsement_slip_id ? (
@@ -2163,6 +2363,7 @@ export default function ApplicationReview() {
           openings={openingCards}
           rows={readinessRows}
           navigate={navigate}
+          onDownloadSlip={downloadSlipPdf}
           onApproveScholar={setActivationCandidate}
           approvalLoadingId={approvalLoadingId}
           unseenOpeningIds={unseenReadinessOpeningIds}

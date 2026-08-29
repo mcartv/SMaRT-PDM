@@ -129,6 +129,8 @@ class ApplicantDocumentsPackage {
     required this.programName,
     required this.applicationStatus,
     required this.documentStatus,
+    required this.uploadsLocked,
+    this.uploadLockReason,
     required this.documents,
   });
 
@@ -138,6 +140,8 @@ class ApplicantDocumentsPackage {
   final String programName;
   final String applicationStatus;
   final String documentStatus;
+  final bool uploadsLocked;
+  final String? uploadLockReason;
   final List<ApplicantRequirementDocument> documents;
 
   List<ApplicantRequirementDocument> get requiredDocuments => documents
@@ -182,6 +186,20 @@ class ApplicantDocumentsPackage {
         )
         .toList(growable: false);
 
+    final uploadLockReasonRaw =
+        json['upload_lock_reason'] ?? application['upload_lock_reason'];
+    final uploadLockReasonText =
+        uploadLockReasonRaw?.toString().trim() ?? '';
+
+    final verificationStatus =
+        application['verification_status']?.toString().trim().toLowerCase() ??
+        '';
+
+    final uploadsLocked =
+        json['uploads_locked'] == true ||
+        application['uploads_locked'] == true ||
+        verificationStatus == 'verified';
+
     return ApplicantDocumentsPackage(
       applicationId: application['application_id']?.toString() ?? '',
       contextId:
@@ -195,6 +213,9 @@ class ApplicantDocumentsPackage {
           application['application_status']?.toString() ?? 'Pending Review',
       documentStatus:
           application['document_status']?.toString() ?? 'Missing Docs',
+      uploadsLocked: uploadsLocked,
+      uploadLockReason:
+          uploadLockReasonText.isEmpty ? null : uploadLockReasonText,
       documents: documents,
     );
   }

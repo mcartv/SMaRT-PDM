@@ -267,6 +267,17 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   Future<void> _pickAndUploadDocument(
     ApplicantRequirementDocument document,
   ) async {
+    final package = _package;
+
+    if (package?.uploadsLocked == true) {
+      _showUploadMessage(
+        package?.uploadLockReason ??
+            'Your verified documents are locked unless Admin requests a correction.',
+        isError: true,
+      );
+      return;
+    }
+
     final canContinue = await _confirmDocumentReplacement(document);
     if (!canContinue || !mounted) return;
 
@@ -470,10 +481,19 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(true),
-                          icon: const Icon(Icons.upload_file),
-                          label: const Text('Replace Document'),
+                          onPressed: _package?.uploadsLocked == true
+                              ? null
+                              : () => Navigator.of(dialogContext).pop(true),
+                          icon: Icon(
+                            _package?.uploadsLocked == true
+                                ? Icons.lock_outline_rounded
+                                : Icons.upload_file,
+                          ),
+                          label: Text(
+                            _package?.uploadsLocked == true
+                                ? 'Verified — Locked'
+                                : 'Replace Document',
+                          ),
                         ),
                       ),
                     ],
@@ -517,6 +537,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   }
 
   String _summaryText(ApplicantDocumentsPackage package) {
+    if (package.uploadsLocked) {
+      return package.uploadLockReason ??
+          'All required documents are verified and locked.';
+    }
+
     if (package.needsReplacementCount > 0) {
       return '${package.needsReplacementCount} document${package.needsReplacementCount == 1 ? '' : 's'} need replacement before review can continue.';
     }
@@ -600,6 +625,44 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               accentColor: accentColor,
               package: package,
             ),
+            if (package?.uploadsLocked == true) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: isDark ? 0.12 : 0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.24),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      color: Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        package?.uploadLockReason ??
+                            'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.',
+                        style: TextStyle(
+                          color: isDark
+                              ? AppColors.applicantDarkText
+                              : AppColors.darkBrown,
+                          height: 1.4,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             if (package != null)
               Row(
@@ -741,7 +804,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     statusLabel: _statusLabel(document),
                     uploadedText: _formatTimestamp(document.uploadedAt),
                     isUploading: _uploadingDocuments[document.id] == true,
-                    onUpload: () => _pickAndUploadDocument(document),
+                    onUpload: package.uploadsLocked
+                        ? null
+                        : () => _pickAndUploadDocument(document),
                     onOpen: document.isSubmitted && document.fileUrl != null
                         ? () => _showDocumentPreview(document)
                         : null,
@@ -766,7 +831,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     statusLabel: _statusLabel(document),
                     uploadedText: _formatTimestamp(document.uploadedAt),
                     isUploading: _uploadingDocuments[document.id] == true,
-                    onUpload: () => _pickAndUploadDocument(document),
+                    onUpload: package.uploadsLocked
+                        ? null
+                        : () => _pickAndUploadDocument(document),
                     onOpen: document.isSubmitted && document.fileUrl != null
                         ? () => _showDocumentPreview(document)
                         : null,
@@ -994,7 +1061,7 @@ class _DocumentCard extends StatelessWidget {
   final String statusLabel;
   final String uploadedText;
   final bool isUploading;
-  final VoidCallback onUpload;
+  final VoidCallback? onUpload;
   final VoidCallback? onOpen;
 
   @override
@@ -1114,20 +1181,24 @@ class _DocumentCard extends StatelessWidget {
             runSpacing: 10,
             children: [
               ElevatedButton.icon(
-                onPressed: isUploading ? null : onUpload,
+                onPressed: isUploading || onUpload == null ? null : onUpload,
                 icon: Icon(
-                  document.isSubmitted
-                      ? Icons.swap_horiz_rounded
-                      : Icons.upload_file,
+                  onUpload == null
+                      ? Icons.lock_outline_rounded
+                      : document.isSubmitted
+                          ? Icons.swap_horiz_rounded
+                          : Icons.upload_file,
                 ),
                 label: Text(
-                  isUploading
-                      ? (document.isSubmitted
-                            ? 'Replacing...'
-                            : 'Uploading...')
-                      : document.isSubmitted
-                          ? 'Replace Document'
-                          : 'Upload File',
+                  onUpload == null
+                      ? 'Verified — Locked'
+                      : isUploading
+                          ? (document.isSubmitted
+                                ? 'Replacing...'
+                                : 'Uploading...')
+                          : document.isSubmitted
+                              ? 'Replace Document'
+                              : 'Upload File',
                 ),
               ),
               if (onOpen != null)

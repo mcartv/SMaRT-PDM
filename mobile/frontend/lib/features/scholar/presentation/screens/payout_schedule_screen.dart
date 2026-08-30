@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
@@ -31,6 +33,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   List<MobilePayoutItem> _payouts = [];
   NotificationProvider? _notificationProvider;
   int _lastPayoutRevision = 0;
+  final Set<String> _uploadingProofs = <String>{};
 
   @override
   void initState() {
@@ -104,6 +107,177 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _pickAndUploadProof(MobilePayoutItem payout) async {
+    if (_uploadingProofs.contains(payout.payoutEntryId)) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: false,
+      withData: kIsWeb,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.single;
+    const maxBytes = 10 * 1024 * 1024;
+    final extension = file.name.contains('.')
+        ? file.name.split('.').last.toLowerCase()
+        : '';
+    const allowed = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
+
+    if (file.size <= 0) {
+      _showMessage('The selected file is empty.');
+      return;
+    }
+    if (file.size > maxBytes) {
+      _showMessage('Payout proof must be 10 MB or smaller.');
+      return;
+    }
+    if (!allowed.contains(extension)) {
+      _showMessage('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
+      return;
+    }
+    if (kIsWeb && (file.bytes == null || file.bytes!.isEmpty)) {
+      _showMessage('The selected file could not be read. Choose it again.');
+      return;
+    }
+    if (!kIsWeb && (file.path == null || file.path!.trim().isEmpty)) {
+      _showMessage('The selected file could not be accessed. Choose it again.');
+      return;
+    }
+
+    setState(() => _uploadingProofs.add(payout.payoutEntryId));
+    try {
+      await _payoutService.uploadProof(
+        payoutEntryId: payout.payoutEntryId,
+        fileName: file.name,
+        filePath: kIsWeb ? null : file.path,
+        fileBytes: file.bytes,
+      );
+      if (!mounted) return;
+      _showMessage('Payout proof submitted for review.');
+      await _loadPayouts();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingProofs.remove(payout.payoutEntryId));
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Color _proofStatusColor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'verified':
+        return Colors.green;
+      case 'resubmission required':
+        return Colors.orange;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  Widget _buildProofSection(
+    MobilePayoutItem payout,
+    Color titleColor,
+    Color subtitleColor,
+  ) {
+    if (payout.status.trim().toLowerCase() != 'released') {
+      return const SizedBox.shrink();
+    }
+
+    final proof = payout.proof;
+    final isUploading = _uploadingProofs.contains(payout.payoutEntryId);
+    final canUpload = proof == null || proof.mayReplace;
+    final adminComment = proof?.adminComment?.trim() ?? '';
+    final feedback = adminComment.isNotEmpty
+        ? adminComment
+        : (proof?.rejectionReason?.trim() ?? '');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Divider(color: Colors.grey.withOpacity(0.2)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Proof of Receipt',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+              if (proof != null)
+                Text(
+                  proof.status,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: _proofStatusColor(proof.status),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            proof == null
+                ? 'Upload proof after receiving this payout.'
+                : (proof.fileName?.trim().isNotEmpty == true
+                      ? proof.fileName!
+                      : 'Proof submitted'),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: subtitleColor,
+            ),
+          ),
+          if (feedback.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              'Admin feedback: $feedback',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: subtitleColor,
+              ),
+            ),
+          ],
+          if (canUpload) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: isUploading ? null : () => _pickAndUploadProof(payout),
+              icon: isUploading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file_outlined),
+              label: Text(
+                isUploading
+                    ? 'Uploading...'
+                    : proof == null
+                    ? 'Upload Proof'
+                    : 'Replace Proof',
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Color _getStatusColor(String status) {
@@ -407,6 +581,11 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                             _infoRow(
                               'Reference',
                               payout.reference.isEmpty ? '-' : payout.reference,
+                              subtitleColor,
+                            ),
+                            _buildProofSection(
+                              payout,
+                              titleColor,
                               subtitleColor,
                             ),
                           ],

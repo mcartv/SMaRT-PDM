@@ -429,6 +429,71 @@ async function verifyOtp(body = {}) {
     };
 }
 
+async function resendOtp(body = {}) {
+    const email = safeText(body.email).toLowerCase();
+
+    if (!email) {
+        throw createHttpError(400, 'Email is required');
+    }
+
+    let pendingRegistration = pendingRegistrationStore.get(email) || null;
+
+    if (pendingRegistration && Date.now() > pendingRegistration.expiresAt) {
+        pendingRegistrationStore.delete(email);
+        otpStore.delete(email);
+        pendingRegistration = null;
+    }
+
+    if (!pendingRegistration) {
+        const existingUser = await findUserByEmail(email);
+
+        if (!existingUser) {
+            throw createHttpError(404, 'No pending registration found for this email');
+        }
+
+        if (existingUser.is_otp_verified) {
+            throw createHttpError(409, 'This email is already verified');
+        }
+
+        const otp = await generateAndStoreNewOtp(existingUser);
+        await sendOTPEmail(email, otp);
+
+        return {
+            message: 'A new verification code has been sent.',
+        };
+    }
+
+    const otp = generateOTP();
+    const expiresAt = Date.now() + REGISTRATION_OTP_EXPIRY_MS;
+
+    pendingRegistrationStore.set(email, {
+        ...pendingRegistration,
+        expiresAt,
+    });
+    otpStore.set(email, { otp, expiresAt });
+
+    await sendOTPEmail(email, otp);
+
+    return {
+        message: 'A new verification code has been sent.',
+    };
+}
+
+async function cancelRegistration(body = {}) {
+    const email = safeText(body.email).toLowerCase();
+
+    if (!email) {
+        throw createHttpError(400, 'Email is required');
+    }
+
+    pendingRegistrationStore.delete(email);
+    otpStore.delete(email);
+
+    return {
+        message: 'Pending registration cleared.',
+    };
+}
+
 async function login(body = {}) {
     const rawStudentId =
         body.student_id || body.studentId || body.username || body.pdm_id || '';
@@ -479,6 +544,8 @@ module.exports = {
     checkStudentId,
     register,
     verifyOtp,
+    resendOtp,
+    cancelRegistration,
     login,
     otpStore,
     pendingRegistrationStore,

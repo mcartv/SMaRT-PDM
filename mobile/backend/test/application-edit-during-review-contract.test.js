@@ -10,7 +10,7 @@ const service = fs.readFileSync(
   'utf8'
 );
 
-test('application form editing requires an explicit saved correction request', () => {
+test('application form editing follows lifecycle and persisted verification state', () => {
   assert.match(service, /application_document_reviews/);
   assert.match(
     service,
@@ -18,7 +18,11 @@ test('application form editing requires an explicit saved correction request', (
   );
   assert.match(
     service,
-    /const canEdit\s*=\s*applicationFormCorrectionRequested\s*&&\s*!terminalApplicationStatus\s*&&\s*!selectionStarted\s*&&\s*!activated\s*;/
+    /const lifecycleCanEdit\s*=\s*application\.is_archived !== true\s*&&\s*!terminalApplicationStatus\s*&&\s*!selectionStarted\s*&&\s*!activated;/s
+  );
+  assert.match(
+    service,
+    /const canEdit\s*=\s*lifecycleCanEdit\s*&&\s*!applicationFormAwaitingVerification\s*&&\s*applicationFormReviewStatus !== 'verified';/s
   );
 });
 

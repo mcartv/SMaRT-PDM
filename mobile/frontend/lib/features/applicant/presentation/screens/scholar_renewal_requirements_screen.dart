@@ -118,7 +118,6 @@ class _ScholarRenewalRequirementsScreenState
     final renewalStatus = package.renewal.renewalStatus.toLowerCase().trim();
 
     return renewalStatus == 'needs reupload' ||
-        renewalStatus == 'failed' ||
         package.documents.any(
           (document) => document.status.toLowerCase().trim() == 'rejected',
         );
@@ -127,7 +126,7 @@ class _ScholarRenewalRequirementsScreenState
   Future<void> _pickAndUploadDocument(ScholarRenewalDocument document) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       allowMultiple: false,
       withData: kIsWeb,
     );
@@ -141,7 +140,7 @@ class _ScholarRenewalRequirementsScreenState
     final filePath = kIsWeb ? null : pickedFile.path;
     final fileBytes = pickedFile.bytes;
     final extension = fileName.split('.').last.toLowerCase();
-    const maxFileSizeBytes = 10 * 1024 * 1024;
+    const maxFileSizeBytes = 8 * 1024 * 1024;
 
     if (pickedFile.size <= 0) {
       _showSnackBar('The selected file is empty. Choose another file.');
@@ -149,14 +148,14 @@ class _ScholarRenewalRequirementsScreenState
     }
 
     if (pickedFile.size > maxFileSizeBytes) {
-      _showSnackBar('File is too large. Maximum size is 10 MB.');
+      _showSnackBar('File is too large. Maximum size is 8 MB.');
       return;
     }
 
-    const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png'};
+    const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
 
     if (!allowedExtensions.contains(extension)) {
-      _showSnackBar('Only PDF, JPG, JPEG, and PNG files are allowed.');
+      _showSnackBar('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
       return;
     }
 
@@ -395,14 +394,17 @@ class _ScholarRenewalRequirementsScreenState
     }
   }
 
-  String _statusLabel(ScholarRenewalDocument document) {
-    switch (document.status) {
+  String _statusLabel(
+    ScholarRenewalDocument document,
+    ScholarRenewalPackage package,
+  ) {
+    switch (document.status.trim().toLowerCase()) {
       case 'verified':
         return 'Verified';
       case 'uploaded':
         return 'Uploaded';
       case 'rejected':
-        return 'Re-upload';
+        return package.renewal.isRejected ? 'Rejected' : 'Needs Re-upload';
       case 'pending':
       default:
         return 'Required';
@@ -416,21 +418,44 @@ class _ScholarRenewalRequirementsScreenState
           ? package.availabilityReason
           : 'Renewal is not currently available for this academic semester.';
     }
-    final status = package.renewal.renewalStatus;
+    final renewal = package.renewal;
+    final status = renewal.normalizedStatus;
+    final adminComment = renewal.adminComment?.trim() ?? '';
 
-    if (status == 'Approved') {
+    if (status == 'approved') {
       return 'Your renewal package has been approved for this cycle.';
     }
 
-    if (status == 'Under Review') {
+    if (status == 'rejected') {
+      return adminComment.isNotEmpty
+          ? 'Your renewal was rejected. Admin feedback: $adminComment'
+          : 'Your renewal was rejected by the administrator.';
+    }
+
+    if (status == 'flagged') {
+      return adminComment.isNotEmpty
+          ? 'Your renewal needs administrator attention. Feedback: $adminComment'
+          : 'Your renewal needs administrator attention.';
+    }
+
+    if (status == 'submitted' || status == 'under review') {
       return 'Your renewal package is now pending admin review.';
     }
 
-    if (status == 'Failed' || status == 'Needs Reupload') {
-      return 'Admin requested a re-upload. Replace the flagged file and submit again.';
+    if (status == 'needs reupload') {
+      return adminComment.isNotEmpty
+          ? 'Admin requested a re-upload. Feedback: $adminComment'
+          : 'Admin requested a re-upload. Replace the flagged file and submit again.';
     }
 
     return 'Upload both required documents to maintain your scholarship for the current release cycle.';
+  }
+
+  String _lockedSubmitLabel(ScholarRenewal renewal) {
+    if (renewal.isApproved) return 'Renewal Approved';
+    if (renewal.isRejected) return 'Renewal Rejected';
+    if (renewal.isFlagged) return 'Renewal Flagged';
+    return 'Awaiting Admin Review';
   }
 
   List<ScholarRenewalDocument> _sortedDocuments(
@@ -474,10 +499,10 @@ class _ScholarRenewalRequirementsScreenState
         ? 'Submitting...'
         : _renewalPackage?.isRenewalAvailable == false
         ? 'Renewal Not Yet Available'
+        : _renewalPackage?.renewal.isLockedForReview == true
+        ? _lockedSubmitLabel(_renewalPackage!.renewal)
         : _hasPendingReupload
         ? 'Replace Re-upload Documents First'
-        : _renewalPackage?.renewal.isLockedForReview == true
-        ? 'Awaiting Admin Review'
         : 'Submit Renewal Requirements';
 
     return SmartPdmPageScaffold(
@@ -707,10 +732,7 @@ class _ScholarRenewalRequirementsScreenState
   }) {
     final statusColor = _statusColor(document.status);
     final isUploading = _uploadingDocuments[document.id] == true;
-    final canUpload =
-        !package.renewal.isLockedForReview ||
-        package.renewal.renewalStatus == 'Failed' ||
-        package.renewal.renewalStatus == 'Needs Reupload';
+    final canUpload = !package.renewal.isLockedForReview;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -856,7 +878,7 @@ class _ScholarRenewalRequirementsScreenState
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              _statusLabel(document),
+              _statusLabel(document, package),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: statusColor,
                 fontWeight: FontWeight.w700,

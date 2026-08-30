@@ -131,6 +131,7 @@ class ApplicantDocumentsPackage {
     required this.documentStatus,
     this.uploadsLocked = false,
     this.uploadLockReason,
+    this.rejectionReason,
     required this.documents,
   });
 
@@ -142,6 +143,7 @@ class ApplicantDocumentsPackage {
   final String documentStatus;
   final bool uploadsLocked;
   final String? uploadLockReason;
+  final String? rejectionReason;
   final List<ApplicantRequirementDocument> documents;
 
   List<ApplicantRequirementDocument> get requiredDocuments => documents
@@ -190,6 +192,8 @@ class ApplicantDocumentsPackage {
         json['upload_lock_reason'] ?? application['upload_lock_reason'];
     final uploadLockReasonText =
         uploadLockReasonRaw?.toString().trim() ?? '';
+    final rejectionReasonText =
+        application['rejection_reason']?.toString().trim() ?? '';
 
     final verificationStatus =
         application['verification_status']?.toString().trim().toLowerCase() ??
@@ -216,6 +220,8 @@ class ApplicantDocumentsPackage {
       uploadsLocked: uploadsLocked,
       uploadLockReason:
           uploadLockReasonText.isEmpty ? null : uploadLockReasonText,
+      rejectionReason:
+          rejectionReasonText.isEmpty ? null : rejectionReasonText,
       documents: documents,
     );
   }

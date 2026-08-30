@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:flutter/foundation.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -50,9 +49,6 @@ class ApiClient {
     }
 
     final session = await _sessionService.getCurrentUser();
-
-    debugPrint('API REQUEST TOKEN EMPTY: ${session.token.isEmpty}');
-    debugPrint('API REQUEST AUTH ATTACHED: ${session.token.isNotEmpty}');
 
     if (session.token.trim().isNotEmpty) {
       headers['Authorization'] = 'Bearer ${session.token.trim()}';

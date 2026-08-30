@@ -21,9 +21,12 @@ const provider = read(path.join(frontendRoot, 'lib', 'features', 'forms', 'prese
 test('Application Form remains editable while lifecycle allows editing', () => {
   assert.match(
     mobileService,
-    /const canEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/
+    /const lifecycleCanEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/s
   );
-  assert.doesNotMatch(mobileService, /const canEdit =\s*applicationFormCorrectionRequested &&/);
+  assert.match(
+    mobileService,
+    /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s
+  );
 });
 
 test('Preview Form and Edit Form reuse the existing application workflow', () => {
@@ -38,8 +41,8 @@ test('Preview Form and Edit Form reuse the existing application workflow', () =>
 test('Admin Application Form re-edit request creates a specific mobile notification', () => {
   assert.match(adminService, /Application Form Edit Required/);
   assert.match(adminService, /referenceType: 'application_form'/);
-  assert.match(adminService, /review\?\.documentKey === 'application_form'/);
-  assert.match(adminService, /review\?\.reviewStatus === 'reupload_required'/);
+  assert.match(adminService, /review\.documentKey === 'application_form'/);
+  assert.match(adminService, /review\.reviewStatus === 'reupload_required'/);
   assert.match(adminService, /reviews: requiredReviews/);
 });
 
@@ -54,16 +57,16 @@ test('Preview clearly indicates correction request and preserves Admin remark', 
   assert.match(preview, /_correctionRequested = editability\['correction_requested'\] == true/);
 });
 
-test('Successful Edit Form submission gives clear verification guidance', () => {
-  assert.match(editor, /Application Form Submitted for Verification/);
-  assert.match(editor, /all important information you entered is complete and correct/);
-  assert.match(editor, /Wait for the next verification update from OSFA\/Admin/);
-  assert.match(editor, /another correction is required or when the review status changes/);
+test('Updated Application Form confirms verification lock before saving', () => {
+  assert.match(editor, /Review before submitting/);
+  assert.match(editor, /Application Form for verification/);
+  assert.match(editor, /Back to Edit/);
+  assert.match(editor, /Submit for Verification/);
   assert.match(editor, /barrierDismissible: false/);
 });
 
 test('Preview refreshes immediately after successful editing', () => {
-  assert.match(preview, /if \(updated == true\) \{\s*await _load\(\);\s*\}/s);
+  assert.match(preview, /if \(updated == true\)[\s\S]*await _load\(\);/);
 });
 
 test('Editing updates the existing application rather than creating a duplicate', () => {

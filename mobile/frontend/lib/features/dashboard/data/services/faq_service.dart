@@ -9,27 +9,18 @@ class FaqService {
 
   Future<List<FaqItem>> fetchFaqs() async {
     try {
-      final settings = await _apiClient.getObject(
-        '/api/general-settings/public',
-      );
-      final rawFaqs = settings['landing_faqs'];
-
-      if (rawFaqs is List) {
-        return _parseFaqs(rawFaqs);
-      }
-
-      return const [];
+      final response = await _apiClient.getList('/api/faqs');
+      return _parseFaqs(response);
     } on ApiException catch (error) {
-      // The project currently has two backend layouts. The deployed Admin
-      // backend exposes /api/general-settings/public, while the modular
-      // backend exposes /api/faqs. Fall back only when the first route does
-      // not exist so real server errors are not hidden.
+      // Keep compatibility with older deployments that expose the FAQ data
+      // only through public general settings.
       if (error.statusCode != 404) {
         rethrow;
       }
 
-      final response = await _apiClient.getList('/api/faqs');
-      return _parseFaqs(response);
+      final settings = await _apiClient.getObject('/api/general-settings/public');
+      final rawFaqs = settings['landing_faqs'];
+      return rawFaqs is List ? _parseFaqs(rawFaqs) : const [];
     }
   }
 

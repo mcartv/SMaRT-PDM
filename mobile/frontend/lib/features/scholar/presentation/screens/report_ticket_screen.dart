@@ -297,7 +297,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                         decoration: InputDecoration(
                           labelText: 'Description',
                           hintText:
-                              'Describe the issue clearly so staff can review it.',
+                              'Describe the issue clearly so the appropriate office can review it.',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

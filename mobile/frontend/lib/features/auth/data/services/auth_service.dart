@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
@@ -228,11 +227,6 @@ class AuthService {
       hasScholarAccess: result.hasScholarAccess,
       role: user['role']?.toString(),
     );
-
-    final session = await _sessionService.getCurrentUser();
-    debugPrint('JWT: ${session.token}');
-    debugPrint('Stored user_id: ${session.userId}');
-    debugPrint('Stored student_id: ${session.studentId}');
 
     return result;
   }

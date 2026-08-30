@@ -39,6 +39,30 @@ async function verifyOtp(req, res) {
     }
 }
 
+async function resendOtp(req, res) {
+    try {
+        const result = await authService.resendOtp(req.body || {});
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('RESEND OTP ROUTE ERROR:', error.message);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to resend verification code',
+        });
+    }
+}
+
+async function cancelRegistration(req, res) {
+    try {
+        const result = await authService.cancelRegistration(req.body || {});
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('CANCEL REGISTRATION ROUTE ERROR:', error.message);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to cancel registration',
+        });
+    }
+}
+
 async function login(req, res) {
     try {
         const result = await authService.login(req.body || {});
@@ -117,6 +141,8 @@ module.exports = {
     checkStudentId,
     register,
     verifyOtp,
+    resendOtp,
+    cancelRegistration,
     login,
     forgotPassword,
     verifyResetOtp,

@@ -26,6 +26,16 @@ const registrationLimiter = rateLimit({
     },
 });
 
+const recoveryLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Too many recovery requests. Please try again later.',
+    },
+});
+
 const otpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -58,6 +68,8 @@ function createApp() {
     app.use('/api/auth/forgot-password', forgotPasswordLimiter);
     app.use('/api/auth/register', registrationLimiter);
     app.use('/api/auth/verify-otp', otpLimiter);
+    app.use('/api/auth/resend-otp', otpLimiter);
+    app.use('/api/auth/recovery', recoveryLimiter);
     app.use('/api/renewals', renewalRoutes);
     app.use(routes);
 

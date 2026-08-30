@@ -30,12 +30,15 @@ class AppConfig {
 
   static bool _shouldIgnoreConfiguredBaseUrl(String baseUrl) {
     final uri = Uri.tryParse(baseUrl);
-    if (uri == null) return false;
+    if (uri == null || !uri.hasScheme || uri.host.trim().isEmpty) return true;
 
-    final host = uri.host.toLowerCase();
-    return host == 'localhost' ||
-        host == '127.0.0.1' ||
-        host == '0.0.0.0' ||
-        host == '::1';
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') return true;
+
+    // 0.0.0.0 is a server bind address, not a usable client destination.
+    // Explicit localhost/127.0.0.1 values must be respected for Flutter Web
+    // and desktop development instead of being silently replaced by a stale
+    // LAN fallback.
+    return uri.host.toLowerCase() == '0.0.0.0';
   }
 }

@@ -74,8 +74,23 @@ class ScholarRenewal {
   final String? submittedAt;
   final String? reviewedAt;
 
-  bool get isLockedForReview =>
-      renewalStatus == 'Under Review' || renewalStatus == 'Approved';
+  String get normalizedStatus => renewalStatus.trim().toLowerCase();
+
+  bool get isLockedForReview => const {
+    'submitted',
+    'under review',
+    'approved',
+    'rejected',
+    'flagged',
+  }.contains(normalizedStatus);
+
+  bool get needsReupload => normalizedStatus == 'needs reupload';
+
+  bool get isApproved => normalizedStatus == 'approved';
+
+  bool get isRejected => normalizedStatus == 'rejected';
+
+  bool get isFlagged => normalizedStatus == 'flagged';
 
   factory ScholarRenewal.fromJson(Map<String, dynamic> json) {
     return ScholarRenewal(

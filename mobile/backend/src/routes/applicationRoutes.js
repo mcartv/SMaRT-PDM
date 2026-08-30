@@ -33,5 +33,6 @@ router.post(
     upload.single('document'),
     applicationController.uploadMyDocument
 );
+router.get('/:applicationId', protect, applicationController.getMyApplicationById);
 
 module.exports = router;

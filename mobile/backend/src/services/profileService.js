@@ -369,54 +369,65 @@ async function updateMyProfile(userId, payload = {}) {
     throw createHttpError(404, 'No student profile is linked to this account.');
   }
 
-  const email = safeText(payload.email);
-  const phoneNumber = safeText(payload.phone_number);
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+  const userUpdate = {};
+  const studentUpdate = { is_profile_complete: true };
 
-  if (email) {
+  if (hasOwn('email')) {
+    const email = safeText(payload.email);
+    userUpdate.email = email || null;
+    studentUpdate.email_address = email || null;
+  }
+
+  if (hasOwn('phone_number')) {
+    const phoneNumber = safeText(payload.phone_number);
+    userUpdate.phone_number = phoneNumber || null;
+    studentUpdate.phone_number = phoneNumber || null;
+  }
+
+  if (Object.keys(userUpdate).length > 0) {
     const { error: userUpdateError } = await supabase
       .from('users')
-      .update({
-        email,
-        phone_number: phoneNumber || null,
-      })
+      .update(userUpdate)
       .eq('user_id', userId);
 
     if (userUpdateError) throw userUpdateError;
   }
 
-  let courseId = payload.course_id || null;
-
-  if (!courseId && payload.course_code) {
-    const { data: course, error: courseError } = await supabase
-      .from('academic_course')
-      .select('course_id')
-      .eq('course_code', safeText(payload.course_code))
-      .maybeSingle();
-
-    if (courseError) throw courseError;
-    courseId = course?.course_id || null;
+  if (hasOwn('first_name')) studentUpdate.first_name = safeText(payload.first_name) || null;
+  if (hasOwn('middle_name')) studentUpdate.middle_name = safeText(payload.middle_name) || null;
+  if (hasOwn('last_name')) studentUpdate.last_name = safeText(payload.last_name) || null;
+  if (hasOwn('year_level')) {
+    const yearLevel = Number(payload.year_level);
+    studentUpdate.year_level = Number.isFinite(yearLevel) ? yearLevel : null;
+  }
+  if (hasOwn('sex') || hasOwn('sex_at_birth')) {
+    studentUpdate.sex_at_birth = safeText(payload.sex ?? payload.sex_at_birth) || null;
   }
 
-  const studentUpdate = {
-    first_name: safeText(payload.first_name),
-    middle_name: safeText(payload.middle_name) || null,
-    last_name: safeText(payload.last_name),
-    year_level: payload.year_level ? Number(payload.year_level) : null,
-    sex_at_birth: safeText(payload.sex || payload.sex_at_birth) || null,
-    email_address: email || null,
-    phone_number: phoneNumber || null,
-    is_profile_complete: true,
-  };
+  let courseId = null;
+  if (hasOwn('course_id')) {
+    courseId = safeText(payload.course_id) || null;
+  } else if (hasOwn('course_code')) {
+    const courseCode = safeText(payload.course_code);
+    if (courseCode) {
+      const { data: course, error: courseError } = await supabase
+        .from('academic_course')
+        .select('course_id')
+        .eq('course_code', courseCode)
+        .maybeSingle();
 
-  if (courseId) {
+      if (courseError) throw courseError;
+      if (!course?.course_id) {
+        throw createHttpError(400, 'Selected course was not found.');
+      }
+      courseId = course.course_id;
+    }
+  }
+
+  if (hasOwn('course_id') || hasOwn('course_code')) {
     studentUpdate.course_id = courseId;
   }
-
-  Object.keys(studentUpdate).forEach((key) => {
-    if (studentUpdate[key] === '') {
-      studentUpdate[key] = null;
-    }
-  });
 
   const { error: updateStudentError } = await supabase
     .from('students')
@@ -425,39 +436,47 @@ async function updateMyProfile(userId, payload = {}) {
 
   if (updateStudentError) throw updateStudentError;
 
-  const profilePayload = {
-    student_id: student.student_id,
-    date_of_birth: safeText(payload.date_of_birth) || null,
-    place_of_birth: safeText(payload.place_of_birth) || null,
-    civil_status: safeText(payload.civil_status) || null,
-    maiden_name: safeText(payload.maiden_name) || null,
-    religion: safeText(payload.religion) || null,
-    citizenship: safeText(payload.citizenship) || 'Filipino',
-    street_address: safeText(payload.street_address) || null,
-    subdivision: safeText(payload.subdivision) || null,
-    barangay: safeText(payload.barangay) || null,
-    city: safeText(payload.city) || null,
-    province: safeText(payload.province) || null,
-    zip_code: safeText(payload.zip_code) || null,
-    landline_number: safeText(payload.landline_number) || null,
-    financial_support_type: safeText(payload.financial_support_type) || null,
-    financial_support_other: safeText(payload.financial_support_other) || null,
-    has_prior_scholarship: payload.has_prior_scholarship === true,
-    prior_scholarship_details:
-      safeText(payload.prior_scholarship_details) || null,
-    has_disciplinary_record: payload.has_disciplinary_record === true,
-    disciplinary_details: safeText(payload.disciplinary_details) || null,
-    self_description: safeText(payload.self_description) || null,
-    aims_and_ambitions: safeText(payload.aims_and_ambitions) || null,
-  };
+  const profilePayload = { student_id: student.student_id };
+  const textProfileFields = [
+    'date_of_birth',
+    'place_of_birth',
+    'civil_status',
+    'maiden_name',
+    'religion',
+    'citizenship',
+    'street_address',
+    'subdivision',
+    'barangay',
+    'city',
+    'province',
+    'zip_code',
+    'landline_number',
+    'financial_support_type',
+    'financial_support_other',
+    'prior_scholarship_details',
+    'disciplinary_details',
+    'self_description',
+    'aims_and_ambitions',
+  ];
 
-  const { error: upsertProfileError } = await supabase
-    .from('student_profiles')
-    .upsert(profilePayload, {
-      onConflict: 'student_id',
-    });
+  for (const key of textProfileFields) {
+    if (hasOwn(key)) profilePayload[key] = safeText(payload[key]) || null;
+  }
 
-  if (upsertProfileError) throw upsertProfileError;
+  if (hasOwn('has_prior_scholarship')) {
+    profilePayload.has_prior_scholarship = payload.has_prior_scholarship === true;
+  }
+  if (hasOwn('has_disciplinary_record')) {
+    profilePayload.has_disciplinary_record = payload.has_disciplinary_record === true;
+  }
+
+  if (Object.keys(profilePayload).length > 1) {
+    const { error: upsertProfileError } = await supabase
+      .from('student_profiles')
+      .upsert(profilePayload, { onConflict: 'student_id' });
+
+    if (upsertProfileError) throw upsertProfileError;
+  }
 
   return getMyProfile(userId);
 }

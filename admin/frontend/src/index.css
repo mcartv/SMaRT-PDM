@@ -242,11 +242,104 @@ html.smartpdm-force-dark .portal-shell {
   --portal-surface: var(--bg-secondary) !important;
   --portal-accent-soft: var(--accent-soft) !important;
   --portal-sub: var(--border-strong) !important;
-  --portal-border: var(--border-default) !important;
+  --portal-outline: color-mix(in srgb, var(--portal-accent) 62%, white 38%) !important;
+  --portal-outline-strong: color-mix(in srgb, var(--portal-base) 52%, white 48%) !important;
+  --portal-button: color-mix(in srgb, var(--portal-base) 76%, white 24%) !important;
+  --portal-button-hover: color-mix(in srgb, var(--portal-base) 68%, white 32%) !important;
+  --portal-border: color-mix(in srgb, var(--portal-base) 38%, var(--border-default) 62%) !important;
   --portal-muted: var(--text-muted) !important;
   --portal-text: var(--text-main) !important;
   --portal-fg-accent: color-mix(in srgb, var(--portal-accent) 55%, white 45%) !important;
   background: var(--bg-primary) !important;
+}
+
+/* Every authenticated workspace derives its component-library colors from the
+ * signed-in user's selected portal preset. This covers Admin, SDO, Guidance,
+ * Program Director, and RO Coordinator without changing semantic status hues. */
+.portal-shell {
+  --primary: var(--portal-button);
+  --primary-foreground: #ffffff;
+  --ring: var(--portal-outline-strong);
+  --focus-ring: var(--portal-outline-strong);
+  --accent: var(--portal-accent-soft);
+  --accent-foreground: var(--portal-base);
+  --sidebar-primary: var(--portal-button);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: var(--portal-outline-strong);
+}
+
+/* Theme-owned outline controls follow the selected preset. Explicit semantic
+ * danger/warning/success/info outlines retain their authored status colors. */
+.portal-shell :is(
+  [data-slot="button"][data-variant="outline"],
+  button[class~="border-[var(--portal-base)]"],
+  a[class~="border-[var(--portal-base)]"]
+):not(:is(
+  .border-red-100, .border-red-200, .border-red-300,
+  .border-rose-100, .border-rose-200,
+  .border-amber-100, .border-amber-200, .border-amber-300,
+  .border-orange-100, .border-orange-200,
+  .border-green-100, .border-green-200, .border-green-300,
+  .border-emerald-100, .border-emerald-200,
+  .border-blue-100, .border-blue-200,
+  .border-sky-100, .border-sky-200,
+  .border-cyan-100, .border-violet-100, .border-violet-200,
+  .border-purple-100, .border-purple-200
+)) {
+  border-color: var(--portal-outline) !important;
+}
+
+.portal-shell :is(
+  [data-slot="button"][data-variant="outline"],
+  button[class~="border-[var(--portal-base)]"],
+  a[class~="border-[var(--portal-base)]"]
+):not(:disabled):not([aria-disabled="true"]):hover {
+  border-color: var(--portal-outline-strong) !important;
+  background-color: var(--portal-accent-soft) !important;
+  color: var(--portal-fg-accent) !important;
+}
+
+.portal-shell :is(
+  button,
+  a[href],
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [data-slot="select-trigger"],
+  [data-slot="switch"],
+  [data-slot="checkbox"],
+  [data-slot="radio-group-item"]
+):focus-visible {
+  --tw-ring-color: color-mix(in srgb, var(--portal-outline-strong) 34%, transparent) !important;
+  outline-color: var(--portal-outline-strong) !important;
+}
+
+.portal-shell :is(
+  input,
+  textarea,
+  select,
+  [role="combobox"],
+  [data-slot="select-trigger"]
+):focus-visible {
+  border-color: var(--portal-outline-strong) !important;
+}
+
+.portal-shell :is(
+  button[class~="bg-[var(--portal-base)]"],
+  a[class~="bg-[var(--portal-base)]"]
+) {
+  background-color: var(--portal-button) !important;
+  color: #ffffff !important;
+}
+
+.portal-shell :is(
+  button[class~="bg-[var(--portal-base)]"],
+  a[class~="bg-[var(--portal-base)]"]
+):not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: var(--portal-button-hover) !important;
 }
 
 html.smartpdm-force-dark .portal-shell > main,
@@ -1270,7 +1363,7 @@ html.smartpdm-admin-active.smartpdm-force-dark .admin-responsive-shell {
   --portal-surface: var(--bg-secondary) !important;
   --portal-surface-soft: var(--accent-soft) !important;
   --portal-accent-soft: var(--accent-soft) !important;
-  --portal-border: var(--border-default) !important;
+  --portal-border: color-mix(in srgb, var(--portal-base) 38%, var(--border-default) 62%) !important;
   --portal-muted: var(--text-muted) !important;
   --portal-text: var(--text-main) !important;
   --portal-fg-accent: color-mix(in srgb, var(--portal-accent) 58%, white 42%) !important;
@@ -1587,6 +1680,53 @@ html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outlin
 html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"][style*="var(--portal-base)"]:not(:disabled):hover,
 html.smartpdm-force-dark .portal-shell [data-slot="button"][data-variant="outline"][style*="var(--portal-base"]:not(:disabled):hover {
   background-color: color-mix(in srgb, var(--portal-base) 25%, var(--bg-elevated) 75%) !important;
+}
+
+/* Final dark-mode theme ownership. These rules intentionally follow the
+ * legacy neutral adapters above so selected preset colors win for themed
+ * outlines and buttons across every staff portal. */
+html.smartpdm-force-dark .portal-shell :is(
+  [data-slot="button"][data-variant="outline"],
+  button[class~="border-[var(--portal-base)]"],
+  a[class~="border-[var(--portal-base)]"]
+):not(:is(
+  .border-red-100, .border-red-200, .border-red-300,
+  .border-rose-100, .border-rose-200,
+  .border-amber-100, .border-amber-200, .border-amber-300,
+  .border-orange-100, .border-orange-200,
+  .border-green-100, .border-green-200, .border-green-300,
+  .border-emerald-100, .border-emerald-200,
+  .border-blue-100, .border-blue-200,
+  .border-sky-100, .border-sky-200,
+  .border-cyan-100, .border-violet-100, .border-violet-200,
+  .border-purple-100, .border-purple-200
+)) {
+  border-color: var(--portal-outline) !important;
+}
+
+html.smartpdm-force-dark .portal-shell :is(
+  [data-slot="button"][data-variant="outline"],
+  button[class~="border-[var(--portal-base)]"],
+  a[class~="border-[var(--portal-base)]"]
+):not(:disabled):not([aria-disabled="true"]):hover {
+  border-color: var(--portal-outline-strong) !important;
+  background-color: color-mix(in srgb, var(--portal-base) 28%, var(--bg-elevated) 72%) !important;
+  color: var(--portal-fg-accent) !important;
+}
+
+html.smartpdm-force-dark .portal-shell :is(
+  button[class~="bg-[var(--portal-base)]"],
+  a[class~="bg-[var(--portal-base)]"]
+) {
+  background-color: var(--portal-button) !important;
+  color: #ffffff !important;
+}
+
+html.smartpdm-force-dark .portal-shell :is(
+  button[class~="bg-[var(--portal-base)]"],
+  a[class~="bg-[var(--portal-base)]"]
+):not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: var(--portal-button-hover) !important;
 }
 
 /* Tabs, menus, and picker options need a clear but restrained hover surface. */

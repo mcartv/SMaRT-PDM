@@ -537,6 +537,14 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   }
 
   String _summaryText(ApplicantDocumentsPackage package) {
+    final applicationStatus = package.applicationStatus.trim().toLowerCase();
+    if (applicationStatus == 'rejected') {
+      final reason = package.rejectionReason?.trim() ?? '';
+      return reason.isEmpty
+          ? 'Your application was rejected by Admin. Document uploads are locked.'
+          : 'Your application was rejected by Admin. Feedback: $reason';
+    }
+
     if (package.uploadsLocked) {
       return package.uploadLockReason ??
           'All required documents are verified and locked.';
@@ -578,6 +586,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         ? AppColors.applicantDarkTextMuted
         : Colors.black54;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final applicationRejected =
+        package?.applicationStatus.trim().toLowerCase() == 'rejected';
+    final lockStateColor = applicationRejected ? Colors.red : Colors.green;
 
     final documents = package == null
         ? const <ApplicantRequirementDocument>[]
@@ -631,25 +642,33 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: isDark ? 0.12 : 0.07),
+                  color: lockStateColor.withValues(
+                    alpha: isDark ? 0.12 : 0.07,
+                  ),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: Colors.green.withValues(alpha: 0.24),
+                    color: lockStateColor.withValues(alpha: 0.24),
                   ),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.lock_outline_rounded,
-                      color: Colors.green,
+                    Icon(
+                      applicationRejected
+                          ? Icons.cancel_outlined
+                          : Icons.lock_outline_rounded,
+                      color: lockStateColor,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        package?.uploadLockReason ??
-                            'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.',
+                        applicationRejected
+                            ? ((package?.rejectionReason?.trim().isNotEmpty ?? false)
+                                  ? 'Application rejected. Admin feedback: ${package!.rejectionReason}'
+                                  : 'Application rejected by Admin. Document upload and replacement are locked.')
+                            : (package?.uploadLockReason ??
+                                  'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.'),
                         style: TextStyle(
                           color: isDark
                               ? AppColors.applicantDarkText

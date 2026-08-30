@@ -59,10 +59,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         _isLoadingCourses = false;
       });
 
-      debugPrint('COURSES LOADED: ${courses.length}');
-      for (final course in courses) {
-        debugPrint('COURSE: ${course.label}');
-      }
     } catch (e) {
       debugPrint('COURSE LOAD ERROR: $e');
 

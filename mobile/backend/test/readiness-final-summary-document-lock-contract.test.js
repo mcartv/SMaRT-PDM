@@ -32,7 +32,7 @@ test('readiness final summary and verified document lock contract', () => {
   assert.ok(admin.includes('View Summary'));
   assert.ok(
     admin.includes(
-      'Document verification is already finished'
+      'Admin verification completed'
     )
   );
 

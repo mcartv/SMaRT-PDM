@@ -120,8 +120,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             )
           : await _applicationService.fetchMySavedFormData();
 
-      debugPrint('APPLICATION FORM PREFILL RESPONSE: $savedFormData');
-
       final savedOpening = Map<String, dynamic>.from(
         savedFormData['opening'] as Map? ?? const {},
       );

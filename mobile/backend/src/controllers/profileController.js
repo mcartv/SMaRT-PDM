@@ -19,6 +19,23 @@ async function getMyProfile(req, res) {
     }
 }
 
+async function setupMyProfile(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        const result = await profileService.updateMyProfile(userId, req.body || {});
+
+        return res.status(200).json({
+            message: 'Profile completed successfully.',
+            profile: result?.profile || result,
+        });
+    } catch (error) {
+        console.error('PROFILE SETUP ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to complete profile.',
+        });
+    }
+}
+
 async function updateMyProfile(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -79,6 +96,7 @@ module.exports = {
     getMyProfile,
     getMyOnboardingPreference,
     markMyOnboardingSeen,
+    setupMyProfile,
     updateMyProfile,
     uploadAvatar,
 };

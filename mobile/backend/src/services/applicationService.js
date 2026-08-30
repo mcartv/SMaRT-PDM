@@ -1,4 +1,4 @@
-﻿const crypto = require('crypto');
+const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
@@ -1494,6 +1494,8 @@ async function getMyDocuments(userId) {
             document_status,
             verification_status,
             requirements_verified_at,
+            rejection_reason,
+            is_disqualified,
             selection_status,
             activation_status,
             activated_at,
@@ -1503,7 +1505,6 @@ async function getMyDocuments(userId) {
         `)
         .eq('student_id', student.student_id)
         .eq('is_archived', false)
-        .neq('application_status', 'Rejected')
         .order('submission_date', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false, nullsFirst: false })
         .limit(1);
@@ -1602,9 +1603,11 @@ async function getMyDocuments(userId) {
         contextTitle: 'Scholarship Requirements',
         programName: 'Current Application',
         applicationStatus: application.application_status || 'Pending Review',
-        documentStatus: uploadedCount >= requiredDocuments.length
-            ? 'Documents Ready'
-            : 'Missing Docs',
+        documentStatus: application.document_status || (
+            uploadedCount >= requiredDocuments.length
+                ? 'Documents Ready'
+                : 'Missing Docs'
+        ),
         uploadedCount,
         allRequiredUploaded: uploadedCount >= requiredDocuments.length,
         uploads_locked: uploadLock.locked,
@@ -1785,7 +1788,6 @@ async function fetchLatestApplication(studentId) {
         `)
         .eq('student_id', studentId)
         .eq('is_archived', false)
-        .neq('application_status', 'Rejected')
         .order('submission_date', {
             ascending: false,
             nullsFirst: false,
@@ -3673,6 +3675,30 @@ async function getMySubmittedFormData(userId) {
     };
 }
 
+async function getMyApplicationById(userId, applicationId) {
+    const normalizedApplicationId = safeText(applicationId);
+
+    if (!userId) {
+        throw createHttpError(401, 'Authentication required.');
+    }
+
+    if (!normalizedApplicationId) {
+        throw createHttpError(400, 'Application ID is required.');
+    }
+
+    const submitted = await getMySubmittedFormData(userId);
+    const submittedApplicationId = safeText(
+        submitted?.application?.application_id ||
+        submitted?.form_data?.application?.application_id
+    );
+
+    if (!submitted?.has_application || submittedApplicationId !== normalizedApplicationId) {
+        throw createHttpError(404, 'Application not found.');
+    }
+
+    return submitted.form_data || {};
+}
+
 async function submitMyApplicationForm(userId, payload = {}) {
     const editExistingApplication =
         payload?.edit_existing_application === true;
@@ -4617,6 +4643,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
 module.exports = {
     getMyFormData,
     getMySubmittedFormData,
+    getMyApplicationById,
     saveMyFormData,
     getMyDocuments,
     getMyApplicationStatusSummary,

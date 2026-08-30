@@ -171,6 +171,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
     }
   }
 
+  Future<void> _sendQuickLike() async {
+    if (_isSending || _messageController.text.trim().isNotEmpty) return;
+    _messageController.text = '👍';
+    await _sendMessage();
+  }
+
   Future<void> _showGroupInfo() async {
     final roomId = _normalizedRoomId;
     if (roomId == null) return;
@@ -574,15 +580,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh conversation',
-            onPressed: _isRefreshing ? null : _refreshThread,
-            icon: _isRefreshing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh_rounded),
+            tooltip: 'Search this conversation',
+            onPressed: () => setState(() {
+              _chatSearchOpen = !_chatSearchOpen;
+              if (!_chatSearchOpen) _chatSearchTerm = '';
+            }),
+            icon: Icon(
+              _chatSearchOpen ? Icons.close_rounded : Icons.search_rounded,
+            ),
           ),
           if (_isGroupChat)
             IconButton(
@@ -604,7 +609,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
         color: background,
         child: Column(
           children: [
-            if (_isGroupChat && _chatSearchOpen)
+            if (_chatSearchOpen)
               _ChatSearchBar(
                 value: _chatSearchTerm,
                 matchCount: _chatSearchTerm.trim().isEmpty
@@ -623,6 +628,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
               controller: _messageController,
               isSending: _isSending,
               onSend: _sendMessage,
+              onLike: _sendQuickLike,
             ),
           ],
         ),
@@ -1136,11 +1142,13 @@ class _MessageComposer extends StatelessWidget {
     required this.controller,
     required this.isSending,
     required this.onSend,
+    required this.onLike,
   });
 
   final TextEditingController controller;
   final bool isSending;
   final VoidCallback onSend;
+  final VoidCallback onLike;
 
   @override
   Widget build(BuildContext context) {
@@ -1207,7 +1215,7 @@ class _MessageComposer extends StatelessWidget {
               width: 48,
               height: 48,
               child: FilledButton(
-                onPressed: canSend ? onSend : null,
+                onPressed: isSending ? null : (canSend ? onSend : onLike),
                 style: FilledButton.styleFrom(
                   padding: EdgeInsets.zero,
                   backgroundColor: AppColors.gold,
@@ -1226,7 +1234,9 @@ class _MessageComposer extends StatelessWidget {
                           color: AppColors.darkBrown,
                         ),
                       )
-                    : const Icon(Icons.send_rounded),
+                    : canSend
+                    ? const Icon(Icons.send_rounded)
+                    : const Text('👍', style: TextStyle(fontSize: 20)),
               ),
             ),
           ],

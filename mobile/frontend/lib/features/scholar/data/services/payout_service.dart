@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/payout_proof.dart';
 
 class MobilePayoutItem {
   const MobilePayoutItem({
@@ -15,6 +18,7 @@ class MobilePayoutItem {
     required this.programName,
     required this.reference,
     this.benefactorName,
+    this.proof,
   });
 
   final String payoutEntryId;
@@ -30,6 +34,7 @@ class MobilePayoutItem {
   final String programName;
   final String reference;
   final String? benefactorName;
+  final PayoutProof? proof;
 
   factory MobilePayoutItem.fromJson(Map<String, dynamic> json) {
     return MobilePayoutItem(
@@ -52,6 +57,9 @@ class MobilePayoutItem {
       programName: json['program_name']?.toString() ?? 'Scholarship Program',
       benefactorName: json['benefactor_name']?.toString(),
       reference: json['reference']?.toString() ?? '',
+      proof: json['proof'] is Map
+          ? PayoutProof.fromJson(Map<String, dynamic>.from(json['proof'] as Map))
+          : null,
     );
   }
 }
@@ -71,5 +79,47 @@ class PayoutService {
         .toList();
 
     return items;
+  }
+
+  Future<PayoutProof> uploadProof({
+    required String payoutEntryId,
+    required String fileName,
+    String? filePath,
+    Uint8List? fileBytes,
+  }) async {
+    if (payoutEntryId.trim().isEmpty) {
+      throw ArgumentError('Payout entry ID is required.');
+    }
+    if (fileName.trim().isEmpty) {
+      throw ArgumentError('File name is required.');
+    }
+    if (fileBytes != null && fileBytes.isEmpty) {
+      throw ArgumentError('The selected file is empty.');
+    }
+    if (fileBytes == null && (filePath == null || filePath.trim().isEmpty)) {
+      throw ArgumentError('The selected file could not be accessed.');
+    }
+
+    final path = '/api/payouts/entries/${payoutEntryId.trim()}/proof';
+    final response = fileBytes != null
+        ? await _apiClient.uploadBytes(
+            path,
+            fieldName: 'proof',
+            bytes: fileBytes,
+            fileName: fileName,
+            timeout: const Duration(seconds: 60),
+          )
+        : await _apiClient.uploadFile(
+            path,
+            fieldName: 'proof',
+            filePath: filePath!,
+            timeout: const Duration(seconds: 60),
+          );
+
+    final proof = response['proof'];
+    if (proof is! Map) {
+      throw StateError('The server did not return the submitted payout proof.');
+    }
+    return PayoutProof.fromJson(Map<String, dynamic>.from(proof));
   }
 }

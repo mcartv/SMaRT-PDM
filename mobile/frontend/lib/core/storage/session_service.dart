@@ -88,9 +88,6 @@ class SessionService {
       await prefs.remove(_userRoleKey);
     }
 
-    debugPrint('SESSION SAVED TOKEN EMPTY: ${cleanToken.isEmpty}');
-    debugPrint('SESSION SAVED USER ID: $userId');
-    debugPrint('SESSION SAVED STUDENT ID: $studentId');
   }
 
   Future<SessionUser> getCurrentUser() async {
@@ -102,7 +99,6 @@ class SessionService {
                 '')
             .trim();
 
-    debugPrint('SESSION READ TOKEN EMPTY: ${token.isEmpty}');
 
     return SessionUser(
       token: token,
@@ -255,6 +251,5 @@ class SessionService {
     await prefs.remove(_pushDeviceTokenKey);
     await prefs.remove(_pushDevicePlatformKey);
 
-    debugPrint('SESSION CLEARED');
   }
 }

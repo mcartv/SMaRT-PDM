@@ -15,6 +15,9 @@ const payoutRoutes = require('./payoutRoutes');
 const roRoutes = require('./roRoutes');
 const internalRealtimeRoutes = require('./internalRealtimeRoutes');
 const faqRoutes = require('./faqRoutes');
+const generalSettingRoutes = require('./generalSettingRoutes');
+const systemMaintenanceRoutes = require('./systemMaintenanceRoutes');
+const scholarshipProgramRoutes = require('./scholarshipProgramRoutes');
 
 const router = express.Router();
 
@@ -41,6 +44,9 @@ router.use('/api/payouts', payoutRoutes);
 router.use('/api/ro', roRoutes);
 router.use('/api/internal/realtime', internalRealtimeRoutes);
 router.use('/api/faqs', faqRoutes);
+router.use('/api/general-settings', generalSettingRoutes);
+router.use('/api/system-maintenance', systemMaintenanceRoutes);
+router.use('/api/scholarship-programs', scholarshipProgramRoutes);
 
 router.get('/api/health', (_req, res) => {
     res.status(200).json({

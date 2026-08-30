@@ -99,7 +99,9 @@ test('verified Application Form remains locked', () => {
   );
 });
 
-test('post-edit guidance dialog remains intact', () => {
-  assert.match(editor, /Application Form Submitted for Verification/);
-  assert.match(editor, /Wait for the next verification update from OSFA\/Admin/);
+test('pre-submit verification guidance remains intact', () => {
+  assert.match(editor, /Review before submitting/);
+  assert.match(editor, /Back to Edit/);
+  assert.match(editor, /Submit for Verification/);
+  assert.doesNotMatch(editor, /Application Form Submitted for Verification/);
 });

@@ -56,6 +56,10 @@ function buildRealtimeEventKey(eventName, payload = {}) {
     payload.announcement_id ||
     payload.opening_id ||
     payload.message_id ||
+    payload.renewal_id ||
+    payload.renewal_document_id ||
+    payload.payout_entry_id ||
+    payload.payout_proof_id ||
     '';
 
   const version =
@@ -477,8 +481,111 @@ function handleApplicationDocumentChange(io, payload = {}) {
     source: 'application_document',
   };
 
-  emitGlobal(io, 'application-document:uploaded', eventPayload);
-  
+  const reviewChanged =
+    eventType === 'UPDATE' &&
+    normalizeText(next.review_status) !== normalizeText(old.review_status);
+
+  emitGlobal(
+    io,
+    reviewChanged ? 'application-document:reviewed' : 'application-document:uploaded',
+    eventPayload
+  );
+}
+
+function handleApplicationDocumentReviewChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const applicationId = row.application_id || null;
+
+  if (!applicationId) return;
+
+  emitGlobal(io, 'application-document:reviewed', {
+    application_id: applicationId,
+    document_id: row.document_id || row.review_id || null,
+    document_key: row.document_key || row.document_type || null,
+    document_status: row.review_status || row.status || null,
+    updated_at: row.updated_at || row.reviewed_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'application_document_review',
+  });
+}
+
+function handleRenewalChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const renewalId = row.renewal_id || null;
+  if (!renewalId) return;
+
+  const currentStatus = normalizeText(next.status || next.renewal_status);
+  const previousStatus = normalizeText(old.status || old.renewal_status);
+  let eventName = eventType === 'INSERT' ? 'renewal:created' : 'renewal:updated';
+  if (currentStatus === 'approved' && previousStatus !== 'approved') {
+    eventName = 'renewal:approved';
+  } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
+    eventName = 'renewal:rejected';
+  }
+
+  emitGlobal(io, eventName, {
+    renewal_id: renewalId,
+    renewal_status: row.status || row.renewal_status || null,
+    updated_at: row.updated_at || row.reviewed_at || new Date().toISOString(),
+    event_type: eventType,
+  });
+}
+
+function handleRenewalDocumentChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  if (!row.renewal_id) return;
+
+  emitGlobal(io, 'renewal:updated', {
+    renewal_id: row.renewal_id,
+    renewal_document_id: row.renewal_document_id || null,
+    document_status: row.review_status || row.status || null,
+    updated_at: row.updated_at || row.reviewed_at || row.submitted_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'renewal_document',
+  });
+}
+
+function handlePayoutChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const payoutEntryId = row.payout_entry_id || null;
+  if (!payoutEntryId) return;
+
+  emitGlobal(io, eventType === 'DELETE' ? 'payout:deleted' : 'payout:updated', {
+    payout_entry_id: payoutEntryId,
+    payout_batch_id: row.payout_batch_id || null,
+    release_status: row.release_status || null,
+    updated_at: row.updated_at || row.released_at || new Date().toISOString(),
+    event_type: eventType,
+  });
+}
+
+function handlePayoutProofChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  if (!row.payout_entry_id) return;
+
+  emitGlobal(io, 'payout:updated', {
+    payout_entry_id: row.payout_entry_id,
+    payout_proof_id: row.payout_proof_id || null,
+    proof_status: row.proof_status || null,
+    updated_at: row.updated_at || row.reviewed_at || row.submitted_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'payout_proof',
+  });
 }
 
 function handleEndorsementChange(io, payload = {}) {
@@ -620,6 +727,31 @@ function configureRealtimeBridge({ io, supabase }) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'application_documents' },
       (payload) => handleApplicationDocumentChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'application_document_reviews' },
+      (payload) => handleApplicationDocumentReviewChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'renewals' },
+      (payload) => handleRenewalChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'renewal_documents' },
+      (payload) => handleRenewalDocumentChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'payout_batch_students' },
+      (payload) => handlePayoutChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'payout_proofs' },
+      (payload) => handlePayoutProofChange(io, payload)
     )
     .on(
       'postgres_changes',

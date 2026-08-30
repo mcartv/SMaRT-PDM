@@ -161,7 +161,7 @@ async function createTicket(userId, body = {}) {
 
 async function getAllTickets(authUser = {}) {
     if (!isSupportAdmin(authUser)) {
-        throw createHttpError(403, 'Only staff accounts can access support tickets.');
+        throw createHttpError(403, 'Only authorized support accounts can access support tickets.');
     }
 
     const { data, error } = await supabase
@@ -198,7 +198,7 @@ async function getAllTickets(authUser = {}) {
 
 async function updateTicket({ authUser = {}, ticketId, body = {} }) {
     if (!isSupportAdmin(authUser)) {
-        throw createHttpError(403, 'Only staff accounts can update support tickets.');
+        throw createHttpError(403, 'Only authorized support accounts can update support tickets.');
     }
 
     if (!ticketId) {

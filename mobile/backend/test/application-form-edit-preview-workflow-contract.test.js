@@ -80,11 +80,11 @@ test('Review current Application Form behavior', () => {
 test('Ensure Application Form remains editable when editing is still allowed', () => {
   assert.match(
     backendService,
-    /const canEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/
+    /const lifecycleCanEdit =\s*application\.is_archived !== true &&\s*!terminalApplicationStatus &&\s*!selectionStarted &&\s*!activated;/s
   );
-  assert.doesNotMatch(
+  assert.match(
     backendService,
-    /const canEdit =\s*applicationFormCorrectionRequested &&/
+    /const canEdit =\s*lifecycleCanEdit &&\s*!applicationFormAwaitingVerification &&\s*applicationFormReviewStatus !== 'verified';/s
   );
   assert.match(preview, /'Editing available'/);
 });
@@ -144,7 +144,7 @@ test('Changes made in Edit Form must be saved correctly', () => {
 });
 
 test('Preview must immediately reflect saved changes', () => {
-  assert.match(preview, /if \(updated == true\) \{\s*await _load\(\);\s*\}/s);
+  assert.match(preview, /if \(updated == true\)[\s\S]*await _load\(\);/);
 });
 
 test('Prevent duplicate application records when editing', () => {

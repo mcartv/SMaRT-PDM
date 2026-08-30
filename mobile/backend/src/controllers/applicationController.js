@@ -54,6 +54,28 @@ async function getMySubmittedFormData(req, res) {
     }
 }
 
+async function getMyApplicationById(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+
+        const result = await applicationService.getMyApplicationById(
+            userId,
+            req.params.applicationId
+        );
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('APPLICATION DETAIL ROUTE ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load application details.',
+        });
+    }
+}
+
 async function saveMyFormData(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -191,6 +213,7 @@ async function submitMyApplicationForm(req, res) {
 module.exports = {
     getMyFormData,
     getMySubmittedFormData,
+    getMyApplicationById,
     saveMyFormData,
     getMyDocuments,
     getMyApplicationStatusSummary,

@@ -1982,6 +1982,8 @@ class _AssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     final progress = item.validatedProgress.clamp(0, 100);
     final department = item.assignedArea.trim().isEmpty
         ? 'RO Department'
@@ -2023,7 +2025,7 @@ class _AssignmentCard extends StatelessWidget {
                   item.isCleared
                       ? Icons.verified_rounded
                       : Icons.apartment_rounded,
-                  color: AppColors.darkBrown,
+                  color: isDark ? AppColors.gold : AppColors.darkBrown,
                   size: 21,
                 ),
               ),
@@ -2052,7 +2054,7 @@ class _AssignmentCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.black54,
+                          color: scheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -2084,7 +2086,9 @@ class _AssignmentCard extends StatelessWidget {
                             width: 7,
                             height: 7,
                             decoration: const BoxDecoration(
-                              color: Colors.green,
+                              color: isDark
+                                  ? const Color(0xFF9BE9A8)
+                                  : Colors.green,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -2107,15 +2111,20 @@ class _AssignmentCard extends StatelessWidget {
                     textAlign: TextAlign.right,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: progress >= 100
-                          ? Colors.green.shade700
-                          : AppColors.darkBrown,
+                          ? (isDark
+                                ? const Color(0xFF9BE9A8)
+                                : Colors.green.shade700)
+                          : scheme.onSurface,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right_rounded, color: Colors.black38),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: scheme.onSurfaceVariant,
+              ),
             ],
           ),
         ),
@@ -2537,19 +2546,27 @@ class _ObligationActionFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(18, 12, 18, 10 + bottomInset),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF6),
-        border: Border(top: BorderSide(color: Colors.black.withOpacity(0.08))),
-        boxShadow: const [
+        color: isDark ? scheme.surfaceContainer : const Color(0xFFFFFBF6),
+        border: Border(
+          top: BorderSide(
+            color: isDark
+                ? scheme.outlineVariant
+                : Colors.black.withOpacity(0.08),
+          ),
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x12000000),
+            color: Colors.black.withOpacity(isDark ? 0.30 : 0.07),
             blurRadius: 14,
-            offset: Offset(0, -4),
+            offset: const Offset(0, -4),
           ),
         ],
       ),
@@ -2810,6 +2827,8 @@ class _NoticeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     final statusColor = item.isCleared
         ? Colors.green
         : item.hasConflict
@@ -2834,9 +2853,9 @@ class _NoticeHeader extends StatelessWidget {
             color: AppColors.gold.withOpacity(0.18),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.assignment_turned_in_rounded,
-            color: AppColors.darkBrown,
+            color: isDark ? AppColors.gold : AppColors.darkBrown,
           ),
         ),
         const SizedBox(width: 12),
@@ -2855,7 +2874,7 @@ class _NoticeHeader extends StatelessWidget {
                 Text(
                   item.programName,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
+                    color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -3057,6 +3076,8 @@ class _ActiveSessionBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     final now = DateTime.now();
     final target = targetAt?.toLocal();
     final graceDeadline = graceDeadlineAt?.toLocal();
@@ -3076,8 +3097,12 @@ class _ActiveSessionBox extends StatelessWidget {
         : graceDeadline.difference(now).inSeconds.clamp(0, 1 << 31);
 
     final boxColor = requirementReached
-        ? const Color(0xFFE8F5E9)
-        : AppColors.gold.withOpacity(0.12);
+        ? (isDark
+              ? const Color(0xFF173D28)
+              : const Color(0xFFE8F5E9))
+        : (isDark
+              ? const Color(0xFF4A380F)
+              : AppColors.gold.withOpacity(0.12));
 
     final borderColor = requirementReached
         ? Colors.green.withOpacity(0.45)
@@ -3100,14 +3125,18 @@ class _ActiveSessionBox extends StatelessWidget {
                 : 'RO Service in Progress',
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              color: requirementReached ? Colors.green.shade800 : null,
+              color: requirementReached
+                  ? (isDark
+                        ? const Color(0xFF9BE9A8)
+                        : Colors.green.shade800)
+                  : scheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Started: ${formatDateTime(log.timeInAt)}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.black54,
+              color: scheme.onSurfaceVariant,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -3117,8 +3146,10 @@ class _ActiveSessionBox extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
               color: requirementReached
-                  ? Colors.green.shade800
-                  : AppColors.darkBrown,
+                  ? (isDark
+                        ? const Color(0xFF9BE9A8)
+                        : Colors.green.shade800)
+                  : scheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
@@ -3126,7 +3157,7 @@ class _ActiveSessionBox extends StatelessWidget {
             Text(
               '${formatElapsed(secondsUntilTarget)} remaining before your required RO time is reached.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.black54,
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             )
@@ -3134,7 +3165,9 @@ class _ActiveSessionBox extends StatelessWidget {
             Text(
               'Your credited time has stopped. Please Time Out and submit your proof within ${formatElapsed(graceSecondsRemaining)}. The checkout grace period is $checkoutGraceMinutes minute(s).',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.green.shade800,
+                color: isDark
+                    ? const Color(0xFF9BE9A8)
+                    : Colors.green.shade800,
                 fontWeight: FontWeight.w700,
               ),
             )
@@ -3142,7 +3175,9 @@ class _ActiveSessionBox extends StatelessWidget {
             Text(
               'The checkout grace period has ended. The backend will automatically close this session; refresh if the status has not updated yet.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.orange.shade900,
+                color: isDark
+                    ? const Color(0xFFFFC47A)
+                    : Colors.orange.shade900,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -3151,7 +3186,7 @@ class _ActiveSessionBox extends StatelessWidget {
             Text(
               log.studentNote,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.black54,
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -3246,6 +3281,10 @@ class _InfoBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final readableColor = isDark
+        ? Color.alphaBlend(Colors.white.withOpacity(0.36), color)
+        : color;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(13),
@@ -3257,7 +3296,7 @@ class _InfoBox extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 20),
+          Icon(icon, color: readableColor, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -3265,13 +3304,16 @@ class _InfoBox extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    color: readableColor,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -3292,19 +3334,26 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final readableColor = isDark
+        ? Color.alphaBlend(Colors.white.withOpacity(0.36), color)
+        : color;
     return Container(
       constraints: const BoxConstraints(maxWidth: 120),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withOpacity(isDark ? 0.22 : 0.12),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: readableColor.withOpacity(isDark ? 0.58 : 0.28),
+        ),
       ),
       child: Text(
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: color,
+          color: readableColor,
           fontWeight: FontWeight.w900,
           fontSize: 11,
         ),

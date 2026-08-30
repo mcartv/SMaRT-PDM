@@ -74,7 +74,7 @@ Future<void> showLegalDocumentSheet(
                         onPressed: () => Navigator.of(context).pop(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.gold,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppColors.darkBrown,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),

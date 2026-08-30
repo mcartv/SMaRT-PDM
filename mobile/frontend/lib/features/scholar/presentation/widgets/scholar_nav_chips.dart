@@ -18,14 +18,15 @@ class ScholarNavChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sectionLabelColor = isDark ? Colors.white70 : Colors.grey.shade600;
+    final scheme = Theme.of(context).colorScheme;
+    final sectionLabelColor = scheme.onSurfaceVariant;
     final unselectedBackgroundColor = isDark
-        ? const Color(0xFF332216)
+        ? scheme.surfaceContainerHigh
         : Colors.white;
     final unselectedBorderColor = isDark
-        ? Colors.white12
+        ? scheme.outline
         : primaryColor.withOpacity(0.25);
-    final unselectedTextColor = isDark ? Colors.white : Colors.black87;
+    final unselectedTextColor = scheme.onSurface;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,7 +87,11 @@ class ScholarNavChips extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (isSelected) ...[
-                      const Icon(Icons.check, size: 16, color: Colors.white),
+                      const Icon(
+                        Icons.check,
+                        size: 16,
+                        color: AppColors.darkBrown,
+                      ),
                       const SizedBox(width: 6),
                     ],
 
@@ -100,7 +105,7 @@ class ScholarNavChips extends StatelessWidget {
                             ?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: isSelected
-                                  ? Colors.white
+                                  ? AppColors.darkBrown
                                   : unselectedTextColor,
                             ),
                       ),

@@ -654,9 +654,13 @@ class _ScholarRenewalRequirementsScreenState
                   label: Text(submitLabel),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
-                    disabledBackgroundColor: Colors.grey.shade300,
-                    disabledForegroundColor: Colors.grey.shade600,
-                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: isDark
+                        ? Theme.of(context).colorScheme.surfaceContainerHighest
+                        : Colors.grey.shade300,
+                    disabledForegroundColor: isDark
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                        : Colors.grey.shade600,
+                    foregroundColor: AppColors.darkBrown,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
@@ -773,7 +777,13 @@ class _ScholarRenewalRequirementsScreenState
     required Color subtitleColor,
     required Color accentColor,
   }) {
-    final statusColor = _statusColor(document.status);
+    final rawStatusColor = _statusColor(document.status);
+    final statusColor = isDark
+        ? Color.alphaBlend(
+            Colors.white.withValues(alpha: 0.34),
+            rawStatusColor,
+          )
+        : rawStatusColor;
     final isUploading = _uploadingDocuments[document.id] == true;
     final canUpload = !package.renewal.isLockedForReview;
 
@@ -920,8 +930,15 @@ class _ScholarRenewalRequirementsScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.12),
+              color: isDark
+                  ? rawStatusColor.withValues(alpha: 0.20)
+                  : rawStatusColor.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: isDark
+                    ? statusColor.withValues(alpha: 0.58)
+                    : rawStatusColor.withValues(alpha: 0.24),
+              ),
             ),
             child: Text(
               _statusLabel(document, package),
@@ -945,23 +962,34 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.75),
+        color: isDark
+            ? scheme.surfaceContainerHighest
+            : Colors.white.withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark ? scheme.outline : AppColors.gold.withValues(alpha: 0.22),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.darkBrown),
+          Icon(
+            icon,
+            size: 14,
+            color: isDark ? AppColors.gold : AppColors.darkBrown,
+          ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: AppColors.darkBrown,
+                color: isDark ? scheme.onSurface : AppColors.darkBrown,
               ),
             ),
           ),
@@ -1012,11 +1040,19 @@ class _RenewalEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark
+            ? Theme.of(context).colorScheme.surfaceContainer
+            : Colors.white,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Theme.of(context).colorScheme.outline
+              : Colors.transparent,
+        ),
       ),
       child: const Text(
         'No active renewal package is available for your scholar account yet.',

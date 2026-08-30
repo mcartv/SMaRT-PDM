@@ -54,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _avatarRejectionReason = '';
   VoidCallback? _stopRealtimeListener;
   Timer? _liveSyncTimer;
+  Timer? _realtimeRefreshTimer;
   bool _profileFetchInProgress = false;
   bool _pendingRealtimeProfileReload = false;
 
@@ -99,18 +100,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
 
-    _applyValues(
-      firstName: session.firstName,
-      lastName: session.lastName,
-      email: session.email,
-      course: prefs.getString('user_course') ?? '',
-      section: prefs.getString('user_section') ?? '',
-      phone: prefs.getString('user_phone') ?? '',
-      address: prefs.getString('user_address') ?? '',
-      studentId: session.studentId,
-      avatarUrl: session.avatarUrl,
-      hasScholarAccess: session.hasScholarAccess,
-    );
+    // Cached values make the first render fast. Silent realtime/polling refreshes
+    // keep the current UI in place until the authoritative response arrives,
+    // avoiding a stale-then-fresh double rebuild.
+    if (!silent) {
+      _applyValues(
+        firstName: session.firstName,
+        lastName: session.lastName,
+        email: session.email,
+        course: prefs.getString('user_course') ?? '',
+        section: prefs.getString('user_section') ?? '',
+        phone: prefs.getString('user_phone') ?? '',
+        address: prefs.getString('user_address') ?? '',
+        studentId: session.studentId,
+        avatarUrl: session.avatarUrl,
+        hasScholarAccess: session.hasScholarAccess,
+      );
+    }
 
     if (refreshRemote && session.token.isNotEmpty) {
       try {
@@ -145,7 +151,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _isLoading = false);
     }
     _profileFetchInProgress = false;
-    if (_pendingRealtimeProfileReload && mounted && !_isEditing && !_isSaving && !_isUploading) {
+    if (_pendingRealtimeProfileReload &&
+        mounted &&
+        !_isEditing &&
+        !_isSaving &&
+        !_isUploading) {
       _pendingRealtimeProfileReload = false;
       scheduleMicrotask(() => _loadProfile(refreshRemote: true, silent: true));
     }
@@ -157,7 +167,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _pendingRealtimeProfileReload = true;
       return;
     }
-    _loadProfile(refreshRemote: true, silent: true);
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted || _isEditing || _isSaving || _isUploading) return;
+      _loadProfile(refreshRemote: true, silent: true);
+    });
   }
 
   void _applyValues({
@@ -186,25 +200,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // is temporarily missing from a cached response.
     const incomplete = false;
 
-    setState(() {
-      _firstNameController.text = firstName;
-      _lastNameController.text = lastName;
-      _emailController.text = email;
-      _courseController.text = course;
-      _sectionController.text = section;
-      _phoneController.text = phone;
-      _addressController.text = address;
-      _studentIdController.text = studentId;
+    final nextDisplayName = fullName.isEmpty ? 'SMaRT-PDM User' : fullName;
+    final nextAvatarUrl = avatarUrl?.trim().isNotEmpty == true
+        ? avatarUrl!.trim()
+        : null;
+    final nextAvatarReviewStatus = avatarReviewStatus?.trim().isNotEmpty == true
+        ? avatarReviewStatus!.trim().toLowerCase()
+        : null;
+    final nextRejectionReason = avatarRejectionReason.trim();
+    final valuesChanged =
+        _firstNameController.text != firstName ||
+        _lastNameController.text != lastName ||
+        _emailController.text != email ||
+        _courseController.text != course ||
+        _sectionController.text != section ||
+        _phoneController.text != phone ||
+        _addressController.text != address ||
+        _studentIdController.text != studentId ||
+        _displayName != nextDisplayName ||
+        _avatarUrl != nextAvatarUrl ||
+        _hasScholarAccess != hasScholarAccess ||
+        _avatarReviewStatus != nextAvatarReviewStatus ||
+        _avatarRejectionReason != nextRejectionReason ||
+        _isProfileIncomplete != incomplete ||
+        _isEditing != incomplete;
 
-      _displayName = fullName.isEmpty ? 'SMaRT-PDM User' : fullName;
-      _avatarUrl = avatarUrl?.trim().isNotEmpty == true
-          ? avatarUrl!.trim()
-          : null;
+    if (!valuesChanged) return;
+
+    setState(() {
+      if (_firstNameController.text != firstName) {
+        _firstNameController.text = firstName;
+      }
+      if (_lastNameController.text != lastName) {
+        _lastNameController.text = lastName;
+      }
+      if (_emailController.text != email) _emailController.text = email;
+      if (_courseController.text != course) _courseController.text = course;
+      if (_sectionController.text != section) _sectionController.text = section;
+      if (_phoneController.text != phone) _phoneController.text = phone;
+      if (_addressController.text != address) _addressController.text = address;
+      if (_studentIdController.text != studentId) {
+        _studentIdController.text = studentId;
+      }
+
+      _displayName = nextDisplayName;
+      _avatarUrl = nextAvatarUrl;
       _hasScholarAccess = hasScholarAccess;
-      _avatarReviewStatus = avatarReviewStatus?.trim().isNotEmpty == true
-          ? avatarReviewStatus!.trim().toLowerCase()
-          : null;
-      _avatarRejectionReason = avatarRejectionReason.trim();
+      _avatarReviewStatus = nextAvatarReviewStatus;
+      _avatarRejectionReason = nextRejectionReason;
       _isProfileIncomplete = incomplete;
       _isEditing = incomplete;
     });
@@ -905,7 +948,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 flex: 2,
                 child: FilledButton.icon(
                   onPressed: _isSaving ? null : _saveProfile,
-                  style: AppButtonStyles.confirmFilled(context),
+                  style: AppButtonStyles.confirmFilled(context).merge(
+                    FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
                   icon: _isSaving
                       ? const SizedBox(
                           width: 17,
@@ -917,15 +968,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         )
                       : const Icon(Icons.save_rounded),
                   label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.darkBrown,
-                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -938,6 +980,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _liveSyncTimer?.cancel();
+    _realtimeRefreshTimer?.cancel();
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
     _firstNameController.dispose();

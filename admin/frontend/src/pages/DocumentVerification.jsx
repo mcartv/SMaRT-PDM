@@ -2073,27 +2073,27 @@ function OCRPanel({
         )}
 
         {isBirthReview && (
-          <div className={`rounded-xl border p-4 space-y-4 ${birthReviewCompleted ? 'border-green-200 bg-green-50' : 'border-rose-200 bg-rose-50'}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-base font-bold tracking-wide text-stone-900">BIRTH CERTIFICATE OCR</p>
-                <p className="text-xs text-stone-600">Template: {reviewCandidate.template_id}</p>
+          <div className={`space-y-5 rounded-2xl border p-5 shadow-[0_18px_45px_-35px_rgba(190,24,93,0.45)] sm:p-6 ${birthReviewCompleted ? 'border-green-200 bg-green-50/70' : 'border-rose-200 bg-[#fff8f7]'}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-extrabold tracking-tight text-stone-900 sm:text-xl">BIRTH CERTIFICATE OCR</p>
+                <p className="mt-1 truncate text-sm font-medium text-stone-500">Template: {reviewCandidate.template_id}</p>
               </div>
-              <div className="flex flex-wrap justify-end gap-1">
+              <div className="flex max-w-[52%] flex-wrap justify-end gap-2">
                 {(reviewCandidate.review_exceptions || []).map((exception) => (
-                  <Badge key={`${exception.exception_group}-${exception.field_key || 'document'}`} className={
+                  <Badge key={`${exception.exception_group}-${exception.field_key || 'document'}`} className={`whitespace-nowrap ${
                     exception.priority === 'compliance_hold'
                       ? 'border-red-300 bg-red-100 text-red-800'
-                      : 'border-amber-200 bg-amber-100 text-amber-800'
-                  }>
+                      : 'border-amber-200 bg-amber-100 text-amber-800'} `}
+                  >
                     {String(exception.exception_group || '').replaceAll('_', ' ')}
                   </Badge>
                 ))}
-                <Badge className={birthReviewCompleted
+                <Badge className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm ${birthReviewCompleted
                   ? 'border-green-200 bg-green-100 text-green-800'
                   : birthReplacementRunning
                     ? 'border'
-                    : 'border-rose-200 bg-rose-100 text-rose-800'}
+                    : 'border-rose-200 bg-rose-100 text-rose-800'}`}
                   style={birthReplacementRunning && !birthReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)', color: 'var(--portal-base)' } : undefined}
                 >
                   {birthReviewCompleted
@@ -2118,10 +2118,10 @@ function OCRPanel({
             )}
 
             <div className={birthShowReviewImage && !birthDiagnosticOnly
-              ? 'grid items-start gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]'
+              ? 'grid items-start gap-5 2xl:grid-cols-[minmax(360px,0.95fr)_minmax(0,1.05fr)]'
               : 'space-y-4'}>
               {birthShowReviewImage && (
-                <div className="min-w-0 space-y-2">
+                <div className="min-w-0 space-y-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.55)] sm:p-4">
                   <BirthV2ReviewImage
                     src={birthReviewImageUrl}
                     regions={reviewCandidate?.processing?.source_regions}
@@ -2130,23 +2130,23 @@ function OCRPanel({
                     status={birthReviewImageStatus}
                     error={birthReviewImageError}
                   />
-                  <p className="text-xs text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
+                  <p className="text-sm leading-5 text-stone-500">All scan cells remain visible. Focus a field to emphasize its source cell.</p>
                 </div>
               )}
 
-              <div className="min-w-0 space-y-4">
+              <div className="min-w-0 space-y-3">
 
-                {!birthDiagnosticOnly && <div className="rounded-xl border border-rose-100 bg-white p-4">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <p className="min-w-0 text-sm font-semibold text-stone-800">Child Name</p>
-                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                {!birthDiagnosticOnly && <div className="rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <p className="min-w-0 truncate text-base font-bold leading-6 text-stone-900">Child Name</p>
+                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
                       {Object.values(correctedFields?.child_name || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
                     </span>
                   </div>
                   <div className="grid min-w-0 gap-3 sm:grid-cols-3">
                     {BIRTH_NAME_PARTS.map(([part, label]) => (
-                      <label key={part} className="min-w-0 space-y-1.5">
-                        <span className="block text-xs text-stone-500">{label}</span>
+                      <label key={part} className="min-w-0 space-y-2">
+                        <span className="block truncate text-sm font-medium text-stone-500">{label}</span>
                         <Input
                           value={correctedFields?.child_name?.[part] || ''}
                           readOnly={birthReviewClosed}
@@ -2160,7 +2160,7 @@ function OCRPanel({
                               [part]: event.target.value,
                             },
                           })}
-                          className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
+                          className={`h-11 w-full min-w-0 rounded-xl px-3 text-base ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
                         />
                       </label>
                     ))}
@@ -2168,17 +2168,17 @@ function OCRPanel({
                 </div>}
 
                 {!birthDiagnosticOnly && BIRTH_PARENT_FIELDS.map(([fieldKey, heading]) => (
-                  <div key={fieldKey} className="rounded-xl border border-rose-100 bg-white p-4">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <p className="min-w-0 text-sm font-semibold text-stone-800">{heading}</p>
-                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                  <div key={fieldKey} className="rounded-2xl border border-rose-100 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <p className="min-w-0 truncate text-base font-bold leading-6 text-stone-900" title={heading}>{heading}</p>
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
                         {Object.values(correctedFields?.[fieldKey] || {}).some((value) => String(value || '').trim()) ? 'Detected' : '\u2014'}
                       </span>
                     </div>
                     <div className="grid min-w-0 gap-3 sm:grid-cols-3">
                       {BIRTH_NAME_PARTS.map(([part, label]) => (
-                        <label key={part} className="min-w-0 space-y-1.5">
-                          <span className="block text-xs text-stone-500">{label}</span>
+                        <label key={part} className="min-w-0 space-y-2">
+                          <span className="block truncate text-sm font-medium text-stone-500">{label}</span>
                           <Input
                             value={correctedFields?.[fieldKey]?.[part] || ''}
                             readOnly={birthReviewClosed}
@@ -2192,7 +2192,7 @@ function OCRPanel({
                                 [part]: event.target.value,
                               },
                             })}
-                            className={`w-full min-w-0 ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
+                            className={`h-11 w-full min-w-0 rounded-xl px-3 text-base ${birthReviewClosed ? 'bg-stone-100' : 'bg-white'}`}
                           />
                         </label>
                       ))}
@@ -2203,13 +2203,13 @@ function OCRPanel({
             </div>
 
             {(!birthReviewClosed || birthCanRequestRescan) && (
-              <div className="clear-both space-y-3">
-                <label className="block text-xs font-semibold text-stone-700">
+              <div className="clear-both grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(28,25,23,0.45)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                <label className="block min-w-0 text-sm font-semibold text-stone-700">
                   Review reason
                   <select
                     value={birthReviewReason}
                     onChange={(event) => onBirthReviewReasonChange(event.target.value)}
-                    className="mt-1 h-9 w-full rounded-lg border border-stone-200 bg-white px-2 text-sm"
+                    className="mt-2 h-11 w-full rounded-xl border-stone-200 bg-white px-3 text-base"
                     aria-label="Birth OCR review reason"
                   >
                     <option value="">Select when correcting, rejecting, or rescanning</option>
@@ -2220,7 +2220,7 @@ function OCRPanel({
                     <option value="DUPLICATE_SUSPECTED">Duplicate suspected</option>
                   </select>
                 </label>
-                <div className="flex flex-wrap justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-3">
                   {reviewCandidate.ocr_version === 'v2' ? (
                     <Button variant="outline" onClick={onRescanCandidate} disabled={reviewingCandidate || !birthReviewReason}>
                       Request Rescan

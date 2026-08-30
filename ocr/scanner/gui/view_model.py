@@ -44,6 +44,7 @@ class GuiViewModel:
     camera_label: str
     updated_label: str
     system_note: str
+    camera_preview_active: bool
 
 
 def _title(value: object) -> str:
@@ -77,6 +78,7 @@ def _unavailable_model(note: str) -> GuiViewModel:
         camera_label="Unavailable",
         updated_label="Not available",
         system_note=note,
+        camera_preview_active=False,
     )
 
 
@@ -125,6 +127,7 @@ def build_view_model(result: ReadResult) -> GuiViewModel:
             if payload.get("safe_error_code")
             else "All status signals are independent"
         ),
+        camera_preview_active=str(payload.get("camera_status") or "") == "preview_active",
     )
 
 

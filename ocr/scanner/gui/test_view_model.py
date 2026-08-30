@@ -66,6 +66,30 @@ class ViewModelTests(unittest.TestCase):
         self.assertEqual(model.activity_text, "Processing Birth Certificate")
         self.assertEqual(model.progress_percent, 72)
 
+    def test_live_camera_preview_is_exposed_to_the_window(self):
+        model = build_view_model(
+            ReadResult(
+                "available",
+                snapshot(
+                    activity="ready_to_capture",
+                    camera_status="preview_active",
+                ),
+            )
+        )
+        self.assertTrue(model.camera_preview_active)
+
+    def test_status_window_returns_when_preview_is_not_active(self):
+        model = build_view_model(
+            ReadResult(
+                "available",
+                snapshot(
+                    activity="capturing",
+                    camera_status="capture_in_progress",
+                ),
+            )
+        )
+        self.assertFalse(model.camera_preview_active)
+
 
 if __name__ == "__main__":
     unittest.main()

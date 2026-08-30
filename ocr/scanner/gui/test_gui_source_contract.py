@@ -29,6 +29,46 @@ class GuiSourceContractTests(unittest.TestCase):
         self.assertIn("winfo_screenwidth", kiosk_source)
         self.assertIn("winfo_screenheight", kiosk_source)
 
+    def test_status_window_yields_to_live_camera_preview(self):
+        source = inspect.getsource(
+            main_window.ScannerStatusWindow._set_camera_preview_mode
+        )
+        self.assertIn("withdraw()", source)
+        self.assertIn("deiconify()", source)
+        self.assertIn("after_idle(self._enforce_kiosk_window)", source)
+
+    def test_preview_mode_hides_and_restores_the_kiosk_once(self):
+        events = []
+
+        class FakeRoot:
+            def withdraw(self):
+                events.append("withdraw")
+
+            def deiconify(self):
+                events.append("deiconify")
+
+            def after_idle(self, callback):
+                events.append(("after_idle", callback.__name__))
+
+        window = main_window.ScannerStatusWindow.__new__(
+            main_window.ScannerStatusWindow
+        )
+        window.root = FakeRoot()
+        window._yielding_to_camera_preview = False
+
+        window._set_camera_preview_mode(True)
+        window._set_camera_preview_mode(True)
+        window._set_camera_preview_mode(False)
+
+        self.assertEqual(
+            events,
+            [
+                "withdraw",
+                "deiconify",
+                ("after_idle", "_enforce_kiosk_window"),
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

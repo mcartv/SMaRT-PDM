@@ -55,6 +55,7 @@ class ScannerStatusWindow:
         self.state_reader = state_reader
         self._after_id = None
         self._last_model = None
+        self._yielding_to_camera_preview = False
         self._status_values: Dict[str, SingleLineLabel] = {}
         self._status_dots: Dict[str, StatusDot] = {}
         self._configure_root()
@@ -75,12 +76,25 @@ class ScannerStatusWindow:
 
     def _enforce_kiosk_window(self) -> None:
         """Apply fullscreen again after mapping for Pi XWayland compositors."""
+        if self._yielding_to_camera_preview:
+            return
         width = self.root.winfo_screenwidth()
         height = self.root.winfo_screenheight()
         self.root.overrideredirect(True)
         self.root.geometry(f"{width}x{height}+0+0")
         self.root.attributes("-fullscreen", True)
         self.root.lift()
+
+    def _set_camera_preview_mode(self, active: bool) -> None:
+        """Yield the HDMI display while rpicam owns the live preview."""
+        if active == self._yielding_to_camera_preview:
+            return
+        self._yielding_to_camera_preview = active
+        if active:
+            self.root.withdraw()
+            return
+        self.root.deiconify()
+        self.root.after_idle(self._enforce_kiosk_window)
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)
@@ -105,7 +119,7 @@ class ScannerStatusWindow:
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
-        header = tk.Frame(self.root, bg=COLORS["brown"], padx=24, pady=12)
+        header = tk.Frame(self.root, bg=COLORS["brown"], padx=22, pady=10)
         header.grid(row=0, column=0, sticky="nsew")
         header.grid_columnconfigure(0, weight=1)
 
@@ -117,7 +131,7 @@ class ScannerStatusWindow:
             "SMaRT-PDM OCR Station",
             bg=COLORS["brown"],
             fg="white",
-            font=("DejaVu Sans", 20, "bold"),
+            font=("DejaVu Sans", 22, "bold"),
             anchor="w",
         ).grid(row=0, column=0, sticky="ew")
         self._label(
@@ -125,7 +139,7 @@ class ScannerStatusWindow:
             "Document Processing Station",
             bg=COLORS["brown"],
             fg="#F4E7DA",
-            font=("DejaVu Sans", 10),
+            font=("DejaVu Sans", 11),
             anchor="w",
         ).grid(row=1, column=0, sticky="ew", pady=(2, 0))
 
@@ -134,14 +148,14 @@ class ScannerStatusWindow:
             "STATUS UNAVAILABLE",
             bg=COLORS["muted"],
             fg="white",
-            padx=16,
-            pady=7,
-            font=("DejaVu Sans", 10, "bold"),
+            padx=15,
+            pady=6,
+            font=("DejaVu Sans", 11, "bold"),
             anchor="center",
         )
         self.internet_badge.grid(row=0, column=1, sticky="e", padx=(18, 0))
 
-        content = tk.Frame(self.root, bg=COLORS["cream"], padx=24, pady=18)
+        content = tk.Frame(self.root, bg=COLORS["cream"], padx=22, pady=14)
         content.grid(row=1, column=0, sticky="nsew")
         content.grid_columnconfigure(0, weight=3, uniform="content")
         content.grid_columnconfigure(1, weight=2, uniform="content")
@@ -152,8 +166,8 @@ class ScannerStatusWindow:
             bg=COLORS["paper"],
             highlightbackground=COLORS["border"],
             highlightthickness=1,
-            padx=26,
-            pady=22,
+            padx=22,
+            pady=18,
         )
         activity_card.grid(row=0, column=0, sticky="nsew", padx=(0, 9))
         activity_card.grid_columnconfigure(0, weight=1)
@@ -164,7 +178,7 @@ class ScannerStatusWindow:
             "CURRENT SCANNER ACTIVITY",
             bg=COLORS["paper"],
             fg=COLORS["muted"],
-            font=("DejaVu Sans", 9, "bold"),
+            font=("DejaVu Sans", 10, "bold"),
             anchor="w",
         )
         self.activity_kicker.grid(row=0, column=0, sticky="ew")
@@ -173,19 +187,19 @@ class ScannerStatusWindow:
             "Waiting for status",
             bg=COLORS["paper"],
             fg=COLORS["text"],
-            font=("DejaVu Sans", 22, "bold"),
+            font=("DejaVu Sans", 26, "bold"),
             anchor="w",
         )
-        self.activity_value.grid(row=1, column=0, sticky="ew", pady=(10, 4))
+        self.activity_value.grid(row=1, column=0, sticky="ew", pady=(8, 3))
         self.document_value = self._label(
             activity_card,
             "No active document",
             bg=COLORS["paper"],
             fg=COLORS["muted"],
-            font=("DejaVu Sans", 13),
+            font=("DejaVu Sans", 15),
             anchor="w",
         )
-        self.document_value.grid(row=2, column=0, sticky="new", pady=(0, 18))
+        self.document_value.grid(row=2, column=0, sticky="new", pady=(0, 14))
 
         self.progress = ttk.Progressbar(
             activity_card,
@@ -200,12 +214,12 @@ class ScannerStatusWindow:
             "0%",
             bg=COLORS["paper"],
             fg=COLORS["muted"],
-            font=("DejaVu Sans", 9, "bold"),
+            font=("DejaVu Sans", 10, "bold"),
             anchor="e",
         )
-        self.progress_label.grid(row=4, column=0, sticky="ew", pady=(5, 14))
+        self.progress_label.grid(row=4, column=0, sticky="ew", pady=(4, 10))
 
-        detail_strip = tk.Frame(activity_card, bg="#F3E7D9", padx=14, pady=11)
+        detail_strip = tk.Frame(activity_card, bg="#F3E7D9", padx=13, pady=9)
         detail_strip.grid(row=5, column=0, sticky="ew")
         detail_strip.grid_columnconfigure(0, weight=1)
         detail_strip.grid_columnconfigure(1, weight=1)
@@ -214,7 +228,7 @@ class ScannerStatusWindow:
             "Camera: Unavailable",
             bg="#F3E7D9",
             fg=COLORS["brown_dark"],
-            font=("DejaVu Sans", 10, "bold"),
+            font=("DejaVu Sans", 11, "bold"),
             anchor="w",
         )
         self.camera_value.grid(row=0, column=0, sticky="ew", padx=(0, 8))
@@ -223,7 +237,7 @@ class ScannerStatusWindow:
             "Updated: Not available",
             bg="#F3E7D9",
             fg=COLORS["brown_dark"],
-            font=("DejaVu Sans", 10),
+            font=("DejaVu Sans", 11),
             anchor="e",
         )
         self.updated_value.grid(row=0, column=1, sticky="ew", padx=(8, 0))
@@ -233,8 +247,8 @@ class ScannerStatusWindow:
             bg=COLORS["paper"],
             highlightbackground=COLORS["border"],
             highlightthickness=1,
-            padx=22,
-            pady=20,
+            padx=19,
+            pady=17,
         )
         system_card.grid(row=0, column=1, sticky="nsew", padx=(9, 0))
         system_card.grid_columnconfigure(0, weight=1)
@@ -243,9 +257,9 @@ class ScannerStatusWindow:
             "SYSTEM STATUS",
             bg=COLORS["paper"],
             fg=COLORS["muted"],
-            font=("DejaVu Sans", 9, "bold"),
+            font=("DejaVu Sans", 10, "bold"),
             anchor="w",
-        ).grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        ).grid(row=0, column=0, sticky="ew", pady=(0, 6))
         self._status_row(system_card, 1, "internet", "Internet", "Checking")
         self._status_row(system_card, 2, "backend", "SMaRT-PDM", "Checking")
         self._status_row(system_card, 3, "worker", "OCR Worker", "Offline")
@@ -255,15 +269,15 @@ class ScannerStatusWindow:
             "Starting device monitor",
             bg="#F5F1EC",
             fg=COLORS["muted"],
-            padx=12,
-            pady=9,
-            font=("DejaVu Sans", 9),
+            padx=11,
+            pady=8,
+            font=("DejaVu Sans", 10),
             anchor="w",
         )
-        self.system_note.grid(row=4, column=0, sticky="sew", pady=(12, 0))
+        self.system_note.grid(row=4, column=0, sticky="sew", pady=(9, 0))
         system_card.grid_rowconfigure(4, weight=1)
 
-        footer = tk.Frame(self.root, bg=COLORS["brown_dark"], padx=24, pady=9)
+        footer = tk.Frame(self.root, bg=COLORS["brown_dark"], padx=22, pady=8)
         footer.grid(row=2, column=0, sticky="nsew")
         footer.grid_columnconfigure(0, weight=1)
         self._label(
@@ -271,7 +285,7 @@ class ScannerStatusWindow:
             "Use the physical capture button when the preview is ready",
             bg=COLORS["brown_dark"],
             fg="#F4E7DA",
-            font=("DejaVu Sans", 9),
+            font=("DejaVu Sans", 10),
             anchor="w",
         ).grid(row=0, column=0, sticky="ew", padx=(0, 12))
         self._label(
@@ -279,12 +293,12 @@ class ScannerStatusWindow:
             "Read-only status",
             bg=COLORS["brown_dark"],
             fg="white",
-            font=("DejaVu Sans", 9, "bold"),
+            font=("DejaVu Sans", 10, "bold"),
             anchor="e",
         ).grid(row=0, column=1, sticky="e")
 
     def _status_row(self, parent, row: int, key: str, label: str, value: str) -> None:
-        frame = tk.Frame(parent, bg=COLORS["paper"], pady=10)
+        frame = tk.Frame(parent, bg=COLORS["paper"], pady=8)
         frame.grid(row=row, column=0, sticky="ew")
         frame.grid_columnconfigure(1, weight=1)
         dot = StatusDot(frame, color=COLORS["muted"])
@@ -295,7 +309,7 @@ class ScannerStatusWindow:
             label.upper(),
             bg=COLORS["paper"],
             fg=COLORS["muted"],
-            font=("DejaVu Sans", 8, "bold"),
+            font=("DejaVu Sans", 9, "bold"),
             anchor="w",
         ).grid(row=0, column=1, sticky="ew")
         status_value = self._label(
@@ -303,7 +317,7 @@ class ScannerStatusWindow:
             value,
             bg=COLORS["paper"],
             fg=COLORS["text"],
-            font=("DejaVu Sans", 13, "bold"),
+            font=("DejaVu Sans", 15, "bold"),
             anchor="w",
         )
         status_value.grid(row=1, column=1, sticky="ew", pady=(2, 0))
@@ -320,6 +334,7 @@ class ScannerStatusWindow:
         self._schedule_refresh()
 
     def _apply_model(self, model: GuiViewModel) -> None:
+        self._set_camera_preview_mode(model.camera_preview_active)
         self.internet_badge.set_text(model.internet_badge)
         self.internet_badge.configure(bg=COLORS.get(model.internet_tone, COLORS["muted"]))
         self.activity_kicker.configure(fg=COLORS.get(model.activity_tone, COLORS["muted"]))

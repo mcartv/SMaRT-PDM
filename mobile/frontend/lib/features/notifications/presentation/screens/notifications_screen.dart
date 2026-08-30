@@ -234,6 +234,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final referenceType = (notification.referenceType ?? '').toLowerCase();
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
+    final message = notification.message.toLowerCase();
 
     if (referenceType == 'application_form' ||
         title.contains('application form edit required')) {
@@ -260,13 +261,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
-    if ((referenceType.contains('message') || type.contains('message')) &&
-        (notification.referenceId?.isNotEmpty ?? false)) {
+    if (referenceType.contains('chat_room') ||
+        referenceType.contains('chat-room') ||
+        referenceType == 'room' ||
+        referenceType == 'group_message') {
       Navigator.pushNamed(
         context,
         AppRoutes.chatThread,
         arguments: {'roomId': notification.referenceId},
       );
+      return;
+    }
+
+    if (referenceType.contains('message') ||
+        type.contains('message') ||
+        title.contains('message') ||
+        message.contains('message')) {
+      // A private-message notification commonly references the message ID,
+      // not a room ID. Opening the private support thread avoids treating a
+      // message UUID as a group room UUID.
+      Navigator.pushNamed(context, AppRoutes.chatThread);
       return;
     }
 
@@ -294,6 +308,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
+    if (referenceType.contains('profile') ||
+        referenceType.contains('account') ||
+        type.contains('profile') ||
+        title.contains('profile photo') ||
+        title.contains('account')) {
+      Navigator.pushNamed(context, AppRoutes.profile);
+      return;
+    }
+
+    if (referenceType == 'scholar' ||
+        type.contains('scholar') ||
+        title.contains('scholarship approved') ||
+        title.contains('scholar status')) {
+      Navigator.pushNamed(context, AppRoutes.profile);
+      return;
+    }
+
     if (type.contains('document') || title.contains('document')) {
       Navigator.pushNamed(context, AppRoutes.documents);
       return;
@@ -303,6 +334,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       Navigator.pushNamed(context, AppRoutes.status);
       return;
     }
+
+    if (referenceType.contains('faq') || type.contains('faq')) {
+      Navigator.pushNamed(context, AppRoutes.faqs);
+      return;
+    }
+
+    // Generic status/update notifications still navigate somewhere useful
+    // instead of appearing tappable and doing nothing.
+    Navigator.pushNamed(context, AppRoutes.home);
   }
 
   Future<void> _markAllAsRead(NotificationProvider provider) async {

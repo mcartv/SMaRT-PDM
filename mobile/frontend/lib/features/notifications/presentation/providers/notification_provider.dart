@@ -33,9 +33,11 @@ class NotificationProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isInitialized = false;
   bool _hasScholarAccess = false;
+  bool _isRealtimeBridgeHealthy = false;
   bool _isRealtimeRefreshing = false;
   bool _hasQueuedRealtimeRefresh = false;
   Timer? _realtimeRefreshDebounce;
+  Timer? _realtimeSafetyTimer;
   Completer<void>? _realtimeRefreshCompleter;
   static const Duration _realtimeRefreshCoalesceWindow = Duration(
     milliseconds: 250,
@@ -48,23 +50,6 @@ class NotificationProvider extends ChangeNotifier {
   static const Duration _scholarAccessRefreshCoalesceWindow = Duration(
     milliseconds: 400,
   );
-  bool _isRoRealtimeNotification(MobileRealtimeEvent event) {
-    final payload = event.payload;
-
-    final type = payload['type']?.toString().toLowerCase() ?? '';
-    final title = payload['title']?.toString().toLowerCase() ?? '';
-
-    final referenceType =
-        payload['reference_type']?.toString().toLowerCase() ??
-        payload['referenceType']?.toString().toLowerCase() ??
-        '';
-
-    return type.contains('ro') ||
-        type.contains('return of obligation') ||
-        title.contains('return of obligation') ||
-        referenceType == 'return_of_obligation';
-  }
-
   String? _errorMessage;
   String _initializedUserId = '';
 
@@ -138,6 +123,7 @@ class NotificationProvider extends ChangeNotifier {
       // Realtime already keeps this user's notification state current.
       // Re-entering the provider must not create another unread-count request.
       _ensureRealtimeListener();
+      _ensureRealtimeSafetyTimer();
       return;
     }
 
@@ -154,6 +140,7 @@ class NotificationProvider extends ChangeNotifier {
     await _notificationService.registerStoredDeviceToken();
 
     _ensureRealtimeListener();
+    _ensureRealtimeSafetyTimer();
   }
 
   Future<void> refresh({bool silent = false}) async {
@@ -284,6 +271,24 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  void _ensureRealtimeSafetyTimer() {
+    _realtimeSafetyTimer ??= Timer.periodic(
+      const Duration(seconds: 20),
+      (_) async {
+        if (!_isInitialized ||
+            MobileRealtimeService.instance.isRealtimeHealthy) {
+          return;
+        }
+
+        // Socket.IO can stay connected while the backend database-change
+        // bridge is recovering. During that condition, do a low-frequency
+        // authoritative reconciliation so no module remains stale. This timer
+        // is completely idle while realtime is healthy.
+        await _reconcileAllAfterSocketRecovery();
+      },
+    );
+  }
+
   void _ensureRealtimeListener() {
     _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
       MobileRealtimeEvents.notificationProviderEvents,
@@ -297,10 +302,26 @@ class NotificationProvider extends ChangeNotifier {
     switch (event.name) {
       case MobileRealtimeEvents.socketConnected:
       case MobileRealtimeEvents.socketReconnected:
+        _isRealtimeBridgeHealthy =
+            MobileRealtimeService.instance.isRealtimeHealthy;
         // Realtime events are not replayed while a device is offline. Reconcile
         // every active mobile module from its authoritative API when the socket
         // comes back, then let each screen refresh only its own data.
         await _reconcileAllAfterSocketRecovery();
+        return;
+
+      case MobileRealtimeEvents.bridgeStatus:
+        final healthy = MobileRealtimeService.instance.isRealtimeHealthy;
+        final recovered = healthy && !_isRealtimeBridgeHealthy;
+        _isRealtimeBridgeHealthy = healthy;
+        if (recovered) {
+          await _reconcileAllAfterSocketRecovery();
+        }
+        return;
+
+      case MobileRealtimeEvents.socketDisconnected:
+      case MobileRealtimeEvents.socketError:
+        _isRealtimeBridgeHealthy = false;
         return;
 
       case MobileRealtimeEvents.settingsUpdated:
@@ -337,12 +358,7 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.notificationCreated:
       case MobileRealtimeEvents.notificationCreatedLegacy:
         await _upsertNotificationFromEvent(event);
-
-        if (_isRoRealtimeNotification(event)) {
-          _roRevision += 1;
-          notifyListeners();
-          return;
-        }
+        await _refreshOfficeUpdatesFromRealtime();
 
         return;
 
@@ -350,18 +366,14 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.notificationsUpdated:
       case MobileRealtimeEvents.notificationUpdatedLegacy:
         await _updateNotificationFromEvent(event);
-
-        if (_isRoRealtimeNotification(event)) {
-          _roRevision += 1;
-          notifyListeners();
-          return;
-        }
+        await _refreshOfficeUpdatesFromRealtime();
 
         return;
 
       case MobileRealtimeEvents.notificationDeleted:
       case MobileRealtimeEvents.notificationArchived:
         await _removeNotificationFromEvent(event);
+        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationRestored:
@@ -370,10 +382,12 @@ class NotificationProvider extends ChangeNotifier {
 
       case MobileRealtimeEvents.notificationRead:
         await _updateNotificationFromEvent(event);
+        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationReadAll:
         _markLocalNotificationsRead();
+        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.announcementCreated:
@@ -611,21 +625,7 @@ class NotificationProvider extends ChangeNotifier {
         await _applyScholarAccess(true);
       }
 
-      if (notification.isAnnouncementNotification) {
-        _announcementRevision += 1;
-      }
-
-      if (notification.isOpeningUpdate) {
-        _openingRevision += 1;
-      }
-
-      if (notification.isPayoutNotification) {
-        _payoutRevision += 1;
-      }
-
-      if (notification.isRoNotification) {
-        _roRevision += 1;
-      }
+      _bumpModuleRevisionsFromNotification(notification);
 
       _notifications = <AppNotification>[
         notification,
@@ -638,6 +638,55 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
     } catch (error) {
       debugPrint('UPSERT REALTIME NOTIFICATION ERROR: $error');
+    }
+  }
+
+  void _bumpModuleRevisionsFromNotification(AppNotification notification) {
+    final type = notification.normalizedType;
+    final title = notification.normalizedTitle;
+    final message = notification.normalizedMessage;
+    final referenceType = notification.normalizedReferenceType;
+    final searchable = '$type $title $message $referenceType';
+
+    if (notification.isAnnouncementNotification) {
+      _announcementRevision += 1;
+    }
+
+    if (notification.isOpeningUpdate ||
+        searchable.contains('opening') ||
+        searchable.contains('program_opening')) {
+      _openingRevision += 1;
+    }
+
+    if (notification.isApplicationNotification ||
+        notification.isDocumentNotification ||
+        searchable.contains('endorsement') ||
+        searchable.contains('ocr')) {
+      _applicationRevision += 1;
+    }
+
+    if (searchable.contains('renewal')) {
+      _renewalRevision += 1;
+    }
+
+    if (notification.isPayoutNotification) {
+      _payoutRevision += 1;
+    }
+
+    if (notification.isRoNotification) {
+      _roRevision += 1;
+    }
+
+    if (searchable.contains('profile') ||
+        searchable.contains('profile_photo') ||
+        searchable.contains('account')) {
+      _profileRevision += 1;
+    }
+
+    if (searchable.contains('scholar') ||
+        searchable.contains('scholarship status')) {
+      _scholarRevision += 1;
+      _profileRevision += 1;
     }
   }
 
@@ -654,21 +703,7 @@ class NotificationProvider extends ChangeNotifier {
         return;
       }
 
-      if (updated.isAnnouncementNotification) {
-        _announcementRevision += 1;
-      }
-
-      if (updated.isOpeningUpdate) {
-        _openingRevision += 1;
-      }
-
-      if (updated.isPayoutNotification) {
-        _payoutRevision += 1;
-      }
-
-      if (updated.isRoNotification) {
-        _roRevision += 1;
-      }
+      _bumpModuleRevisionsFromNotification(updated);
 
       var found = false;
 
@@ -860,6 +895,8 @@ class NotificationProvider extends ChangeNotifier {
   void _resetRuntimeState({bool notify = true}) {
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
+    _realtimeSafetyTimer?.cancel();
+    _realtimeSafetyTimer = null;
 
     _notifications = <AppNotification>[];
     _latestPendingOpeningUpdate = null;
@@ -867,6 +904,7 @@ class NotificationProvider extends ChangeNotifier {
     _isLoading = false;
     _isInitialized = false;
     _hasScholarAccess = false;
+    _isRealtimeBridgeHealthy = false;
     _isRealtimeRefreshing = false;
     _hasQueuedRealtimeRefresh = false;
 
@@ -910,6 +948,8 @@ class NotificationProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _realtimeSafetyTimer?.cancel();
+    _realtimeSafetyTimer = null;
     _realtimeRefreshDebounce?.cancel();
     _realtimeRefreshDebounce = null;
     final realtimeCompleter = _realtimeRefreshCompleter;

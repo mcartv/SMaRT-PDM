@@ -63,6 +63,13 @@ function configureSocket(server) {
             console.log('Socket joined user room: user:' + userId);
         }
 
+        if (io.smartPdmRealtimeBridgeStatus) {
+            socket.emit(
+                'realtime:bridge-status',
+                io.smartPdmRealtimeBridgeStatus
+            );
+        }
+
         socket.on('disconnect', (reason) => {
             console.log(
                 'Socket disconnected:',

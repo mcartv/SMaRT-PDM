@@ -1334,11 +1334,10 @@ html.smartpdm-admin-active.smartpdm-force-dark {
   --admin-modal-backdrop: rgb(0 0 0 / 0.58);
 }
 
-/* Admin dark mode follows the selected personal theme instead of replacing it
- * with a single blue/charcoal palette. Each surface carries a restrained tint
- * of the active base color, while interactive accents use the brighter theme
- * accent so every preset (including custom presets) has a matching dark pair. */
-html.smartpdm-admin-active.smartpdm-force-dark .admin-responsive-shell {
+/* Every signed-in portal derives dark mode from that user's own active theme.
+ * Keep this on the local portal shell: Admin, SDO, Guidance, PD, and RO can
+ * each use a different saved preset without inheriting a shared dark palette. */
+html.smartpdm-force-dark .portal-shell {
   --bg-primary: color-mix(in srgb, var(--portal-base) 9%, #151617 91%);
   --bg-secondary: color-mix(in srgb, var(--portal-base) 12%, #202224 88%);
   --bg-elevated: color-mix(in srgb, var(--portal-base) 14%, #292b2e 86%);

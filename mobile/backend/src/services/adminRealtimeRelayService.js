@@ -1,15 +1,18 @@
+const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
+
 const ADMIN_BACKEND_URL = String(
     process.env.ADMIN_BACKEND_URL || ''
 ).replace(/\/+$/, '');
 
-const INTERNAL_REALTIME_SECRET = String(
-    process.env.INTERNAL_REALTIME_SECRET || ''
-).trim();
+function getInternalRealtimeSecret() {
+    const explicit = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
+    return explicit || resolveInternalRealtimeSecret();
+}
 
 async function postToAdminBackend(path, payload = {}) {
-    if (!ADMIN_BACKEND_URL || !INTERNAL_REALTIME_SECRET) {
+    if (!ADMIN_BACKEND_URL || !getInternalRealtimeSecret()) {
         console.warn(
-            '[Admin Realtime Relay] skipped direct same-environment relay: missing ADMIN_BACKEND_URL or INTERNAL_REALTIME_SECRET. Shared Supabase realtime remains available.'
+            '[Admin Realtime Relay] skipped direct same-environment relay: missing ADMIN_BACKEND_URL or shared realtime authentication. Shared Supabase realtime remains available.'
         );
 
         return {
@@ -27,7 +30,7 @@ async function postToAdminBackend(path, payload = {}) {
             headers: {
                 'Content-Type': 'application/json',
                 'x-internal-realtime-secret':
-                    INTERNAL_REALTIME_SECRET,
+                    getInternalRealtimeSecret(),
             },
             body: JSON.stringify(payload),
         });

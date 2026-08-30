@@ -1,19 +1,22 @@
+const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
+
 const STUDENT_BACKEND_BASE_URL = String(
   process.env.STUDENT_BACKEND_BASE_URL || ''
 ).replace(/\/+$/, '');
 
-const INTERNAL_REALTIME_SECRET = String(
-  process.env.INTERNAL_REALTIME_SECRET || ''
-).trim();
+function getInternalRealtimeSecret() {
+  const explicit = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
+  return explicit || resolveInternalRealtimeSecret();
+}
 
 async function relayMessageEvent({
   event,
   payload = {},
   targetUserIds = [],
 }) {
-  if (!STUDENT_BACKEND_BASE_URL || !INTERNAL_REALTIME_SECRET) {
+  if (!STUDENT_BACKEND_BASE_URL || !getInternalRealtimeSecret()) {
     console.warn(
-      '[Student Realtime Relay] skipped direct same-environment relay: missing STUDENT_BACKEND_BASE_URL or INTERNAL_REALTIME_SECRET. Shared Supabase realtime remains available.'
+      '[Student Realtime Relay] skipped direct same-environment relay: missing STUDENT_BACKEND_BASE_URL or shared realtime authentication. Shared Supabase realtime remains available.'
     );
 
     return {
@@ -30,7 +33,7 @@ async function relayMessageEvent({
         headers: {
           'Content-Type': 'application/json',
           'x-internal-realtime-secret':
-            INTERNAL_REALTIME_SECRET,
+            getInternalRealtimeSecret(),
         },
         body: JSON.stringify({
           event,
@@ -77,9 +80,9 @@ async function relayRoEvent({
   payload = {},
   targetUserIds = [],
 }) {
-  if (!STUDENT_BACKEND_BASE_URL || !INTERNAL_REALTIME_SECRET) {
+  if (!STUDENT_BACKEND_BASE_URL || !getInternalRealtimeSecret()) {
     console.warn(
-      '[Student Realtime Relay] skipped RO relay: missing STUDENT_BACKEND_BASE_URL or INTERNAL_REALTIME_SECRET.'
+      '[Student Realtime Relay] skipped RO relay: missing STUDENT_BACKEND_BASE_URL or shared realtime authentication.'
     );
 
     return {
@@ -96,7 +99,7 @@ async function relayRoEvent({
         headers: {
           'Content-Type': 'application/json',
           'x-internal-realtime-secret':
-            INTERNAL_REALTIME_SECRET,
+            getInternalRealtimeSecret(),
         },
         body: JSON.stringify({
           event,
@@ -141,9 +144,9 @@ async function relayRenewalEvent({
   event = 'renewal:updated',
   payload = {},
 }) {
-  if (!STUDENT_BACKEND_BASE_URL || !INTERNAL_REALTIME_SECRET) {
+  if (!STUDENT_BACKEND_BASE_URL || !getInternalRealtimeSecret()) {
     console.warn(
-      '[Student Realtime Relay] skipped renewal relay: missing STUDENT_BACKEND_BASE_URL or INTERNAL_REALTIME_SECRET.'
+      '[Student Realtime Relay] skipped renewal relay: missing STUDENT_BACKEND_BASE_URL or shared realtime authentication.'
     );
 
     return {
@@ -160,7 +163,7 @@ async function relayRenewalEvent({
         headers: {
           'Content-Type': 'application/json',
           'x-internal-realtime-secret':
-            INTERNAL_REALTIME_SECRET,
+            getInternalRealtimeSecret(),
         },
         body: JSON.stringify({
           event,
@@ -205,9 +208,9 @@ async function relayModuleEvent({
   payload = {},
   targetUserIds = [],
 }) {
-  if (!STUDENT_BACKEND_BASE_URL || !INTERNAL_REALTIME_SECRET) {
+  if (!STUDENT_BACKEND_BASE_URL || !getInternalRealtimeSecret()) {
     console.warn(
-      '[Student Realtime Relay] skipped module relay: missing STUDENT_BACKEND_BASE_URL or INTERNAL_REALTIME_SECRET.'
+      '[Student Realtime Relay] skipped module relay: missing STUDENT_BACKEND_BASE_URL or shared realtime authentication.'
     );
 
     return {
@@ -223,7 +226,7 @@ async function relayModuleEvent({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-internal-realtime-secret': INTERNAL_REALTIME_SECRET,
+          'x-internal-realtime-secret': getInternalRealtimeSecret(),
         },
         body: JSON.stringify({
           event,

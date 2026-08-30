@@ -46,7 +46,7 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
     _pollTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) {
-        if (!MobileRealtimeService.instance.isConnected) {
+        if (!MobileRealtimeService.instance.isRealtimeHealthy) {
           _refresh(silent: true);
         }
       },

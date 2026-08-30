@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -32,11 +36,43 @@ class _ApplicationFormPreviewScreenState
   String? _correctionComment;
   String? _error;
   final Set<String> _expandedLongFields = <String>{};
+  NotificationProvider? _notificationProvider;
+  int _lastApplicationRevision = 0;
+  bool _pendingRealtimeReload = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final provider = context.read<NotificationProvider>();
+    if (identical(_notificationProvider, provider)) return;
+
+    _notificationProvider?.removeListener(_handleRealtimeApplicationUpdate);
+    _notificationProvider = provider;
+    _lastApplicationRevision = provider.applicationRevision;
+    provider.addListener(_handleRealtimeApplicationUpdate);
+  }
+
+  void _handleRealtimeApplicationUpdate() {
+    final provider = _notificationProvider;
+    if (provider == null ||
+        provider.applicationRevision == _lastApplicationRevision) {
+      return;
+    }
+
+    _lastApplicationRevision = provider.applicationRevision;
+    _pendingRealtimeReload = true;
+
+    if (mounted && !_loading) {
+      _pendingRealtimeReload = false;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -98,6 +134,11 @@ class _ApplicationFormPreviewScreenState
         _error = error.toString().replaceFirst('Exception: ', '').trim();
         _loading = false;
       });
+    } finally {
+      if (mounted && !_loading && _pendingRealtimeReload) {
+        _pendingRealtimeReload = false;
+        scheduleMicrotask(_load);
+      }
     }
   }
 
@@ -935,6 +976,12 @@ class _ApplicationFormPreviewScreenState
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeApplicationUpdate);
+    super.dispose();
   }
 
   @override

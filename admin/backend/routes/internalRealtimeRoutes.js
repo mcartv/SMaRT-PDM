@@ -1,4 +1,5 @@
 const express = require('express');
+const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
 
 const router = express.Router();
 
@@ -7,12 +8,12 @@ function getSecret(req) {
 }
 
 function requireInternalSecret(req, res, next) {
-    const expected = String(process.env.INTERNAL_REALTIME_SECRET || '').trim();
+    const expected = resolveInternalRealtimeSecret();
 
     if (!expected) {
         return res.status(500).json({
             success: false,
-            message: 'INTERNAL_REALTIME_SECRET is missing in admin backend .env',
+            message: 'Internal realtime authentication is not configured.',
         });
     }
 

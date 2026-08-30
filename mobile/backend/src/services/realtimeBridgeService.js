@@ -1,4 +1,5 @@
 let realtimeChannel = null;
+let realtimeChannelGeneration = 0;
 let realtimeRetryTimer = null;
 const REALTIME_BRIDGE_RETRY_MS = 3000;
 
@@ -578,14 +579,28 @@ function handlePayoutProofChange(io, payload = {}) {
   const row = eventType === 'DELETE' ? old : next;
   if (!row.payout_entry_id) return;
 
-  emitGlobal(io, 'payout:updated', {
+  const eventPayload = {
     payout_entry_id: row.payout_entry_id,
     payout_proof_id: row.payout_proof_id || null,
     proof_status: row.proof_status || null,
     updated_at: row.updated_at || row.reviewed_at || row.submitted_at || new Date().toISOString(),
     event_type: eventType,
     source: 'payout_proof',
-  });
+  };
+
+  emitGlobal(io, 'payout:updated', eventPayload);
+
+  if (eventType === 'INSERT') {
+    emitGlobal(io, 'payout:proof-submitted', eventPayload);
+    return;
+  }
+
+  if (
+    eventType === 'UPDATE' &&
+    normalizeText(next.proof_status) !== normalizeText(old.proof_status)
+  ) {
+    emitGlobal(io, 'payout:proof-reviewed', eventPayload);
+  }
 }
 
 function handleEndorsementChange(io, payload = {}) {
@@ -678,6 +693,148 @@ function handleRoLogChange(io, payload = {}) {
   emitGlobal(io, 'ro:time-log-updated', eventPayload);
 }
 
+function handleRoPlacementChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const placementId = row.placement_id || row.ro_placement_id || null;
+
+  const eventPayload = {
+    placement_id: placementId,
+    ro_id: row.ro_id || null,
+    student_id: row.student_id || null,
+    ro_area_id: row.ro_area_id || null,
+    placement_status: row.placement_status || null,
+    assignment_status: row.assignment_status || null,
+    updated_at: row.updated_at || row.assigned_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'ro_placement',
+  };
+
+  emitGlobal(io, 'ro:updated', eventPayload);
+  emitGlobal(io, 'ro:assignment-updated', eventPayload);
+}
+
+function handleRoScholarRequestChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  const eventPayload = {
+    request_id: row.request_id || row.ro_request_id || null,
+    ro_id: row.ro_id || null,
+    student_id: row.student_id || null,
+    request_status: row.request_status || row.status || null,
+    updated_at: row.updated_at || row.reviewed_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'ro_scholar_request',
+  };
+
+  emitGlobal(io, 'ro:updated', eventPayload);
+  emitGlobal(io, 'ro:progress-updated', eventPayload);
+}
+
+function handleRoAreaCoordinatorChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  emitGlobal(io, 'ro:settings-updated', {
+    coordinator_assignment_id: row.coordinator_assignment_id || null,
+    ro_area_id: row.ro_area_id || null,
+    coordinator_user_id: row.user_id || null,
+    is_active: row.is_active,
+    updated_at: row.updated_at || row.assigned_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'ro_area_coordinator',
+  });
+}
+
+function handleChatRoomChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const roomId = row.room_id || null;
+  if (!roomId) return;
+
+  let eventName = 'room:updated';
+  if (eventType === 'INSERT') eventName = 'room:created';
+  if (eventType === 'DELETE' || row.is_archived === true) {
+    eventName = 'room:archived';
+  } else if (old.is_archived === true && row.is_archived === false) {
+    eventName = 'room:restored';
+  }
+
+  const eventPayload = {
+    room_id: roomId,
+    roomId,
+    room_name: row.room_name || row.name || null,
+    roomName: row.room_name || row.name || null,
+    is_archived: row.is_archived === true,
+    updated_at: row.updated_at || row.created_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  emitGlobal(io, eventName, eventPayload);
+  emitGlobal(io, 'conversation:updated', eventPayload);
+}
+
+function handleChatRoomMemberChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const roomId = row.room_id || null;
+  const userId = row.user_id || null;
+  if (!roomId) return;
+
+  const eventName = eventType === 'DELETE'
+    ? 'room:members-removed'
+    : 'room:members-added';
+  const eventPayload = {
+    room_id: roomId,
+    roomId,
+    user_id: userId,
+    userId,
+    is_admin: row.is_admin === true,
+    updated_at: row.updated_at || row.joined_at || row.created_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  if (userId) emitToUser(io, userId, eventName, eventPayload);
+  emitGlobal(io, 'conversation:updated', eventPayload);
+}
+
+function handleMessageReadStateChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const userId = row.user_id || null;
+  const messageId = row.message_id || null;
+  if (!userId || !messageId) return;
+
+  const isRead = eventType === 'DELETE' ? false : row.is_read === true;
+  const eventPayload = {
+    user_id: userId,
+    userId,
+    message_id: messageId,
+    messageId,
+    message_ids: [messageId],
+    messageIds: [messageId],
+    is_read: isRead,
+    isRead,
+    updated_at: row.updated_at || row.read_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  emitToUser(io, userId, isRead ? 'message:read' : 'message:unread', eventPayload);
+}
+
 async function handleMessageChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -735,6 +892,21 @@ async function handleMessageChange(io, supabase, payload = {}) {
   }
 }
 
+function publishRealtimeBridgeStatus(io, status, error = null) {
+  if (!io) return;
+
+  const normalizedStatus = String(status || '').trim().toUpperCase();
+  const payload = {
+    connected: normalizedStatus === 'SUBSCRIBED',
+    status: normalizedStatus || 'UNKNOWN',
+    error: error?.message || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  io.smartPdmRealtimeBridgeStatus = payload;
+  io.emit('realtime:bridge-status', payload);
+}
+
 function configureRealtimeBridge({ io, supabase }) {
   if (!io) {
     console.warn('[Realtime Bridge] not configured: missing io');
@@ -745,6 +917,9 @@ function configureRealtimeBridge({ io, supabase }) {
     console.warn('[Realtime Bridge] not configured: missing supabase');
     return null;
   }
+
+  const channelGeneration = ++realtimeChannelGeneration;
+  publishRealtimeBridgeStatus(io, 'CONNECTING');
 
   if (realtimeChannel) {
     try {
@@ -842,6 +1017,36 @@ function configureRealtimeBridge({ io, supabase }) {
     )
     .on(
       'postgres_changes',
+      { event: '*', schema: 'public', table: 'ro_placements' },
+      (payload) => handleRoPlacementChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'ro_scholar_requests' },
+      (payload) => handleRoScholarRequestChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'ro_area_coordinators' },
+      (payload) => handleRoAreaCoordinatorChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'chat_rooms' },
+      (payload) => handleChatRoomChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'chat_room_members' },
+      (payload) => handleChatRoomMemberChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'message_read_states' },
+      (payload) => handleMessageReadStateChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
       { event: '*', schema: 'public', table: 'messages' },
       async (payload) => {
         try {
@@ -852,9 +1057,13 @@ function configureRealtimeBridge({ io, supabase }) {
       }
     )
     .subscribe((status, error) => {
+      if (channelGeneration !== realtimeChannelGeneration) return;
+
       const normalizedStatus = String(status || '')
         .trim()
         .toUpperCase();
+
+      publishRealtimeBridgeStatus(io, normalizedStatus, error);
 
       if (error) {
         console.error(
@@ -885,7 +1094,8 @@ function configureRealtimeBridge({ io, supabase }) {
 
       if (
         normalizedStatus === 'CHANNEL_ERROR' ||
-        normalizedStatus === 'TIMED_OUT'
+        normalizedStatus === 'TIMED_OUT' ||
+        normalizedStatus === 'CLOSED'
       ) {
         scheduleRealtimeBridgeRestart({
           io,

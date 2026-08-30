@@ -39,7 +39,34 @@ async function setupMyProfile(req, res) {
 async function updateMyProfile(req, res) {
     try {
         const userId = getRequestUserId(req);
-        const result = await profileService.updateMyProfile(userId, req.body || {});
+        // Profile & Account may update contact/address information only.
+        // Student identity, registered email and academic program are sourced
+        // from the authoritative registry/onboarding workflow and must not be
+        // mutable through the regular profile PATCH endpoint.
+        const body = req.body || {};
+        const allowedPayload = {};
+
+        [
+            'phone_number',
+            'street_address',
+            'subdivision',
+            'barangay',
+            'city',
+            'province',
+            'zip_code',
+            'date_of_birth',
+            'place_of_birth',
+            'civil_status',
+            'religion',
+            'citizenship',
+            'landline_number',
+        ].forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(body, key)) {
+                allowedPayload[key] = body[key];
+            }
+        });
+
+        const result = await profileService.updateMyProfile(userId, allowedPayload);
 
         return res.status(200).json(result);
     } catch (error) {

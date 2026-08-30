@@ -1,5 +1,7 @@
 const express = require('express');
 
+const { resolveInternalRealtimeSecret } = require('../utils/internalRealtimeSecret');
+
 const router = express.Router();
 
 function cleanText(value) {
@@ -11,13 +13,13 @@ function uniqueIds(values = []) {
 }
 
 function requireInternalSecret(req, res, next) {
-  const expected = cleanText(process.env.INTERNAL_REALTIME_SECRET);
+  const expected = cleanText(resolveInternalRealtimeSecret());
   const supplied = cleanText(req.headers['x-internal-realtime-secret']);
 
   if (!expected) {
     return res.status(500).json({
       success: false,
-      message: 'INTERNAL_REALTIME_SECRET is missing in student backend .env',
+      message: 'Internal realtime authentication is not configured.',
     });
   }
 

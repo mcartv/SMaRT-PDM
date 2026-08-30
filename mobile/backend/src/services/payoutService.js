@@ -10,6 +10,19 @@ const ALLOWED_PROOF_MIME_TYPES = new Set([
     'image/webp',
 ]);
 
+function inferProofMimeType(file = {}) {
+    const provided = safeText(file.mimetype).toLowerCase();
+    if (ALLOWED_PROOF_MIME_TYPES.has(provided)) return provided;
+
+    const extension = path.extname(safeText(file.originalname)).toLowerCase();
+    if (extension === '.pdf') return 'application/pdf';
+    if (extension === '.png') return 'image/png';
+    if (extension === '.webp') return 'image/webp';
+    if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
+
+    return provided || 'application/octet-stream';
+}
+
 function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -180,7 +193,8 @@ function sanitizeFileName(value) {
 async function uploadMyPayoutProof(userId, payoutEntryId, file) {
     if (!userId) throw createHttpError(401, 'Authentication required.');
     if (!file?.buffer?.length) throw createHttpError(400, 'Select a payout proof file to upload.');
-    if (!ALLOWED_PROOF_MIME_TYPES.has(file.mimetype)) {
+    const proofMimeType = inferProofMimeType(file);
+    if (!ALLOWED_PROOF_MIME_TYPES.has(proofMimeType)) {
         throw createHttpError(400, 'Only PDF, JPG, PNG, or WEBP payout proof files are allowed.');
     }
 
@@ -215,7 +229,7 @@ async function uploadMyPayoutProof(userId, payoutEntryId, file) {
     const { error: uploadError } = await supabase.storage
         .from(PAYOUT_PROOF_BUCKET)
         .upload(storagePath, file.buffer, {
-            contentType: file.mimetype,
+            contentType: proofMimeType,
             upsert: false,
         });
 
@@ -266,7 +280,7 @@ async function uploadMyPayoutProof(userId, payoutEntryId, file) {
                 entry.application_id,
                 safeName,
                 storagePath,
-                file.mimetype,
+                proofMimeType,
                 file.size || file.buffer.length,
             ]
         );

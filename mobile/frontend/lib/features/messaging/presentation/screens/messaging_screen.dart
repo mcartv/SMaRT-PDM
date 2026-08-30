@@ -124,7 +124,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     _refreshFallback = Timer.periodic(const Duration(seconds: 8), (_) async {
       if (!mounted ||
           _isRefreshing ||
-          MobileRealtimeService.instance.isConnected) {
+          MobileRealtimeService.instance.isRealtimeHealthy) {
         return;
       }
 

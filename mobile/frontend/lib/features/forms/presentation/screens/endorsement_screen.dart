@@ -35,7 +35,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     super.initState();
     _loadStatus();
     _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted && !MobileRealtimeService.instance.isConnected) {
+      if (mounted && !MobileRealtimeService.instance.isRealtimeHealthy) {
         _loadStatus();
       }
     });

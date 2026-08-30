@@ -46,6 +46,7 @@ class MessagingProvider extends ChangeNotifier {
 
   VoidCallback? _stopRealtimeListener;
   Timer? _unreadDebounce;
+  Timer? _messageReconcileDebounce;
 
   static const int _maxRecentRealtimeMessageIds = 200;
   final Set<String> _recentRealtimeMessageIds = <String>{};
@@ -121,7 +122,7 @@ class MessagingProvider extends ChangeNotifier {
         userId: session.userId,
       );
 
-      _isRealtimeConnected = MobileRealtimeService.instance.isConnected;
+      _isRealtimeConnected = MobileRealtimeService.instance.isRealtimeHealthy;
     } else {
       _isRealtimeConnected = false;
     }
@@ -457,6 +458,7 @@ class MessagingProvider extends ChangeNotifier {
       'socket:reconnected',
       'socket:disconnected',
       'socket:error',
+      MobileRealtimeEvents.bridgeStatus,
     }, _handleRealtimeEvent);
   }
 
@@ -466,7 +468,8 @@ class MessagingProvider extends ChangeNotifier {
     switch (event.name) {
       case 'socket:connected':
       case 'socket:reconnected':
-        _isRealtimeConnected = true;
+        _isRealtimeConnected =
+            MobileRealtimeService.instance.isRealtimeHealthy;
         _errorMessage = null;
 
         // Reconcile authoritative state after a fresh/recovered socket. This
@@ -482,6 +485,25 @@ class MessagingProvider extends ChangeNotifier {
         _notify();
         return;
 
+      case MobileRealtimeEvents.bridgeStatus:
+        final wasHealthy = _isRealtimeConnected;
+        _isRealtimeConnected =
+            MobileRealtimeService.instance.isRealtimeHealthy;
+
+        if (_isRealtimeConnected && !wasHealthy) {
+          await fetchArchivedThreads(notify: false);
+          await fetchGroups(notify: false);
+          await refreshUnreadCount(notify: false);
+          if (_isViewingThread) {
+            await _refreshThread(notify: false);
+            unawaited(markThreadRead());
+          }
+          _errorMessage = null;
+        }
+
+        _notify();
+        return;
+
       case 'socket:disconnected':
       case 'socket:error':
         _isRealtimeConnected = false;
@@ -492,6 +514,7 @@ class MessagingProvider extends ChangeNotifier {
       case MobileRealtimeEvents.messageCreated:
       case MobileRealtimeEvents.messageUpdated:
         _handleMessageRealtimeFast(event);
+        _scheduleRealtimeMessageReconcile();
         return;
 
       case MobileRealtimeEvents.messageRead:
@@ -685,6 +708,52 @@ class MessagingProvider extends ChangeNotifier {
     _unreadDebounce = Timer(const Duration(milliseconds: 250), () {
       refreshUnreadCount();
     });
+  }
+
+  void _scheduleRealtimeMessageReconcile() {
+    _messageReconcileDebounce?.cancel();
+
+    _messageReconcileDebounce = Timer(
+      const Duration(milliseconds: 180),
+      () async {
+        if (_isDisposed || !_isInitialized) return;
+
+        try {
+          // Socket payloads are used for immediate display, then the API is
+          // reconciled a fraction of a second later. This prevents a payload
+          // shape mismatch, duplicate relay, or missed room metadata update
+          // from leaving the mobile UI stale while keeping Socket.IO as the
+          // realtime trigger instead of polling.
+          await fetchArchivedThreads(notify: false);
+          await fetchGroups(notify: false);
+
+          if (_isViewingThread) {
+            await _refreshThread(notify: false);
+            unawaited(markThreadRead());
+          } else {
+            try {
+              final result = await _messageService.fetchThread();
+              _counterpartyId = result.counterpartyId;
+              if (result.items.isNotEmpty) {
+                _privatePreview = result.items.first;
+              }
+            } catch (error) {
+              debugPrint(
+                '[MessagingProvider] private preview reconcile error: $error',
+              );
+            }
+          }
+
+          await refreshUnreadCount(notify: false);
+          _errorMessage = null;
+          _notify();
+        } catch (error) {
+          debugPrint(
+            '[MessagingProvider] realtime authoritative reconcile error: $error',
+          );
+        }
+      },
+    );
   }
 
   void _upsertMessage(ChatMessage message) {
@@ -900,6 +969,8 @@ class MessagingProvider extends ChangeNotifier {
 
     _unreadDebounce?.cancel();
     _unreadDebounce = null;
+    _messageReconcileDebounce?.cancel();
+    _messageReconcileDebounce = null;
 
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;

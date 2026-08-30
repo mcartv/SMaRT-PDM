@@ -40,6 +40,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
   bool _isLoading = true;
   bool _isRefreshing = false;
+  bool _pendingRealtimeReload = false;
   bool _needsBaseApplication = false;
   String? _errorMessage;
 
@@ -52,7 +53,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted &&
-          !MobileRealtimeService.instance.isConnected &&
+          !MobileRealtimeService.instance.isRealtimeHealthy &&
           !_isLoading &&
           !_isRefreshing &&
           _uploadingDocuments.isEmpty) {
@@ -129,6 +130,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
         _isLoading = false;
         _isRefreshing = false;
       });
+
+      if (_pendingRealtimeReload && _uploadingDocuments.isEmpty) {
+        _pendingRealtimeReload = false;
+        scheduleMicrotask(() => _loadPackage(silent: true));
+      }
     }
   }
 
@@ -138,11 +144,13 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     if (provider.applicationRevision == _lastApplicationRevision) return;
 
     _lastApplicationRevision = provider.applicationRevision;
+    _pendingRealtimeReload = true;
 
     if (mounted &&
         !_isLoading &&
         !_isRefreshing &&
         _uploadingDocuments.isEmpty) {
+      _pendingRealtimeReload = false;
       _loadPackage(silent: true);
     }
   }

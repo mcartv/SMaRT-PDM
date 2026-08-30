@@ -95,6 +95,7 @@ function useDepartmentAccountManager({
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState('');
+  const [accountFieldErrors, setAccountFieldErrors] = useState({});
   const [initialAccount, setInitialAccount] = useState(null);
   const [profileData, setProfileData] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
@@ -228,6 +229,8 @@ function useDepartmentAccountManager({
       role: config.account.role,
       is_active: true,
     });
+    setAccountFieldErrors({});
+    setAccountFeedback('');
   };
 
   const handleFieldChange = (field, value) => {
@@ -235,6 +238,36 @@ function useDepartmentAccountManager({
       ...prev,
       [field]: value,
     }));
+    setAccountFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    if (accountFeedback) setAccountFeedback('');
+  };
+
+  const validateAccount = () => {
+    const errors = {};
+    const firstName = String(account.first_name || '').trim();
+    const lastName = String(account.last_name || '').trim();
+    const email = String(account.email || '').trim();
+    const phoneNumber = String(account.phone_number || '').trim();
+
+    if (!firstName) errors.first_name = 'First name is required.';
+    else if (firstName.length > 100) errors.first_name = 'First name must be 100 characters or fewer.';
+    if (!lastName) errors.last_name = 'Last name is required.';
+    else if (lastName.length > 100) errors.last_name = 'Last name must be 100 characters or fewer.';
+    if (!email) errors.email = 'Email address is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address.';
+    if (phoneNumber && !/^09\d{9}$/.test(phoneNumber)) {
+      errors.phone_number = 'Phone number must be 11 digits and start with 09.';
+    } else if (/^09(\d)\1{8}$/.test(phoneNumber)) {
+      errors.phone_number = 'Enter a valid phone number; repeating placeholder numbers are not allowed.';
+    }
+
+    setAccountFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const currentProfileImage = photoPreview || resolveProfileImage(profileData);
@@ -390,6 +423,12 @@ function useDepartmentAccountManager({
 
   const handleSaveAccount = async () => {
     if (config.shortName === 'Admin' && !hasAccountChanges) {
+      showAppToast('info', 'No changes to save', 'Update at least one profile field first.');
+      return;
+    }
+    if (!validateAccount()) {
+      setAccountFeedback('Please correct the highlighted profile fields.');
+      showAppToast('error', 'Check profile details', 'Please correct the highlighted fields and try again.');
       return;
     }
     try {
@@ -407,7 +446,14 @@ function useDepartmentAccountManager({
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(account),
+        body: JSON.stringify({
+          ...account,
+          first_name: account.first_name.trim(),
+          last_name: account.last_name.trim(),
+          email: account.email.trim().toLowerCase(),
+          phone_number: account.phone_number.trim(),
+          position: account.position.trim(),
+        }),
       });
 
       const payload = await response.json().catch(() => ({}));
@@ -430,12 +476,15 @@ function useDepartmentAccountManager({
 
       setAccount(updatedAccount);
       setInitialAccount(updatedAccount);
+      setAccountFieldErrors({});
       storeProfile(savedProfile, updatedAccount);
       setAccountFeedback('');
       showAppToast('success', 'Account updated', `${config.shortName} account updated successfully.`);
     } catch (err) {
       console.error(`${config.shortName.toUpperCase()} ACCOUNT SAVE ERROR:`, err);
-      setAccountFeedback(err.message || `Failed to save ${config.shortName} account changes.`);
+      const message = err.message || `Failed to save ${config.shortName} account changes.`;
+      setAccountFeedback(message);
+      showAppToast('error', 'Account update failed', message);
     } finally {
       setSavingAccount(false);
     }
@@ -445,6 +494,7 @@ function useDepartmentAccountManager({
     loadingProfile,
     savingAccount,
     accountFeedback,
+    accountFieldErrors,
     account,
     currentProfileImage,
     displayName,
@@ -567,6 +617,7 @@ export function DepartmentAccountPanel({
     loadingProfile,
     savingAccount,
     accountFeedback,
+    accountFieldErrors,
     account,
     currentProfileImage,
     displayName,
@@ -703,9 +754,12 @@ export function DepartmentAccountPanel({
               <Input
                 value={account.first_name}
                 onChange={(e) => handleFieldChange('first_name', e.target.value)}
-                className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                className={`h-10 rounded-lg bg-stone-50/50 text-sm ${accountFieldErrors.first_name ? 'border-red-400 focus-visible:ring-red-200' : 'border-stone-200'}`}
                 disabled={loadingProfile || savingAccount}
+                aria-invalid={Boolean(accountFieldErrors.first_name)}
+                aria-describedby={accountFieldErrors.first_name ? 'account-first-name-error' : undefined}
               />
+              {accountFieldErrors.first_name ? <p id="account-first-name-error" className="text-xs text-red-600">{accountFieldErrors.first_name}</p> : null}
             </div>
 
             <div className="space-y-1.5">
@@ -713,9 +767,12 @@ export function DepartmentAccountPanel({
               <Input
                 value={account.last_name}
                 onChange={(e) => handleFieldChange('last_name', e.target.value)}
-                className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                className={`h-10 rounded-lg bg-stone-50/50 text-sm ${accountFieldErrors.last_name ? 'border-red-400 focus-visible:ring-red-200' : 'border-stone-200'}`}
                 disabled={loadingProfile || savingAccount}
+                aria-invalid={Boolean(accountFieldErrors.last_name)}
+                aria-describedby={accountFieldErrors.last_name ? 'account-last-name-error' : undefined}
               />
+              {accountFieldErrors.last_name ? <p id="account-last-name-error" className="text-xs text-red-600">{accountFieldErrors.last_name}</p> : null}
             </div>
 
             <div className="space-y-1.5">
@@ -725,10 +782,14 @@ export function DepartmentAccountPanel({
                 <Input
                   value={account.email}
                   onChange={(e) => handleFieldChange('email', e.target.value)}
-                  className="h-10 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                  type="email"
+                  className={`h-10 rounded-lg bg-stone-50/50 pl-9 text-sm ${accountFieldErrors.email ? 'border-red-400 focus-visible:ring-red-200' : 'border-stone-200'}`}
                   disabled={loadingProfile || savingAccount}
+                  aria-invalid={Boolean(accountFieldErrors.email)}
+                  aria-describedby={accountFieldErrors.email ? 'account-email-error' : undefined}
                 />
               </div>
+              {accountFieldErrors.email ? <p id="account-email-error" className="text-xs text-red-600">{accountFieldErrors.email}</p> : null}
             </div>
 
             <div className="space-y-1.5">
@@ -738,10 +799,16 @@ export function DepartmentAccountPanel({
                 <Input
                   value={account.phone_number}
                   onChange={(e) => handleFieldChange('phone_number', e.target.value)}
-                  className="h-10 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={11}
+                  className={`h-10 rounded-lg bg-stone-50/50 pl-9 text-sm ${accountFieldErrors.phone_number ? 'border-red-400 focus-visible:ring-red-200' : 'border-stone-200'}`}
                   disabled={loadingProfile || savingAccount}
+                  aria-invalid={Boolean(accountFieldErrors.phone_number)}
+                  aria-describedby={accountFieldErrors.phone_number ? 'account-phone-error' : undefined}
                 />
               </div>
+              {accountFieldErrors.phone_number ? <p id="account-phone-error" className="text-xs text-red-600">{accountFieldErrors.phone_number}</p> : null}
             </div>
 
             <div className="space-y-1.5">

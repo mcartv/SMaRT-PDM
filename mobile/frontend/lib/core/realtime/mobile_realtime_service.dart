@@ -75,6 +75,7 @@ class MobileRealtimeService extends ChangeNotifier {
   String _userId = '';
   bool _isConnecting = false;
   bool _isConnected = false;
+  bool _isBackendBridgeHealthy = false;
   int _revision = 0;
   MobileRealtimeEvent? _lastEvent;
 
@@ -82,6 +83,8 @@ class MobileRealtimeService extends ChangeNotifier {
 
   bool get isConnected => _isConnected;
   bool get isConnecting => _isConnecting;
+  bool get isBackendBridgeHealthy => _isBackendBridgeHealthy;
+  bool get isRealtimeHealthy => _isConnected && _isBackendBridgeHealthy;
   int get revision => _revision;
   String get socketBaseUrl => _socketBaseUrl;
   String get userId => _userId;
@@ -207,6 +210,7 @@ class MobileRealtimeService extends ChangeNotifier {
 
     _socket = null;
     _isConnected = false;
+    _isBackendBridgeHealthy = false;
     _isConnecting = false;
 
     if (!silent) notifyListeners();
@@ -260,6 +264,7 @@ class MobileRealtimeService extends ChangeNotifier {
   void _registerCoreHandlers(IO.Socket socket) {
     socket.onConnect((_) {
       _isConnected = true;
+      _isBackendBridgeHealthy = false;
       _isConnecting = false;
 
       debugPrint('[Realtime] Connected: ${socket.id}');
@@ -275,6 +280,7 @@ class MobileRealtimeService extends ChangeNotifier {
 
     socket.onDisconnect((reason) {
       _isConnected = false;
+      _isBackendBridgeHealthy = false;
       _isConnecting = false;
 
       debugPrint('[Realtime] Disconnected: $reason');
@@ -288,6 +294,7 @@ class MobileRealtimeService extends ChangeNotifier {
 
     socket.onConnectError((error) {
       _isConnected = false;
+      _isBackendBridgeHealthy = false;
       _isConnecting = false;
 
       debugPrint('[Realtime] Connect error: $error');
@@ -339,9 +346,17 @@ class MobileRealtimeService extends ChangeNotifier {
   }
 
   void _handleServerEvent(String eventName, dynamic data) {
+    final payload = _payloadToMap(data);
+
+    if (eventName == MobileRealtimeEvents.bridgeStatus) {
+      final connected = payload['connected'];
+      _isBackendBridgeHealthy = connected == true ||
+          connected?.toString().trim().toLowerCase() == 'true';
+    }
+
     final event = MobileRealtimeEvent(
       name: eventName,
-      payload: _payloadToMap(data),
+      payload: payload,
       receivedAt: DateTime.now(),
     );
 

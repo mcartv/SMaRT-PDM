@@ -85,6 +85,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   late final TabController _tabController;
 
   bool _isLoading = true;
+  bool _pendingRealtimeReload = false;
   bool _isSubmitting = false;
   bool _isConcernSheetOpen = false;
   String? _errorMessage;
@@ -134,8 +135,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
 
     _lastRoRevision = provider.roRevision;
+    _pendingRealtimeReload = true;
 
     if (mounted && !_isLoading) {
+      _pendingRealtimeReload = false;
       _loadRo();
     }
   }
@@ -193,6 +196,11 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+
+        if (_pendingRealtimeReload) {
+          _pendingRealtimeReload = false;
+          scheduleMicrotask(_loadRo);
+        }
       }
     }
   }

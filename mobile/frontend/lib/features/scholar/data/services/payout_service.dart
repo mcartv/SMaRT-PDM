@@ -69,6 +69,19 @@ class PayoutService {
 
   final ApiClient _apiClient;
 
+  String _contentTypeForFileName(String fileName) {
+    final normalized = fileName.trim().toLowerCase();
+
+    if (normalized.endsWith('.pdf')) return 'application/pdf';
+    if (normalized.endsWith('.png')) return 'image/png';
+    if (normalized.endsWith('.webp')) return 'image/webp';
+    if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+
+    return 'application/octet-stream';
+  }
+
   Future<List<MobilePayoutItem>> fetchMyPayouts() async {
     final response = await _apiClient.getObject('/api/payouts/me');
     final items = (response['items'] as List<dynamic>? ?? const [])
@@ -101,18 +114,28 @@ class PayoutService {
     }
 
     final path = '/api/payouts/entries/${payoutEntryId.trim()}/proof';
+    final contentType = _contentTypeForFileName(fileName);
+
+    if (contentType == 'application/octet-stream') {
+      throw ArgumentError(
+        'Only PDF, JPG, JPEG, PNG, and WEBP payout proof files are allowed.',
+      );
+    }
+
     final response = fileBytes != null
         ? await _apiClient.uploadBytes(
             path,
             fieldName: 'proof',
             bytes: fileBytes,
             fileName: fileName,
+            contentType: contentType,
             timeout: const Duration(seconds: 60),
           )
         : await _apiClient.uploadFile(
             path,
             fieldName: 'proof',
             filePath: filePath!,
+            contentType: contentType,
             timeout: const Duration(seconds: 60),
           );
 

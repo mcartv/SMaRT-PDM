@@ -153,11 +153,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       lastName.trim(),
     ].where((part) => part.isNotEmpty).join(' ');
 
-    final incomplete =
-        firstName.trim().isEmpty ||
-        lastName.trim().isEmpty ||
-        email.trim().isEmpty ||
-        course.trim().isEmpty;
+    // Identity and academic program are authoritative registry fields and are
+    // intentionally read-only in Profile & Account. Profile completion is
+    // handled by the dedicated onboarding flow, so this screen must never
+    // trap an existing user in edit mode because one of those locked fields
+    // is temporarily missing from a cached response.
+    const incomplete = false;
 
     setState(() {
       _firstNameController.text = firstName;
@@ -317,25 +318,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
-    final firstName = _firstNameController.text.trim();
-    final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
-    final course = _courseController.text.trim();
     final phone = _phoneController.text.trim();
     final address = _addressController.text.trim();
 
-    if (firstName.isEmpty || lastName.isEmpty) {
-      _showMessage('First name and last name are required.');
-      return;
-    }
-
     if (!_isValidEmail(email)) {
       _showMessage('Enter a valid email address.');
-      return;
-    }
-
-    if (course.isEmpty) {
-      _showMessage('Course is required.');
       return;
     }
 
@@ -348,11 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final profile = await _profileService.updateMyProfile(
         payload: {
-          'first_name': firstName,
-          'last_name': lastName,
-          'email': email,
           'phone_number': phone,
-          'course_code': course,
           'street_address': address,
         },
       );
@@ -360,10 +344,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       _applyValues(
-        firstName: profile['first_name']?.toString() ?? firstName,
-        lastName: profile['last_name']?.toString() ?? lastName,
+        firstName:
+            profile['first_name']?.toString() ??
+            _firstNameController.text.trim(),
+        lastName:
+            profile['last_name']?.toString() ??
+            _lastNameController.text.trim(),
         email: profile['email']?.toString() ?? email,
-        course: profile['course_code']?.toString() ?? course,
+        course:
+            profile['course_code']?.toString() ??
+            _courseController.text.trim(),
         section: _sectionController.text.trim(),
         phone: profile['phone_number']?.toString() ?? phone,
         address: _composeAddress(profile).isNotEmpty
@@ -801,11 +791,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label: 'First Name',
             icon: Icons.person_rounded,
             controller: _firstNameController,
+            enabled: false,
+            helperText: 'Name is based on your registered student record.',
           ),
           _ProfileField(
             label: 'Last Name',
             icon: Icons.person_outline_rounded,
             controller: _lastNameController,
+            enabled: false,
           ),
           _ProfileField(
             label: 'Student ID',
@@ -824,6 +817,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label: 'Course',
             icon: Icons.school_outlined,
             controller: _courseController,
+            enabled: false,
+            helperText: 'Course is based on your registered student record.',
           ),
           _ProfileField(
             label: 'Section',

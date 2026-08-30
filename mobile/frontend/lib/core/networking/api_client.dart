@@ -280,6 +280,7 @@ class ApiClient {
     String path, {
     required String fieldName,
     required String filePath,
+    String? contentType,
     Map<String, String> fields = const {},
     Duration timeout = const Duration(seconds: 30),
   }) async {
@@ -287,7 +288,14 @@ class ApiClient {
       final request = http.MultipartRequest('POST', buildUri(path));
       request.fields.addAll(fields);
       request.headers.addAll(await _buildHeaders());
-      request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          fieldName,
+          filePath,
+          contentType:
+              contentType == null ? null : MediaType.parse(contentType),
+        ),
+      );
 
       final streamedResponse = await request.send().timeout(timeout);
       final response = await http.Response.fromStream(streamedResponse);

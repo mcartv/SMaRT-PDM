@@ -7,6 +7,7 @@ class MobileRealtimeEvents {
   static const socketReconnected = 'socket:reconnected';
   static const socketDisconnected = 'socket:disconnected';
   static const socketError = 'socket:error';
+  static const bridgeStatus = 'realtime:bridge-status';
 
   // Notifications
   static const notificationNew = 'notification:new';
@@ -159,6 +160,7 @@ class MobileRealtimeEvents {
     socketReconnected,
     socketDisconnected,
     socketError,
+    bridgeStatus,
   };
 
   static final Set<String> settingsEvents = <String>{
@@ -296,6 +298,7 @@ class MobileRealtimeEvents {
   };
 
   static final Set<String> all = <String>{
+    bridgeStatus,
     ...settingsEvents,
     profileUpdated,
     ...dashboardEvents,

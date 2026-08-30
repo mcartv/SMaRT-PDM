@@ -11,6 +11,7 @@ import {
 import { buildApiUrl } from '../config/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
+import { showAppToast } from '@/utils/appToast';
 
 const STATUS_OPTIONS = ['pending', 'approved', 'rejected', 'superseded'];
 // SMART-PDM_PROFILE_PHOTO_PENDING_SUPERSEDED_V2
@@ -68,13 +69,20 @@ function StatusPill({ status }) {
   );
 }
 
-function RejectModal({ onClose, onSubmit, busy }) {
+function RejectModal({ onClose, onSubmit, busy, error }) {
   const [reason, setReason] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    onSubmit({ reason, remarks });
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      setValidationError('Enter a rejection reason before continuing.');
+      return;
+    }
+    setValidationError('');
+    onSubmit({ reason: trimmedReason, remarks: remarks.trim() });
   };
 
   return (
@@ -98,9 +106,20 @@ function RejectModal({ onClose, onSubmit, busy }) {
         <textarea
           required
           value={reason}
-          onChange={(event) => setReason(event.target.value)}
+          onChange={(event) => {
+            setReason(event.target.value);
+            if (validationError) setValidationError('');
+          }}
+          aria-invalid={Boolean(validationError || error)}
+          aria-describedby={validationError || error ? 'profile-photo-rejection-error' : undefined}
           className="mt-2 min-h-28 w-full rounded-md border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
         />
+
+        {validationError || error ? (
+          <p id="profile-photo-rejection-error" role="alert" className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {validationError || error}
+          </p>
+        ) : null}
 
         <label className="mt-4 block text-sm font-semibold text-stone-700">
           Remarks
@@ -316,12 +335,15 @@ export default function ProfilePhotoQueue() {
         throw new Error(data.error || 'Failed to reject profile photo.');
       }
       setShowRejectModal(false);
+      showAppToast('success', 'Profile photo rejected', 'The student will see the rejection reason.');
       await Promise.all([
         loadQueue('pending', { quiet: true }),
         loadDetail(),
       ]);
     } catch (err) {
-      setError(err.message || 'Failed to reject profile photo.');
+      const message = err.message || 'Failed to reject profile photo.';
+      setError(message);
+      showAppToast('error', 'Could not reject profile photo', message);
     } finally {
       setActionBusy(false);
     }
@@ -488,7 +510,10 @@ export default function ProfilePhotoQueue() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setShowRejectModal(true)}
+                            onClick={() => {
+                              setError('');
+                              setShowRejectModal(true);
+                            }}
                             disabled={actionBusy}
                             className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60"
                           >
@@ -580,7 +605,11 @@ export default function ProfilePhotoQueue() {
         {showRejectModal ? (
           <RejectModal
             busy={actionBusy}
-            onClose={() => setShowRejectModal(false)}
+            error={error}
+            onClose={() => {
+              setError('');
+              setShowRejectModal(false);
+            }}
             onSubmit={handleReject}
           />
         ) : null}

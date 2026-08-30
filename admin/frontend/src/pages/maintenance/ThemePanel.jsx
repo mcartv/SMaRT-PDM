@@ -212,7 +212,7 @@ function CustomThemeModal({ portalKey, colors, saving, onChange, onClose, onSave
           <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="h-9 rounded-xl border-stone-200 text-xs">
             Cancel
           </Button>
-          <Button type="button" onClick={onSave} disabled={saving} className="h-9 rounded-xl bg-stone-900 px-4 text-xs text-white hover:bg-stone-800">
+          <Button type="button" onClick={onSave} disabled={saving} className="h-9 rounded-xl bg-[var(--portal-base)] px-4 text-xs text-white hover:bg-[var(--portal-active)]">
             {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
             Save Custom Theme
           </Button>
@@ -362,11 +362,13 @@ export default function ThemePanel({
 
     setSettings((current) => ({ ...current, [portalKey]: presetKey }));
     setCustomColors((current) => ({ ...current, [portalKey]: optimisticCustomColors }));
+    const currentUserId = getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || '');
     window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
       detail: {
         portal_key: portalKey,
         preset_key: presetKey,
         custom_colors: optimisticCustomColors,
+        user_id: currentUserId || null,
       },
     }));
 
@@ -398,7 +400,7 @@ export default function ThemePanel({
       }));
       writePersonalThemeCache(
         portalKey,
-        getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
+        currentUserId,
         nextPresetKey,
         savedCustomColors,
         forceDarkModes[portalKey] === true
@@ -425,7 +427,7 @@ export default function ThemePanel({
       setCustomColors((current) => ({ ...current, [portalKey]: previousCustomColors }));
       writePersonalThemeCache(
         portalKey,
-        getUserIdFromToken(sessionStorage.getItem(tokenStorageKey) || ''),
+        currentUserId,
         previousPresetKey,
         previousCustomColors,
         forceDarkModes[portalKey] === true
@@ -435,6 +437,7 @@ export default function ThemePanel({
           portal_key: portalKey,
           preset_key: previousPresetKey,
           custom_colors: previousCustomColors,
+          user_id: currentUserId || null,
         },
       }));
       setFeedback({ type: 'error', message: error.message || 'Failed to save theme setting.' });
@@ -456,6 +459,7 @@ export default function ThemePanel({
       detail: {
         portal_key: portalKey,
         force_dark_mode: enabled,
+        user_id: userId || null,
       },
     }));
 
@@ -500,6 +504,7 @@ export default function ThemePanel({
         detail: {
           portal_key: portalKey,
           force_dark_mode: previous,
+          user_id: userId || null,
         },
       }));
       setFeedback({ type: 'error', message: error.message || 'Failed to save Dark Mode.' });
@@ -660,7 +665,7 @@ export default function ThemePanel({
                     onCheckedChange={(checked) => handleForceDarkToggle(portalKey, checked === true)}
                     disabled={forceDarkSaving}
                     aria-label={`Dark Mode for ${PORTAL_LABELS[portalKey]}`}
-                    className="data-checked:bg-stone-900"
+                    className="data-checked:bg-[var(--portal-base)]"
                   />
                 </div>
 
@@ -677,7 +682,7 @@ export default function ThemePanel({
                         disabled={savingPortal === portalKey}
                         className={`rounded-2xl border p-4 text-left transition ${
                           isSelected
-                            ? 'border-stone-900 bg-stone-900 text-white'
+                            ? 'border-[var(--portal-base)] bg-[var(--portal-base)] text-white'
                             : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
                         }`}
                       >

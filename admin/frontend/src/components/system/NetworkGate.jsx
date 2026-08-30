@@ -67,7 +67,7 @@ export function PublicLogoLoader({ status, isRetrying, onRetry }) {
             <button
               type="button"
               onClick={onRetry}
-              className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#4b2a1a] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#5c3522] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/40 focus-visible:ring-offset-2"
+              className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--portal-base)] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--portal-active)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-accent)]/30 focus-visible:ring-offset-2"
             >
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               Try again

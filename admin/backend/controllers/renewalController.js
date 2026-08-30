@@ -11,8 +11,6 @@ function getStatusCode(error) {
 function emitRenewalUpdated(req, action, payload = {}) {
     const io = req.app?.get?.('io');
 
-    if (!io) return;
-
     const realtimePayload = {
         action,
         source: 'admin-renewal-controller',
@@ -20,18 +18,19 @@ function emitRenewalUpdated(req, action, payload = {}) {
         ...payload,
     };
 
-    if (typeof socketEvents?.renewalUpdated === 'function') {
-        socketEvents.renewalUpdated(io, realtimePayload);
-    }
+    if (io) {
+        if (typeof socketEvents?.renewalUpdated === 'function') {
+            socketEvents.renewalUpdated(io, realtimePayload);
+        }
 
-    if (typeof socketEvents?.emitEvent === 'function') {
-        socketEvents.emitEvent(io, 'renewal:updated', realtimePayload);
-        socketEvents.emitEvent(io, `renewal:${action}`, realtimePayload);
-    } else {
-        io.emit('renewal:updated', realtimePayload);
-        io.emit(`renewal:${action}`, realtimePayload);
+        if (typeof socketEvents?.emitEvent === 'function') {
+            socketEvents.emitEvent(io, 'renewal:updated', realtimePayload);
+            socketEvents.emitEvent(io, `renewal:${action}`, realtimePayload);
+        } else {
+            io.emit('renewal:updated', realtimePayload);
+            io.emit(`renewal:${action}`, realtimePayload);
+        }
     }
-
 
     if (
         typeof studentRealtimeRelayService?.relayRenewalEvent ===

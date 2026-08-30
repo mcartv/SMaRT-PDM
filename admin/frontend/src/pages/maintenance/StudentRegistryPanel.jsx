@@ -496,7 +496,7 @@ function FilterModal({
 
           <Button
             onClick={onApply}
-            className="h-8 rounded-lg border-none bg-stone-900 text-xs text-white hover:bg-stone-800"
+            className="h-8 rounded-lg border-none bg-[var(--portal-base)] text-xs text-white hover:bg-[var(--portal-active)]"
           >
             Apply
           </Button>

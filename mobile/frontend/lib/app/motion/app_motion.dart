@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 /// Shared, restrained motion for SMaRT-PDM.
 ///
-/// Route transitions stay short and subtle so the scholarship workflow feels
-/// polished without becoming visually distracting.
+/// Navigation routes render without visual transitions. Motion constants below
+/// remain available for non-navigation micro-interactions.
 class AppMotion {
   AppMotion._();
 
@@ -38,34 +38,10 @@ class _SmartPdmPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final mediaQuery = MediaQuery.maybeOf(context);
-    if (mediaQuery?.disableAnimations == true) {
-      return child;
-    }
-
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: AppMotion.enterCurve,
-      reverseCurve: AppMotion.exitCurve,
-    );
-
-    final fade = Tween<double>(
-      begin: 0.92,
-      end: 1,
-    ).animate(curved);
-
-    final slide = Tween<Offset>(
-      begin: const Offset(0.025, 0.012),
-      end: Offset.zero,
-    ).animate(curved);
-
-    return FadeTransition(
-      opacity: fade,
-      child: SlideTransition(
-        position: slide,
-        child: child,
-      ),
-    );
+    // Navigation is intentionally instant on mobile. The previous combined
+    // fade/slide transition could look like the page was shaking when a
+    // destination rebuilt while realtime data was arriving.
+    return child;
   }
 }
 

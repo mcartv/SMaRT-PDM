@@ -524,8 +524,9 @@ class _ScholarRenewalRequirementsScreenState
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final scheme = Theme.of(context).colorScheme;
+    final titleColor = scheme.onSurface;
+    final subtitleColor = scheme.onSurfaceVariant;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
     final documents = _renewalPackage == null
         ? const <ScholarRenewalDocument>[]
@@ -552,7 +553,9 @@ class _ScholarRenewalRequirementsScreenState
       appBar: widget.showTopBar
           ? AppBar(
               title: const Text('Renewal Documents'),
-              backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+              backgroundColor: isDark
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
+                  : Colors.white,
               foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
               elevation: 0,
             )
@@ -688,10 +691,14 @@ class _ScholarRenewalRequirementsScreenState
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: isDark
-            ? const Color(0xFF2D1E12)
+            ? Theme.of(context).colorScheme.surfaceContainer
             : primaryColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
+        border: Border.all(
+          color: isDark
+              ? Theme.of(context).colorScheme.outlineVariant
+              : primaryColor.withValues(alpha: 0.12),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,6 +768,7 @@ class _ScholarRenewalRequirementsScreenState
                 icon: Icons.verified_outlined,
                 label:
                     '${package.renewal.renewalStatus} • ${package.renewal.documentStatus}',
+                semanticStatus: true,
               ),
             ],
           ),
@@ -791,9 +799,15 @@ class _ScholarRenewalRequirementsScreenState
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF332216) : Colors.white,
+        color: isDark
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+            : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: primaryColor.withValues(alpha: 0.10)),
+        border: Border.all(
+          color: isDark
+              ? Theme.of(context).colorScheme.outlineVariant
+              : primaryColor.withValues(alpha: 0.10),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,7 +817,7 @@ class _ScholarRenewalRequirementsScreenState
             height: 42,
             decoration: BoxDecoration(
               color: isDark
-                  ? const Color(0xFF3A2718)
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
                   : primaryColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -841,7 +855,9 @@ class _ScholarRenewalRequirementsScreenState
                     Text(
                       'Submitted file available',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: isDark ? Colors.white60 : Colors.grey.shade700,
+                        color: isDark
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                            : Colors.grey.shade700,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -849,7 +865,12 @@ class _ScholarRenewalRequirementsScreenState
                     Text(
                       document.submittedAt!,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: isDark ? Colors.white54 : Colors.black45,
+                        color: isDark
+                            ? Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant
+                                  .withValues(alpha: 0.82)
+                            : Colors.black45,
                       ),
                     ),
                   if (document.adminComment.trim().isNotEmpty) ...[
@@ -905,7 +926,9 @@ class _ScholarRenewalRequirementsScreenState
                             width: 1,
                           ),
                           backgroundColor: isDark
-                              ? const Color(0xFF3A2718)
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
                               : primaryColor.withValues(alpha: 0.04),
                         ),
                       ),
@@ -955,41 +978,97 @@ class _ScholarRenewalRequirementsScreenState
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    this.semanticStatus = false,
+  });
 
   final IconData icon;
   final String label;
+  final bool semanticStatus;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
+    final normalized = label.toLowerCase();
+
+    var background = isDark
+        ? scheme.surfaceContainerHighest
+        : Colors.white.withValues(alpha: 0.84);
+    var foreground = isDark ? scheme.onSurface : AppColors.darkBrown;
+    var outline = isDark
+        ? scheme.outline
+        : AppColors.gold.withValues(alpha: 0.22);
+
+    if (semanticStatus) {
+      if (normalized.contains('approved') ||
+          normalized.contains('complete') ||
+          normalized.contains('verified')) {
+        background = isDark
+            ? const Color(0xFF183B29)
+            : const Color(0xFFE5F4EA);
+        foreground = isDark
+            ? const Color(0xFFBDEBCB)
+            : const Color(0xFF14522E);
+        outline = isDark
+            ? const Color(0xFF53B978)
+            : const Color(0xFF2A7E4D);
+      } else if (normalized.contains('rejected')) {
+        background = isDark
+            ? const Color(0xFF4A2225)
+            : const Color(0xFFFDE9EA);
+        foreground = isDark
+            ? const Color(0xFFFFC9CC)
+            : const Color(0xFF821E25);
+        outline = isDark
+            ? const Color(0xFFE96F76)
+            : const Color(0xFFB9363F);
+      } else if (normalized.contains('reupload') ||
+          normalized.contains('flagged')) {
+        background = isDark
+            ? const Color(0xFF482A18)
+            : const Color(0xFFFFEBDD);
+        foreground = isDark
+            ? const Color(0xFFFFD3AF)
+            : const Color(0xFF713000);
+        outline = isDark
+            ? const Color(0xFFE88D45)
+            : const Color(0xFFC45B12);
+      } else if (normalized.contains('active') ||
+          normalized.contains('submitted') ||
+          normalized.contains('review')) {
+        background = isDark
+            ? const Color(0xFF403516)
+            : const Color(0xFFFFF3C8);
+        foreground = isDark
+            ? const Color(0xFFFFE49A)
+            : const Color(0xFF664500);
+        outline = isDark
+            ? const Color(0xFFE8B83A)
+            : const Color(0xFFB87B00);
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark
-            ? scheme.surfaceContainerHighest
-            : Colors.white.withValues(alpha: 0.84),
+        color: background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: isDark ? scheme.outline : AppColors.gold.withValues(alpha: 0.22),
-        ),
+        border: Border.all(color: outline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: isDark ? AppColors.gold : AppColors.darkBrown,
-          ),
+          Icon(icon, size: 14, color: foreground),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: isDark ? scheme.onSurface : AppColors.darkBrown,
+                fontWeight: FontWeight.w700,
+                color: foreground,
               ),
             ),
           ),
@@ -1007,22 +1086,39 @@ class _RenewalErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.08),
+        color: isDark
+            ? scheme.errorContainer.withValues(alpha: 0.72)
+            : Colors.red.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: isDark
+              ? scheme.error.withValues(alpha: 0.48)
+              : Colors.red.withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Unable to load renewal package',
-            style: TextStyle(fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: isDark ? scheme.onErrorContainer : null,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 8),
-          Text(message),
+          Text(
+            message,
+            style: TextStyle(
+              color: isDark ? scheme.onErrorContainer : scheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: onRetry,

@@ -37,7 +37,7 @@ const C = {
   red: '#dc2626',
   redSoft: '#FEF2F2',
   bg: '#faf7f2',
-  brownMid: '#7c4a2e',
+  brownMid: 'var(--portal-base)',
 };
 
 const DOC_STATUS_META = {

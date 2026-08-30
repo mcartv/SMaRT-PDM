@@ -46,12 +46,12 @@ function SettingsNav({ activeTab, onChange }) {
               type="button"
               onClick={() => onChange(item.key)}
               className={`relative flex items-center gap-2 whitespace-nowrap py-3 text-sm font-medium transition ${
-                active ? 'text-stone-900' : 'text-stone-400 hover:text-stone-700'
+                active ? 'text-[var(--portal-base)]' : 'text-stone-400 hover:text-stone-700'
               }`}
             >
               <Icon size={14} />
               {item.label}
-              {active ? <span className="absolute bottom-0 left-0 h-[2px] w-full bg-stone-900" /> : null}
+              {active ? <span className="absolute bottom-0 left-0 h-[2px] w-full bg-[var(--portal-base)]" /> : null}
             </button>
           );
         })}

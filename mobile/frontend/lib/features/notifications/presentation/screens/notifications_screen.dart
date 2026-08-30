@@ -573,7 +573,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     AppNotification notification,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = _accentFor(notification);
+    final baseAccent = _accentFor(notification);
+    final accent = isDark
+        ? Color.alphaBlend(Colors.white.withOpacity(0.20), baseAccent)
+        : baseAccent;
     final icon = _iconFor(notification);
     final isUnread = !notification.isRead;
 
@@ -593,8 +596,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isUnread
-                  ? AppColors.gold.withOpacity(0.45)
-                  : const Color(0xFFE8E2D8),
+                  ? AppColors.gold.withOpacity(isDark ? 0.46 : 0.40)
+                  : (isDark
+                        ? AppColors.applicantDarkOutline.withOpacity(0.72)
+                        : const Color(0xFFE8E2D8)),
+              width: 0.8,
             ),
             boxShadow: const [
               BoxShadow(
@@ -629,7 +635,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.gold,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
+                          border: Border.all(
+                            color: isDark
+                                ? AppColors.applicantDarkSurface
+                                : Colors.white,
+                            width: 1.2,
+                          ),
                         ),
                       ),
                     ),
@@ -689,7 +700,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           _formatTime(notification.createdAt),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                color: const Color(0xFF9A948C),
+                                color: isDark
+                                    ? AppColors.applicantDarkTextMuted
+                                        .withOpacity(0.78)
+                                    : const Color(0xFF817A71),
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -799,7 +813,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         '${grouped[section]!.length}',
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
-                              color: AppColors.brown,
+                              color: isDark
+                                  ? const Color(0xFFFFD76A)
+                                  : AppColors.brown,
                               fontWeight: FontWeight.w900,
                             ),
                       ),
@@ -854,7 +870,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: Text(
                   hasUnread ? 'Mark all as read' : 'All read',
                   style: TextStyle(
-                    color: hasUnread ? AppColors.gold : const Color(0xFFAAA49B),
+                    color: hasUnread
+                        ? AppColors.gold
+                        : (isDark
+                              ? AppColors.applicantDarkTextMuted
+                                  .withOpacity(0.72)
+                              : const Color(0xFF8F887F)),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -881,14 +902,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
+                      color: isDark
+                          ? const Color(0xFF3A2020)
+                          : const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFFECACA)),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF7F4545)
+                            : const Color(0xFFFECACA),
+                        width: 0.8,
+                      ),
                     ),
                     child: Text(
                       provider.errorMessage!,
-                      style: const TextStyle(
-                        color: Color(0xFFB91C1C),
+                      style: TextStyle(
+                        color: isDark
+                            ? const Color(0xFFFFA3A3)
+                            : const Color(0xFFB91C1C),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -921,8 +951,10 @@ class _FilterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = selected
-        ? AppColors.gold.withOpacity(0.75)
-        : (isDark ? AppColors.applicantDarkOutline : const Color(0xFFE8E2D8));
+        ? AppColors.gold.withOpacity(isDark ? 0.68 : 0.72)
+        : (isDark
+              ? AppColors.applicantDarkOutline.withOpacity(0.72)
+              : const Color(0xFFE2DDD6));
 
     final backgroundColor = selected
         ? AppColors.gold.withOpacity(isDark ? 0.20 : 0.26)
@@ -944,7 +976,7 @@ class _FilterButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: borderColor),
+            border: Border.all(color: borderColor, width: 0.8),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -978,15 +1010,33 @@ class _FilterButton extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: selected
-                        ? Colors.white.withOpacity(0.9)
-                        : AppColors.gold.withOpacity(0.16),
+                        ? (isDark
+                              ? AppColors.applicantDarkText
+                              : Colors.white.withOpacity(0.92))
+                        : (isDark
+                              ? AppColors.gold.withOpacity(0.18)
+                              : AppColors.gold.withOpacity(0.16)),
                     borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: selected
+                          ? (isDark
+                                ? AppColors.applicantDarkText.withOpacity(0.22)
+                                : Colors.white.withOpacity(0.72))
+                          : (isDark
+                                ? AppColors.gold.withOpacity(0.30)
+                                : AppColors.gold.withOpacity(0.12)),
+                      width: 0.6,
+                    ),
                   ),
                   child: Text(
                     count > 99 ? '99+' : '$count',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: selected ? AppColors.darkBrown : AppColors.brown,
+                      color: selected
+                          ? AppColors.darkBrown
+                          : (isDark
+                                ? const Color(0xFFFFD76A)
+                                : AppColors.brown),
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                       height: 1.2,
@@ -1011,19 +1061,27 @@ class _MetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = label.trim().isEmpty ? 'General' : label.trim();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final readableColor = isDark
+        ? Color.alphaBlend(Colors.white.withOpacity(0.18), color)
+        : color;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: readableColor.withOpacity(isDark ? 0.16 : 0.12),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: readableColor.withOpacity(isDark ? 0.24 : 0.14),
+          width: 0.6,
+        ),
       ),
       child: Text(
         normalized.toUpperCase(),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
+          color: readableColor,
           fontWeight: FontWeight.w900,
           letterSpacing: 0.25,
         ),

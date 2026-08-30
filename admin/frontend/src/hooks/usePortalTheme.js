@@ -148,7 +148,8 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
   useEffect(() => {
     const handleLocalThemeUpdate = (event) => {
       if (event.detail?.portal_key !== normalizedPortal) return;
-      if (event.detail?.user_id && userId && event.detail.user_id !== userId) return;
+      const eventUserId = String(event.detail?.user_id || '').trim();
+      if (eventUserId && eventUserId !== userId) return;
       if (
         event.detail?.preset_key !== undefined ||
         event.detail?.custom_colors !== undefined ||
@@ -173,7 +174,11 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
     (payload) => {
       if (payload?.source !== 'theme_settings') return;
       if (payload?.portal_key && payload.portal_key !== normalizedPortal) return;
-      if (payload?.is_personal && payload?.user_id && userId && payload.user_id !== userId) return;
+
+      if (payload?.is_personal === true) {
+        const payloadUserId = String(payload?.user_id || '').trim();
+        if (!userId || !payloadUserId || payloadUserId !== userId) return;
+      }
 
       if (
         payload?.preset_key !== undefined ||

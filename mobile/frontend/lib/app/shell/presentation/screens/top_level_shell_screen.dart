@@ -188,16 +188,11 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
 
     setState(() => _currentIndex = targetIndex);
 
-    if (animated) {
-      await _pageController.animateToPage(
-        targetIndex,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
-      return;
+    // Top-level destinations switch instantly. This avoids the horizontal
+    // slide/shake effect when large realtime-enabled pages rebuild.
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(targetIndex);
     }
-
-    _pageController.jumpToPage(targetIndex);
   }
 
   Future<void> _handlePageChanged(int index, bool hasScholarAccess) async {
@@ -208,11 +203,9 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       // owned by explicit navigation taps, not automatic page changes.
       _isRevertingLockedSwipe = true;
 
-      await _pageController.animateToPage(
-        _currentIndex,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(_currentIndex);
+      }
 
       _isRevertingLockedSwipe = false;
       return;
@@ -234,6 +227,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     final hasScholarAccess = _resolveScholarAccess(notificationProvider);
     _redirectLockedCurrentTabIfNeeded(hasScholarAccess);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -244,12 +238,12 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        backgroundColor: isDark ? const Color(0xFF24180F) : AppColors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        backgroundColor: isDark ? scheme.surfaceContainer : AppColors.white,
+        foregroundColor: isDark ? scheme.onSurface : AppColors.darkBrown,
         shape: Border(
           bottom: BorderSide(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
+                ? scheme.outlineVariant
                 : AppColors.brown.withValues(alpha: 0.10),
           ),
         ),
@@ -275,7 +269,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      color: isDark ? scheme.onSurface : AppColors.darkBrown,
                       fontWeight: FontWeight.w900,
                       height: 1,
                     ),
@@ -287,7 +281,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: isDark
-                          ? Colors.white70
+                          ? scheme.onSurfaceVariant
                           : AppColors.brown.withValues(alpha: 0.78),
                       fontWeight: FontWeight.w700,
                     ),
@@ -315,9 +309,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       ),
       body: PageView(
         controller: _pageController,
-        physics: hasScholarAccess
-            ? const PageScrollPhysics()
-            : const NeverScrollableScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         onPageChanged: (index) => _handlePageChanged(index, hasScholarAccess),
         children: _pages,
       ),

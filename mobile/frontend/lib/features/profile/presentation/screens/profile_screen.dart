@@ -897,9 +897,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             enabled: false,
             helperText: 'Course is based on your registered student record.',
           ),
-          _ProfileField(
-            label: 'Section',
-            icon: Icons.groups_outlined,
+          _ProfileSectionDropdown(
             controller: _sectionController,
           ),
           _ProfileField(
@@ -1050,6 +1048,70 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileSectionDropdown extends StatelessWidget {
+  const _ProfileSectionDropdown({required this.controller});
+
+  static const List<String> _sections = <String>['A', 'B', 'C', 'D'];
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final normalized = controller.text.trim().toUpperCase();
+    final selectedValue = _sections.contains(normalized) ? normalized : null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        value: selectedValue,
+        isExpanded: true,
+        dropdownColor: isDark
+            ? AppColors.applicantDarkSurfaceMuted
+            : Colors.white,
+        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+        decoration: InputDecoration(
+          labelText: 'Section',
+          helperText: 'Select your current section.',
+          prefixIcon: const Icon(Icons.groups_outlined),
+          filled: true,
+          fillColor: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : const Color(0xFFFAF7F2),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : AppColors.brown.withValues(alpha: 0.10),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+          ),
+        ),
+        items: _sections
+            .map(
+              (section) => DropdownMenuItem<String>(
+                value: section,
+                child: Text(section),
+              ),
+            )
+            .toList(growable: false),
+        onChanged: (value) {
+          if (value == null) return;
+          controller.text = value;
+        },
       ),
     );
   }

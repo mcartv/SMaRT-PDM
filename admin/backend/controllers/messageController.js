@@ -274,32 +274,32 @@ function emitRoomEvent(io, eventName, payload, targetUserIds = []) {
 }
 
 function emitMessageCreated(io, message, targetUserIds = []) {
-  if (!io) return;
-
   const payload = buildMessageSocketPayload(message);
   const targets = uniqueIds(targetUserIds, payload.sender_id, payload.receiver_id);
 
-  if (socketEvents?.messageCreated) {
-    socketEvents.messageCreated(io, payload, {
-      targetUserIds: targets,
-    });
-  } else {
-    emitToUsers(io, 'message:new', payload, targets);
-    emitToUsers(io, 'message:created', payload, targets);
+  if (io) {
+    if (socketEvents?.messageCreated) {
+      socketEvents.messageCreated(io, payload, {
+        targetUserIds: targets,
+      });
+    } else {
+      emitToUsers(io, 'message:new', payload, targets);
+      emitToUsers(io, 'message:created', payload, targets);
+    }
   }
 
   relayToStudentBackend('message:new', payload, targets);
 }
 
 function emitMessageRead(io, payload, targetUserIds = []) {
-  if (!io) return;
-
-  if (socketEvents?.messageRead) {
-    socketEvents.messageRead(io, payload, {
-      targetUserIds,
-    });
-  } else {
-    emitToUsers(io, 'message:read', payload, targetUserIds);
+  if (io) {
+    if (socketEvents?.messageRead) {
+      socketEvents.messageRead(io, payload, {
+        targetUserIds,
+      });
+    } else {
+      emitToUsers(io, 'message:read', payload, targetUserIds);
+    }
   }
 
   relayToStudentBackend('message:read', payload, targetUserIds);

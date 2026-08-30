@@ -19,8 +19,10 @@ test('browser theme cache is isolated by user id even for two accounts with the 
   assert.match(hook, /smartpdm-theme-\$\{portalKey\}-\$\{userId/);
   assert.match(hook, /const userId = getUserIdFromToken\(token\)/);
   assert.match(hook, /storageKeyForPortal\(normalizedPortal,\s*userId\)/);
-  assert.match(hook, /event\.detail\?\.user_id && userId && event\.detail\.user_id !== userId/);
-  assert.match(hook, /payload\?\.is_personal && payload\?\.user_id && userId && payload\.user_id !== userId/);
+  assert.match(hook, /const eventUserId = String\(event\.detail\?\.user_id \|\| ''\)\.trim\(\)/);
+  assert.match(hook, /eventUserId && eventUserId !== userId/);
+  assert.match(hook, /payload\?\.is_personal === true/);
+  assert.match(hook, /!userId \|\| !payloadUserId \|\| payloadUserId !== userId/);
 });
 
 test('fresh theme schema supports personal RO Coordinator themes', () => {

@@ -1215,10 +1215,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   // SMART-PDM_MOBILE_BENTO_DASHBOARD_V1
-  Widget _buildBentoDashboard(
-    NotificationProvider provider,
-    List<AppNotification> announcements,
-  ) {
+  Widget _buildBentoDashboard(List<AppNotification> announcements) {
     final summary = _statusSummary;
     final workflow = summary?.workflow;
     final hasApplication = summary?.hasApplication == true;
@@ -1233,21 +1230,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final latestAnnouncement =
         announcements.isNotEmpty ? announcements.first : null;
 
-    final renewal = _latestMatching(
-      provider,
-      (item) =>
-          item.type.toLowerCase().contains('renewal') ||
-          item.title.toLowerCase().contains('renewal'),
-    );
-    final obligation = _latestMatching(
-      provider,
-      (item) => item.isRoNotification,
-    );
-    final payout = _latestMatching(
-      provider,
-      (item) => item.isPayoutNotification,
-    );
-
     final applicationValue = !hasApplication
         ? 'No active application'
         : _safeText(
@@ -1259,7 +1241,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           );
 
     final applicationDetail = !hasApplication
-        ? 'Browse available scholarships to begin.'
+        ? 'No application has been submitted yet.'
         : _safeText(
             summary?.programName,
             fallback: _safeText(
@@ -1290,7 +1272,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             : 'Monitor your status';
 
     final nextStepDetail = !hasApplication
-        ? 'Open the scholarship list when you are ready.'
+        ? 'Review eligibility and prepare your requirements.'
         : nextStep?.isNotEmpty == true
             ? nextStep!
             : 'Watch for OSFA review and endorsement updates.';
@@ -1346,58 +1328,22 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
         final cards = <Widget>[];
 
         if (_hasScholarAccess) {
-          cards.addAll([
+          // Payout, Obligation, and Renewal already have permanent bottom-nav
+          // destinations. Keep Dashboard focused on information instead of
+          // repeating those navigation cards.
+          cards.add(
             tile(
-              width: halfWidth,
+              width: constraints.maxWidth,
               order: 0,
               icon: Icons.workspace_premium_rounded,
-              label: 'Scholarship',
+              label: 'Scholarship Overview',
               value: scholarProgram,
-              detail: 'Your scholar account is active.',
+              detail:
+                  'Scholar account active. Use the bottom navigation for payout, obligation, and renewal actions.',
               badge: 'ACTIVE',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.profile),
+              wide: true,
             ),
-            tile(
-              width: halfWidth,
-              order: 1,
-              icon: Icons.description_rounded,
-              label: 'Renewal',
-              value: renewal == null ? 'No new update' : 'Latest update',
-              detail: _safeText(
-                renewal?.previewText,
-                fallback: 'No renewal requirement has been posted.',
-              ),
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.renewalDocuments),
-            ),
-            tile(
-              width: halfWidth,
-              order: 2,
-              icon: Icons.work_history_rounded,
-              label: 'Obligation',
-              value: obligation == null ? 'No new update' : 'Latest update',
-              detail: _safeText(
-                obligation?.previewText,
-                fallback: 'No obligation update has been posted.',
-              ),
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.roAssignment),
-            ),
-            tile(
-              width: halfWidth,
-              order: 3,
-              icon: Icons.payments_rounded,
-              label: 'Payout',
-              value: payout == null ? 'No new update' : 'Latest update',
-              detail: _safeText(
-                payout?.previewText,
-                fallback: 'No payout update has been posted.',
-              ),
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.payouts),
-            ),
-          ]);
+          );
         } else {
           cards.addAll([
             tile(
@@ -1407,12 +1353,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               label: 'Application',
               value: applicationValue,
               detail: applicationDetail,
-              onTap: () => Navigator.pushNamed(
-                context,
-                hasApplication
-                    ? AppRoutes.documents
-                    : AppRoutes.scholarshipOpenings,
-              ),
+              onTap: hasApplication
+                  ? () => Navigator.pushNamed(context, AppRoutes.status)
+                  : null,
             ),
             tile(
               width: halfWidth,
@@ -1424,12 +1367,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               badge: package?.allRequiredUploaded == true
                   ? 'COMPLETE'
                   : null,
-              onTap: () => Navigator.pushNamed(
-                context,
-                hasApplication
-                    ? AppRoutes.documents
-                    : AppRoutes.scholarshipOpenings,
-              ),
+              onTap: hasApplication
+                  ? () => Navigator.pushNamed(context, AppRoutes.documents)
+                  : null,
             ),
             tile(
               width: halfWidth,
@@ -1454,12 +1394,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               label: 'Next Step',
               value: nextStepValue,
               detail: nextStepDetail,
-              onTap: () => Navigator.pushNamed(
-                context,
-                hasApplication
-                    ? AppRoutes.documents
-                    : AppRoutes.scholarshipOpenings,
-              ),
             ),
           ]);
         }
@@ -1536,7 +1470,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 // The existing Welcome card remains intentionally unchanged.
                 _buildHero(),
                 const SizedBox(height: 14),
-                _buildBentoDashboard(provider, announcements),
+                _buildBentoDashboard(announcements),
+                if (_hasScholarAccess) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Scholar Updates',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: _primaryText,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildScholarResponsibilities(provider),
+                ],
               ],
             ),
           ),

@@ -42,12 +42,14 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
   Widget build(BuildContext context) {
     final notification = widget.notification;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : const Color(0xFF2A1608);
-    final bodyColor = isDark ? Colors.white70 : const Color(0xFF5F5A55);
+    final scheme = Theme.of(context).colorScheme;
+    final titleColor = isDark ? scheme.onSurface : const Color(0xFF2A1608);
+    final bodyColor = isDark ? scheme.onSurfaceVariant : const Color(0xFF5F5A55);
     final canvasColor = isDark
-        ? const Color(0xFF1F140C)
+        ? scheme.surfaceContainer
         : const Color(0xFFF8F3ED);
     final accent = notification.accentColor;
+    final fullMessage = notification.message.trim();
 
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Office Update'), centerTitle: false),
@@ -116,10 +118,34 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
             Text(
               notification.officeUpdateLabel == 'SCHOLARSHIP OPENING'
                   ? 'Scholarship Opening'
-                  : 'Office Update',
+                  : 'Announcement Details',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: titleColor.withOpacity(0.92),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: canvasColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark
+                      ? scheme.outlineVariant
+                      : const Color(0xFFE8DED4),
+                ),
+              ),
+              child: SelectableText(
+                fullMessage.isEmpty
+                    ? 'No additional announcement details were provided.'
+                    : fullMessage,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: bodyColor,
+                  height: 1.58,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             if (notification.isOpeningUpdate) ...[

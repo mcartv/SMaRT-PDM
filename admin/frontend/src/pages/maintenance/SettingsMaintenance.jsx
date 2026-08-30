@@ -88,7 +88,7 @@ function MobileTabBar({ tabs, activeTab, onChange }) {
                         type="button"
                         onClick={() => onChange(tab.key)}
                         className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-medium transition-all ${isActive
-                                ? 'border-stone-900 bg-stone-900 text-white'
+                                ? 'border-[var(--portal-base)] bg-[var(--portal-base)] text-white'
                                 : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:text-stone-800'
                             }`}
                     >
@@ -124,7 +124,7 @@ function DesktopSidebar({ tabs, activeTab, onChange }) {
                                 type="button"
                                 onClick={() => onChange(tab.key)}
                                 className={`group flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-all ${isActive
-                                        ? 'bg-stone-900 text-white'
+                                        ? 'bg-[var(--portal-base)] text-white'
                                         : 'bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900'
                                     }`}
                             >

@@ -39,6 +39,19 @@ function getSafeStatusCode(error) {
   return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599 ? parsed : 500;
 }
 
+function emitThemeRealtime(io, payload = {}, userId = null) {
+  if (!io) return;
+
+  if (payload?.is_personal === true) {
+    const targetUserId = String(userId || payload?.user_id || '').trim();
+    if (!targetUserId) return;
+    socketEvents.emitToUser(io, targetUserId, 'maintenance:updated', payload);
+    return;
+  }
+
+  socketEvents.maintenanceUpdated(io, payload);
+}
+
 async function getPublicThemeSetting(req, res) {
   try {
     const result = await themeSettingService.getPublicThemeSetting(req.params.portalKey);
@@ -88,7 +101,7 @@ async function updateThemeSetting(req, res) {
     );
 
     const io = req.app.get('io');
-    socketEvents.maintenanceUpdated(io, {
+    const themeRealtimePayload = {
       source: 'theme_settings',
       portal_key: result.portal_key,
       preset_key: result.preset_key,
@@ -96,7 +109,8 @@ async function updateThemeSetting(req, res) {
       user_id: result.user_id || getActorUserId(req),
       is_personal: result.is_personal === true,
       updated_at: result.updated_at || new Date().toISOString(),
-    });
+    };
+    emitThemeRealtime(io, themeRealtimePayload, themeRealtimePayload.user_id);
 
     if (result.portal_key === 'landing') {
       socketEvents.landingThemeUpdated(io, {
@@ -135,7 +149,7 @@ async function updateForceDarkMode(req, res) {
     );
 
     const io = req.app.get('io');
-    socketEvents.maintenanceUpdated(io, {
+    const themeRealtimePayload = {
       source: 'theme_settings',
       portal_key: result.portal_key,
       preset_key: result.preset_key,
@@ -144,7 +158,8 @@ async function updateForceDarkMode(req, res) {
       user_id: result.user_id || getActorUserId(req),
       is_personal: true,
       updated_at: result.updated_at || new Date().toISOString(),
-    });
+    };
+    emitThemeRealtime(io, themeRealtimePayload, themeRealtimePayload.user_id);
 
     await writeThemeSettingAudit(req, result);
 

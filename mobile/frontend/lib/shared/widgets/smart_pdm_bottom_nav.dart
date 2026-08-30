@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -53,9 +52,10 @@ class SmartPdmBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final safeIndex = selectedIndex.clamp(0, _routes.length - 1);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? const Color(0xFF2D1E12) : AppColors.white;
+    final scheme = Theme.of(context).colorScheme;
+    final backgroundColor = isDark ? scheme.surfaceContainer : AppColors.white;
     final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
+        ? scheme.outlineVariant
         : AppColors.brown.withValues(alpha: 0.10);
 
     return Material(
@@ -141,11 +141,12 @@ class _NavDestination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     final inactiveColor = isDark
-        ? Colors.white70
+        ? scheme.onSurfaceVariant
         : AppColors.brown.withValues(alpha: 0.72);
     final disabledColor = isDark
-        ? Colors.white38
+        ? scheme.onSurfaceVariant.withValues(alpha: 0.38)
         : AppColors.brown.withValues(alpha: 0.32);
     final activeColor = AppColors.gold;
     final foreground = locked
@@ -171,9 +172,7 @@ class _NavDestination extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
+              Container(
                 height: 3,
                 width: selected ? 30 : 0,
                 margin: const EdgeInsets.only(bottom: 5),
@@ -185,12 +184,7 @@ class _NavDestination extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  AnimatedScale(
-                    duration: AppMotion.fast,
-                    curve: AppMotion.enterCurve,
-                    scale: selected ? 1.08 : 1,
-                    child: Icon(icon, size: 27, color: foreground),
-                  ),
+                  Icon(icon, size: 27, color: foreground),
                   if (locked)
                     Positioned(
                       right: -7,
@@ -200,7 +194,7 @@ class _NavDestination extends StatelessWidget {
                         height: 15,
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF24180F)
+                              ? scheme.surfaceContainer
                               : AppColors.white,
                           shape: BoxShape.circle,
                           border: Border.all(color: disabledColor, width: 1),
@@ -224,7 +218,7 @@ class _NavDestination extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: isDark
-                                ? const Color(0xFF2D1E12)
+                                ? scheme.surfaceContainer
                                 : AppColors.white,
                             width: 1.5,
                           ),

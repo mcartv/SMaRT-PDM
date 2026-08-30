@@ -27,6 +27,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   MessagingProvider? _provider;
   Timer? _refreshFallback;
+  Timer? _deliveredStatusDelay;
+  String? _latestOutgoingMessageId;
+  String? _deliveredStatusMessageId;
   bool _isSending = false;
   bool _isRefreshing = false;
   bool _chatSearchOpen = false;
@@ -70,6 +73,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final provider = _provider;
     if (provider == null || provider.messages.isEmpty) return;
 
+    _scheduleLatestDeliveredStatus(provider);
+
     final newestMessageId = provider.messages.first.messageId;
     if (newestMessageId == _lastRenderedMessageId) return;
 
@@ -79,6 +84,35 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (shouldFollow) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
     }
+  }
+
+  void _scheduleLatestDeliveredStatus(MessagingProvider provider) {
+    String? newestOutgoingId;
+    for (final message in provider.messages) {
+      if (message.senderId == provider.currentUserId) {
+        newestOutgoingId = message.messageId;
+        break;
+      }
+    }
+
+    if (newestOutgoingId == null || newestOutgoingId == _latestOutgoingMessageId) {
+      return;
+    }
+
+    _latestOutgoingMessageId = newestOutgoingId;
+    _deliveredStatusDelay?.cancel();
+
+    if (mounted && _deliveredStatusMessageId != null) {
+      setState(() => _deliveredStatusMessageId = null);
+    } else {
+      _deliveredStatusMessageId = null;
+    }
+
+    final candidateId = newestOutgoingId;
+    _deliveredStatusDelay = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted || _latestOutgoingMessageId != candidateId) return;
+      setState(() => _deliveredStatusMessageId = candidateId);
+    });
   }
 
   void _scrollToLatest({bool animated = true}) {
@@ -157,7 +191,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (text.isEmpty || _isSending) return;
 
     _isNearLatest = true;
-    setState(() => _isSending = true);
+    _deliveredStatusDelay?.cancel();
+    setState(() {
+      _isSending = true;
+      _deliveredStatusMessageId = null;
+    });
 
     try {
       final provider = _provider ?? context.read<MessagingProvider>();
@@ -748,6 +786,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 groupedWithNext: groupedWithNewer,
                 showSenderName: !groupedWithOlder,
                 showAvatar: !groupedWithNewer,
+                showDeliveryStatus:
+                    isMe && message.messageId == _deliveredStatusMessageId,
                 isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
                     message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()),
               ),
@@ -761,6 +801,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   @override
   void dispose() {
     _refreshFallback?.cancel();
+    _deliveredStatusDelay?.cancel();
     _messageController.removeListener(_handleComposerChanged);
     _messageScrollController.removeListener(_handleMessageScroll);
     _provider?.removeListener(_handleProviderMessagesChanged);
@@ -833,6 +874,7 @@ class _MessageBubble extends StatelessWidget {
     this.groupedWithNext = false,
     this.showSenderName = true,
     this.showAvatar = true,
+    this.showDeliveryStatus = false,
     this.isSearchMatch = false,
   });
 
@@ -844,6 +886,7 @@ class _MessageBubble extends StatelessWidget {
   final bool groupedWithNext;
   final bool showSenderName;
   final bool showAvatar;
+  final bool showDeliveryStatus;
   final bool isSearchMatch;
 
   @override
@@ -886,14 +929,21 @@ class _MessageBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: Text(
-        message.messageBody,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: isMe
-                  ? Colors.white
-                  : (isDark ? Colors.white : AppColors.darkBrown),
-              height: 1.38,
-            ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Text(
+            message.messageBody,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isMe
+                      ? Colors.white
+                      : (isDark ? Colors.white : AppColors.darkBrown),
+                  height: 1.38,
+                ),
+          ),
+        ],
       ),
     );
 
@@ -922,23 +972,6 @@ class _MessageBubble extends StatelessWidget {
                 preferBelow: false,
                 child: bubble,
               ),
-              if (isMe) ...[
-                const SizedBox(height: 3),
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Icon(
-                    message.isRead
-                        ? Icons.done_all_rounded
-                        : Icons.check_rounded,
-                    size: 13,
-                    color: message.isRead
-                        ? AppColors.gold
-                        : (isDark
-                              ? Colors.white54
-                              : AppColors.brown.withValues(alpha: 0.45)),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -980,6 +1013,22 @@ class _MessageBubble extends StatelessWidget {
               ),
             ],
             messageRow,
+            if (isMe && showDeliveryStatus) ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: EdgeInsets.only(right: isGroupChat ? 40 : 2),
+                child: Text(
+                  'Delivered · $timeLabel',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: isDark
+                            ? Colors.white60
+                            : AppColors.brown.withValues(alpha: 0.62),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

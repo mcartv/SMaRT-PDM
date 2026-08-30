@@ -169,7 +169,7 @@ function ActionModal({
                                   ? 'bg-amber-700 hover:bg-amber-800'
                                   : tone === 'success'
                                     ? 'bg-green-700 hover:bg-green-800'
-                                    : 'bg-stone-900 hover:bg-stone-800'
+                                    : 'bg-[var(--portal-base)] hover:bg-[var(--portal-active)]'
                         }`}
                     >
                         {confirmLabel}

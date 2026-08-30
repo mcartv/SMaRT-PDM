@@ -1194,7 +1194,7 @@ function ReadinessOpeningCards({
                   onOpeningViewed(itemId);
                 }}
                 className={`min-w-[210px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition sm:min-w-[240px] ${selected
-                    ? 'border-stone-300 bg-stone-900 text-white shadow-sm'
+                    ? 'border-[var(--portal-base)] bg-[var(--portal-base)] text-white shadow-sm'
                     : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
                   }`}
               >

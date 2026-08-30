@@ -178,7 +178,7 @@ export default function FinalSelectionPanel({ openingId, onFinalized }) {
                   type="button"
                   onClick={finalize}
                   disabled={finalizing || entries.length === 0}
-                  className="rounded-xl bg-stone-900 text-white hover:bg-stone-800"
+                  className="rounded-xl bg-[var(--portal-base)] text-white hover:bg-[var(--portal-active)]"
                 >
                   {finalizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                   Finalize List

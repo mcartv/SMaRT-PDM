@@ -487,6 +487,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final scheme = Theme.of(context).colorScheme;
+
             Future<void> choosePhoto(ImageSource source) async {
               try {
                 final photo = await _pickRoProofPhoto(source);
@@ -521,9 +524,13 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
+                        color: isDark ? scheme.surfaceContainer : const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: const Color(0xFFE7D8C7)),
+                        border: Border.all(
+                          color: isDark
+                              ? scheme.outlineVariant
+                              : const Color(0xFFE7D8C7),
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.18),
@@ -541,7 +548,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               width: 44,
                               height: 5,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFB8A99A),
+                                color: isDark ? scheme.outline : const Color(0xFFB8A99A),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
@@ -552,7 +559,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     fontWeight: FontWeight.w900,
-                                    color: const Color(0xFF1C1917),
+                                    color: scheme.onSurface,
                                   ),
                             ),
                             const SizedBox(height: 18),
@@ -563,26 +570,32 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               textInputAction: TextInputAction.newline,
                               decoration: InputDecoration(
                                 hintText: hint,
-                                hintStyle: const TextStyle(
-                                  color: Color(0xFF786D63),
+                                hintStyle: TextStyle(
+                                  color: scheme.onSurfaceVariant,
                                   fontSize: 14,
                                 ),
                                 filled: true,
-                                fillColor: const Color(0xFFFFFBF6),
+                                fillColor: isDark
+                                    ? scheme.surfaceContainerHighest
+                                    : const Color(0xFFFFFBF6),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 14,
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF8B7A68),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? scheme.outline
+                                        : const Color(0xFF8B7A68),
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(18),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF4A2400),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? AppColors.gold
+                                        : const Color(0xFF4A2400),
                                     width: 1.5,
                                   ),
                                 ),
@@ -593,21 +606,25 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               width: double.infinity,
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.74),
+                                color: isDark
+                                    ? scheme.surfaceContainerHigh
+                                    : Colors.white.withOpacity(0.74),
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
-                                  color: const Color(0xFFE7D8C7),
+                                  color: isDark
+                                      ? scheme.outlineVariant
+                                      : const Color(0xFFE7D8C7),
                                 ),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Live camera proof is required',
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w900,
-                                      color: Color(0xFF1C1917),
+                                      color: scheme.onSurface,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -615,10 +632,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                     selectedPhoto == null
                                         ? 'Take a live camera photo. The date, time, RO area, and GPS coordinates will be burned into the image.'
                                         : 'Selected: ${selectedPhoto!.fileName}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       height: 1.35,
-                                      color: Color(0xFF78716C),
+                                      color: scheme.onSurfaceVariant,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -631,7 +648,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                           Container(
                                             width: double.infinity,
                                             height: 170,
-                                            color: const Color(0xFFF5EEE6),
+                                            color: isDark
+                                                ? scheme.surfaceContainerHighest
+                                                : const Color(0xFFF5EEE6),
                                             child: Image.memory(
                                               selectedPhoto!.bytes,
                                               fit: BoxFit.cover,
@@ -811,8 +830,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               width: double.infinity,
                               child: FilledButton(
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.darkBrown,
-                                  foregroundColor: Colors.white,
+                                  backgroundColor:
+                                      isDark ? AppColors.gold : AppColors.darkBrown,
+                                  foregroundColor:
+                                      isDark ? AppColors.darkBrown : Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
                                   ),
@@ -1204,6 +1225,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final bottom = MediaQuery.of(context).viewInsets.bottom;
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final scheme = Theme.of(context).colorScheme;
 
             void submit() {
               final text = _noteController.text.trim();
@@ -1244,7 +1267,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                       width: 44,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.black26,
+                        color: scheme.outline,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -1260,7 +1283,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                   Text(
                     'Select the concern type and provide enough detail for OSFA to review the assignment.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
+                      color: scheme.onSurfaceVariant,
                       height: 1.4,
                     ),
                   ),
@@ -1315,7 +1338,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                   Text(
                     'Supporting attachments are not requested here because the current RO concern endpoint stores text concerns only. Attendance proof uploads remain separate.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.black45,
+                      color: scheme.onSurfaceVariant.withValues(alpha: 0.82),
                       height: 1.35,
                     ),
                   ),
@@ -1324,8 +1347,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                     width: double.infinity,
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.darkBrown,
-                        foregroundColor: Colors.white,
+                        backgroundColor:
+                            isDark ? AppColors.gold : AppColors.darkBrown,
+                        foregroundColor:
+                            isDark ? AppColors.darkBrown : Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: submit,
@@ -1355,6 +1380,8 @@ Future<String?> _showNoteSheet({
       isScrollControlled: true,
       builder: (context) {
         final bottom = MediaQuery.of(context).viewInsets.bottom;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final scheme = Theme.of(context).colorScheme;
 
         return Padding(
           padding: EdgeInsets.fromLTRB(18, 18, 18, bottom + 18),
@@ -1365,7 +1392,7 @@ Future<String?> _showNoteSheet({
                 width: 44,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.black26,
+                  color: scheme.outline,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -1392,8 +1419,10 @@ Future<String?> _showNoteSheet({
                 width: double.infinity,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.darkBrown,
-                    foregroundColor: Colors.white,
+                    backgroundColor:
+                        isDark ? AppColors.gold : AppColors.darkBrown,
+                    foregroundColor:
+                        isDark ? AppColors.darkBrown : Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
@@ -1542,10 +1571,13 @@ Future<String?> _showNoteSheet({
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     final tabSurfaceColor = isDark
-        ? const Color(0xFF332216)
+        ? scheme.surfaceContainerHigh
         : Colors.grey.withOpacity(0.12);
-    final unselectedTabColor = isDark ? Colors.white70 : Colors.grey.shade700;
+    final selectedTabColor = isDark ? AppColors.gold : AppColors.darkBrown;
+    final selectedTabTextColor = isDark ? AppColors.darkBrown : Colors.white;
+    final unselectedTabColor = scheme.onSurfaceVariant;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1566,11 +1598,11 @@ Future<String?> _showNoteSheet({
           child: TabBar(
             controller: _tabController,
             indicator: BoxDecoration(
-              color: AppColors.darkBrown,
+              color: selectedTabColor,
               borderRadius: BorderRadius.circular(14),
             ),
             indicatorSize: TabBarIndicatorSize.tab,
-            labelColor: Colors.white,
+            labelColor: selectedTabTextColor,
             unselectedLabelColor: unselectedTabColor,
             tabs: const [
               Tab(text: 'Active'),
@@ -2039,6 +2071,7 @@ class _AssignmentCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: scheme.onSurface,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -2085,7 +2118,7 @@ class _AssignmentCard extends StatelessWidget {
                           Container(
                             width: 7,
                             height: 7,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: isDark
                                   ? const Color(0xFF9BE9A8)
                                   : Colors.green,
@@ -2093,10 +2126,12 @@ class _AssignmentCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 5),
-                          const Text(
+                          Text(
                             'Ongoing',
                             style: TextStyle(
-                              color: Colors.green,
+                              color: isDark
+                                  ? const Color(0xFF9BE9A8)
+                                  : Colors.green.shade700,
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
                             ),
@@ -2235,10 +2270,14 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
       maxChildSize: 0.96,
       expand: false,
       builder: (context, scrollController) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final scheme = Theme.of(context).colorScheme;
+        final mutedText = scheme.onSurfaceVariant;
+
         return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFFBF6),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: isDark ? scheme.surfaceContainer : const Color(0xFFFFFBF6),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -2250,7 +2289,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       width: 42,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.black12,
+                        color: scheme.outlineVariant,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -2275,7 +2314,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
                             fontWeight: FontWeight.w900,
-                            color: AppColors.darkBrown,
+                            color: scheme.onSurface,
                           ),
                     ),
                     const SizedBox(height: 4),
@@ -2284,7 +2323,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                           ? item.programName
                           : item.title,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.black54,
+                        color: mutedText,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -2293,10 +2332,10 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       const SizedBox(height: 5),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.calendar_month_rounded,
                             size: 16,
-                            color: Colors.black45,
+                            color: mutedText,
                           ),
                           const SizedBox(width: 6),
                           Expanded(
@@ -2308,7 +2347,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                               ].join(' · '),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Colors.black54,
+                                    color: mutedText,
                                     fontWeight: FontWeight.w800,
                                   ),
                             ),
@@ -2348,23 +2387,42 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                                       : Icons.schedule_rounded,
                                   size: 16,
                                   color: placement.isApproved
-                                      ? Colors.green.shade700
-                                      : Colors.orange.shade700,
+                                      ? (isDark
+                                            ? const Color(0xFF7DDEA0)
+                                            : Colors.green.shade700)
+                                      : (isDark
+                                            ? const Color(0xFFFFC47A)
+                                            : Colors.orange.shade700),
                                 ),
                                 label: Text(
                                   '${placement.areaName} - ${placement.status}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
+                                    color: placement.isApproved
+                                        ? (isDark
+                                              ? const Color(0xFFBDEBCB)
+                                              : Colors.green.shade900)
+                                        : (isDark
+                                              ? const Color(0xFFFFD9B1)
+                                              : Colors.orange.shade900),
                                   ),
                                 ),
                                 backgroundColor: placement.isApproved
-                                    ? Colors.green.shade50
-                                    : Colors.orange.shade50,
+                                    ? Colors.green.withValues(
+                                        alpha: isDark ? 0.18 : 0.08,
+                                      )
+                                    : Colors.orange.withValues(
+                                        alpha: isDark ? 0.18 : 0.08,
+                                      ),
                                 side: BorderSide(
                                   color: placement.isApproved
-                                      ? Colors.green.shade200
-                                      : Colors.orange.shade200,
+                                      ? Colors.green.withValues(
+                                          alpha: isDark ? 0.45 : 0.26,
+                                        )
+                                      : Colors.orange.withValues(
+                                          alpha: isDark ? 0.45 : 0.26,
+                                        ),
                                 ),
                               ),
                             )
@@ -2444,7 +2502,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                           ? 'No time-in or time-out images have been recorded yet.'
                           : 'Tap an image to preview the recorded attendance proof.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.black54,
+                        color: mutedText,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2586,14 +2644,16 @@ class _ObligationActionFooter extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.darkBrown,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.darkBrown.withOpacity(
-                        0.18,
-                      ),
-                      disabledForegroundColor: AppColors.darkBrown.withOpacity(
-                        0.45,
-                      ),
+                      backgroundColor:
+                          isDark ? AppColors.gold : AppColors.darkBrown,
+                      foregroundColor:
+                          isDark ? AppColors.darkBrown : Colors.white,
+                      disabledBackgroundColor: isDark
+                          ? scheme.surfaceContainerHighest
+                          : AppColors.darkBrown.withOpacity(0.18),
+                      disabledForegroundColor: isDark
+                          ? scheme.onSurfaceVariant.withValues(alpha: 0.55)
+                          : AppColors.darkBrown.withOpacity(0.45),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2649,8 +2709,8 @@ class _ObligationActionFooter extends StatelessWidget {
                       decoration: TextDecoration.underline,
                       decorationThickness: 1.2,
                       color: canReportConcern
-                          ? AppColors.darkBrown
-                          : Colors.black26,
+                          ? (isDark ? const Color(0xFFFFC7C7) : AppColors.darkBrown)
+                          : scheme.onSurfaceVariant.withValues(alpha: 0.38),
                     ),
                   ),
                 ),
@@ -2725,6 +2785,8 @@ class _ProofPreviewCard extends StatelessWidget {
     final proof = entry.proof;
     final capturedAt =
         proof.capturedAtDevice ?? proof.capturedAtServer ?? entry.log.timeInAt;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
 
     return Material(
       color: Colors.transparent,
@@ -2735,9 +2797,11 @@ class _ProofPreviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Ink(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? scheme.surfaceContainerHigh : Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE8DDD0)),
+            border: Border.all(
+              color: isDark ? scheme.outlineVariant : const Color(0xFFE8DDD0),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2748,12 +2812,14 @@ class _ProofPreviewCard extends StatelessWidget {
                     top: Radius.circular(15),
                   ),
                   child: proof.fileUrl.trim().isEmpty
-                      ? const ColoredBox(
-                          color: Color(0xFFF4EEE7),
+                      ? ColoredBox(
+                          color: isDark
+                              ? scheme.surfaceContainerHighest
+                              : const Color(0xFFF4EEE7),
                           child: Center(
                             child: Icon(
                               Icons.image_not_supported_outlined,
-                              color: Colors.black38,
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         )
@@ -2761,12 +2827,14 @@ class _ProofPreviewCard extends StatelessWidget {
                           proof.fileUrl,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const ColoredBox(
-                            color: Color(0xFFF4EEE7),
+                          errorBuilder: (_, _, _) => ColoredBox(
+                            color: isDark
+                                ? scheme.surfaceContainerHighest
+                                : const Color(0xFFF4EEE7),
                             child: Center(
                               child: Icon(
                                 Icons.broken_image_outlined,
-                                color: Colors.black38,
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -2780,8 +2848,9 @@ class _ProofPreviewCard extends StatelessWidget {
                   children: [
                     Text(
                       proof.label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
+                        color: scheme.onSurface,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -2790,9 +2859,9 @@ class _ProofPreviewCard extends StatelessWidget {
                       formatDateTime(capturedAt),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: Colors.black54,
+                        color: scheme.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2802,9 +2871,9 @@ class _ProofPreviewCard extends StatelessWidget {
                         '${proof.latitude!.toStringAsFixed(5)}, ${proof.longitude!.toStringAsFixed(5)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9,
-                          color: Colors.black45,
+                          color: scheme.onSurfaceVariant.withValues(alpha: 0.82),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -2897,13 +2966,22 @@ class _NoticeDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(0.08),
+        color: isDark
+            ? scheme.surfaceContainerHigh
+            : AppColors.gold.withOpacity(0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold.withOpacity(0.22)),
+        border: Border.all(
+          color: isDark
+              ? scheme.outlineVariant
+              : AppColors.gold.withOpacity(0.22),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2963,10 +3041,17 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 19, color: AppColors.darkBrown),
+        Icon(
+          icon,
+          size: 19,
+          color: isDark ? AppColors.gold : AppColors.darkBrown,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -2975,7 +3060,7 @@ class _DetailRow extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Colors.black54,
+                  color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -2984,7 +3069,10 @@ class _DetailRow extends StatelessWidget {
                 value,
                 style: Theme.of(
                   context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
+                ).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
@@ -3011,9 +3099,14 @@ class _ProgressLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trackColor = Theme.of(context).brightness == Brightness.dark
-        ? Colors.white12
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+    final trackColor = isDark
+        ? scheme.surfaceContainerHighest
         : Colors.grey.shade300;
+    final readableProgressColor = isDark
+        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.28), color)
+        : color;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3028,7 +3121,7 @@ class _ProgressLine extends StatelessWidget {
             ),
             Text(
               '$percent%',
-              style: TextStyle(color: color, fontWeight: FontWeight.w900),
+              style: TextStyle(color: readableProgressColor, fontWeight: FontWeight.w900),
             ),
           ],
         ),
@@ -3039,14 +3132,14 @@ class _ProgressLine extends StatelessWidget {
             value: value,
             minHeight: 11,
             backgroundColor: trackColor,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+            valueColor: AlwaysStoppedAnimation<Color>(readableProgressColor),
           ),
         ),
         const SizedBox(height: 6),
         Text(
           caption,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.black54,
+            color: scheme.onSurfaceVariant,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -3216,6 +3309,9 @@ class _LogsSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
     return ExpansionTile(
       initiallyExpanded: initiallyExpanded,
       tilePadding: EdgeInsets.zero,
@@ -3230,7 +3326,9 @@ class _LogsSection extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.03),
+            color: isDark
+                ? scheme.surfaceContainerHigh
+                : Colors.black.withOpacity(0.03),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
@@ -3238,13 +3336,16 @@ class _LogsSection extends StatelessWidget {
             children: [
               Text(
                 '${formatDateTime(log.timeInAt)} → ${formatDateTime(log.timeOutAt)}',
-                style: const TextStyle(fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 '${formatMinutes(log.durationMinutes)} · ${log.validationStatus}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.black54,
+                  color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -3253,7 +3354,7 @@ class _LogsSection extends StatelessWidget {
                 Text(
                   log.validationRemarks,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
+                    color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -3379,6 +3480,9 @@ class _StateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.all(22),
       child: Card(
@@ -3395,14 +3499,17 @@ class _StateCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(
                   context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                ).textTheme.titleMedium?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 message,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.black54,
+                  color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                   height: 1.4,
                 ),
@@ -3412,8 +3519,10 @@ class _StateCard extends StatelessWidget {
                 FilledButton(
                   onPressed: onAction,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.darkBrown,
-                    foregroundColor: Colors.white,
+                    backgroundColor:
+                        isDark ? AppColors.gold : AppColors.darkBrown,
+                    foregroundColor:
+                        isDark ? AppColors.darkBrown : Colors.white,
                   ),
                   child: Text(actionLabel!),
                 ),

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SMaRT-PDM OCR Station
+Comment=Start the SMaRT-PDM scanner status GUI after the Pi desktop session is ready
+Exec=/home/smart_pdm/birth-certificate-acceptance/ocr/scanner/service/start_gui_on_desktop.sh
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

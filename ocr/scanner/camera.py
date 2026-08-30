@@ -150,6 +150,18 @@ class CameraController:
         return command + self._roi_args()
 
     def start_preview(self) -> bool:
+        # The OCR worker normally runs as a system service, so it may not
+        # inherit DISPLAY/WAYLAND_DISPLAY from the logged-in Pi desktop.
+        # Resolve the graphical session *before* launching rpicam-hello;
+        # otherwise the READY overlay can appear while the camera preview was
+        # started without access to the HDMI desktop session.
+        gui_environment_ready = self._ensure_gui_environment()
+        if not gui_environment_ready:
+            print(
+                "[CAMERA] Graphical desktop environment was not discovered; "
+                "attempting the native camera preview fallback."
+            )
+
         self.clear_hardware()
         try:
             self.preview_process = subprocess.Popen(

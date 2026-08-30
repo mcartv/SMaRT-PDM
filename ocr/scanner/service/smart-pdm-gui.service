@@ -1,24 +1,21 @@
 [Unit]
 Description=SMaRT-PDM read-only scanner status GUI
-After=graphical-session.target smart-pdm-gui-state.service
+After=smart-pdm-gui-state.service
 Wants=smart-pdm-gui-state.service
-PartOf=graphical-session.target
 StartLimitIntervalSec=60
 StartLimitBurst=12
 
 [Service]
 Type=simple
 WorkingDirectory=/home/smart_pdm/birth-certificate-acceptance/ocr/scanner
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=%h/.Xauthority
-Environment=XDG_RUNTIME_DIR=%t
 Environment=PYTHONUNBUFFERED=1
 Environment=SMART_PDM_RUNTIME_DIRECTORY=%t/smart_pdm
 Environment=SMART_PDM_DEVICE_STATE_PATH=%t/smart_pdm/device_state.json
+Environment=SMART_PDM_OCR_ACTIVITY_PATH=%t/smart_pdm/worker_activity.json
 UMask=0077
 ExecStart=/home/smart_pdm/birth-certificate-acceptance/ocr/scanner/service/start_gui_service.sh
 Restart=on-failure
-RestartSec=5
+RestartSec=3
 TimeoutStopSec=20
 KillSignal=SIGTERM
 NoNewPrivileges=true

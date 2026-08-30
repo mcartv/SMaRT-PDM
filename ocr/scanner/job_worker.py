@@ -211,11 +211,18 @@ def run_local_worker_heartbeat() -> None:
 def lifecycle_worker_state(status: str) -> tuple[str, str]:
     return {
         "claimed": ("request_claimed", "checking"),
+        "starting_preview": ("starting_preview", "starting"),
         "previewing": ("waiting_for_capture", "preview_active"),
         "focusing": ("capturing", "capture_in_progress"),
         "capturing": ("capturing", "capture_in_progress"),
         "processing": ("running_ocr", "captured"),
     }.get(status, ("idle", "ready"))
+
+
+def backend_lifecycle_status(status: str) -> str:
+    """Map local-only lifecycle states to a backend-supported lease state."""
+
+    return "claimed" if status == "starting_preview" else status
 
 
 def clear_tmp_files() -> None:
@@ -1937,6 +1944,13 @@ def main():
                     current_status["value"] = status
                     worker_state, camera_status = lifecycle_worker_state(status)
                     publish_worker_activity(worker_state, request=request, camera_status=camera_status)
+
+                    # starting_preview is a local screen-handoff state. The
+                    # backend request is still legitimately `claimed` until
+                    # rpicam-hello is confirmed alive.
+                    if status == "starting_preview":
+                        return True
+
                     if not api.update_status(request_id, status):
                         log.warning(
                             "Lifecycle status update failed request=%s status=%s",
@@ -1962,7 +1976,8 @@ def main():
                         heartbeat_status = current_status["value"]
                         worker_state, camera_status = lifecycle_worker_state(heartbeat_status)
                         publish_worker_activity(worker_state, request=request, camera_status=camera_status)
-                        if not heartbeat_api.update_status(request_id, heartbeat_status):
+                        lease_status = backend_lifecycle_status(heartbeat_status)
+                        if not heartbeat_api.update_status(request_id, lease_status):
                             heartbeat_failed = True
                             failed_status = heartbeat_status
                             request_stop.set()

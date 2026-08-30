@@ -328,13 +328,17 @@ class ScannerStatusWindow:
 
     def _refresh(self) -> None:
         model = build_view_model(self.state_reader.read())
+        local_camera_status = self.state_reader.read_worker_camera_status()
+        camera_handoff_active = local_camera_status in {"starting", "preview_active"}
+        self._set_camera_preview_mode(
+            camera_handoff_active or model.camera_preview_active
+        )
         if model != self._last_model:
             self._apply_model(model)
             self._last_model = model
         self._schedule_refresh()
 
     def _apply_model(self, model: GuiViewModel) -> None:
-        self._set_camera_preview_mode(model.camera_preview_active)
         self.internet_badge.set_text(model.internet_badge)
         self.internet_badge.configure(bg=COLORS.get(model.internet_tone, COLORS["muted"]))
         self.activity_kicker.configure(fg=COLORS.get(model.activity_tone, COLORS["muted"]))

@@ -53,6 +53,8 @@ PY
 chmod 700 \
   "$scanner_directory/service/install_pi_status_services.sh" \
   "$scanner_directory/service/start_gui_service.sh" \
+  "$scanner_directory/service/start_gui_on_desktop.sh" \
+  "$scanner_directory/service/gui_session_launcher.py" \
   "$scanner_directory/service/update_pi_status_ui.sh"
 
 echo "pi_update_stage=install_services"

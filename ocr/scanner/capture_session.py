@@ -88,14 +88,28 @@ def run_capture_session(
         try:
             preview_started_at = time.monotonic()
 
+            # Publish the local handoff before rpicam-hello starts. The Pi
+            # status GUI uses this state to yield the screen, so the live
+            # camera is already visible by the time the READY instruction is
+            # drawn. This state is local-only; the backend remains claimed
+            # until the preview process is confirmed alive.
+            if on_status and on_status("starting_preview") is False:
+                return CaptureSessionResult(
+                    FAILED,
+                    error_code="CAPTURE_SESSION_INTERRUPTED",
+                )
+
             if not resolved_camera.start_preview():
                 return CaptureSessionResult(
                     FAILED,
                     error_code="PREVIEW_START_FAILED",
                 )
 
-            if on_status:
-                on_status("previewing")
+            if on_status and on_status("previewing") is False:
+                return CaptureSessionResult(
+                    FAILED,
+                    error_code="CAPTURE_SESSION_INTERRUPTED",
+                )
 
             print(
                 "Camera preview ready in "

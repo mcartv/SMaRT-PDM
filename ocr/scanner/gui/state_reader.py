@@ -20,6 +20,11 @@ from runtime.device_state import (
 
 MAX_STATE_BYTES = 64 * 1024
 DEFAULT_STALE_AFTER_SECONDS = 8.0
+DEFAULT_WORKER_ACTIVITY_STALE_AFTER_SECONDS = 3.0
+WORKER_CAMERA_STATUSES = frozenset({
+    "checking", "ready", "starting", "preview_active",
+    "capture_in_progress", "captured", "error", "unavailable", "stopped",
+})
 
 
 def default_state_path() -> Path:
@@ -31,6 +36,19 @@ def default_state_path() -> Path:
         os.environ.get(
             "SMART_PDM_DEVICE_STATE_PATH",
             str(Path(runtime_directory) / "device_state.json"),
+        )
+    )
+
+
+def default_worker_activity_path() -> Path:
+    runtime_uid = getattr(os, "getuid", lambda: 0)()
+    runtime_directory = os.environ.get(
+        "SMART_PDM_RUNTIME_DIRECTORY", f"/run/user/{runtime_uid}/smart_pdm"
+    )
+    return Path(
+        os.environ.get(
+            "SMART_PDM_OCR_ACTIVITY_PATH",
+            str(Path(runtime_directory) / "worker_activity.json"),
         )
     )
 
@@ -47,11 +65,19 @@ class StateReader:
         self,
         *,
         state_path: Optional[Union[os.PathLike, str]] = None,
+        worker_activity_path: Optional[Union[os.PathLike, str]] = None,
         stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS,
+        worker_activity_stale_after_seconds: float = DEFAULT_WORKER_ACTIVITY_STALE_AFTER_SECONDS,
         require_private_permissions: Optional[bool] = None,
     ) -> None:
         self.state_path = Path(state_path or default_state_path())
+        self.worker_activity_path = Path(
+            worker_activity_path or default_worker_activity_path()
+        )
         self.stale_after_seconds = max(1.0, float(stale_after_seconds))
+        self.worker_activity_stale_after_seconds = max(
+            0.5, float(worker_activity_stale_after_seconds)
+        )
         self.require_private_permissions = (
             os.name == "posix"
             if require_private_permissions is None
@@ -85,6 +111,37 @@ class StateReader:
             return ReadResult("stale", snapshot=payload, error_code="device_state_stale")
         return ReadResult("available", snapshot=payload)
 
+    def read_worker_camera_status(self) -> Optional[str]:
+        """Read the local worker camera handoff without waiting on network probes."""
+
+        path = self.worker_activity_path
+        try:
+            file_stat = path.lstat()
+        except OSError:
+            return None
+        if stat.S_ISLNK(file_stat.st_mode) or not stat.S_ISREG(file_stat.st_mode):
+            return None
+        if file_stat.st_size <= 0 or file_stat.st_size > MAX_STATE_BYTES:
+            return None
+        if self.require_private_permissions:
+            if hasattr(file_stat, "st_uid") and file_stat.st_uid != os.getuid():
+                return None
+            if stat.S_IMODE(file_stat.st_mode) & 0o077:
+                return None
+        age = max(0.0, time.time() - file_stat.st_mtime)
+        if age > self.worker_activity_stale_after_seconds:
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        camera_status = str(payload.get("camera_status") or "").strip()
+        if camera_status not in WORKER_CAMERA_STATUSES:
+            return None
+        return camera_status
+
     @staticmethod
     def _valid(payload: object) -> bool:
         if not isinstance(payload, dict):
@@ -100,4 +157,10 @@ class StateReader:
         )
 
 
-__all__ = ["DEFAULT_STALE_AFTER_SECONDS", "ReadResult", "StateReader"]
+__all__ = [
+    "DEFAULT_STALE_AFTER_SECONDS",
+    "DEFAULT_WORKER_ACTIVITY_STALE_AFTER_SECONDS",
+    "ReadResult",
+    "StateReader",
+    "default_worker_activity_path",
+]

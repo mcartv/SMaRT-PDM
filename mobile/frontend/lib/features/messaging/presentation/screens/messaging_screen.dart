@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
@@ -389,7 +390,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                           Navigator.of(sheetContext).pop();
                           await _confirmLeaveGroup();
                         },
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+                        style: AppButtonStyles.destructiveOutlined(context),
                         icon: const Icon(Icons.logout_rounded, size: 18),
                         label: const Text('Leave group'),
                       ),
@@ -464,10 +465,14 @@ class _MessagingScreenState extends State<MessagingScreen> {
         title: const Text('Leave group?'),
         content: const Text('You will stop receiving new messages from this group.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            style: AppButtonStyles.destructiveText(context),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: AppButtonStyles.destructiveFilled(context),
             child: const Text('Leave group'),
           ),
         ],

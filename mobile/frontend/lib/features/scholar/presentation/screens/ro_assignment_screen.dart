@@ -11,6 +11,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -796,10 +797,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                         label: const Text(
                                           'Remove selected photo',
                                         ),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: const Color(
-                                            0xFFB3261E,
-                                          ),
+                                        style: AppButtonStyles.destructiveText(
+                                          dialogContext,
                                         ),
                                       ),
                                     ),
@@ -846,12 +845,12 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               onPressed: _isSubmitting
                                   ? null
                                   : () => Navigator.pop(dialogContext),
+                              style: AppButtonStyles.destructiveText(
+                                dialogContext,
+                              ),
                               child: const Text(
                                 'Cancel',
-                                style: TextStyle(
-                                  color: Color(0xFF78716C),
-                                  fontWeight: FontWeight.w800,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.w800),
                               ),
                             ),
                           ],
@@ -951,13 +950,11 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
+              style: AppButtonStyles.destructiveText(context),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.darkBrown,
-                foregroundColor: Colors.white,
-              ),
+              style: AppButtonStyles.confirmFilled(context),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Acknowledge'),
             ),
@@ -2483,12 +2480,12 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                               : null,
                           icon: const Icon(Icons.check_circle_rounded),
                           label: const Text('Acknowledge Notice'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.darkBrown,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          style: AppButtonStyles.confirmFilled(context).merge(
+                            FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
@@ -2599,18 +2596,12 @@ class _ObligationActionFooter extends StatelessWidget {
                       'Time Out',
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFB3261E),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(
-                        0xFFB3261E,
-                      ).withOpacity(0.14),
-                      disabledForegroundColor: const Color(
-                        0xFFB3261E,
-                      ).withOpacity(0.42),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    style: AppButtonStyles.destructiveFilled(context).merge(
+                      FilledButton.styleFrom(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),

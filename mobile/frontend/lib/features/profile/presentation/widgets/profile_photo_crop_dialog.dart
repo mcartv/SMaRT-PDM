@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 
 Future<Uint8List?> showProfilePhotoCropDialog(
   BuildContext context, {
@@ -202,6 +203,7 @@ class _ProfilePhotoCropDialogState
                         onPressed: _isCropping
                             ? null
                             : () => Navigator.of(context).pop(),
+                        style: AppButtonStyles.destructiveOutlined(context),
                         child: const Text('Cancel'),
                       ),
                     ),
@@ -209,6 +211,7 @@ class _ProfilePhotoCropDialogState
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: _isCropping ? null : _usePhoto,
+                        style: AppButtonStyles.confirmFilled(context),
                         icon: _isCropping
                             ? const SizedBox(
                                 width: 18,

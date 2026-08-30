@@ -9,6 +9,7 @@ import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
@@ -103,14 +104,12 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
+              style: AppButtonStyles.destructiveText(dialogContext),
               child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-              ),
+              style: AppButtonStyles.destructiveFilled(dialogContext),
               child: Text(isDark ? 'Log out' : 'Log out'),
             ),
           ],
@@ -369,16 +368,14 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
               onPressed: _confirmLogout,
               icon: const Icon(Icons.logout_rounded),
               label: const Text('Log Out'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.redAccent,
-                side: BorderSide(
-                  color: Colors.redAccent.withValues(alpha: 0.45),
+              style: AppButtonStyles.destructiveOutlined(context).merge(
+                OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
                 ),
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900),
               ),
             ),
             const SizedBox(height: 14),

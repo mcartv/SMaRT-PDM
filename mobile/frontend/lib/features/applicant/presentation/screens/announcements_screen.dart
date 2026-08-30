@@ -476,9 +476,4 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _notificationProvider?.removeListener(_handleRealtimeAnnouncements);
-    super.dispose();
-  }
 }

@@ -357,8 +357,12 @@ class _SplashScreenState extends State<SplashScreen> {
                                     : _goToRegistration,
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.darkBrown,
-                                  side: const BorderSide(
-                                    color: AppColors.brown,
+                                  side: BorderSide(
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF665E57)
+                                        : const Color(0xFFD2D2D2),
+                                    width: 1,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(17),

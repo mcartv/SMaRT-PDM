@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
@@ -393,13 +394,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
+              style: AppButtonStyles.destructiveText(context),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFDC2626),
-                foregroundColor: Colors.white,
-              ),
+              style: AppButtonStyles.destructiveFilled(context),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Delete'),
             ),
@@ -723,13 +722,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ],
                       ),
                     ),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.delete_outline_rounded, size: 18),
-                        SizedBox(width: 10),
-                        Text('Delete'),
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: AppButtonStyles.destructiveColor(context),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Delete',
+                          style: TextStyle(
+                            color: AppButtonStyles.destructiveColor(context),
+                          ),
+                        ),
                       ],
                     ),
                   ),

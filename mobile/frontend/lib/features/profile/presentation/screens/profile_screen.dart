@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
@@ -888,10 +889,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _pendingRealtimeProfileReload = false;
                           _loadProfile(refreshRemote: true, silent: true);
                         },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                  style: AppButtonStyles.destructiveOutlined(context).merge(
+                    OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
                   child: const Text('Cancel'),
@@ -902,6 +905,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 flex: 2,
                 child: FilledButton.icon(
                   onPressed: _isSaving ? null : _saveProfile,
+                  style: AppButtonStyles.confirmFilled(context),
                   icon: _isSaving
                       ? const SizedBox(
                           width: 17,

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -86,8 +87,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
             title: const Text('Archive conversation?'),
             content: Text('$title will be hidden from your conversation list. A new message will automatically bring it back.'),
             actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Archive')),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                style: AppButtonStyles.destructiveText(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: AppButtonStyles.destructiveFilled(dialogContext),
+                child: const Text('Archive'),
+              ),
             ],
           ),
         ) ??
@@ -417,10 +426,25 @@ class _ConversationTile extends StatelessWidget {
                   onSelected: (value) {
                     if (value == 'archive') onArchive!();
                   },
-                  itemBuilder: (context) => const [
+                  itemBuilder: (context) => [
                     PopupMenuItem<String>(
                       value: 'archive',
-                      child: Row(children: [Icon(Icons.archive_outlined, size: 19), SizedBox(width: 10), Text('Archive')]),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.archive_outlined,
+                            size: 19,
+                            color: AppButtonStyles.destructiveColor(context),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Archive',
+                            style: TextStyle(
+                              color: AppButtonStyles.destructiveColor(context),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 )

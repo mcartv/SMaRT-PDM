@@ -70,6 +70,9 @@ class ApplicantHomeThemeScope extends StatelessWidget {
     final outline = isDark
         ? AppColors.applicantDarkOutline
         : AppColors.applicantLightOutline;
+    final buttonOutline = isDark
+        ? const Color(0xFF665E57)
+        : const Color(0xFFD2D2D2);
     final text = isDark
         ? AppColors.applicantDarkText
         : AppColors.applicantLightText;
@@ -170,7 +173,7 @@ class ApplicantHomeThemeScope extends StatelessWidget {
           disabledForegroundColor: textMuted,
           minimumSize: minimumControlSize,
           padding: controlPadding,
-          side: BorderSide(color: outline),
+          side: BorderSide(color: buttonOutline, width: 1),
           shape: controlShape,
           textStyle: textTheme.labelLarge,
         ),

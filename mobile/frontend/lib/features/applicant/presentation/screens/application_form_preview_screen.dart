@@ -923,9 +923,11 @@ class _ApplicationFormPreviewScreenState
                       ).colorScheme.onSurface.withValues(alpha: 0.38),
                       side: BorderSide(
                         color: canEdit
-                            ? AppColors.gold
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF665E57)
+                                  : const Color(0xFFD2D2D2))
                             : Theme.of(context).colorScheme.outlineVariant,
-                        width: 1.2,
+                        width: 1,
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),

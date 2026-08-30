@@ -632,9 +632,4 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _notificationProvider?.removeListener(_handleRealtimeOpenings);
-    super.dispose();
-  }
 }

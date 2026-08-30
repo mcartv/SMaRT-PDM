@@ -889,7 +889,10 @@ class _ScholarRenewalRequirementsScreenState
                         style: OutlinedButton.styleFrom(
                           foregroundColor: accentColor,
                           side: BorderSide(
-                            color: accentColor.withValues(alpha: 0.35),
+                            color: isDark
+                                ? const Color(0xFF665E57)
+                                : const Color(0xFFD2D2D2),
+                            width: 1,
                           ),
                           backgroundColor: isDark
                               ? const Color(0xFF3A2718)

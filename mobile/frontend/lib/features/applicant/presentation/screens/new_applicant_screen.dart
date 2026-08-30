@@ -375,8 +375,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             ? AppColors.applicantDarkTextMuted
             : const Color(0xFF6F675F);
         final borderColor = isDark
-            ? AppColors.applicantDarkOutline
-            : const Color(0xFFE8E2D8);
+            ? const Color(0xFF665E57)
+            : const Color(0xFFD2D2D2);
 
         Widget reviewPoint(String text) {
           return Padding(

@@ -744,8 +744,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                         ),
                         foregroundColor: accentColor,
                         side: BorderSide(
-                          color: accentColor.withValues(alpha: 0.72),
-                          width: 1.2,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF665E57)
+                              : const Color(0xFFD2D2D2),
+                          width: 1,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -771,8 +773,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     minimumSize: const Size(0, 54),
                     foregroundColor: accentColor,
                     side: BorderSide(
-                      color: accentColor.withValues(alpha: 0.72),
-                      width: 1.2,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF665E57)
+                          : const Color(0xFFD2D2D2),
+                      width: 1,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

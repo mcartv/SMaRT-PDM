@@ -188,13 +188,16 @@ class GhostButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final outlineColor = isDark
+        ? const Color(0xFF665E57)
+        : const Color(0xFFD2D2D2);
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         foregroundColor: isDark
             ? AppColors.applicantDarkText
             : AppColors.darkBrown,
-        side: const BorderSide(color: AppColors.gold, width: 1.6),
+        side: BorderSide(color: outlineColor, width: 1),
         minimumSize: const Size(0, 56),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

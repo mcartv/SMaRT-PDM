@@ -123,6 +123,27 @@ function emitAcademicUpdate(
                 );
             });
     }
+
+    studentRealtimeRelayService
+        .relayModuleEvent({
+            event: 'academic:updated',
+            payload: {
+                source: 'academic-period-configuration',
+                action,
+                academic_year_id:
+                    period?.academic_year_id ||
+                    academicYear?.academic_year_id ||
+                    null,
+                period_id: period?.period_id || null,
+                updated_at: payload.updated_at,
+            },
+        })
+        .catch((relayError) => {
+            console.error(
+                'ACADEMIC STUDENT REALTIME RELAY ERROR:',
+                relayError.message
+            );
+        });
 }
 
 async function writeAudit(

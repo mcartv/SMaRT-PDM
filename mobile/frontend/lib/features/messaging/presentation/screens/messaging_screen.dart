@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
@@ -121,7 +122,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
   void _startRefreshFallback() {
     _refreshFallback?.cancel();
     _refreshFallback = Timer.periodic(const Duration(seconds: 8), (_) async {
-      if (!mounted || _isRefreshing) return;
+      if (!mounted ||
+          _isRefreshing ||
+          MobileRealtimeService.instance.isConnected) {
+        return;
+      }
 
       _isRefreshing = true;
       try {

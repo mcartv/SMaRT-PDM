@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -33,8 +34,8 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   void initState() {
     super.initState();
     _loadStatus();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (mounted) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !MobileRealtimeService.instance.isConnected) {
         _loadStatus();
       }
     });

@@ -334,4 +334,51 @@ router.post('/ro-updated', requireInternalSecret, (req, res) => {
     });
 });
 
+
+
+router.post('/payout-event', requireInternalSecret, (req, res) => {
+    const io = req.app.get('io');
+
+    if (!io) {
+        return res.status(500).json({
+            success: false,
+            message: 'Admin Socket.IO instance is missing',
+        });
+    }
+
+    const eventName = cleanId(req.body?.event || req.body?.event_name);
+    const allowedEvents = new Set([
+        'payout:proof-submitted',
+    ]);
+
+    if (!allowedEvents.has(eventName)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Unsupported payout realtime event',
+        });
+    }
+
+    const rawPayload =
+        req.body?.payload && typeof req.body.payload === 'object'
+            ? req.body.payload
+            : {};
+
+    const payload = {
+        payout_entry_id: rawPayload.payout_entry_id || rawPayload.payoutEntryId || null,
+        payout_proof_id: rawPayload.payout_proof_id || rawPayload.payoutProofId || null,
+        proof_status: rawPayload.proof_status || rawPayload.proofStatus || 'Pending Review',
+        source: 'mobile-backend',
+        updated_at: rawPayload.updated_at || new Date().toISOString(),
+        relayed_at: new Date().toISOString(),
+    };
+
+    io.emit(eventName, payload);
+    io.emit('payout:updated', payload);
+
+    return res.status(200).json({
+        success: true,
+        event: eventName,
+    });
+});
+
 module.exports = router;

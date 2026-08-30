@@ -92,9 +92,19 @@ async function relayNotificationCreated(payload = {}) {
     );
 }
 
+
+
+async function relayPayoutEvent(event, payload = {}) {
+    return postToAdminBackend('/api/internal/realtime/payout-event', {
+        event,
+        payload,
+    });
+}
+
 module.exports = {
     relayRoUpdated,
     relayMessageCreated,
     relayMessageEvent,
     relayNotificationCreated,
+    relayPayoutEvent,
 };

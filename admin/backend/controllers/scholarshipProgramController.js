@@ -1,6 +1,7 @@
 const scholarshipProgramService = require('../services/scholarshipProgramService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 exports.getScholarshipPrograms = async (req, res) => {
     try {
@@ -19,12 +20,25 @@ exports.createScholarshipProgram = async (req, res) => {
     try {
         const created = await scholarshipProgramService.createScholarshipProgram(req.body);
         const io = req.app.get('io');
+        const updatedAt = new Date().toISOString();
         socketEvents.maintenanceUpdated(io, {
             module: 'programs',
             action: 'create',
             id: created?.program_id ?? created?.id ?? null,
-            updated_at: new Date().toISOString(),
+            updated_at: updatedAt,
         });
+        studentRealtimeRelayService
+            .relayModuleEvent({
+                event: 'program:updated',
+                payload: {
+                    action: 'create',
+                    program_id: created?.program_id ?? created?.id ?? null,
+                    updated_at: updatedAt,
+                },
+            })
+            .catch((error) => {
+                console.error('PROGRAM STUDENT REALTIME RELAY ERROR:', error.message);
+            });
         res.status(201).json(created);
     } catch (err) {
         console.error('CREATE SCHOLARSHIP PROGRAM ERROR:', err);
@@ -47,12 +61,25 @@ exports.updateScholarshipProgram = async (req, res) => {
         }
 
         const io = req.app.get('io');
+        const updatedAt = new Date().toISOString();
         socketEvents.maintenanceUpdated(io, {
             module: 'programs',
             action: 'update',
             id: req.params.id,
-            updated_at: new Date().toISOString(),
+            updated_at: updatedAt,
         });
+        studentRealtimeRelayService
+            .relayModuleEvent({
+                event: 'program:updated',
+                payload: {
+                    action: 'update',
+                    program_id: req.params.id,
+                    updated_at: updatedAt,
+                },
+            })
+            .catch((error) => {
+                console.error('PROGRAM STUDENT REALTIME RELAY ERROR:', error.message);
+            });
         res.status(200).json(updated);
     } catch (err) {
         console.error('UPDATE SCHOLARSHIP PROGRAM ERROR:', err);

@@ -96,6 +96,9 @@ class MobileRealtimeService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
 
     final token = _firstNonEmpty([
+      // SessionService stores the current JWT under jwt_token. Keep this first
+      // so realtime uses the exact same authenticated session as REST calls.
+      prefs.getString('jwt_token'),
       prefs.getString('token'),
       prefs.getString('auth_token'),
       prefs.getString('access_token'),
@@ -343,7 +346,20 @@ class MobileRealtimeService extends ChangeNotifier {
     );
 
     debugPrint('[Realtime] $event');
+    _dispatchEvent(event);
+  }
 
+  void _emitLocalEvent(String eventName, Map<String, dynamic> payload) {
+    _dispatchEvent(
+      MobileRealtimeEvent(
+        name: eventName,
+        payload: payload,
+        receivedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  void _dispatchEvent(MobileRealtimeEvent event) {
     _lastEvent = event;
     _revision += 1;
 
@@ -356,33 +372,18 @@ class MobileRealtimeService extends ChangeNotifier {
     );
 
     for (final subscription in subscriptions) {
-      if (!subscription.eventNames.contains(eventName)) continue;
+      if (!subscription.eventNames.contains(event.name)) continue;
 
       Future<void>.microtask(() async {
         try {
           await subscription.callback(event);
         } catch (error) {
-          debugPrint('[Realtime] Listener error for $eventName: $error');
+          debugPrint('[Realtime] Listener error for ${event.name}: $error');
         }
       });
     }
 
     notifyListeners();
-  }
-
-  void _emitLocalEvent(String eventName, Map<String, dynamic> payload) {
-    final event = MobileRealtimeEvent(
-      name: eventName,
-      payload: payload,
-      receivedAt: DateTime.now(),
-    );
-
-    _lastEvent = event;
-    _revision += 1;
-
-    if (!_eventController.isClosed) {
-      _eventController.add(event);
-    }
   }
 
   static Map<String, dynamic> _payloadToMap(dynamic data) {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/faq_item.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/data/services/faq_service.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
@@ -19,15 +21,26 @@ class _FaqsScreenState extends State<FaqsScreen> {
   String? _error;
   String _searchQuery = '';
   List<FaqItem> _faqs = const [];
+  VoidCallback? _stopRealtimeListener;
 
   @override
   void initState() {
     super.initState();
     _loadFaqs();
+    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(
+      <String>{
+        MobileRealtimeEvents.faqUpdated,
+        MobileRealtimeEvents.settingsUpdated,
+        MobileRealtimeEvents.socketReconnected,
+      },
+      (_) => _loadFaqs(),
+    );
   }
 
   @override
   void dispose() {
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
     _searchController.dispose();
     super.dispose();
   }

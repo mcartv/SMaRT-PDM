@@ -78,6 +78,8 @@ class NotificationProvider extends ChangeNotifier {
   int _scholarRevision = 0;
   int _ticketRevision = 0;
   int _roRevision = 0;
+  int _settingsRevision = 0;
+  int _profileRevision = 0;
 
   VoidCallback? _stopRealtimeListener;
 
@@ -121,6 +123,8 @@ class NotificationProvider extends ChangeNotifier {
   int get scholarRevision => _scholarRevision;
   int get ticketRevision => _ticketRevision;
   int get roRevision => _roRevision;
+  int get settingsRevision => _settingsRevision;
+  int get profileRevision => _profileRevision;
 
   Future<void> initialize() async {
     final session = await _sessionService.getCurrentUser();
@@ -291,6 +295,44 @@ class NotificationProvider extends ChangeNotifier {
     debugPrint('[NotificationProvider] realtime event: ${event.name}');
 
     switch (event.name) {
+      case MobileRealtimeEvents.socketConnected:
+      case MobileRealtimeEvents.socketReconnected:
+        // Realtime events are not replayed while a device is offline. Reconcile
+        // every active mobile module from its authoritative API when the socket
+        // comes back, then let each screen refresh only its own data.
+        await _reconcileAllAfterSocketRecovery();
+        return;
+
+      case MobileRealtimeEvents.settingsUpdated:
+      case MobileRealtimeEvents.maintenanceUpdated:
+      case MobileRealtimeEvents.faqUpdated:
+        _settingsRevision += 1;
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.programUpdated:
+        _settingsRevision += 1;
+        _openingRevision += 1;
+        _renewalRevision += 1;
+        _payoutRevision += 1;
+        await _refreshLatestOpeningUpdate();
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.academicUpdated:
+        _settingsRevision += 1;
+        _renewalRevision += 1;
+        _payoutRevision += 1;
+        _roRevision += 1;
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.profileUpdated:
+        _profileRevision += 1;
+        _scholarRevision += 1;
+        await _queueScholarAccessRefresh();
+        notifyListeners();
+        return;
       case MobileRealtimeEvents.notificationNew:
       case MobileRealtimeEvents.notificationCreated:
       case MobileRealtimeEvents.notificationCreatedLegacy:
@@ -411,6 +453,7 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.scholarArchived:
       case MobileRealtimeEvents.scholarRestored:
         _scholarRevision += 1;
+        _profileRevision += 1;
         await _queueScholarAccessRefresh();
         notifyListeners();
         return;
@@ -428,6 +471,9 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.roLogCreated:
       case MobileRealtimeEvents.roLogUpdated:
       case MobileRealtimeEvents.roSettingsUpdated:
+      case MobileRealtimeEvents.roAssignmentUpdated:
+      case MobileRealtimeEvents.roTimeLogUpdated:
+      case MobileRealtimeEvents.roProofUpdated:
         _roRevision += 1;
         notifyListeners();
         return;
@@ -438,6 +484,8 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.payoutArchived:
       case MobileRealtimeEvents.payoutRestored:
       case MobileRealtimeEvents.scholarReleased:
+      case MobileRealtimeEvents.payoutProofSubmitted:
+      case MobileRealtimeEvents.payoutProofReviewed:
         _payoutRevision += 1;
         await _refreshOfficeUpdatesFromRealtime();
         return;
@@ -454,6 +502,27 @@ class NotificationProvider extends ChangeNotifier {
       default:
         return;
     }
+  }
+
+  Future<void> _reconcileAllAfterSocketRecovery() async {
+    try {
+      await refresh(silent: true);
+    } catch (_) {
+      // Individual screens keep their current data when reconciliation fails.
+    }
+
+    _applicationRevision += 1;
+    _announcementRevision += 1;
+    _openingRevision += 1;
+    _payoutRevision += 1;
+    _renewalRevision += 1;
+    _scholarRevision += 1;
+    _roRevision += 1;
+    _settingsRevision += 1;
+    _profileRevision += 1;
+
+    await _queueScholarAccessRefresh();
+    notifyListeners();
   }
 
   Future<void> _refreshOfficeUpdatesFromRealtime() {
@@ -831,6 +900,8 @@ class NotificationProvider extends ChangeNotifier {
     _scholarRevision = 0;
     _ticketRevision = 0;
     _roRevision = 0;
+    _settingsRevision = 0;
+    _profileRevision = 0;
 
     if (notify) {
       notifyListeners();

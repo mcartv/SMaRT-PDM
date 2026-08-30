@@ -111,12 +111,17 @@ class MessagingProvider extends ChangeNotifier {
     _isInitialized = true;
 
     if (_enableRealtime) {
-      await MobileRealtimeService.instance.connectFromPrefs(
+      // Register before connecting so the provider cannot miss a fast
+      // socket:connected event. Use the same SessionService token/user id as
+      // REST requests instead of re-reading potentially stale preference keys.
+      _ensureRealtimeListener();
+      await MobileRealtimeService.instance.connect(
         backendBaseUrl: AppConfig.apiBaseUrl,
+        token: session.token,
+        userId: session.userId,
       );
 
       _isRealtimeConnected = MobileRealtimeService.instance.isConnected;
-      _ensureRealtimeListener();
     } else {
       _isRealtimeConnected = false;
     }
@@ -463,6 +468,17 @@ class MessagingProvider extends ChangeNotifier {
       case 'socket:reconnected':
         _isRealtimeConnected = true;
         _errorMessage = null;
+
+        // Reconcile authoritative state after a fresh/recovered socket. This
+        // also catches any message written while Render or the device was
+        // temporarily disconnected without replacing realtime delivery.
+        await fetchArchivedThreads(notify: false);
+        await fetchGroups(notify: false);
+        await refreshUnreadCount(notify: false);
+        if (_isViewingThread) {
+          await _refreshThread(notify: false);
+          await markThreadRead();
+        }
         _notify();
         return;
 
@@ -494,11 +510,15 @@ class MessagingProvider extends ChangeNotifier {
         _notify();
         return;
 
+      case MobileRealtimeEvents.conversationUpdated:
       case MobileRealtimeEvents.roomCreated:
       case MobileRealtimeEvents.roomMembersAdded:
       case MobileRealtimeEvents.roomMembersRemoved:
       case MobileRealtimeEvents.roomMemberLeft:
       case MobileRealtimeEvents.roomMemberPromoted:
+      case MobileRealtimeEvents.roomUpdated:
+      case MobileRealtimeEvents.roomArchived:
+      case MobileRealtimeEvents.roomRestored:
         _roomMembershipRevision += 1;
         await fetchArchivedThreads(notify: false);
         await fetchGroups(notify: false);
@@ -582,6 +602,7 @@ class MessagingProvider extends ChangeNotifier {
         _upsertMessage(message);
         _recalculatePrivateUnreadCount();
         _notify();
+        unawaited(markThreadRead());
       } else {
         _scheduleUnreadRefresh();
       }
@@ -593,6 +614,7 @@ class MessagingProvider extends ChangeNotifier {
       _updateGroupPreview(roomId, message);
       _setGroupUnreadCount(roomId, 0);
       _notify();
+      unawaited(markThreadRead());
       return;
     }
 

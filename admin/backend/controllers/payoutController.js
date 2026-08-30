@@ -1,6 +1,7 @@
 const payoutService = require('../services/payoutService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -80,11 +81,44 @@ function emitFallback(io, eventName, data) {
     });
 }
 
-function emitPayoutBatchRealtime(req, row, action = 'updated') {
-    const io = req.app.get('io');
-    if (!io || !row) return;
+function relayPayoutToStudentBackend(event, payload = {}) {
+    studentRealtimeRelayService
+        .relayModuleEvent({
+            event,
+            // Keep the cross-environment payload to refresh metadata only.
+            // The scholar app re-fetches its own authenticated payout records.
+            payload: {
+                action: payload.action || null,
+                payout_batch_id: payload.payout_batch_id || null,
+                payout_entry_id: payload.payout_entry_id || null,
+                payout_proof_id: payload.payout_proof_id || null,
+                proof_status: payload.proof_status || null,
+                release_status: payload.release_status || null,
+                updated_at: payload.updated_at || new Date().toISOString(),
+            },
+        })
+        .catch((error) => {
+            console.error('PAYOUT STUDENT REALTIME RELAY ERROR:', error.message);
+        });
+}
 
+function emitPayoutBatchRealtime(req, row, action = 'updated') {
+    if (!row) return;
+
+    const io = req.app.get('io');
     const payload = normalizeBatchPayload(row, action);
+    const studentEventByAction = {
+        created: 'payout:created',
+        updated: 'payout:updated',
+        archived: 'payout:archived',
+        restored: 'payout:restored',
+    };
+    relayPayoutToStudentBackend(
+        studentEventByAction[action] || 'payout:updated',
+        payload
+    );
+
+    if (!io) return;
 
     if (action === 'created') {
         if (socketEvents?.payoutCreated) {
@@ -146,18 +180,26 @@ function emitPayoutBatchRealtime(req, row, action = 'updated') {
 }
 
 function emitPayoutEntryRealtime(req, row, action = 'entry_updated') {
-    const io = req.app.get('io');
-    if (!io || !row) return;
+    if (!row) return;
 
+    const io = req.app.get('io');
     const payload = normalizeEntryPayload(row, action);
+    const isReleased =
+        String(payload.release_status || '').toLowerCase() === 'released';
+
+    relayPayoutToStudentBackend('payout:updated', payload);
+    if (isReleased) {
+        relayPayoutToStudentBackend('scholar:released', payload);
+    }
+
+    if (!io) return;
 
     if (socketEvents?.payoutUpdated) {
         socketEvents.payoutUpdated(io, payload);
     } else {
         emitFallback(io, 'payout:updated', payload);
     }
-
-    if (String(payload.release_status || '').toLowerCase() === 'released') {
+    if (isReleased) {
         if (socketEvents?.scholarReleased) {
             socketEvents.scholarReleased(io, payload);
         } else {
@@ -453,15 +495,18 @@ exports.reviewPayoutProof = async (req, res) => {
       actorUserId: req.user?.user_id || req.user?.userId || req.user?.sub || null,
     });
 
+    const proofRealtimePayload = {
+      payout_proof_id: proof.payout_proof_id,
+      payout_entry_id: proof.payout_entry_id,
+      proof_status: proof.proof_status,
+      updated_at: new Date().toISOString(),
+    };
+
     const io = req.app.get('io');
     if (io) {
-      io.emit('payout:proof-reviewed', {
-        payout_proof_id: proof.payout_proof_id,
-        payout_entry_id: proof.payout_entry_id,
-        proof_status: proof.proof_status,
-        updated_at: new Date().toISOString(),
-      });
+      io.emit('payout:proof-reviewed', proofRealtimePayload);
     }
+    relayPayoutToStudentBackend('payout:proof-reviewed', proofRealtimePayload);
 
     res.status(200).json({
       message: 'Payout proof review saved.',

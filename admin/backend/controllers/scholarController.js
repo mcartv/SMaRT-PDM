@@ -2,6 +2,7 @@ const scholarService = require('../services/scholarService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const notificationService = require('../services/notificationService');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -39,46 +40,62 @@ async function writeScholarAudit(req, actionTaken, description, scholar = null, 
 
 function emitScholarUpdated(req, payload = {}) {
     const io = req.app.get('io');
-    if (!io) return;
-
     const data = {
         ...payload,
         updated_at: new Date().toISOString(),
     };
 
-    if (socketEvents?.scholarUpdated) {
-        socketEvents.scholarUpdated(io, data);
-    } else {
-        io.emit('scholar:updated', data);
+    if (io) {
+        if (socketEvents?.scholarUpdated) {
+            socketEvents.scholarUpdated(io, data);
+        } else {
+            io.emit('scholar:updated', data);
+        }
+
+        if (socketEvents?.maintenanceUpdated) {
+            socketEvents.maintenanceUpdated(io, {
+                module: 'scholar_management',
+                source: 'scholars',
+                ...data,
+            });
+        } else {
+            io.emit('maintenance:updated', {
+                module: 'scholar_management',
+                source: 'scholars',
+                ...data,
+            });
+        }
+
+        if (socketEvents?.reportUpdated) {
+            socketEvents.reportUpdated(io, {
+                module: 'reports',
+                source: 'scholars',
+                ...data,
+            });
+        } else {
+            io.emit('report:updated', {
+                module: 'reports',
+                source: 'scholars',
+                ...data,
+            });
+        }
     }
 
-    if (socketEvents?.maintenanceUpdated) {
-        socketEvents.maintenanceUpdated(io, {
-            module: 'scholar_management',
-            source: 'scholars',
-            ...data,
+    // students/scholars are not currently published through Supabase realtime.
+    // Send refresh-only metadata so the mobile app immediately reloads the
+    // authenticated scholar state after an Admin/SDO decision.
+    studentRealtimeRelayService
+        .relayModuleEvent({
+            event: 'scholar:updated',
+            payload: {
+                student_id: data.student_id || data.scholar_id || null,
+                action: data.action || 'updated',
+                updated_at: data.updated_at,
+            },
+        })
+        .catch((error) => {
+            console.error('SCHOLAR STUDENT REALTIME RELAY ERROR:', error.message);
         });
-    } else {
-        io.emit('maintenance:updated', {
-            module: 'scholar_management',
-            source: 'scholars',
-            ...data,
-        });
-    }
-
-    if (socketEvents?.reportUpdated) {
-        socketEvents.reportUpdated(io, {
-            module: 'reports',
-            source: 'scholars',
-            ...data,
-        });
-    } else {
-        io.emit('report:updated', {
-            module: 'reports',
-            source: 'scholars',
-            ...data,
-        });
-    }
 }
 
 async function notifyAdminsOfSdoStatusChange(req, scholar = {}) {

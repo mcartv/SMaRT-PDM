@@ -77,11 +77,15 @@ router.post('/message-event', requireInternalSecret, (req, res) => {
     'message:unread',
     'message:thread-archived',
     'message:thread-restored',
+    'conversation:updated',
     'room:created',
     'room:members-added',
     'room:members-removed',
     'room:member-left',
     'room:member-promoted',
+    'room:updated',
+    'room:archived',
+    'room:restored',
   ]);
 
   if (!allowedEvents.has(eventName)) {
@@ -237,4 +241,82 @@ router.post('/renewal-event', requireInternalSecret, (req, res) => {
     event: eventName,
   });
 });
+
+
+// Generic refresh events sent from the Admin backend to the scholar app.
+// Payloads are intentionally limited to non-sensitive metadata. Mobile screens
+// re-fetch their own authenticated data after receiving the event.
+router.post('/module-event', requireInternalSecret, (req, res) => {
+  const io = req.app.get('io');
+
+  if (!io) {
+    return res.status(500).json({
+      success: false,
+      message: 'Student Socket.IO instance is missing',
+    });
+  }
+
+  const eventName = cleanText(req.body?.event || req.body?.event_name);
+  const allowedEvents = new Set([
+    'settings:updated',
+    'maintenance:updated',
+    'faq:updated',
+    'program:updated',
+    'academic:updated',
+    'profile:updated',
+    'ro:settings-updated',
+    'scholar:created',
+    'scholar:updated',
+    'scholar:archived',
+    'scholar:restored',
+    'scholar:released',
+    'payout:created',
+    'payout:updated',
+    'payout:deleted',
+    'payout:archived',
+    'payout:restored',
+    'payout:proof-reviewed',
+  ]);
+
+  if (!allowedEvents.has(eventName)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Unsupported realtime module event',
+    });
+  }
+
+  const rawPayload =
+    req.body?.payload && typeof req.body.payload === 'object'
+      ? req.body.payload
+      : {};
+
+  const payload = {
+    ...rawPayload,
+    relayed_at: new Date().toISOString(),
+  };
+
+  const explicitTargets =
+    req.body?.target_user_ids || req.body?.targetUserIds || [];
+  const targetUserIds = uniqueIds(
+    Array.isArray(explicitTargets) ? explicitTargets : []
+  );
+
+  if (targetUserIds.length) {
+    for (const userId of targetUserIds) {
+      io.to(`user:${userId}`).emit(eventName, payload);
+    }
+  } else {
+    // These are refresh-only events. Broadcasting does not expose another
+    // scholar's records because clients fetch their own authenticated data.
+    io.emit(eventName, payload);
+  }
+
+  return res.status(200).json({
+    success: true,
+    event: eventName,
+    targetUserIds,
+    broadcast: targetUserIds.length === 0,
+  });
+});
+
 module.exports = router;

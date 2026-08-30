@@ -1,6 +1,13 @@
 class MobileRealtimeEvents {
   const MobileRealtimeEvents._();
 
+  // Local socket lifecycle events. These are emitted by MobileRealtimeService
+  // and let providers reconcile authoritative API state after a reconnect.
+  static const socketConnected = 'socket:connected';
+  static const socketReconnected = 'socket:reconnected';
+  static const socketDisconnected = 'socket:disconnected';
+  static const socketError = 'socket:error';
+
   // Notifications
   static const notificationNew = 'notification:new';
   static const notificationCreated = 'notification:created';
@@ -24,6 +31,16 @@ class MobileRealtimeEvents {
   static const announcementRestored = 'announcement:restored';
   static const announcementDeleted = 'announcement:deleted';
   static const announcementRefresh = 'announcement:refresh';
+
+  // Public settings / reference data
+  static const settingsUpdated = 'settings:updated';
+  static const maintenanceUpdated = 'maintenance:updated';
+  static const faqUpdated = 'faq:updated';
+  static const programUpdated = 'program:updated';
+  static const academicUpdated = 'academic:updated';
+
+  // Profile / account-facing scholar data
+  static const profileUpdated = 'profile:updated';
 
   // Scholarship Openings
   static const openingCreated = 'opening:created';
@@ -82,6 +99,9 @@ class MobileRealtimeEvents {
   static const roLogCreated = 'ro:log-created';
   static const roLogUpdated = 'ro:log-updated';
   static const roSettingsUpdated = 'ro:settings-updated';
+  static const roAssignmentUpdated = 'ro:assignment-updated';
+  static const roTimeLogUpdated = 'ro:time-log-updated';
+  static const roProofUpdated = 'ro:proof-updated';
 
   // Payouts
   static const payoutCreated = 'payout:created';
@@ -90,6 +110,8 @@ class MobileRealtimeEvents {
   static const payoutArchived = 'payout:archived';
   static const payoutRestored = 'payout:restored';
   static const scholarReleased = 'scholar:released';
+  static const payoutProofSubmitted = 'payout:proof-submitted';
+  static const payoutProofReviewed = 'payout:proof-reviewed';
 
   // Tickets
   static const ticketCreated = 'ticket:created';
@@ -106,11 +128,15 @@ class MobileRealtimeEvents {
   static const messageUnread = 'message:unread';
   static const messageThreadArchived = 'message:thread-archived';
   static const messageThreadRestored = 'message:thread-restored';
+  static const conversationUpdated = 'conversation:updated';
   static const roomCreated = 'room:created';
   static const roomMembersAdded = 'room:members-added';
   static const roomMembersRemoved = 'room:members-removed';
   static const roomMemberLeft = 'room:member-left';
   static const roomMemberPromoted = 'room:member-promoted';
+  static const roomUpdated = 'room:updated';
+  static const roomArchived = 'room:archived';
+  static const roomRestored = 'room:restored';
 
   static final Set<String> notificationEvents = <String>{
     notificationNew,
@@ -126,6 +152,29 @@ class MobileRealtimeEvents {
     notificationsUpdated,
     notificationCreatedLegacy,
     notificationUpdatedLegacy,
+  };
+
+  static final Set<String> lifecycleEvents = <String>{
+    socketConnected,
+    socketReconnected,
+    socketDisconnected,
+    socketError,
+  };
+
+  static final Set<String> settingsEvents = <String>{
+    settingsUpdated,
+    maintenanceUpdated,
+    faqUpdated,
+    programUpdated,
+    academicUpdated,
+  };
+
+  static final Set<String> profileEvents = <String>{
+    profileUpdated,
+    scholarCreated,
+    scholarUpdated,
+    scholarArchived,
+    scholarRestored,
   };
 
   static final Set<String> officeUpdateEvents = <String>{
@@ -182,6 +231,9 @@ class MobileRealtimeEvents {
     roLogCreated,
     roLogUpdated,
     roSettingsUpdated,
+    roAssignmentUpdated,
+    roTimeLogUpdated,
+    roProofUpdated,
   };
 
   static final Set<String> payoutEvents = <String>{
@@ -191,6 +243,8 @@ class MobileRealtimeEvents {
     payoutArchived,
     payoutRestored,
     scholarReleased,
+    payoutProofSubmitted,
+    payoutProofReviewed,
   };
 
   static final Set<String> ticketEvents = <String>{
@@ -209,14 +263,19 @@ class MobileRealtimeEvents {
     messageUnread,
     messageThreadArchived,
     messageThreadRestored,
+    conversationUpdated,
     roomCreated,
     roomMembersAdded,
     roomMembersRemoved,
     roomMemberLeft,
     roomMemberPromoted,
+    roomUpdated,
+    roomArchived,
+    roomRestored,
   };
 
   static final Set<String> dashboardEvents = <String>{
+    ...settingsEvents,
     ...officeUpdateEvents,
     ...applicationEvents,
     ...scholarEvents,
@@ -225,6 +284,9 @@ class MobileRealtimeEvents {
   };
 
   static final Set<String> notificationProviderEvents = <String>{
+    ...lifecycleEvents,
+    ...settingsEvents,
+    profileUpdated,
     ...officeUpdateEvents,
     ...applicationEvents,
     ...scholarEvents,
@@ -234,6 +296,8 @@ class MobileRealtimeEvents {
   };
 
   static final Set<String> all = <String>{
+    ...settingsEvents,
+    profileUpdated,
     ...dashboardEvents,
     ...ticketEvents,
     ...messageEvents,

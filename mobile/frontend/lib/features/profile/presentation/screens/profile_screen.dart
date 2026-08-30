@@ -10,6 +10,8 @@ import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/widgets/profile_photo_crop_dialog.dart';
@@ -48,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _avatarUrl;
   String? _avatarReviewStatus;
   String _avatarRejectionReason = '';
+  VoidCallback? _stopRealtimeListener;
 
   @override
   void initState() {
@@ -63,6 +66,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _studentIdController = TextEditingController();
 
     _loadProfile();
+    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(
+      <String>{
+        ...MobileRealtimeEvents.profileEvents,
+        MobileRealtimeEvents.socketReconnected,
+      },
+      (_) async {
+        if (!mounted || _isEditing || _isSaving || _isUploading) return;
+        await _loadProfile();
+      },
+    );
   }
 
   Future<void> _loadProfile({bool refreshRemote = true}) async {
@@ -891,6 +904,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();

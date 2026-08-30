@@ -1,6 +1,7 @@
 const roSettingService = require('../services/roSettingService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -45,32 +46,50 @@ async function writeRoSettingAudit(
 }
 
 function emitRoSettingUpdate(req, payload = {}) {
+    const updatedAt = new Date().toISOString();
+
     try {
         const io = req.app?.get?.('io');
 
-        if (!io) return;
+        if (io) {
+            const eventPayload = {
+                updated_at: updatedAt,
+                ...payload,
+            };
 
-        const eventPayload = {
-            updated_at: new Date().toISOString(),
-            ...payload,
-        };
-
-        if (typeof socketEvents?.roUpdated === 'function') {
-            socketEvents.roUpdated(io, eventPayload);
-            return;
+            if (typeof socketEvents?.roUpdated === 'function') {
+                socketEvents.roUpdated(io, eventPayload);
+            } else if (typeof socketEvents?.emitEvent === 'function') {
+                socketEvents.emitEvent(io, 'ro:updated', eventPayload);
+                socketEvents.emitEvent(io, 'roUpdated', eventPayload);
+            } else {
+                io.emit('ro:updated', eventPayload);
+                io.emit('roUpdated', eventPayload);
+            }
         }
-
-        if (typeof socketEvents?.emitEvent === 'function') {
-            socketEvents.emitEvent(io, 'ro:updated', eventPayload);
-            socketEvents.emitEvent(io, 'roUpdated', eventPayload);
-            return;
-        }
-
-        io.emit('ro:updated', eventPayload);
-        io.emit('roUpdated', eventPayload);
     } catch (error) {
         console.error('RO SETTINGS SOCKET ERROR:', error.message);
     }
+
+    studentRealtimeRelayService
+        .relayModuleEvent({
+            event: 'ro:settings-updated',
+            payload: {
+                source: payload?.source || 'ro_setting',
+                action: payload?.action || 'updated',
+                setting_id:
+                    payload?.setting_id ||
+                    payload?.data?.setting?.setting_id ||
+                    null,
+                updated_at: updatedAt,
+            },
+        })
+        .catch((error) => {
+            console.error(
+                'RO SETTINGS STUDENT REALTIME RELAY ERROR:',
+                error.message
+            );
+        });
 }
 
 async function getSettings(req, res) {

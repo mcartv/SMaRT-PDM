@@ -3,6 +3,7 @@ const socketEvents = require('../utils/socketEvents');
 const auditLogService = require('../services/auditLogService');
 const systemMaintenanceService = require('../services/systemMaintenanceService');
 const systemActivityService = require('../services/systemActivityService');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function actorUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -65,11 +66,28 @@ async function updateState(req, res) {
     });
 
     const io = req.app.get('io');
+    const updatedAt = result.updated_at || new Date().toISOString();
     socketEvents.maintenanceUpdated(io, {
       source: 'system_maintenance',
       maintenance_mode: result.maintenance_mode,
-      updated_at: result.updated_at || new Date().toISOString(),
+      updated_at: updatedAt,
     });
+
+    studentRealtimeRelayService
+      .relayModuleEvent({
+        event: 'maintenance:updated',
+        payload: {
+          source: 'system_maintenance',
+          maintenance_mode: result.maintenance_mode,
+          updated_at: updatedAt,
+        },
+      })
+      .catch((relayError) => {
+        console.error(
+          'SYSTEM MAINTENANCE STUDENT REALTIME RELAY ERROR:',
+          relayError.message
+        );
+      });
 
     await audit(req, {
       actionTaken: result.maintenance_mode

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 
 class MaintenanceModeGate extends StatefulWidget {
   const MaintenanceModeGate({
@@ -19,6 +21,7 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
     with WidgetsBindingObserver {
   final ApiClient _apiClient = ApiClient();
   Timer? _pollTimer;
+  VoidCallback? _stopRealtimeListener;
   bool _maintenanceMode = false;
   bool _checking = false;
   String _message =
@@ -29,15 +32,32 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _refresh();
-    _pollTimer = Timer.periodic(
-      const Duration(seconds: 15),
+    _stopRealtimeListener = MobileRealtimeService.instance.listenTo(
+      <String>{
+        MobileRealtimeEvents.maintenanceUpdated,
+        MobileRealtimeEvents.settingsUpdated,
+        MobileRealtimeEvents.socketConnected,
+        MobileRealtimeEvents.socketReconnected,
+      },
       (_) => _refresh(silent: true),
+    );
+    // Keep a low-frequency fallback for signed-out screens where an
+    // authenticated realtime socket is intentionally unavailable.
+    _pollTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) {
+        if (!MobileRealtimeService.instance.isConnected) {
+          _refresh(silent: true);
+        }
+      },
     );
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

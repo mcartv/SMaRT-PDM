@@ -73,16 +73,22 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
+      final notificationProvider = context.read<NotificationProvider>();
+      final messagingProvider = context.read<MessagingProvider>();
+
+      // Register module listeners before opening the socket so the first
+      // connection event cannot be missed. This also keeps every mobile module
+      // on the same authenticated realtime connection as messaging.
+      await notificationProvider.initialize();
+
+      if (!mounted) return;
+
       await MobileRealtimeService.instance.connectFromPrefs(
         backendBaseUrl: AppConfig.apiBaseUrl,
       );
 
       if (!mounted) return;
 
-      final notificationProvider = context.read<NotificationProvider>();
-      final messagingProvider = context.read<MessagingProvider>();
-
-      notificationProvider.initialize();
       await messagingProvider.initializeChat();
       await messagingProvider.refreshUnreadCount();
     });

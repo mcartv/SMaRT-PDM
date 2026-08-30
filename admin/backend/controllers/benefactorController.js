@@ -2,6 +2,7 @@ const benefactorService = require('../services/benefactorService');
 const scholarshipProgramService = require('../services/scholarshipProgramService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage;
@@ -23,10 +24,26 @@ async function safeAudit(payload) {
 
 function emitMaintenanceUpdated(req, payload) {
     const io = req.app.get('io');
+    const updatedAt = new Date().toISOString();
     socketEvents.maintenanceUpdated(io, {
         ...payload,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
     });
+
+    // Benefactor changes alter the scholarship programs shown to applicants.
+    studentRealtimeRelayService
+        .relayModuleEvent({
+            event: 'program:updated',
+            payload: {
+                action: payload?.action || 'updated',
+                benefactor_id: payload?.id || null,
+                program_id: payload?.program_id || null,
+                updated_at: updatedAt,
+            },
+        })
+        .catch((error) => {
+            console.error('BENEFACTOR STUDENT REALTIME RELAY ERROR:', error.message);
+        });
 }
 
 exports.getBenefactors = async (req, res) => {

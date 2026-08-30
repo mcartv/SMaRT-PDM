@@ -1,6 +1,7 @@
 const socketEvents = require('../utils/socketEvents');
 const auditLogService = require('../services/auditLogService');
 const generalSettingService = require('../services/generalSettingService');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function getActorUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -80,6 +81,21 @@ async function updateGeneralSettings(req, res) {
       action: 'updated',
       updated_at: result.updated_at || new Date().toISOString(),
     });
+
+    // general_settings is not part of the current Supabase realtime publication.
+    // Relay only refresh metadata to the student backend; mobile then re-fetches
+    // its own public/authenticated settings and FAQ data.
+    studentRealtimeRelayService
+      .relayModuleEvent({
+        event: 'settings:updated',
+        payload: {
+          source: 'general_settings',
+          updated_at: result.updated_at || new Date().toISOString(),
+        },
+      })
+      .catch((error) => {
+        console.error('GENERAL SETTINGS STUDENT REALTIME RELAY ERROR:', error.message);
+      });
 
     await writeGeneralSettingAudit(req, result);
 

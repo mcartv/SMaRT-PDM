@@ -1,4 +1,4 @@
-﻿let realtimeChannel = null;
+let realtimeChannel = null;
 let realtimeRetryTimer = null;
 const REALTIME_BRIDGE_RETRY_MS = 3000;
 
@@ -611,6 +611,73 @@ function handleEndorsementChange(io, payload = {}) {
   
 }
 
+function handleProfileChange(io, payload = {}, source = 'profile') {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const userId = row.user_id || null;
+  const eventPayload = {
+    user_id: userId,
+    student_id: row.student_id || null,
+    updated_at: row.updated_at || row.reviewed_at || new Date().toISOString(),
+    event_type: eventType,
+    source,
+  };
+
+  if (userId) emitToUser(io, userId, 'profile:updated', eventPayload);
+  else emitGlobal(io, 'profile:updated', eventPayload);
+}
+
+function handleRoAssignmentChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const roId = row.ro_id || null;
+  if (!roId) return;
+
+  const currentStatus = normalizeText(row.ro_status || row.assignment_status);
+  let eventName = eventType === 'INSERT' ? 'ro:created' : 'ro:updated';
+  if (currentStatus === 'cleared' || currentStatus === 'completed') eventName = 'ro:cleared';
+  else if (normalizeText(row.assignment_status) === 'assigned') eventName = 'ro:assigned';
+  else if (normalizeText(row.assignment_status) === 'acknowledged') eventName = 'ro:acknowledged';
+
+  const eventPayload = {
+    ro_id: roId,
+    student_id: row.student_id || null,
+    assignment_status: row.assignment_status || null,
+    progress_status: row.progress_status || null,
+    ro_status: row.ro_status || null,
+    updated_at: row.updated_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  emitGlobal(io, eventName, eventPayload);
+  emitGlobal(io, 'ro:assignment-updated', eventPayload);
+}
+
+function handleRoLogChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  if (!row.log_id && !row.ro_id) return;
+
+  const eventPayload = {
+    log_id: row.log_id || null,
+    ro_id: row.ro_id || null,
+    student_id: row.student_id || null,
+    log_status: row.log_status || null,
+    validation_status: row.validation_status || null,
+    updated_at: row.updated_at || row.time_out_at || row.time_in_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  emitGlobal(io, eventType === 'INSERT' ? 'ro:log-created' : 'ro:log-updated', eventPayload);
+  emitGlobal(io, 'ro:time-log-updated', eventPayload);
+}
+
 async function handleMessageChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
@@ -757,6 +824,21 @@ function configureRealtimeBridge({ io, supabase }) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'endorsement_slips' },
       (payload) => handleEndorsementChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'profile_photo_reviews' },
+      (payload) => handleProfileChange(io, payload, 'profile_photo_review')
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'return_of_obligations' },
+      (payload) => handleRoAssignmentChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'ro_time_logs' },
+      (payload) => handleRoLogChange(io, payload)
     )
     .on(
       'postgres_changes',

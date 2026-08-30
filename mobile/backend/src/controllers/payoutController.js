@@ -1,4 +1,5 @@
 const payoutService = require('../services/payoutService');
+const adminRealtimeRelayService = require('../services/adminRealtimeRelayService');
 
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -97,15 +98,26 @@ async function uploadMyPayoutProof(req, res) {
             req.file
         );
 
+        const realtimePayload = {
+            payout_entry_id: req.params.payoutEntryId,
+            payout_proof_id: result.proof?.payout_proof_id || null,
+            proof_status: result.proof?.proof_status || 'Pending Review',
+            updated_at: new Date().toISOString(),
+        };
+
         const io = req.app.get('io');
         if (io) {
-            io.emit('payout:proof-submitted', {
-                payout_entry_id: req.params.payoutEntryId,
-                payout_proof_id: result.proof?.payout_proof_id || null,
-                proof_status: result.proof?.proof_status || 'Pending Review',
-                updated_at: new Date().toISOString(),
-            });
+            io.emit('payout:proof-submitted', realtimePayload);
         }
+
+        adminRealtimeRelayService
+            .relayPayoutEvent('payout:proof-submitted', realtimePayload)
+            .catch((relayError) => {
+                console.error(
+                    'PAYOUT PROOF ADMIN REALTIME RELAY ERROR:',
+                    relayError.message
+                );
+            });
 
         return res.status(200).json(result);
     } catch (error) {

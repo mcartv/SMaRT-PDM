@@ -39,11 +39,21 @@ class _ApplicationFormPreviewScreenState
   NotificationProvider? _notificationProvider;
   int _lastApplicationRevision = 0;
   bool _pendingRealtimeReload = false;
+  Timer? _liveSyncTimer;
+  bool _fetchInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (_loading) {
+        _pendingRealtimeReload = true;
+        return;
+      }
+      _load(silent: true);
+    });
   }
 
   @override
@@ -71,12 +81,18 @@ class _ApplicationFormPreviewScreenState
 
     if (mounted && !_loading) {
       _pendingRealtimeReload = false;
-      _load();
+      _load(silent: true);
     }
   }
 
-  Future<void> _load() async {
-    if (mounted) {
+  Future<void> _load({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingRealtimeReload = true;
+      return;
+    }
+    _fetchInProgress = true;
+
+    if (!silent && mounted) {
       setState(() {
         _loading = true;
         _error = null;
@@ -130,14 +146,17 @@ class _ApplicationFormPreviewScreenState
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _error = error.toString().replaceFirst('Exception: ', '').trim();
-        _loading = false;
-      });
+      if (!silent || _data == null) {
+        setState(() {
+          _error = error.toString().replaceFirst('Exception: ', '').trim();
+          _loading = false;
+        });
+      }
     } finally {
+      _fetchInProgress = false;
       if (mounted && !_loading && _pendingRealtimeReload) {
         _pendingRealtimeReload = false;
-        scheduleMicrotask(_load);
+        scheduleMicrotask(() => _load(silent: true));
       }
     }
   }
@@ -561,7 +580,7 @@ class _ApplicationFormPreviewScreenState
         _optional(_application['program_name']) ?? data.openingProgramName;
 
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () => _load(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 26),
@@ -980,6 +999,7 @@ class _ApplicationFormPreviewScreenState
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeApplicationUpdate);
     super.dispose();
   }
@@ -997,7 +1017,7 @@ class _ApplicationFormPreviewScreenState
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? RefreshIndicator(
-              onRefresh: _load,
+              onRefresh: () => _load(),
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24),

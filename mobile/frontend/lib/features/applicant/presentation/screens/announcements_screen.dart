@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -22,11 +24,18 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   List<MobileAnnouncement> _announcements = const [];
   NotificationProvider? _notificationProvider;
   int _lastAnnouncementRevision = 0;
+  Timer? _liveSyncTimer;
+  bool _fetchInProgress = false;
+  bool _pendingLiveRefresh = false;
 
   @override
   void initState() {
     super.initState();
     _loadAnnouncements();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestLiveRefresh();
+    });
   }
 
   @override
@@ -44,11 +53,19 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     _notificationProvider?.addListener(_handleRealtimeAnnouncements);
   }
 
-  Future<void> _loadAnnouncements() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _loadAnnouncements({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+
+    _fetchInProgress = true;
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final items = await _announcementService.fetchAnnouncements();
@@ -56,18 +73,35 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
       setState(() {
         _announcements = items;
+        _errorMessage = null;
       });
     } catch (error) {
       if (!mounted) return;
-
-      setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
-      });
+      if (!silent || _announcements.isEmpty) {
+        setState(() {
+          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+        });
+      }
     } finally {
-      if (mounted) {
+      _fetchInProgress = false;
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
+
+      if (_pendingLiveRefresh && mounted) {
+        _pendingLiveRefresh = false;
+        scheduleMicrotask(() => _loadAnnouncements(silent: true));
+      }
     }
+  }
+
+  void _requestLiveRefresh() {
+    if (!mounted) return;
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+    _loadAnnouncements(silent: true);
   }
 
   void _handleRealtimeAnnouncements() {
@@ -82,9 +116,14 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
     _lastAnnouncementRevision = provider.announcementRevision;
 
-    if (mounted) {
-      _loadAnnouncements();
-    }
+    _requestLiveRefresh();
+  }
+
+  @override
+  void dispose() {
+    _liveSyncTimer?.cancel();
+    _notificationProvider?.removeListener(_handleRealtimeAnnouncements);
+    super.dispose();
   }
 
   List<MobileAnnouncement> _getFilteredAnnouncements() {

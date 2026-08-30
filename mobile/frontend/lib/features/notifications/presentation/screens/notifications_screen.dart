@@ -25,6 +25,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   _NotificationFilter _selectedFilter = _NotificationFilter.all;
 
   Timer? _sectionClock;
+  Timer? _liveSyncTimer;
+  bool _liveSyncRunning = false;
 
   @override
   void initState() {
@@ -42,6 +44,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await context.read<NotificationProvider>().initialize();
+      _startLiveSyncWatchdog();
+    });
+  }
+
+  void _startLiveSyncWatchdog() {
+    _liveSyncTimer?.cancel();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+      if (!mounted || _liveSyncRunning) return;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+
+      _liveSyncRunning = true;
+      try {
+        await context.read<NotificationProvider>().refresh(silent: true);
+      } finally {
+        _liveSyncRunning = false;
+      }
     });
   }
 
@@ -49,6 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void dispose() {
     _sectionClock?.cancel();
     _sectionClock = null;
+    _liveSyncTimer?.cancel();
+    _liveSyncTimer = null;
     super.dispose();
   }
 

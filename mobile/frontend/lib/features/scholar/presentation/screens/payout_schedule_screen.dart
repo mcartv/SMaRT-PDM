@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -34,12 +36,19 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   NotificationProvider? _notificationProvider;
   int _lastPayoutRevision = 0;
   final Set<String> _uploadingProofs = <String>{};
+  Timer? _liveSyncTimer;
+  bool _fetchInProgress = false;
+  bool _pendingLiveRefresh = false;
 
   @override
   void initState() {
     super.initState();
     _loadPayouts();
     _markPayoutNotificationsAsRead();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestLiveRefresh();
+    });
   }
 
   @override
@@ -69,9 +78,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
 
     _lastPayoutRevision = provider.payoutRevision;
 
-    if (mounted) {
-      _loadPayouts();
-    }
+    _requestLiveRefresh();
   }
 
   Future<void> _markPayoutNotificationsAsRead() async {
@@ -83,30 +90,51 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
-  Future<void> _loadPayouts() async {
-    try {
+  Future<void> _loadPayouts({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+
+    _fetchInProgress = true;
+    if (!silent && mounted) {
       setState(() {
         _loading = true;
         _error = null;
       });
+    }
 
+    try {
       final items = await _payoutService.fetchMyPayouts();
-
       if (!mounted) return;
       setState(() {
         _payouts = items;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-      });
+      if (!silent || _payouts.isEmpty) {
+        setState(() => _error = e.toString());
+      }
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      _fetchInProgress = false;
+      if (mounted && !silent) {
+        setState(() => _loading = false);
+      }
+      if (_pendingLiveRefresh && mounted && _uploadingProofs.isEmpty) {
+        _pendingLiveRefresh = false;
+        scheduleMicrotask(() => _loadPayouts(silent: true));
+      }
     }
+  }
+
+  void _requestLiveRefresh() {
+    if (!mounted) return;
+    if (_uploadingProofs.isNotEmpty || _fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+    _loadPayouts(silent: true);
   }
 
   Future<void> _pickAndUploadProof(MobilePayoutItem payout) async {
@@ -159,13 +187,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       );
       if (!mounted) return;
       _showMessage('Payout proof submitted for review.');
-      await _loadPayouts();
+      await _loadPayouts(silent: true);
     } catch (error) {
       if (!mounted) return;
       _showMessage(error.toString());
     } finally {
       if (mounted) {
         setState(() => _uploadingProofs.remove(payout.payoutEntryId));
+        if (_pendingLiveRefresh && _uploadingProofs.isEmpty) {
+          _pendingLiveRefresh = false;
+          scheduleMicrotask(() => _loadPayouts(silent: true));
+        }
       }
     }
   }
@@ -342,7 +374,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       selectedIndex: 1,
       showBottomNav: widget.showBottomNav,
       child: RefreshIndicator(
-        onRefresh: _loadPayouts,
+        onRefresh: () => _loadPayouts(),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
@@ -413,7 +445,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: _loadPayouts,
+                          onPressed: () => _loadPayouts(),
                           child: Text('Retry'),
                         ),
                       ],
@@ -631,6 +663,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimePayouts);
     super.dispose();
   }

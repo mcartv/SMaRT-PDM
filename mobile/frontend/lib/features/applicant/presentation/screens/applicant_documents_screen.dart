@@ -9,7 +9,6 @@ import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
-import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
@@ -51,14 +50,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     super.initState();
     _loadPackage(showFullLoader: true);
 
-    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted &&
-          !MobileRealtimeService.instance.isRealtimeHealthy &&
-          !_isLoading &&
-          !_isRefreshing &&
-          _uploadingDocuments.isEmpty) {
-        _loadPackage(silent: true);
-      }
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (_uploadingDocuments.isNotEmpty) return;
+
+      _loadPackage(silent: true);
     });
   }
 

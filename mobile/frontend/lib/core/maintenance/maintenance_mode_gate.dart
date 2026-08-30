@@ -24,6 +24,7 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
   VoidCallback? _stopRealtimeListener;
   bool _maintenanceMode = false;
   bool _checking = false;
+  bool _refreshQueued = false;
   String _message =
       'SMaRT-PDM is temporarily unavailable while system maintenance is in progress. Please try again later.';
 
@@ -41,15 +42,11 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
       },
       (_) => _refresh(silent: true),
     );
-    // Keep a low-frequency fallback for signed-out screens where an
-    // authenticated realtime socket is intentionally unavailable.
+    // The socket remains primary. This lightweight watchdog also protects
+    // mounted signed-out screens and recovers from a missed backend event.
     _pollTimer = Timer.periodic(
-      const Duration(minutes: 1),
-      (_) {
-        if (!MobileRealtimeService.instance.isRealtimeHealthy) {
-          _refresh(silent: true);
-        }
-      },
+      const Duration(seconds: 10),
+      (_) => _refresh(silent: true),
     );
   }
 
@@ -70,7 +67,10 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
   }
 
   Future<void> _refresh({bool silent = false}) async {
-    if (_checking) return;
+    if (_checking) {
+      _refreshQueued = true;
+      return;
+    }
 
     if (!silent && mounted) {
       setState(() => _checking = true);
@@ -104,6 +104,11 @@ class _MaintenanceModeGateState extends State<MaintenanceModeGate>
         setState(() => _checking = false);
       } else {
         _checking = false;
+      }
+
+      if (_refreshQueued) {
+        _refreshQueued = false;
+        scheduleMicrotask(() => _refresh(silent: true));
       }
     }
   }

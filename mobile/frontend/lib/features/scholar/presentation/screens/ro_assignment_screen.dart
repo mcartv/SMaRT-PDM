@@ -95,6 +95,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   bool _shouldShowModule = false;
 
   Timer? _activeTimer;
+  Timer? _liveSyncTimer;
+  bool _roFetchInProgress = false;
   String _captureArea = '';
   String _captureAction = 'RO ATTENDANCE';
 
@@ -111,6 +113,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       if (_items.any((item) => item.activeLog != null)) {
         setState(() {});
       }
+    });
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestRoRefresh();
     });
   }
   @override
@@ -135,12 +141,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
 
     _lastRoRevision = provider.roRevision;
-    _pendingRealtimeReload = true;
-
-    if (mounted && !_isLoading) {
-      _pendingRealtimeReload = false;
-      _loadRo();
-    }
+    _requestRoRefresh();
   }
 
 
@@ -149,6 +150,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   void dispose() {
     _notificationProvider?.removeListener(_handleRealtimeRoUpdates);
     _activeTimer?.cancel();
+    _liveSyncTimer?.cancel();
     _tabController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -166,11 +168,19 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return _items.any((item) => item.activeLog != null);
   }
 
-  Future<void> _loadRo() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _loadRo({bool silent = false}) async {
+    if (_roFetchInProgress) {
+      _pendingRealtimeReload = true;
+      return;
+    }
+
+    _roFetchInProgress = true;
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final response = await _apiClient.getObject('/api/ro/me');
@@ -189,20 +199,28 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       });
     } catch (error) {
       if (!mounted) return;
-
-      setState(() {
-        _errorMessage = _cleanError(error);
-      });
+      if (!silent || _items.isEmpty) {
+        setState(() => _errorMessage = _cleanError(error));
+      }
     } finally {
-      if (mounted) {
+      _roFetchInProgress = false;
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
-
-        if (_pendingRealtimeReload) {
-          _pendingRealtimeReload = false;
-          scheduleMicrotask(_loadRo);
-        }
+      }
+      if (_pendingRealtimeReload && mounted && !_isSubmitting && !_isConcernSheetOpen) {
+        _pendingRealtimeReload = false;
+        scheduleMicrotask(() => _loadRo(silent: true));
       }
     }
+  }
+
+  void _requestRoRefresh() {
+    if (!mounted) return;
+    if (_roFetchInProgress || _isSubmitting || _isConcernSheetOpen) {
+      _pendingRealtimeReload = true;
+      return;
+    }
+    _loadRo(silent: true);
   }
 
   String _guessImageMimeType({required XFile file, required Uint8List bytes}) {
@@ -1476,7 +1494,7 @@ Future<String?> _showNoteSheet({
 
     if (_errorMessage != null) {
       return RefreshIndicator(
-        onRefresh: _loadRo,
+        onRefresh: () => _loadRo(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -1485,7 +1503,7 @@ Future<String?> _showNoteSheet({
               title: 'Unable to load RO',
               message: _errorMessage!,
               actionLabel: 'Try Again',
-              onAction: _loadRo,
+              onAction: () => _loadRo(),
             ),
           ],
         ),
@@ -1494,7 +1512,7 @@ Future<String?> _showNoteSheet({
 
     if (!_isApprovedScholar || !_shouldShowModule) {
       return RefreshIndicator(
-        onRefresh: _loadRo,
+        onRefresh: () => _loadRo(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: const [
@@ -1511,7 +1529,7 @@ Future<String?> _showNoteSheet({
 
     if (_items.isEmpty) {
       return RefreshIndicator(
-        onRefresh: _loadRo,
+        onRefresh: () => _loadRo(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: const [
@@ -1566,7 +1584,7 @@ Future<String?> _showNoteSheet({
         const SizedBox(height: 12),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _loadRo,
+            onRefresh: () => _loadRo(),
             child: TabBarView(
               controller: _tabController,
               children: [

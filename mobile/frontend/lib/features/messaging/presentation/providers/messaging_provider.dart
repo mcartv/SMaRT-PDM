@@ -47,6 +47,9 @@ class MessagingProvider extends ChangeNotifier {
   VoidCallback? _stopRealtimeListener;
   Timer? _unreadDebounce;
   Timer? _messageReconcileDebounce;
+  bool _activeThreadRefreshRunning = false;
+  bool _activeThreadRefreshQueued = false;
+  bool _activeThreadMarkReadQueued = false;
 
   static const int _maxRecentRealtimeMessageIds = 200;
   final Set<String> _recentRealtimeMessageIds = <String>{};
@@ -91,10 +94,37 @@ class MessagingProvider extends ChangeNotifier {
       return;
     }
 
-    await _refreshThread(notify: true);
+    await _queueActiveThreadRefresh(markAsRead: markAsRead);
+  }
 
-    if (markAsRead) {
-      await markThreadRead();
+  Future<void> _queueActiveThreadRefresh({bool markAsRead = false}) async {
+    if (_isDisposed || !_isViewingThread) return;
+
+    _activeThreadRefreshQueued = true;
+    if (markAsRead) _activeThreadMarkReadQueued = true;
+
+    if (_activeThreadRefreshRunning) return;
+
+    _activeThreadRefreshRunning = true;
+
+    try {
+      while (_activeThreadRefreshQueued && !_isDisposed && _isViewingThread) {
+        final shouldMarkRead = _activeThreadMarkReadQueued;
+        _activeThreadRefreshQueued = false;
+        _activeThreadMarkReadQueued = false;
+
+        await _refreshThread(notify: false);
+        final hasUnreadIncoming = _messages.any(
+          (message) =>
+              message.senderId != _currentUserId && message.isRead == false,
+        );
+        if (shouldMarkRead && _isViewingThread && hasUnreadIncoming) {
+          await markThreadRead();
+        }
+        _notify();
+      }
+    } finally {
+      _activeThreadRefreshRunning = false;
     }
   }
 
@@ -193,6 +223,8 @@ class MessagingProvider extends ChangeNotifier {
     _isViewingThread = false;
     _activeGroupId = null;
     _messages = [];
+    _activeThreadRefreshQueued = false;
+    _activeThreadMarkReadQueued = false;
 
     if (notify) {
       _notify();
@@ -495,8 +527,7 @@ class MessagingProvider extends ChangeNotifier {
           await fetchGroups(notify: false);
           await refreshUnreadCount(notify: false);
           if (_isViewingThread) {
-            await _refreshThread(notify: false);
-            unawaited(markThreadRead());
+            await _queueActiveThreadRefresh(markAsRead: true);
           }
           _errorMessage = null;
         }
@@ -728,8 +759,7 @@ class MessagingProvider extends ChangeNotifier {
           await fetchGroups(notify: false);
 
           if (_isViewingThread) {
-            await _refreshThread(notify: false);
-            unawaited(markThreadRead());
+            await _queueActiveThreadRefresh(markAsRead: true);
           } else {
             try {
               final result = await _messageService.fetchThread();

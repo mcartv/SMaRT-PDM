@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -51,6 +52,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _avatarReviewStatus;
   String _avatarRejectionReason = '';
   VoidCallback? _stopRealtimeListener;
+  Timer? _liveSyncTimer;
+  bool _profileFetchInProgress = false;
+  bool _pendingRealtimeProfileReload = false;
 
   @override
   void initState() {
@@ -71,15 +75,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ...MobileRealtimeEvents.profileEvents,
         MobileRealtimeEvents.socketReconnected,
       },
-      (_) async {
-        if (!mounted || _isEditing || _isSaving || _isUploading) return;
-        await _loadProfile();
-      },
+      (_) => _requestProfileRefresh(),
     );
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestProfileRefresh();
+    });
   }
 
-  Future<void> _loadProfile({bool refreshRemote = true}) async {
-    if (mounted) {
+  Future<void> _loadProfile({bool refreshRemote = true, bool silent = false}) async {
+    if (_profileFetchInProgress) {
+      _pendingRealtimeProfileReload = true;
+      return;
+    }
+    _profileFetchInProgress = true;
+
+    if (!silent && mounted) {
       setState(() => _isLoading = true);
     }
 
@@ -129,9 +140,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
 
-    if (mounted) {
+    if (mounted && !silent) {
       setState(() => _isLoading = false);
     }
+    _profileFetchInProgress = false;
+    if (_pendingRealtimeProfileReload && mounted && !_isEditing && !_isSaving && !_isUploading) {
+      _pendingRealtimeProfileReload = false;
+      scheduleMicrotask(() => _loadProfile(refreshRemote: true, silent: true));
+    }
+  }
+
+  void _requestProfileRefresh() {
+    if (!mounted) return;
+    if (_isEditing || _isSaving || _isUploading || _profileFetchInProgress) {
+      _pendingRealtimeProfileReload = true;
+      return;
+    }
+    _loadProfile(refreshRemote: true, silent: true);
   }
 
   void _applyValues({
@@ -313,6 +338,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
+        if (_pendingRealtimeProfileReload) {
+          _pendingRealtimeProfileReload = false;
+          scheduleMicrotask(() => _loadProfile(refreshRemote: true, silent: true));
+        }
       }
     }
   }
@@ -381,6 +410,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
+        if (_pendingRealtimeProfileReload && !_isEditing) {
+          _pendingRealtimeProfileReload = false;
+          scheduleMicrotask(() => _loadProfile(refreshRemote: true, silent: true));
+        }
       }
     }
   }
@@ -852,7 +885,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             return;
                           }
                           setState(() => _isEditing = false);
-                          _loadProfile(refreshRemote: false);
+                          _pendingRealtimeProfileReload = false;
+                          _loadProfile(refreshRemote: true, silent: true);
                         },
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
@@ -899,6 +933,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
     _firstNameController.dispose();

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +23,9 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
+  Timer? _liveSyncTimer;
+  bool _refreshing = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,15 +33,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _refreshMessaging();
+      _startLiveSyncWatchdog();
+    });
+  }
+
+  void _startLiveSyncWatchdog() {
+    _liveSyncTimer?.cancel();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _refreshMessaging();
     });
   }
 
   Future<void> _refreshMessaging() async {
-    final provider = context.read<MessagingProvider>();
-    await provider.initializeChat();
-    await provider.fetchArchivedThreads(notify: false);
-    await provider.fetchGroups(notify: false);
-    await provider.refreshUnreadCount();
+    if (_refreshing) return;
+    _refreshing = true;
+
+    try {
+      final provider = context.read<MessagingProvider>();
+      await provider.initializeChat();
+      await provider.fetchArchivedThreads(notify: false);
+      await provider.fetchGroups(notify: false);
+      await provider.refreshUnreadCount();
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _liveSyncTimer?.cancel();
+    _liveSyncTimer = null;
+    super.dispose();
   }
 
   void _openAdminThread() {

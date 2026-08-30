@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -26,11 +28,18 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   List<ProgramOpening> _openings = const [];
   NotificationProvider? _notificationProvider;
   int _lastOpeningRevision = 0;
+  Timer? _liveSyncTimer;
+  bool _fetchInProgress = false;
+  bool _pendingLiveRefresh = false;
 
   @override
   void initState() {
     super.initState();
     _loadOpenings();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestLiveRefresh();
+    });
   }
 
   @override
@@ -60,16 +69,22 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
 
     _lastOpeningRevision = provider.openingRevision;
 
-    if (mounted) {
-      _loadOpenings();
-    }
+    _requestLiveRefresh();
   }
 
-  Future<void> _loadOpenings() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadOpenings({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+
+    _fetchInProgress = true;
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final result = await _programOpeningService.fetchAvailableOpenings();
@@ -78,18 +93,43 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
       setState(() {
         _result = result;
         _openings = result.items;
+        _error = null;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _error =
-            'Unable to load scholarships. Check your connection and try again.';
-      });
+      if (!silent || _openings.isEmpty) {
+        setState(() {
+          _error =
+              'Unable to load scholarships. Check your connection and try again.';
+        });
+      }
     } finally {
-      if (mounted) {
+      _fetchInProgress = false;
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
+
+      if (_pendingLiveRefresh && mounted) {
+        _pendingLiveRefresh = false;
+        scheduleMicrotask(() => _loadOpenings(silent: true));
+      }
     }
+  }
+
+  void _requestLiveRefresh() {
+    if (!mounted) return;
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+    _loadOpenings(silent: true);
+  }
+
+  @override
+  void dispose() {
+    _liveSyncTimer?.cancel();
+    _notificationProvider?.removeListener(_handleRealtimeOpenings);
+    super.dispose();
   }
 
   String _formatDateRange(ProgramOpening opening) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -148,6 +150,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   bool _cachedScholarAccess = false;
 
   bool _isRefreshing = false;
+  bool _pendingRealtimeDashboardRefresh = false;
   bool _isLoadingStatus = true;
   bool _isLoadingRequirements = true;
   bool _isLoadingAnnouncements = true;
@@ -289,7 +292,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   void _handleProviderChange() {
     final provider = _notificationProvider;
-    if (provider == null || _isRefreshing) return;
+    if (provider == null) return;
 
     final accessChanged =
         provider.scholarAccessRevision != _lastScholarAccessRevision;
@@ -315,6 +318,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     if (!anythingChanged) return;
 
     _captureProviderRevisions(provider);
+    if (_isRefreshing) {
+      _pendingRealtimeDashboardRefresh = true;
+      return;
+    }
 
     if (statusChanged || requirementsChanged || openingsChanged) {
       _loadDashboardData(refreshNotifications: false);
@@ -326,7 +333,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   Future<void> _loadDashboardData({bool refreshNotifications = true}) async {
-    if (_isRefreshing) return;
+    if (_isRefreshing) {
+      _pendingRealtimeDashboardRefresh = true;
+      return;
+    }
 
     _isRefreshing = true;
 
@@ -365,6 +375,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       ]);
     } finally {
       _isRefreshing = false;
+      if (_pendingRealtimeDashboardRefresh && mounted) {
+        _pendingRealtimeDashboardRefresh = false;
+        scheduleMicrotask(() => _loadDashboardData(refreshNotifications: false));
+      }
     }
   }
 

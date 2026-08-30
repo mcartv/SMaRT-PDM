@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
-import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -29,15 +28,16 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
   int _lastScholarAccessRevision = 0;
   int _lastApplicationRevision = 0;
   Timer? _pollingTimer;
+  bool _fetchInProgress = false;
+  bool _pendingLiveRefresh = false;
 
   @override
   void initState() {
     super.initState();
     _loadStatus();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted && !MobileRealtimeService.instance.isRealtimeHealthy) {
-        _loadStatus();
-      }
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestLiveRefresh();
     });
   }
 
@@ -67,31 +67,56 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     _lastScholarAccessRevision = provider.scholarAccessRevision;
     _lastApplicationRevision = provider.applicationRevision;
 
-    if (mounted) {
-      _loadStatus();
+    _requestLiveRefresh();
+  }
+
+  Future<void> _loadStatus({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+
+    _fetchInProgress = true;
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+      if (!mounted) return;
+      setState(() {
+        _summary = summary;
+        _errorMessage = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      if (!silent || _summary == null) {
+        setState(() {
+          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+        });
+      }
+    } finally {
+      _fetchInProgress = false;
+      if (mounted && !silent) {
+        setState(() => _isLoading = false);
+      }
+      if (_pendingLiveRefresh && mounted) {
+        _pendingLiveRefresh = false;
+        scheduleMicrotask(() => _loadStatus(silent: true));
+      }
     }
   }
 
-  Future<void> _loadStatus() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final summary = await _applicationService
-          .fetchMyApplicationStatusSummary();
-      if (!mounted) return;
-      setState(() => _summary = summary);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _summary = null;
-        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
-      });
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  void _requestLiveRefresh() {
+    if (!mounted) return;
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
     }
+    _loadStatus(silent: true);
   }
 
   Future<void> _downloadEndorsementSlip() async {
@@ -136,7 +161,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
       appBar: AppBar(title: const Text('Endorsement')),
       selectedIndex: 0,
       child: RefreshIndicator(
-        onRefresh: _loadStatus,
+        onRefresh: () => _loadStatus(),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -151,7 +176,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
                 title: 'Unable to load endorsement',
                 message: _errorMessage!,
                 primaryActionLabel: 'Try Again',
-                onPrimaryAction: _loadStatus,
+                onPrimaryAction: () => _loadStatus(),
               )
             else if (_summary == null || _summary!.hasApplication == false)
               _EndorsementMessageCard(

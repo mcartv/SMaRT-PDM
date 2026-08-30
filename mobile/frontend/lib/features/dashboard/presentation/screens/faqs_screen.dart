@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
@@ -22,6 +24,9 @@ class _FaqsScreenState extends State<FaqsScreen> {
   String _searchQuery = '';
   List<FaqItem> _faqs = const [];
   VoidCallback? _stopRealtimeListener;
+  Timer? _liveSyncTimer;
+  bool _fetchInProgress = false;
+  bool _pendingLiveRefresh = false;
 
   @override
   void initState() {
@@ -33,41 +38,68 @@ class _FaqsScreenState extends State<FaqsScreen> {
         MobileRealtimeEvents.settingsUpdated,
         MobileRealtimeEvents.socketReconnected,
       },
-      (_) => _loadFaqs(),
+      (_) => _requestLiveRefresh(),
     );
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestLiveRefresh();
+    });
   }
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadFaqs() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadFaqs({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+
+    _fetchInProgress = true;
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final items = await _faqService.fetchFaqs();
       if (!mounted) return;
-
       setState(() {
         _faqs = items;
+        _error = null;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _error = error.toString();
-      });
+      if (!silent || _faqs.isEmpty) {
+        setState(() => _error = error.toString());
+      }
     } finally {
-      if (mounted) {
+      _fetchInProgress = false;
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
+      if (_pendingLiveRefresh && mounted) {
+        _pendingLiveRefresh = false;
+        scheduleMicrotask(() => _loadFaqs(silent: true));
+      }
     }
+  }
+
+  void _requestLiveRefresh() {
+    if (!mounted) return;
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+    _loadFaqs(silent: true);
   }
 
   List<FaqItem> get _filteredFaqs {
@@ -101,7 +133,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
       selectedIndex: 0,
       showBottomNav: false,
       child: RefreshIndicator(
-        onRefresh: _loadFaqs,
+        onRefresh: () => _loadFaqs(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(top: 12, bottom: 20),
@@ -186,7 +218,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_error != null && _faqs.isEmpty)
-              _FaqsErrorState(message: _error!, onRetry: _loadFaqs)
+              _FaqsErrorState(message: _error!, onRetry: () => _loadFaqs())
             else if (filteredFaqs.isEmpty)
               _FaqsEmptyState(
                 isSearching: _searchQuery.trim().isNotEmpty,

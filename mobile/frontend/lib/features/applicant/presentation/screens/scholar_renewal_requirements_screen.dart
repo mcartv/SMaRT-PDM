@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -35,11 +37,18 @@ class _ScholarRenewalRequirementsScreenState
   bool _isSubmitting = false;
   String? _errorMessage;
   final Map<String, bool> _uploadingDocuments = <String, bool>{};
+  Timer? _liveSyncTimer;
+  bool _fetchInProgress = false;
+  bool _pendingLiveRefresh = false;
 
   @override
   void initState() {
     super.initState();
     _loadRenewal();
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      _requestLiveRefresh();
+    });
   }
 
   @override
@@ -56,26 +65,53 @@ class _ScholarRenewalRequirementsScreenState
     _notificationProvider?.addListener(_handleRealtimeRenewals);
   }
 
-  Future<void> _loadRenewal() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _loadRenewal({bool silent = false}) async {
+    if (_fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+
+    _fetchInProgress = true;
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final payload = await _renewalService.fetchCurrentRenewal();
       if (!mounted) return;
-      setState(() => _renewalPackage = payload);
+      setState(() {
+        _renewalPackage = payload;
+        _errorMessage = null;
+      });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
-      });
+      if (!silent || _renewalPackage == null) {
+        setState(() {
+          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+        });
+      }
     } finally {
-      if (mounted) {
+      _fetchInProgress = false;
+      if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
+      if (_pendingLiveRefresh && mounted && !_isSubmitting && _uploadingDocuments.isEmpty) {
+        _pendingLiveRefresh = false;
+        scheduleMicrotask(() => _loadRenewal(silent: true));
+      }
     }
+  }
+
+  void _requestLiveRefresh() {
+    if (!mounted) return;
+    if (_isSubmitting || _uploadingDocuments.isNotEmpty || _fetchInProgress) {
+      _pendingLiveRefresh = true;
+      return;
+    }
+    _loadRenewal(silent: true);
   }
 
   void _handleRealtimeRenewals() {
@@ -90,13 +126,12 @@ class _ScholarRenewalRequirementsScreenState
 
     _lastRenewalRevision = provider.renewalRevision;
 
-    if (mounted) {
-      _loadRenewal();
-    }
+    _requestLiveRefresh();
   }
 
   @override
   void dispose() {
+    _liveSyncTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeRenewals);
     super.dispose();
   }
@@ -194,6 +229,10 @@ class _ScholarRenewalRequirementsScreenState
     } finally {
       if (mounted) {
         setState(() => _uploadingDocuments.remove(document.id));
+        if (_pendingLiveRefresh && _uploadingDocuments.isEmpty) {
+          _pendingLiveRefresh = false;
+          scheduleMicrotask(() => _loadRenewal(silent: true));
+        }
       }
     }
   }
@@ -254,6 +293,10 @@ class _ScholarRenewalRequirementsScreenState
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
+        if (_pendingLiveRefresh && _uploadingDocuments.isEmpty) {
+          _pendingLiveRefresh = false;
+          scheduleMicrotask(() => _loadRenewal(silent: true));
+        }
       }
     }
   }
@@ -517,7 +560,7 @@ class _ScholarRenewalRequirementsScreenState
       selectedIndex: 3,
       showBottomNav: widget.showBottomNav,
       child: RefreshIndicator(
-        onRefresh: _loadRenewal,
+        onRefresh: () => _loadRenewal(),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -534,7 +577,7 @@ class _ScholarRenewalRequirementsScreenState
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_errorMessage != null)
-              _RenewalErrorCard(message: _errorMessage!, onRetry: _loadRenewal)
+              _RenewalErrorCard(message: _errorMessage!, onRetry: () => _loadRenewal())
             else if (_renewalPackage == null)
               const _RenewalEmptyState()
             else ...[

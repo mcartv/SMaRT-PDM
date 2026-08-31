@@ -786,23 +786,34 @@ class NotificationProvider extends ChangeNotifier {
 
     if (targetReferenceId.isEmpty) return;
 
-    _notifications = _notifications
-        .where((notification) {
-          final itemReferenceId = (notification.referenceId ?? '').trim();
-          final itemReferenceType = (notification.referenceType ?? '')
-              .trim()
-              .toLowerCase();
-          final itemType = notification.type.trim().toLowerCase();
+    bool shouldKeep(AppNotification notification) {
+      final itemReferenceId = (notification.referenceId ?? '').trim();
+      final itemReferenceType = (notification.referenceType ?? '')
+          .trim()
+          .toLowerCase();
+      final itemType = notification.type.trim().toLowerCase();
 
-          final sameReferenceId = itemReferenceId == targetReferenceId;
-          final sameReferenceType =
-              itemReferenceType == targetReferenceType ||
-              itemType == targetReferenceType ||
-              itemType.contains(targetReferenceType);
+      final sameReferenceId = itemReferenceId == targetReferenceId;
+      final sameReferenceType =
+          itemReferenceType == targetReferenceType ||
+          itemType == targetReferenceType ||
+          itemType.contains(targetReferenceType);
 
-          return !(sameReferenceId && sameReferenceType);
-        })
+      return !(sameReferenceId && sameReferenceType);
+    }
+
+    // Remove the item from both the real notification cache and the
+    // announcement fallback cache immediately. Without clearing the fallback,
+    // an archived announcement could remain visible until the next API fetch.
+    _notifications = _notifications.where(shouldKeep).toList(growable: false);
+    _announcementNotifications = _announcementNotifications
+        .where(shouldKeep)
         .toList(growable: false);
+
+    if (_latestPendingOpeningUpdate != null &&
+        !shouldKeep(_latestPendingOpeningUpdate!)) {
+      _latestPendingOpeningUpdate = null;
+    }
 
     _recalculateUnreadCount();
     notifyListeners();

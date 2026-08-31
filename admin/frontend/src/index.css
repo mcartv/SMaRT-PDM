@@ -3961,3 +3961,13 @@ html.smartpdm-admin-active .portal-shell
   background-color: var(--bg-hover) !important;
   color: var(--text-main) !important;
 }
+
+/* Sonner toast close control: keep the visible X reliably interactive. */
+.smartpdm-toast-close,
+[data-sonner-toast] [data-close-button] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  z-index: 20 !important;
+  touch-action: manipulation;
+}
+

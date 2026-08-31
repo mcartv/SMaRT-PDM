@@ -318,18 +318,42 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     if (!anythingChanged) return;
 
     _captureProviderRevisions(provider);
+
+    // Apply the provider's current announcement cache immediately so an
+    // archived announcement disappears from the mounted Dashboard without
+    // waiting for navigation or a network round-trip. The API refresh below
+    // still remains the authoritative reconciliation step.
+    if (announcementsChanged) {
+      _syncAnnouncementsFromProvider(provider);
+    }
+
     if (_isRefreshing) {
       _pendingRealtimeDashboardRefresh = true;
       return;
     }
 
     if (statusChanged || requirementsChanged || openingsChanged) {
-      _loadDashboardData(refreshNotifications: false);
+      unawaited(_loadDashboardData(refreshNotifications: false));
     } else if (announcementsChanged) {
-      _loadAnnouncements();
+      unawaited(_loadAnnouncements());
     } else if (mounted) {
       setState(() {});
     }
+  }
+
+  void _syncAnnouncementsFromProvider(NotificationProvider provider) {
+    if (!mounted) return;
+
+    final currentAnnouncements = provider.officeUpdatesItems
+        .where((item) => item.isAnnouncementNotification)
+        .take(3)
+        .toList(growable: false);
+
+    setState(() {
+      _announcements = currentAnnouncements;
+      _announcementsError = null;
+      _isLoadingAnnouncements = false;
+    });
   }
 
   Future<void> _loadDashboardData({bool refreshNotifications = true}) async {

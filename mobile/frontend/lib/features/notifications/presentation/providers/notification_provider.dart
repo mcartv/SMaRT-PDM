@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/data/services/notification_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
@@ -13,21 +14,25 @@ import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 class NotificationProvider extends ChangeNotifier {
   NotificationProvider({
     NotificationService? notificationService,
+    AnnouncementService? announcementService,
     ProgramOpeningService? programOpeningService,
     ProfileService? profileService,
     SessionService? sessionService,
   }) : _notificationService = notificationService ?? NotificationService(),
+       _announcementService = announcementService ?? AnnouncementService(),
        _programOpeningService =
            programOpeningService ?? ProgramOpeningService(),
        _profileService = profileService ?? ProfileService(),
        _sessionService = sessionService ?? const SessionService();
 
   final NotificationService _notificationService;
+  final AnnouncementService _announcementService;
   final ProgramOpeningService _programOpeningService;
   final ProfileService _profileService;
   final SessionService _sessionService;
 
   List<AppNotification> _notifications = <AppNotification>[];
+  List<AppNotification> _announcementNotifications = <AppNotification>[];
   AppNotification? _latestPendingOpeningUpdate;
 
   bool _isLoading = false;
@@ -68,7 +73,8 @@ class NotificationProvider extends ChangeNotifier {
 
   VoidCallback? _stopRealtimeListener;
 
-  List<AppNotification> get notifications => List.unmodifiable(_notifications);
+  List<AppNotification> get notifications =>
+      List.unmodifiable(_composeNotifications());
 
   List<AppNotification> get items => notifications;
 
@@ -154,6 +160,7 @@ class NotificationProvider extends ChangeNotifier {
       final result = await _notificationService.fetchNotifications();
       _notifications = result.items;
 
+      await _refreshPublishedAnnouncements();
       await _refreshLatestOpeningUpdate();
 
       if (_notifications.any(_isScholarApprovalNotification)) {
@@ -561,6 +568,7 @@ class NotificationProvider extends ChangeNotifier {
         final result = await _notificationService.fetchNotifications();
         _notifications = result.items;
 
+        await _refreshPublishedAnnouncements();
         await _refreshLatestOpeningUpdate();
 
         if (_notifications.any(_isScholarApprovalNotification)) {
@@ -597,6 +605,19 @@ class NotificationProvider extends ChangeNotifier {
       _unreadCount = await _notificationService.fetchUnreadCount();
     } catch (_) {
       _recalculateUnreadCount();
+    }
+  }
+
+  Future<void> _refreshPublishedAnnouncements() async {
+    try {
+      final announcements = await _announcementService.fetchAnnouncements();
+      _announcementNotifications = announcements
+          .map((announcement) => announcement.toNotification())
+          .toList(growable: false);
+    } catch (error) {
+      // Notifications must continue loading even if the announcements endpoint
+      // is temporarily unavailable. Keep the last successfully loaded set.
+      debugPrint('ANNOUNCEMENT NOTIFICATION FALLBACK REFRESH ERROR: $error');
     }
   }
 
@@ -864,8 +885,45 @@ class NotificationProvider extends ChangeNotifier {
     _unreadCount = _notifications.where((item) => !item.isRead).length;
   }
 
+  List<AppNotification> _composeNotifications() {
+    final liveAnnouncementReferenceIds = _notifications
+        .where((item) => item.isAnnouncementNotification)
+        .map((item) => (item.referenceId ?? '').trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final liveNotificationIds = _notifications
+        .map((item) => item.notificationId.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final fallbackAnnouncements = _announcementNotifications.where((item) {
+      final referenceId = (item.referenceId ?? '').trim();
+      final notificationId = item.notificationId.trim();
+
+      if (referenceId.isNotEmpty &&
+          liveAnnouncementReferenceIds.contains(referenceId)) {
+        return false;
+      }
+
+      if (notificationId.isNotEmpty &&
+          liveNotificationIds.contains(notificationId)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    final combined = <AppNotification>[
+      ..._notifications,
+      ...fallbackAnnouncements,
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return combined;
+  }
+
   List<AppNotification> _composeOfficeUpdates() {
-    final officeUpdates = _notifications
+    final officeUpdates = _composeNotifications()
         .where((item) => item.isOfficeUpdate)
         .toList(growable: false);
 
@@ -889,7 +947,12 @@ class NotificationProvider extends ChangeNotifier {
         })
         .toList(growable: false);
 
-    return <AppNotification>[_latestPendingOpeningUpdate!, ...deduped];
+    final updates = <AppNotification>[
+      _latestPendingOpeningUpdate!,
+      ...deduped,
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return updates;
   }
 
   void _resetRuntimeState({bool notify = true}) {
@@ -899,6 +962,7 @@ class NotificationProvider extends ChangeNotifier {
     _realtimeSafetyTimer = null;
 
     _notifications = <AppNotification>[];
+    _announcementNotifications = <AppNotification>[];
     _latestPendingOpeningUpdate = null;
 
     _isLoading = false;

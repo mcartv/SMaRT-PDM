@@ -243,6 +243,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return grouped;
   }
 
+  bool _isAnnouncementFallback(AppNotification notification) {
+    return notification.isAnnouncementNotification &&
+        notification.userId.trim().isEmpty &&
+        notification.notificationId.startsWith('announcement-');
+  }
+
   Future<void> _openNotification(AppNotification notification) async {
     if (!notification.isRead) {
       await context.read<NotificationProvider>().markAsRead(
@@ -712,51 +718,54 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                tooltip: 'Notification options',
-                icon: const Icon(Icons.more_vert_rounded),
-                onSelected: (value) async {
-                  if (value == 'read') {
-                    await provider.markAsRead(notification.notificationId);
-                  }
+              if (!_isAnnouncementFallback(notification))
+                PopupMenuButton<String>(
+                  tooltip: 'Notification options',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (value) async {
+                    if (value == 'read') {
+                      await provider.markAsRead(notification.notificationId);
+                    }
 
-                  if (value == 'delete') {
-                    await _deleteNotification(provider, notification);
-                  }
-                },
-                itemBuilder: (context) => [
-                  if (!notification.isRead)
-                    const PopupMenuItem(
-                      value: 'read',
+                    if (value == 'delete') {
+                      await _deleteNotification(provider, notification);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    if (!notification.isRead)
+                      const PopupMenuItem(
+                        value: 'read',
+                        child: Row(
+                          children: [
+                            Icon(Icons.mark_email_read_rounded, size: 18),
+                            SizedBox(width: 10),
+                            Text('Mark as read'),
+                          ],
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.mark_email_read_rounded, size: 18),
-                          SizedBox(width: 10),
-                          Text('Mark as read'),
+                          Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: AppButtonStyles.destructiveColor(context),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: AppButtonStyles.destructiveColor(context),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.delete_outline_rounded,
-                          size: 18,
-                          color: AppButtonStyles.destructiveColor(context),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Delete',
-                          style: TextStyle(
-                            color: AppButtonStyles.destructiveColor(context),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                const SizedBox(width: 40),
             ],
           ),
         ),

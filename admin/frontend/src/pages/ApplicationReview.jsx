@@ -774,18 +774,6 @@ function OpeningsGrid({
                     <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
                     View FCFS Queue
                   </Button>
-                  <Button
-                    size="sm"
-                    className="h-9 rounded-lg border-none px-3 text-xs whitespace-nowrap text-white"
-                    style={{ background: C.brownMid }}
-                    onClick={() => {
-                      onOpeningViewed(opening.opening_id);
-                      navigate(`/admin/openings/${opening.opening_id}/applications`);
-                    }}
-                  >
-                    View Applicants
-                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -1153,8 +1141,8 @@ function ReadinessOpeningCards({
         onClose={() => setSummaryRow(null)}
       />
 
-      <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-none">
-        <div className="mb-2 flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between">
+      <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-none sm:p-6">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-stone-900">
               Scholarship Opening
@@ -1170,7 +1158,7 @@ function ReadinessOpeningCards({
           </span>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {grouped.map((group) => {
             const itemOpening = group.opening || {};
             const itemId = String(
@@ -1193,9 +1181,9 @@ function ReadinessOpeningCards({
                   setSelectedOpeningId(itemId);
                   onOpeningViewed(itemId);
                 }}
-                className={`min-w-[210px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition sm:min-w-[240px] ${selected
-                    ? 'border-[var(--portal-base)] bg-[var(--portal-base)] text-white shadow-sm'
-                    : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+                className={`min-h-[118px] transform-gpu rounded-2xl border px-4 py-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${selected
+                    ? 'border-[#6b472f] bg-[#6b472f] text-white hover:border-[#6b472f] hover:bg-[#6b472f]'
+                    : 'border-stone-200 bg-white text-stone-700 hover:border-[#d8b27a] hover:bg-[#fff8eb]'
                   }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1260,8 +1248,8 @@ function ReadinessOpeningCards({
       </section>
 
       <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
-        <div className="border-b border-stone-100 px-4 py-3.5 sm:px-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="border-b border-stone-100 px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <h2 className="truncate text-base font-semibold text-stone-900 sm:text-lg">
                 {opening.opening_title ||
@@ -1293,7 +1281,7 @@ function ReadinessOpeningCards({
             </Button>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <MetricItem
               label="Slots"
               value={allocated}
@@ -1317,9 +1305,9 @@ function ReadinessOpeningCards({
           </div>
         </div>
 
-        <CardContent className="grid gap-5 p-4 sm:p-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <CardContent className="grid gap-8 p-5 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
           <section className="min-w-0">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-semibold leading-5 text-stone-900">
                   Ready for Activation
@@ -1340,7 +1328,7 @@ function ReadinessOpeningCards({
             </div>
 
             {reserved.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-400">
+              <div className="rounded-xl border border-dashed border-stone-200 px-5 py-12 text-center text-sm text-stone-400">
                 No applicants are currently reserved for
                 activation.
               </div>
@@ -1349,7 +1337,7 @@ function ReadinessOpeningCards({
                 {reserved.map((row) => (
                   <div
                     key={row.application_id}
-                    className="flex flex-col gap-3 bg-white px-3.5 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between"
+                    className="flex flex-col gap-4 bg-white px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="flex min-w-0 items-start gap-3">
                       <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
@@ -1419,7 +1407,7 @@ function ReadinessOpeningCards({
           </section>
 
           <section className="min-w-0">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-semibold text-stone-900">
                   Waiting List
@@ -1441,7 +1429,7 @@ function ReadinessOpeningCards({
             </div>
 
             {waiting.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-400">
+              <div className="rounded-xl border border-dashed border-stone-200 px-5 py-12 text-center text-sm text-stone-400">
                 No applicants are currently waiting for a slot.
               </div>
             ) : (
@@ -1449,7 +1437,7 @@ function ReadinessOpeningCards({
                 {waiting.map((row) => (
                   <div
                     key={row.application_id}
-                    className="flex flex-col gap-3 bg-stone-50/40 px-3.5 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-4 bg-stone-50/40 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex min-w-0 items-start gap-3">
                       <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-stone-200 bg-white px-2 text-sm font-bold text-stone-700">

@@ -79,6 +79,10 @@ class MobileRealtimeService extends ChangeNotifier {
   int _revision = 0;
   MobileRealtimeEvent? _lastEvent;
 
+  static const Duration _serverEventDedupeWindow = Duration(milliseconds: 1200);
+  static const int _serverEventDedupeMax = 500;
+  final Map<String, DateTime> _recentServerEventKeys = <String, DateTime>{};
+
   Stream<MobileRealtimeEvent> get events => _eventController.stream;
 
   bool get isConnected => _isConnected;
@@ -348,9 +352,15 @@ class MobileRealtimeService extends ChangeNotifier {
   void _handleServerEvent(String eventName, dynamic data) {
     final payload = _payloadToMap(data);
 
+    if (_isDuplicateServerEvent(eventName, payload)) {
+      debugPrint('[Realtime] duplicate suppressed: $eventName');
+      return;
+    }
+
     if (eventName == MobileRealtimeEvents.bridgeStatus) {
       final connected = payload['connected'];
-      _isBackendBridgeHealthy = connected == true ||
+      _isBackendBridgeHealthy =
+          connected == true ||
           connected?.toString().trim().toLowerCase() == 'true';
     }
 
@@ -362,6 +372,53 @@ class MobileRealtimeService extends ChangeNotifier {
 
     debugPrint('[Realtime] $event');
     _dispatchEvent(event);
+  }
+
+  bool _isDuplicateServerEvent(String eventName, Map<String, dynamic> payload) {
+    if (eventName == MobileRealtimeEvents.bridgeStatus) return false;
+
+    final entityId =
+        payload['application_id']?.toString() ??
+        payload['document_id']?.toString() ??
+        payload['slip_id']?.toString() ??
+        payload['student_id']?.toString() ??
+        payload['notification_id']?.toString() ??
+        payload['announcement_id']?.toString() ??
+        payload['opening_id']?.toString() ??
+        payload['message_id']?.toString() ??
+        payload['renewal_id']?.toString() ??
+        payload['payout_entry_id']?.toString() ??
+        payload['payout_batch_id']?.toString() ??
+        payload['payout_proof_id']?.toString() ??
+        payload['ro_id']?.toString() ??
+        '';
+
+    final version =
+        payload['updated_at']?.toString() ??
+        payload['created_at']?.toString() ??
+        payload['sent_at']?.toString() ??
+        payload['event_type']?.toString() ??
+        '';
+
+    if (entityId.trim().isEmpty || version.trim().isEmpty) return false;
+
+    final now = DateTime.now();
+    final key = '$eventName:$entityId:$version';
+    final seenAt = _recentServerEventKeys[key];
+
+    if (seenAt != null && now.difference(seenAt) < _serverEventDedupeWindow) {
+      return true;
+    }
+
+    _recentServerEventKeys[key] = now;
+
+    if (_recentServerEventKeys.length > _serverEventDedupeMax) {
+      _recentServerEventKeys.removeWhere(
+        (_, timestamp) => now.difference(timestamp) >= _serverEventDedupeWindow,
+      );
+    }
+
+    return false;
   }
 
   void _emitLocalEvent(String eventName, Map<String, dynamic> payload) {
@@ -494,6 +551,7 @@ class MobileRealtimeService extends ChangeNotifier {
     disconnect(silent: true);
     _eventController.close();
     _subscriptions.clear();
+    _recentServerEventKeys.clear();
     super.dispose();
   }
 }

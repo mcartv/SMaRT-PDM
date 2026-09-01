@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -35,8 +36,9 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   void initState() {
     super.initState();
     _loadStatus();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _requestLiveRefresh();
     });
   }

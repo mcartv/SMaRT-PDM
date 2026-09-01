@@ -45,7 +45,7 @@ class NotificationProvider extends ChangeNotifier {
   Timer? _realtimeSafetyTimer;
   Completer<void>? _realtimeRefreshCompleter;
   static const Duration _realtimeRefreshCoalesceWindow = Duration(
-    milliseconds: 250,
+    milliseconds: 60,
   );
 
   Timer? _scholarAccessRefreshDebounce;
@@ -53,7 +53,7 @@ class NotificationProvider extends ChangeNotifier {
   bool _isScholarAccessRefreshing = false;
   bool _hasQueuedScholarAccessRefresh = false;
   static const Duration _scholarAccessRefreshCoalesceWindow = Duration(
-    milliseconds: 400,
+    milliseconds: 100,
   );
   String? _errorMessage;
   String _initializedUserId = '';
@@ -281,21 +281,19 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   void _ensureRealtimeSafetyTimer() {
-    _realtimeSafetyTimer ??= Timer.periodic(
-      const Duration(seconds: 20),
-      (_) async {
-        if (!_isInitialized ||
-            MobileRealtimeService.instance.isRealtimeHealthy) {
-          return;
-        }
+    _realtimeSafetyTimer ??= Timer.periodic(const Duration(seconds: 20), (
+      _,
+    ) async {
+      if (!_isInitialized || MobileRealtimeService.instance.isRealtimeHealthy) {
+        return;
+      }
 
-        // Socket.IO can stay connected while the backend database-change
-        // bridge is recovering. During that condition, do a low-frequency
-        // authoritative reconciliation so no module remains stale. This timer
-        // is completely idle while realtime is healthy.
-        await _reconcileAllAfterSocketRecovery();
-      },
-    );
+      // Socket.IO can stay connected while the backend database-change
+      // bridge is recovering. During that condition, do a low-frequency
+      // authoritative reconciliation so no module remains stale. This timer
+      // is completely idle while realtime is healthy.
+      await _reconcileAllAfterSocketRecovery();
+    });
   }
 
   void _ensureRealtimeListener() {
@@ -345,8 +343,8 @@ class NotificationProvider extends ChangeNotifier {
         _openingRevision += 1;
         _renewalRevision += 1;
         _payoutRevision += 1;
-        await _refreshLatestOpeningUpdate();
         notifyListeners();
+        unawaited(_refreshLatestOpeningUpdate());
         return;
 
       case MobileRealtimeEvents.academicUpdated:
@@ -360,8 +358,8 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.profileUpdated:
         _profileRevision += 1;
         _scholarRevision += 1;
-        await _queueScholarAccessRefresh();
         notifyListeners();
+        unawaited(_queueScholarAccessRefresh());
         return;
       case MobileRealtimeEvents.notificationNew:
       case MobileRealtimeEvents.notificationCreated:
@@ -405,7 +403,8 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.announcementRestored:
       case MobileRealtimeEvents.announcementRefresh:
         _announcementRevision += 1;
-        await _refreshOfficeUpdatesFromRealtime();
+        notifyListeners();
+        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
 
       case MobileRealtimeEvents.announcementArchived:
@@ -415,7 +414,8 @@ class NotificationProvider extends ChangeNotifier {
           referenceId: event.referenceId,
           referenceType: 'announcement',
         );
-        await _refreshOfficeUpdatesFromRealtime();
+        notifyListeners();
+        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
 
       case MobileRealtimeEvents.openingCreated:
@@ -423,7 +423,8 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.openingClosed:
       case MobileRealtimeEvents.openingRestored:
         _openingRevision += 1;
-        await _refreshOfficeUpdatesFromRealtime();
+        notifyListeners();
+        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
 
       case MobileRealtimeEvents.openingArchived:
@@ -436,7 +437,8 @@ class NotificationProvider extends ChangeNotifier {
           referenceId: event.referenceId,
           referenceType: 'program_opening',
         );
-        await _refreshOfficeUpdatesFromRealtime();
+        notifyListeners();
+        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
 
       case MobileRealtimeEvents.applicationCreated:
@@ -454,14 +456,16 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.applicationDisqualified:
       case MobileRealtimeEvents.applicationApproved:
         _applicationRevision += 1;
+        notifyListeners();
+
         if (_isTargetedScholarAccessGrant(event)) {
           if (!_hasScholarAccess) {
             _scholarActivationRevision += 1;
           }
           await _applyScholarAccess(true);
         }
-        await _queueScholarAccessRefresh();
-        notifyListeners();
+
+        unawaited(_queueScholarAccessRefresh());
         return;
 
       case MobileRealtimeEvents.renewalCreated:
@@ -483,8 +487,8 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.scholarRestored:
         _scholarRevision += 1;
         _profileRevision += 1;
-        await _queueScholarAccessRefresh();
         notifyListeners();
+        unawaited(_queueScholarAccessRefresh());
         return;
 
       case MobileRealtimeEvents.roCreated:
@@ -516,7 +520,7 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.payoutProofSubmitted:
       case MobileRealtimeEvents.payoutProofReviewed:
         _payoutRevision += 1;
-        await _refreshOfficeUpdatesFromRealtime();
+        notifyListeners();
         return;
 
       case MobileRealtimeEvents.ticketCreated:
@@ -569,26 +573,18 @@ class NotificationProvider extends ChangeNotifier {
       _isRealtimeRefreshing = true;
 
       try {
-        debugPrint(
-          '[NotificationProvider] refreshing notifications from realtime',
-        );
-
-        final result = await _notificationService.fetchNotifications();
-        _notifications = result.items;
-
-        await _refreshPublishedAnnouncements();
-        await _refreshLatestOpeningUpdate();
-
-        if (_notifications.any(_isScholarApprovalNotification)) {
-          await _applyScholarAccess(true);
-        }
+        // Notifications themselves are already applied from their socket
+        // payload. Only reconcile the two server-backed Office Update sources.
+        await Future.wait<void>([
+          _refreshPublishedAnnouncements(),
+          _refreshLatestOpeningUpdate(),
+        ]);
 
         _recalculateUnreadCount();
         _errorMessage = null;
-
         notifyListeners();
       } catch (error) {
-        debugPrint('NOTIFICATION REALTIME REFRESH ERROR: $error');
+        debugPrint('OFFICE UPDATE REALTIME REFRESH ERROR: $error');
       } finally {
         _isRealtimeRefreshing = false;
 
@@ -646,7 +642,7 @@ class NotificationProvider extends ChangeNotifier {
       final notification = AppNotification.fromJson(payload);
 
       if (notification.notificationId.trim().isEmpty) {
-        await _refreshOfficeUpdatesFromRealtime();
+        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
       }
 
@@ -663,8 +659,20 @@ class NotificationProvider extends ChangeNotifier {
         ),
       ];
 
-      await _refreshUnreadCountFromServerOrLocal();
+      // Display the new notification immediately from the socket payload.
+      // Reconcile the server count in the background instead of blocking UI.
+      _recalculateUnreadCount();
       notifyListeners();
+
+      unawaited(
+        _refreshUnreadCountFromServerOrLocal()
+            .then((_) {
+              notifyListeners();
+            })
+            .catchError((Object error) {
+              debugPrint('UNREAD COUNT REALTIME RECONCILE ERROR: $error');
+            }),
+      );
     } catch (error) {
       debugPrint('UPSERT REALTIME NOTIFICATION ERROR: $error');
     }
@@ -758,9 +766,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _removeNotificationFromEvent(
-    MobileRealtimeEvent event,
-  ) async {
+  Future<void> _removeNotificationFromEvent(MobileRealtimeEvent event) async {
     final notificationId =
         event.payload['notificationId']?.toString() ??
         event.payload['notification_id']?.toString() ??
@@ -830,13 +836,11 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> _queueScholarAccessRefresh() {
     if (_isScholarAccessRefreshing) {
       _hasQueuedScholarAccessRefresh = true;
-      return _scholarAccessRefreshCompleter?.future ??
-          Future<void>.value();
+      return _scholarAccessRefreshCompleter?.future ?? Future<void>.value();
     }
 
     _scholarAccessRefreshDebounce?.cancel();
-    final completer =
-        _scholarAccessRefreshCompleter ??= Completer<void>();
+    final completer = _scholarAccessRefreshCompleter ??= Completer<void>();
 
     _scholarAccessRefreshDebounce = Timer(
       _scholarAccessRefreshCoalesceWindow,
@@ -915,11 +919,9 @@ class NotificationProvider extends ChangeNotifier {
     if (event.name != MobileRealtimeEvents.applicationApproved) return false;
 
     final payload = event.payload;
-    final granted = payload['scholar_access_granted'] == true ||
-        payload['scholar_access_granted']
-                ?.toString()
-                .trim()
-                .toLowerCase() ==
+    final granted =
+        payload['scholar_access_granted'] == true ||
+        payload['scholar_access_granted']?.toString().trim().toLowerCase() ==
             'true';
     if (!granted) return false;
 
@@ -1020,10 +1022,8 @@ class NotificationProvider extends ChangeNotifier {
         })
         .toList(growable: false);
 
-    final updates = <AppNotification>[
-      _latestPendingOpeningUpdate!,
-      ...deduped,
-    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final updates = <AppNotification>[_latestPendingOpeningUpdate!, ...deduped]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return updates;
   }
@@ -1048,14 +1048,11 @@ class NotificationProvider extends ChangeNotifier {
     _scholarAccessRefreshDebounce?.cancel();
     _scholarAccessRefreshDebounce = null;
 
-    final pendingScholarAccessRefresh =
-        _scholarAccessRefreshCompleter;
+    final pendingScholarAccessRefresh = _scholarAccessRefreshCompleter;
     _scholarAccessRefreshCompleter = null;
 
-    if (
-      pendingScholarAccessRefresh != null &&
-      !pendingScholarAccessRefresh.isCompleted
-    ) {
+    if (pendingScholarAccessRefresh != null &&
+        !pendingScholarAccessRefresh.isCompleted) {
       pendingScholarAccessRefresh.complete();
     }
 

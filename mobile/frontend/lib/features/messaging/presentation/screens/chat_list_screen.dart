@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
@@ -40,8 +41,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   void _startLiveSyncWatchdog() {
     _liveSyncTimer?.cancel();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _refreshMessaging();
     });
   }
@@ -85,7 +87,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Archive conversation?'),
-            content: Text('$title will be hidden from your conversation list. A new message will automatically bring it back.'),
+            content: Text(
+              '$title will be hidden from your conversation list. A new message will automatically bring it back.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -109,7 +113,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await context.read<MessagingProvider>().archivePrivateThread();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to archive conversation.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to archive conversation.')),
+      );
     }
   }
 
@@ -119,7 +125,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await context.read<MessagingProvider>().archiveRoom(room.roomId);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to archive group conversation.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to archive group conversation.')),
+      );
     }
   }
 
@@ -130,10 +138,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => ChangeNotifierProvider<MessagingProvider>.value(
-        value: provider,
-        child: const _ArchivedThreadsSheet(),
-      ),
+      builder: (sheetContext) =>
+          ChangeNotifierProvider<MessagingProvider>.value(
+            value: provider,
+            child: const _ArchivedThreadsSheet(),
+          ),
     );
   }
 
@@ -286,7 +295,11 @@ class _MessagesHeader extends StatelessWidget {
             color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.forum_rounded, color: AppColors.gold, size: 24),
+          child: const Icon(
+            Icons.forum_rounded,
+            color: AppColors.gold,
+            size: 24,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -296,9 +309,9 @@ class _MessagesHeader extends StatelessWidget {
               Text(
                 'Conversations',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
@@ -306,8 +319,10 @@ class _MessagesHeader extends StatelessWidget {
                     ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
                     : 'You are all caught up.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.62),
-                    ),
+                  color: isDark
+                      ? Colors.white60
+                      : AppColors.brown.withValues(alpha: 0.62),
+                ),
               ),
             ],
           ),
@@ -350,9 +365,7 @@ class _ConversationTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
           child: Row(
             children: [
               Container(
@@ -375,7 +388,9 @@ class _ConversationTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: isDark ? Colors.white : AppColors.darkBrown,
-                        fontWeight: hasUnread ? FontWeight.w900 : FontWeight.w700,
+                        fontWeight: hasUnread
+                            ? FontWeight.w900
+                            : FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -389,7 +404,9 @@ class _ConversationTile extends StatelessWidget {
                             : (isDark
                                   ? Colors.white60
                                   : AppColors.brown.withValues(alpha: 0.64)),
-                        fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                         height: 1.3,
                       ),
                     ),
@@ -472,8 +489,13 @@ class _ArchivedHint extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.archive_outlined),
       title: const Text('Support conversation archived'),
-      subtitle: const Text('It will return automatically when a new message arrives.'),
-      trailing: TextButton(onPressed: onOpenArchived, child: const Text('View')),
+      subtitle: const Text(
+        'It will return automatically when a new message arrives.',
+      ),
+      trailing: TextButton(
+        onPressed: onOpenArchived,
+        child: const Text('View'),
+      ),
     );
   }
 }
@@ -486,21 +508,43 @@ class _ArchivedThreadsSheet extends StatelessWidget {
     final items = provider.archivedThreads;
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 18, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          18,
+          20,
+          20 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Expanded(child: Text('Archived Messages', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
-              IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Archived Messages',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             if (items.isEmpty)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 28), child: Center(child: Text('No archived conversations.')))
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Center(child: Text('No archived conversations.')),
+              )
             else
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.55),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.55,
+                ),
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: items.length,
@@ -509,18 +553,36 @@ class _ArchivedThreadsSheet extends StatelessWidget {
                     final item = items[index];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(item.isGroup ? Icons.groups_rounded : Icons.support_agent_rounded),
+                      leading: Icon(
+                        item.isGroup
+                            ? Icons.groups_rounded
+                            : Icons.support_agent_rounded,
+                      ),
                       title: Text(item.name),
-                      subtitle: Text(item.isGroup ? 'Group conversation' : 'Private conversation'),
+                      subtitle: Text(
+                        item.isGroup
+                            ? 'Group conversation'
+                            : 'Private conversation',
+                      ),
                       trailing: TextButton(
                         onPressed: () async {
                           try {
                             await provider.restoreArchivedThread(item);
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversation restored.')));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Conversation restored.'),
+                              ),
+                            );
                           } catch (_) {
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to restore conversation.')));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Unable to restore conversation.',
+                                ),
+                              ),
+                            );
                           }
                         },
                         child: const Text('Restore'),

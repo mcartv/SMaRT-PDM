@@ -123,9 +123,159 @@ console.log('[Socket Emit]', eventName, payload);
 
 function emitToUser(io, userId, eventName, payload) {
   if (!io || !userId || !eventName) return;
+  if (shouldSuppressRealtimeDuplicate(eventName, payload)) return;
 
   console.log('[Socket Emit User]', `user:${userId}`, eventName, payload);
   io.to(`user:${userId}`).emit(eventName, payload);
+}
+
+const REALTIME_LOOKUP_TTL_MS = 10 * 60 * 1000;
+const REALTIME_LOOKUP_MAX = 2000;
+const realtimeLookupCache = new Map();
+
+function getCachedRealtimeLookup(key) {
+  const cached = realtimeLookupCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    realtimeLookupCache.delete(key);
+    return null;
+  }
+  return cached.value || null;
+}
+
+function setCachedRealtimeLookup(key, value) {
+  if (!key || !value) return;
+  realtimeLookupCache.set(key, {
+    value,
+    expiresAt: Date.now() + REALTIME_LOOKUP_TTL_MS,
+  });
+
+  if (realtimeLookupCache.size > REALTIME_LOOKUP_MAX) {
+    const now = Date.now();
+    for (const [storedKey, stored] of realtimeLookupCache.entries()) {
+      if (stored.expiresAt <= now) realtimeLookupCache.delete(storedKey);
+      if (realtimeLookupCache.size <= REALTIME_LOOKUP_MAX) break;
+    }
+  }
+}
+
+async function resolveStudentUserId(supabase, studentId) {
+  const normalizedStudentId = safeText(studentId);
+  if (!normalizedStudentId || !supabase) return null;
+
+  const cacheKey = `student-user:${normalizedStudentId}`;
+  const cached = getCachedRealtimeLookup(cacheKey);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from('students')
+    .select('user_id')
+    .eq('student_id', normalizedStudentId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[Realtime Bridge] student user lookup failed:', {
+      studentId: normalizedStudentId,
+      error: error.message,
+    });
+    return null;
+  }
+
+  const userId = safeText(data?.user_id);
+  if (userId) setCachedRealtimeLookup(cacheKey, userId);
+  return userId || null;
+}
+
+async function resolveApplicationStudentId(supabase, applicationId) {
+  const normalizedId = safeText(applicationId);
+  if (!normalizedId || !supabase) return null;
+
+  const cacheKey = `application-student:${normalizedId}`;
+  const cached = getCachedRealtimeLookup(cacheKey);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from('applications')
+    .select('student_id')
+    .eq('application_id', normalizedId)
+    .maybeSingle();
+
+  if (error) return null;
+  const studentId = safeText(data?.student_id);
+  if (studentId) setCachedRealtimeLookup(cacheKey, studentId);
+  return studentId || null;
+}
+
+async function resolveRenewalStudentId(supabase, renewalId) {
+  const normalizedId = safeText(renewalId);
+  if (!normalizedId || !supabase) return null;
+
+  const cacheKey = `renewal-student:${normalizedId}`;
+  const cached = getCachedRealtimeLookup(cacheKey);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from('renewals')
+    .select('student_id')
+    .eq('renewal_id', normalizedId)
+    .maybeSingle();
+
+  if (error) return null;
+  const studentId = safeText(data?.student_id);
+  if (studentId) setCachedRealtimeLookup(cacheKey, studentId);
+  return studentId || null;
+}
+
+async function resolveRoStudentId(supabase, roId) {
+  const normalizedId = safeText(roId);
+  if (!normalizedId || !supabase) return null;
+
+  const cacheKey = `ro-student:${normalizedId}`;
+  const cached = getCachedRealtimeLookup(cacheKey);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from('return_of_obligations')
+    .select('student_id')
+    .eq('ro_id', normalizedId)
+    .maybeSingle();
+
+  if (error) return null;
+  const studentId = safeText(data?.student_id);
+  if (studentId) setCachedRealtimeLookup(cacheKey, studentId);
+  return studentId || null;
+}
+
+async function emitToStudent(
+  io,
+  supabase,
+  studentId,
+  eventName,
+  payload,
+  { fallbackGlobal = true } = {}
+) {
+  const normalizedStudentId = safeText(studentId);
+  const userId = await resolveStudentUserId(supabase, normalizedStudentId);
+
+  if (userId) {
+    emitToUser(io, userId, eventName, {
+      ...payload,
+      student_id: normalizedStudentId || payload?.student_id || null,
+      user_id: userId,
+      userId,
+    });
+    return true;
+  }
+
+  if (fallbackGlobal) {
+    emitGlobal(io, eventName, payload);
+  }
+  return false;
+}
+
+function rowChanged(next = {}, old = {}, keys = [], eventType = '') {
+  if (safeText(eventType).toUpperCase() !== 'UPDATE') return true;
+  return keys.some((key) => next?.[key] !== old?.[key]);
 }
 
 function buildAnnouncementPayload(row = {}, fallback = {}) {
@@ -424,7 +574,7 @@ function handleOpeningChange(io, payload = {}) {
   });
 }
 
-function handleApplicationChange(io, payload = {}) {
+async function handleApplicationChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -433,17 +583,27 @@ function handleApplicationChange(io, payload = {}) {
 
   if (!applicationId) return;
 
+  const studentId = row.student_id || null;
   const eventPayload = {
     application_id: applicationId,
-    student_id: row.student_id || null,
+    student_id: studentId,
     opening_id: row.opening_id || null,
     application_status: row.application_status || null,
+    document_status: row.document_status || null,
+    verification_status: row.verification_status || null,
+    selection_status: row.selection_status || null,
     activation_status: row.activation_status || null,
     updated_at: row.updated_at || row.activated_at || new Date().toISOString(),
     event_type: eventType,
   };
 
-  emitGlobal(io, 'application:updated', eventPayload);
+  await emitToStudent(
+    io,
+    supabase,
+    studentId,
+    'application:updated',
+    eventPayload
+  );
 
   const previousStatus = normalizeText(old.application_status);
   const nextStatus = normalizeText(next.application_status);
@@ -451,17 +611,32 @@ function handleApplicationChange(io, payload = {}) {
     normalizeText(next.activation_status) === 'activated' &&
     normalizeText(old.activation_status) !== 'activated';
 
-  if ((nextStatus === 'approved' && previousStatus !== 'approved') || activationChanged) {
-    emitGlobal(io, 'application:approved', eventPayload);
+  if (
+    (nextStatus === 'approved' && previousStatus !== 'approved') ||
+    activationChanged
+  ) {
+    await emitToStudent(
+      io,
+      supabase,
+      studentId,
+      'application:approved',
+      eventPayload
+    );
   } else if (
     ['rejected', 'disqualified', 'declined'].includes(nextStatus) &&
     previousStatus !== nextStatus
   ) {
-    emitGlobal(io, 'application:rejected', eventPayload);
+    await emitToStudent(
+      io,
+      supabase,
+      studentId,
+      'application:rejected',
+      eventPayload
+    );
   }
 }
 
-function handleApplicationDocumentChange(io, payload = {}) {
+async function handleApplicationDocumentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -470,8 +645,13 @@ function handleApplicationDocumentChange(io, payload = {}) {
 
   if (!applicationId) return;
 
+  const studentId =
+    row.uploaded_by ||
+    (await resolveApplicationStudentId(supabase, applicationId));
+
   const eventPayload = {
     application_id: applicationId,
+    student_id: studentId || null,
     document_id: row.document_id || null,
     document_key: row.document_type || null,
     document_name: row.document_type || null,
@@ -486,14 +666,18 @@ function handleApplicationDocumentChange(io, payload = {}) {
     eventType === 'UPDATE' &&
     normalizeText(next.review_status) !== normalizeText(old.review_status);
 
-  emitGlobal(
+  await emitToStudent(
     io,
-    reviewChanged ? 'application-document:reviewed' : 'application-document:uploaded',
+    supabase,
+    studentId,
+    reviewChanged
+      ? 'application-document:reviewed'
+      : 'application-document:uploaded',
     eventPayload
   );
 }
 
-function handleApplicationDocumentReviewChange(io, payload = {}) {
+async function handleApplicationDocumentReviewChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -502,18 +686,31 @@ function handleApplicationDocumentReviewChange(io, payload = {}) {
 
   if (!applicationId) return;
 
-  emitGlobal(io, 'application-document:reviewed', {
-    application_id: applicationId,
-    document_id: row.document_id || row.review_id || null,
-    document_key: row.document_key || row.document_type || null,
-    document_status: row.review_status || row.status || null,
-    updated_at: row.updated_at || row.reviewed_at || new Date().toISOString(),
-    event_type: eventType,
-    source: 'application_document_review',
-  });
+  const studentId = await resolveApplicationStudentId(
+    supabase,
+    applicationId
+  );
+
+  await emitToStudent(
+    io,
+    supabase,
+    studentId,
+    'application-document:reviewed',
+    {
+      application_id: applicationId,
+      student_id: studentId || null,
+      document_id: row.document_id || row.review_id || null,
+      document_key: row.document_key || row.document_type || null,
+      document_status: row.review_status || row.status || null,
+      updated_at:
+        row.updated_at || row.reviewed_at || new Date().toISOString(),
+      event_type: eventType,
+      source: 'application_document_review',
+    }
+  );
 }
 
-function handleRenewalChange(io, payload = {}) {
+async function handleRenewalChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -523,39 +720,55 @@ function handleRenewalChange(io, payload = {}) {
 
   const currentStatus = normalizeText(next.status || next.renewal_status);
   const previousStatus = normalizeText(old.status || old.renewal_status);
-  let eventName = eventType === 'INSERT' ? 'renewal:created' : 'renewal:updated';
+  let eventName =
+    eventType === 'INSERT' ? 'renewal:created' : 'renewal:updated';
+
   if (currentStatus === 'approved' && previousStatus !== 'approved') {
     eventName = 'renewal:approved';
-  } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
+  } else if (
+    currentStatus === 'rejected' &&
+    previousStatus !== 'rejected'
+  ) {
     eventName = 'renewal:rejected';
   }
 
-  emitGlobal(io, eventName, {
+  await emitToStudent(io, supabase, row.student_id, eventName, {
     renewal_id: renewalId,
+    student_id: row.student_id || null,
     renewal_status: row.status || row.renewal_status || null,
     updated_at: row.updated_at || row.reviewed_at || new Date().toISOString(),
     event_type: eventType,
   });
 }
 
-function handleRenewalDocumentChange(io, payload = {}) {
+async function handleRenewalDocumentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
   const row = eventType === 'DELETE' ? old : next;
   if (!row.renewal_id) return;
 
-  emitGlobal(io, 'renewal:updated', {
+  const studentId = await resolveRenewalStudentId(
+    supabase,
+    row.renewal_id
+  );
+
+  await emitToStudent(io, supabase, studentId, 'renewal:updated', {
     renewal_id: row.renewal_id,
+    student_id: studentId || null,
     renewal_document_id: row.renewal_document_id || null,
     document_status: row.review_status || row.status || null,
-    updated_at: row.updated_at || row.reviewed_at || row.submitted_at || new Date().toISOString(),
+    updated_at:
+      row.updated_at ||
+      row.reviewed_at ||
+      row.submitted_at ||
+      new Date().toISOString(),
     event_type: eventType,
     source: 'renewal_document',
   });
 }
 
-function handlePayoutChange(io, payload = {}) {
+async function handlePayoutChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -563,16 +776,21 @@ function handlePayoutChange(io, payload = {}) {
   const payoutEntryId = row.payout_entry_id || null;
   if (!payoutEntryId) return;
 
-  emitGlobal(io, eventType === 'DELETE' ? 'payout:deleted' : 'payout:updated', {
+  const eventName =
+    eventType === 'DELETE' ? 'payout:deleted' : 'payout:updated';
+
+  await emitToStudent(io, supabase, row.student_id, eventName, {
     payout_entry_id: payoutEntryId,
     payout_batch_id: row.payout_batch_id || null,
+    student_id: row.student_id || null,
     release_status: row.release_status || null,
+    amount_received: row.amount_received ?? null,
     updated_at: row.updated_at || row.released_at || new Date().toISOString(),
     event_type: eventType,
   });
 }
 
-function handlePayoutProofChange(io, payload = {}) {
+async function handlePayoutProofChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -581,17 +799,35 @@ function handlePayoutProofChange(io, payload = {}) {
 
   const eventPayload = {
     payout_entry_id: row.payout_entry_id,
+    payout_batch_id: row.payout_batch_id || null,
     payout_proof_id: row.payout_proof_id || null,
+    student_id: row.student_id || null,
     proof_status: row.proof_status || null,
-    updated_at: row.updated_at || row.reviewed_at || row.submitted_at || new Date().toISOString(),
+    updated_at:
+      row.updated_at ||
+      row.reviewed_at ||
+      row.submitted_at ||
+      new Date().toISOString(),
     event_type: eventType,
     source: 'payout_proof',
   };
 
-  emitGlobal(io, 'payout:updated', eventPayload);
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    'payout:updated',
+    eventPayload
+  );
 
   if (eventType === 'INSERT') {
-    emitGlobal(io, 'payout:proof-submitted', eventPayload);
+    await emitToStudent(
+      io,
+      supabase,
+      row.student_id,
+      'payout:proof-submitted',
+      eventPayload
+    );
     return;
   }
 
@@ -599,11 +835,17 @@ function handlePayoutProofChange(io, payload = {}) {
     eventType === 'UPDATE' &&
     normalizeText(next.proof_status) !== normalizeText(old.proof_status)
   ) {
-    emitGlobal(io, 'payout:proof-reviewed', eventPayload);
+    await emitToStudent(
+      io,
+      supabase,
+      row.student_id,
+      'payout:proof-reviewed',
+      eventPayload
+    );
   }
 }
 
-function handleEndorsementChange(io, payload = {}) {
+async function handleEndorsementChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -618,12 +860,21 @@ function handleEndorsementChange(io, payload = {}) {
     student_id: row.student_id || null,
     current_stage: row.current_stage || null,
     overall_status: row.overall_status || null,
-    updated_at: row.updated_at || row.completed_at || new Date().toISOString(),
+    sdo_status: row.sdo_status || null,
+    guidance_status: row.guidance_status || null,
+    pd_status: row.pd_status || null,
+    updated_at:
+      row.updated_at || row.completed_at || new Date().toISOString(),
     event_type: eventType,
   };
 
-  emitGlobal(io, 'endorsement:updated', eventPayload);
-  
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    'endorsement:updated',
+    eventPayload
+  );
 }
 
 function handleProfileChange(io, payload = {}, source = 'profile') {
@@ -644,7 +895,7 @@ function handleProfileChange(io, payload = {}, source = 'profile') {
   else emitGlobal(io, 'profile:updated', eventPayload);
 }
 
-function handleRoAssignmentChange(io, payload = {}) {
+async function handleRoAssignmentChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -654,9 +905,14 @@ function handleRoAssignmentChange(io, payload = {}) {
 
   const currentStatus = normalizeText(row.ro_status || row.assignment_status);
   let eventName = eventType === 'INSERT' ? 'ro:created' : 'ro:updated';
-  if (currentStatus === 'cleared' || currentStatus === 'completed') eventName = 'ro:cleared';
-  else if (normalizeText(row.assignment_status) === 'assigned') eventName = 'ro:assigned';
-  else if (normalizeText(row.assignment_status) === 'acknowledged') eventName = 'ro:acknowledged';
+
+  if (currentStatus === 'cleared' || currentStatus === 'completed') {
+    eventName = 'ro:cleared';
+  } else if (normalizeText(row.assignment_status) === 'assigned') {
+    eventName = 'ro:assigned';
+  } else if (normalizeText(row.assignment_status) === 'acknowledged') {
+    eventName = 'ro:acknowledged';
+  }
 
   const eventPayload = {
     ro_id: roId,
@@ -664,15 +920,29 @@ function handleRoAssignmentChange(io, payload = {}) {
     assignment_status: row.assignment_status || null,
     progress_status: row.progress_status || null,
     ro_status: row.ro_status || null,
+    submitted_minutes: row.submitted_minutes ?? null,
+    validated_minutes: row.validated_minutes ?? null,
     updated_at: row.updated_at || new Date().toISOString(),
     event_type: eventType,
   };
 
-  emitGlobal(io, eventName, eventPayload);
-  emitGlobal(io, 'ro:assignment-updated', eventPayload);
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    eventName,
+    eventPayload
+  );
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    'ro:assignment-updated',
+    eventPayload
+  );
 }
 
-function handleRoLogChange(io, payload = {}) {
+async function handleRoLogChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
@@ -685,35 +955,67 @@ function handleRoLogChange(io, payload = {}) {
     student_id: row.student_id || null,
     log_status: row.log_status || null,
     validation_status: row.validation_status || null,
-    updated_at: row.updated_at || row.time_out_at || row.time_in_at || new Date().toISOString(),
+    department_validation_status:
+      row.department_validation_status || null,
+    updated_at:
+      row.updated_at ||
+      row.time_out_at ||
+      row.time_in_at ||
+      new Date().toISOString(),
     event_type: eventType,
   };
 
-  emitGlobal(io, eventType === 'INSERT' ? 'ro:log-created' : 'ro:log-updated', eventPayload);
-  emitGlobal(io, 'ro:time-log-updated', eventPayload);
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    eventType === 'INSERT' ? 'ro:log-created' : 'ro:log-updated',
+    eventPayload
+  );
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    'ro:time-log-updated',
+    eventPayload
+  );
 }
 
-function handleRoPlacementChange(io, payload = {}) {
+async function handleRoPlacementChange(io, supabase, payload = {}) {
   const eventType = safeText(payload.eventType).toUpperCase();
   const next = payload.new || {};
   const old = payload.old || {};
   const row = eventType === 'DELETE' ? old : next;
   const placementId = row.placement_id || row.ro_placement_id || null;
+  const studentId = await resolveRoStudentId(supabase, row.ro_id);
 
   const eventPayload = {
     placement_id: placementId,
     ro_id: row.ro_id || null,
-    student_id: row.student_id || null,
+    student_id: studentId || null,
     ro_area_id: row.ro_area_id || null,
     placement_status: row.placement_status || null,
     assignment_status: row.assignment_status || null,
-    updated_at: row.updated_at || row.assigned_at || new Date().toISOString(),
+    updated_at:
+      row.updated_at || row.assigned_at || new Date().toISOString(),
     event_type: eventType,
     source: 'ro_placement',
   };
 
-  emitGlobal(io, 'ro:updated', eventPayload);
-  emitGlobal(io, 'ro:assignment-updated', eventPayload);
+  await emitToStudent(
+    io,
+    supabase,
+    studentId,
+    'ro:updated',
+    eventPayload
+  );
+  await emitToStudent(
+    io,
+    supabase,
+    studentId,
+    'ro:assignment-updated',
+    eventPayload
+  );
 }
 
 function handleRoScholarRequestChange(io, payload = {}) {
@@ -892,6 +1194,190 @@ async function handleMessageChange(io, supabase, payload = {}) {
   }
 }
 
+async function handleStudentChange(io, supabase, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const studentId = row.student_id || null;
+  const userId = row.user_id || null;
+
+  if (studentId && userId) {
+    setCachedRealtimeLookup(`student-user:${studentId}`, userId);
+  }
+
+  const basePayload = {
+    student_id: studentId,
+    user_id: userId,
+    userId,
+    scholarship_status: row.scholarship_status || null,
+    is_active_scholar: row.is_active_scholar === true,
+    current_program_id: row.current_program_id || null,
+    current_application_id: row.current_application_id || null,
+    active_academic_year_id: row.active_academic_year_id || null,
+    active_period_id: row.active_period_id || null,
+    year_level: row.year_level ?? null,
+    course_id: row.course_id || null,
+    ro_status: row.ro_status || null,
+    ro_progress: row.ro_progress ?? null,
+    updated_at: row.updated_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'students',
+  };
+
+  const profileChanged = rowChanged(
+    next,
+    old,
+    [
+      'first_name',
+      'middle_name',
+      'last_name',
+      'email_address',
+      'phone_number',
+      'profile_photo_url',
+      'course_id',
+      'year_level',
+      'learners_reference_number',
+    ],
+    eventType
+  );
+
+  const scholarChanged = rowChanged(
+    next,
+    old,
+    [
+      'is_active_scholar',
+      'scholarship_status',
+      'current_program_id',
+      'current_application_id',
+      'active_academic_year_id',
+      'active_period_id',
+      'scholar_is_archived',
+      'ro_status',
+      'ro_progress',
+    ],
+    eventType
+  );
+
+  if (profileChanged) {
+    if (userId) emitToUser(io, userId, 'profile:updated', basePayload);
+    else {
+      await emitToStudent(
+        io,
+        supabase,
+        studentId,
+        'profile:updated',
+        basePayload
+      );
+    }
+  }
+
+  if (scholarChanged) {
+    if (userId) emitToUser(io, userId, 'scholar:updated', basePayload);
+    else {
+      await emitToStudent(
+        io,
+        supabase,
+        studentId,
+        'scholar:updated',
+        basePayload
+      );
+    }
+  }
+}
+
+async function handleStudentProfileChange(io, supabase, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  await emitToStudent(
+    io,
+    supabase,
+    row.student_id,
+    'profile:updated',
+    {
+      student_id: row.student_id || null,
+      profile_id: row.profile_id || null,
+      updated_at: row.updated_at || new Date().toISOString(),
+      event_type: eventType,
+      source: 'student_profiles',
+    }
+  );
+}
+
+function handlePayoutBatchChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  emitGlobal(io, 'payout:updated', {
+    payout_batch_id: row.payout_batch_id || null,
+    program_id: row.program_id || null,
+    opening_id: row.opening_id || null,
+    academic_year_id: row.academic_year_id || null,
+    period_id: row.period_id || null,
+    batch_status: row.batch_status || null,
+    payout_date: row.payout_date || null,
+    updated_at: row.updated_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'payout_batch',
+  });
+}
+
+function handleAcademicReferenceChange(io, payload = {}, source = 'academic') {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  emitGlobal(io, 'academic:updated', {
+    source,
+    academic_year_id: row.academic_year_id || null,
+    period_id: row.period_id || null,
+    course_id: row.course_id || null,
+    is_active: row.is_active,
+    updated_at: row.updated_at || new Date().toISOString(),
+    event_type: eventType,
+  });
+}
+
+function handleProgramReferenceChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  emitGlobal(io, 'program:updated', {
+    program_id: row.program_id || null,
+    visibility_status: row.visibility_status || null,
+    is_archived: row.is_archived === true,
+    updated_at: row.updated_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'scholarship_program',
+  });
+}
+
+function handleRoSettingsChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  emitGlobal(io, 'ro:settings-updated', {
+    setting_id: row.setting_id || null,
+    academic_year_id: row.academic_year_id || null,
+    period_id: row.period_id || null,
+    required_hours: row.required_hours ?? null,
+    is_active: row.is_active,
+    updated_at: row.updated_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'ro_settings',
+  });
+}
+
 function publishRealtimeBridgeStatus(io, status, error = null) {
   if (!io) return;
 
@@ -963,42 +1449,42 @@ function configureRealtimeBridge({ io, supabase }) {
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'applications' },
-      (payload) => handleApplicationChange(io, payload)
+      (payload) => handleApplicationChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'application_documents' },
-      (payload) => handleApplicationDocumentChange(io, payload)
+      (payload) => handleApplicationDocumentChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'application_document_reviews' },
-      (payload) => handleApplicationDocumentReviewChange(io, payload)
+      (payload) => handleApplicationDocumentReviewChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'renewals' },
-      (payload) => handleRenewalChange(io, payload)
+      (payload) => handleRenewalChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'renewal_documents' },
-      (payload) => handleRenewalDocumentChange(io, payload)
+      (payload) => handleRenewalDocumentChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'payout_batch_students' },
-      (payload) => handlePayoutChange(io, payload)
+      (payload) => handlePayoutChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'payout_proofs' },
-      (payload) => handlePayoutProofChange(io, payload)
+      (payload) => handlePayoutProofChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'endorsement_slips' },
-      (payload) => handleEndorsementChange(io, payload)
+      (payload) => handleEndorsementChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
@@ -1008,17 +1494,17 @@ function configureRealtimeBridge({ io, supabase }) {
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'return_of_obligations' },
-      (payload) => handleRoAssignmentChange(io, payload)
+      (payload) => handleRoAssignmentChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'ro_time_logs' },
-      (payload) => handleRoLogChange(io, payload)
+      (payload) => handleRoLogChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'ro_placements' },
-      (payload) => handleRoPlacementChange(io, payload)
+      (payload) => handleRoPlacementChange(io, supabase, payload)
     )
     .on(
       'postgres_changes',
@@ -1055,6 +1541,53 @@ function configureRealtimeBridge({ io, supabase }) {
           console.error('[Realtime Bridge] message handler failed:', error.message);
         }
       }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'students' },
+      (payload) => {
+        void handleStudentChange(io, supabase, payload);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'student_profiles' },
+      (payload) => {
+        void handleStudentProfileChange(io, supabase, payload);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'payout_batches' },
+      (payload) => handlePayoutBatchChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'academic_years' },
+      (payload) =>
+        handleAcademicReferenceChange(io, payload, 'academic_years')
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'academic_period' },
+      (payload) =>
+        handleAcademicReferenceChange(io, payload, 'academic_period')
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'academic_course' },
+      (payload) =>
+        handleAcademicReferenceChange(io, payload, 'academic_course')
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'scholarship_program' },
+      (payload) => handleProgramReferenceChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'ro_settings' },
+      (payload) => handleRoSettingsChange(io, payload)
     )
     .subscribe((status, error) => {
       if (channelGeneration !== realtimeChannelGeneration) return;

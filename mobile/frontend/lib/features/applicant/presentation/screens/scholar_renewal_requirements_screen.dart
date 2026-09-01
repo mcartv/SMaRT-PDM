@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/models/scholar_renewal.dart';
@@ -45,8 +46,9 @@ class _ScholarRenewalRequirementsScreenState
   void initState() {
     super.initState();
     _loadRenewal();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _requestLiveRefresh();
     });
   }
@@ -90,7 +92,10 @@ class _ScholarRenewalRequirementsScreenState
       if (!mounted) return;
       if (!silent || _renewalPackage == null) {
         setState(() {
-          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+          _errorMessage = error
+              .toString()
+              .replaceFirst('Exception: ', '')
+              .trim();
         });
       }
     } finally {
@@ -98,7 +103,10 @@ class _ScholarRenewalRequirementsScreenState
       if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
-      if (_pendingLiveRefresh && mounted && !_isSubmitting && _uploadingDocuments.isEmpty) {
+      if (_pendingLiveRefresh &&
+          mounted &&
+          !_isSubmitting &&
+          _uploadingDocuments.isEmpty) {
         _pendingLiveRefresh = false;
         scheduleMicrotask(() => _loadRenewal(silent: true));
       }
@@ -238,10 +246,8 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   Future<void> _submitRenewal() async {
-
     if (_renewalPackage?.isRenewalAvailable == false) {
-      final reason =
-          _renewalPackage?.availabilityReason.trim() ?? '';
+      final reason = _renewalPackage?.availabilityReason.trim() ?? '';
 
       _showSnackBar(
         reason.isNotEmpty
@@ -455,7 +461,6 @@ class _ScholarRenewalRequirementsScreenState
   }
 
   String _renewalSummary(ScholarRenewalPackage package) {
-
     if (!package.isRenewalAvailable) {
       return package.availabilityReason.trim().isNotEmpty
           ? package.availabilityReason
@@ -580,7 +585,10 @@ class _ScholarRenewalRequirementsScreenState
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_errorMessage != null)
-              _RenewalErrorCard(message: _errorMessage!, onRetry: () => _loadRenewal())
+              _RenewalErrorCard(
+                message: _errorMessage!,
+                onRetry: () => _loadRenewal(),
+              )
             else if (_renewalPackage == null)
               const _RenewalEmptyState()
             else ...[
@@ -787,10 +795,7 @@ class _ScholarRenewalRequirementsScreenState
   }) {
     final rawStatusColor = _statusColor(document.status);
     final statusColor = isDark
-        ? Color.alphaBlend(
-            Colors.white.withValues(alpha: 0.34),
-            rawStatusColor,
-          )
+        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.34), rawStatusColor)
         : rawStatusColor;
     final isUploading = _uploadingDocuments[document.id] == true;
     final canUpload = !package.renewal.isLockedForReview;
@@ -866,9 +871,7 @@ class _ScholarRenewalRequirementsScreenState
                       document.submittedAt!,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: isDark
-                            ? Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
                                   .withValues(alpha: 0.82)
                             : Colors.black45,
                       ),
@@ -926,9 +929,9 @@ class _ScholarRenewalRequirementsScreenState
                             width: 1,
                           ),
                           backgroundColor: isDark
-                              ? Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest
+                              ? Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest
                               : primaryColor.withValues(alpha: 0.04),
                         ),
                       ),
@@ -1006,48 +1009,24 @@ class _InfoChip extends StatelessWidget {
       if (normalized.contains('approved') ||
           normalized.contains('complete') ||
           normalized.contains('verified')) {
-        background = isDark
-            ? const Color(0xFF183B29)
-            : const Color(0xFFE5F4EA);
-        foreground = isDark
-            ? const Color(0xFFBDEBCB)
-            : const Color(0xFF14522E);
-        outline = isDark
-            ? const Color(0xFF53B978)
-            : const Color(0xFF2A7E4D);
+        background = isDark ? const Color(0xFF183B29) : const Color(0xFFE5F4EA);
+        foreground = isDark ? const Color(0xFFBDEBCB) : const Color(0xFF14522E);
+        outline = isDark ? const Color(0xFF53B978) : const Color(0xFF2A7E4D);
       } else if (normalized.contains('rejected')) {
-        background = isDark
-            ? const Color(0xFF4A2225)
-            : const Color(0xFFFDE9EA);
-        foreground = isDark
-            ? const Color(0xFFFFC9CC)
-            : const Color(0xFF821E25);
-        outline = isDark
-            ? const Color(0xFFE96F76)
-            : const Color(0xFFB9363F);
+        background = isDark ? const Color(0xFF4A2225) : const Color(0xFFFDE9EA);
+        foreground = isDark ? const Color(0xFFFFC9CC) : const Color(0xFF821E25);
+        outline = isDark ? const Color(0xFFE96F76) : const Color(0xFFB9363F);
       } else if (normalized.contains('reupload') ||
           normalized.contains('flagged')) {
-        background = isDark
-            ? const Color(0xFF482A18)
-            : const Color(0xFFFFEBDD);
-        foreground = isDark
-            ? const Color(0xFFFFD3AF)
-            : const Color(0xFF713000);
-        outline = isDark
-            ? const Color(0xFFE88D45)
-            : const Color(0xFFC45B12);
+        background = isDark ? const Color(0xFF482A18) : const Color(0xFFFFEBDD);
+        foreground = isDark ? const Color(0xFFFFD3AF) : const Color(0xFF713000);
+        outline = isDark ? const Color(0xFFE88D45) : const Color(0xFFC45B12);
       } else if (normalized.contains('active') ||
           normalized.contains('submitted') ||
           normalized.contains('review')) {
-        background = isDark
-            ? const Color(0xFF403516)
-            : const Color(0xFFFFF3C8);
-        foreground = isDark
-            ? const Color(0xFFFFE49A)
-            : const Color(0xFF664500);
-        outline = isDark
-            ? const Color(0xFFE8B83A)
-            : const Color(0xFFB87B00);
+        background = isDark ? const Color(0xFF403516) : const Color(0xFFFFF3C8);
+        foreground = isDark ? const Color(0xFFFFE49A) : const Color(0xFF664500);
+        outline = isDark ? const Color(0xFFE8B83A) : const Color(0xFFB87B00);
       }
     }
 

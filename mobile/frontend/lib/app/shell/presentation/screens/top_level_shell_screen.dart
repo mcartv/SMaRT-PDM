@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,7 +35,8 @@ class TopLevelShellScreen extends StatefulWidget {
   State<TopLevelShellScreen> createState() => TopLevelShellScreenState();
 }
 
-class TopLevelShellScreenState extends State<TopLevelShellScreen> {
+class TopLevelShellScreenState extends State<TopLevelShellScreen>
+    with WidgetsBindingObserver {
   static const Set<int> _scholarOnlyIndexes = <int>{1, 2, 3};
 
   late final PageController _pageController;
@@ -67,6 +70,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _currentIndex = widget.initialIndex.clamp(0, 4);
     _pageController = PageController(initialPage: _currentIndex);
@@ -260,7 +264,23 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    if (MobileRealtimeService.instance.isRealtimeHealthy) return;
+
+    // A suspended phone may resume with an expired/disconnected socket.
+    // Reconnect immediately instead of waiting for a polling timer.
+    unawaited(
+      MobileRealtimeService.instance.connectFromPrefs(
+        backendBaseUrl: AppConfig.apiBaseUrl,
+        forceReconnect: true,
+      ),
+    );
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
   }

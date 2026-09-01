@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -45,8 +46,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     super.initState();
     _loadPayouts();
     _markPayoutNotificationsAsRead();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _requestLiveRefresh();
     });
   }
@@ -274,17 +276,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                 : (proof.fileName?.trim().isNotEmpty == true
                       ? proof.fileName!
                       : 'Proof submitted'),
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: subtitleColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: subtitleColor),
           ),
           if (feedback.isNotEmpty) ...[
             const SizedBox(height: 5),
             Text(
               'Admin feedback: $feedback',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: subtitleColor,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: subtitleColor),
             ),
           ],
           if (canUpload) ...[

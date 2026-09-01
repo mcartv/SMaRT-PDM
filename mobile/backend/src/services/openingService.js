@@ -14,7 +14,6 @@ function isApprovedScholar(student) {
 }
 
 const REQUIRED_APPLICATION_UPLOAD_KEYS = Object.freeze([
-  'birth_certificate',
   'certificate_of_registration',
   'student_grade_forms',
   'certificate_of_indigency',

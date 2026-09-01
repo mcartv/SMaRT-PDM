@@ -70,8 +70,19 @@ const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
     'application_form',
 ]);
 
-const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object.freeze([
+const APPLICATION_UPLOAD_DOCUMENT_TYPES = Object.freeze([
+    'Birth Certificate / PSA',
+    'Certificate of Registration',
+    'Grade Report',
+    'Certificate of Indigency',
+    'Letter of Request',
+]);
+
+const OPTIONAL_UPLOAD_DOCUMENT_TYPES = Object.freeze([
     'birth certificate / psa',
+]);
+
+const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object.freeze([
     'certificate of registration',
     'grade report',
     'certificate of indigency',
@@ -146,6 +157,21 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function isRequiredUploadDocumentType(value) {
+    const normalized = normalizeRequiredDocumentType(value).toLowerCase();
+    return (
+        !OPTIONAL_UPLOAD_DOCUMENT_TYPES.includes(normalized) &&
+        REQUIRED_UPLOAD_DOCUMENT_TYPES.includes(normalized)
+    );
+}
+
+function withUploadRequirementFlag(document = {}) {
+    return {
+        ...document,
+        required: isRequiredUploadDocumentType(document.document_type),
+    };
 }
 
 const FINANCIAL_SUPPORT_TYPES = Object.freeze([
@@ -1524,13 +1550,7 @@ async function getMyDocuments(userId) {
         };
     }
 
-    const requiredDocuments = [
-        'Birth Certificate / PSA',
-        'Certificate of Registration',
-        'Certificate of Indigency',
-        'Grade Report',
-        'Letter of Request',
-    ];
+    const uploadDocuments = APPLICATION_UPLOAD_DOCUMENT_TYPES;
 
     const { data: existingDocuments, error: existingDocsError } = await supabase
         .from('application_documents')
@@ -1543,7 +1563,7 @@ async function getMyDocuments(userId) {
         (existingDocuments || []).map((doc) => safeText(doc.document_type).toLowerCase())
     );
 
-    const missingDocuments = requiredDocuments
+    const missingDocuments = uploadDocuments
         .filter((type) => !existingTypes.has(type.toLowerCase()))
         .map((type) => ({
             application_id: application.application_id,
@@ -1584,15 +1604,17 @@ async function getMyDocuments(userId) {
             current_version_id
         `)
         .eq('application_id', application.application_id)
-        .in('document_type', requiredDocuments)
+        .in('document_type', uploadDocuments)
         .order('created_at', { ascending: true });
 
     if (docsError) throw docsError;
 
-    const documentsWithSignedUrls = await attachSignedUrlsToDocuments(documents || []);
+    const documentsWithSignedUrls = (await attachSignedUrlsToDocuments(documents || []))
+        .map(withUploadRequirementFlag);
     const uploadLock = getApplicationDocumentUploadLock(application);
 
     const uploadedCount = documentsWithSignedUrls.filter((doc) =>
+        isRequiredUploadDocumentType(doc.document_type) &&
         doc.is_submitted === true &&
         Boolean(safeText(doc.file_path)) &&
         Boolean(safeText(doc.current_version_id))
@@ -1604,12 +1626,13 @@ async function getMyDocuments(userId) {
         programName: 'Current Application',
         applicationStatus: application.application_status || 'Pending Review',
         documentStatus: application.document_status || (
-            uploadedCount >= requiredDocuments.length
+            uploadedCount >= REQUIRED_UPLOAD_DOCUMENT_TYPES.length
                 ? 'Documents Ready'
                 : 'Missing Docs'
         ),
         uploadedCount,
-        allRequiredUploaded: uploadedCount >= requiredDocuments.length,
+        requiredCount: REQUIRED_UPLOAD_DOCUMENT_TYPES.length,
+        allRequiredUploaded: uploadedCount >= REQUIRED_UPLOAD_DOCUMENT_TYPES.length,
         uploads_locked: uploadLock.locked,
         upload_lock_reason: uploadLock.reason,
         application: {
@@ -3011,13 +3034,7 @@ function familyPayload(studentId, relation, data = {}, extra = {}) {
 }
 
 async function createRequiredDocumentSlots(applicationId, studentId) {
-    const requiredDocuments = [
-        'Birth Certificate / PSA',
-        'Certificate of Registration',
-        'Certificate of Indigency',
-        'Grade Report',
-        'Letter of Request',
-    ];
+    const uploadDocuments = APPLICATION_UPLOAD_DOCUMENT_TYPES;
 
     const { data: existing, error: existingError } = await supabase
         .from('application_documents')
@@ -3032,7 +3049,7 @@ async function createRequiredDocumentSlots(applicationId, studentId) {
         )
     );
 
-    const missingRows = requiredDocuments
+    const missingRows = uploadDocuments
         .filter((type) => !existingTypes.has(type.toLowerCase()))
         .map((type) => ({
             application_id: applicationId,

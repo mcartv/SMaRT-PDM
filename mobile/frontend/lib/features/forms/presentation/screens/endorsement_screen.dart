@@ -85,7 +85,8 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     }
 
     try {
-      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
       if (!mounted) return;
       setState(() {
         _summary = summary;
@@ -95,7 +96,10 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
       if (!mounted) return;
       if (!silent || _summary == null) {
         setState(() {
-          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+          _errorMessage = error
+              .toString()
+              .replaceFirst('Exception: ', '')
+              .trim();
         });
       }
     } finally {
@@ -279,25 +283,26 @@ class _EndorsementView extends StatelessWidget {
     return text.isEmpty ? 'Not assigned yet' : office!;
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(BuildContext context, String status) {
+    final scheme = Theme.of(context).colorScheme;
     final normalized = status.toLowerCase();
 
     if (normalized.contains('rejected') ||
         normalized.contains('major') ||
         normalized.contains('offense')) {
-      return Colors.red;
+      return scheme.error;
     }
     if (normalized.contains('held') || normalized.contains('missing')) {
-      return Colors.orange;
+      return scheme.tertiary;
     }
     if (normalized.contains('completed') || normalized.contains('approved')) {
-      return Colors.green;
+      return scheme.primary;
     }
     if (normalized.contains('pending')) {
-      return Colors.blue;
+      return scheme.secondary;
     }
 
-    return Colors.blueGrey;
+    return scheme.onSurfaceVariant;
   }
 
   IconData _statusIcon(String status) {
@@ -356,7 +361,7 @@ class _EndorsementView extends StatelessWidget {
       );
     }
 
-    final statusColor = _statusColor(endorsement.statusLabel);
+    final statusColor = _statusColor(context, endorsement.statusLabel);
     final statusIcon = _statusIcon(endorsement.statusLabel);
     final slip = endorsement.slip;
     final blockerCode = workflow.primaryBlocker?.code ?? '';
@@ -628,7 +633,8 @@ class _EndorsementView extends StatelessWidget {
                       minimumSize: const Size.fromHeight(54),
                       backgroundColor: colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,
-                      disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+                      disabledBackgroundColor:
+                          colorScheme.surfaceContainerHighest,
                       disabledForegroundColor: colorScheme.onSurfaceVariant,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -685,13 +691,19 @@ class _EndorsementView extends StatelessWidget {
                 _RelatedStatusRow(
                   label: 'Requirements',
                   value: workflow.requirements.statusLabel,
-                  color: _statusColor(workflow.requirements.statusLabel),
+                  color: _statusColor(
+                    context,
+                    workflow.requirements.statusLabel,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _RelatedStatusRow(
                   label: 'Scholar Activation',
                   value: workflow.scholarActivation.statusLabel,
-                  color: _statusColor(workflow.scholarActivation.statusLabel),
+                  color: _statusColor(
+                    context,
+                    workflow.scholarActivation.statusLabel,
+                  ),
                 ),
               ],
             ),
@@ -867,13 +879,14 @@ class _ReviewTile extends StatelessWidget {
         .join(' ');
   }
 
-  Color _decisionColor() {
+  Color _decisionColor(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final normalized = (review?.decision ?? '').toLowerCase();
     if (normalized.contains('reject') || normalized.contains('major')) {
-      return Colors.red;
+      return scheme.error;
     }
     if (normalized.contains('hold') || normalized.contains('minor')) {
-      return Colors.orange;
+      return scheme.tertiary;
     }
     if (normalized == 'no_offense' ||
         normalized == 'cleared' ||
@@ -881,9 +894,9 @@ class _ReviewTile extends StatelessWidget {
         normalized == 'good_scholastic_standing' ||
         normalized == 'average_scholastic_standing' ||
         normalized == 'approved') {
-      return Colors.green;
+      return scheme.primary;
     }
-    return Colors.blueGrey;
+    return scheme.onSurfaceVariant;
   }
 
   @override
@@ -914,7 +927,10 @@ class _ReviewTile extends StatelessWidget {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-              _StatusBadge(label: _decisionLabel(), color: _decisionColor()),
+              _StatusBadge(
+                label: _decisionLabel(),
+                color: _decisionColor(context),
+              ),
             ],
           ),
           if (actedAt != null) ...[

@@ -4,7 +4,22 @@ class AppFieldValidators {
   const AppFieldValidators._();
 
   static final RegExp _namePattern = RegExp(r"^[a-zA-ZñÑ\s.'-]+$");
-  static final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  static final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$');
+  static const Set<String> _commonGmailTypoDomains = {
+    'gmai.com',
+    'gamil.com',
+    'gmial.com',
+    'gmali.com',
+    'gmal.com',
+    'gmaill.com',
+    'gmail.co',
+    'gmail.cm',
+    'gmail.cmo',
+    'gmail.con',
+    'gmail.comm',
+    'gmail.om',
+    'gnail.com',
+  };
   static final RegExp _mobilePattern = RegExp(r'^09\d{9}$');
   static final RegExp _zipCodePattern = RegExp(r'^\d{4}$');
 
@@ -97,6 +112,11 @@ class AppFieldValidators {
 
     if (!_emailPattern.hasMatch(text)) {
       return 'Enter a valid email address.';
+    }
+
+    final domain = text.split('@').last;
+    if (_commonGmailTypoDomains.contains(domain)) {
+      return 'Check the email domain. Did you mean @gmail.com?';
     }
 
     return null;

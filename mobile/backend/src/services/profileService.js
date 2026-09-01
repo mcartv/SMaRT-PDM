@@ -9,6 +9,7 @@ const { validateProfilePhoto } = require('../utils/profilePhotoValidation');
 const {
   optimizeImageForStorage,
 } = require('./storageImageOptimizer');
+const { validateEmail } = require('../utils/emailValidation');
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -412,8 +413,17 @@ async function updateMyProfile(userId, payload = {}) {
 
   if (hasOwn('email')) {
     const email = safeText(payload.email);
-    userUpdate.email = email || null;
-    studentUpdate.email_address = email || null;
+    if (email) {
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        throw createHttpError(400, emailValidation.error);
+      }
+      userUpdate.email = emailValidation.email;
+      studentUpdate.email_address = emailValidation.email;
+    } else {
+      userUpdate.email = null;
+      studentUpdate.email_address = null;
+    }
   }
 
   if (hasOwn('phone_number')) {

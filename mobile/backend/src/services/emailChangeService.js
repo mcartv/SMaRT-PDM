@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const db = require('../config/db');
 const { mailFrom, transporter } = require('../config/mailer');
+const { normalizeEmail, validateEmail } = require('../utils/emailValidation');
 
 const OTP_EXPIRY_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -10,14 +11,6 @@ function createHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
-}
-
-function normalizeEmail(value = '') {
-    return String(value || '').trim().toLowerCase();
-}
-
-function isValidEmail(value = '') {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 }
 
 function generateOtp() {
@@ -91,8 +84,9 @@ async function requestEmailChange(userId, body = {}) {
         throw createHttpError(401, 'Authentication required.');
     }
 
-    if (!isValidEmail(newEmail)) {
-        throw createHttpError(400, 'Enter a valid email address.');
+    const emailValidation = validateEmail(newEmail);
+    if (!emailValidation.valid) {
+        throw createHttpError(400, emailValidation.error);
     }
 
     const user = await getUser(userId);

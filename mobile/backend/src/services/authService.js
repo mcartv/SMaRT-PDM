@@ -2,6 +2,7 @@ const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
 const { mailFrom, transporter } = require('../config/mailer');
 const { buildAuthToken } = require('../middleware/authMiddleware');
+const { validateEmail } = require('../utils/emailValidation');
 const {
     normalizeStudentNumber,
     resolveStudentByUserId,
@@ -213,6 +214,12 @@ async function register(body = {}) {
     if (!email || !password || !student_id) {
         throw createHttpError(400, 'Email, password, and Student ID are required');
     }
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+        throw createHttpError(400, emailValidation.error);
+    }
+    email = emailValidation.email;
 
     ensurePasswordPolicy(password);
 

@@ -83,9 +83,15 @@ test('Create Admin, Create Account, and Edit Account reject common Gmail domain 
     'gmai.com',
     'gamil.com',
     'gmial.com',
+    'gmali.com',
     'gmal.com',
+    'gmaill.com',
     'gmail.co',
+    'gmail.cm',
+    'gmail.cmo',
     'gmail.con',
+    'gmail.comm',
+    'gmail.om',
     'gnail.com',
   ]);
   assert.equal(typoDomains.has('gmai.com'), true);

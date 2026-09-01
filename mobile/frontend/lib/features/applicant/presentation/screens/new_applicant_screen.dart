@@ -17,6 +17,7 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_fo
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class NewApplicantScreen extends StatefulWidget {
@@ -801,9 +802,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       if (email.isEmpty) {
         return 'Email address is required.';
       }
-      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-      if (!emailRegex.hasMatch(email)) {
-        return 'Please enter a valid email address.';
+      final emailError = AppFieldValidators.email(email);
+      if (emailError != null) {
+        return emailError;
       }
 
       return null;

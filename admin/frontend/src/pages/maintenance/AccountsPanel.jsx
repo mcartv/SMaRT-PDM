@@ -148,9 +148,15 @@ const COMMON_GMAIL_TYPO_DOMAINS = new Set([
     'gmai.com',
     'gamil.com',
     'gmial.com',
+    'gmali.com',
     'gmal.com',
+    'gmaill.com',
     'gmail.co',
+    'gmail.cm',
+    'gmail.cmo',
     'gmail.con',
+    'gmail.comm',
+    'gmail.om',
     'gnail.com',
 ]);
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
 class StepPersonal extends StatefulWidget {
   final ApplicationData data;
@@ -396,8 +397,7 @@ class _StepPersonalState extends State<StepPersonal> {
     final email = emailController.text.trim();
     if (!widget.showErrors) return null;
     if (email.isEmpty) return 'Email address is required.';
-    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    return emailRegex.hasMatch(email) ? null : 'Please enter a valid email.';
+    return AppFieldValidators.email(email);
   }
 
   void _initControllers() {

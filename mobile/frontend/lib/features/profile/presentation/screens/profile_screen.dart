@@ -17,6 +17,7 @@ import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/widgets/profile_photo_crop_dialog.dart';
+import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -395,8 +396,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final phone = _phoneController.text.trim();
     final address = _addressController.text.trim();
 
-    if (!_isValidEmail(email)) {
-      _showMessage('Enter a valid email address.');
+    final emailError = AppFieldValidators.email(email);
+    if (emailError != null) {
+      _showMessage(emailError);
       return;
     }
 
@@ -460,10 +462,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     }
-  }
-
-  bool _isValidEmail(String value) {
-    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
   }
 
   void _showMessage(String value) {

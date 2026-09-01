@@ -91,9 +91,18 @@ void main() {
 
     test('validates email consistently', () {
       expect(AppFieldValidators.email('student@pdm.edu.ph'), isNull);
+      expect(AppFieldValidators.email('student@gmail.com'), isNull);
       expect(
         AppFieldValidators.email('student@'),
         'Enter a valid email address.',
+      );
+      expect(
+        AppFieldValidators.email('student@gmai.com'),
+        'Check the email domain. Did you mean @gmail.com?',
+      );
+      expect(
+        AppFieldValidators.email('student@gmail.con'),
+        'Check the email domain. Did you mean @gmail.com?',
       );
       expect(AppFieldValidators.email('     '), 'Email address is required.');
     });

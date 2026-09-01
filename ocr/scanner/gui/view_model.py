@@ -40,6 +40,8 @@ class GuiViewModel:
     activity_text: str
     activity_tone: str
     progress_percent: int
+    request_owner_name: str
+    request_status: str
     document_label: str
     camera_label: str
     updated_label: str
@@ -74,6 +76,8 @@ def _unavailable_model(note: str) -> GuiViewModel:
         activity_text="Waiting for status",
         activity_tone="muted",
         progress_percent=0,
+        request_owner_name="No active request",
+        request_status="Waiting",
         document_label="No active document",
         camera_label="Unavailable",
         updated_label="Not available",
@@ -119,6 +123,12 @@ def build_view_model(result: ReadResult) -> GuiViewModel:
         activity_text=activity_label,
         activity_tone=_TONE_BY_ACTIVITY.get(activity, "active"),
         progress_percent=_PROGRESS[activity],
+        request_owner_name=str(
+            payload.get("request_owner_name")
+            or payload.get("request_reference")
+            or "No active request"
+        ),
+        request_status=_title(activity),
         document_label=str(payload.get("document_label") or "No active document"),
         camera_label=_title(payload.get("camera_status") or "unavailable"),
         updated_label=_updated_label(payload.get("reported_at")),

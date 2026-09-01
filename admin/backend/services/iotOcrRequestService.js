@@ -78,6 +78,7 @@ function mapRequestRow(row) {
         ocr_version: row.ocr_version || 'v1',
         status: row.status || 'pending',
         requested_by: row.requested_by || null,
+        request_owner_name: row.request_owner_name || null,
         claimed_by: row.claimed_by || null,
         claimed_at: row.claimed_at || null,
         processing_started_at: row.processing_started_at || null,
@@ -639,11 +640,17 @@ exports.claimNextRequest = async ({ claimedBy } = {}) => {
                 WHERE status = 'pending' ORDER BY created_at ASC
                 FOR UPDATE SKIP LOCKED LIMIT 1
             )
-            UPDATE public.iot_ocr_requests
+            UPDATE public.iot_ocr_requests r
             SET status = 'claimed', claimed_by = $1, claimed_at = NOW(),
                 processing_heartbeat_at = NOW(), updated_at = NOW()
-            WHERE request_id IN (SELECT request_id FROM next_request)
-            RETURNING *
+            WHERE r.request_id IN (SELECT request_id FROM next_request)
+            RETURNING r.*,
+                (
+                    SELECT NULLIF(TRIM(CONCAT_WS(' ', ap.first_name, ap.last_name)), '')
+                    FROM public.admin_profiles ap
+                    WHERE ap.user_id = r.requested_by
+                    LIMIT 1
+                ) AS request_owner_name
         `, [deviceId]);
         if (!result.rows.length) throw buildHttpError(404, 'No IoT OCR request available');
         await client.query('COMMIT');

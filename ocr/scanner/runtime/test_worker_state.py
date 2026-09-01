@@ -35,12 +35,14 @@ class WorkerStateContractTest(unittest.TestCase):
             request_reference="private-request-identifier",
             application_reference="PDM-2026-000043",
             document_key="student_grade_forms",
+            request_owner_name="Venice Pelima",
             camera_status="preview_active",
         ).to_dict()
 
         self.assertEqual(snapshot["schema_version"], SCHEMA_VERSION)
         self.assertEqual(snapshot["worker_state"], "waiting_for_capture")
         self.assertEqual(snapshot["document_label"], "Grade Form")
+        self.assertEqual(snapshot["request_owner_name"], "Venice Pelima")
         self.assertNotIn("student_name", snapshot)
         self.assertNotIn("raw_text", snapshot)
         self.assertNotIn("extracted_fields", snapshot)

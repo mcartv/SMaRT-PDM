@@ -58,6 +58,7 @@ class ScannerStatusWindow:
         self._yielding_to_camera_preview = False
         self._status_values: Dict[str, SingleLineLabel] = {}
         self._status_dots: Dict[str, StatusDot] = {}
+        self._request_values: Dict[str, SingleLineLabel] = {}
         self._configure_root()
         self._configure_styles()
         self._build_layout()
@@ -201,6 +202,13 @@ class ScannerStatusWindow:
         )
         self.document_value.grid(row=2, column=0, sticky="new", pady=(0, 14))
 
+        request_details = tk.Frame(activity_card, bg="#F5F1EC", padx=13, pady=9)
+        request_details.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+        request_details.grid_columnconfigure(1, weight=1)
+        self._request_row(request_details, 0, "name", "Name", "No active request")
+        self._request_row(request_details, 1, "document", "Document Type", "No active document")
+        self._request_row(request_details, 2, "status", "Status", "Waiting")
+
         self.progress = ttk.Progressbar(
             activity_card,
             orient="horizontal",
@@ -208,7 +216,7 @@ class ScannerStatusWindow:
             maximum=100,
             style="Scanner.Horizontal.TProgressbar",
         )
-        self.progress.grid(row=3, column=0, sticky="ew")
+        self.progress.grid(row=4, column=0, sticky="ew")
         self.progress_label = self._label(
             activity_card,
             "0%",
@@ -217,10 +225,10 @@ class ScannerStatusWindow:
             font=("DejaVu Sans", 10, "bold"),
             anchor="e",
         )
-        self.progress_label.grid(row=4, column=0, sticky="ew", pady=(4, 10))
+        self.progress_label.grid(row=5, column=0, sticky="ew", pady=(4, 10))
 
         detail_strip = tk.Frame(activity_card, bg="#F3E7D9", padx=13, pady=9)
-        detail_strip.grid(row=5, column=0, sticky="ew")
+        detail_strip.grid(row=6, column=0, sticky="ew")
         detail_strip.grid_columnconfigure(0, weight=1)
         detail_strip.grid_columnconfigure(1, weight=1)
         self.camera_value = self._label(
@@ -323,6 +331,26 @@ class ScannerStatusWindow:
         status_value.grid(row=1, column=1, sticky="ew", pady=(2, 0))
         self._status_values[key] = status_value
 
+    def _request_row(self, parent, row: int, key: str, label: str, value: str) -> None:
+        self._label(
+            parent,
+            label.upper(),
+            bg="#F5F1EC",
+            fg=COLORS["muted"],
+            font=("DejaVu Sans", 9, "bold"),
+            anchor="w",
+        ).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+        request_value = self._label(
+            parent,
+            value,
+            bg="#F5F1EC",
+            fg=COLORS["text"],
+            font=("DejaVu Sans", 12, "bold"),
+            anchor="w",
+        )
+        request_value.grid(row=row, column=1, sticky="ew", pady=3)
+        self._request_values[key] = request_value
+
     def _schedule_refresh(self, *, immediate: bool = False) -> None:
         self._after_id = self.root.after(0 if immediate else POLL_INTERVAL_MS, self._refresh)
 
@@ -346,6 +374,9 @@ class ScannerStatusWindow:
         self.document_value.set_text(model.document_label)
         self.progress["value"] = model.progress_percent
         self.progress_label.set_text(f"{model.progress_percent}%")
+        self._request_values["name"].set_text(model.request_owner_name)
+        self._request_values["document"].set_text(model.document_label)
+        self._request_values["status"].set_text(model.request_status)
         self.camera_value.set_text(f"Camera: {model.camera_label}")
         self.updated_value.set_text(f"Updated: {model.updated_label}")
         self.system_note.set_text(model.system_note)

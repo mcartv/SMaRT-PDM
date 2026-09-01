@@ -15,6 +15,7 @@ def snapshot(**updates):
         "worker_state": "idle",
         "camera_status": "ready",
         "document_label": "No active document",
+        "request_owner_name": None,
         "reported_at": "2026-08-28T12:00:00Z",
         "activity_state": {"text": "Waiting for request"},
     }
@@ -64,7 +65,22 @@ class ViewModelTests(unittest.TestCase):
             )
         )
         self.assertEqual(model.activity_text, "Processing Birth Certificate")
+        self.assertEqual(model.request_status, "Processing")
         self.assertEqual(model.progress_percent, 72)
+
+    def test_request_details_expose_owner_and_document_label(self):
+        model = build_view_model(
+            ReadResult(
+                "available",
+                snapshot(
+                    activity="processing",
+                    document_label="Birth Certificate",
+                    request_owner_name="Venice Pelima",
+                ),
+            )
+        )
+        self.assertEqual(model.request_owner_name, "Venice Pelima")
+        self.assertEqual(model.document_label, "Birth Certificate")
 
     def test_live_camera_preview_is_exposed_to_the_window(self):
         model = build_view_model(

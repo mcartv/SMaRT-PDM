@@ -9,10 +9,12 @@ class PiStatusServiceContractTests(unittest.TestCase):
     def test_gui_service_starts_read_only_app_and_monitor(self):
         unit = (SERVICE_DIRECTORY / "smart-pdm-gui.service").read_text(encoding="utf-8")
         launcher = (SERVICE_DIRECTORY / "start_gui_service.sh").read_text(encoding="utf-8")
+        session_launcher = (SERVICE_DIRECTORY / "gui_session_launcher.py").read_text(encoding="utf-8")
         self.assertIn("smart-pdm-gui-state.service", unit)
         self.assertIn("Restart=on-failure", unit)
-        self.assertIn("python3 -m gui.app", launcher)
-        self.assertIn("network_startup_dependency=false", launcher)
+        self.assertIn("gui_session_launcher.py", launcher)
+        self.assertIn("python3\", \"-m\", \"gui.app", session_launcher)
+        self.assertIn("network_startup_dependency=false", session_launcher)
 
     def test_state_service_uses_canonical_scanner_tree_and_device_state(self):
         unit = (SERVICE_DIRECTORY / "smart-pdm-gui-state.service").read_text(encoding="utf-8")

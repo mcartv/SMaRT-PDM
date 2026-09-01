@@ -125,6 +125,7 @@ class PiDeviceState:
     camera_status: str
     document_key: Optional[str]
     document_label: str
+    request_owner_name: Optional[str]
     heartbeat_at: Optional[str]
     internet_checked_at: str
     backend_checked_at: str
@@ -194,6 +195,10 @@ def build_device_state(
         " ".join(str(worker_snapshot.get("document_label") or "").split()).strip()
         or "No active document"
     )
+    request_owner_name = (
+        " ".join(str(worker_snapshot.get("request_owner_name") or "").split()).strip()
+        or None
+    )
     return PiDeviceState(
         device_id=str(device_id).strip(),
         internet_status=internet_status,
@@ -207,6 +212,7 @@ def build_device_state(
         camera_status=str(worker_snapshot.get("camera_status") or "unavailable"),
         document_key=document_key,
         document_label=document_label,
+        request_owner_name=request_owner_name,
         heartbeat_at=heartbeat_at,
         internet_checked_at=internet_checked_at,
         backend_checked_at=backend_checked_at,

@@ -174,6 +174,10 @@ def publish_worker_activity(state: str, *, request=None, camera_status="unknown"
             request_reference=get_request_id(request),
             application_reference=request.get("application_id"),
             document_key=request.get("document_key"),
+            request_owner_name=(
+                request.get("request_owner_name")
+                or request.get("student_name")
+            ),
             camera_status=camera_status,
         ).to_dict()
         try:

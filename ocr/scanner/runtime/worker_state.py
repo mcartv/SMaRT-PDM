@@ -158,6 +158,7 @@ class WorkerStateSnapshot:
     application_reference: Optional[str]
     document_key: Optional[str]
     document_label: str
+    request_owner_name: Optional[str]
     camera_status: str
     safe_message: str
     failure_stage: Optional[str]
@@ -193,6 +194,7 @@ def build_worker_state(
     request_reference: object = None,
     application_reference: object = None,
     document_key: object = None,
+    request_owner_name: object = None,
     camera_status: str = "unknown",
     safe_message: object = None,
     failure_stage: Optional[str] = None,
@@ -218,6 +220,10 @@ def build_worker_state(
         application_reference=mask_reference(application_reference),
         document_key=resolved_key,
         document_label=safe_document_label(resolved_key),
+        request_owner_name=_clean_display_text(
+            request_owner_name,
+            maximum_length=80,
+        ),
         camera_status=camera_status,
         safe_message=resolved_message,
         failure_stage=failure_stage,

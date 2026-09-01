@@ -89,7 +89,8 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     }
 
     try {
-      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
       if (!mounted) return;
       setState(() {
         _summary = summary;
@@ -99,7 +100,10 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
       if (!mounted) return;
       if (!silent || _summary == null) {
         setState(() {
-          _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+          _errorMessage = error
+              .toString()
+              .replaceFirst('Exception: ', '')
+              .trim();
         });
       }
     } finally {
@@ -157,44 +161,66 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final baseTheme = Theme.of(context);
+    final contentTheme = baseTheme.copyWith(
+      textTheme: baseTheme.textTheme.apply(
+        bodyColor: baseTheme.colorScheme.onSurface,
+        displayColor: baseTheme.colorScheme.onSurface,
+      ),
+      cardTheme: baseTheme.cardTheme.copyWith(
+        color: baseTheme.colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: baseTheme.colorScheme.outlineVariant),
+        ),
+      ),
+    );
+
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: Text('Application Status')),
+      appBar: AppBar(title: const Text('Application Status')),
       selectedIndex: 0,
-      child: RefreshIndicator(
-        onRefresh: () => _loadStatus(),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 64),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_errorMessage != null)
-              _StatusMessageCard(
-                icon: Icons.cloud_off,
-                title: 'Unable to load application status',
-                message: _errorMessage!,
-                primaryActionLabel: 'Try Again',
-                onPrimaryAction: () => _loadStatus(),
-              )
-            else if (_summary == null || _summary!.hasApplication == false)
-              _StatusMessageCard(
-                icon: Icons.assignment_late_outlined,
-                title: 'No application status yet',
-                message:
-                    'You have not submitted a scholarship application yet, so there is no application status to track.',
-                primaryActionLabel: 'View Scholarship Openings',
-                onPrimaryAction: () =>
-                    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
-              )
-            else
-              _StatusSummaryView(
-                summary: _summary!,
-                isDownloadingSlip: _isDownloadingSlip,
-                onDownloadSlip: _downloadEndorsementSlip,
-              ),
-          ],
+      child: Theme(
+        data: contentTheme,
+        child: RefreshIndicator(
+          onRefresh: () => _loadStatus(),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 64),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_errorMessage != null)
+                _StatusMessageCard(
+                  icon: Icons.cloud_off,
+                  title: 'Unable to load application status',
+                  message: _errorMessage!,
+                  primaryActionLabel: 'Try Again',
+                  onPrimaryAction: () => _loadStatus(),
+                )
+              else if (_summary == null || _summary!.hasApplication == false)
+                _StatusMessageCard(
+                  icon: Icons.assignment_late_outlined,
+                  title: 'No application status yet',
+                  message:
+                      'You have not submitted a scholarship application yet, so there is no application status to track.',
+                  primaryActionLabel: 'View Scholarship Openings',
+                  onPrimaryAction: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.scholarshipOpenings,
+                  ),
+                )
+              else
+                _StatusSummaryView(
+                  summary: _summary!,
+                  isDownloadingSlip: _isDownloadingSlip,
+                  onDownloadSlip: _downloadEndorsementSlip,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -219,30 +245,31 @@ class _StatusSummaryView extends StatelessWidget {
   final bool isDownloadingSlip;
   final VoidCallback onDownloadSlip;
 
-  Color _statusColor(String status) {
+  Color _statusColor(BuildContext context, String status) {
+    final scheme = Theme.of(context).colorScheme;
     final normalized = status.toLowerCase();
 
     if (normalized.contains('rejected') ||
         normalized.contains('major') ||
         normalized.contains('offense')) {
-      return Colors.red;
+      return scheme.error;
     }
     if (normalized.contains('held') ||
         normalized.contains('reupload') ||
         normalized.contains('missing')) {
-      return Colors.orange;
+      return scheme.tertiary;
     }
     if (normalized.contains('verified') ||
         normalized.contains('completed') ||
         normalized.contains('activated') ||
         normalized.contains('approved')) {
-      return Colors.green;
+      return scheme.primary;
     }
     if (normalized.contains('ready')) {
-      return Colors.blue;
+      return scheme.secondary;
     }
 
-    return Colors.orange;
+    return scheme.tertiary;
   }
 
   IconData _statusIcon(String status) {
@@ -362,7 +389,7 @@ class _StatusSummaryView extends StatelessWidget {
 
     if (blockerCode == 'endorsement.grade_document_missing') {
       return _PriorityActionCard(
-        color: const Color(0xFFC76917),
+        color: Theme.of(context).colorScheme.tertiary,
         icon: Icons.upload_file_rounded,
         title: 'Program Director is waiting for your grades',
         message:
@@ -375,7 +402,7 @@ class _StatusSummaryView extends StatelessWidget {
 
     if (blockerCode == 'endorsement.held') {
       return _PriorityActionCard(
-        color: const Color(0xFFC76917),
+        color: Theme.of(context).colorScheme.tertiary,
         icon: Icons.pause_circle_filled_rounded,
         title: 'Historical Guidance hold',
         message:
@@ -390,7 +417,7 @@ class _StatusSummaryView extends StatelessWidget {
         blockerCode == 'endorsement.rejected' ||
         blockerCode == 'requirements.rejected') {
       return _PriorityActionCard(
-        color: const Color(0xFFD14343),
+        color: Theme.of(context).colorScheme.error,
         icon: Icons.report_gmailerrorred_rounded,
         title: 'Your application has a recorded issue',
         message:
@@ -403,7 +430,7 @@ class _StatusSummaryView extends StatelessWidget {
 
     if (workflow.stage == 'ready_for_activation') {
       return _PriorityActionCard(
-        color: const Color(0xFF2E8B57),
+        color: Theme.of(context).colorScheme.primary,
         icon: Icons.verified_rounded,
         title: 'Requirements and endorsement are complete',
         message:
@@ -416,7 +443,7 @@ class _StatusSummaryView extends StatelessWidget {
 
     if (workflow.stage == 'scholar_activated') {
       return _PriorityActionCard(
-        color: const Color(0xFF2E8B57),
+        color: Theme.of(context).colorScheme.primary,
         icon: Icons.celebration_rounded,
         title: 'You are now an active scholar',
         message:
@@ -434,14 +461,14 @@ class _StatusSummaryView extends StatelessWidget {
     final workflow = summary.workflow;
     final stageLabel =
         workflow?.stageLabel ?? summary.applicationStatus ?? 'Pending Review';
-    final statusColor = _statusColor(stageLabel);
+    final statusColor = _statusColor(context, stageLabel);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Card(
-          color: statusColor.withValues(alpha: 0.08),
+          color: Theme.of(context).colorScheme.surface,
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -461,26 +488,12 @@ class _StatusSummaryView extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                Text(
-                  _description(),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(height: 1.45),
-                ),
-                const SizedBox(height: 14),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    const _MiniTag(label: 'Live updates enabled'),
-                    _MiniTag(
-                      label:
-                          'Opening: ${summary.openingTitle?.trim().isNotEmpty == true ? summary.openingTitle! : _title()}',
-                    ),
                     if (summary.programName?.trim().isNotEmpty == true)
                       _MiniTag(label: 'Program: ${summary.programName!}'),
-                    if (summary.applicationId?.trim().isNotEmpty == true)
-                      _MiniTag(label: 'ID: ${summary.applicationId!}'),
                   ],
                 ),
               ],
@@ -556,6 +569,7 @@ class _StatusSummaryView extends StatelessWidget {
               child: Text(
                 'Use these three checks first: finish requirements, finish endorsement, then wait for final scholar activation.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   height: 1.4,
                   fontWeight: FontWeight.w600,
                 ),
@@ -568,19 +582,19 @@ class _StatusSummaryView extends StatelessWidget {
               _QuickStatusItem(
                 label: 'Requirements',
                 value: workflow.requirements.statusLabel,
-                color: _statusColor(workflow.requirements.status),
+                color: _statusColor(context, workflow.requirements.status),
                 icon: _statusIcon(workflow.requirements.status),
               ),
               _QuickStatusItem(
                 label: 'Endorsement',
                 value: workflow.endorsement.statusLabel,
-                color: _statusColor(workflow.endorsement.status),
+                color: _statusColor(context, workflow.endorsement.status),
                 icon: _statusIcon(workflow.endorsement.status),
               ),
               _QuickStatusItem(
                 label: 'Activation',
                 value: workflow.scholarActivation.statusLabel,
-                color: _statusColor(workflow.scholarActivation.status),
+                color: _statusColor(context, workflow.scholarActivation.status),
                 icon: _statusIcon(workflow.scholarActivation.status),
               ),
             ],
@@ -590,7 +604,7 @@ class _StatusSummaryView extends StatelessWidget {
             title: 'Requirements',
             status: workflow.requirements.statusLabel,
             remarks: workflow.requirements.remarks,
-            color: _statusColor(workflow.requirements.status),
+            color: _statusColor(context, workflow.requirements.status),
             icon: _statusIcon(workflow.requirements.status),
           ),
           const SizedBox(height: 12),
@@ -601,7 +615,7 @@ class _StatusSummaryView extends StatelessWidget {
             subtitle: workflow.endorsement.currentOffice == null
                 ? null
                 : 'Current office: ${workflow.endorsement.currentOffice}',
-            color: _statusColor(workflow.endorsement.status),
+            color: _statusColor(context, workflow.endorsement.status),
             icon: _statusIcon(workflow.endorsement.status),
           ),
           const SizedBox(height: 12),
@@ -611,7 +625,7 @@ class _StatusSummaryView extends StatelessWidget {
             subtitle: workflow.scholarActivation.activatedAt == null
                 ? null
                 : 'Activated: ${_formatDate(workflow.scholarActivation.activatedAt)}',
-            color: _statusColor(workflow.scholarActivation.status),
+            color: _statusColor(context, workflow.scholarActivation.status),
             icon: _statusIcon(workflow.scholarActivation.status),
           ),
           const SizedBox(height: 16),
@@ -620,7 +634,7 @@ class _StatusSummaryView extends StatelessWidget {
             isDownloadingSlip: isDownloadingSlip,
             onDownloadSlip: onDownloadSlip,
             formatDate: _formatDate,
-            statusColor: _statusColor(workflow.endorsement.status),
+            statusColor: _statusColor(context, workflow.endorsement.status),
             statusIcon: _statusIcon(workflow.endorsement.status),
           ),
           const SizedBox(height: 16),
@@ -708,16 +722,6 @@ class _WorkflowStageTracker extends StatelessWidget {
       label: 'Endorsement',
       icon: Icons.groups_2_outlined,
     ),
-    _WorkflowStep(
-      key: 'ready_for_activation',
-      label: 'Ready',
-      icon: Icons.verified_user_outlined,
-    ),
-    _WorkflowStep(
-      key: 'scholar_activated',
-      label: 'Activated',
-      icon: Icons.workspace_premium_outlined,
-    ),
   ];
 
   bool get _isStopped =>
@@ -732,13 +736,21 @@ class _WorkflowStageTracker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPastVisibleTracker =
+        activeStage == 'ready_for_activation' ||
+        activeStage == 'scholar_activated';
     final activeIndex = _steps.indexWhere((step) => step.key == activeStage);
-    final resolvedIndex = activeIndex < 0 ? 0 : activeIndex;
+    final resolvedIndex = isPastVisibleTracker
+        ? _steps.length - 1
+        : activeIndex < 0
+        ? 0
+        : activeIndex;
+    final scheme = Theme.of(context).colorScheme;
     final activeColor = _isStopped
-        ? Colors.red
+        ? scheme.error
         : _isHeld
-        ? Colors.orange
-        : Colors.green;
+        ? scheme.tertiary
+        : scheme.primary;
 
     return Card(
       child: Padding(
@@ -753,36 +765,46 @@ class _WorkflowStageTracker extends StatelessWidget {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var i = 0; i < _steps.length; i++) ...[
-                    SizedBox(
-                      width: 88,
-                      child: _WorkflowStepMarker(
-                        step: _steps[i],
-                        isComplete: i < resolvedIndex,
-                        isActive: i == resolvedIndex,
-                        activeColor: activeColor,
-                      ),
-                    ),
-                    if (i < _steps.length - 1)
-                      Container(
-                        width: 44,
-                        margin: const EdgeInsets.only(top: 18),
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: i < resolvedIndex
-                              ? activeColor
-                              : Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(999),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final connectorCount = (_steps.length - 1).clamp(
+                  0,
+                  _steps.length,
+                );
+                final connectorWidth = constraints.maxWidth < 330 ? 12.0 : 18.0;
+                final stepWidth =
+                    (constraints.maxWidth - (connectorWidth * connectorCount)) /
+                    _steps.length;
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < _steps.length; i++) ...[
+                      SizedBox(
+                        width: stepWidth,
+                        child: _WorkflowStepMarker(
+                          step: _steps[i],
+                          isComplete: isPastVisibleTracker || i < resolvedIndex,
+                          isActive: !isPastVisibleTracker && i == resolvedIndex,
+                          activeColor: activeColor,
                         ),
                       ),
+                      if (i < _steps.length - 1)
+                        Container(
+                          width: connectorWidth,
+                          margin: const EdgeInsets.only(top: 17),
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: i < resolvedIndex
+                                ? activeColor
+                                : Theme.of(context).colorScheme.outlineVariant,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                    ],
                   ],
-                ],
-              ),
+                );
+              },
             ),
           ],
         ),
@@ -818,16 +840,19 @@ class _WorkflowStepMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isComplete || isActive ? activeColor : Colors.grey.shade400;
+    final scheme = Theme.of(context).colorScheme;
+    final color = isComplete || isActive
+        ? activeColor
+        : scheme.onSurfaceVariant;
     final background = isComplete || isActive
         ? activeColor.withValues(alpha: 0.12)
-        : Colors.grey.shade100;
+        : scheme.surfaceContainerHighest;
 
     return Column(
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: background,
             shape: BoxShape.circle,
@@ -835,7 +860,7 @@ class _WorkflowStepMarker extends StatelessWidget {
           ),
           child: Icon(
             isComplete ? Icons.check : step.icon,
-            size: 19,
+            size: 18,
             color: color,
           ),
         ),
@@ -843,12 +868,16 @@ class _WorkflowStepMarker extends StatelessWidget {
         Text(
           step.label,
           textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: 1,
+          softWrap: false,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: isActive ? activeColor : Colors.grey.shade700,
+            color: isActive
+                ? activeColor
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 11.5,
             fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-            height: 1.15,
+            height: 1.0,
           ),
         ),
       ],
@@ -881,7 +910,15 @@ class _WorkflowGateCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -992,9 +1029,11 @@ class _OfficeReviewTile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1009,7 +1048,7 @@ class _OfficeReviewTile extends StatelessWidget {
                     ),
                     _StatusPill(
                       label: _formatDecision(),
-                      color: _decisionColor(review?.decision),
+                      color: _decisionColor(context, review?.decision),
                     ),
                   ],
                 ),
@@ -1025,7 +1064,7 @@ class _OfficeReviewTile extends StatelessWidget {
                   Text(
                     'Handled by: $actedByName',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade700,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1047,13 +1086,14 @@ class _OfficeReviewTile extends StatelessWidget {
     );
   }
 
-  Color _decisionColor(String? decision) {
+  Color _decisionColor(BuildContext context, String? decision) {
+    final scheme = Theme.of(context).colorScheme;
     final normalized = (decision ?? '').toLowerCase();
     if (normalized.contains('reject') || normalized.contains('major')) {
-      return Colors.red;
+      return scheme.error;
     }
     if (normalized.contains('hold') || normalized.contains('minor')) {
-      return Colors.orange;
+      return scheme.tertiary;
     }
     if (normalized == 'no_offense' ||
         normalized == 'cleared' ||
@@ -1061,9 +1101,9 @@ class _OfficeReviewTile extends StatelessWidget {
         normalized == 'good_scholastic_standing' ||
         normalized == 'average_scholastic_standing' ||
         normalized == 'approved') {
-      return Colors.green;
+      return scheme.primary;
     }
-    return Colors.blueGrey;
+    return scheme.onSurfaceVariant;
   }
 }
 
@@ -1143,13 +1183,15 @@ class _EndorsementSlipCard extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: slip.available
-                    ? const Color(0xFFE8F1FF)
-                    : const Color(0xFFF6F6F4),
+                    ? Theme.of(context).colorScheme.secondaryContainer
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: slip.available
-                      ? const Color(0xFFB8D4FF)
-                      : const Color(0xFFE7E5E4),
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.secondary.withValues(alpha: 0.35)
+                      : Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
               child: Column(
@@ -1182,10 +1224,14 @@ class _EndorsementSlipCard extends StatelessWidget {
                     : null,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
-                  backgroundColor: const Color(0xFF0F766E),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFFE7E5E4),
-                  disabledForegroundColor: const Color(0xFF78716C),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  disabledBackgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
+                  disabledForegroundColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -1229,10 +1275,16 @@ class _NextStepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Card(
-      color: color.withOpacity(0.08),
+      color: scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1251,9 +1303,10 @@ class _NextStepCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     message,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(height: 1.35),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ),
@@ -1285,7 +1338,7 @@ class _PriorityActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: color.withOpacity(0.08),
+      color: color.withValues(alpha: 0.08),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -1337,7 +1390,7 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1362,9 +1415,9 @@ class _MiniTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Text(
         label,
@@ -1384,20 +1437,23 @@ class _SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: scheme.onSurface,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.grey.shade700,
+            color: scheme.onSurfaceVariant,
             height: 1.35,
           ),
         ),
@@ -1445,9 +1501,9 @@ class _QuickStatusRow extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: item.color.withOpacity(0.18)),
+                  border: Border.all(color: item.color.withValues(alpha: 0.28)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -1456,7 +1512,7 @@ class _QuickStatusRow extends StatelessWidget {
                       width: 34,
                       height: 34,
                       decoration: BoxDecoration(
-                        color: item.color.withOpacity(0.12),
+                        color: item.color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(item.icon, color: item.color, size: 18),
@@ -1473,7 +1529,9 @@ class _QuickStatusRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
-                                  color: Colors.grey.shade700,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),

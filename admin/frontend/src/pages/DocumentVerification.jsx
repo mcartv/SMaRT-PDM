@@ -1603,6 +1603,11 @@ const BIRTH_OCR_DOCUMENT_KEYS = new Set([
   'certificate_of_live_birth',
 ]);
 
+const BIRTH_OCR_LOOKUP_DOCUMENT_IDS = [
+  'birth_certificate',
+  'certificate_of_live_birth',
+];
+
 function isSameOcrDocument(left, right) {
   const normalize = (value) => {
     const key = String(value || '').trim().toLowerCase();
@@ -3609,22 +3614,37 @@ export default function DocumentVerification() {
 
   const loadBirthValidationContext = useCallback(async () => {
     try {
-      const response = await fetch(
-        `${API_BASE}/api/applications/${id}/documents/birth_certificate/iot-ocr`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-          },
-          cache: 'no-store',
-        }
-      );
-      const payload = await response.json().catch(() => ({}));
+      const candidateDocumentIds = BIRTH_OCR_LOOKUP_DOCUMENT_IDS;
 
-      if (response.status === 404) {
+      let payload = {};
+      let foundResponse = null;
+
+      for (const documentId of candidateDocumentIds) {
+        const response = await fetch(
+          `${API_BASE}/api/applications/${id}/documents/${documentId}/iot-ocr`,
+          {
+            headers: {
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+            },
+            cache: 'no-store',
+          }
+        );
+        const responsePayload = await response.json().catch(() => ({}));
+
+        if (response.status === 404) {
+          continue;
+        }
+
+        foundResponse = response;
+        payload = responsePayload;
+        break;
+      }
+
+      if (!foundResponse) {
         setBirthValidationContext({ request: null, candidate: null });
         return;
       }
-      if (!response.ok) {
+      if (!foundResponse.ok) {
         throw new Error(
           payload.error || 'Failed to load Birth Certificate verification'
         );

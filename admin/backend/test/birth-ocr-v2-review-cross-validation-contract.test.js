@@ -22,6 +22,11 @@ test('Birth child corrections are review-only and no longer reference-only', () 
   );
 
   assert.match(frontend, /Parents Information/);
+  assert.match(frontend, /BIRTH_OCR_DOCUMENT_KEYS/);
+  assert.match(frontend, /BIRTH_OCR_LOOKUP_DOCUMENT_IDS = \[/);
+  assert.match(frontend, /'certificate_of_live_birth'/);
+  assert.match(frontend, /candidateDocumentIds = BIRTH_OCR_LOOKUP_DOCUMENT_IDS/);
+  assert.match(frontend, /documents\/\$\{documentId\}\/iot-ocr/);
   assert.doesNotMatch(frontend, /Child Name \(reference\)/);
   assert.match(frontend, /child_name:\s*\{/);
   assert.match(frontend, /Correct & Confirm/);

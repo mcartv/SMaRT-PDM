@@ -74,6 +74,7 @@ void main() {
           'document_type': 'Birth Certificate / PSA',
           'is_submitted': true,
           'review_status': 'verified',
+          'required': false,
         },
         {
           'document_id': '2',
@@ -102,10 +103,11 @@ void main() {
       ],
     });
 
-    expect(package.requiredCount, 5);
-    expect(package.uploadedCount, 3);
+    expect(package.requiredCount, 4);
+    expect(package.optionalDocuments.single.documentType, 'Birth Certificate / PSA');
+    expect(package.uploadedCount, 2);
     expect(package.missingCount, 2);
-    expect(package.verifiedCount, 1);
+    expect(package.verifiedCount, 0);
     expect(package.needsReplacementCount, 1);
     expect(package.allRequiredUploaded, isFalse);
   });

@@ -12,6 +12,11 @@ const service = fs.readFileSync(
   'utf8'
 );
 
+const openingService = fs.readFileSync(
+  path.join(backendRoot, 'src', 'services', 'openingService.js'),
+  'utf8'
+);
+
 const screen = fs.readFileSync(
   path.join(
     frontendRoot,
@@ -29,6 +34,22 @@ test('Review current Required Documents upload behavior', () => {
   assert.match(service, /finalize_application_document_upload/);
   assert.match(screen, /ApplicantDocumentsService/);
   assert.match(screen, /uploadDocument/);
+});
+
+test('PSA remains uploadable but is optional for mobile upload completion', () => {
+  assert.match(service, /APPLICATION_UPLOAD_DOCUMENT_TYPES[\s\S]*'Birth Certificate \/ PSA'/);
+  assert.match(service, /OPTIONAL_UPLOAD_DOCUMENT_TYPES[\s\S]*'birth certificate \/ psa'/);
+  assert.doesNotMatch(
+    service,
+    /const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object\.freeze\(\[\s*'birth certificate \/ psa'/
+  );
+  assert.match(service, /required:\s*isRequiredUploadDocumentType\(document\.document_type\)/);
+  assert.match(service, /requiredCount:\s*REQUIRED_UPLOAD_DOCUMENT_TYPES\.length/);
+  assert.doesNotMatch(
+    openingService,
+    /REQUIRED_APPLICATION_UPLOAD_KEYS[^\]]*'birth_certificate'/
+  );
+  assert.match(screen, /'Optional Documents'/);
 });
 
 test('Determine current behavior when a document is uploaded again', () => {

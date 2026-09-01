@@ -26,10 +26,28 @@ test('Birth child corrections are review-only and no longer reference-only', () 
   assert.match(frontend, /BIRTH_OCR_LOOKUP_DOCUMENT_IDS = \[/);
   assert.match(frontend, /'certificate_of_live_birth'/);
   assert.match(frontend, /candidateDocumentIds = BIRTH_OCR_LOOKUP_DOCUMENT_IDS/);
-  assert.match(frontend, /documents\/\$\{documentId\}\/iot-ocr/);
+  assert.match(frontend, /documents\/\$\{documentId\}\/iot-ocr\?prefer_reviewed=1/);
   assert.doesNotMatch(frontend, /Child Name \(reference\)/);
   assert.match(frontend, /child_name:\s*\{/);
   assert.match(frontend, /Correct & Confirm/);
+});
+
+test('Birth parent sidebar keeps the latest reviewed OCR while rescans are running', () => {
+  const controller = read('backend/controllers/applicationController.js');
+  const applicationService = read('backend/services/applicationService.js');
+  const ocrService = read('backend/services/iotOcrRequestService.js');
+
+  assert.match(controller, /preferReviewed:\s*req\.query\?\.prefer_reviewed === '1'/);
+  assert.match(applicationService, /preferReviewed = false/);
+  assert.match(ocrService, /preferReviewed = false/);
+  assert.match(
+    ocrService,
+    /CASE WHEN v\.request_id IS NOT NULL OR r\.status = 'completed' THEN 0 ELSE 1 END/
+  );
+  assert.match(
+    ocrService,
+    /COALESCE\(v\.reviewed_at, r\.reviewed_at, r\.completed_at, r\.created_at\) DESC/
+  );
 });
 
 test('Birth V2 full-page Gemini remains independent and owns one 60-second retry', () => {

@@ -167,8 +167,8 @@ def load_probe_config(environ: Optional[dict[str, str]] = None) -> ProbeConfig:
         5.0, float(values.get("PUBLIC_INTERNET_PROBE_INTERVAL_SECONDS", "5"))
     )
     timeout = min(
-        2.0,
-        max(0.5, float(values.get("PUBLIC_INTERNET_PROBE_TIMEOUT_SECONDS", "2"))),
+        6.0,
+        max(2.0, float(values.get("PUBLIC_INTERNET_PROBE_TIMEOUT_SECONDS", "3"))),
     )
     return ProbeConfig(
         public_urls=(first, second),

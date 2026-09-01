@@ -198,6 +198,7 @@ exports.getApplicationDocumentIotOcr = async (req, res) => {
             applicationId: req.params.id,
             documentKey: req.params.documentKey,
             requestId: req.query?.request_id || null,
+            preferReviewed: req.query?.prefer_reviewed === '1' || req.query?.prefer_reviewed === 'true',
         });
         return res.status(200).json({ data });
     } catch (error) {

@@ -31,6 +31,11 @@ class PiStatusServiceContractTests(unittest.TestCase):
         self.assertIn("systemctl --user restart", updater)
         self.assertIn("sudo systemctl restart ocr-start.service", updater)
 
+    def test_backend_probe_timeout_avoids_half_second_status_flicker(self):
+        monitor = (SERVICE_DIRECTORY / "active_worker_gui_state.py").read_text(encoding="utf-8")
+        self.assertIn('max(2.0, float(values.get("PUBLIC_INTERNET_PROBE_TIMEOUT_SECONDS", "3")))', monitor)
+        self.assertIn("min(\n        6.0,", monitor)
+
 
 if __name__ == "__main__":
     unittest.main()

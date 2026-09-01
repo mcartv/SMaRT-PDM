@@ -2999,8 +2999,17 @@ exports.runApplicationDocumentIotOcr = async ({
     };
 };
 
-exports.getApplicationDocumentIotOcr = async ({ applicationId, documentKey, requestId = null }) =>
-    iotOcrRequestService.getCandidate({ applicationId, documentKey, requestId });
+exports.getApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+    requestId = null,
+    preferReviewed = false,
+}) => iotOcrRequestService.getCandidate({
+    applicationId,
+    documentKey,
+    requestId,
+    preferReviewed,
+});
 
 exports.confirmApplicationDocumentIotOcr = async ({
     applicationId,

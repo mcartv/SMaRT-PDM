@@ -3621,7 +3621,7 @@ export default function DocumentVerification() {
 
       for (const documentId of candidateDocumentIds) {
         const response = await fetch(
-          `${API_BASE}/api/applications/${id}/documents/${documentId}/iot-ocr`,
+          `${API_BASE}/api/applications/${id}/documents/${documentId}/iot-ocr?prefer_reviewed=1`,
           {
             headers: {
               Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,

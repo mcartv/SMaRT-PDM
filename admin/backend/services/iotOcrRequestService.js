@@ -814,12 +814,21 @@ exports.getLatestRequestForDocument = async ({ applicationId, documentKey }) => 
     } finally { client.release(); }
 };
 
-exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) => {
+exports.getCandidate = async ({
+    applicationId,
+    documentKey,
+    requestId = null,
+    preferReviewed = false,
+}) => {
     await ensureIotOcrSchema();
     const client = await pool.connect();
     try {
         const params = [applicationId, documentTypes.normalizeDocumentType(documentKey)];
         const requestFilter = requestId ? 'AND r.request_id = $3::uuid' : '';
+        const reviewedFirstOrder = preferReviewed && !requestId
+            ? `CASE WHEN v.request_id IS NOT NULL OR r.status = 'completed' THEN 0 ELSE 1 END,
+               COALESCE(v.reviewed_at, r.reviewed_at, r.completed_at, r.created_at) DESC,`
+            : '';
         if (requestId) params.push(requestId);
         const result = await client.query(`
             SELECT r.*, c.candidate_id, c.ocr_version AS candidate_ocr_version,
@@ -830,7 +839,7 @@ exports.getCandidate = async ({ applicationId, documentKey, requestId = null }) 
             LEFT JOIN public.iot_ocr_candidates c ON c.request_id = r.request_id
             LEFT JOIN public.iot_ocr_reviews v ON v.request_id = r.request_id
             WHERE r.application_id = $1::uuid AND r.document_key = $2 ${requestFilter}
-            ORDER BY r.created_at DESC LIMIT 1
+            ORDER BY ${reviewedFirstOrder} r.created_at DESC LIMIT 1
         `, params);
         if (!result.rows.length) return null;
         const row = result.rows[0];

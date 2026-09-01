@@ -62,6 +62,25 @@ const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
 const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
 const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
 const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
+const COMMON_GMAIL_TYPO_DOMAINS = new Set([
+    'gmai.com',
+    'gamil.com',
+    'gmial.com',
+    'gmal.com',
+    'gmail.co',
+    'gmail.con',
+    'gnail.com',
+]);
+const EMAIL_FORMAT_ERROR = 'A valid email address is required.';
+const GMAIL_TYPO_ERROR = 'Check the email domain. Did you mean @gmail.com?';
+const staffEmailSchema = z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email(EMAIL_FORMAT_ERROR)
+    .refine((value) => !COMMON_GMAIL_TYPO_DOMAINS.has(value.split('@')[1] || ''), {
+        message: GMAIL_TYPO_ERROR,
+    });
 const optionalPhoneNumberSchema = z
     .string()
     .trim()
@@ -78,7 +97,7 @@ const staffAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
         last_name: z.string().trim().min(1, 'Last name is required.'),
-        email: z.string().trim().toLowerCase().email('A valid email address is required.'),
+        email: staffEmailSchema,
         phone_number: optionalPhoneNumberSchema,
         role: z.enum(OPERATIONAL_ROLE_VALUES, {
             error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
@@ -96,7 +115,7 @@ const adminAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
         last_name: z.string().trim().min(1, 'Last name is required.'),
-        email: z.string().trim().toLowerCase().email('A valid email address is required.'),
+        email: staffEmailSchema,
         password: passwordSchema,
         confirm_password: z.string(),
     })
@@ -111,8 +130,44 @@ function createHttpError(statusCode, message) {
     return error;
 }
 
+function accountUniqueViolation(error) {
+    if (error?.code !== '23505') return null;
+    if (error.constraint === 'admin_profiles_normalized_full_name_key') {
+        return createHttpError(409, 'Another account already uses this full name.');
+    }
+    if (['users_email_key', 'users_normalized_email_key'].includes(error.constraint)) {
+        return createHttpError(409, 'Another account is already using this email address.');
+    }
+    return createHttpError(409, 'An account with this email or username already exists.');
+}
+
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+async function assertUniqueStaffIdentity({ firstName, lastName, email, excludedUserId = null, client = db }) {
+    const result = await client.query(
+        `SELECT
+            EXISTS (
+              SELECT 1 FROM users
+              WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+                AND ($4::uuid IS NULL OR user_id <> $4::uuid)
+            ) AS email_exists,
+            EXISTS (
+              SELECT 1 FROM admin_profiles
+              WHERE LOWER(TRIM(first_name)) = LOWER(TRIM($2))
+                AND LOWER(TRIM(last_name)) = LOWER(TRIM($3))
+                AND ($4::uuid IS NULL OR user_id <> $4::uuid)
+            ) AS full_name_exists`,
+        [email, firstName, lastName, excludedUserId]
+    );
+
+    if (result.rows[0]?.email_exists) {
+        throw createHttpError(409, 'Another account is already using this email address.');
+    }
+    if (result.rows[0]?.full_name_exists) {
+        throw createHttpError(409, 'Another account already uses this full name.');
+    }
 }
 
 function validateOptionalPhoneNumber(value) {
@@ -514,14 +569,7 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
             await assertRoCoordinatorAreaAvailable(department, null, client);
         }
 
-        const duplicateEmail = await client.query(
-            'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [email]
-        );
-
-        if (duplicateEmail.rows.length) {
-            throw createHttpError(400, 'An account with this email already exists.');
-        }
+        await assertUniqueStaffIdentity({ firstName, lastName, email, client });
 
         const username = await buildUniqueUsername(client, email);
 
@@ -608,9 +656,8 @@ async function createAccountFromParsedData(parsedData, rawPayload = {}, actorUse
             throw createHttpError(409, 'This RO Area already has an active coordinator.');
         }
 
-        if (error.code === '23505') {
-            throw createHttpError(400, 'An account with this email or username already exists.');
-        }
+        const uniqueError = accountUniqueViolation(error);
+        if (uniqueError) throw uniqueError;
 
         throw error;
     } finally {
@@ -784,26 +831,19 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             throw createHttpError(400, 'Email is required.');
         }
 
-        const parsedEmail = z.string().trim().toLowerCase().email().safeParse(email);
+        const parsedEmail = staffEmailSchema.safeParse(email);
 
         if (!parsedEmail.success) {
-            throw createHttpError(400, 'A valid email address is required.');
+            throw createHttpError(400, parsedEmail.error.issues[0]?.message || EMAIL_FORMAT_ERROR);
         }
 
-        const duplicateEmailResult = await client.query(
-            `
-            SELECT user_id
-            FROM users
-            WHERE LOWER(email) = LOWER($1)
-              AND user_id <> $2
-            LIMIT 1
-            `,
-            [email, userId]
-        );
-
-        if (duplicateEmailResult.rows.length) {
-            throw createHttpError(400, 'Another account is already using this email address.');
-        }
+        await assertUniqueStaffIdentity({
+            firstName,
+            lastName,
+            email,
+            excludedUserId: userId,
+            client,
+        });
 
         const nextPassword = safeText(payload.password);
         const confirmPassword = safeText(payload.confirm_password);
@@ -937,9 +977,8 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             throw createHttpError(409, 'This RO Area already has an active coordinator.');
         }
 
-        if (error.code === '23505') {
-            throw createHttpError(400, 'An account with this email or username already exists.');
-        }
+        const uniqueError = accountUniqueViolation(error);
+        if (uniqueError) throw uniqueError;
 
         throw error;
     } finally {
@@ -1032,6 +1071,9 @@ async function restoreStaffAccount(userId) {
         // Restoring an account deliberately does not revive its old browser
         // sessions. The user must sign in again and receive the new version.
         await revokeStaffSessionVersion(client, userId);
+        if (existing.role === 'pd') {
+            await pdCourseAssignmentService.restoreLatestReleasedAssignments(userId, client);
+        }
         if (existing.role === 'ro_coordinator') {
             await syncStandaloneRoCoordinatorAssignment({
                 userId,
@@ -1074,10 +1116,10 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
         throw createHttpError(400, 'Email is required.');
     }
 
-    const parsedEmail = z.string().trim().toLowerCase().email().safeParse(email);
+    const parsedEmail = staffEmailSchema.safeParse(email);
 
     if (!parsedEmail.success) {
-        throw createHttpError(400, 'A valid email address is required.');
+        throw createHttpError(400, parsedEmail.error.issues[0]?.message || EMAIL_FORMAT_ERROR);
     }
 
     const client = await db.connect();
@@ -1091,20 +1133,13 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
             throw createHttpError(404, 'Account profile not found.');
         }
 
-        const duplicateEmailResult = await client.query(
-            `
-            SELECT user_id
-            FROM users
-            WHERE LOWER(email) = LOWER($1)
-              AND user_id <> $2
-            LIMIT 1
-            `,
-            [email, userId]
-        );
-
-        if (duplicateEmailResult.rows.length) {
-            throw createHttpError(400, 'Another account is already using this email address.');
-        }
+        await assertUniqueStaffIdentity({
+            firstName,
+            lastName,
+            email,
+            excludedUserId: userId,
+            client,
+        });
 
         // Department/office ownership remains an administrative assignment.
         // Self-service profile updates may change personal identity/contact
@@ -1143,9 +1178,8 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     } catch (error) {
         await client.query('ROLLBACK');
 
-        if (error.code === '23505') {
-            throw createHttpError(400, 'An account with this email already exists.');
-        }
+        const uniqueError = accountUniqueViolation(error);
+        if (uniqueError) throw uniqueError;
 
         throw error;
     } finally {

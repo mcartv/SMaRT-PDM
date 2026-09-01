@@ -60,6 +60,7 @@ class NotificationProvider extends ChangeNotifier {
 
   int _unreadCount = 0;
   int _scholarAccessRevision = 0;
+  int _scholarActivationRevision = 0;
   int _applicationRevision = 0;
   int _announcementRevision = 0;
   int _openingRevision = 0;
@@ -106,6 +107,7 @@ class NotificationProvider extends ChangeNotifier {
       .length;
 
   int get scholarAccessRevision => _scholarAccessRevision;
+  int get scholarActivationRevision => _scholarActivationRevision;
   int get applicationRevision => _applicationRevision;
   int get announcementRevision => _announcementRevision;
   int get openingRevision => _openingRevision;
@@ -452,6 +454,12 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.applicationDisqualified:
       case MobileRealtimeEvents.applicationApproved:
         _applicationRevision += 1;
+        if (_isTargetedScholarAccessGrant(event)) {
+          if (!_hasScholarAccess) {
+            _scholarActivationRevision += 1;
+          }
+          await _applyScholarAccess(true);
+        }
         await _queueScholarAccessRefresh();
         notifyListeners();
         return;
@@ -859,14 +867,31 @@ class NotificationProvider extends ChangeNotifier {
     return completer.future;
   }
 
-  Future<void> _refreshScholarAccessFromProfile() async {
+  Future<bool?> _refreshScholarAccessFromProfile() async {
     try {
       final profile = await _profileService.fetchMyProfile();
-      await _applyScholarAccess(profile['has_scholar_access'] == true);
+      final hasAccess = profile['has_scholar_access'] == true;
+      await _applyScholarAccess(hasAccess);
       notifyListeners();
+      return hasAccess;
     } catch (_) {
       // Keep cached scholar access when profile refresh fails.
+      return null;
     }
+  }
+
+  Future<bool> reconcileScholarActivation() async {
+    final access = await _refreshScholarAccessFromProfile();
+    if (access == true) {
+      await refresh(silent: true);
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> deferScholarActivationUntilNextRefresh() async {
+    await _applyScholarAccess(false);
+    notifyListeners();
   }
 
   Future<void> _applyScholarAccess(bool nextValue) async {
@@ -878,7 +903,32 @@ class NotificationProvider extends ChangeNotifier {
     _hasScholarAccess = nextValue;
     _scholarAccessRevision += 1;
 
+    // Publish the in-memory access transition before waiting for device
+    // storage. Mounted navigation, gates, and dashboard widgets update in the
+    // same event turn; persistence remains awaited for restart durability.
+    notifyListeners();
+
     await _sessionService.saveScholarAccess(hasScholarAccess: nextValue);
+  }
+
+  bool _isTargetedScholarAccessGrant(MobileRealtimeEvent event) {
+    if (event.name != MobileRealtimeEvents.applicationApproved) return false;
+
+    final payload = event.payload;
+    final granted = payload['scholar_access_granted'] == true ||
+        payload['scholar_access_granted']
+                ?.toString()
+                .trim()
+                .toLowerCase() ==
+            'true';
+    if (!granted) return false;
+
+    final targetUserId = (payload['target_user_id'] ?? payload['targetUserId'])
+        ?.toString()
+        .trim();
+    return targetUserId != null &&
+        targetUserId.isNotEmpty &&
+        targetUserId == _initializedUserId;
   }
 
   bool _isScholarApprovalNotification(AppNotification notification) {
@@ -887,9 +937,21 @@ class NotificationProvider extends ChangeNotifier {
     final normalizedReference = (notification.referenceType ?? '')
         .toLowerCase();
 
-    return normalizedReference == 'scholar' &&
+    final isLegacyScholarApproval =
+        normalizedReference == 'scholar' &&
         (normalizedType == 'scholar approved' ||
             normalizedTitle == 'scholarship approved');
+
+    // Final activation is emitted by the admin backend as an Application
+    // notification. Recognize that canonical payload immediately so the
+    // mounted mobile shell unlocks scholar routes without requiring a restart,
+    // logout/login cycle, or a later profile refresh.
+    final isApplicationActivation =
+        normalizedReference == 'application' &&
+        normalizedType == 'application' &&
+        normalizedTitle == 'scholarship application approved';
+
+    return isLegacyScholarApproval || isApplicationActivation;
   }
 
   void _recalculateUnreadCount() {
@@ -1005,6 +1067,7 @@ class NotificationProvider extends ChangeNotifier {
 
     _unreadCount = 0;
     _scholarAccessRevision = 0;
+    _scholarActivationRevision = 0;
     _applicationRevision = 0;
     _announcementRevision = 0;
     _openingRevision = 0;

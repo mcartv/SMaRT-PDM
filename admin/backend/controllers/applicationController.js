@@ -1,6 +1,7 @@
 const applicationService = require('../services/applicationService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 const { resolveActorUserId } = require('../utils/iotOcrIdentity');
 const ExcelJS = require('exceljs');
 const iotOcrPresenceService = require('../services/iotOcrPresenceService');
@@ -27,6 +28,23 @@ function isApprovalStateError(message) {
         'This opening is already closed or filled.',
         'No available slots left for this opening.',
     ].includes(message);
+}
+
+function relayApplicantApplicationEvent(applicationId, event, payload = {}) {
+    applicationService.fetchApplicationRealtimeTarget(applicationId)
+        .then((target) => studentRealtimeRelayService.relayModuleEvent({
+            event,
+            payload: {
+                application_id: applicationId,
+                student_id: target?.student_id || null,
+                target_user_id: target?.target_user_id || null,
+                ...payload,
+            },
+            targetUserIds: target?.target_user_id ? [target.target_user_id] : [],
+        }))
+        .catch((error) => {
+            console.error('APPLICATION STATUS REALTIME RELAY ERROR:', error.message);
+        });
 }
 
 exports.getApplications = async (req, res) => {
@@ -484,6 +502,12 @@ exports.saveApplicationVerification = async (req, res) => {
             source: 'verification',
         });
 
+        relayApplicantApplicationEvent(id, 'application:updated', {
+            verification_status: data?.verification_status ?? req.body?.verification_status ?? null,
+            updated_at: new Date().toISOString(),
+            source: 'verification',
+        });
+
         res.status(200).json({
             message: 'Verification saved successfully',
             data,
@@ -531,6 +555,11 @@ exports.markApplicationReviewed = async (req, res) => {
         socketEvents.applicationUpdated(io, {
             application_id: id,
             status: data?.status ?? data?.application_status ?? 'review',
+            updated_at: new Date().toISOString(),
+            source: 'review',
+        });
+        relayApplicantApplicationEvent(id, 'application:updated', {
+            application_status: data?.application_status ?? data?.status ?? 'Under Review',
             updated_at: new Date().toISOString(),
             source: 'review',
         });
@@ -590,6 +619,33 @@ exports.approveApplication = async (req, res) => {
             updated_at: new Date().toISOString(),
             source: 'readiness_activation',
         });
+
+        const activatedUserId = updated.student_user_id || null;
+        if (activatedUserId) {
+            // Primary mobile transition path: deliver a targeted access grant
+            // immediately. Supabase table changes, the application event, and
+            // the notification/profile refresh remain reconciliation fallbacks.
+            studentRealtimeRelayService
+                .relayModuleEvent({
+                    event: 'application:approved',
+                    payload: {
+                        application_id: id,
+                        student_id: updated.scholar?.student_id || updated.student_id || null,
+                        target_user_id: activatedUserId,
+                        activation_status: 'Activated',
+                        scholar_access_granted: true,
+                        updated_at: new Date().toISOString(),
+                        source: 'readiness_activation',
+                    },
+                    targetUserIds: [activatedUserId],
+                })
+                .catch((relayError) => {
+                    console.error(
+                        'SCHOLAR ACTIVATION REALTIME RELAY ERROR:',
+                        relayError.message
+                    );
+                });
+        }
         if (updated.notification && updated.student_user_id) {
             socketEvents.notificationCreated(io, updated.student_user_id, updated.notification);
         }
@@ -664,6 +720,12 @@ exports.requestApplicationFormReedit = async (req, res) => {
             source: 'application_form_reedit_request',
         });
 
+        relayApplicantApplicationEvent(id, 'application:updated', {
+            document_status: 'Re-upload Required',
+            updated_at: new Date().toISOString(),
+            source: 'application_form_reedit_request',
+        });
+
         return res.status(200).json({
             message:
                 'Application Form re-edit requested and applicant notified.',
@@ -713,6 +775,13 @@ exports.disqualifyApplication = async (req, res) => {
             status: 'rejected',
             is_disqualified: true,
             reason: reason,
+            updated_at: new Date().toISOString(),
+            source: 'disqualification',
+        });
+
+        relayApplicantApplicationEvent(id, 'application:disqualified', {
+            application_status: data?.application_status || 'Disqualified',
+            reason,
             updated_at: new Date().toISOString(),
             source: 'disqualification',
         });

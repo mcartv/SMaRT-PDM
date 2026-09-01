@@ -97,6 +97,11 @@ class _StepSubmitState extends State<StepSubmit> {
   }
 
   Widget _warningBox() {
+    // Validation feedback belongs to the submit attempt. Do not show an error
+    // banner merely because the applicant opened the review step before
+    // checking the certification and legal-consent boxes.
+    if (!widget.showErrors) return const SizedBox.shrink();
+
     final validation = _reviewValidation();
 
     if (validation.isValid) {
@@ -291,8 +296,17 @@ class _StepSubmitState extends State<StepSubmit> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const IntakeSectionHeader(title: 'V. REVIEW APPLICATION'),
+        Text(
+          'Please double-check your application form and make sure all information is correct before submitting.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: intakeSubtextColor(context),
+            fontWeight: FontWeight.w600,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 16),
         _warningBox(),
-        const SizedBox(height: 18),
+        if (widget.showErrors) const SizedBox(height: 18),
         IntakeReviewCard(
           title: 'Personal Information',
           onEdit: () => widget.onEditStep(0),

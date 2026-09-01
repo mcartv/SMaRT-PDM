@@ -953,13 +953,17 @@ async function reviewPayoutProof({ proofId, status, comment = '', actorUserId = 
     const result = await client.query(
       `
         UPDATE payout_proofs pp
-        SET proof_status = $2,
-            reviewed_by = $3,
+        SET proof_status = $2::varchar,
+            reviewed_by = $3::uuid,
             reviewed_at = now(),
-            admin_comment = $4,
-            rejection_reason = CASE WHEN $2 IN ('Rejected', 'Resubmission Required') THEN $4 ELSE NULL END,
+            admin_comment = $4::text,
+            rejection_reason = CASE
+              WHEN $2::varchar IN ('Rejected', 'Resubmission Required')
+                THEN $4::text
+              ELSE NULL
+            END,
             updated_at = now()
-        WHERE pp.payout_proof_id = $1
+        WHERE pp.payout_proof_id = $1::uuid
         RETURNING pp.*
       `,
       [proofId, status, actorUserId, String(comment || '').trim() || null]

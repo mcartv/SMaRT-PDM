@@ -20,10 +20,11 @@ test('Applications opening cards wrap metrics instead of forcing seven cramped c
 test('Readiness cards and activation approval use responsive compact padding', () => {
   const source = read('frontend/src/pages/ApplicationReview.jsx');
 
-  assert.match(source, /items-start gap-4 xl:grid-cols-2/);
-  assert.match(source, /space-y-4 p-4 sm:p-5/);
-  assert.match(source, /sm:max-w-xl rounded-2xl/);
-  assert.match(source, /space-y-2\.5 px-5 py-4 sm:px-6/);
+  assert.match(source, /grid grid-cols-1 gap-4 2xl:grid-cols-2/);
+  assert.match(source, /w-\[calc\(100vw-1\.5rem\)\] max-w-xl max-h-\[calc\(100dvh-1\.5rem\)\]/);
+  assert.match(source, /max-h-\[calc\(100dvh-13rem\)\] space-y-2\.5 overflow-y-auto px-5 py-4 sm:px-6/);
+  assert.match(source, /flex-col gap-2 border-t border-stone-100 px-5 py-3 sm:flex-row sm:px-6/);
+  assert.match(source, /disabled=\{!activationCandidate \|\| Boolean\(approvalLoadingId\)\}/);
 });
 
 test('Payout archive uses an in-app modal and explanatory blocked-state handling', () => {

@@ -78,6 +78,22 @@ async function syncAssignments({ userId, courseIds, assignedByUserId = null, cli
         throw createHttpError(400, 'One or more selected courses are unavailable or archived.');
     }
 
+    // Older archive flows could leave an active assignment attached to an
+    // archived PD. Such a row must not keep the course locked after that
+    // account has been deactivated.
+    await client.query(
+        `
+        UPDATE ${TABLE} assignment
+        SET is_active = false, archived_at = COALESCE(assignment.archived_at, now())
+        FROM admin_profiles profile
+        WHERE assignment.pd_user_id = profile.user_id
+          AND assignment.course_id = ANY($1::uuid[])
+          AND assignment.is_active = true
+          AND COALESCE(profile.is_archived, false) = true
+        `,
+        [normalizedIds]
+    );
+
     const conflicts = await client.query(
         `
         SELECT course.course_code, profile.first_name, profile.last_name
@@ -127,6 +143,46 @@ async function syncAssignments({ userId, courseIds, assignedByUserId = null, cli
     return getAssignmentsForUser(userId, client);
 }
 
+async function restoreLatestReleasedAssignments(userId, client = db) {
+    if (!userId) return [];
+
+    await client.query(
+        `
+        WITH latest_release_time AS (
+          SELECT MAX(archived_at) AS archived_at
+          FROM ${TABLE}
+          WHERE pd_user_id = $1
+            AND is_active = false
+        ), latest_released AS (
+          SELECT assignment.assignment_id
+          FROM ${TABLE} assignment
+          CROSS JOIN latest_release_time release_time
+          JOIN academic_course course
+            ON course.course_id = assignment.course_id
+           AND COALESCE(course.is_archived, false) = false
+          WHERE assignment.pd_user_id = $1
+            AND assignment.is_active = false
+            AND assignment.archived_at = release_time.archived_at
+            AND NOT EXISTS (
+              SELECT 1
+              FROM ${TABLE} claimed
+              JOIN admin_profiles owner ON owner.user_id = claimed.pd_user_id
+              WHERE claimed.course_id = assignment.course_id
+                AND claimed.is_active = true
+                AND COALESCE(owner.is_archived, false) = false
+            )
+        )
+        UPDATE ${TABLE} assignment
+        SET is_active = true, archived_at = NULL
+        FROM latest_released latest
+        WHERE assignment.assignment_id = latest.assignment_id
+        `,
+        [userId]
+    );
+
+    return getAssignmentsForUser(userId, client);
+}
+
 async function releaseAssignments(userId, client = db) {
     if (!userId) return;
     await client.query(
@@ -156,5 +212,6 @@ module.exports = {
     getAssignmentsForUsers,
     normalizeCourseIds,
     releaseAssignments,
+    restoreLatestReleasedAssignments,
     syncAssignments,
 };

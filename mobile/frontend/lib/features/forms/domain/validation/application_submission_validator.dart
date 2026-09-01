@@ -660,6 +660,20 @@ class ApplicationSubmissionValidator {
       );
     }
 
+    final normalizedSection = data.currentSection.trim().toUpperCase();
+    if (normalizedSection.isNotEmpty &&
+        !const {'A', 'B', 'C', 'D'}.contains(normalizedSection)) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.section.invalid',
+          section: ApplicationSubmissionSection.academic,
+          field: 'currentSection',
+          message: 'Section must be A, B, C, or D.',
+          repairAction: 'Choose section A, B, C, or D.',
+        ),
+      );
+    }
+
     if (_hasText(data.studentNumber)) {
       final studentIdError = StudentIdInputFormatter.validationMessage(
         data.studentNumber,

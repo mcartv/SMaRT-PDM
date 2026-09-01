@@ -79,7 +79,14 @@ const fetchCourses = async () => {
             ) AS pending_pd_count
         FROM academic_course course
         LEFT JOIN program_director_course_assignments assignment
-          ON assignment.course_id = course.course_id AND assignment.is_active = true
+          ON assignment.course_id = course.course_id
+         AND assignment.is_active = true
+         AND EXISTS (
+           SELECT 1
+           FROM admin_profiles active_profile
+           WHERE active_profile.user_id = assignment.pd_user_id
+             AND COALESCE(active_profile.is_archived, false) = false
+         )
         LEFT JOIN admin_profiles profile ON profile.user_id = assignment.pd_user_id
         LEFT JOIN users pd_user ON pd_user.user_id = assignment.pd_user_id
         ORDER BY

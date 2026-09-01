@@ -526,7 +526,12 @@ function emitScheduledAnnouncementRealtime(announcement) {
   socketEvents.announcementRefresh(io, payload);
 }
 
-const SCHEDULER_INTERVAL_MS = 60 * 1000;
+// Announcement schedules are minute-based in the UI, so a one-minute polling
+// loop can make a 2:44 post appear late until almost 2:45:59. Keep this due-row
+// query lightweight and frequent; reminders and digests retain their slower
+// cadence below.
+const ANNOUNCEMENT_SCHEDULER_INTERVAL_MS = 5 * 1000;
+const BACKGROUND_SCHEDULER_INTERVAL_MS = 60 * 1000;
 const SCHEDULER_LEADER_LOCK_KEY = 'smart-pdm:admin:scheduler-leader';
 
 let schedulerLeaderClient = null;
@@ -647,9 +652,9 @@ if (!global._announcementSchedulerRunning) {
 
   // Realtime delivery remains handled by configureRealtimeBridge()/Socket.IO.
   // These timers only perform clock-based work.
-  setInterval(runAnnouncementScheduler, SCHEDULER_INTERVAL_MS);
-  setInterval(runReminderScheduler, SCHEDULER_INTERVAL_MS);
-  setInterval(runDigestScheduler, SCHEDULER_INTERVAL_MS);
+  setInterval(runAnnouncementScheduler, ANNOUNCEMENT_SCHEDULER_INTERVAL_MS);
+  setInterval(runReminderScheduler, BACKGROUND_SCHEDULER_INTERVAL_MS);
+  setInterval(runDigestScheduler, BACKGROUND_SCHEDULER_INTERVAL_MS);
 }
 
 async function startServer() {

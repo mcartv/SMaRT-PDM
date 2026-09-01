@@ -1,5 +1,6 @@
 const selectionService = require('../services/selectionService');
 const socketEvents = require('../utils/socketEvents');
+const studentRealtimeRelayService = require('../services/studentRealtimeRelayService');
 
 function emit(req, eventName, payload) {
   const io = req.app.get('io');
@@ -8,6 +9,12 @@ function emit(req, eventName, payload) {
   if (socketEvents?.applicationUpdated) {
     socketEvents.applicationUpdated(io, payload);
   }
+  studentRealtimeRelayService.relayModuleEvent({
+    event: 'application:updated',
+    payload: { ...payload, source_event: eventName, source: 'selection' },
+  }).catch((error) => {
+    console.error('SELECTION APPLICATION REALTIME RELAY ERROR:', error.message);
+  });
 }
 
 exports.getPreview = async (req, res) => {

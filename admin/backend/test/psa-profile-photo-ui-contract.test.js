@@ -45,6 +45,30 @@ test('Ensure the same requirement name is used in applicant requirements', () =>
   assert.ok(applicationService.includes("id: 'birth_certificate'"));
   assert.ok(docReview.includes("name: 'PSA / Birth Certificate'"));
   assert.ok(applicationService.includes("name: 'PSA / Birth Certificate'"));
+  assert.match(docReview, /id: 'birth_certificate',[\s\S]*?required: false,/);
+  assert.doesNotMatch(
+    applicationService.match(/const REQUIRED_REVIEW_DOCUMENT_KEYS[\s\S]*?\]\);/)?.[0] || '',
+    /birth_certificate/
+  );
+  assert.match(
+    applicationService,
+    /const REVIEWABLE_DOCUMENT_KEYS = new Set\([\s\S]*?'birth_certificate'/
+  );
+  assert.match(
+    applicationService,
+    /!REVIEWABLE_DOCUMENT_KEYS\.has\(documentKey\)/
+  );
+});
+
+test('optional PSA review is accepted but excluded from required completion', () => {
+  const requiredKeys =
+    applicationService.match(/const REQUIRED_REVIEW_DOCUMENT_KEYS[\s\S]*?\]\);/)?.[0] || '';
+  const requiredOutcome =
+    applicationService.match(/const requiredReviews = REQUIRED_REVIEW_DOCUMENT_KEYS\.map[\s\S]*?deriveVerificationOutcome\(requiredReviews\)/)?.[0] || '';
+
+  assert.doesNotMatch(requiredKeys, /birth_certificate/);
+  assert.match(requiredOutcome, /REQUIRED_REVIEW_DOCUMENT_KEYS\.map/);
+  assert.match(requiredOutcome, /deriveVerificationOutcome\(requiredReviews\)/);
 });
 
 test('Ensure web document review displays the correct document type', () => {
@@ -97,7 +121,7 @@ test('Keep approve/reject actions clear', () => {
 test('Keep rejection Reason/Remarks workflow', () => {
   assert.ok(profileQueue.includes('Rejection reason'));
   assert.ok(profileQueue.includes('Remarks'));
-  assert.ok(profileQueue.includes('onSubmit({ reason, remarks })'));
+  assert.ok(profileQueue.includes('onSubmit({ reason: trimmedReason, remarks: remarks.trim() })'));
 });
 
 test('Match typography and spacing with other Maintenance modules', () => {

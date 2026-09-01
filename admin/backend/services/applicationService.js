@@ -379,6 +379,13 @@ const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
     'application_form',
 ]);
 
+// Optional documents can still be reviewed and stored when supplied, but they
+// must never block Save Requirements Review or affect the derived outcome.
+const REVIEWABLE_DOCUMENT_KEYS = new Set([
+    ...REQUIRED_REVIEW_DOCUMENT_KEYS,
+    'birth_certificate',
+]);
+
 const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
     'certificate of registration',
     'grade report',
@@ -3782,7 +3789,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
         const reasonCode = normalizeReasonCode(doc.reason_code);
 
-        if (!documentKey || !REQUIRED_REVIEW_DOCUMENT_KEYS.includes(documentKey)) {
+        if (!documentKey || !REVIEWABLE_DOCUMENT_KEYS.has(documentKey)) {
             throw buildHttpError(
                 400,
                 `Unsupported review document: ${doc.name || doc.document_key || 'unknown'
@@ -4367,6 +4374,19 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
     return activationResult;
 };
 
+exports.fetchApplicationRealtimeTarget = async (applicationId) => {
+    if (!applicationId) return null;
+    const result = await pool.query(
+        `SELECT a.application_id, a.student_id, st.user_id AS target_user_id
+         FROM applications a
+         JOIN students st ON st.student_id = a.student_id
+         WHERE a.application_id = $1
+         LIMIT 1`,
+        [applicationId]
+    );
+    return result.rows[0] || null;
+};
+
 module.exports = {
     fetchApplications: exports.fetchApplications,
     fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
@@ -4413,6 +4433,8 @@ module.exports = {
         exports.moveApplicationToWaiting,
     approveApplicationWithSlotCheck:
         exports.approveApplicationWithSlotCheck,
+    fetchApplicationRealtimeTarget:
+        exports.fetchApplicationRealtimeTarget,
     normalizeDocumentType,
     getDocumentTypeName: (documentKey) =>
         DOCUMENT_TYPE_TO_NAME[documentKey] || null,

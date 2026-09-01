@@ -109,6 +109,27 @@ void main() {
       expect(result.issueForField('currentSection')?.message, 'Section is required.');
     });
 
+    test('accepts only sections A through D', () {
+      for (final section in const ['A', 'B', 'C', 'D']) {
+        final result = validator.validateAcademicProgression(
+          _validApplicationData()..currentSection = section,
+        );
+        expect(
+          result.issueForField('currentSection'),
+          isNull,
+          reason: 'Section $section should be accepted.',
+        );
+      }
+
+      final invalid = validator.validateAcademicProgression(
+        _validApplicationData()..currentSection = 'E',
+      );
+      expect(
+        invalid.issueForField('currentSection')?.message,
+        'Section must be A, B, C, or D.',
+      );
+    });
+
     test('rejects a non-12-digit LRN when one is present', () {
       final data = _validApplicationData()..learnersReferenceNumber = '12345678901';
       final result = validator.validateAcademicProgression(data);

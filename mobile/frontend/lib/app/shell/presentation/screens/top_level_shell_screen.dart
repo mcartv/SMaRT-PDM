@@ -15,6 +15,7 @@ import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
+import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_activation_transition_dialog.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/messaging_bubble.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_bottom_nav.dart';
@@ -40,6 +41,8 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
 
   bool _isVerifiedScholar = false;
   bool _isRevertingLockedSwipe = false;
+  bool _isScholarTransitionOpen = false;
+  int _handledScholarActivationRevision = 0;
 
   late final List<Widget> _pages = <Widget>[
     const DashboardScreen(showBottomNav: false, showTopBar: false),
@@ -101,6 +104,47 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     setState(() {
       _isVerifiedScholar = prefs.getBool('user_has_scholar_access') ?? false;
     });
+  }
+
+  void _scheduleScholarActivationTransition(NotificationProvider provider) {
+    final revision = provider.scholarActivationRevision;
+    if (revision <= _handledScholarActivationRevision ||
+        _isScholarTransitionOpen) {
+      return;
+    }
+
+    _handledScholarActivationRevision = revision;
+    _isScholarTransitionOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _isScholarTransitionOpen = false;
+        return;
+      }
+      _showScholarActivationTransition(provider);
+    });
+  }
+
+  Future<void> _showScholarActivationTransition(
+    NotificationProvider provider,
+  ) async {
+    final synchronized = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ScholarActivationTransitionDialog(
+        synchronize: provider.reconcileScholarActivation,
+      ),
+    );
+
+    _isScholarTransitionOpen = false;
+    if (!mounted) return;
+    if (synchronized != true) {
+      await provider.deferScholarActivationUntilNextRefresh();
+      if (mounted) setState(() => _isVerifiedScholar = false);
+      return;
+    }
+
+    setState(() => _isVerifiedScholar = true);
+    await switchToIndex(0, animated: false);
   }
 
   bool _resolveScholarAccess(NotificationProvider provider) {
@@ -224,6 +268,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
+    _scheduleScholarActivationTransition(notificationProvider);
     final hasScholarAccess = _resolveScholarAccess(notificationProvider);
     _redirectLockedCurrentTabIfNeeded(hasScholarAccess);
     final isDark = Theme.of(context).brightness == Brightness.dark;

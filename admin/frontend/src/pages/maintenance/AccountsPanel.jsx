@@ -144,6 +144,15 @@ const PHONE_NUMBER_PATTERN = /^09\d{9}$/;
 const REPEATING_PHONE_NUMBER_PATTERN = /^09(\d)\1{8}$/;
 const PHONE_NUMBER_ERROR = 'Phone number must be 11 digits and start with 09.';
 const REPEATING_PHONE_NUMBER_ERROR = 'Enter a valid phone number. Repeating placeholder numbers are not allowed.';
+const COMMON_GMAIL_TYPO_DOMAINS = new Set([
+    'gmai.com',
+    'gamil.com',
+    'gmial.com',
+    'gmal.com',
+    'gmail.co',
+    'gmail.con',
+    'gnail.com',
+]);
 
 function sanitizePhoneNumberInput(value) {
     return String(value || '').replace(/\D/g, '').slice(0, 11);
@@ -154,6 +163,34 @@ function validateOptionalPhoneNumber(value) {
     if (!phoneNumber) return '';
     if (!PHONE_NUMBER_PATTERN.test(phoneNumber)) return PHONE_NUMBER_ERROR;
     if (REPEATING_PHONE_NUMBER_PATTERN.test(phoneNumber)) return REPEATING_PHONE_NUMBER_ERROR;
+    return '';
+}
+
+function validateAccountIdentity(form, accounts = [], excludedUserId = null) {
+    const email = String(form.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        return 'Enter a valid email address, such as name@example.com.';
+    }
+    if (COMMON_GMAIL_TYPO_DOMAINS.has(email.split('@')[1] || '')) {
+        return 'Check the email domain. Did you mean @gmail.com?';
+    }
+
+    const firstName = String(form.first_name || '').trim().toLowerCase();
+    const lastName = String(form.last_name || '').trim().toLowerCase();
+    const otherAccounts = accounts.filter(
+        (account) => String(account.user_id) !== String(excludedUserId || '')
+    );
+
+    if (otherAccounts.some((account) => String(account.email || '').trim().toLowerCase() === email)) {
+        return 'Another account is already using this email address.';
+    }
+    if (otherAccounts.some((account) =>
+        String(account.first_name || '').trim().toLowerCase() === firstName
+        && String(account.last_name || '').trim().toLowerCase() === lastName
+    )) {
+        return 'Another account already uses this full name.';
+    }
+
     return '';
 }
 
@@ -274,16 +311,18 @@ function DepartmentField({
 function CourseAssignmentField({ form, setField, courses, currentUserId = null, disabled = false }) {
     const [open, setOpen] = useState(false);
     if (form.role !== 'pd') return null;
-    const selected = new Set(form.course_ids || []);
-    const selectedCourses = courses.filter((course) => selected.has(course.course_id));
-    const isOwnedByAnother = (course) => course.assigned_pd?.user_id && course.assigned_pd.user_id !== currentUserId;
+    const selected = new Set((form.course_ids || []).map(String));
+    const selectedCourses = courses.filter((course) => selected.has(String(course.course_id)));
+    const isOwnedByAnother = (course) => course.assigned_pd?.user_id
+        && String(course.assigned_pd.user_id) !== String(currentUserId || '');
     const availableCourses = courses.filter((course) => !isOwnedByAnother(course));
     const unavailableCourses = courses.filter(isOwnedByAnother);
 
     const toggleCourse = (courseId) => {
-        setField('course_ids', selected.has(courseId)
-            ? [...selected].filter((id) => id !== courseId)
-            : [...selected, courseId]);
+        const normalizedCourseId = String(courseId);
+        setField('course_ids', selected.has(normalizedCourseId)
+            ? [...selected].filter((id) => id !== normalizedCourseId)
+            : [...selected, normalizedCourseId]);
     };
 
     return (
@@ -317,7 +356,7 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
                             <CommandEmpty>No matching course found.</CommandEmpty>
                             <CommandGroup heading="Available courses">
                                 {availableCourses.map((course) => {
-                                    const isSelected = selected.has(course.course_id);
+                                    const isSelected = selected.has(String(course.course_id));
 
                                     return (
                                         <CommandItem
@@ -396,6 +435,17 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
     );
 }
 
+function deduplicateAccounts(accounts = []) {
+    const seen = new Set();
+
+    return accounts.filter((account) => {
+        const key = String(account?.user_id || account?.admin_id || '').trim();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 function getAuthHeaders() {
     return {
         Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -456,14 +506,13 @@ function validatePasswordFields(password, confirmPassword, required = true) {
     return '';
 }
 
-function validateCreateForm(form, roAreas = []) {
+function validateCreateForm(form, roAreas = [], accounts = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-        return 'Enter a valid email address.';
-    }
+    const identityError = validateAccountIdentity(form, accounts);
+    if (identityError) return identityError;
 
     const phoneNumberError = validateOptionalPhoneNumber(form.phone_number);
     if (phoneNumberError) return phoneNumberError;
@@ -486,26 +535,24 @@ function validateCreateForm(form, roAreas = []) {
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
 
-function validateAdminCreateForm(form) {
+function validateAdminCreateForm(form, accounts = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-        return 'Enter a valid email address.';
-    }
+    const identityError = validateAccountIdentity(form, accounts);
+    if (identityError) return identityError;
 
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
 
-function validateEditForm(form, roAreas = []) {
+function validateEditForm(form, roAreas = [], accounts = [], excludedUserId = null) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-        return 'Enter a valid email address.';
-    }
+    const identityError = validateAccountIdentity(form, accounts, excludedUserId);
+    if (identityError) return identityError;
 
     const phoneNumberError = validateOptionalPhoneNumber(form.phone_number);
     if (phoneNumberError) return phoneNumberError;
@@ -1418,7 +1465,7 @@ export default function AccountsPanel() {
             if (!courseResponse.ok) throw new Error(courseData.message || 'Failed to load courses.');
             if (!roAreaResponse.ok) throw new Error(roAreaData.error || 'Failed to load RO Areas.');
 
-            setAccounts(Array.isArray(data.data) ? data.data : []);
+            setAccounts(deduplicateAccounts(Array.isArray(data.data) ? data.data : []));
             setCourses((Array.isArray(courseData) ? courseData : []).filter((course) => !course.is_archived));
             setRoAreas(Array.isArray(roAreaData.items) ? roAreaData.items : []);
         } catch (err) {
@@ -1541,7 +1588,7 @@ export default function AccountsPanel() {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        const validationError = validateCreateForm(form, roAreas);
+        const validationError = validateCreateForm(form, roAreas, accounts);
 
         if (validationError) {
             setError(validationError);
@@ -1576,7 +1623,7 @@ export default function AccountsPanel() {
                 OPERATIONAL_ROLE_OPTIONS.find((option) => option.value === form.role) ||
                 DEFAULT_OPERATIONAL_ROLE;
 
-            setAccounts((current) => [createdAccount, ...current]);
+            setAccounts((current) => deduplicateAccounts([createdAccount, ...current]));
             setForm({
                 ...DEFAULT_FORM,
                 role: form.role,
@@ -1597,7 +1644,7 @@ export default function AccountsPanel() {
     const handleAdminSubmit = async (event) => {
         event.preventDefault();
 
-        const validationError = validateAdminCreateForm(adminForm);
+        const validationError = validateAdminCreateForm(adminForm, accounts);
 
         if (validationError) {
             setAdminError(validationError);
@@ -1627,7 +1674,7 @@ export default function AccountsPanel() {
                 );
             }
 
-            setAccounts((current) => [data.data, ...current]);
+            setAccounts((current) => deduplicateAccounts([data.data, ...current]));
             setAdminForm(DEFAULT_ADMIN_FORM);
             setPageTab('current');
             setAdminCreateOpen(false);
@@ -1642,7 +1689,7 @@ export default function AccountsPanel() {
     };
 
     const handleUpdate = async () => {
-        const validationError = validateEditForm(editForm, roAreas);
+        const validationError = validateEditForm(editForm, roAreas, accounts, editingAccountId);
 
         if (validationError) {
             setEditError(validationError);
@@ -1738,7 +1785,7 @@ export default function AccountsPanel() {
             }
             toast.success(isRestore ? 'Account restored' : 'Account archived', {
                 description: account.role === 'pd'
-                    ? (isRestore ? 'Assign courses again before the Program Director handles applicants.' : 'Active course assignments were released.')
+                    ? (isRestore ? 'The Program Director\'s latest available course assignments were restored.' : 'Active course assignments were released.')
                     : 'The account status was updated successfully.',
             });
         } catch (err) {

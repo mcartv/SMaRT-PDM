@@ -155,7 +155,11 @@ class _StepAcademicState extends State<StepAcademic> {
 
   String? _sectionError() {
     if (!widget.showErrors) return null;
-    return null;
+    final value = (selectedSection ?? '').trim();
+    if (value.isEmpty) return 'Section is required.';
+    return _defaultSectionOptions.contains(value)
+        ? null
+        : 'Section must be A, B, C, or D.';
   }
 
   String? _studentNumberError() {

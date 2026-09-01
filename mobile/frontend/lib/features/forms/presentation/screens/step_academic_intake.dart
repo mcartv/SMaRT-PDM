@@ -56,7 +56,7 @@ class _StepAcademicState extends State<StepAcademic> {
     'Loan',
     'Other',
   ];
-  static const List<String> _defaultSectionOptions = ['A', 'B', 'C', 'D', 'E'];
+  static const List<String> _defaultSectionOptions = ['A', 'B', 'C', 'D'];
   static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
   static const int _minimumGraduationYear = 1950;
   static const String _defaultCollegeSchool =
@@ -209,12 +209,9 @@ class _StepAcademicState extends State<StepAcademic> {
         : null;
     final normalizedSection = widget.data.currentSection.trim().toUpperCase();
     sectionOptions = List<String>.from(_defaultSectionOptions);
-    if (normalizedSection.isNotEmpty && !sectionOptions.contains(normalizedSection)) {
-      // Keep a database-prefilled section even when it is not one of the
-      // default choices (for example a currently stored Section E).
-      sectionOptions.add(normalizedSection);
-    }
-    selectedSection = normalizedSection.isEmpty ? null : normalizedSection;
+    selectedSection = sectionOptions.contains(normalizedSection)
+        ? normalizedSection
+        : null;
     widget.data.currentSection = selectedSection ?? '';
     selectedFinancialSupports.addAll(
       widget.data.financialSupport
@@ -463,10 +460,9 @@ class _StepAcademicState extends State<StepAcademic> {
     if (!widget.showErrors) return null;
     final value = (selectedSection ?? '').trim();
     if (value.isEmpty) return 'Section is required.';
-    if (value.length > ApplicationFieldLimits.section) {
-      return 'Section must not exceed ${ApplicationFieldLimits.section} characters.';
-    }
-    return null;
+    return _defaultSectionOptions.contains(value)
+        ? null
+        : 'Section must be A, B, C, or D.';
   }
 
   String? _yearLevelError() {

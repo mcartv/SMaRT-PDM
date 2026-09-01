@@ -2243,32 +2243,32 @@ export default function ApplicationReview() {
           if (!open && !approvalLoadingId) setActivationCandidate(null);
         }}
       >
-        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-xl max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl border-stone-200 p-0 sm:w-full">
-          <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left sm:px-6">
-            <DialogTitle className="text-lg">Confirm scholar activation</DialogTitle>
+        <DialogContent className="grid max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-2xl border-stone-200 p-0 shadow-2xl sm:w-full">
+          <DialogHeader className="border-b border-stone-100 px-5 py-4 pr-14 text-left sm:px-6 sm:pr-14">
+            <DialogTitle className="text-lg font-semibold text-stone-900">Confirm scholar activation</DialogTitle>
             <p className="mt-1 text-sm leading-6 text-stone-500">
               Activate {activationCandidate?.applicant_name || 'this applicant'} only after the system passes every final check.
             </p>
           </DialogHeader>
-          <div className="max-h-[calc(100dvh-13rem)] space-y-2.5 overflow-y-auto px-5 py-4 sm:px-6">
+          <div className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
             {[
               'All required documents are uploaded and verified',
               'SDO, Guidance, and Program Director endorsement is complete',
               'The scholarship opening still has an available slot',
               'The student has no other active scholar record',
             ].map((label) => (
-              <div key={label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-700">
+              <div key={label} className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-sm leading-5 text-stone-700">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                {label}
+                <span className="min-w-0 flex-1">{label}</span>
               </div>
             ))}
           </div>
-          <DialogFooter className="flex-col gap-2 border-t border-stone-100 px-5 py-3 sm:flex-row sm:px-6">
-            <Button className="w-full sm:w-auto" variant="outline" disabled={Boolean(approvalLoadingId)} onClick={() => setActivationCandidate(null)}>
+          <DialogFooter className="m-0 flex shrink-0 flex-col-reverse gap-2 rounded-none border-x-0 border-b-0 border-t border-stone-100 bg-stone-50/80 px-5 py-3 sm:flex-row sm:px-6">
+            <Button className="h-9 w-full rounded-lg sm:w-auto" variant="outline" disabled={Boolean(approvalLoadingId)} onClick={() => setActivationCandidate(null)}>
               Cancel
             </Button>
             <Button
-              className="w-full text-white sm:w-auto"
+              className="h-9 w-full rounded-lg px-4 text-white sm:w-auto"
               style={{ background: C.green }}
               disabled={!activationCandidate || Boolean(approvalLoadingId)}
               onClick={() => approveScholar(activationCandidate)}

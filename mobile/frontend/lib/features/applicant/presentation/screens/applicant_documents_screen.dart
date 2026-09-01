@@ -31,6 +31,7 @@ class ApplicantDocumentsScreen extends StatefulWidget {
 
 class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   final ApplicantDocumentsService _service = ApplicantDocumentsService();
+  final ScrollController _scrollController = ScrollController();
   NotificationProvider? _notificationProvider;
   int _lastApplicationRevision = 0;
   Timer? _pollingTimer;
@@ -50,7 +51,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     super.initState();
     _loadPackage(showFullLoader: true);
 
-    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    // Realtime is the primary update path. Keep a slow fallback reconciliation
+    // for missed socket events without constantly rebuilding a scrolling page.
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       if (_uploadingDocuments.isNotEmpty) return;
 
@@ -155,6 +158,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   void dispose() {
     _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -164,6 +168,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     final items = List<ApplicantRequirementDocument>.from(documents);
 
     items.sort((a, b) {
+      // Keep every outstanding upload visible before files that have already
+      // been submitted. This order remains stable after realtime refreshes.
+      if (a.isSubmitted != b.isSubmitted) return a.isSubmitted ? 1 : -1;
+
       if (a.isRequired != b.isRequired) return a.isRequired ? -1 : 1;
 
       final orderA = _documentOrder(a.documentType);
@@ -616,13 +624,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       child: RefreshIndicator(
         onRefresh: () => _loadPackage(silent: true),
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          key: const PageStorageKey<String>('applicant-required-documents'),
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
-            if (_isRefreshing && !_isLoading)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: LinearProgressIndicator(minHeight: 2),
-              ),
             _HeaderCard(
               title:
                   package?.contextTitle ??

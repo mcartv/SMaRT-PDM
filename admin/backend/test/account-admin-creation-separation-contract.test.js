@@ -69,6 +69,30 @@ test('Create and Edit Account enforce the same optional Philippine mobile format
   assert.equal(isValidOptionalPhone('0912-345-6789'), false);
 });
 
+test('Create Admin, Create Account, and Edit Account reject common Gmail domain typos', () => {
+  const panel = read('frontend/src/pages/maintenance/AccountsPanel.jsx');
+  const service = read('backend/services/accountService.js');
+
+  assert.match(panel, /const COMMON_GMAIL_TYPO_DOMAINS = new Set/);
+  assert.match(panel, /Did you mean @gmail\.com\?/);
+  assert.match(service, /const staffEmailSchema = z/);
+  assert.match(service, /email: staffEmailSchema/g);
+  assert.match(service, /const parsedEmail = staffEmailSchema\.safeParse\(email\)/);
+
+  const typoDomains = new Set([
+    'gmai.com',
+    'gamil.com',
+    'gmial.com',
+    'gmal.com',
+    'gmail.co',
+    'gmail.con',
+    'gnail.com',
+  ]);
+  assert.equal(typoDomains.has('gmai.com'), true);
+  assert.equal(typoDomains.has('gmail.com'), false);
+  assert.equal(typoDomains.has('example.com'), false);
+});
+
 test('Create Account modals preserve drafts on backdrop clicks and expose clear close controls', () => {
   const panel = read('frontend/src/pages/maintenance/AccountsPanel.jsx');
   const createModal = panel.slice(

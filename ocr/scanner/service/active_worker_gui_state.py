@@ -43,7 +43,44 @@ from runtime.device_state import (  # noqa: E402
     utc_timestamp,
 )
 
-load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
+
+def load_colocated_env(path: Path) -> bool:
+    """Load simple KEY=value pairs without depending on python-dotenv."""
+
+    try:
+        lines = path.read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines()
+    except OSError:
+        return False
+
+    loaded = False
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if (
+            len(value) >= 2
+            and value[0] == value[-1]
+            and value[0] in {"'", '"'}
+        ):
+            value = value[1:-1]
+
+        os.environ[key] = value
+        loaded = True
+
+    return loaded
+
+
+ENV_PATH = PROJECT_ROOT / ".env"
+if not load_dotenv(dotenv_path=ENV_PATH, override=True):
+    load_colocated_env(ENV_PATH)
 
 RUNTIME_UID = getattr(os, "getuid", lambda: 0)()
 RUNTIME_DIRECTORY = Path(

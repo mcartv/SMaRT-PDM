@@ -34,6 +34,44 @@ class DeviceStateMonitorTests(unittest.TestCase):
                 }
             )
 
+    def test_colocated_env_loader_does_not_require_python_dotenv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            env_path.write_text(
+                "\n".join(
+                    [
+                        "# comment",
+                        "PUBLIC_INTERNET_PROBE_URL_1=https://one.example/health",
+                        "PUBLIC_INTERNET_PROBE_URL_2='https://two.example/health'",
+                        'RENDER_API_BASE_URL="https://smart-pdm.example"',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            previous = {
+                key: monitor.os.environ.get(key)
+                for key in (
+                    "PUBLIC_INTERNET_PROBE_URL_1",
+                    "PUBLIC_INTERNET_PROBE_URL_2",
+                    "RENDER_API_BASE_URL",
+                )
+            }
+            try:
+                for key in previous:
+                    monitor.os.environ.pop(key, None)
+                self.assertTrue(monitor.load_colocated_env(env_path))
+                config = monitor.load_probe_config()
+                self.assertEqual(config.public_urls[0], "https://one.example/health")
+                self.assertEqual(config.public_urls[1], "https://two.example/health")
+                self.assertEqual(config.backend_health_url, "https://smart-pdm.example/api/health")
+            finally:
+                for key, value in previous.items():
+                    if value is None:
+                        monitor.os.environ.pop(key, None)
+                    else:
+                        monitor.os.environ[key] = value
+
     def test_probes_are_independent(self):
         config = monitor.ProbeConfig(
             public_urls=("https://one.example", "https://two.example"),

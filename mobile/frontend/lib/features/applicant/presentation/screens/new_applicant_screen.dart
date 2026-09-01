@@ -97,6 +97,29 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.currentCourse = prefs.getString('user_course') ?? '';
     _data.currentSection = prefs.getString('user_section') ?? '';
 
+    // APPLICATION FORM DATABASE PREFILL
+    // Refresh the profile before applying draft/submitted-form data so Section,
+    // LRN, course, and student number use the latest stored database values.
+    try {
+      final profile = await _profileService.fetchMyProfile();
+      final databaseSection =
+          (profile['section'] ?? profile['current_section'])?.toString().trim() ?? '';
+      final databaseLrn =
+          profile['learners_reference_number']?.toString().trim() ?? '';
+      final databaseCourse = profile['course_code']?.toString().trim() ?? '';
+      final databaseStudentId = profile['student_id']?.toString().trim() ?? '';
+
+      _data.currentSection = databaseSection;
+      if (databaseLrn.isNotEmpty) _data.learnersReferenceNumber = databaseLrn;
+      if (databaseCourse.isNotEmpty) _data.currentCourse = databaseCourse;
+      if (databaseStudentId.isNotEmpty) {
+        _data.accountStudentId = databaseStudentId;
+        _data.studentNumber = databaseStudentId;
+      }
+    } catch (error) {
+      debugPrint('APPLICATION FORM DATABASE PREFILL ERROR: $error');
+    }
+
     /*
    * An opening passed through navigation takes priority initially.
    */
@@ -252,6 +275,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       email: ApplicationData.normalizeEmail(_data.email),
       studentId: _data.accountStudentId.trim(),
       course: _data.currentCourse.trim(),
+      section: _data.currentSection.trim(),
       phone: ApplicationData.normalizeMobileNumber(_data.mobileNumber),
     );
   }

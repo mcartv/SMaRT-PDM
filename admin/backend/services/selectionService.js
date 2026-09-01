@@ -405,7 +405,7 @@ async function notifySelectionResults(entries, opening) {
             userId: entry.user_id,
             type: 'application_selected',
             title: 'Scholarship Selection Confirmed',
-            message: `You were selected for ${opening.program_name || 'the scholarship program'}. Scholar access is now active.`,
+            message: `A scholarship slot for ${opening.program_name || 'the scholarship program'} has been reserved for you. Final scholar activation is still pending administrator confirmation.`,
             referenceId,
             referenceType: 'application',
           });
@@ -552,7 +552,10 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
       await client.query(
         `
           UPDATE applications
-          SET selection_status = $2,
+          SET selection_status = CASE
+                WHEN $2 = 'Selected' THEN 'Reserved'
+                ELSE $2
+              END,
               selection_batch_id = $3,
               queue_position = $4,
               waitlist_position = $5,
@@ -561,15 +564,14 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
               not_selected_at = CASE WHEN $2 = 'Not Selected' THEN now() ELSE not_selected_at END,
               finalized_at = now(),
               finalized_by = $6,
-              activation_status = CASE WHEN $2 = 'Selected' THEN 'Activated' ELSE 'Not Activated' END,
-              activated_at = CASE WHEN $2 = 'Selected' THEN now() ELSE NULL END,
+              activation_status = 'Not Activated',
+              activated_at = NULL,
               can_reapply = CASE WHEN $2 = 'Not Selected' THEN true ELSE false END,
               reapplication_reason = CASE
                 WHEN $2 = 'Not Selected' THEN 'Not selected because available slots were already assigned.'
                 ELSE NULL
               END,
               application_status = CASE
-                WHEN $2 = 'Selected' THEN 'Approved'
                 WHEN $2 = 'Not Selected' THEN 'Rejected'
                 ELSE application_status
               END,
@@ -590,44 +592,11 @@ async function finalizeSelection(openingId, actor = {}, notes = '') {
         ]
       );
 
-      if (isSelected) {
-        await client.query(
-          `
-            UPDATE students
-            SET is_active_scholar = true,
-                scholarship_status = 'Active',
-                current_program_id = $2,
-                current_application_id = $3,
-                active_academic_year_id = $4,
-                active_period_id = $5,
-                date_awarded = CURRENT_DATE,
-                scholar_is_archived = false,
-                updated_at = now()
-            WHERE student_id = $1
-          `,
-          [
-            entry.student_id,
-            opening.program_id,
-            entry.application_id,
-            opening.academic_year_id,
-            opening.period_id,
-          ]
-        );
-      } else if (isWaitlisted) {
-        await client.query(
-          `
-            UPDATE students
-            SET is_active_scholar = false,
-                updated_at = now()
-            WHERE student_id = $1
-              AND current_application_id IS DISTINCT FROM $2
-          `,
-          [entry.student_id, entry.application_id]
-        );
-      }
+      // Final selection reserves a slot only. Scholar/account activation
+      // remains the explicit action in the Readiness workflow.
     }
 
-    const filledSlots = partitioned.occupied_before + partitioned.selected_count;
+        const filledSlots = partitioned.occupied_before;
     await client.query(
       `
         UPDATE program_openings

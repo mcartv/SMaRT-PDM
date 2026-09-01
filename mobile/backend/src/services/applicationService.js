@@ -62,7 +62,6 @@ function logStorageSignedUrlCache(kind, cacheKey) {
 }
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
-    'birth_certificate',
     'certificate_of_registration',
     'student_grade_forms',
     'certificate_of_indigency',
@@ -71,7 +70,6 @@ const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
 ]);
 
 const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object.freeze([
-    'birth certificate / psa',
     'certificate of registration',
     'grade report',
     'certificate of indigency',
@@ -147,6 +145,186 @@ function createHttpError(statusCode, message) {
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
+
+const APPLICATION_FIELD_LIMITS = Object.freeze({
+    name: 50,
+    email: 64,
+    shortText: 100,
+    addressPart: 120,
+    longAddress: 250,
+    landline: 20,
+    section: 20,
+    schoolName: 150,
+    schoolAddress: 200,
+    honorsOrClub: 200,
+    otherSpecify: 150,
+    details: 500,
+    longExplanation: 1000,
+    essay: 2000,
+    lrnDigits: 12,
+});
+
+function assertApplicationMaxLength(label, value, maxLength) {
+    const text = safeText(value);
+    if (text && text.length > maxLength) {
+        throw createHttpError(400, label + ' must not exceed ' + maxLength + ' characters.');
+    }
+}
+
+function validateApplicationFieldLimits(payload = {}) {
+    const personal = payload.personal || {};
+    const address = payload.address || {};
+    const contact = payload.contact || {};
+    const family = payload.family || {};
+    const academic = payload.academic || {};
+    const support = payload.support || {};
+    const discipline = payload.discipline || {};
+    const essays = payload.essays || {};
+
+    const father = family.father || {};
+    const mother = family.mother || {};
+    const sibling = family.sibling || {};
+    const guardian = family.guardian || {};
+
+    const fields = [
+        ['First name', personal.first_name || personal.firstName, APPLICATION_FIELD_LIMITS.name],
+        ['Middle name', personal.middle_name || personal.middleName, APPLICATION_FIELD_LIMITS.name],
+        ['Last name', personal.last_name || personal.lastName, APPLICATION_FIELD_LIMITS.name],
+        ['Maiden name', personal.maiden_name || personal.maidenName, APPLICATION_FIELD_LIMITS.name],
+        ['Place of birth', personal.place_of_birth || personal.placeOfBirth, APPLICATION_FIELD_LIMITS.shortText],
+        ['Citizenship', personal.citizenship, APPLICATION_FIELD_LIMITS.shortText],
+        ['Religion', personal.religion, APPLICATION_FIELD_LIMITS.shortText],
+        ['Unit/building number', address.unit_bldg_no || address.unitBldgNo, APPLICATION_FIELD_LIMITS.addressPart],
+        ['House/lot/block number', address.house_lot_block_no || address.houseLotBlockNo, APPLICATION_FIELD_LIMITS.addressPart],
+        ['Street', address.street || address.street_address, APPLICATION_FIELD_LIMITS.addressPart],
+        ['Subdivision', address.subdivision, APPLICATION_FIELD_LIMITS.addressPart],
+        ['Barangay', address.barangay, APPLICATION_FIELD_LIMITS.shortText],
+        ['City/municipality', address.city_municipality || address.city, APPLICATION_FIELD_LIMITS.shortText],
+        ['Province', address.province, APPLICATION_FIELD_LIMITS.shortText],
+        ['Landline', contact.landline || contact.landline_number, APPLICATION_FIELD_LIMITS.landline],
+        ['Email address', contact.email || contact.email_address, APPLICATION_FIELD_LIMITS.email],
+        ['Parent/guardian address', family.parent_guardian_address || family.parentGuardianAddress, APPLICATION_FIELD_LIMITS.longAddress],
+        ['Father first name', father.first_name, APPLICATION_FIELD_LIMITS.name],
+        ['Father middle name', father.middle_name, APPLICATION_FIELD_LIMITS.name],
+        ['Father last name', father.last_name, APPLICATION_FIELD_LIMITS.name],
+        ['Father occupation', father.occupation, APPLICATION_FIELD_LIMITS.shortText],
+        ['Father company name/address', father.company_name_and_address || father.company_name_address, APPLICATION_FIELD_LIMITS.longAddress],
+        ['Mother first name', mother.first_name, APPLICATION_FIELD_LIMITS.name],
+        ['Mother middle name', mother.middle_name, APPLICATION_FIELD_LIMITS.name],
+        ['Mother last name', mother.last_name, APPLICATION_FIELD_LIMITS.name],
+        ['Mother occupation', mother.occupation, APPLICATION_FIELD_LIMITS.shortText],
+        ['Mother company name/address', mother.company_name_and_address || mother.company_name_address, APPLICATION_FIELD_LIMITS.longAddress],
+        ['Sibling first name', sibling.first_name, APPLICATION_FIELD_LIMITS.name],
+        ['Sibling middle name', sibling.middle_name, APPLICATION_FIELD_LIMITS.name],
+        ['Sibling last name', sibling.last_name, APPLICATION_FIELD_LIMITS.name],
+        ['Sibling occupation', sibling.occupation, APPLICATION_FIELD_LIMITS.shortText],
+        ['Sibling company name/address', sibling.company_name_and_address || sibling.company_name_address, APPLICATION_FIELD_LIMITS.longAddress],
+        ['Guardian first name', guardian.first_name, APPLICATION_FIELD_LIMITS.name],
+        ['Guardian middle name', guardian.middle_name, APPLICATION_FIELD_LIMITS.name],
+        ['Guardian last name', guardian.last_name, APPLICATION_FIELD_LIMITS.name],
+        ['Guardian occupation', guardian.occupation, APPLICATION_FIELD_LIMITS.shortText],
+        ['Guardian company name/address', guardian.company_name_and_address || guardian.company_name_address, APPLICATION_FIELD_LIMITS.longAddress],
+        ['Section', academic.current_section || academic.section, APPLICATION_FIELD_LIMITS.section],
+        ['College school', academic.college_school, APPLICATION_FIELD_LIMITS.schoolName],
+        ['College address', academic.college_address, APPLICATION_FIELD_LIMITS.schoolAddress],
+        ['College honors', academic.college_honors, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['College club/organization', academic.college_club, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['High school', academic.high_school_school, APPLICATION_FIELD_LIMITS.schoolName],
+        ['High school address', academic.high_school_address, APPLICATION_FIELD_LIMITS.schoolAddress],
+        ['High school honors', academic.high_school_honors, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['High school club/organization', academic.high_school_club, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['Senior high school', academic.senior_high_school, APPLICATION_FIELD_LIMITS.schoolName],
+        ['Senior high address', academic.senior_high_address, APPLICATION_FIELD_LIMITS.schoolAddress],
+        ['Senior high honors', academic.senior_high_honors, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['Senior high club/organization', academic.senior_high_club, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['Elementary school', academic.elementary_school, APPLICATION_FIELD_LIMITS.schoolName],
+        ['Elementary address', academic.elementary_address, APPLICATION_FIELD_LIMITS.schoolAddress],
+        ['Elementary honors', academic.elementary_honors, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['Elementary club/organization', academic.elementary_club, APPLICATION_FIELD_LIMITS.honorsOrClub],
+        ['Other financial support', support.financial_support_other_specify || support.financial_support_other, APPLICATION_FIELD_LIMITS.otherSpecify],
+        ['Other scholarship', support.scholarship_others_specify, APPLICATION_FIELD_LIMITS.otherSpecify],
+        ['Scholarship details', support.scholarship_details, APPLICATION_FIELD_LIMITS.details],
+        ['Disciplinary explanation', discipline.disciplinary_explanation || discipline.explanation, APPLICATION_FIELD_LIMITS.longExplanation],
+        ['Describe yourself essay', essays.describe_yourself_essay || essays.describe_yourself || essays.describeYourselfEssay, APPLICATION_FIELD_LIMITS.essay],
+        ['Aims and ambition essay', essays.aims_and_ambition_essay || essays.aims_and_ambition || essays.aimsAndAmbitionEssay, APPLICATION_FIELD_LIMITS.essay],
+    ];
+
+    for (const [label, value, maxLength] of fields) {
+        assertApplicationMaxLength(label, value, maxLength);
+    }
+
+    const section = safeText(academic.current_section || academic.section);
+    if (!section) throw createHttpError(400, 'Section is required.');
+
+    const email = safeText(contact.email || contact.email_address).toLowerCase();
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        throw createHttpError(400, 'Enter a valid email address.');
+    }
+
+    const zipCode = safeText(address.zip_code || address.zipCode);
+    if (zipCode && !/^\d{4}$/.test(zipCode)) {
+        throw createHttpError(400, 'ZIP code must contain exactly 4 digits.');
+    }
+
+    const lrn = safeText(academic.lrn || academic.learners_reference_number);
+    if (lrn && !/^\d{12}$/.test(lrn)) {
+        throw createHttpError(400, 'Learner Reference Number must contain exactly 12 digits.');
+    }
+
+    const yearLevel = safeText(academic.current_year_level || academic.year_level);
+    if (yearLevel && !/^[1-4]$/.test(yearLevel)) {
+        throw createHttpError(400, 'Year level must be 1, 2, 3, or 4.');
+    }
+
+    const familyMobiles = [
+        ['Father mobile number', father.mobile || father.mobile_number],
+        ['Mother mobile number', mother.mobile || mother.mobile_number],
+        ['Sibling mobile number', sibling.mobile || sibling.mobile_number],
+        ['Guardian mobile number', guardian.mobile || guardian.mobile_number],
+    ];
+    for (const [label, value] of familyMobiles) {
+        const mobile = safeText(value);
+        if (mobile && !/^09\d{9}$/.test(mobile)) {
+            throw createHttpError(400, label + ' must be exactly 11 digits and start with 09.');
+        }
+    }
+
+    const dateOfBirth = safeText(personal.date_of_birth || personal.dateOfBirth);
+    if (dateOfBirth) {
+        const parsedBirthDate = new Date(dateOfBirth + 'T00:00:00Z');
+        if (Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate > new Date()) {
+            throw createHttpError(400, 'Date of birth must be a valid past date.');
+        }
+    }
+
+    const currentYear = new Date().getFullYear();
+    const validateGraduationYear = (label, rawValue, { allowOngoing = false, minYear = 1950 } = {}) => {
+        const value = safeText(rawValue);
+        if (!value) return;
+        if (allowOngoing && value.toLowerCase().replace(/\s+/g, '') === 'ongoing') return;
+        if (!/^\d{4}$/.test(value)) {
+            throw createHttpError(400, label + ' must be a 4-digit year.');
+        }
+        const year = Number(value);
+        if (year < minYear || year > currentYear) {
+            throw createHttpError(400, label + ' must be between ' + minYear + ' and ' + currentYear + '.');
+        }
+    };
+
+    validateGraduationYear('College year graduated', academic.college_year_graduated, {
+        allowOngoing: true,
+        minYear: 2026,
+    });
+    validateGraduationYear('Junior high school year graduated', academic.high_school_year_graduated);
+    validateGraduationYear('Senior high school year graduated', academic.senior_high_year_graduated);
+    validateGraduationYear('Elementary year graduated', academic.elementary_year_graduated);
+
+    const studentNumber = safeText(academic.student_number || academic.student_id).toUpperCase();
+    if (studentNumber && !/^PDM-\d{4}-\d{6}$/.test(studentNumber)) {
+        throw createHttpError(400, 'Student ID must use PDM-0000-000000 format.');
+    }
+}
+
 
 const FINANCIAL_SUPPORT_TYPES = Object.freeze([
     'Parents',
@@ -3243,6 +3421,7 @@ function normalizePhilippineMobileSubmission(value) {
 }
 
 function validateApplicationSubmissionPayload(payload = {}) {
+    validateApplicationFieldLimits(payload);
     const missingFields = collectMissingSubmissionFields(payload);
 
     if (missingFields.length > 0) {

@@ -361,6 +361,7 @@ class _EndorsementView extends StatelessWidget {
     final slip = endorsement.slip;
     final blockerCode = workflow.primaryBlocker?.code ?? '';
     final friendlyStatus = _friendlyStatusLabel(endorsement.statusLabel);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -584,13 +585,13 @@ class _EndorsementView extends StatelessWidget {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: slip.available
-                        ? const Color(0xFFE8F1FF)
-                        : const Color(0xFFF6F6F4),
+                        ? colorScheme.primaryContainer
+                        : colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: slip.available
-                          ? const Color(0xFFB8D4FF)
-                          : const Color(0xFFE7E5E4),
+                          ? colorScheme.primary.withOpacity(0.30)
+                          : colorScheme.outlineVariant,
                     ),
                   ),
                   child: Column(
@@ -600,7 +601,7 @@ class _EndorsementView extends StatelessWidget {
                         'Endorsement Slip PDF',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1C1917),
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -610,7 +611,7 @@ class _EndorsementView extends StatelessWidget {
                             : 'Your PDF copy becomes available after the endorsement slip is completed.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           height: 1.35,
-                          color: const Color(0xFF57534E),
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -625,10 +626,10 @@ class _EndorsementView extends StatelessWidget {
                         : null,
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size.fromHeight(54),
-                      backgroundColor: const Color(0xFF0F766E),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE7E5E4),
-                      disabledForegroundColor: const Color(0xFF78716C),
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+                      disabledForegroundColor: colorScheme.onSurfaceVariant,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -749,6 +750,7 @@ class _EndorsementStageList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     const steps = [
       ('pending_sdo', 'SDO'),
       ('pending_guidance', 'Guidance'),
@@ -776,10 +778,10 @@ class _EndorsementStageList extends StatelessWidget {
                 : overallStatus == 'completed';
 
             final color = isActive
-                ? const Color(0xFF3366CC)
+                ? colorScheme.primary
                 : isDone
                 ? Colors.green
-                : Colors.grey.shade400;
+                : colorScheme.outline;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -886,6 +888,7 @@ class _ReviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final actedAt = review?.actedAt;
     final actedByName = review?.actedByName;
     final remarks = review?.remarks;
@@ -894,9 +897,9 @@ class _ReviewTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -926,7 +929,7 @@ class _ReviewTile extends StatelessWidget {
             Text(
               'Reviewed by: $actedByName',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade700,
+                color: colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -990,6 +993,7 @@ class _OverviewMiniItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1004,7 +1008,7 @@ class _OverviewMiniItem extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.grey.shade700,
+              color: colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1090,6 +1094,7 @@ class _EndorsementSectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1103,7 +1108,7 @@ class _EndorsementSectionHeading extends StatelessWidget {
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.grey.shade700,
+            color: colorScheme.onSurfaceVariant,
             height: 1.35,
           ),
         ),
@@ -1119,18 +1124,20 @@ class _EndorsementTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Text(
         label,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

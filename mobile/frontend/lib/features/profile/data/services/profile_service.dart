@@ -76,6 +76,8 @@ class ProfileService {
   }
 
   Future<void> _cacheProfile(Map<String, dynamic> profile) async {
+    final section =
+        (profile['section'] ?? profile['current_section'])?.toString().trim() ?? '';
     final addressParts =
         [
               profile['street_address']?.toString().trim(),
@@ -93,6 +95,7 @@ class ProfileService {
       email: profile['email']?.toString() ?? '',
       studentId: profile['student_id']?.toString() ?? '',
       course: profile['course_code']?.toString() ?? '',
+      section: section,
       phone: profile['phone_number']?.toString() ?? '',
       address: addressParts.join(', '),
       avatarUrl: profile['avatar_url']?.toString() ?? '',

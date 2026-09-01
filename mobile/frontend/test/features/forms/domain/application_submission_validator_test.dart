@@ -100,6 +100,30 @@ void main() {
       );
     });
 
+    test('requires current academic section', () {
+      final data = _validApplicationData()..currentSection = '';
+
+      final result = validator.validateAcademicProgression(data);
+
+      expect(result.isValid, isFalse);
+      expect(result.issueForField('currentSection')?.message, 'Section is required.');
+    });
+
+    test('rejects a non-12-digit LRN when one is present', () {
+      final data = _validApplicationData()..learnersReferenceNumber = '12345678901';
+      final result = validator.validateAcademicProgression(data);
+      expect(
+        result.issueForField('learnersReferenceNumber')?.message,
+        'Learner Reference Number must contain exactly 12 digits.',
+      );
+    });
+
+    test('accepts a short non-empty essay', () {
+      final data = _validApplicationData()..describeYourselfEssay = 'I am a student.';
+      final result = validator.validateEssayProgression(data);
+      expect(result.issueForField('describeYourselfEssay'), isNull);
+    });
+
     test('requires every academic background section', () {
       final data = _validApplicationData()..seniorHighSchool = '';
 
@@ -231,6 +255,7 @@ ApplicationData _validApplicationData() {
     ..elementaryYearGraduated = '2018'
     ..currentCourse = 'BTLED'
     ..currentYearLevel = '1'
+    ..currentSection = 'A'
     ..studentNumber = 'PDM-2026-001001'
     ..financialSupport = 'Scholarship'
     ..scholarshipHistoryAnswered = true

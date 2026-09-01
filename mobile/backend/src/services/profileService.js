@@ -127,6 +127,8 @@ async function getMyProfile(userId) {
         course_id: null,
         course_code: '',
         course_name: '',
+        section: '',
+        current_section: '',
         year_level: null,
         gwa: null,
         sex: '',
@@ -242,6 +244,39 @@ async function getMyProfile(userId) {
     course = fallbackCourse || null;
   }
 
+  // Section is application-cycle data. Prefer the active saved draft, then
+  // fall back to the most recent submitted application that actually has a Section.
+  const [sectionDraftResult, recentApplicationsResult] = await Promise.all([
+    supabase
+      .from('application_form_drafts')
+      .select('payload, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('applications')
+      .select('application_payload, updated_at')
+      .eq('student_id', student.student_id)
+      .eq('is_archived', false)
+      .order('updated_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  if (sectionDraftResult.error) throw sectionDraftResult.error;
+  if (recentApplicationsResult.error) throw recentApplicationsResult.error;
+
+  const draftAcademic = sectionDraftResult.data?.payload?.academic || {};
+  const submittedAcademic = (recentApplicationsResult.data || [])
+    .map((row) => row?.application_payload?.academic || {})
+    .find((academic) =>
+      firstNonEmpty(academic.current_section, academic.section)
+    ) || {};
+  const currentSection = firstNonEmpty(
+    draftAcademic.current_section,
+    draftAcademic.section,
+    submittedAcademic.current_section,
+    submittedAcademic.section
+  );
+
   const firstName = firstNonEmpty(master.first_name, student.first_name);
   const middleName = firstNonEmpty(master.middle_name, student.middle_name);
   const lastName = firstNonEmpty(master.last_name, student.last_name);
@@ -297,6 +332,8 @@ async function getMyProfile(userId) {
       course_id: effectiveCourseId,
       course_code: course?.course_code || '',
       course_name: course?.course_name || '',
+      section: currentSection,
+      current_section: currentSection,
 
       year_level: master.year_level || student.year_level || null,
       gwa: student.gwa || null,

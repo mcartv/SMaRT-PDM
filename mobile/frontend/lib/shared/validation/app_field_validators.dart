@@ -56,6 +56,7 @@ class AppFieldValidators {
     required String label,
     bool required = true,
     int minLength = 2,
+    int? maxLength,
   }) {
     final text = (value ?? '').trim();
 
@@ -65,6 +66,10 @@ class AppFieldValidators {
 
     if (text.length < minLength) {
       return '$label is too short.';
+    }
+
+    if (maxLength != null && text.length > maxLength) {
+      return '$label must not exceed $maxLength characters.';
     }
 
     if (!_namePattern.hasMatch(text)) {
@@ -78,11 +83,16 @@ class AppFieldValidators {
     String? value, {
     String label = 'Email address',
     bool required = true,
+    int? maxLength,
   }) {
     final text = (value ?? '').trim().toLowerCase();
 
     if (text.isEmpty) {
       return required ? '$label is required.' : null;
+    }
+
+    if (maxLength != null && text.length > maxLength) {
+      return '$label must not exceed $maxLength characters.';
     }
 
     if (!_emailPattern.hasMatch(text)) {

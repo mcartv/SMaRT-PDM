@@ -116,6 +116,17 @@ function normalizeEventInput(input = {}) {
     throw createHttpError(400, 'Reminder time must use HH:mm format.');
   }
 
+  const philippineNow = getPhilippineDateTime();
+  if (
+    date < philippineNow.date ||
+    (date === philippineNow.date && time && time <= philippineNow.time)
+  ) {
+    throw createHttpError(
+      400,
+      'Reminder date and time must be in the future in Philippine Time.'
+    );
+  }
+
   return {
     id: crypto.randomUUID(),
     title,

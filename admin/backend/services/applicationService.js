@@ -372,7 +372,6 @@ const DOCUMENT_TYPE_TO_NAME = {
 };
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
-    'birth_certificate',
     'certificate_of_registration',
     'student_grade_forms',
     'certificate_of_indigency',
@@ -381,7 +380,6 @@ const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
 ]);
 
 const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
-    'birth certificate / psa',
     'certificate of registration',
     'grade report',
     'certificate of indigency',

@@ -237,6 +237,15 @@ async function fetchEligibleScholarsByOpening(openingId) {
       AND a.application_status = 'Approved'
       AND COALESCE(st.scholar_is_archived, FALSE) = FALSE
       AND st.scholarship_status = 'Active'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM payout_batch_students existing_pbs
+        INNER JOIN payout_batches existing_pb
+          ON existing_pb.payout_batch_id = existing_pbs.payout_batch_id
+        WHERE existing_pbs.student_id = st.student_id
+          AND existing_pb.opening_id = $1
+          AND COALESCE(existing_pb.is_archived, FALSE) = FALSE
+      )
     ORDER BY st.last_name, st.first_name;
   `;
 
@@ -314,7 +323,16 @@ async function createPayoutBatchFromOpening({
     WHERE a.opening_id = $1
       AND a.application_status = 'Approved'
       AND COALESCE(st.scholar_is_archived, FALSE) = FALSE
-      AND st.scholarship_status = 'Active';
+      AND st.scholarship_status = 'Active'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM payout_batch_students existing_pbs
+        INNER JOIN payout_batches existing_pb
+          ON existing_pb.payout_batch_id = existing_pbs.payout_batch_id
+        WHERE existing_pbs.student_id = st.student_id
+          AND existing_pb.opening_id = $1
+          AND COALESCE(existing_pb.is_archived, FALSE) = FALSE
+      );
   `;
 
   const eligibleStudentResult = await pool.query(eligibleStudentQuery, [opening_id]);
@@ -349,6 +367,33 @@ async function createPayoutBatchFromOpening({
 
   try {
     await client.query('BEGIN');
+
+    // Serialize batch creation per opening, then re-check the selected scholars
+    // inside the transaction to close the concurrent duplicate-creation race.
+    await client.query(
+      'SELECT opening_id FROM program_openings WHERE opening_id = $1 FOR UPDATE',
+      [opening.opening_id]
+    );
+
+    const duplicatePayoutResult = await client.query(
+      `
+        SELECT DISTINCT pbs.student_id
+        FROM payout_batch_students pbs
+        INNER JOIN payout_batches pb
+          ON pb.payout_batch_id = pbs.payout_batch_id
+        WHERE pb.opening_id = $1
+          AND COALESCE(pb.is_archived, FALSE) = FALSE
+          AND pbs.student_id = ANY($2::uuid[])
+      `,
+      [opening.opening_id, uniqueStudentIds]
+    );
+
+    if (duplicatePayoutResult.rows.length > 0) {
+      throw payoutError(
+        409,
+        'One or more selected scholars already have a payout batch for this opening. Refresh the eligible scholar list and try again.'
+      );
+    }
 
     const batchResult = await client.query(
       `

@@ -69,16 +69,30 @@ function StatusPill({ status }) {
   );
 }
 
+const PROFILE_PHOTO_REJECTION_REASONS = [
+  'Anime, cartoon, or digital artwork',
+  'Animal, object, scenery, or unrelated image',
+  'Applicant is not clearly the main subject',
+  'Photo is not formal or semi-formal',
+  'Other',
+];
+
 function RejectModal({ onClose, onSubmit, busy, error }) {
-  const [reason, setReason] = useState('');
+  const [reasonOption, setReasonOption] = useState('');
+  const [customReason, setCustomReason] = useState('');
   const [remarks, setRemarks] = useState('');
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    const trimmedReason = reason.trim();
+    const trimmedReason =
+      reasonOption === 'Other' ? customReason.trim() : reasonOption.trim();
     if (!trimmedReason) {
-      setValidationError('Enter a rejection reason before continuing.');
+      setValidationError(
+        reasonOption === 'Other'
+          ? 'Enter the other rejection reason before continuing.'
+          : 'Select a rejection reason before continuing.'
+      );
       return;
     }
     setValidationError('');
@@ -100,20 +114,40 @@ function RejectModal({ onClose, onSubmit, busy, error }) {
           </p>
         </div>
 
-        <label className="text-sm font-semibold text-stone-700">
+        <label className="text-sm font-semibold text-stone-700" htmlFor="profile-photo-rejection-reason">
           Rejection reason
         </label>
-        <textarea
+        <select
+          id="profile-photo-rejection-reason"
           required
-          value={reason}
+          value={reasonOption}
           onChange={(event) => {
-            setReason(event.target.value);
+            setReasonOption(event.target.value);
+            if (event.target.value !== 'Other') setCustomReason('');
             if (validationError) setValidationError('');
           }}
           aria-invalid={Boolean(validationError || error)}
           aria-describedby={validationError || error ? 'profile-photo-rejection-error' : undefined}
-          className="mt-2 min-h-28 w-full rounded-md border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
-        />
+          className="mt-2 h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+        >
+          <option value="">Select a reason</option>
+          {PROFILE_PHOTO_REJECTION_REASONS.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+
+        {reasonOption === 'Other' ? (
+          <textarea
+            required
+            value={customReason}
+            onChange={(event) => {
+              setCustomReason(event.target.value);
+              if (validationError) setValidationError('');
+            }}
+            placeholder="Enter the rejection reason"
+            className="mt-3 min-h-24 w-full rounded-md border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+          />
+        ) : null}
 
         {validationError || error ? (
           <p id="profile-photo-rejection-error" role="alert" className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -127,6 +161,7 @@ function RejectModal({ onClose, onSubmit, busy, error }) {
         <textarea
           value={remarks}
           onChange={(event) => setRemarks(event.target.value)}
+          placeholder="Optional additional details"
           className="mt-2 min-h-20 w-full rounded-md border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
         />
 

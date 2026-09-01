@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
+import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_field_limits.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -110,6 +112,8 @@ class _StepEssayState extends State<StepEssay> {
             controller: controller,
             minLines: 8,
             maxLines: 14,
+            maxLength: ApplicationFieldLimits.essay,
+            maxLengthEnforcement: MaxLengthEnforcement.enforced,
             textCapitalization: TextCapitalization.sentences,
             decoration: intakeInputDecoration(
               context,

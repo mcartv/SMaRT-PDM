@@ -46,6 +46,7 @@ class SessionService {
   static const String _userRoleKey = 'user_role';
 
   static const String _userCourseKey = 'user_course';
+  static const String _userSectionKey = 'user_section';
   static const String _userPhoneKey = 'user_phone';
   static const String _userAddressKey = 'user_address';
 
@@ -130,6 +131,7 @@ class SessionService {
     String? email,
     String? studentId,
     String? course,
+    String? section,
     String? phone,
     String? address,
     String? avatarUrl,
@@ -155,6 +157,10 @@ class SessionService {
 
     if (course != null) {
       await prefs.setString(_userCourseKey, course.trim());
+    }
+
+    if (section != null) {
+      await prefs.setString(_userSectionKey, section.trim());
     }
 
     if (phone != null) {
@@ -245,6 +251,7 @@ class SessionService {
     await prefs.remove(_userHasScholarAccessKey);
 
     await prefs.remove(_userCourseKey);
+    await prefs.remove(_userSectionKey);
     await prefs.remove(_userPhoneKey);
     await prefs.remove(_userAddressKey);
 

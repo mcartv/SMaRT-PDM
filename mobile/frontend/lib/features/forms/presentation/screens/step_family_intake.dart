@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
+import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_field_limits.dart';
 import 'package:smartpdm_mobileapp/shared/formatters/philippine_mobile_input_formatter.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
@@ -632,6 +633,7 @@ class _StepFamilyState extends State<StepFamily> {
       label: label,
       required: false,
       minLength: minLength,
+      maxLength: ApplicationFieldLimits.name,
     );
   }
 
@@ -670,6 +672,7 @@ class _StepFamilyState extends State<StepFamily> {
               'Last Name',
               TextFormField(
                 controller: lastNameController,
+                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
                 decoration: _dec(
                   'Last Name',
                   errorText: widget.showErrors
@@ -692,6 +695,7 @@ class _StepFamilyState extends State<StepFamily> {
               'First Name',
               TextFormField(
                 controller: firstNameController,
+                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
                 decoration: _dec(
                   'First Name',
                   errorText: widget.showErrors
@@ -717,6 +721,7 @@ class _StepFamilyState extends State<StepFamily> {
               'Middle Name (Optional)',
               TextFormField(
                 controller: middleNameController,
+                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
                 decoration: _dec(
                   'Middle Name (Optional)',
                   errorText: _familyNameError(
@@ -782,6 +787,7 @@ class _StepFamilyState extends State<StepFamily> {
             'Occupation',
             TextFormField(
               controller: occupationController,
+              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
               decoration: _dec(
                 'Occupation',
                 suffixIcon: intakeCompletionIcon(occupationController.text),
@@ -793,6 +799,7 @@ class _StepFamilyState extends State<StepFamily> {
             'Company Name / Address',
             TextFormField(
               controller: companyController,
+              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.longAddress)],
               decoration: _dec(
                 'Company Name / Address',
                 suffixIcon: intakeCompletionIcon(companyController.text),
@@ -883,6 +890,7 @@ class _StepFamilyState extends State<StepFamily> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: parentAddressController,
+                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.longAddress)],
                 readOnly: sameAddress,
                 maxLines: 2,
                 decoration: _dec(

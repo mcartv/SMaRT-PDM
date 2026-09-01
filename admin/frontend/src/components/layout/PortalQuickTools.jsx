@@ -18,14 +18,34 @@ import { useSocketEvent } from '@/hooks/useSocket';
 
 const MAX_NOTE_LENGTH = 2000;
 const MAX_EVENTS = 30;
+const MANILA_TIME_ZONE = 'Asia/Manila';
+
+function getManilaDateTime(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: MANILA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
+
+  return {
+    date: `${getPart('year')}-${getPart('month')}-${getPart('day')}`,
+    time: `${getPart('hour')}:${getPart('minute')}`,
+    second: getPart('second'),
+  };
+}
 
 function toLocalDateInput(date = new Date()) {
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+  return getManilaDateTime(date).date;
 }
 
 function formatDateParts(now) {
-  const timeParts = new Intl.DateTimeFormat('en-PH', {
+  const timeParts = new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE,
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
@@ -35,19 +55,19 @@ function formatDateParts(now) {
   const dayPeriod = timeParts.find((part) => part.type === 'dayPeriod')?.value || '';
 
   return {
-    dayName: new Intl.DateTimeFormat('en-PH', { weekday: 'short' })
+    dayName: new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, weekday: 'short' })
       .format(now)
       .toUpperCase(),
-    dayNameLong: new Intl.DateTimeFormat('en-PH', { weekday: 'long' }).format(now),
-    dayNumber: new Intl.DateTimeFormat('en-PH', { day: '2-digit' }).format(now),
-    monthShort: new Intl.DateTimeFormat('en-PH', { month: 'short' })
+    dayNameLong: new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, weekday: 'long' }).format(now),
+    dayNumber: new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, day: '2-digit' }).format(now),
+    monthShort: new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, month: 'short' })
       .format(now)
       .toUpperCase(),
-    monthLong: new Intl.DateTimeFormat('en-PH', { month: 'long' }).format(now),
-    year: new Intl.DateTimeFormat('en-PH', { year: 'numeric' }).format(now),
+    monthLong: new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, month: 'long' }).format(now),
+    year: new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE, year: 'numeric' }).format(now),
     timeLabel: `${hour}:${minute}`,
     dayPeriod,
-    seconds: String(now.getSeconds()).padStart(2, '0'),
+    seconds: getManilaDateTime(now).second || '00',
   };
 }
 
@@ -56,7 +76,7 @@ function formatEventDate(value) {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('en-PH', {
+  return new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -68,13 +88,9 @@ function formatEventTime(value) {
   const [hour, minute] = String(value).split(':').map(Number);
   if (!Number.isInteger(hour) || !Number.isInteger(minute)) return value;
 
-  const date = new Date();
-  date.setHours(hour, minute, 0, 0);
-  return new Intl.DateTimeFormat('en-PH', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(date);
+  const hour12 = hour % 12 || 12;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
 function buildCalendarDays(monthDate) {
@@ -274,11 +290,11 @@ export default function PortalQuickTools({
   const dueTodayCount = events.filter(
     (event) => event.date === today
   ).length;
-  const plannerMonthLabel = new Intl.DateTimeFormat('en-PH', {
+  const plannerMonthLabel = new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE,
     month: 'long',
     year: 'numeric',
   }).format(visibleMonth);
-  const selectedDateLabel = new Intl.DateTimeFormat('en-PH', {
+  const selectedDateLabel = new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE,
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -334,6 +350,15 @@ export default function PortalQuickTools({
     const title = eventTitle.trim();
     if (!title || !eventDate) return;
 
+    const manilaNow = getManilaDateTime();
+    if (
+      eventDate < manilaNow.date ||
+      (eventDate === manilaNow.date && eventTime && eventTime <= manilaNow.time)
+    ) {
+      setWorkspaceError('Reminder date and time must be in the future in Philippine Time.');
+      return;
+    }
+
     setEventSaving(true);
     setWorkspaceError('');
     try {
@@ -371,7 +396,7 @@ export default function PortalQuickTools({
   };
 
   const savedLabel = savedAt
-    ? new Intl.DateTimeFormat('en-PH', {
+    ? new Intl.DateTimeFormat('en-PH', { timeZone: MANILA_TIME_ZONE,
         month: 'short',
         day: 'numeric',
         hour: 'numeric',

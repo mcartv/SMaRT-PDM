@@ -1,4 +1,5 @@
 import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
+import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_field_limits.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
@@ -204,6 +205,7 @@ class ApplicationSubmissionValidator {
         label: label,
         required: false,
         minLength: entry.key == 'middleName' ? 1 : 2,
+        maxLength: ApplicationFieldLimits.name,
       );
       if (error != null) {
         issues.add(
@@ -355,7 +357,10 @@ class ApplicationSubmissionValidator {
       );
     }
 
-    final emailError = AppFieldValidators.email(data.email);
+    final emailError = AppFieldValidators.email(
+      data.email,
+      maxLength: ApplicationFieldLimits.email,
+    );
     if (emailError != null) {
       issues.add(
         ApplicationSubmissionIssue(
@@ -396,6 +401,7 @@ class ApplicationSubmissionValidator {
         label: 'Name',
         required: false,
         minLength: entry.key.endsWith('MiddleName') ? 1 : 2,
+        maxLength: ApplicationFieldLimits.name,
       );
       if (error != null) {
         issues.add(
@@ -634,6 +640,7 @@ class ApplicationSubmissionValidator {
 
     requireText(field: 'currentCourse', label: 'Course');
     requireText(field: 'currentYearLevel', label: 'Year level');
+    requireText(field: 'currentSection', label: 'Section');
     requireText(field: 'studentNumber', label: 'Student number');
     requireText(field: 'financialSupport', label: 'Financial support');
 
@@ -668,6 +675,19 @@ class ApplicationSubmissionValidator {
           ),
         );
       }
+    }
+
+    final lrn = data.learnersReferenceNumber.trim();
+    if (lrn.isNotEmpty && !RegExp(r'^\d{12}$').hasMatch(lrn)) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.lrn.invalid',
+          section: ApplicationSubmissionSection.academic,
+          field: 'learnersReferenceNumber',
+          message: 'Learner Reference Number must contain exactly 12 digits.',
+          repairAction: 'Use the 12-digit LRN from the student registry.',
+        ),
+      );
     }
 
     final submittedStudentId = StudentIdInputFormatter.toFullStudentId(
@@ -779,19 +799,31 @@ class ApplicationSubmissionValidator {
     required String label,
     required String value,
   }) {
-    if (_hasText(value)) {
-      return const <ApplicationSubmissionIssue>[];
+    if (!_hasText(value)) {
+      return <ApplicationSubmissionIssue>[
+        ApplicationSubmissionIssue(
+          code: 'essay.$field.required',
+          section: ApplicationSubmissionSection.essay,
+          field: field,
+          message: '$label is required.',
+          repairAction: 'Write your $label before continuing.',
+        ),
+      ];
     }
 
-    return <ApplicationSubmissionIssue>[
-      ApplicationSubmissionIssue(
-        code: 'essay.$field.required',
-        section: ApplicationSubmissionSection.essay,
-        field: field,
-        message: '$label is required.',
-        repairAction: 'Write your $label before continuing.',
-      ),
-    ];
+    if (value.length > ApplicationFieldLimits.essay) {
+      return <ApplicationSubmissionIssue>[
+        ApplicationSubmissionIssue(
+          code: 'essay.$field.max_length',
+          section: ApplicationSubmissionSection.essay,
+          field: field,
+          message: '$label must not exceed ${ApplicationFieldLimits.essay} characters.',
+          repairAction: 'Shorten the response to ${ApplicationFieldLimits.essay} characters or fewer.',
+        ),
+      ];
+    }
+
+    return const <ApplicationSubmissionIssue>[];
   }
 
   List<ApplicationSubmissionIssue> _validateCertificationFields(
@@ -878,6 +910,8 @@ class ApplicationSubmissionValidator {
         return data.currentCourse;
       case 'currentYearLevel':
         return data.currentYearLevel;
+      case 'currentSection':
+        return data.currentSection;
       case 'studentNumber':
         return data.studentNumber;
       case 'financialSupport':

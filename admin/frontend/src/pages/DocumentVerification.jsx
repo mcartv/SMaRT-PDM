@@ -83,6 +83,7 @@ const REQUIRED_DOCUMENTS = [
   {
     id: 'birth_certificate',
     name: 'PSA / Birth Certificate',
+    required: false,
     aliases: [
       'birth certificate',
       'birth certificate / psa',
@@ -448,6 +449,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       requirement_id: rawDoc.requirement_id || null,
       document_id: rawDoc.document_id || rawDoc.id || null,
       name: config.name,
+      required: config.required !== false,
       url: resolvedUrl,
       status: normalizedStatus || 'pending',
       admin_comment: rawDoc.admin_comment || rawDoc.comment || rawDoc.remarks || rawDoc.notes || '',
@@ -492,6 +494,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       requirement_id: null,
       document_id: null,
       name: cfg.name,
+      required: cfg.required !== false,
       url: '',
       status: 'pending',
       admin_comment: '',
@@ -3836,12 +3839,16 @@ export default function DocumentVerification() {
 
   const endorsementSlipId = application?.readiness?.endorsement_slip_id || null;
 
-  const requiredDocCount = REQUIRED_DOCUMENTS.length;
-  const requiredDocs = docs.slice(0, requiredDocCount);
+  const requiredDocs = docs.filter((document) => document.required !== false);
+  const requiredDocCount = requiredDocs.length;
 
   const availableCount = useMemo(
     () => docs.filter((d) => isDocumentAvailable(d)).length,
     [docs]
+  );
+  const requiredAvailableCount = useMemo(
+    () => requiredDocs.filter((d) => isDocumentAvailable(d)).length,
+    [requiredDocs]
   );
 
   const verifiedCount = useMemo(
@@ -3867,7 +3874,7 @@ export default function DocumentVerification() {
   );
 
   const hasAnyUpload = availableCount > 0;
-  const hasCompleteRequirements = availableCount >= requiredDocCount;
+  const hasCompleteRequirements = requiredAvailableCount >= requiredDocCount;
 
   const allRequiredDocsUploaded = requiredDocs.every((d) => isDocumentAvailable(d));
   const allRequiredDocsReviewed = requiredDocs.every(

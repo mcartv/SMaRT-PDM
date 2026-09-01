@@ -244,7 +244,7 @@ class ApiClient:
 
         return request
 
-    def update_status(self, request_id: str, status: str) -> bool:
+    def update_status_outcome(self, request_id: str, status: str) -> str:
         """Persist one active request lifecycle transition with retries."""
         url = f"{self.base_url}/api/pi/iot-ocr/{request_id}/status"
 
@@ -257,15 +257,21 @@ class ApiClient:
                     timeout=min(self.timeout, 10),
                 )
                 if response.status_code in {400, 404, 409, 410}:
+                    try:
+                        body = response.json()
+                    except ValueError:
+                        body = {}
                     log.warning(
                         "Lifecycle request rejected request=%s status=%s http=%s",
                         request_id[:8],
                         status,
                         response.status_code,
                     )
-                    return False
+                    if isinstance(body, dict) and body.get("stop_processing"):
+                        return "stopped"
+                    return "failed"
                 response.raise_for_status()
-                return True
+                return "updated"
             except requests.RequestException as exc:
                 log.warning(
                     "update_status attempt %s failed request=%s status=%s: %s",
@@ -275,7 +281,10 @@ class ApiClient:
                     exc,
                 )
 
-        return False
+        return "failed"
+
+    def update_status(self, request_id: str, status: str) -> bool:
+        return self.update_status_outcome(request_id, status) == "updated"
 
     def submit_result(
         self,

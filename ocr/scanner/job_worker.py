@@ -175,8 +175,8 @@ def publish_worker_activity(state: str, *, request=None, camera_status="unknown"
             application_reference=request.get("application_id"),
             document_key=request.get("document_key"),
             request_owner_name=(
-                request.get("request_owner_name")
-                or request.get("student_name")
+                request.get("student_name")
+                or request.get("request_owner_name")
             ),
             camera_status=camera_status,
         ).to_dict()
@@ -1981,7 +1981,14 @@ def main():
                         worker_state, camera_status = lifecycle_worker_state(heartbeat_status)
                         publish_worker_activity(worker_state, request=request, camera_status=camera_status)
                         lease_status = backend_lifecycle_status(heartbeat_status)
-                        if not heartbeat_api.update_status(request_id, lease_status):
+                        heartbeat_outcome = heartbeat_api.update_status_outcome(
+                            request_id,
+                            lease_status,
+                        )
+                        if heartbeat_outcome == "stopped":
+                            heartbeat_stop.set()
+                            break
+                        if heartbeat_outcome != "updated":
                             heartbeat_failed = True
                             failed_status = heartbeat_status
                             request_stop.set()

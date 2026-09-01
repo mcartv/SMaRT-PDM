@@ -1000,6 +1000,32 @@ class JobWorkerTest(unittest.TestCase):
 
         self.assertLess(stop_index, submit_index)
         self.assertIn("with status_update_lock", source)
+        self.assertIn("update_status_outcome", source)
+        self.assertIn('heartbeat_outcome == "stopped"', source)
+
+    def test_worker_snapshot_prefers_document_student_name_for_gui(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            job_worker,
+            "WORKER_ACTIVITY_PATH",
+            Path(directory) / "worker_activity.json",
+        ):
+            job_worker._state_sequence = 0
+            job_worker._latest_worker_snapshot = None
+            job_worker.publish_worker_activity(
+                "running_ocr",
+                request={
+                    "request_id": "request-123",
+                    "application_id": "application-123",
+                    "document_key": "birth_certificate",
+                    "student_name": "Matched Student",
+                    "request_owner_name": "Staff Requester",
+                },
+                camera_status="captured",
+            )
+
+            snapshot = dict(job_worker._latest_worker_snapshot)
+
+        self.assertEqual(snapshot["request_owner_name"], "Matched Student")
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")

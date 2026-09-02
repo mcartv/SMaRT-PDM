@@ -8,6 +8,7 @@ import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ScholarshipOpeningsScreen extends StatefulWidget {
@@ -36,8 +37,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   void initState() {
     super.initState();
     _loadOpenings();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
       _requestLiveRefresh();
     });
   }
@@ -132,15 +134,40 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     super.dispose();
   }
 
-  String _formatDateRange(ProgramOpening opening) {
+  String _applicationPeriodLabel(ProgramOpening opening) {
+    final databaseLabel = opening.applicationPeriodLabel.trim();
+    if (databaseLabel.isNotEmpty) {
+      return databaseLabel;
+    }
+
+    final databaseParts = <String>[
+      opening.academicYearLabel.trim(),
+      opening.academicTerm.trim(),
+    ].where((item) => item.isNotEmpty).toList(growable: false);
+
+    if (databaseParts.isNotEmpty) {
+      return databaseParts.join(' · ');
+    }
+
+    // Compatibility fallback only for older API payloads that actually
+    // provide calendar dates.
     String format(String value) {
-      if (value.isEmpty) return 'TBA';
+      if (value.trim().isEmpty) return '';
       final parsed = DateTime.tryParse(value);
-      if (parsed == null) return value;
+      if (parsed == null) return value.trim();
       return DateFormat('MMM d, yyyy').format(parsed);
     }
 
-    return '${format(opening.applicationStart)} - ${format(opening.applicationEnd)}';
+    final start = format(opening.applicationStart);
+    final end = format(opening.applicationEnd);
+
+    if (start.isNotEmpty && end.isNotEmpty) {
+      return '$start - $end';
+    }
+    if (start.isNotEmpty) return start;
+    if (end.isNotEmpty) return end;
+
+    return 'Not specified';
   }
 
   String _displayScholarshipTitle(ProgramOpening opening) {
@@ -158,17 +185,91 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return cleaned.isEmpty ? fallback : cleaned;
   }
 
-  String _availabilitySummary(ProgramOpening opening) {
-    if (opening.availableSlots > 0) {
-      return '${opening.availableSlots} scholarship '
-          'slot${opening.availableSlots == 1 ? '' : 's'} available';
+  String _normalizeOpeningCopy(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\bscholarship\b'), '')
+        .replaceAll(RegExp(r'\bopening\b'), '')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _isRedundantOpeningCopy(
+    ProgramOpening opening,
+    String value, {
+    String? compareWith,
+  }) {
+    final normalized = _normalizeOpeningCopy(value);
+    if (normalized.isEmpty) return true;
+
+    final knownLabels = <String>{
+      _normalizeOpeningCopy(opening.openingTitle),
+      _normalizeOpeningCopy(opening.programName),
+      _normalizeOpeningCopy(opening.benefactorName ?? ''),
+      if (compareWith != null) _normalizeOpeningCopy(compareWith),
+    }..removeWhere((item) => item.isEmpty);
+
+    return knownLabels.contains(normalized);
+  }
+
+  Widget _buildAvailabilityHighlight({
+    required ProgramOpening opening,
+    required Color accentColor,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
+    final assignedSlots = opening.allocatedSlots;
+
+    if (assignedSlots <= 0) {
+      return const SizedBox.shrink();
     }
 
-    if (opening.waitingListEnabled) {
-      return 'Waiting list available';
-    }
-
-    return 'No scholarship slots currently available';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accentColor.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.school_outlined, color: accentColor, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '$assignedSlots',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: accentColor,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              assignedSlots == 1 ? 'Scholarship Slot' : 'Scholarship Slots',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: titleColor,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openApplicationForm({
@@ -505,24 +606,60 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                               ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Application period: ${_formatDateRange(opening)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: titleColor,
-                          ),
+                        const SizedBox(height: 12),
+                        _buildAvailabilityHighlight(
+                          opening: opening,
+                          accentColor: accentColor,
+                          titleColor: titleColor,
+                          subtitleColor: subtitleColor,
                         ),
-                        const SizedBox(height: 5),
-                        Text(
-                          _availabilitySummary(opening),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: subtitleColor,
-                                fontWeight: FontWeight.w600,
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.calendar_month_outlined,
+                              size: 18,
+                              color: subtitleColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Application period',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: subtitleColor,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _applicationPeriodLabel(opening),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: titleColor,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                ],
                               ),
+                            ),
+                          ],
                         ),
-                        if (opening.announcementText.trim().isNotEmpty) ...[
+                        if (opening.announcementText.trim().isNotEmpty &&
+                            !_isRedundantOpeningCopy(
+                              opening,
+                              opening.announcementText,
+                            )) ...[
                           const SizedBox(height: 10),
                           Text(
                             opening.announcementText,
@@ -530,7 +667,12 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                                 ?.copyWith(height: 1.4, color: subtitleColor),
                           ),
                         ],
-                        if (opening.programDescription.trim().isNotEmpty) ...[
+                        if (opening.programDescription.trim().isNotEmpty &&
+                            !_isRedundantOpeningCopy(
+                              opening,
+                              opening.programDescription,
+                              compareWith: opening.announcementText,
+                            )) ...[
                           const SizedBox(height: 10),
                           Text(
                             opening.programDescription.trim(),
@@ -631,5 +773,4 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
       ),
     );
   }
-
 }

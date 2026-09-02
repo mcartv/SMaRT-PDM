@@ -59,6 +59,12 @@ class NotificationProvider extends ChangeNotifier {
   String _initializedUserId = '';
 
   int _unreadCount = 0;
+  int _notificationMutationRevision = 0;
+  Timer? _unreadCountRealtimeDebounce;
+  static const Duration _unreadCountRealtimeCoalesceWindow = Duration(
+    milliseconds: 250,
+  );
+
   int _scholarAccessRevision = 0;
   int _scholarActivationRevision = 0;
   int _applicationRevision = 0;
@@ -158,9 +164,21 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
     }
 
+    final notificationMutationRevisionAtStart = _notificationMutationRevision;
+
     try {
       final result = await _notificationService.fetchNotifications();
-      _notifications = result.items;
+
+      // A realtime event can arrive while a REST refresh is in flight.
+      // Never let an older HTTP response overwrite the newer socket state.
+      if (notificationMutationRevisionAtStart ==
+          _notificationMutationRevision) {
+        _notifications = result.items;
+      } else {
+        debugPrint(
+          'NOTIFICATION REFRESH SKIPPED STALE LIST: realtime changed during fetch',
+        );
+      }
 
       await _refreshPublishedAnnouncements();
       await _refreshLatestOpeningUpdate();
@@ -365,36 +383,26 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.notificationCreated:
       case MobileRealtimeEvents.notificationCreatedLegacy:
         await _upsertNotificationFromEvent(event);
-        await _refreshOfficeUpdatesFromRealtime();
-
         return;
 
       case MobileRealtimeEvents.notificationUpdated:
       case MobileRealtimeEvents.notificationsUpdated:
       case MobileRealtimeEvents.notificationUpdatedLegacy:
+      case MobileRealtimeEvents.notificationRead:
         await _updateNotificationFromEvent(event);
-        await _refreshOfficeUpdatesFromRealtime();
-
         return;
 
       case MobileRealtimeEvents.notificationDeleted:
       case MobileRealtimeEvents.notificationArchived:
         await _removeNotificationFromEvent(event);
-        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationRestored:
-        await _refreshOfficeUpdatesFromRealtime();
-        return;
-
-      case MobileRealtimeEvents.notificationRead:
-        await _updateNotificationFromEvent(event);
-        await _refreshOfficeUpdatesFromRealtime();
+        await _upsertNotificationFromEvent(event);
         return;
 
       case MobileRealtimeEvents.notificationReadAll:
         _markLocalNotificationsRead();
-        await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.announcementCreated:
@@ -612,6 +620,22 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  void _queueUnreadCountRealtimeReconcile() {
+    _unreadCountRealtimeDebounce?.cancel();
+
+    _unreadCountRealtimeDebounce = Timer(
+      _unreadCountRealtimeCoalesceWindow,
+      () async {
+        _unreadCountRealtimeDebounce = null;
+
+        if (!_isInitialized) return;
+
+        await _refreshUnreadCountFromServerOrLocal();
+        notifyListeners();
+      },
+    );
+  }
+
   Future<void> _refreshPublishedAnnouncements() async {
     try {
       final announcements = await _announcementService.fetchAnnouncements();
@@ -658,21 +682,14 @@ class NotificationProvider extends ChangeNotifier {
           (item) => item.notificationId != notification.notificationId,
         ),
       ];
+      _notificationMutationRevision += 1;
 
       // Display the new notification immediately from the socket payload.
       // Reconcile the server count in the background instead of blocking UI.
       _recalculateUnreadCount();
       notifyListeners();
 
-      unawaited(
-        _refreshUnreadCountFromServerOrLocal()
-            .then((_) {
-              notifyListeners();
-            })
-            .catchError((Object error) {
-              debugPrint('UNREAD COUNT REALTIME RECONCILE ERROR: $error');
-            }),
-      );
+      _queueUnreadCountRealtimeReconcile();
     } catch (error) {
       debugPrint('UPSERT REALTIME NOTIFICATION ERROR: $error');
     }
@@ -735,8 +752,7 @@ class NotificationProvider extends ChangeNotifier {
       final updated = AppNotification.fromJson(payload);
 
       if (updated.notificationId.trim().isEmpty) {
-        await _refreshUnreadCountFromServerOrLocal();
-        notifyListeners();
+        _queueUnreadCountRealtimeReconcile();
         return;
       }
 
@@ -755,12 +771,16 @@ class NotificationProvider extends ChangeNotifier {
           })
           .toList(growable: false);
 
-      if (!found && updated.notificationId.trim().isNotEmpty) {
+      if (!found) {
         _notifications = <AppNotification>[updated, ..._notifications];
       }
 
-      await _refreshUnreadCountFromServerOrLocal();
+      _notificationMutationRevision += 1;
+      _recalculateUnreadCount();
+
+      // Do not await another API call before rebuilding the visible screen.
       notifyListeners();
+      _queueUnreadCountRealtimeReconcile();
     } catch (error) {
       debugPrint('UPDATE REALTIME NOTIFICATION ERROR: $error');
     }
@@ -778,8 +798,12 @@ class NotificationProvider extends ChangeNotifier {
         .where((notification) => notification.notificationId != notificationId)
         .toList(growable: false);
 
-    await _refreshUnreadCountFromServerOrLocal();
+    _notificationMutationRevision += 1;
+    _recalculateUnreadCount();
+
+    // Remove from the visible list immediately.
     notifyListeners();
+    _queueUnreadCountRealtimeReconcile();
   }
 
   void _markLocalNotificationsRead() {
@@ -787,6 +811,7 @@ class NotificationProvider extends ChangeNotifier {
         .map((item) => item.copyWith(isRead: true))
         .toList(growable: false);
 
+    _notificationMutationRevision += 1;
     _unreadCount = 0;
     notifyListeners();
   }
@@ -1085,6 +1110,8 @@ class NotificationProvider extends ChangeNotifier {
   void dispose() {
     _realtimeSafetyTimer?.cancel();
     _realtimeSafetyTimer = null;
+    _unreadCountRealtimeDebounce?.cancel();
+    _unreadCountRealtimeDebounce = null;
     _realtimeRefreshDebounce?.cancel();
     _realtimeRefreshDebounce = null;
     final realtimeCompleter = _realtimeRefreshCompleter;

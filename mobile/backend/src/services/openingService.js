@@ -370,6 +370,12 @@ async function getOpeningsForMobile(userId) {
       is_archived,
       created_at,
       updated_at,
+      academic_years (
+        label
+      ),
+      academic_period (
+        term
+      ),
       scholarship_program (
         program_id,
         program_name,
@@ -449,6 +455,18 @@ async function getOpeningsForMobile(userId) {
     .map((row) => {
       const program = row.scholarship_program || {};
       const benefactor = program.benefactors || null;
+      const academicYearLabel = String(
+        row.academic_years?.label || ''
+      ).trim();
+      const academicTerm = String(
+        row.academic_period?.term || ''
+      ).trim();
+      const applicationPeriodLabel = [
+        academicYearLabel,
+        academicTerm,
+      ]
+        .filter(Boolean)
+        .join(' · ');
 
       const isCurrentPeriod =
         !!activePeriod?.period_id &&
@@ -568,6 +586,9 @@ async function getOpeningsForMobile(userId) {
         academic_year_id: row.academic_year_id || null,
         period_id: row.period_id || null,
         is_current_period: isCurrentPeriod,
+        academic_year_label: academicYearLabel,
+        academic_term: academicTerm,
+        application_period_label: applicationPeriodLabel,
         opening_title:
           row.opening_title ||
           program.program_name ||

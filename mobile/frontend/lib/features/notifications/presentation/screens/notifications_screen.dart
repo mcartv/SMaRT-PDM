@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
@@ -51,9 +52,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _startLiveSyncWatchdog() {
     _liveSyncTimer?.cancel();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) async {
       if (!mounted || _liveSyncRunning) return;
       if (ModalRoute.of(context)?.isCurrent != true) return;
+
+      // Healthy realtime owns the screen. Poll only as a recovery watchdog
+      // when the socket/database bridge is unavailable.
+      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
 
       _liveSyncRunning = true;
       try {
@@ -708,7 +713,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ?.copyWith(
                                 color: isDark
                                     ? AppColors.applicantDarkTextMuted
-                                        .withOpacity(0.78)
+                                          .withOpacity(0.78)
                                     : const Color(0xFF817A71),
                                 fontWeight: FontWeight.w700,
                               ),
@@ -882,8 +887,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     color: hasUnread
                         ? AppColors.gold
                         : (isDark
-                              ? AppColors.applicantDarkTextMuted
-                                  .withOpacity(0.72)
+                              ? AppColors.applicantDarkTextMuted.withOpacity(
+                                  0.72,
+                                )
                               : const Color(0xFF8F887F)),
                     fontWeight: FontWeight.w900,
                   ),

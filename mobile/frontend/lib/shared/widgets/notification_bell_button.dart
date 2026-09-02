@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 
 class NotificationBellButton extends StatefulWidget {
@@ -37,7 +38,11 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 
     if (!mounted) return;
 
-    await context.read<NotificationProvider>().refresh(silent: true);
+    // Realtime should already have kept the provider current while the route
+    // was open. Only reconcile after returning if realtime is actually down.
+    if (!MobileRealtimeService.instance.isRealtimeHealthy) {
+      await context.read<NotificationProvider>().refresh(silent: true);
+    }
   }
 
   @override

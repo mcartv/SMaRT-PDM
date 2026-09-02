@@ -22,6 +22,9 @@ class ProgramOpening {
     this.renewalCycle = '',
     this.gwaThreshold,
     this.existingApplicationId,
+    this.academicYearLabel = '',
+    this.academicTerm = '',
+    this.applicationPeriodLabel = '',
     this.allocatedSlots = 0,
     this.filledSlots = 0,
     this.availableSlots = 0,
@@ -59,6 +62,9 @@ class ProgramOpening {
   final String renewalCycle;
   final double? gwaThreshold;
   final String? existingApplicationId;
+  final String academicYearLabel;
+  final String academicTerm;
+  final String applicationPeriodLabel;
 
   final int allocatedSlots;
   final int filledSlots;
@@ -115,6 +121,10 @@ class ProgramOpening {
       renewalCycle: json['renewal_cycle']?.toString() ?? '',
       gwaThreshold: (json['gwa_threshold'] as num?)?.toDouble(),
       existingApplicationId: json['existing_application_id']?.toString(),
+      academicYearLabel: json['academic_year_label']?.toString() ?? '',
+      academicTerm: json['academic_term']?.toString() ?? '',
+      applicationPeriodLabel:
+          json['application_period_label']?.toString() ?? '',
       allocatedSlots: (json['allocated_slots'] as num?)?.toInt() ?? 0,
       filledSlots: (json['filled_slots'] as num?)?.toInt() ?? 0,
       availableSlots: (json['available_slots'] as num?)?.toInt() ?? 0,

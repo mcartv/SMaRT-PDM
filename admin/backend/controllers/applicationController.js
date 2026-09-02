@@ -658,7 +658,9 @@ exports.approveApplication = async (req, res) => {
             entityId: id,
             description: updated.already_activated
                 ? 'Scholar activation was already complete.'
-                : 'Applicant passed final readiness checks and was activated as a scholar.',
+                : updated.reconciled
+                  ? 'Scholar conversion state was reconciled to the canonical active-scholar record.'
+                  : 'Applicant passed final readiness checks and was activated as a scholar.',
             metadata: {
                 outcome: updated.outcome,
                 opening_id: updated.opening_id || null,
@@ -673,7 +675,9 @@ exports.approveApplication = async (req, res) => {
         res.status(200).json({
             message: updated.already_activated
                 ? 'Scholar is already activated.'
-                : 'Scholar activated successfully.',
+                : updated.reconciled
+                  ? 'Scholar conversion synchronized successfully.'
+                  : 'Scholar activated successfully.',
             application: updated.application,
             scholar: updated.scholar || null,
             outcome: updated.outcome,

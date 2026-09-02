@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
+const { validateApplicationFieldLimits } = require('../validation/applicationFieldLimits');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 const { removeDocumentPreview } = require('./documentPreviewService');

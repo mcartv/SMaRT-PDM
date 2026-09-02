@@ -167,6 +167,32 @@ async function relayRenewalEvent({
   );
 }
 
+async function relayNotificationBatch({
+  event = 'notification:new',
+  notifications = [],
+}) {
+  const safeNotifications = Array.isArray(notifications)
+    ? notifications.filter((item) => item && typeof item === 'object')
+    : [];
+
+  if (!safeNotifications.length) {
+    return {
+      success: true,
+      skipped: true,
+      reason: 'empty_notification_batch',
+    };
+  }
+
+  return postRealtime(
+    '/api/internal/realtime/notification-batch',
+    {
+      event,
+      notifications: safeNotifications,
+    },
+    `notification batch ${event}`
+  );
+}
+
 async function relayModuleEvent({
   event,
   payload = {},
@@ -188,5 +214,6 @@ module.exports = {
   relayMessageEvent,
   relayRoEvent,
   relayRenewalEvent,
+  relayNotificationBatch,
   relayModuleEvent,
 };

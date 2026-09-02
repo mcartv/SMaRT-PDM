@@ -126,6 +126,12 @@ class NotificationProvider extends ChangeNotifier {
   int get profileRevision => _profileRevision;
 
   Future<void> initialize() async {
+    // Register the listener synchronously before the first await. Previously,
+    // push-token/profile/notification bootstrap work could delay or abort
+    // listener setup, leaving the bell stale until Notifications was opened.
+    _ensureRealtimeListener();
+    _ensureRealtimeSafetyTimer();
+
     final session = await _sessionService.getCurrentUser();
 
     if (session.token.isEmpty) {
@@ -151,10 +157,16 @@ class NotificationProvider extends ChangeNotifier {
 
     await refresh();
     await _refreshScholarAccessFromProfile();
-    await _notificationService.registerStoredDeviceToken();
 
-    _ensureRealtimeListener();
-    _ensureRealtimeSafetyTimer();
+    // Device-token registration is useful for OS push, but it is not allowed
+    // to block or disable the in-app Socket.IO notification path.
+    unawaited(
+      _notificationService.registerStoredDeviceToken().catchError((
+        Object error,
+      ) {
+        debugPrint('DEVICE TOKEN REGISTRATION ERROR: $error');
+      }),
+    );
   }
 
   Future<void> refresh({bool silent = false}) async {
@@ -411,8 +423,9 @@ class NotificationProvider extends ChangeNotifier {
       case MobileRealtimeEvents.announcementRestored:
       case MobileRealtimeEvents.announcementRefresh:
         _announcementRevision += 1;
+        // The targeted notification:new payload owns the visible card and
+        // unread badge. Avoid an additional full Office Updates fetch.
         notifyListeners();
-        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
 
       case MobileRealtimeEvents.announcementArchived:
@@ -423,7 +436,6 @@ class NotificationProvider extends ChangeNotifier {
           referenceType: 'announcement',
         );
         notifyListeners();
-        unawaited(_refreshOfficeUpdatesFromRealtime());
         return;
 
       case MobileRealtimeEvents.openingCreated:

@@ -2,6 +2,7 @@ const supabase = require('../config/supabase');
 const db = require('../config/db');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
+const { relayNotificationBatch } = require('./studentRealtimeRelayService');
 function normalizeAudience(value) {
     return String(value || '').trim().toLowerCase();
 }
@@ -16,333 +17,173 @@ function dedupeAudienceUsers(users = []) {
     });
 }
 
-async function getApplicantAudienceUsers() {
-    const { rows } = await db.query(
-        `
-        SELECT DISTINCT u.user_id, u.role
-        FROM users u
-        LEFT JOIN students s ON s.user_id = u.user_id
-        WHERE lower(coalesce(u.role, '')) IN ('student', 'applicant')
-          AND (
-            lower(coalesce(u.role, '')) = 'applicant'
-            OR NOT (
-              coalesce(s.is_active_scholar, false) = true
-              OR lower(coalesce(s.scholarship_status, '')) = 'active'
-            )
-          )
-          AND coalesce(s.scholar_is_archived, false) = false
-          AND coalesce(s.is_archived, false) = false
-          AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
-        `
-    );
 
-    return rows || [];
+async function getMobileAudienceStudents() {
+    const { data, error } = await supabase
+        .from('students')
+        .select('user_id,is_active_scholar,scholarship_status,current_program_id,scholar_is_archived,is_archived,account_status');
+    if (error) throw new Error(error.message);
+    return (data || []).filter((student) => {
+        if (!student?.user_id) return false;
+        if (student.scholar_is_archived === true || student.is_archived === true) return false;
+        return String(student.account_status || 'verified').trim().toLowerCase() !== 'disabled';
+    });
 }
-
-async function getActiveScholarAudienceUsers(programId = null) {
-    const params = [];
-    let programCondition = '';
-
-    if (programId) {
-        params.push(programId);
-        programCondition = `AND s.current_program_id = $${params.length}`;
-    }
-
-    const { rows } = await db.query(
-        `
-        SELECT DISTINCT u.user_id, u.role
-        FROM users u
-        INNER JOIN students s ON s.user_id = u.user_id
-        WHERE lower(coalesce(u.role, '')) = 'student'
-          AND (
-            coalesce(s.is_active_scholar, false) = true
-            OR lower(coalesce(s.scholarship_status, '')) = 'active'
-          )
-          AND coalesce(s.scholar_is_archived, false) = false
-          AND coalesce(s.is_archived, false) = false
-          AND lower(coalesce(s.account_status, 'verified')) <> 'disabled'
-          ${programCondition}
-        `,
-        params
-    );
-
-    return rows || [];
+function isActiveScholarAudienceStudent(student) {
+    return student?.is_active_scholar === true ||
+        String(student?.scholarship_status || '').trim().toLowerCase() === 'active';
 }
-
 async function resolveLegacyProgramId(audience) {
-    const normalizedAudience = normalizeAudience(audience);
-    if (!['tes', 'tdp'].includes(normalizedAudience)) return null;
-
-    const patterns = normalizedAudience === 'tes'
-        ? ['%tertiary education subsidy%', 'tes%', '% tes %']
-        : ['%tulong dunong%', 'tdp%', '% tdp %'];
-
-    const { rows } = await db.query(
-        `
-        SELECT program_id
-        FROM scholarship_program
-        WHERE coalesce(is_archived, false) = false
-          AND (
-            lower(program_name) LIKE $1
-            OR lower(program_name) LIKE $2
-            OR (' ' || lower(program_name) || ' ') LIKE $3
-          )
-        ORDER BY program_name
-        LIMIT 1
-        `,
-        patterns
-    );
-
-    return rows[0]?.program_id || null;
+    const key = normalizeAudience(audience);
+    if (!['tes','tdp'].includes(key)) return null;
+    const { data, error } = await supabase
+        .from('scholarship_program')
+        .select('program_id,program_name,is_archived');
+    if (error) throw new Error(error.message);
+    const aliases = key === 'tes' ? ['tertiary education subsidy','tes'] : ['tulong dunong','tdp'];
+    const match=(data||[]).find(p=>{
+        if(p?.is_archived===true)return false;
+        const n=String(p?.program_name||'').trim().toLowerCase();
+        return aliases.some(a=>n===a||n.includes(a));
+    });
+    return match?.program_id || null;
 }
-
-async function getAudienceUsers(audience, { programId = null } = {}) {
-    const normalizedAudience = normalizeAudience(audience);
-
-    if (normalizedAudience === 'applicants') {
-        return getApplicantAudienceUsers();
+async function getAudienceUsers(audience,{programId=null}={}) {
+    const key=normalizeAudience(audience);
+    const students=await getMobileAudienceStudents();
+    const targets=(rows)=>dedupeAudienceUsers(rows.map(s=>({
+        user_id:s.user_id,
+        role:isActiveScholarAudienceStudent(s)?'student':'applicant'
+    })));
+    if(key==='all') return targets(students);
+    if(key==='applicants') return targets(students.filter(s=>!isActiveScholarAudienceStudent(s)));
+    if(key==='scholars') return targets(students.filter(isActiveScholarAudienceStudent));
+    if(key==='program'){
+        if(!programId) throw new Error('Program ID is required for a program recipient announcement.');
+        return targets(students.filter(s=>isActiveScholarAudienceStudent(s)&&String(s.current_program_id||'')===String(programId)));
     }
-
-    if (normalizedAudience === 'scholars') {
-        return getActiveScholarAudienceUsers();
+    if(['tes','tdp'].includes(key)){
+        const id=await resolveLegacyProgramId(key);
+        return id ? targets(students.filter(s=>isActiveScholarAudienceStudent(s)&&String(s.current_program_id||'')===String(id))) : [];
     }
-
-    if (normalizedAudience === 'program') {
-        if (!programId) {
-            throw new Error('Program ID is required for a program recipient announcement.');
-        }
-        return getActiveScholarAudienceUsers(programId);
-    }
-
-    if (['tes', 'tdp'].includes(normalizedAudience)) {
-        const legacyProgramId = await resolveLegacyProgramId(normalizedAudience);
-        return legacyProgramId ? getActiveScholarAudienceUsers(legacyProgramId) : [];
-    }
-
-    if (normalizedAudience === 'all') {
-        const [applicants, scholars] = await Promise.all([
-            getApplicantAudienceUsers(),
-            getActiveScholarAudienceUsers(),
-        ]);
-        return dedupeAudienceUsers([...applicants, ...scholars]);
-    }
-
     throw new Error('Unsupported announcement audience.');
 }
 
-async function createNotificationsForAudience({
-    audience,
-    title,
-    message,
-    referenceId = null,
-    referenceType = 'announcement',
-    type = 'Announcement',
-    createdAt = null,
-    programId = null,
-}) {
-    if (!title || !message || !audience) {
-        throw new Error('Title, message, and audience are required');
-    }
 
-    const users = await getAudienceUsers(audience, { programId });
+function relayCreatedNotifications(rows = []) {
+    const notifications = Array.isArray(rows)
+        ? rows.filter((row) => row?.notification_id && row?.user_id)
+        : [];
 
-    if (!users.length) {
-        return [];
-    }
+    if (!notifications.length) return;
 
-    const timestamp = createdAt || new Date().toISOString();
-    const isCanonicalAnnouncement =
-        referenceId &&
-        String(referenceType || '').trim().toLowerCase() === 'announcement' &&
-        String(type || '').trim().toLowerCase() === 'announcement';
-
-    if (isCanonicalAnnouncement) {
-        const userIds = users
-            .map((targetUser) => String(targetUser?.user_id || '').trim())
-            .filter(Boolean);
-
-        const { rows } = await db.query(
-            `
-            INSERT INTO notifications (
-                user_id,
-                type,
-                title,
-                message,
-                reference_id,
-                reference_type,
-                is_read,
-                push_sent,
-                created_at
-            )
-            SELECT
-                target.user_id,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                false,
-                false,
-                $7::timestamptz
-            FROM unnest($1::uuid[]) AS target(user_id)
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM notifications existing
-                WHERE existing.user_id = target.user_id
-                  AND existing.reference_id = $5
-                  AND existing.reference_type = $6
-                  AND lower(existing.type) = lower($2)
-            )
-            ON CONFLICT DO NOTHING
-            RETURNING
-                notification_id,
-                user_id,
-                type,
-                title,
-                message,
-                reference_id,
-                reference_type,
-                is_read,
-                push_sent,
-                created_at
-            `,
-            [
-                userIds,
-                type,
-                title,
-                message,
-                referenceId,
-                referenceType,
-                timestamp,
-            ]
+    // Do not block Admin publishing on a cross-backend request. The database
+    // realtime bridge remains the fallback, while this direct one-request
+    // relay gives connected Mobile clients immediate badge/list updates.
+    relayNotificationBatch({
+        event: 'notification:new',
+        notifications,
+    }).catch((error) => {
+        console.error(
+            '[Announcement Notification Relay] failed:',
+            error?.message || error
         );
-
-        return rows || [];
-    }
-
-    const rows = users.map((targetUser) => ({
-        user_id: targetUser.user_id,
-        type,
-        title,
-        message,
-        reference_id: referenceId,
-        reference_type: referenceType,
-        is_read: false,
-        push_sent: false,
-        created_at: timestamp,
-    }));
-
-    const { data, error } = await supabase
-        .from('notifications')
-        .insert(rows)
-        .select();
-
-    if (error) {
-        console.error('SUPABASE NOTIFICATION INSERT ERROR:', error);
-        throw new Error(error.message);
-    }
-
-    return data || [];
+    });
 }
 
-async function syncAnnouncementNotifications({
-    audience,
-    title,
-    message,
-    referenceId,
-    createdAt = null,
-    programId = null,
+async function createNotificationsForAudience({
+    audience,title,message,referenceId=null,referenceType='announcement',
+    type='Announcement',createdAt=null,programId=null,
 }) {
-    if (!title || !message || !audience || !referenceId) {
+    if (!title || !message || !audience) throw new Error('Title, message, and audience are required');
+    const users=await getAudienceUsers(audience,{programId});
+    if(!users.length)return [];
+    const timestamp=createdAt||new Date().toISOString();
+    const canonical=referenceId &&
+        String(referenceType||'').trim().toLowerCase()==='announcement' &&
+        String(type||'').trim().toLowerCase()==='announcement';
+
+    if(canonical){
+        const userIds=users.map(u=>String(u.user_id||'').trim()).filter(Boolean);
+        const {data:existing,error:existingError}=await supabase
+            .from('notifications')
+            .select('user_id')
+            .eq('reference_id',String(referenceId))
+            .eq('reference_type','announcement')
+            .ilike('type','Announcement')
+            .in('user_id',userIds);
+        if(existingError)throw new Error(existingError.message);
+        const seen=new Set((existing||[]).map(r=>String(r.user_id)));
+        const rows=users.filter(u=>!seen.has(String(u.user_id))).map(u=>({
+            user_id:u.user_id,type,title,message,
+            reference_id:String(referenceId),reference_type:'announcement',
+            is_read:false,push_sent:false,created_at:timestamp
+        }));
+        if(!rows.length)return [];
+        const {data,error}=await supabase.from('notifications').insert(rows).select();
+        if(error)throw new Error(error.message);
+        const createdRows = data || [];
+        relayCreatedNotifications(createdRows);
+        return createdRows;
+    }
+
+    const rows=users.map(u=>({
+        user_id:u.user_id,type,title,message,reference_id:referenceId,
+        reference_type:referenceType,is_read:false,push_sent:false,created_at:timestamp
+    }));
+    const {data,error}=await supabase.from('notifications').insert(rows).select();
+    if(error)throw new Error(error.message);
+    const createdRows = data || [];
+        relayCreatedNotifications(createdRows);
+        return createdRows;
+}
+
+
+async function syncAnnouncementNotifications({
+    audience,title,message,referenceId,createdAt=null,programId=null,
+}) {
+    if(!title||!message||!audience||!referenceId)
         throw new Error('Title, message, audience, and referenceId are required');
+
+    const users=await getAudienceUsers(audience,{programId});
+    const userIds=users.map(u=>String(u.user_id||'').trim()).filter(Boolean);
+
+    const {data:existing,error:existingError}=await supabase
+        .from('notifications')
+        .select('notification_id,user_id')
+        .eq('reference_id',String(referenceId))
+        .eq('reference_type','announcement')
+        .ilike('type','Announcement');
+    if(existingError)throw new Error(existingError.message);
+
+    const target=new Set(userIds);
+    const byUser=new Map((existing||[]).map(r=>[String(r.user_id),r.notification_id]));
+    const stale=(existing||[]).filter(r=>!target.has(String(r.user_id))).map(r=>r.notification_id).filter(Boolean);
+    if(stale.length){
+        const {error}=await supabase.from('notifications').delete().in('notification_id',stale);
+        if(error)throw new Error(error.message);
     }
 
-    const users = await getAudienceUsers(audience, { programId });
-    const userIds = users
-        .map((targetUser) => String(targetUser?.user_id || '').trim())
-        .filter(Boolean);
-
-    if (!userIds.length) {
-        await db.query(
-            `
-            DELETE FROM notifications
-            WHERE reference_id = $1
-              AND lower(coalesce(reference_type, '')) = 'announcement'
-              AND lower(coalesce(type, '')) = 'announcement'
-            `,
-            [referenceId]
-        );
-
-        return { inserted: 0, updated: 0, removedStale: true };
+    const current=userIds.map(id=>byUser.get(id)).filter(Boolean);
+    let updated=0;
+    if(current.length){
+        const {data,error}=await supabase.from('notifications').update({title,message}).in('notification_id',current).select('notification_id');
+        if(error)throw new Error(error.message);
+        updated=data?.length||0;
     }
 
-    await db.query(
-        `
-        DELETE FROM notifications
-        WHERE reference_id = $1
-          AND lower(coalesce(reference_type, '')) = 'announcement'
-          AND lower(coalesce(type, '')) = 'announcement'
-          AND NOT (user_id = ANY($2::uuid[]))
-        `,
-        [referenceId, userIds]
-    );
-
-    const { rowCount: updated = 0 } = await db.query(
-        `
-        UPDATE notifications
-        SET title = $2,
-            message = $3
-        WHERE reference_id = $1
-          AND lower(coalesce(reference_type, '')) = 'announcement'
-          AND lower(coalesce(type, '')) = 'announcement'
-          AND user_id = ANY($4::uuid[])
-        `,
-        [referenceId, title, message, userIds]
-    );
-
-    const timestamp = createdAt || new Date().toISOString();
-    const { rows: insertedRows } = await db.query(
-        `
-        INSERT INTO notifications (
-            user_id,
-            type,
-            title,
-            message,
-            reference_id,
-            reference_type,
-            is_read,
-            push_sent,
-            created_at
-        )
-        SELECT
-            target.user_id,
-            'Announcement',
-            $2,
-            $3,
-            $4,
-            'announcement',
-            false,
-            false,
-            $5::timestamptz
-        FROM unnest($1::uuid[]) AS target(user_id)
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM notifications existing
-            WHERE existing.user_id = target.user_id
-              AND existing.reference_id = $4
-              AND lower(coalesce(existing.reference_type, '')) = 'announcement'
-              AND lower(coalesce(existing.type, '')) = 'announcement'
-        )
-        RETURNING notification_id
-        `,
-        [userIds, title, message, referenceId, timestamp]
-    );
-
-    return {
-        inserted: insertedRows?.length || 0,
-        updated,
-        removedStale: true,
-    };
+    const rows=users.filter(u=>!byUser.has(String(u.user_id))).map(u=>({
+        user_id:u.user_id,type:'Announcement',title,message,
+        reference_id:String(referenceId),reference_type:'announcement',
+        is_read:false,push_sent:false,created_at:createdAt||new Date().toISOString()
+    }));
+    let inserted=0;
+    if(rows.length){
+        const {data,error}=await supabase.from('notifications').insert(rows).select('notification_id');
+        if(error)throw new Error(error.message);
+        inserted=data?.length||0;
+    }
+    return {inserted,updated,removedStale:stale.length>0};
 }
 
 exports.createAnnouncementNotifications = async (payload) => {

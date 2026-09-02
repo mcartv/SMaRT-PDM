@@ -191,42 +191,28 @@ async function mapSingleAnnouncementRow(row) {
 }
 
 async function createAnnouncementNotifications(announcementRow) {
-    try {
-        const rows = await notificationService.createNotificationsForAudience({
-            audience: announcementRow.target_audience,
-            programId: announcementRow.target_program_id || null,
-            title: announcementRow.subject,
-            message: announcementRow.content,
-            referenceId: announcementRow.announcement_id,
-            referenceType: 'announcement',
-            type: 'Announcement',
-            createdAt: announcementRow.published_at || new Date().toISOString(),
-        });
-
-        return Array.isArray(rows) ? rows.length : 0;
-    } catch (err) {
-        console.error('CREATE ANNOUNCEMENT NOTIFICATIONS ERROR:', err.message);
-        return 0;
-    }
+    const rows = await notificationService.createNotificationsForAudience({
+        audience: announcementRow.target_audience,
+        programId: announcementRow.target_program_id || null,
+        title: announcementRow.subject,
+        message: announcementRow.content,
+        referenceId: announcementRow.announcement_id,
+        referenceType: 'announcement',
+        type: 'Announcement',
+        createdAt: announcementRow.published_at || new Date().toISOString(),
+    });
+    return Array.isArray(rows) ? rows.length : 0;
 }
 
 async function syncPublishedAnnouncementNotifications(announcementRow) {
-    try {
-        return await notificationService.syncAnnouncementNotifications({
-            audience: announcementRow.target_audience,
-            programId: announcementRow.target_program_id || null,
-            title: announcementRow.subject,
-            message: announcementRow.content,
-            referenceId: announcementRow.announcement_id,
-            createdAt:
-                announcementRow.published_at ||
-                announcementRow.publish_date ||
-                new Date().toISOString(),
-        });
-    } catch (err) {
-        console.error('SYNC ANNOUNCEMENT NOTIFICATIONS ERROR:', err.message);
-        return { inserted: 0, updated: 0, removedStale: false };
-    }
+    return notificationService.syncAnnouncementNotifications({
+        audience: announcementRow.target_audience,
+        programId: announcementRow.target_program_id || null,
+        title: announcementRow.subject,
+        message: announcementRow.content,
+        referenceId: announcementRow.announcement_id,
+        createdAt: announcementRow.published_at || announcementRow.publish_date || new Date().toISOString(),
+    });
 }
 
 async function publishAnnouncementInternal(announcementId) {

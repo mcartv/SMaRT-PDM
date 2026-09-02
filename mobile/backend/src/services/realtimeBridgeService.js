@@ -361,16 +361,6 @@ function handleAnnouncementChange(io, payload = {}) {
   );
 
   emitGlobal(io, eventName, eventPayload);
-
-  /*
-    Force mobile Office Updates refresh even if the specific event name
-    is not enough. Your mobile listens to announcement:refresh.
-  */
-  emitGlobal(io, 'announcement:refresh', {
-    ...eventPayload,
-    source_event: eventName,
-    sourceEvent: eventName,
-  });
 }
 
 function buildNotificationPayload(row = {}, fallback = {}) {
@@ -446,38 +436,6 @@ function handleNotificationChange(io, payload = {}) {
     emitToUser(io, userId, eventName, eventPayload);
   } else {
     emitGlobal(io, eventName, eventPayload);
-  }
-
-  /*
-    Also force refresh for Office Updates if this notification is tied
-    to announcement/opening.
-  */
-  const referenceType = normalizeText(eventPayload.reference_type);
-
-  if (
-    referenceType === 'announcement' ||
-    referenceType === 'opening' ||
-    referenceType === 'program_opening'
-  ) {
-    if (userId) {
-      emitToUser(io, userId, 'announcement:refresh', {
-        reference_id: eventPayload.reference_id,
-        referenceId: eventPayload.referenceId,
-        reference_type: eventPayload.reference_type,
-        referenceType: eventPayload.referenceType,
-        source_event: eventName,
-        sourceEvent: eventName,
-      });
-    } else {
-      emitGlobal(io, 'announcement:refresh', {
-        reference_id: eventPayload.reference_id,
-        referenceId: eventPayload.referenceId,
-        reference_type: eventPayload.reference_type,
-        referenceType: eventPayload.referenceType,
-        source_event: eventName,
-        sourceEvent: eventName,
-      });
-    }
   }
 }
 

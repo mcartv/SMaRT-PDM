@@ -60,6 +60,93 @@ function normalizePayload(raw = {}) {
   };
 }
 
+router.post('/notification-batch', requireInternalSecret, (req, res) => {
+  const io = req.app.get('io');
+
+  if (!io) {
+    return res.status(500).json({
+      success: false,
+      message: 'Student Socket.IO instance is missing',
+    });
+  }
+
+  const eventName = cleanText(req.body?.event || 'notification:new');
+  const allowedEvents = new Set([
+    'notification:new',
+    'notification:created',
+    'notification:updated',
+  ]);
+
+  if (!allowedEvents.has(eventName)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Unsupported realtime notification event',
+    });
+  }
+
+  const notifications = Array.isArray(req.body?.notifications)
+    ? req.body.notifications
+    : [];
+
+  if (!notifications.length || notifications.length > 500) {
+    return res.status(400).json({
+      success: false,
+      message: 'Notification batch must contain between 1 and 500 items',
+    });
+  }
+
+  let emitted = 0;
+
+  for (const raw of notifications) {
+    if (!raw || typeof raw !== 'object') continue;
+
+    const userId = cleanText(raw.user_id || raw.userId);
+    const notificationId = cleanText(
+      raw.notification_id || raw.notificationId || raw.id
+    );
+
+    if (!userId || !notificationId) continue;
+
+    const createdAt =
+      raw.created_at ||
+      raw.createdAt ||
+      new Date().toISOString();
+
+    const payload = {
+      ...raw,
+      notification_id: notificationId,
+      notificationId,
+      user_id: userId,
+      userId,
+      reference_id:
+        raw.reference_id || raw.referenceId || null,
+      referenceId:
+        raw.reference_id || raw.referenceId || null,
+      reference_type:
+        raw.reference_type || raw.referenceType || null,
+      referenceType:
+        raw.reference_type || raw.referenceType || null,
+      is_read: raw.is_read === true || raw.isRead === true,
+      isRead: raw.is_read === true || raw.isRead === true,
+      push_sent: raw.push_sent === true || raw.pushSent === true,
+      pushSent: raw.push_sent === true || raw.pushSent === true,
+      created_at: createdAt,
+      createdAt,
+      relayed_at: new Date().toISOString(),
+    };
+
+    io.to(`user:${userId}`).emit(eventName, payload);
+    emitted += 1;
+  }
+
+  return res.status(200).json({
+    success: true,
+    event: eventName,
+    received: notifications.length,
+    emitted,
+  });
+});
+
 router.post('/message-event', requireInternalSecret, (req, res) => {
   const io = req.app.get('io');
 

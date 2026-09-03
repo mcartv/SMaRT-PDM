@@ -820,17 +820,6 @@ class _DateDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (message.subject?.toLowerCase() == 'system') {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(children: [
-          Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(message.messageBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.65), fontWeight: FontWeight.w700))),
-          Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
-        ]),
-      );
-    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
@@ -902,6 +891,17 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (message.subject?.toLowerCase() == 'system') {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(children: [
+          Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(message.messageBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.65), fontWeight: FontWeight.w700))),
+          Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
+        ]),
+      );
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final incomingSurface = isDark ? const Color(0xFF2B1D13) : Colors.white;
     final senderName = message.senderName?.trim() ?? '';

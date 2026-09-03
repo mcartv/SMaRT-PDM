@@ -1139,6 +1139,17 @@ exports.sendRoomMessage = async ({
   };
 };
 
+async function createRoomSystemMessage({ roomId, senderId, body }) {
+  const result = await db.query(
+    `INSERT INTO messages (sender_id, receiver_id, room_id, subject, message_body, is_read)
+     VALUES ($1, NULL, $2, 'system', $3, true)
+     RETURNING message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read;`,
+    [senderId, roomId, body]
+  );
+  const message = await fetchMessageWithReply(result.rows[0].message_id, senderId, null);
+  return message;
+}
+
 exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
   await ensureRoomAdmin(actorId, roomId);
 
@@ -1162,6 +1173,18 @@ exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
 
     if (result.rows[0]) {
       inserted.push(result.rows[0]);
+    }
+  }
+
+  if (inserted.length) {
+    const actor = await getUserSummarySafe(actorId);
+    for (const member of inserted) {
+      const target = await getUserSummarySafe(member.user_id);
+      await createRoomSystemMessage({
+        roomId,
+        senderId: actorId,
+        body: `${actor?.display_name || 'Admin'} added ${target?.display_name || 'a new member'}`,
+      });
     }
   }
 
@@ -1303,10 +1326,19 @@ exports.removeRoomMember = async ({ actorId, roomId, memberId }) => {
     throw error;
   }
 
+  const target = await getUserSummarySafe(normalizedMemberId);
+
   await db.query(
     `DELETE FROM chat_room_members WHERE room_id = $1 AND user_id = $2;`,
     [roomId, normalizedMemberId]
   );
+
+  const actor = await getUserSummarySafe(actorId);
+  await createRoomSystemMessage({
+    roomId,
+    senderId: actorId,
+    body: `${actor?.display_name || 'Admin'} removed ${target?.display_name || 'a member'}`,
+  });
 
   return { room_id: roomId, member_id: normalizedMemberId, removed: true };
 };
@@ -1403,6 +1435,12 @@ exports.leaveRoom = async (currentUserId, roomId) => {
     }
 
     await client.query('COMMIT');
+    const member = await getUserSummarySafe(currentUserId);
+    await createRoomSystemMessage({
+      roomId,
+      senderId: currentUserId,
+      body: `${member?.display_name || 'A member'} left the group`,
+    });
     return {
       room_id: roomId,
       user_id: currentUserId,

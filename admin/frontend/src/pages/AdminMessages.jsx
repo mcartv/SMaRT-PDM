@@ -1010,6 +1010,9 @@ function MessageBubble({
     }
   }, [actionsOpen])
 
+  if (String(message.subject || '').toLowerCase() === 'system') {
+    return <div className="my-4 flex w-full items-center gap-3 text-center text-xs font-medium text-stone-500"><div className="h-px flex-1 bg-stone-200" /><span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span><div className="h-px flex-1 bg-stone-200" /></div>
+  }
   const query = searchTerm.trim().toLowerCase()
   const isMatch = Boolean(query && message.messageBody.toLowerCase().includes(query))
   const incomingCornerClass = `${groupedWithPrevious ? 'rounded-tl-md' : ''} ${groupedWithNext ? 'rounded-bl-md' : ''}`

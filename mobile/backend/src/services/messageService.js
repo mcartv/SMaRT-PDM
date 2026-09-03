@@ -175,6 +175,27 @@ function validateConversationMessageBody(messageBody = '') {
   return trimmedBody;
 }
 
+async function createRoomSystemMessage(roomId, senderId, body) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([{ sender_id: senderId, receiver_id: null, room_id: roomId, subject: 'system', message_body: body, is_read: true }])
+    .select(MESSAGE_FIELDS)
+    .single();
+  if (error) throw new Error(error.message);
+  const payload = mapMessageRow(data);
+  const memberIds = await fetchRoomMemberIds(roomId);
+  for (const memberId of memberIds) emitToUser(memberId, 'message:new', payload);
+  adminRealtimeRelayService.relayMessageCreated(payload, memberIds).catch(() => {});
+  return payload;
+}
+
+async function getDisplayName(userId) {
+  const profiles = await fetchConversationProfiles([userId]);
+  const profile = buildProfileDisplay(userId, profiles);
+  return profile?.name || 'A member';
+}
+
 function buildThreadFilter(leftUserId, rightUserId) {
   return `and(sender_id.eq.${leftUserId},receiver_id.eq.${rightUserId}),and(sender_id.eq.${rightUserId},receiver_id.eq.${leftUserId})`;
 }
@@ -1319,6 +1340,12 @@ async function addGroupMembers(adminUserId, roomId, userIds = []) {
     throw new Error(error.message);
   }
 
+  for (const member of data || []) {
+    const target = await getDisplayName(member.user_id);
+    const actorName = await getDisplayName(admin.userId);
+    await createRoomSystemMessage(normalizedRoomId, admin.userId, `${actorName} added ${target}`);
+  }
+
   const payload = {
     roomId: normalizedRoomId,
     room_id: normalizedRoomId,
@@ -1830,6 +1857,9 @@ async function leaveRoom(userId, roomId) {
     archived_at: archive?.archived_at || null,
     archive,
   };
+
+  const memberProfile = await getDisplayName(normalizedUserId);
+  await createRoomSystemMessage(normalizedRoomId, normalizedUserId, `${memberProfile} left the group`);
 
   const leaveTargets = [
     normalizedUserId,

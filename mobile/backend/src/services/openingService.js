@@ -395,7 +395,10 @@ async function getOpeningsForMobile(userId) {
         )
       )
     `)
-    .in('posting_status', ['open', 'closed'])
+    // The Available Scholarships feed must only expose openings that the
+    // admin is actively accepting applications for. Closed openings remain
+    // available in the admin records, but are not returned to mobile users.
+    .eq('posting_status', 'open')
     .eq('is_archived', false)
     .order('created_at', { ascending: false });
 

@@ -1251,9 +1251,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     final remainingDocuments =
         (totalDocuments - uploadedDocuments).clamp(0, totalDocuments);
 
-    final latestAnnouncement =
-        announcements.isNotEmpty ? announcements.first : null;
-
     final applicationValue = !hasApplication
         ? 'No active application'
         : _safeText(
@@ -1422,29 +1419,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
           ]);
         }
 
-        cards.add(
-          tile(
-            width: constraints.maxWidth,
-            order: 4,
-            icon: Icons.campaign_rounded,
-            label: 'Latest Announcement',
-            value: latestAnnouncement?.title ?? 'No announcement yet',
-            detail: latestAnnouncement == null
-                ? 'New OSFA announcements will appear here.'
-                : _safeText(
-                    latestAnnouncement.previewText,
-                    fallback: 'Tap to read the latest OSFA announcement.',
-                  ),
-            wide: true,
-            onTap: latestAnnouncement == null
-                ? () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.announcements,
-                    )
-                : () => _openOfficeUpdate(latestAnnouncement),
-          ),
-        );
-
         return Wrap(
           spacing: gap,
           runSpacing: gap,
@@ -1493,6 +1467,16 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               children: [
                 // The existing Welcome card remains intentionally unchanged.
                 _buildHero(),
+                const SizedBox(height: 14),
+                Text(
+                  'Latest Announcements',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: _primaryText,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildAnnouncements(announcements),
                 const SizedBox(height: 14),
                 _buildBentoDashboard(announcements),
                 if (_hasScholarAccess) ...[

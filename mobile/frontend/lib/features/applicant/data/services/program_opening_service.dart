@@ -13,7 +13,13 @@ class ProgramOpeningService {
     final items = (response['items'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((item) => ProgramOpening.fromJson(Map<String, dynamic>.from(item)))
-        .where((opening) => opening.isVisible)
+        // Keep closed openings out even if an older backend response is
+        // cached or reaches the app during a deployment.
+        .where(
+          (opening) =>
+              opening.isVisible &&
+              opening.postingStatus.trim().toLowerCase() == 'open',
+        )
         .toList(growable: false);
 
     return ProgramOpeningsResult(

@@ -41,11 +41,14 @@ class _SuccessScreenState extends State<SuccessScreen> {
     setState(() => _isGeneratingPdf = true);
 
     try {
-      final bytes = submissionPayload != null
+      // Export the persisted form whenever it is available. This is the
+      // source of truth after submission and includes the complete saved
+      // application rather than a possibly stale route payload.
+      final bytes = applicationId.trim().isNotEmpty
           ? await _printableApplicationService
-                .generateBytesFromSubmissionPayload(submissionPayload)
+                .generateBytesFromMySubmittedApplicationForm()
           : await _printableApplicationService
-                .generateBytesFromMySubmittedApplicationForm();
+                .generateBytesFromSubmissionPayload(submissionPayload ?? const {});
 
       if (!mounted) return;
 

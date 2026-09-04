@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
@@ -129,10 +128,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           lastName: profile['last_name']?.toString() ?? session.lastName,
           email: profile['email']?.toString() ?? session.email,
           course: profile['course_code']?.toString() ?? '',
-          section:
-              profile['section']?.toString() ??
-              prefs.getString('user_section') ??
-              '',
+          // The profile API returns an empty Section until an application
+          // draft/submission exists. Do not let that empty value erase the
+          // applicant's editable local Section on every profile refresh.
+          section: _firstNonEmpty([
+            profile['section'],
+            profile['current_section'],
+            prefs.getString('user_section'),
+          ]),
           phone: profile['phone_number']?.toString() ?? '',
           address: _composeAddress(profile),
           studentId: profile['student_id']?.toString() ?? session.studentId,
@@ -252,6 +255,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isProfileIncomplete = incomplete;
       _isEditing = incomplete;
     });
+  }
+
+  String _firstNonEmpty(Iterable<Object?> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) return text;
+    }
+    return '';
   }
 
   String _composeAddress(Map<String, dynamic> profile) {
@@ -928,12 +939,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _pendingRealtimeProfileReload = false;
                           _loadProfile(refreshRemote: true, silent: true);
                         },
-                  style: AppButtonStyles.destructiveOutlined(context).merge(
-                    OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                  // Cancel is a neutral navigation action, not a destructive
+                  // one. Keep it in the same brown/gold system as the cards,
+                  // icons, and primary action.
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    foregroundColor:
+                        isDark ? AppColors.gold : AppColors.darkBrown,
+                    side: BorderSide(
+                      color: isDark
+                          ? AppColors.gold.withValues(alpha: 0.60)
+                          : AppColors.brown.withValues(alpha: 0.38),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   child: const Text('Cancel'),
@@ -944,13 +963,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 flex: 2,
                 child: FilledButton.icon(
                   onPressed: _isSaving ? null : _saveProfile,
-                  style: AppButtonStyles.confirmFilled(context).merge(
-                    FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.darkBrown,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   icon: _isSaving

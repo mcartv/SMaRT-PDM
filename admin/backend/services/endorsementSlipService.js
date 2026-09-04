@@ -661,6 +661,7 @@ async function fetchSlipDetail(slipId, actor = null) {
             a.submission_date,
             a.application_status,
             a.document_status,
+            a.application_payload,
             st.pdm_id,
             st.gwa,
             coalesce(st.course_id, smr.course_id) as course_id,
@@ -717,6 +718,14 @@ async function fetchSlipDetail(slipId, actor = null) {
     }
 
     const row = rows[0];
+    // Section is captured with the student's application rather than the
+    // registrar record. Read it from that immutable submission so the
+    // endorsement slip shows the section the student actually applied under.
+    const applicationPayload = parseJson(row.application_payload);
+    const applicationAcademic = parseJson(applicationPayload.academic);
+    const studentSection = safeText(
+        applicationAcademic.current_section || applicationAcademic.section
+    );
     const actorRole = safeText(actor?.role).toLowerCase();
     if (actorRole === 'pd') {
         await pdCourseAssignmentService.assertCourseAccess({
@@ -799,6 +808,7 @@ async function fetchSlipDetail(slipId, actor = null) {
         course_name: row.course_name || '',
         course_display: formatCourseDisplay(row),
         year_level: row.year_level || null,
+        section: studentSection,
         student_email: row.student_email || '',
         program_name: row.program_name || 'N/A',
         opening_title: row.opening_title || 'N/A',

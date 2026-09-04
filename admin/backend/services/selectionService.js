@@ -802,7 +802,7 @@ async function promoteNextWaitlisted({
   }
 }
 
-async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, notes = '', archiveStudent = false }) {
+async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, notes = '' }) {
   const client = await pool.connect();
   let promotionResult = null;
   try {
@@ -850,13 +850,6 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       [studentId, status, normalizedReason, String(notes || '').trim() || null, actorUserId(actor)]
     );
 
-    if (archiveStudent) {
-      await client.query(
-        `UPDATE students SET is_archived = true, updated_at = now() WHERE student_id = $1`,
-        [studentId]
-      );
-    }
-
     promotionResult = await promoteNextWaitlisted({
       openingId: scholar.opening_id,
       releasedStudentId: studentId,
@@ -882,6 +875,7 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     return {
       released: true,
       student_id: studentId,
+      user_id: scholar.user_id || null,
       opening_id: scholar.opening_id,
       scholar_status: status,
       promotion: promotionResult,

@@ -10,6 +10,7 @@ class ApplicationStatusSummary {
     this.programName,
     this.submissionDate,
     this.workflow,
+    this.scholarPrivilegeRemoved = false,
   });
 
   final bool hasApplication;
@@ -22,6 +23,7 @@ class ApplicationStatusSummary {
   final String? programName;
   final DateTime? submissionDate;
   final ApplicationWorkflowSummary? workflow;
+  final bool scholarPrivilegeRemoved;
 
   factory ApplicationStatusSummary.fromJson(Map<String, dynamic> json) {
     final application = _asMap(json['application']);
@@ -42,6 +44,7 @@ class ApplicationStatusSummary {
       workflow: json['workflow'] is Map
           ? ApplicationWorkflowSummary.fromJson(_asMap(json['workflow']))
           : null,
+      scholarPrivilegeRemoved: json['scholar_privilege_removed'] == true,
     );
   }
 }

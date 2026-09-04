@@ -154,10 +154,26 @@ exports.getAllScholars = async (req, res) => {
     }
 };
 
+
+exports.getRemovedScholars = async (req, res) => {
+    try {
+        const scholars = await scholarService.fetchRemovedScholars();
+        res.json(scholars);
+    } catch (err) {
+        console.error('REMOVED SCHOLAR LIST CONTROLLER ERROR:', err.message);
+        res.status(err.statusCode || 500).json({
+            message: 'Failed to fetch removed scholars',
+            error: err.message,
+        });
+    }
+};
+
 exports.getScholarById = async (req, res) => {
     try {
         const { id } = req.params;
-        const scholar = await scholarService.fetchScholarById(id);
+        const scholar = await scholarService.fetchScholarById(id, {
+            includeRemoved: String(req.query?.includeRemoved || '').toLowerCase() === 'true',
+        });
 
         if (!scholar) {
             return res.status(404).json({ message: 'Scholar not found' });
@@ -259,6 +275,36 @@ exports.archiveScholar = async (req, res) => {
             req.user
         );
 
+        emitScholarUpdated(req, {
+            scholar_id: id,
+            student_id: id,
+            action: 'privilege_removed',
+            scholar_status: result.scholar_status || 'Removed',
+            opening_id: result.opening_id,
+        });
+
+        if (result.user_id && typeof notificationService?.createUserNotification === 'function') {
+            try {
+                const notification = await notificationService.createUserNotification({
+                    userId: result.user_id,
+                    type: 'Scholarship Status',
+                    title: 'Scholarship privilege removed',
+                    message: 'Your scholarship privilege has been removed. Your previous scholarship record remains on file. Contact OSFA regarding eligibility or future applications.',
+                    referenceId: id,
+                    referenceType: 'student_scholar',
+                });
+                const notificationIo = req.app.get('io');
+                if (notificationIo && notification) {
+                    socketEvents.notificationCreated(notificationIo, result.user_id, {
+                        ...notification,
+                        target_user_id: result.user_id,
+                    });
+                }
+            } catch (notificationError) {
+                console.error('REMOVE SCHOLAR PRIVILEGE NOTIFICATION ERROR:', notificationError.message);
+            }
+        }
+
         const io = req.app.get('io');
         if (io) {
             io.emit('scholar:archived', {
@@ -279,8 +325,8 @@ exports.archiveScholar = async (req, res) => {
 
         await writeScholarAudit(
             req,
-            'ARCHIVE_SCHOLAR_RELEASE_SLOT',
-            `Archived scholar and released a scholarship slot: ${id}.`,
+            'REMOVE_SCHOLAR_PRIVILEGE_RELEASE_SLOT',
+            `Removed scholarship privilege and released a scholarship slot: ${id}.`,
             null,
             {
                 student_id: id,
@@ -291,14 +337,14 @@ exports.archiveScholar = async (req, res) => {
 
         res.status(200).json({
             message: result.promotion?.promoted
-                ? `Scholar archived. ${result.promotion.applicant_name || 'The next applicant'} was promoted from the waiting list.`
-                : 'Scholar archived and the scholarship slot was released.',
+                ? `Scholarship privilege removed. ${result.promotion.applicant_name || 'The next applicant'} was promoted from the waiting list.`
+                : 'Scholarship privilege removed and the scholarship slot was released.',
             data: result,
         });
     } catch (err) {
-        console.error('ARCHIVE SCHOLAR ERROR:', err.message);
+        console.error('REMOVE SCHOLAR PRIVILEGE ERROR:', err.message);
         res.status(err.statusCode || 500).json({
-            message: err.message || 'Failed to archive scholar.',
+            message: err.message || 'Failed to remove scholarship privilege.',
             error: err.message || 'Unknown backend error',
         });
     }

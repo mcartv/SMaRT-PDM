@@ -16,7 +16,6 @@ import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/widgets/profile_photo_crop_dialog.dart';
-import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -39,6 +38,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _sectionController;
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
+  late final TextEditingController _streetAddressController;
+  late final TextEditingController _subdivisionController;
+  late final TextEditingController _barangayController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _provinceController;
+  late final TextEditingController _zipCodeController;
   late final TextEditingController _studentIdController;
 
   bool _isLoading = true;
@@ -47,6 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isUploading = false;
   bool _isProfileIncomplete = false;
   bool _hasScholarAccess = false;
+  bool _scholarPrivilegeRemoved = false;
 
   String _displayName = 'SMaRT-PDM User';
   String? _avatarUrl;
@@ -69,6 +75,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _sectionController = TextEditingController();
     _phoneController = TextEditingController();
     _addressController = TextEditingController();
+    _streetAddressController = TextEditingController();
+    _subdivisionController = TextEditingController();
+    _barangayController = TextEditingController();
+    _cityController = TextEditingController();
+    _provinceController = TextEditingController();
+    _zipCodeController = TextEditingController();
     _studentIdController = TextEditingController();
 
     _loadProfile();
@@ -109,7 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         lastName: session.lastName,
         email: session.email,
         course: prefs.getString('user_course') ?? '',
-        section: prefs.getString('user_section') ?? '',
+        section: '',
         phone: prefs.getString('user_phone') ?? '',
         address: prefs.getString('user_address') ?? '',
         studentId: session.studentId,
@@ -128,13 +140,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           lastName: profile['last_name']?.toString() ?? session.lastName,
           email: profile['email']?.toString() ?? session.email,
           course: profile['course_code']?.toString() ?? '',
-          // The profile API returns an empty Section until an application
-          // draft/submission exists. Do not let that empty value erase the
-          // applicant's editable local Section on every profile refresh.
+          // Section is an authoritative academic/application field. Profile
+          // only displays it; it is not editable or persisted locally.
           section: _firstNonEmpty([
             profile['section'],
             profile['current_section'],
-            prefs.getString('user_section'),
           ]),
           phone: profile['phone_number']?.toString() ?? '',
           address: _composeAddress(profile),
@@ -146,6 +156,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           avatarRejectionReason:
               profile['avatar_rejection_reason']?.toString() ?? '',
         );
+        _applyAddressParts(profile);
+        final removed = profile['scholar_privilege_removed'] == true;
+        if (_scholarPrivilegeRemoved != removed && mounted) {
+          setState(() => _scholarPrivilegeRemoved = removed);
+        }
       } catch (_) {
         // Cached profile remains visible.
       }
@@ -269,14 +284,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final parts = <String?>[
       profile['street_address']?.toString().trim(),
       profile['subdivision']?.toString().trim(),
+      profile['barangay']?.toString().trim(),
       profile['city']?.toString().trim(),
       profile['province']?.toString().trim(),
+      profile['zip_code']?.toString().trim(),
     ];
 
     return parts
         .where((part) => part != null && part.isNotEmpty)
         .cast<String>()
         .join(', ');
+  }
+
+  void _applyAddressParts(Map<String, dynamic> profile) {
+    final values = <TextEditingController, String>{
+      _streetAddressController: profile['street_address']?.toString() ?? '',
+      _subdivisionController: profile['subdivision']?.toString() ?? '',
+      _barangayController: profile['barangay']?.toString() ?? '',
+      _cityController: profile['city']?.toString() ?? '',
+      _provinceController: profile['province']?.toString() ?? '',
+      _zipCodeController: profile['zip_code']?.toString() ?? '',
+    };
+    if (!mounted) return;
+    setState(() {
+      for (final entry in values.entries) {
+        if (entry.key.text != entry.value) entry.key.text = entry.value;
+      }
+    });
   }
 
   Future<String?> _validateAvatarSelection(XFile picked) async {
@@ -405,25 +439,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveProfile() async {
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
-    final address = _addressController.text.trim();
-
-    final emailError = AppFieldValidators.email(email);
-    if (emailError != null) {
-      _showMessage(emailError);
-      return;
-    }
 
     final wasIncomplete = _isProfileIncomplete;
     setState(() => _isSaving = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_section', _sectionController.text.trim());
-
       final profile = await _profileService.updateMyProfile(
         payload: {
           'phone_number': phone,
-          'street_address': address,
+          'street_address': _streetAddressController.text.trim(),
+          'subdivision': _subdivisionController.text.trim(),
+          'barangay': _barangayController.text.trim(),
+          'city': _cityController.text.trim(),
+          'province': _provinceController.text.trim(),
+          'zip_code': _zipCodeController.text.trim(),
         },
       );
 
@@ -442,9 +471,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _courseController.text.trim(),
         section: _sectionController.text.trim(),
         phone: profile['phone_number']?.toString() ?? phone,
-        address: _composeAddress(profile).isNotEmpty
-            ? _composeAddress(profile)
-            : address,
+        address: _composeAddress(profile),
         studentId:
             profile['student_id']?.toString() ?? _studentIdController.text,
         avatarUrl: profile['avatar_url']?.toString() ?? _avatarUrl,
@@ -453,6 +480,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         avatarRejectionReason:
             profile['avatar_rejection_reason']?.toString() ?? '',
       );
+      _applyAddressParts(profile);
 
       setState(() => _isEditing = false);
       _showMessage('Profile updated successfully.');
@@ -533,7 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        backgroundColor: isDark ? AppColors.applicantDarkBackground : AppColors.applicantLightSurface,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 4,
@@ -569,7 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         _InfoRow(
                           label: 'Account Type',
-                          value: _hasScholarAccess ? 'Scholar' : 'Applicant',
+                          value: _scholarPrivilegeRemoved ? 'Removed Scholar' : (_hasScholarAccess ? 'Scholar' : 'Applicant'),
                           isLast: true,
                         ),
                       ],
@@ -662,15 +690,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: 82,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF332216) : Colors.white,
+                  color: isDark ? AppColors.applicantDarkSurfaceMuted : AppColors.applicantLightSurface,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.gold, width: 2),
                 ),
                 child: ClipOval(
                   child: ColoredBox(
                     color: isDark
-                        ? const Color(0xFF332216)
-                        : const Color(0xFFFFF7E3),
+                        ? AppColors.applicantDarkSurfaceMuted
+                        : AppColors.applicantLightSurfaceMuted,
                     child: _buildAvatar(),
                   ),
                 ),
@@ -807,8 +835,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2B1D13) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        color: isDark ? AppColors.applicantDarkSurface : AppColors.applicantLightSurface,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark
               ? Colors.white.withValues(alpha: 0.08)
@@ -854,8 +882,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2B1D13) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: isDark ? AppColors.applicantDarkSurface : AppColors.applicantLightSurface,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark
               ? Colors.white.withValues(alpha: 0.08)
@@ -906,8 +934,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             enabled: false,
             helperText: 'Course is based on your registered student record.',
           ),
-          _ProfileSectionDropdown(
+          _ProfileField(
+            label: 'Section',
+            icon: Icons.groups_2_outlined,
             controller: _sectionController,
+            enabled: false,
+            helperText: 'Section is based on your current academic/application record.',
           ),
           _ProfileField(
             label: 'Phone Number',
@@ -915,11 +947,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             controller: _phoneController,
             keyboardType: TextInputType.phone,
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              'Address',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : AppColors.darkBrown,
+              ),
+            ),
+          ),
           _ProfileField(
-            label: 'Address',
-            icon: Icons.location_on_outlined,
-            controller: _addressController,
-            maxLines: 3,
+            label: 'Street / House',
+            icon: Icons.home_outlined,
+            controller: _streetAddressController,
+          ),
+          _ProfileField(
+            label: 'Subdivision',
+            icon: Icons.location_city_outlined,
+            controller: _subdivisionController,
+          ),
+          _ProfileField(
+            label: 'Barangay',
+            icon: Icons.place_outlined,
+            controller: _barangayController,
+          ),
+          _ProfileField(
+            label: 'City / Municipality',
+            icon: Icons.location_city_rounded,
+            controller: _cityController,
+          ),
+          _ProfileField(
+            label: 'Province',
+            icon: Icons.map_outlined,
+            controller: _provinceController,
+          ),
+          _ProfileField(
+            label: 'ZIP Code',
+            icon: Icons.markunread_mailbox_outlined,
+            controller: _zipCodeController,
+            keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 6),
           Row(
@@ -1005,6 +1072,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _sectionController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _streetAddressController.dispose();
+    _subdivisionController.dispose();
+    _barangayController.dispose();
+    _cityController.dispose();
+    _provinceController.dispose();
+    _zipCodeController.dispose();
     _studentIdController.dispose();
     super.dispose();
   }
@@ -1070,70 +1143,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _ProfileSectionDropdown extends StatelessWidget {
-  const _ProfileSectionDropdown({required this.controller});
-
-  static const List<String> _sections = <String>['A', 'B', 'C', 'D'];
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final normalized = controller.text.trim().toUpperCase();
-    final selectedValue = _sections.contains(normalized) ? normalized : null;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: DropdownButtonFormField<String>(
-        value: selectedValue,
-        isExpanded: true,
-        dropdownColor: isDark
-            ? AppColors.applicantDarkSurfaceMuted
-            : Colors.white,
-        icon: const Icon(Icons.keyboard_arrow_down_rounded),
-        decoration: InputDecoration(
-          labelText: 'Section',
-          helperText: 'Select your current section.',
-          prefixIcon: const Icon(Icons.groups_outlined),
-          filled: true,
-          fillColor: isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : const Color(0xFFFAF7F2),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.10)
-                  : AppColors.brown.withValues(alpha: 0.10),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
-          ),
-        ),
-        items: _sections
-            .map(
-              (section) => DropdownMenuItem<String>(
-                value: section,
-                child: Text(section),
-              ),
-            )
-            .toList(growable: false),
-        onChanged: (value) {
-          if (value == null) return;
-          controller.text = value;
-        },
-      ),
-    );
-  }
-}
-
 class _ProfileField extends StatelessWidget {
   const _ProfileField({
     required this.label,
@@ -1173,10 +1182,10 @@ class _ProfileField extends StatelessWidget {
           fillColor: enabled
               ? (isDark
                     ? Colors.white.withValues(alpha: 0.05)
-                    : const Color(0xFFFAF7F2))
+                    : AppColors.applicantLightSurfaceMuted)
               : (isDark
                     ? Colors.white.withValues(alpha: 0.03)
-                    : const Color(0xFFF1EEE9)),
+                    : AppColors.applicantLightBackground),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,

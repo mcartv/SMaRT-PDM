@@ -82,8 +82,10 @@ class ProfileService {
         [
               profile['street_address']?.toString().trim(),
               profile['subdivision']?.toString().trim(),
+              profile['barangay']?.toString().trim(),
               profile['city']?.toString().trim(),
               profile['province']?.toString().trim(),
+              profile['zip_code']?.toString().trim(),
             ]
             .where((value) => value != null && value.isNotEmpty)
             .cast<String>()

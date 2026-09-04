@@ -724,6 +724,9 @@ async function getStudent(userId) {
       is_profile_complete,
       is_active_scholar,
       scholarship_status,
+      scholar_is_archived,
+      scholar_archived_at,
+      scholar_removal_reason,
       current_application_id,
       current_program_id,
       date_awarded
@@ -1391,6 +1394,14 @@ async function getMyFormData(userId, options = {}) {
 async function saveMyFormData(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
+    }
+
+    const lifecycleStudent = await getStudent(userId);
+    if (lifecycleStudent?.scholar_is_archived === true) {
+        throw createHttpError(
+            409,
+            'Your scholarship privilege has been removed. Contact OSFA regarding eligibility before starting another application.'
+        );
     }
 
     const openingId =
@@ -2368,14 +2379,26 @@ async function getMyApplicationStatusSummary(userId) {
     }
 
     const student = await getStudent(userId);
+    const scholarPrivilegeRemoved = student?.scholar_is_archived === true;
+    const scholarshipLifecycle = scholarPrivilegeRemoved
+        ? {
+            status: 'Removed',
+            removed_at: student?.scholar_archived_at || null,
+            reason: student?.scholar_removal_reason || null,
+        }
+        : null;
 
     if (!student?.student_id) {
         return {
             has_application: false,
             hasApplication: false,
+            scholar_privilege_removed: scholarPrivilegeRemoved,
+            scholarship_lifecycle: scholarshipLifecycle,
             application: null,
             workflow: null,
-            message: 'Submit an application first.',
+            message: scholarPrivilegeRemoved
+                ? 'Your previous scholarship record remains on file. Contact OSFA regarding scholarship eligibility or future applications.'
+                : 'Submit an application first.',
         };
     }
 
@@ -2385,9 +2408,13 @@ async function getMyApplicationStatusSummary(userId) {
         return {
             has_application: false,
             hasApplication: false,
+            scholar_privilege_removed: scholarPrivilegeRemoved,
+            scholarship_lifecycle: scholarshipLifecycle,
             application: null,
             workflow: null,
-            message: 'Submit an application first.',
+            message: scholarPrivilegeRemoved
+                ? 'Your previous scholarship record remains on file. Contact OSFA regarding scholarship eligibility or future applications.'
+                : 'Submit an application first.',
         };
     }
 
@@ -2398,7 +2425,7 @@ async function getMyApplicationStatusSummary(userId) {
     const slip = await enrichSlipActorNames(rawSlip);
     const requirements = buildRequirementsStatus(application, documents, reviews);
     const endorsement = buildEndorsementStatus(slip);
-    const workflow = buildWorkflowSummary({
+    let workflow = buildWorkflowSummary({
         student,
         application,
         requirements,
@@ -2406,9 +2433,38 @@ async function getMyApplicationStatusSummary(userId) {
         documents,
     });
 
+    if (scholarPrivilegeRemoved) {
+        workflow = {
+            ...workflow,
+            stage: 'scholar_privilege_removed',
+            stage_label: 'Scholarship Privilege Removed',
+            scholar_activation: {
+                ...(workflow?.scholar_activation || {}),
+                status: 'removed',
+                status_label: 'Privilege Removed',
+            },
+            blockers: [
+                {
+                    code: 'scholar.privilege_removed',
+                    source: 'scholar',
+                    message:
+                        'Your previous scholarship record remains on file. Contact OSFA regarding scholarship eligibility or future applications.',
+                },
+            ],
+            primary_blocker: {
+                code: 'scholar.privilege_removed',
+                source: 'scholar',
+                message:
+                    'Your previous scholarship record remains on file. Contact OSFA regarding scholarship eligibility or future applications.',
+            },
+        };
+    }
+
     return {
         has_application: true,
         hasApplication: true,
+        scholar_privilege_removed: scholarPrivilegeRemoved,
+        scholarship_lifecycle: scholarshipLifecycle,
         application: {
             application_id: application.application_id,
             student_id: application.student_id,
@@ -3742,6 +3798,14 @@ async function submitMyApplicationForm(userId, payload = {}) {
     payload = mergeMissingSubmissionValues(payload, storedFormData || {});
 
     const student = await ensureStudentForUser(userId);
+    const lifecycleStudent = await getStudent(userId);
+
+    if (lifecycleStudent?.scholar_is_archived === true) {
+        throw createHttpError(
+            409,
+            'Your scholarship privilege has been removed. Contact OSFA regarding eligibility before submitting another application.'
+        );
+    }
 
     if (!student?.student_id) {
         throw createHttpError(400, 'Student profile is required.');

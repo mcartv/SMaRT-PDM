@@ -107,7 +107,10 @@ async function getMyProfile(userId) {
       sdo_status,
       is_profile_complete,
       is_active_scholar,
-      scholarship_status
+      scholarship_status,
+      scholar_is_archived,
+      scholar_archived_at,
+      scholar_removal_reason
     `)
     .eq('user_id', userId)
     .maybeSingle();
@@ -154,6 +157,9 @@ async function getMyProfile(userId) {
         sdo_status: '',
         is_profile_complete: false,
         has_scholar_access: false,
+        scholar_privilege_removed: false,
+        scholar_removed_at: null,
+        scholar_removal_reason: '',
       },
     };
   }
@@ -386,11 +392,14 @@ async function getMyProfile(userId) {
       is_profile_complete: student.is_profile_complete || false,
       has_scholar_access: hasScholarAccess,
       scholarship_status: student.scholarship_status || 'None',
+      scholar_privilege_removed: student.scholar_is_archived === true,
+      scholar_removed_at: student.scholar_archived_at || null,
+      scholar_removal_reason: student.scholar_removal_reason || '', 
     },
   };
 }
 
-async function updateMyProfile(userId, payload = {}) {
+async function setupMyProfile(userId, payload = {}) {
   if (!userId) {
     throw createHttpError(401, 'Authentication required.');
   }
@@ -522,6 +531,87 @@ async function updateMyProfile(userId, payload = {}) {
       .from('student_profiles')
       .upsert(profilePayload, { onConflict: 'student_id' });
 
+    if (upsertProfileError) throw upsertProfileError;
+  }
+
+  return getMyProfile(userId);
+}
+
+
+async function updateMyProfile(userId, payload = {}) {
+  if (!userId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  const { data: student, error: studentError } = await supabase
+    .from('students')
+    .select('student_id, user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (studentError) throw studentError;
+
+  if (!student) {
+    throw createHttpError(404, 'No student profile is linked to this account.');
+  }
+
+  // Profile & Account intentionally exposes only contact information for
+  // self-service editing. Identity, academic fields, registered email, and
+  // scholarship state are authoritative records managed by their dedicated
+  // workflows and must not be writable through this endpoint.
+  const allowedFields = new Set([
+    'phone_number',
+    'street_address',
+    'subdivision',
+    'barangay',
+    'city',
+    'province',
+    'zip_code',
+  ]);
+  const attemptedRestrictedFields = Object.keys(payload || {}).filter(
+    (key) => !allowedFields.has(key)
+  );
+  if (attemptedRestrictedFields.length > 0) {
+    throw createHttpError(
+      400,
+      `Profile & Account can only update phone number and address. Unsupported field${attemptedRestrictedFields.length === 1 ? '' : 's'}: ${attemptedRestrictedFields.join(', ')}.`
+    );
+  }
+
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+
+  if (hasOwn('phone_number')) {
+    const phoneNumber = safeText(payload.phone_number);
+    const [{ error: userUpdateError }, { error: studentUpdateError }] = await Promise.all([
+      supabase
+        .from('users')
+        .update({ phone_number: phoneNumber || null })
+        .eq('user_id', userId),
+      supabase
+        .from('students')
+        .update({ phone_number: phoneNumber || null })
+        .eq('student_id', student.student_id),
+    ]);
+    if (userUpdateError) throw userUpdateError;
+    if (studentUpdateError) throw studentUpdateError;
+  }
+
+  const profilePayload = { student_id: student.student_id };
+  for (const key of [
+    'street_address',
+    'subdivision',
+    'barangay',
+    'city',
+    'province',
+    'zip_code',
+  ]) {
+    if (hasOwn(key)) profilePayload[key] = safeText(payload[key]) || null;
+  }
+
+  if (Object.keys(profilePayload).length > 1) {
+    const { error: upsertProfileError } = await supabase
+      .from('student_profiles')
+      .upsert(profilePayload, { onConflict: 'student_id' });
     if (upsertProfileError) throw upsertProfileError;
   }
 
@@ -711,6 +801,7 @@ module.exports = {
   getMyProfile,
   getMyOnboardingPreference,
   markMyOnboardingSeen,
+  setupMyProfile,
   updateMyProfile,
   uploadAvatar,
 };

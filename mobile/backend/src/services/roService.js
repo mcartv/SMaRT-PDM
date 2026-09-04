@@ -1145,6 +1145,78 @@ async function getPlacementsForRo(roId) {
   }));
 }
 
+async function syncScholarRequestForRo(roId) {
+  if (!roId) return null;
+
+  const { data: linkedPlacements, error: linkedError } = await supabase
+    .from('ro_placements')
+    .select('scholar_request_id')
+    .eq('ro_id', roId)
+    .not('scholar_request_id', 'is', null);
+
+  if (linkedError) throw linkedError;
+
+  const requestIds = [
+    ...new Set(
+      (linkedPlacements || [])
+        .map((row) => row.scholar_request_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  const results = [];
+  for (const requestId of requestIds) {
+    const [{ data: request, error: requestError }, { data: placements, error: placementsError }] =
+      await Promise.all([
+        supabase
+          .from('ro_scholar_requests')
+          .select('request_id, requested_scholar_count, request_status')
+          .eq('request_id', requestId)
+          .maybeSingle(),
+        supabase
+          .from('ro_placements')
+          .select('placement_id, placement_status, student_acknowledged_at, conflict_reason')
+          .eq('scholar_request_id', requestId),
+      ]);
+
+    if (requestError) throw requestError;
+    if (placementsError) throw placementsError;
+    if (!request || ['Declined', 'Cancelled'].includes(request.request_status)) continue;
+
+    const approved = (placements || []).filter(
+      (placement) => placement.placement_status === 'Approved'
+    );
+    const active = approved.filter((placement) => !normalizeValue(placement.conflict_reason));
+    const acknowledged = active.filter((placement) => placement.student_acknowledged_at);
+    const requested = Math.max(0, Number(request.requested_scholar_count || 0));
+    const nextStatus = acknowledged.length >= requested
+      ? 'Fulfilled'
+      : active.length > 0 || approved.length > 0
+        ? 'Acknowledged'
+        : 'Pending';
+
+    const { data: updated, error: updateError } = await supabase
+      .from('ro_scholar_requests')
+      .update({
+        request_status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('request_id', requestId)
+      .select('request_id, request_status, requested_scholar_count, updated_at')
+      .maybeSingle();
+
+    if (updateError) throw updateError;
+    results.push({
+      ...(updated || request),
+      active_assignment_count: active.length,
+      acknowledged_count: acknowledged.length,
+      remaining_confirmation_count: Math.max(0, requested - acknowledged.length),
+    });
+  }
+
+  return results;
+}
+
 async function resolveApprovedPlacement(roId, placementId = null) {
   let query = supabase
     .from('ro_placements')
@@ -1978,6 +2050,22 @@ async function acknowledgeMyRo(
     throw error;
   }
 
+  const { error: placementAckError } = await supabase
+    .from('ro_placements')
+    .update({
+      student_acknowledged_at: now,
+      conflict_reason: null,
+      updated_at: now,
+    })
+    .eq('ro_id', ro.ro_id)
+    .eq('placement_status', 'Approved');
+
+  if (placementAckError) {
+    throw placementAckError;
+  }
+
+  const scholarRequestUpdates = await syncScholarRequestForRo(ro.ro_id);
+
   const result =
     await getMyAssignments(
       userId
@@ -1989,11 +2077,14 @@ async function acknowledgeMyRo(
     message:
       'RO assignment acknowledged.',
 
+    scholarRequestUpdates,
+
     realtime: {
       action: 'acknowledge',
       ro_id: ro.ro_id,
       student_id:
         student.student_id,
+      scholar_request_updates: scholarRequestUpdates,
     },
   };
 }
@@ -2133,6 +2224,22 @@ async function reportMyRoConflict(
     );
   }
 
+  const { error: placementConflictError } = await supabase
+    .from('ro_placements')
+    .update({
+      student_acknowledged_at: null,
+      conflict_reason: persistedReason,
+      updated_at: now,
+    })
+    .eq('ro_id', ro.ro_id)
+    .eq('placement_status', 'Approved');
+
+  if (placementConflictError) {
+    throw placementConflictError;
+  }
+
+  const scholarRequestUpdates = await syncScholarRequestForRo(ro.ro_id);
+
   const result =
     await getMyAssignments(
       userId
@@ -2155,11 +2262,14 @@ async function reportMyRoConflict(
         now,
     },
 
+    scholarRequestUpdates,
+
     realtime: {
       action: 'conflict',
       ro_id: ro.ro_id,
       student_id:
         student.student_id,
+      scholar_request_updates: scholarRequestUpdates,
     },
   };
 }

@@ -4,6 +4,7 @@ const notificationService = require('./notificationService');
 
 const APPROVED_APPLICATION_STATUSES = ['Approved', 'Approved Scholar', 'Accepted'];
 const RO_PROOFS_BUCKET = process.env.RO_PROOFS_BUCKET || 'ro-proofs';
+const SCHOLAR_REQUEST_ASSIGNMENT_TOKEN = Symbol('scholar-request-assignment');
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -746,6 +747,153 @@ async function getCurrentPlacement(roId, roAreaId) {
     return current || null;
 }
 
+async function getScholarRequestForAssignment(requestId) {
+    const normalizedRequestId = cleanText(requestId);
+    if (!normalizedRequestId) return null;
+
+    const result = await db.query(
+        `SELECT
+           rsr.request_id,
+           rsr.ro_area_id,
+           rsr.coordinator_assignment_id,
+           rsr.requested_by_user_id,
+           rsr.requested_scholar_count,
+           rsr.purpose,
+           rsr.preferred_date,
+           rsr.request_status,
+           rsr.admin_remarks,
+           rd.department_name AS assigned_area,
+           rac.user_id AS coordinator_user_id,
+           ap.first_name AS coordinator_first_name,
+           ap.last_name AS coordinator_last_name
+         FROM ro_scholar_requests rsr
+         JOIN ro_departments rd
+           ON rd.department_id = rsr.ro_area_id
+          AND rd.is_active = true
+         JOIN ro_area_coordinators rac
+           ON rac.coordinator_assignment_id = rsr.coordinator_assignment_id
+          AND rac.ro_area_id = rsr.ro_area_id
+          AND rac.is_active = true
+         LEFT JOIN admin_profiles ap
+           ON ap.user_id = rac.user_id
+          AND COALESCE(ap.is_archived, false) = false
+         WHERE rsr.request_id = $1::uuid
+         LIMIT 1`,
+        [normalizedRequestId]
+    );
+
+    const request = result.rows[0] || null;
+    if (!request) {
+        throw createHttpError(404, 'This RO scholar request is unavailable or its coordinator assignment is no longer active.');
+    }
+    if (!['Pending', 'Acknowledged'].includes(request.request_status)) {
+        throw createHttpError(409, `This RO scholar request is already ${String(request.request_status || '').toLowerCase()}.`);
+    }
+
+    return request;
+}
+
+async function getScholarRequestProgress(requestId) {
+    const result = await db.query(
+        `SELECT
+           rsr.request_id,
+           rsr.requested_scholar_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.conflict_reason IS NULL
+           )::int AS active_assignment_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.student_acknowledged_at IS NOT NULL
+               AND rp.conflict_reason IS NULL
+           )::int AS acknowledged_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.student_acknowledged_at IS NULL
+               AND rp.conflict_reason IS NULL
+           )::int AS awaiting_acknowledgment_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.conflict_reason IS NOT NULL
+           )::int AS concern_count
+         FROM ro_scholar_requests rsr
+         LEFT JOIN ro_placements rp
+           ON rp.scholar_request_id = rsr.request_id
+         WHERE rsr.request_id = $1::uuid
+         GROUP BY rsr.request_id, rsr.requested_scholar_count`,
+        [requestId]
+    );
+
+    const row = result.rows[0];
+    if (!row) throw createHttpError(404, 'RO scholar request not found.');
+
+    const requested = Math.max(0, Number(row.requested_scholar_count || 0));
+    const active = Math.max(0, Number(row.active_assignment_count || 0));
+    const acknowledged = Math.max(0, Number(row.acknowledged_count || 0));
+    const awaiting = Math.max(0, Number(row.awaiting_acknowledgment_count || 0));
+    const concerns = Math.max(0, Number(row.concern_count || 0));
+
+    return {
+        requested_scholar_count: requested,
+        active_assignment_count: active,
+        acknowledged_count: acknowledged,
+        awaiting_acknowledgment_count: awaiting,
+        concern_count: concerns,
+        remaining_assignment_count: Math.max(0, requested - active),
+        remaining_confirmation_count: Math.max(0, requested - acknowledged),
+    };
+}
+
+async function syncScholarRequestStatus(requestId, adminUserId = null) {
+    if (!requestId) return null;
+    const progress = await getScholarRequestProgress(requestId);
+    const nextStatus = progress.acknowledged_count >= progress.requested_scholar_count
+        ? 'Fulfilled'
+        : progress.active_assignment_count > 0 || progress.concern_count > 0
+            ? 'Acknowledged'
+            : 'Pending';
+
+    const result = await db.query(
+        `UPDATE ro_scholar_requests
+         SET request_status = CASE
+               WHEN request_status IN ('Declined', 'Cancelled') THEN request_status
+               ELSE $2
+             END,
+             handled_by_user_id = COALESCE(handled_by_user_id, $3::uuid),
+             handled_at = CASE
+               WHEN COALESCE(handled_at, NULL) IS NULL AND $3::uuid IS NOT NULL THEN now()
+               ELSE handled_at
+             END,
+             updated_at = now()
+         WHERE request_id = $1::uuid
+         RETURNING *`,
+        [requestId, nextStatus, adminUserId]
+    );
+
+    return {
+        request: result.rows[0] || null,
+        progress,
+    };
+}
+
+async function sendScholarAssignmentNotification({ student, roId, assignedArea }) {
+    if (!student?.user_id || typeof notificationService?.createUserNotification !== 'function') return null;
+    try {
+        return await notificationService.createUserNotification({
+            userId: student.user_id,
+            type: 'Return of Obligation',
+            title: 'New required RO assignment',
+            message: `You have been assigned to ${assignedArea} for your required Return of Obligation. Open the scholar app, review the details, and acknowledge the assignment. You may report a legitimate concern if needed.`,
+            referenceId: roId,
+            referenceType: 'return_of_obligation',
+            createdAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('RO SCHOLAR ASSIGNMENT NOTIFICATION ERROR:', error.message || error);
+        return null;
+    }
+}
+
 async function createPlacementRequest({
     roId,
     department,
@@ -753,6 +901,8 @@ async function createPlacementRequest({
     adminUserId,
     remarks,
     currentPlacement = null,
+    scholarRequestId = null,
+    coordinatorPreapproved = false,
 }) {
     const current =
         currentPlacement ||
@@ -768,13 +918,18 @@ async function createPlacementRequest({
     const now = new Date().toISOString();
     const payload = {
         coordinator_assignment_id: coordinator.coordinator_assignment_id,
-        placement_status: 'Pending',
+        scholar_request_id: scholarRequestId || null,
+        placement_status: coordinatorPreapproved ? 'Approved' : 'Pending',
         admin_remarks: cleanText(remarks) || null,
-        coordinator_remarks: null,
+        coordinator_remarks: coordinatorPreapproved
+            ? 'Placement created from this RO Area coordinator scholar request.'
+            : null,
         requested_by_user_id: adminUserId,
         requested_at: now,
-        decided_by_user_id: null,
-        decided_at: null,
+        decided_by_user_id: coordinatorPreapproved ? coordinator.user_id : null,
+        decided_at: coordinatorPreapproved ? now : null,
+        student_acknowledged_at: null,
+        conflict_reason: null,
         updated_at: now,
     };
 
@@ -1976,6 +2131,31 @@ async function getActiveRoSettingForAssignments(currentPeriod = null) {
 
 exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     const currentPeriod = await getCurrentAcademicPeriod();
+    const scholarRequestId = cleanText(
+        payload.scholarRequestId || payload.scholar_request_id
+    ) || null;
+    const isScholarRequestWorkflow = payload[SCHOLAR_REQUEST_ASSIGNMENT_TOKEN] === true;
+
+    if (scholarRequestId && !isScholarRequestWorkflow) {
+        throw createHttpError(
+            400,
+            'Request-linked RO placements must be created from the RO Area scholar request workflow.'
+        );
+    }
+    const scholarRequest = scholarRequestId
+        ? await getScholarRequestForAssignment(scholarRequestId)
+        : null;
+
+    if (scholarRequest) {
+        const progress = await getScholarRequestProgress(scholarRequestId);
+        if (progress.remaining_assignment_count <= 0) {
+            throw createHttpError(
+                409,
+                'This RO scholar request already has enough active scholar assignments. Wait for acknowledgments or resolve an existing concern before assigning more scholars.'
+            );
+        }
+    }
+
     const application = await getApprovedApplicationForStudent(
         studentId,
         payload
@@ -2007,11 +2187,27 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     const now = new Date().toISOString();
     const adminUserId = getUserId(user);
 
-    const assignedDepartment = await resolveAssignedDepartment(
-        payload.assignedArea || payload.assigned_area
-    );
+    const assignedDepartment = scholarRequest
+        ? await resolveAssignedDepartment(scholarRequest.assigned_area)
+        : await resolveAssignedDepartment(payload.assignedArea || payload.assigned_area);
     const assignedDepartmentName = assignedDepartment.department_name;
-    const coordinator = await findRoCoordinator(assignedDepartment);
+    const coordinator = scholarRequest
+        ? {
+            coordinator_assignment_id: scholarRequest.coordinator_assignment_id,
+            user_id: scholarRequest.coordinator_user_id,
+            first_name: scholarRequest.coordinator_first_name,
+            last_name: scholarRequest.coordinator_last_name,
+            department_id: scholarRequest.ro_area_id,
+            department: scholarRequest.assigned_area,
+        }
+        : await findRoCoordinator(assignedDepartment);
+
+    if (
+        scholarRequest &&
+        String(assignedDepartment.department_id) !== String(scholarRequest.ro_area_id)
+    ) {
+        throw createHttpError(409, 'The selected RO Area does not match this coordinator scholar request.');
+    }
     const currentPlacement = existingRO?.ro_id
         ? await getCurrentPlacement(
             existingRO.ro_id,
@@ -2044,11 +2240,13 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         assigned_area: assignedDepartmentName,
         remarks: cleanText(payload.remarks) || null,
 
-        assignment_status: 'Pending Coordinator Approval',
-        coordinator_status: 'Pending',
-        coordinator_remarks: null,
-        coordinator_user_id: null,
-        coordinator_decided_at: null,
+        assignment_status: scholarRequest ? 'Assigned' : 'Pending Coordinator Approval',
+        coordinator_status: scholarRequest ? 'Approved' : 'Pending',
+        coordinator_remarks: scholarRequest
+            ? 'Coordinator approval satisfied by the originating scholar request.'
+            : null,
+        coordinator_user_id: scholarRequest ? coordinator.user_id : null,
+        coordinator_decided_at: scholarRequest ? now : null,
         assignment_acknowledged_at: null,
         conflict_reason: null,
         assigned_by: adminUserId,
@@ -2072,17 +2270,25 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
                 remarks: cleanText(payload.remarks) || existingRO.remarks || null,
                 assignment_status: preserveActivePlacement
                     ? existingRO.assignment_status
-                    : 'Pending Coordinator Approval',
-                coordinator_status: preserveActivePlacement ? 'Approved' : 'Pending',
+                    : scholarRequest
+                        ? 'Assigned'
+                        : 'Pending Coordinator Approval',
+                coordinator_status: preserveActivePlacement || scholarRequest ? 'Approved' : 'Pending',
                 coordinator_remarks: preserveActivePlacement
                     ? existingRO.coordinator_remarks
-                    : null,
+                    : scholarRequest
+                        ? 'Coordinator approval satisfied by the originating scholar request.'
+                        : null,
                 coordinator_user_id: preserveActivePlacement
                     ? existingRO.coordinator_user_id
-                    : null,
+                    : scholarRequest
+                        ? coordinator.user_id
+                        : null,
                 coordinator_decided_at: preserveActivePlacement
                     ? existingRO.coordinator_decided_at
-                    : null,
+                    : scholarRequest
+                        ? now
+                        : null,
                 academic_year_id: currentPeriod.academic_year_id,
                 period_id: currentPeriod.period_id,
                 updated_at: now,
@@ -2120,21 +2326,35 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         department: assignedDepartment,
         coordinator,
         adminUserId,
-        remarks: payload.remarks,
+        remarks: payload.remarks || scholarRequest?.purpose,
         currentPlacement,
+        scholarRequestId,
+        coordinatorPreapproved: Boolean(scholarRequest),
     });
 
-    const notification = await sendCoordinatorRequestNotification({
-        coordinator,
-        student,
-        roId: assignment.ro_id,
-        assignedArea: assignedDepartmentName,
-    });
+    const notification = scholarRequest
+        ? await sendScholarAssignmentNotification({
+            student,
+            roId: assignment.ro_id,
+            assignedArea: assignedDepartmentName,
+        })
+        : await sendCoordinatorRequestNotification({
+            coordinator,
+            student,
+            roId: assignment.ro_id,
+            assignedArea: assignedDepartmentName,
+        });
+
+    const requestState = scholarRequest
+        ? await syncScholarRequestStatus(scholarRequestId, adminUserId)
+        : null;
 
     return {
-        message: existingRO?.ro_id
-            ? 'RO request updated and sent to the assigned coordinator.'
-            : 'RO request created and sent to the assigned coordinator.',
+        message: scholarRequest
+            ? 'Scholar assigned from the RO Area request and notified for acknowledgment.'
+            : existingRO?.ro_id
+                ? 'RO request updated and sent to the assigned coordinator.'
+                : 'RO request created and sent to the assigned coordinator.',
         assignment,
         placement,
         coordinator: {
@@ -2143,7 +2363,133 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
             department: coordinator.department,
         },
         notification,
+        notification_target_user_id: scholarRequest ? student.user_id : coordinator.user_id,
+        scholar_request_id: scholarRequestId,
+        scholar_request: requestState,
     };
+};
+
+exports.assignScholarsToRequest = async (requestId, payload = {}, user = {}) => {
+    const normalizedRequestId = cleanText(requestId);
+    if (!normalizedRequestId) {
+        throw createHttpError(400, 'A valid RO scholar request is required.');
+    }
+
+    // Serialize assignments for the same request so two Admin sessions cannot
+    // both observe the same remaining capacity and over-assign scholars.
+    const lockClient = await db.connect();
+    try {
+        await lockClient.query('SELECT pg_advisory_lock(hashtext($1))', [normalizedRequestId]);
+
+        const request = await getScholarRequestForAssignment(normalizedRequestId);
+        const rawStudentIds = payload.studentIds || payload.student_ids || [];
+
+        if (!Array.isArray(rawStudentIds) || rawStudentIds.length === 0) {
+            throw createHttpError(400, 'Select at least one eligible scholar.');
+        }
+
+        const studentIds = [
+            ...new Set(rawStudentIds.map((id) => cleanText(id)).filter(Boolean)),
+        ];
+        const initialProgress = await getScholarRequestProgress(normalizedRequestId);
+        if (studentIds.length > initialProgress.remaining_assignment_count) {
+            throw createHttpError(
+                409,
+                `This request currently needs only ${initialProgress.remaining_assignment_count} more scholar${initialProgress.remaining_assignment_count === 1 ? '' : 's'}.`
+            );
+        }
+
+        const successful = [];
+        const failed = [];
+        for (const studentId of studentIds) {
+            try {
+                const result = await exports.assignScholarRO(
+                    studentId,
+                    {
+                        scholarRequestId: normalizedRequestId,
+                        assignedArea: request.assigned_area,
+                        remarks: request.purpose,
+                        [SCHOLAR_REQUEST_ASSIGNMENT_TOKEN]: true,
+                    },
+                    user
+                );
+                successful.push({
+                    student_id: studentId,
+                    ro_id: result?.assignment?.ro_id || null,
+                    placement_id: result?.placement?.placement_id || null,
+                    notification: result?.notification || null,
+                    notification_target_user_id: result?.notification_target_user_id || null,
+                    message: result?.message || 'Assigned successfully.',
+                });
+            } catch (error) {
+                failed.push({
+                    student_id: studentId,
+                    error: error.message || 'Failed to assign scholar.',
+                });
+            }
+        }
+
+        // If a scholar reported a concern and Admin successfully assigned a
+        // replacement, retire the same number of concerned placements. This
+        // keeps the historical concern visible without allowing a later
+        // resolution/acknowledgment to overfill the original request.
+        const replacementsToRetire = Math.min(
+            successful.length,
+            Math.max(0, Number(initialProgress.concern_count || 0))
+        );
+
+        if (replacementsToRetire > 0) {
+            const conflicted = await lockClient.query(
+                `SELECT placement_id
+                 FROM ro_placements
+                 WHERE scholar_request_id = $1::uuid
+                   AND placement_status = 'Approved'
+                   AND conflict_reason IS NOT NULL
+                 ORDER BY updated_at ASC, created_at ASC
+                 LIMIT $2`,
+                [normalizedRequestId, replacementsToRetire]
+            );
+
+            const placementIds = conflicted.rows
+                .map((row) => row.placement_id)
+                .filter(Boolean);
+
+            if (placementIds.length) {
+                await lockClient.query(
+                    `UPDATE ro_placements
+                     SET placement_status = 'Cancelled',
+                         coordinator_remarks = CONCAT_WS(
+                           ' ',
+                           NULLIF(coordinator_remarks, ''),
+                           'Replaced by Admin after the scholar reported a concern.'
+                         ),
+                         updated_at = now()
+                     WHERE placement_id = ANY($1::uuid[])`,
+                    [placementIds]
+                );
+            }
+        }
+
+        const state = await syncScholarRequestStatus(normalizedRequestId, getUserId(user));
+        return {
+            message: failed.length
+                ? 'Scholar assignment completed with some records that could not be assigned.'
+                : 'Selected scholars were assigned and notified for acknowledgment.',
+            total: studentIds.length,
+            success_count: successful.length,
+            failed_count: failed.length,
+            successful,
+            failed,
+            request: state?.request || null,
+            progress: state?.progress || null,
+        };
+    } finally {
+        try {
+            await lockClient.query('SELECT pg_advisory_unlock(hashtext($1))', [normalizedRequestId]);
+        } finally {
+            lockClient.release();
+        }
+    }
 };
 
 exports.batchAssignScholarsRO = async (payload = {}, user = {}) => {
@@ -2293,10 +2639,47 @@ exports.getScholarRequests = async (query = {}) => {
            rsr.handled_by_user_id,
            rsr.handled_at,
            rsr.created_at,
-           rsr.updated_at
+           rsr.updated_at,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.conflict_reason IS NULL
+           )::int AS active_assignment_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.student_acknowledged_at IS NOT NULL
+               AND rp.conflict_reason IS NULL
+           )::int AS acknowledged_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.student_acknowledged_at IS NULL
+               AND rp.conflict_reason IS NULL
+           )::int AS awaiting_acknowledgment_count,
+           COUNT(rp.placement_id) FILTER (
+             WHERE rp.placement_status = 'Approved'
+               AND rp.conflict_reason IS NOT NULL
+           )::int AS concern_count,
+           COALESCE(
+             JSONB_AGG(
+               JSONB_BUILD_OBJECT(
+                 'placement_id', rp.placement_id,
+                 'ro_id', ro.ro_id,
+                 'student_id', st.student_id,
+                 'pdm_id', st.pdm_id,
+                 'student_name', CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name),
+                 'placement_status', rp.placement_status,
+                 'acknowledged_at', rp.student_acknowledged_at,
+                 'conflict_reason', rp.conflict_reason,
+                 'assignment_status', ro.assignment_status
+               ) ORDER BY rp.created_at
+             ) FILTER (WHERE rp.placement_id IS NOT NULL),
+             '[]'::jsonb
+           ) AS assigned_scholars
          FROM ro_scholar_requests rsr
          JOIN ro_departments rd ON rd.department_id = rsr.ro_area_id
          LEFT JOIN admin_profiles ap ON ap.user_id = rsr.requested_by_user_id
+         LEFT JOIN ro_placements rp ON rp.scholar_request_id = rsr.request_id
+         LEFT JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
+         LEFT JOIN students st ON st.student_id = ro.student_id
          WHERE ($1::text IS NULL OR rsr.request_status = $1)
            AND (
              $2::text = ''
@@ -2308,6 +2691,11 @@ exports.getScholarRequests = async (query = {}) => {
                ap.last_name
              ) ILIKE '%' || $2 || '%'
            )
+         GROUP BY
+           rsr.request_id,
+           rd.department_name,
+           ap.first_name,
+           ap.last_name
          ORDER BY
            CASE rsr.request_status
              WHEN 'Pending' THEN 0
@@ -2318,22 +2706,47 @@ exports.getScholarRequests = async (query = {}) => {
         [statusFilter, search]
     );
 
+    const items = result.rows.map((row) => {
+        const requested = Math.max(0, Number(row.requested_scholar_count || 0));
+        const active = Math.max(0, Number(row.active_assignment_count || 0));
+        const acknowledged = Math.max(0, Number(row.acknowledged_count || 0));
+        return {
+            ...row,
+            active_assignment_count: active,
+            acknowledged_count: acknowledged,
+            awaiting_acknowledgment_count: Math.max(0, Number(row.awaiting_acknowledgment_count || 0)),
+            concern_count: Math.max(0, Number(row.concern_count || 0)),
+            remaining_assignment_count: Math.max(0, requested - active),
+            remaining_confirmation_count: Math.max(0, requested - acknowledged),
+        };
+    });
+
     return {
-        items: result.rows,
-        pending_count: result.rows.filter((item) => item.request_status === 'Pending').length,
+        items,
+        pending_count: items.filter((item) => item.request_status === 'Pending').length,
     };
 };
 
 exports.updateScholarRequest = async (requestId, payload = {}, user = {}) => {
     const status = cleanText(payload.status || payload.requestStatus || payload.request_status);
     const remarks = cleanText(payload.remarks || payload.adminRemarks || payload.admin_remarks);
-    const allowedStatuses = ['Acknowledged', 'Fulfilled', 'Declined'];
+    const allowedStatuses = ['Declined'];
 
     if (!allowedStatuses.includes(status)) {
-        throw createHttpError(400, 'Choose Acknowledged, Fulfilled, or Declined.');
+        throw createHttpError(400, 'RO scholar requests are fulfilled automatically from scholar acknowledgments. Admin may only decline an active request manually.');
     }
     if (status === 'Declined' && !remarks) {
         throw createHttpError(400, 'Admin remarks are required when declining a request.');
+    }
+
+    if (status === 'Declined') {
+        const progress = await getScholarRequestProgress(requestId);
+        if (progress.active_assignment_count > 0 || progress.concern_count > 0) {
+            throw createHttpError(
+                409,
+                'This request already has linked scholar assignments. Resolve or cancel those placements instead of declining the request.'
+            );
+        }
     }
 
     const result = await db.query(

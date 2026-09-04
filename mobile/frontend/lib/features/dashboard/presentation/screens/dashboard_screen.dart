@@ -121,14 +121,21 @@ class DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _UnifiedDashboardContent(sessionService: sessionService);
+    return _UnifiedDashboardContent(
+      sessionService: sessionService,
+      scholarAccessResolver: scholarAccessResolver,
+    );
   }
 }
 
 class _UnifiedDashboardContent extends StatefulWidget {
-  const _UnifiedDashboardContent({required this.sessionService});
+  const _UnifiedDashboardContent({
+    required this.sessionService,
+    this.scholarAccessResolver,
+  });
 
   final SessionService sessionService;
+  final DashboardScholarAccessResolver? scholarAccessResolver;
 
   @override
   State<_UnifiedDashboardContent> createState() =>
@@ -165,6 +172,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   String? _statusError;
   String? _requirementsError;
   String? _announcementsError;
+  String? _openingsError;
   bool _needsBaseApplication = false;
   bool _guideChecked = false;
 
@@ -180,16 +188,22 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
   Color get _background =>
-      _isDark ? const Color(0xFF17110B) : const Color(0xFFF7F4EF);
+      _isDark ? AppColors.applicantDarkBackground : AppColors.applicantLightBackground;
 
-  Color get _surface => _isDark ? const Color(0xFF2A1D13) : AppColors.white;
+  Color get _surface => _isDark ? AppColors.applicantDarkSurface : AppColors.applicantLightSurface;
 
-  Color get _primaryText => _isDark ? Colors.white : AppColors.darkBrown;
+  Color get _primaryText => _isDark ? AppColors.applicantDarkText : AppColors.applicantLightText;
 
   Color get _secondaryText =>
-      _isDark ? Colors.white70 : AppColors.brown.withValues(alpha: 0.72);
+      _isDark ? AppColors.applicantDarkTextMuted : AppColors.applicantLightTextMuted;
+
+  bool get _scholarPrivilegeRemoved =>
+      _statusSummary?.scholarPrivilegeRemoved == true;
 
   bool get _hasScholarAccess {
+    if (_scholarPrivilegeRemoved) return false;
+    if (widget.scholarAccessResolver != null) return _cachedScholarAccess;
+
     final provider = _notificationProvider;
     if (provider == null) return _cachedScholarAccess;
 
@@ -215,9 +229,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     if (_guideChecked) return;
     _guideChecked = true;
 
-    // The getting-started guide is only for applicants. Scholars should not
+    // The getting-started guide is only for applicants who can still follow
+    // the normal application lifecycle. Active and removed scholars must not
     // receive applicant onboarding after login.
-    if (_hasScholarAccess) return;
+    if (_hasScholarAccess || _scholarPrivilegeRemoved) return;
 
     final prefs = await SharedPreferences.getInstance();
     SessionUser session;
@@ -414,6 +429,17 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
         session.lastName.trim(),
       ].where((part) => part.isNotEmpty).join(' ');
 
+      var resolvedScholarAccess = session.hasScholarAccess;
+      final resolver = widget.scholarAccessResolver;
+      final provider = _notificationProvider;
+      if (resolver != null && provider != null) {
+        try {
+          resolvedScholarAccess = await resolver(provider, widget.sessionService);
+        } catch (error) {
+          debugPrint('DASHBOARD SCHOLAR ACCESS RESOLUTION ERROR: $error');
+        }
+      }
+
       if (!mounted) return;
 
       setState(() {
@@ -421,7 +447,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
         _studentId = session.studentId.trim().isEmpty
             ? 'Student Account'
             : session.studentId.trim();
-        _cachedScholarAccess = session.hasScholarAccess;
+        _cachedScholarAccess = resolvedScholarAccess;
         _identityError = null;
       });
     } catch (error) {
@@ -448,7 +474,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _statusSummary = null;
+        // Keep the last known valid status during a transient refresh failure.
+        // On first load, _statusSummary is already null and the UI shows the
+        // explicit retry state instead of pretending there is no application.
         _statusError = error.toString().replaceFirst('Exception: ', '').trim();
         _isLoadingStatus = false;
       });
@@ -469,16 +497,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() {
-        _requirementsPackage = null;
         _needsBaseApplication =
             error.statusCode == 404 || error.statusCode == 409;
+        if (_needsBaseApplication) {
+          // A 404/409 is a real lifecycle state, not a transient transport
+          // failure, so stale document data must not remain visible.
+          _requirementsPackage = null;
+        }
         _requirementsError = _needsBaseApplication ? null : error.message;
         _isLoadingRequirements = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _requirementsPackage = null;
         _needsBaseApplication = false;
         _requirementsError = error
             .toString()
@@ -506,7 +537,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       if (!mounted) return;
 
       setState(() {
-        _announcements = const [];
         _announcementsError = error
             .toString()
             .replaceFirst('Exception: ', '')
@@ -522,12 +552,16 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       if (!mounted) return;
       setState(() {
         _latestOpenings = result.items.take(2).toList(growable: false);
+        _openingsError = null;
         _isLoadingOpenings = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _latestOpenings = const [];
+        _openingsError = error
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .trim();
         _isLoadingOpenings = false;
       });
     }
@@ -609,12 +643,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     return announcements.take(3).toList(growable: false);
   }
 
-  List<AppNotification> _recentUpdates(NotificationProvider provider) {
-    return provider.notifications
-        .where((item) => !item.isAnnouncementNotification)
-        .take(4)
-        .toList(growable: false);
-  }
 
   AppNotification? _latestMatching(
     NotificationProvider provider,
@@ -676,7 +704,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 ),
               ),
               _StatusPill(
-                label: _hasScholarAccess ? 'SCHOLAR' : 'APPLICANT',
+                label: _scholarPrivilegeRemoved
+                    ? 'REMOVED'
+                    : _hasScholarAccess
+                        ? 'SCHOLAR'
+                        : 'APPLICANT',
                 isDark: _isDark,
               ),
             ],
@@ -690,9 +722,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _hasScholarAccess
-                          ? 'Stay on track with your scholarship'
-                          : 'Track your scholarship journey',
+                      _scholarPrivilegeRemoved
+                          ? 'Your scholarship record is preserved'
+                          : _hasScholarAccess
+                              ? 'Stay on track with your scholarship'
+                              : 'Track your scholarship journey',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
                             color: _primaryText,
@@ -703,9 +737,11 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      _hasScholarAccess
-                          ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
-                          : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
+                      _scholarPrivilegeRemoved
+                          ? 'Your previous scholarship history remains on file. Contact OSFA regarding eligibility or future applications.'
+                          : _hasScholarAccess
+                              ? 'Monitor your status, requirements, payouts, obligations, and important OSFA notices in one place.'
+                              : 'Follow your application, complete requirements, and stay informed about important OSFA announcements.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: _secondaryText,
                         fontSize: 13,
@@ -725,238 +761,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
-  Widget _buildCurrentStatus() {
-    if (_isLoadingStatus) {
-      return _LoadingCard(isDark: _isDark);
-    }
-
-    if (_hasScholarAccess) {
-      final program = _safeText(
-        _statusSummary?.programName,
-        fallback: _safeText(
-          _statusSummary?.openingTitle,
-          fallback: 'Active Scholarship',
-        ),
-      );
-
-      return _SurfaceCard(
-        isDark: _isDark,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const _AccentIcon(icon: Icons.workspace_premium_rounded),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        program,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: _primaryText,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Your scholar account is active.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _secondaryText,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const _StateBadge(label: 'ACTIVE', color: Color(0xFF2E8B57)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Use the dashboard as your overview. Detailed payout, obligation, and renewal records remain available through the bottom navigation.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: _secondaryText,
-                height: 1.45,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_statusError != null && _statusSummary == null) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.cloud_off_rounded,
-        title: 'Unable to load application status',
-        message: _statusError!,
-        buttonLabel: 'Try again',
-        onPressed: _loadApplicationStatus,
-      );
-    }
-
-    final summary = _statusSummary;
-    if (summary == null || summary.hasApplication == false) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.assignment_outlined,
-        title: 'No active application yet',
-        message:
-            'Available scholarships appear below. Open the scholarship list when you are ready to apply.',
-        buttonLabel: 'View scholarships',
-        onPressed: () =>
-            Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
-      );
-    }
-
-    final workflow = summary.workflow;
-    final status = _safeText(
-      workflow?.stageLabel,
-      fallback: _safeText(
-        summary.applicationStatus,
-        fallback: 'Pending Review',
-      ),
-    );
-    final title = _safeText(
-      summary.programName,
-      fallback: _safeText(
-        summary.openingTitle,
-        fallback: 'Scholarship Application',
-      ),
-    );
-
-    return _SurfaceCard(
-      isDark: _isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const _AccentIcon(icon: Icons.assignment_turned_in_rounded),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _primaryText,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      status,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.gold,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (workflow != null)
-            Row(
-              children: [
-                Expanded(
-                  child: _StatusMetric(
-                    label: 'Requirements',
-                    value: workflow.requirements.statusLabel,
-                    isDark: _isDark,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatusMetric(
-                    label: 'Endorsement',
-                    value: workflow.endorsement.statusLabel,
-                    isDark: _isDark,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatusMetric(
-                    label: 'Activation',
-                    value: workflow.scholarActivation.statusLabel,
-                    isDark: _isDark,
-                  ),
-                ),
-              ],
-            ),
-          if (workflow != null) ...[
-            const SizedBox(height: 16),
-            _EndorsementProgressCard(
-              endorsement: workflow.endorsement,
-              officeReviews: workflow.officeReviews,
-              isDark: _isDark,
-            ),
-          ],
-          if (workflow?.primaryBlocker?.message.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.orange.withValues(
-                  alpha: _isDark ? 0.18 : 0.09,
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                workflow!.primaryBlocker!.message,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _isDark ? const Color(0xFFFFD6A8) : AppColors.brown,
-                  height: 1.4,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                AppRoutes.documents,
-                arguments: <String, dynamic>{
-                  'initialTitle': _safeText(
-                    summary.openingTitle,
-                    fallback: title,
-                  ),
-                  'initialProgramName': _safeText(
-                    summary.programName,
-                    fallback: title,
-                  ),
-                },
-              ),
-              icon: const Icon(Icons.folder_copy_rounded, size: 18),
-              label: const Text('Manage Documents'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.darkBrown,
-                elevation: 0,
-                minimumSize: const Size.fromHeight(44),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildAnnouncements(List<AppNotification> announcements) {
     if (_isLoadingAnnouncements && announcements.isEmpty) {
@@ -998,116 +802,6 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
-  Widget _buildApplicantRequirements() {
-    if (_isLoadingRequirements) {
-      return _LoadingCard(isDark: _isDark);
-    }
-
-    if (_requirementsError != null) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.error_outline_rounded,
-        title: 'Unable to load requirements',
-        message: _requirementsError!,
-        buttonLabel: 'Try again',
-        onPressed: _loadRequirements,
-      );
-    }
-
-    if (_needsBaseApplication || _requirementsPackage == null) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.fact_check_outlined,
-        title: 'No requirements are due yet',
-        message:
-            'Your application requirements will appear here after you start a scholarship application.',
-      );
-    }
-
-    final package = _requirementsPackage!;
-    final documents = package.documents;
-    final uploaded = documents.where((item) => item.isSubmitted).length;
-    final total = documents.length;
-    final pending = documents
-        .where((item) => !item.isSubmitted)
-        .take(3)
-        .toList();
-    final progress = total == 0 ? 0.0 : uploaded / total;
-
-    return _SurfaceCard(
-      isDark: _isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const _AccentIcon(icon: Icons.fact_check_rounded),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      package.programName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _primaryText,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '$uploaded of $total documents uploaded',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _secondaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _StateBadge(
-                label: package.allRequiredUploaded ? 'COMPLETE' : 'IN PROGRESS',
-                color: package.allRequiredUploaded
-                    ? const Color(0xFF2E8B57)
-                    : AppColors.orange,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              minHeight: 9,
-              backgroundColor: _isDark
-                  ? Colors.white12
-                  : const Color(0xFFEAE1D6),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
-            ),
-          ),
-          if (pending.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            for (int index = 0; index < pending.length; index++) ...[
-              _RequirementRow(
-                title: pending[index].documentType,
-                subtitle: pending[index].adminComment?.trim().isNotEmpty == true
-                    ? pending[index].adminComment!.trim()
-                    : 'Pending upload',
-                isDark: _isDark,
-              ),
-              if (index != pending.length - 1)
-                Divider(
-                  height: 18,
-                  color: _isDark ? Colors.white10 : const Color(0xFFEDE4D9),
-                ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
 
   Widget _buildScholarResponsibilities(NotificationProvider provider) {
     final renewal = _latestMatching(
@@ -1148,6 +842,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 obligation?.previewText ??
                 'No new obligation update has been posted.',
             isDark: _isDark,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
           ),
           Divider(
             height: 22,
@@ -1165,81 +860,10 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
     );
   }
 
-  Widget _buildRecentUpdates(List<AppNotification> updates) {
-    if (updates.isEmpty) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.history_rounded,
-        title: 'No recent account updates',
-        message:
-            'Application, document, payout, renewal, and obligation activity will appear here.',
-      );
-    }
 
-    return _SurfaceCard(
-      isDark: _isDark,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          for (int index = 0; index < updates.length; index++) ...[
-            _RecentUpdateRow(
-              notification: updates[index],
-              dateLabel: _formatDate(updates[index].createdAt),
-              isDark: _isDark,
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.notifications),
-            ),
-            if (index != updates.length - 1)
-              Divider(
-                height: 1,
-                indent: 46,
-                color: _isDark ? Colors.white10 : const Color(0xFFEDE4D9),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvailableScholarships() {
-    if (_isLoadingOpenings) {
-      return _LoadingCard(isDark: _isDark);
-    }
-
-    if (_latestOpenings.isEmpty) {
-      return _StateCard(
-        isDark: _isDark,
-        icon: Icons.school_outlined,
-        title: 'No scholarships are available right now',
-        message: 'New scholarship programs will appear here when published.',
-      );
-    }
-
-    return Column(
-      children: [
-        for (int index = 0; index < _latestOpenings.length; index++) ...[
-          _OpeningCard(
-            title: _cleanOpeningTitle(_latestOpenings[index]),
-            programName: _safeText(
-              _latestOpenings[index].programName,
-              fallback: 'Scholarship Program',
-            ),
-            preview: _safeText(
-              _latestOpenings[index].announcementText,
-              fallback: 'Applications are currently being accepted.',
-            ),
-            isDark: _isDark,
-            onTap: () =>
-                Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
-          ),
-          if (index != _latestOpenings.length - 1) const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
 
   // SMART-PDM_MOBILE_BENTO_DASHBOARD_V1
-  Widget _buildBentoDashboard(List<AppNotification> announcements) {
+  Widget _buildBentoDashboard() {
     final summary = _statusSummary;
     final workflow = summary?.workflow;
     final hasApplication = summary?.hasApplication == true;
@@ -1271,19 +895,23 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             ),
           );
 
-    final requirementsValue = _isLoadingRequirements
+    final requirementsValue = _isLoadingRequirements && package == null
         ? 'Loading...'
-        : package == null
-            ? 'Not started'
-            : package.allRequiredUploaded
-                ? 'Complete'
-                : '$uploadedDocuments of $totalDocuments';
+        : _requirementsError != null && package == null
+            ? 'Unable to load'
+            : package == null
+                ? (_needsBaseApplication ? 'Not available yet' : 'Not started')
+                : package.allRequiredUploaded
+                    ? 'Complete'
+                    : '$uploadedDocuments of $totalDocuments';
 
-    final requirementsDetail = package == null
-        ? 'Requirements appear after you start an application.'
-        : package.allRequiredUploaded
-            ? 'All required documents are uploaded.'
-            : '$remainingDocuments document${remainingDocuments == 1 ? '' : 's'} remaining.';
+    final requirementsDetail = _requirementsError != null && package == null
+        ? 'Requirements could not be loaded. Open Documents or pull to refresh and try again.'
+        : package == null
+            ? 'Requirements appear after you start a scholarship application.'
+            : package.allRequiredUploaded
+                ? 'All required documents are uploaded.'
+                : '$remainingDocuments document${remainingDocuments == 1 ? '' : 's'} remaining.';
 
     final nextStep = workflow?.primaryBlocker?.message.trim();
     final nextStepValue = !hasApplication
@@ -1348,7 +976,22 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
         final cards = <Widget>[];
 
-        if (_hasScholarAccess) {
+        if (summary?.scholarPrivilegeRemoved == true) {
+          cards.add(
+            tile(
+              width: constraints.maxWidth,
+              order: 0,
+              icon: Icons.info_outline_rounded,
+              label: 'Scholarship Status',
+              value: 'Privilege Removed',
+              detail:
+                  workflow?.primaryBlocker?.message ??
+                  'Your previous scholarship record remains on file. Contact OSFA regarding eligibility or future applications.',
+              badge: 'REMOVED',
+              wide: true,
+            ),
+          );
+        } else if (_hasScholarAccess) {
           // Payout, Obligation, and Renewal already have permanent bottom-nav
           // destinations. Keep Dashboard focused on information instead of
           // repeating those navigation cards.
@@ -1365,7 +1008,69 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               wide: true,
             ),
           );
+        } else if (_isLoadingStatus && summary == null) {
+          cards.add(
+            tile(
+              width: constraints.maxWidth,
+              order: 0,
+              icon: Icons.hourglass_top_rounded,
+              label: 'Application',
+              value: 'Loading status...',
+              detail: 'Checking your current scholarship application status.',
+              wide: true,
+            ),
+          );
+        } else if (_statusError != null && summary == null) {
+          cards.add(
+            tile(
+              width: constraints.maxWidth,
+              order: 0,
+              icon: Icons.cloud_off_rounded,
+              label: 'Application',
+              value: 'Unable to load status',
+              detail: 'Tap to retry. Your application state has not been changed.',
+              onTap: () => unawaited(_loadApplicationStatus()),
+              wide: true,
+            ),
+          );
+        } else if (!hasApplication) {
+          // Before an application exists, avoid empty status/requirements
+          // cards. Put the user's actionable path first.
+          cards.addAll([
+            tile(
+              width: halfWidth,
+              order: 0,
+              icon: Icons.school_rounded,
+              label: 'Available Scholarships',
+              value: _isLoadingOpenings && _latestOpenings.isEmpty
+                  ? 'Loading...'
+                  : _openingsError != null && _latestOpenings.isEmpty
+                      ? 'Unable to load'
+                      : _latestOpenings.isEmpty
+                          ? 'No openings yet'
+                          : _cleanOpeningTitle(_latestOpenings.first),
+              detail: _openingsError != null && _latestOpenings.isEmpty
+                  ? 'Open the scholarship list or pull to refresh and try again.'
+                  : _latestOpenings.isEmpty
+                      ? 'New scholarship openings will appear here when published.'
+                      : 'Review eligibility, slots, and application details.',
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.scholarshipOpenings,
+              ),
+            ),
+            tile(
+              width: halfWidth,
+              order: 1,
+              icon: Icons.route_rounded,
+              label: 'Next Step',
+              value: nextStepValue,
+              detail: nextStepDetail,
+            ),
+          ]);
         } else {
+          // Once an application exists, its current state and required action
+          // outrank unrelated openings.
           cards.addAll([
             tile(
               width: halfWidth,
@@ -1374,13 +1079,19 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               label: 'Application',
               value: applicationValue,
               detail: applicationDetail,
-              onTap: hasApplication
-                  ? () => Navigator.pushNamed(context, AppRoutes.status)
-                  : null,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.status),
             ),
             tile(
               width: halfWidth,
               order: 1,
+              icon: Icons.route_rounded,
+              label: 'Next Step',
+              value: nextStepValue,
+              detail: nextStepDetail,
+            ),
+            tile(
+              width: constraints.maxWidth,
+              order: 2,
               icon: Icons.fact_check_rounded,
               label: 'Requirements',
               value: requirementsValue,
@@ -1388,33 +1099,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               badge: package?.allRequiredUploaded == true
                   ? 'COMPLETE'
                   : null,
-              onTap: hasApplication
-                  ? () => Navigator.pushNamed(context, AppRoutes.documents)
-                  : null,
-            ),
-            tile(
-              width: halfWidth,
-              order: 2,
-              icon: Icons.school_rounded,
-              label: 'Scholarships',
-              value: _latestOpenings.isEmpty
-                  ? 'Browse programs'
-                  : _cleanOpeningTitle(_latestOpenings.first),
-              detail: _latestOpenings.isEmpty
-                  ? 'New openings will appear when published.'
-                  : 'View current scholarship openings.',
-              onTap: () => Navigator.pushNamed(
-                context,
-                AppRoutes.scholarshipOpenings,
-              ),
-            ),
-            tile(
-              width: halfWidth,
-              order: 3,
-              icon: Icons.route_rounded,
-              label: 'Next Step',
-              value: nextStepValue,
-              detail: nextStepDetail,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
+              wide: true,
             ),
           ]);
         }
@@ -1478,7 +1164,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                 const SizedBox(height: 8),
                 _buildAnnouncements(announcements),
                 const SizedBox(height: 14),
-                _buildBentoDashboard(announcements),
+                _buildBentoDashboard(),
                 if (_hasScholarAccess) ...[
                   const SizedBox(height: 14),
                   Text(
@@ -1803,156 +1489,6 @@ class _FirstTimeGuideDialogState extends State<_FirstTimeGuideDialog> {
   }
 }
 
-class _EndorsementProgressCard extends StatelessWidget {
-  const _EndorsementProgressCard({
-    required this.endorsement,
-    required this.officeReviews,
-    required this.isDark,
-  });
-
-  final EndorsementStateSummary endorsement;
-  final Map<String, OfficeReviewSummary> officeReviews;
-  final bool isDark;
-
-  int _activeIndex() {
-    if (endorsement.status == 'completed' ||
-        endorsement.currentStage == 'completed') {
-      return 3;
-    }
-    switch (endorsement.currentStage) {
-      case 'pending_guidance':
-        return 1;
-      case 'pending_pd':
-        return 2;
-      default:
-        return 0;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const steps = [
-      ('sdo', 'SDO'),
-      ('guidance', 'Guidance'),
-      ('pd', 'Program Director'),
-      ('completed', 'Completed'),
-    ];
-    final active = _activeIndex();
-    final stopped = [
-      'rejected',
-      'held',
-      'major_offense',
-      'disqualified_major',
-    ].contains(endorsement.status);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.05)
-            : const Color(0xFFF8F3EC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white10 : const Color(0xFFE8DED1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Endorsement progress',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          for (int i = 0; i < steps.length; i++) ...[
-            Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: i < active || (i == 3 && active == 3)
-                        ? const Color(0xFF2E8B57).withValues(alpha: 0.14)
-                        : i == active
-                        ? AppColors.gold.withValues(alpha: 0.18)
-                        : Colors.grey.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    i < active || (i == 3 && active == 3)
-                        ? Icons.check_rounded
-                        : i == active
-                        ? Icons.circle
-                        : Icons.more_horiz,
-                    size: 16,
-                    color: i < active || (i == 3 && active == 3)
-                        ? const Color(0xFF2E8B57)
-                        : i == active
-                        ? (isDark ? AppColors.gold : AppColors.brown)
-                        : (isDark ? Colors.white54 : Colors.grey),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    steps[i].$2,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? (i == active
-                                ? AppColors.applicantDarkText
-                                : AppColors.applicantDarkTextMuted)
-                          : AppColors.darkBrown,
-                      fontWeight: i == active
-                          ? FontWeight.w900
-                          : FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  i < active || (i == 3 && active == 3)
-                      ? 'Done'
-                      : i == active
-                      ? (stopped ? 'Stopped' : 'Current')
-                      : 'Pending',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: i == active
-                        ? (isDark ? AppColors.gold : AppColors.brown)
-                        : (isDark ? Colors.white54 : Colors.grey),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-            if (i != steps.length - 1)
-              Container(
-                margin: const EdgeInsets.only(left: 13),
-                width: 2,
-                height: 10,
-                color: i < active
-                    ? const Color(0xFF2E8B57)
-                    : (isDark ? Colors.white24 : Colors.grey.shade300),
-              ),
-          ],
-          if (endorsement.currentOffice?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Currently with ${endorsement.currentOffice}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? AppColors.applicantDarkTextMuted
-                    : AppColors.brown,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
 
 class _DashboardIllustration extends StatelessWidget {
   const _DashboardIllustration();
@@ -2037,66 +1573,6 @@ class _DashboardIllustration extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final String title;
-  final String subtitle;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.67),
-                  height: 1.3,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (actionLabel != null && onAction != null)
-          TextButton(
-            onPressed: onAction,
-            style: TextButton.styleFrom(foregroundColor: AppColors.gold),
-            child: Text(
-              actionLabel!,
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-          ),
-      ],
-    );
-  }
-}
 
 class _SurfaceCard extends StatelessWidget {
   const _SurfaceCard({
@@ -2276,82 +1752,7 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-class _StateBadge extends StatelessWidget {
-  const _StateBadge({required this.label, required this.color});
 
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.30)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusMetric extends StatelessWidget {
-  const _StatusMetric({
-    required this.label,
-    required this.value,
-    required this.isDark,
-  });
-
-  final String label;
-  final String value;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 11),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.05)
-            : const Color(0xFFFAF6EF),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isDark ? Colors.white54 : const Color(0xFF8B7968),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: isDark ? Colors.white : AppColors.darkBrown,
-              fontWeight: FontWeight.w900,
-              height: 1.15,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _AnnouncementCard extends StatelessWidget {
   const _AnnouncementCard({
@@ -2364,150 +1765,120 @@ class _AnnouncementCard extends StatelessWidget {
   final AppNotification notification;
   final bool isDark;
   final String dateLabel;
-
-  // Retained only for call-site compatibility. Dashboard preview cards are
-  // intentionally informational; navigation is handled by "View all".
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
-      button: false,
-      label: 'Announcement preview',
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF241A12) : const Color(0xFFFFFCF7),
+      button: true,
+      label: 'Open announcement: ${notification.title}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.07)
-                : const Color(0xFFE9E1D7),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.11),
-                borderRadius: BorderRadius.circular(14),
+          child: Ink(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF241A12)
+                  : const Color(0xFFFFFCF7),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : const Color(0xFFE9E1D7),
               ),
-              child: Icon(notification.icon, color: AppColors.gold, size: 23),
             ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(
+                      alpha: isDark ? 0.20 : 0.11,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    notification.icon,
+                    color: AppColors.gold,
+                    size: 23,
+                  ),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          notification.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: isDark
-                                    ? Colors.white
-                                    : AppColors.darkBrown,
-                                fontWeight: FontWeight.w900,
-                                height: 1.2,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notification.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
+                                    color: isDark
+                                        ? Colors.white
+                                        : AppColors.darkBrown,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.2,
+                                  ),
+                            ),
+                          ),
+                          if (!notification.isRead)
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(left: 8, top: 3),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE53935),
+                                shape: BoxShape.circle,
                               ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        notification.previewText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? Colors.white70
+                              : AppColors.brown.withValues(alpha: 0.70),
+                          height: 1.4,
                         ),
                       ),
-                      if (!notification.isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.only(left: 8, top: 3),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE53935),
-                            shape: BoxShape.circle,
-                          ),
+                      const SizedBox(height: 8),
+                      Text(
+                        dateLabel,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isDark
+                              ? Colors.white54
+                              : const Color(0xFF958575),
+                          fontWeight: FontWeight.w700,
                         ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    notification.previewText,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? Colors.white70
-                          : AppColors.brown.withValues(alpha: 0.70),
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    dateLabel,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isDark ? Colors.white54 : const Color(0xFF958575),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _RequirementRow extends StatelessWidget {
-  const _RequirementRow({
-    required this.title,
-    required this.subtitle,
-    required this.isDark,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.circle_outlined, color: AppColors.gold, size: 20),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.67),
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _ResponsibilityRow extends StatelessWidget {
   const _ResponsibilityRow({
@@ -2515,16 +1886,18 @@ class _ResponsibilityRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.isDark,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final bool isDark;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final content = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AccentIcon(icon: icon),
@@ -2555,161 +1928,27 @@ class _ResponsibilityRow extends StatelessWidget {
             ],
           ),
         ),
+        if (onTap != null) ...[
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: isDark ? Colors.white54 : AppColors.brown.withValues(alpha: 0.55),
+          ),
+        ],
       ],
     );
-  }
-}
 
-class _RecentUpdateRow extends StatelessWidget {
-  const _RecentUpdateRow({
-    required this.notification,
-    required this.dateLabel,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  final AppNotification notification;
-  final String dateLabel;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
+    if (onTap == null) return content;
+    return InkWell(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: notification.accentColor.withValues(
-            alpha: isDark ? 0.18 : 0.10,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          notification.icon,
-          color: notification.accentColor,
-          size: 19,
-        ),
-      ),
-      title: Text(
-        notification.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: isDark ? Colors.white : AppColors.darkBrown,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 3),
-        child: Text(
-          dateLabel,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: isDark ? Colors.white54 : const Color(0xFF958575),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      trailing: !notification.isRead
-          ? Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE53935),
-                shape: BoxShape.circle,
-              ),
-            )
-          : Icon(
-              Icons.chevron_right_rounded,
-              color: isDark ? Colors.white38 : const Color(0xFF9A8B7B),
-            ),
-    );
-  }
-}
-
-class _OpeningCard extends StatelessWidget {
-  const _OpeningCard({
-    required this.title,
-    required this.programName,
-    required this.preview,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  final String title;
-  final String programName;
-  final String preview;
-  final bool isDark;
-
-  // Retained only for call-site compatibility. Dashboard preview cards are
-  // intentionally informational; navigation is handled by "View all".
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      button: false,
-      label: 'Scholarship opening preview',
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF241A12) : const Color(0xFFFFFCF7),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.07)
-                : const Color(0xFFE9E1D7),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _AccentIcon(icon: Icons.school_rounded),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    programName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.gold,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    preview,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? Colors.white60
-                          : AppColors.brown.withValues(alpha: 0.66),
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: content,
       ),
     );
   }
 }
+
+

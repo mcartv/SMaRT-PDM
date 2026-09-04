@@ -130,6 +130,13 @@ function normalizeScholarRow(row) {
     profile_photo_url: row.profile_photo_url || null,
 
     program_name: row.program_name || 'N/A',
+
+    scholar_is_archived: row.scholar_is_archived === true || row.is_archived === true,
+    scholar_archived_at: row.scholar_archived_at || null,
+    scholar_removal_reason: row.scholar_removal_reason || null,
+    scholar_removal_notes: row.scholar_removal_notes || null,
+    scholar_removed_by: row.scholar_removed_by || null,
+    scholar_removed_by_name: row.scholar_removed_by_name || null,
   };
 }
 
@@ -190,6 +197,11 @@ exports.fetchScholarStats = async () => {
         ) = false
         AND st.gwa >= 2.0
       ) AS at_risk,
+
+      COUNT(*) FILTER (
+        WHERE COALESCE(st.scholar_is_archived, false) = true
+          AND COALESCE(st.is_archived, false) = false
+      ) AS removed,
 
       ROUND(
         AVG(
@@ -256,6 +268,11 @@ exports.fetchAllScholars = async () => {
 
       st.scholar_is_archived
         AS is_archived,
+      st.scholar_is_archived,
+      st.scholar_archived_at,
+      st.scholar_removal_reason,
+      st.scholar_removal_notes,
+      st.scholar_removed_by,
 
       st.user_id,
 
@@ -352,7 +369,66 @@ exports.fetchAllScholars = async () => {
   );
 };
 
-exports.fetchScholarById = async (studentId) => {
+exports.fetchRemovedScholars = async () => {
+  const result = await db.query(`
+    SELECT
+      st.student_id,
+      st.current_application_id AS application_id,
+      st.current_program_id AS program_id,
+      st.scholarship_status AS status,
+      st.active_academic_year_id AS academic_year_id,
+      st.active_period_id AS period_id,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      st.date_awarded,
+      COALESCE(st.ro_status, 'Pending') AS ro_status,
+      st.scholar_remarks AS remarks,
+      st.scholar_is_archived AS is_archived,
+      st.scholar_is_archived,
+      st.scholar_archived_at,
+      st.scholar_removal_reason,
+      st.scholar_removal_notes,
+      st.scholar_removed_by,
+      TRIM(CONCAT(COALESCE(removed_by.first_name, ''), ' ', COALESCE(removed_by.last_name, ''))) AS scholar_removed_by_name,
+      st.user_id,
+      st.pdm_id AS student_number,
+      TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
+      st.first_name,
+      st.last_name,
+      st.gwa,
+      st.sdo_status,
+      COALESCE(st.course_id, smr.course_id) AS course_id,
+      ac.course_code,
+      ac.course_name,
+      u.email,
+      COALESCE(st.phone_number, u.phone_number) AS phone_number,
+      st.profile_photo_url,
+      sp.program_name
+    FROM students st
+    LEFT JOIN users u ON u.user_id = st.user_id
+    LEFT JOIN scholarship_program sp ON sp.program_id = st.current_program_id
+    LEFT JOIN student_master_records smr ON smr.master_student_id = st.master_student_id
+    LEFT JOIN academic_course ac ON ac.course_id = COALESCE(st.course_id, smr.course_id)
+    LEFT JOIN academic_years ay ON ay.academic_year_id = st.active_academic_year_id
+    LEFT JOIN academic_period ap ON ap.period_id = st.active_period_id
+    LEFT JOIN admin_profiles removed_by ON removed_by.user_id = st.scholar_removed_by
+    WHERE COALESCE(st.is_archived, false) = false
+      AND COALESCE(st.scholar_is_archived, false) = true
+    ORDER BY st.scholar_archived_at DESC NULLS LAST, st.last_name ASC, st.first_name ASC;
+  `);
+
+  return Promise.all(
+    result.rows.map(async (row) => {
+      const scholar = normalizeScholarRow(row);
+      scholar.avatar_url = await resolveAvatarUrl(row.profile_photo_url);
+      return scholar;
+    })
+  );
+};
+
+exports.fetchScholarById = async (studentId, options = {}) => {
+  const includeRemoved = options.includeRemoved === true;
+
   const scholarResult = await db.query(
     `
     SELECT
@@ -388,6 +464,12 @@ exports.fetchScholarById = async (studentId) => {
 
       st.scholar_remarks
         AS remarks,
+      st.scholar_is_archived,
+      st.scholar_archived_at,
+      st.scholar_removal_reason,
+      st.scholar_removal_notes,
+      st.scholar_removed_by,
+      TRIM(CONCAT(COALESCE(removed_by.first_name, ''), ' ', COALESCE(removed_by.last_name, ''))) AS scholar_removed_by_name,
 
       st.user_id,
 
@@ -432,6 +514,10 @@ exports.fetchScholarById = async (studentId) => {
       ON spf.student_id =
         st.student_id
 
+    LEFT JOIN admin_profiles removed_by
+      ON removed_by.user_id = st.scholar_removed_by
+     AND COALESCE(removed_by.is_archived, false) = false
+
     LEFT JOIN scholarship_program sp
       ON sp.program_id =
         st.current_program_id
@@ -457,10 +543,10 @@ exports.fetchScholarById = async (studentId) => {
         false
       ) = false
 
-      AND COALESCE(
-        st.scholar_is_archived,
-        false
-      ) = false
+      AND (
+        COALESCE(st.scholar_is_archived, false) = false
+        OR $2::boolean = true
+      )
 
       AND COALESCE(
         st.scholarship_status,
@@ -474,7 +560,7 @@ exports.fetchScholarById = async (studentId) => {
 
     LIMIT 1;
     `,
-    [studentId]
+    [studentId, includeRemoved]
   );
 
   if (!scholarResult.rows.length) {
@@ -529,6 +615,17 @@ exports.fetchScholarById = async (studentId) => {
 
     remarks:
       row.remarks || null,
+
+    scholar_is_archived:
+      row.scholar_is_archived === true,
+    scholar_archived_at:
+      row.scholar_archived_at || null,
+    scholar_removal_reason:
+      row.scholar_removal_reason || null,
+    scholar_removal_notes:
+      row.scholar_removal_notes || null,
+    scholar_removed_by:
+      row.scholar_removed_by || null,
 
     user_id:
       row.user_id || null,
@@ -1212,8 +1309,5 @@ exports.archiveScholarAndReleaseSlot =
 
         notes:
           payload.notes || '',
-
-        archiveStudent:
-          payload.archive_student === true,
       });
   };

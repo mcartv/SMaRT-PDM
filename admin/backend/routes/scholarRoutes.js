@@ -6,6 +6,7 @@ const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 
 router.get('/sdo/stats', protect, authorizeRoles('sdo'), scholarController.getSdoStats);
 router.get('/stats', protect, authorizeRoles('admin', 'sdo'), scholarController.getStats);
+router.get('/removed', protect, authorizeRoles('admin'), scholarController.getRemovedScholars);
 router.get('/', protect, authorizeRoles('admin', 'sdo'), scholarController.getAllScholars);
 router.get('/:id', protect, authorizeRoles('admin', 'sdo'), scholarController.getScholarById);
 router.patch('/:id/sdo-status', protect, authorizeRoles('sdo'), scholarController.updateSdoStatus);

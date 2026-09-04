@@ -34,6 +34,10 @@ function formatDate(value, includeTime = false) {
   });
 }
 
+function statusLabel(status) {
+  return status === 'Acknowledged' ? 'In Progress' : status;
+}
+
 function statusStyle(status) {
   if (status === 'Fulfilled') return 'border-emerald-100 bg-emerald-50 text-emerald-700';
   if (status === 'Declined' || status === 'Cancelled') {
@@ -308,7 +312,7 @@ export default function ROCoordinatorScholarRequests({
                 <span
                   className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(item.request_status)}`}
                 >
-                  {item.request_status}
+                  {statusLabel(item.request_status)}
                 </span>
               </div>
 
@@ -330,6 +334,62 @@ export default function ROCoordinatorScholarRequests({
               </div>
 
               <p className="mt-3 text-sm leading-6 text-stone-600">{item.purpose}</p>
+
+              {item.request_status !== 'Pending' || Number(item.active_assignment_count || 0) > 0 ? (
+                <div className="mt-4 space-y-2 border-t border-stone-100 pt-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg bg-emerald-50 px-2 py-2">
+                      <p className="text-[10px] text-emerald-700">Confirmed</p>
+                      <p className="text-sm font-semibold text-emerald-900">{item.acknowledged_count || 0}</p>
+                    </div>
+                    <div className="rounded-lg bg-blue-50 px-2 py-2">
+                      <p className="text-[10px] text-blue-700">Awaiting</p>
+                      <p className="text-sm font-semibold text-blue-900">{item.awaiting_acknowledgment_count || 0}</p>
+                    </div>
+                    <div className="rounded-lg bg-amber-50 px-2 py-2">
+                      <p className="text-[10px] text-amber-700">Concern</p>
+                      <p className="text-sm font-semibold text-amber-900">{item.concern_count || 0}</p>
+                    </div>
+                  </div>
+                  {Array.isArray(item.assigned_scholars) && item.assigned_scholars.length ? (
+                    <div className="space-y-1">
+                      {item.assigned_scholars.map((scholar) => {
+                        const replaced = String(scholar.placement_status || '').toLowerCase() === 'cancelled';
+                        const concern = Boolean(scholar.conflict_reason) && !replaced;
+                        const acknowledged = Boolean(scholar.acknowledged_at) && !concern && !replaced;
+                        const statusClass = replaced
+                          ? 'bg-stone-200 text-stone-700'
+                          : concern
+                            ? 'bg-amber-100 text-amber-800'
+                            : acknowledged
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-blue-100 text-blue-800';
+                        const statusLabel = replaced
+                          ? 'Replaced'
+                          : concern
+                            ? 'Concern reported'
+                            : acknowledged
+                              ? 'Acknowledged'
+                              : 'Awaiting acknowledgment';
+                        return (
+                          <div key={scholar.placement_id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-medium text-stone-800">{scholar.student_name || 'Scholar'}</p>
+                              <p className="text-[10px] text-stone-500">{scholar.pdm_id || ''}</p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass}`}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  {Number(item.remaining_confirmation_count || 0) > 0 ? (
+                    <p className="text-xs text-stone-500">{item.remaining_confirmation_count} more scholar{Number(item.remaining_confirmation_count) === 1 ? '' : 's'} must acknowledge before this request is fulfilled.</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               {item.admin_remarks ? (
                 <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">

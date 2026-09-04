@@ -250,10 +250,47 @@ exports.getScholarRequests = async (req, res) => {
          rsr.admin_remarks,
          rsr.handled_at,
          rsr.created_at,
-         rsr.updated_at
+         rsr.updated_at,
+         COUNT(rp.placement_id) FILTER (
+           WHERE rp.placement_status = 'Approved'
+             AND rp.conflict_reason IS NULL
+         )::int AS active_assignment_count,
+         COUNT(rp.placement_id) FILTER (
+           WHERE rp.placement_status = 'Approved'
+             AND rp.student_acknowledged_at IS NOT NULL
+             AND rp.conflict_reason IS NULL
+         )::int AS acknowledged_count,
+         COUNT(rp.placement_id) FILTER (
+           WHERE rp.placement_status = 'Approved'
+             AND rp.student_acknowledged_at IS NULL
+             AND rp.conflict_reason IS NULL
+         )::int AS awaiting_acknowledgment_count,
+         COUNT(rp.placement_id) FILTER (
+           WHERE rp.placement_status = 'Approved'
+             AND rp.conflict_reason IS NOT NULL
+         )::int AS concern_count,
+         COALESCE(
+           JSONB_AGG(
+             JSONB_BUILD_OBJECT(
+               'placement_id', rp.placement_id,
+               'student_id', st.student_id,
+               'pdm_id', st.pdm_id,
+               'student_name', CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name),
+               'placement_status', rp.placement_status,
+               'acknowledged_at', rp.student_acknowledged_at,
+               'conflict_reason', rp.conflict_reason,
+               'assignment_status', ro.assignment_status
+             ) ORDER BY rp.created_at
+           ) FILTER (WHERE rp.placement_id IS NOT NULL),
+           '[]'::jsonb
+         ) AS assigned_scholars
        FROM ro_scholar_requests rsr
        JOIN ro_departments rd ON rd.department_id = rsr.ro_area_id
+       LEFT JOIN ro_placements rp ON rp.scholar_request_id = rsr.request_id
+       LEFT JOIN return_of_obligations ro ON ro.ro_id = rp.ro_id
+       LEFT JOIN students st ON st.student_id = ro.student_id
        WHERE rsr.coordinator_assignment_id = ANY($1::uuid[])
+       GROUP BY rsr.request_id, rd.department_name
        ORDER BY
          CASE rsr.request_status
            WHEN 'Pending' THEN 0
@@ -264,12 +301,27 @@ exports.getScholarRequests = async (req, res) => {
       [coordinator.assignmentIds]
     );
 
+    const items = result.rows.map((row) => {
+      const requested = Math.max(0, Number(row.requested_scholar_count || 0));
+      const active = Math.max(0, Number(row.active_assignment_count || 0));
+      const acknowledged = Math.max(0, Number(row.acknowledged_count || 0));
+      return {
+        ...row,
+        active_assignment_count: active,
+        acknowledged_count: acknowledged,
+        awaiting_acknowledgment_count: Math.max(0, Number(row.awaiting_acknowledgment_count || 0)),
+        concern_count: Math.max(0, Number(row.concern_count || 0)),
+        remaining_assignment_count: Math.max(0, requested - active),
+        remaining_confirmation_count: Math.max(0, requested - acknowledged),
+      };
+    });
+
     return res.json({
       areas: coordinator.assignments.map((assignment) => ({
         ro_area_id: assignment.department_id,
         department_name: assignment.department,
       })),
-      items: result.rows,
+      items,
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({

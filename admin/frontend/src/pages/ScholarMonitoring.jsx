@@ -477,7 +477,7 @@ function FilterModal({
               Filter Records
             </h3>
             <p className="mt-0.5 text-xs text-stone-500">
-              Refine {sectionMode === 'registry' ? 'scholar' : 'renewal'} records
+              Refine {sectionMode === 'renewals' ? 'renewal' : sectionMode === 'removed' ? 'removed scholar' : 'scholar'} records
             </p>
           </div>
 
@@ -527,7 +527,7 @@ function FilterModal({
             </Select>
           </div>
 
-          {sectionMode === 'registry' ? (
+          {sectionMode !== 'renewals' ? (
             <div className="space-y-1.5">
               <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                 Semester
@@ -1033,6 +1033,20 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <section className="min-h-0 overflow-y-auto border-b border-stone-100 bg-white p-4 sm:p-5 lg:border-b-0 lg:border-r lg:p-6">
               <div className="space-y-5">
+                {s.scholar_is_archived ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-amber-900">Scholarship privilege removed</p>
+                        <p className="mt-1 text-xs leading-5 text-amber-800">
+                          {[s.scholar_removal_reason || 'No reason recorded', s.scholar_archived_at ? `Removed ${formatDateTime(s.scholar_archived_at)}` : '', s.scholar_removed_by_name ? `By ${s.scholar_removed_by_name}` : ''].filter(Boolean).join(' · ')}
+                        </p>
+                        {s.scholar_removal_notes ? <p className="mt-1 text-xs leading-5 text-amber-800">{s.scholar_removal_notes}</p> : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex items-start gap-4">
                   <button
                     type="button"
@@ -1238,13 +1252,11 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
-  const [archiveStudent, setArchiveStudent] = useState(false);
 
   useEffect(() => {
     if (scholar) {
       setReason('');
       setNotes('');
-      setArchiveStudent(false);
     }
   }, [scholar]);
 
@@ -1286,7 +1298,7 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
             </p>
             <p className="mt-1 text-xs leading-relaxed text-amber-700">
               Removing, graduating, or withdrawing this scholar releases one
-              occupied slot. The next eligible waiting applicant may be promoted.
+              occupied slot. The next eligible waiting applicant may be promoted. The student account remains in the Student Registry and this scholarship history moves to Removed Scholars.
             </p>
           </div>
 
@@ -1320,23 +1332,6 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
             />
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-            <input
-              type="checkbox"
-              checked={archiveStudent}
-              onChange={(event) => setArchiveStudent(event.target.checked)}
-              className="mt-0.5 accent-stone-700"
-            />
-            <div>
-              <p className="text-xs font-medium text-stone-700">
-                Also archive student record
-              </p>
-              <p className="mt-0.5 text-[11px] text-stone-500">
-                Scholarship history and audit information remain preserved.
-              </p>
-            </div>
-          </label>
-
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
@@ -1353,7 +1348,6 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
                 onConfirm({
                   reason,
                   notes,
-                  archive_student: archiveStudent,
                 })
               }
               disabled={!reason || saving}
@@ -1389,6 +1383,9 @@ export default function ScholarMonitoring() {
   const [renewals, setRenewals] = useState([]);
   const [renewalsLoading, setRenewalsLoading] = useState(true);
   const [renewalsError, setRenewalsError] = useState('');
+  const [removedScholars, setRemovedScholars] = useState([]);
+  const [removedLoading, setRemovedLoading] = useState(true);
+  const [removedError, setRemovedError] = useState('');
 
   const [search, setSearch] = useState('');
   const [program, setProgram] = useState('All Programs');
@@ -1407,7 +1404,9 @@ export default function ScholarMonitoring() {
 
   const [sectionMode, setSectionMode] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab === 'renewals' ? 'renewals' : 'registry';
+    if (tab === 'renewals') return 'renewals';
+    if (tab === 'removed') return 'removed';
+    return 'registry';
   });
 
   const [filterOpen, setFilterOpen] = useState(false);
@@ -1500,6 +1499,26 @@ export default function ScholarMonitoring() {
     }
   }, []);
 
+  const loadRemovedScholars = useCallback(async ({ quiet = false } = {}) => {
+    try {
+      if (!quiet) setRemovedLoading(true);
+      setRemovedError('');
+      const response = await fetch(buildApiUrl('/api/scholars/removed'), {
+        headers: getAuthHeaders(),
+      });
+      const payload = await response.json().catch(() => []);
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || 'Failed to load removed scholars');
+      }
+      setRemovedScholars(Array.isArray(payload) ? payload : []);
+    } catch (err) {
+      console.error('REMOVED SCHOLARS LOAD ERROR:', err);
+      setRemovedError(err?.message || 'Failed to load removed scholars');
+    } finally {
+      if (!quiet) setRemovedLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadScholars();
   }, [loadScholars]);
@@ -1509,8 +1528,14 @@ export default function ScholarMonitoring() {
   }, [loadRenewals]);
 
   useEffect(() => {
+    loadRemovedScholars();
+  }, [loadRemovedScholars]);
+
+  useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
-    setSectionMode(tab === 'renewals' ? 'renewals' : 'registry');
+    if (tab === 'renewals') setSectionMode('renewals');
+    else if (tab === 'removed') setSectionMode('removed');
+    else setSectionMode('registry');
   }, [location.search]);
 
   useSocketEvent(
@@ -1539,8 +1564,11 @@ export default function ScholarMonitoring() {
 
   useSocketEvent(
     'scholar:archived',
-    () => loadScholars({ quiet: true }),
-    [loadScholars]
+    () => {
+      loadScholars({ quiet: true });
+      loadRemovedScholars({ quiet: true });
+    },
+    [loadScholars, loadRemovedScholars]
   );
 
   useSocketEvent(
@@ -1556,7 +1584,7 @@ export default function ScholarMonitoring() {
       setProfileLoading(true);
 
       const response = await fetch(
-        buildApiUrl(`/api/scholars/${scholarId}`),
+        buildApiUrl(`/api/scholars/${scholarId}${sectionMode === 'removed' ? '?includeRemoved=true' : ''}`),
         {
           headers: getAuthHeaders(),
         }
@@ -1618,7 +1646,10 @@ export default function ScholarMonitoring() {
         setSelectedScholar(null);
       }
 
-      await loadScholars({ quiet: true });
+      await Promise.all([
+        loadScholars({ quiet: true }),
+        loadRemovedScholars({ quiet: true }),
+      ]);
 
       window.alert(
         data?.message ||
@@ -1639,8 +1670,9 @@ export default function ScholarMonitoring() {
   };
 
   const handleSectionModeChange = (nextMode) => {
-    const mode =
-      nextMode === 'renewals' ? 'renewals' : 'registry';
+    const mode = ['registry', 'renewals', 'removed'].includes(nextMode)
+      ? nextMode
+      : 'registry';
 
     setSectionMode(mode);
     setSearch('');
@@ -1655,6 +1687,8 @@ export default function ScholarMonitoring() {
 
     if (mode === 'renewals') {
       params.set('tab', 'renewals');
+    } else if (mode === 'removed') {
+      params.set('tab', 'removed');
     } else {
       params.delete('tab');
     }
@@ -1816,10 +1850,34 @@ export default function ScholarMonitoring() {
     });
   }, [renewals, search, program, academicYear, status, sortBy]);
 
+  const filteredRemovedScholars = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const normalizedQuery = query.replace(/[^a-z0-9]/g, '');
+    const rows = removedScholars.filter((item) => {
+      const name = String(item.student_name || '').toLowerCase();
+      const studentNumber = String(item.student_number || '').toLowerCase();
+      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
+      const matchSearch = !query || name.includes(query) || studentNumber.includes(query) ||
+        (normalizedQuery.length > 0 && normalizedStudentNumber.includes(normalizedQuery));
+      const matchProgram = program === 'All Programs' || item.program_name === program;
+      const matchYear = academicYear === 'All Years' || String(item.academic_year || item.batch_year || '') === String(academicYear);
+      const matchStatus = status === 'All Statuses' || String(item.status || '') === status;
+      return matchSearch && matchProgram && matchYear && matchStatus;
+    });
+    return [...rows].sort((a, b) => {
+      if (sortBy === 'Name Z-A') return String(b.student_name || '').localeCompare(String(a.student_name || ''));
+      if (sortBy === 'Year Newest') return new Date(b.scholar_archived_at || 0) - new Date(a.scholar_archived_at || 0);
+      if (sortBy === 'Year Oldest') return new Date(a.scholar_archived_at || 0) - new Date(b.scholar_archived_at || 0);
+      return String(a.student_name || '').localeCompare(String(b.student_name || ''));
+    });
+  }, [removedScholars, search, program, academicYear, status, sortBy]);
+
   const currentRows =
     sectionMode === 'registry'
       ? filteredScholars
-      : filteredRenewals;
+      : sectionMode === 'removed'
+        ? filteredRemovedScholars
+        : filteredRenewals;
 
   useEffect(() => {
     setPage(1);
@@ -1845,7 +1903,11 @@ export default function ScholarMonitoring() {
 
   const programOptions = useMemo(() => {
     const source =
-      sectionMode === 'registry' ? scholars : renewals;
+      sectionMode === 'registry'
+        ? scholars
+        : sectionMode === 'removed'
+          ? removedScholars
+          : renewals;
 
     return [
       'All Programs',
@@ -1853,21 +1915,21 @@ export default function ScholarMonitoring() {
         source.map((item) => item.program_name).filter(Boolean)
       ),
     ];
-  }, [scholars, renewals, sectionMode]);
+  }, [scholars, removedScholars, renewals, sectionMode]);
 
   const yearOptions = useMemo(() => {
     const source =
       sectionMode === 'registry'
-        ? scholars.map(
-          (item) => item.academic_year || item.batch_year
-        )
-        : renewals.map((item) => item.school_year_label);
+        ? scholars.map((item) => item.academic_year || item.batch_year)
+        : sectionMode === 'removed'
+          ? removedScholars.map((item) => item.academic_year || item.batch_year)
+          : renewals.map((item) => item.school_year_label);
 
     return [
       'All Years',
       ...new Set(source.filter(Boolean)),
     ];
-  }, [scholars, renewals, sectionMode]);
+  }, [scholars, removedScholars, renewals, sectionMode]);
 
   const semesterOptions = useMemo(
     () => [
@@ -1881,13 +1943,15 @@ export default function ScholarMonitoring() {
     const source =
       sectionMode === 'registry'
         ? scholars.map((item) => item.status)
-        : renewals.map((item) => item.renewal_status);
+        : sectionMode === 'removed'
+          ? removedScholars.map((item) => item.status)
+          : renewals.map((item) => item.renewal_status);
 
     return [
       'All Statuses',
       ...new Set(source.filter(Boolean)),
     ];
-  }, [scholars, renewals, sectionMode]);
+  }, [scholars, removedScholars, renewals, sectionMode]);
 
   const sortOptions = [
     'Name A-Z',
@@ -2018,9 +2082,11 @@ export default function ScholarMonitoring() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <Input
               placeholder={
-                sectionMode === 'registry'
-                  ? 'Search by scholar name or PDM ID...'
-                  : 'Search renewal by scholar name or PDM ID...'
+                sectionMode === 'renewals'
+                  ? 'Search renewal by scholar name or PDM ID...'
+                  : sectionMode === 'removed'
+                    ? 'Search removed scholar by name or PDM ID...'
+                    : 'Search by scholar name or PDM ID...'
               }
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -2041,6 +2107,16 @@ export default function ScholarMonitoring() {
                   }`}
               >
                 Registry
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSectionModeChange('removed')}
+                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'removed'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-600'
+                  }`}
+              >
+                Removed Scholars
               </button>
               <button
                 type="button"
@@ -2080,17 +2156,36 @@ export default function ScholarMonitoring() {
           <h2 className="truncate text-sm font-semibold leading-5 text-stone-900">
             {sectionMode === 'registry'
               ? 'Scholar Registry'
-              : 'Renewal Queue'}
+              : sectionMode === 'removed'
+                ? 'Removed Scholars'
+                : 'Renewal Queue'}
           </h2>
           {sectionMode === 'renewals' ? (
             <p className="mt-1 text-sm text-stone-500">
               {`Canonical renewal records · ${filteredRenewals.length} result${filteredRenewals.length === 1 ? '' : 's'}`}
             </p>
           ) : null}
+          {sectionMode === 'removed' ? (
+            <p className="mt-1 text-sm text-stone-500">
+              Historical scholarship relationships are preserved here; student registry accounts remain intact.
+            </p>
+          ) : null}
         </div>
 
         <CardContent className="p-4">
-          {sectionMode === 'renewals' && renewalsLoading ? (
+          {sectionMode === 'removed' && removedLoading ? (
+            <div className="flex min-h-[220px] items-center justify-center gap-2 text-sm text-stone-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading removed scholars...
+            </div>
+          ) : sectionMode === 'removed' && removedError ? (
+            <div className="min-h-[220px] rounded-xl border border-red-100 bg-red-50 p-6 text-center">
+              <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-red-400" />
+              <p className="text-sm font-semibold text-red-800">Failed to load removed scholars</p>
+              <p className="mt-1 text-xs text-red-600">{removedError}</p>
+              <Button type="button" size="sm" variant="outline" className="mt-4 border-red-200 text-xs text-red-700" onClick={() => loadRemovedScholars()}>Retry</Button>
+            </div>
+          ) : sectionMode === 'renewals' && renewalsLoading ? (
             <div className="flex min-h-[220px] items-center justify-center gap-2 text-sm text-stone-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading renewal records...
@@ -2125,6 +2220,7 @@ export default function ScholarMonitoring() {
               rows={pageData}
               onView={handleViewScholar}
               onRemove={setArchiveModalScholar}
+              removedMode={sectionMode === 'removed'}
             />
           )}
         </CardContent>
@@ -2181,7 +2277,7 @@ export default function ScholarMonitoring() {
   );
 }
 
-function ScholarRegistryTable({ rows, onView, onRemove }) {
+function ScholarRegistryTable({ rows, onView, onRemove, removedMode = false }) {
   const [photoPreview, setPhotoPreview] = useState(null);
 
   return (
@@ -2189,7 +2285,7 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
       <div className="hidden grid-cols-12 gap-2 border-b border-stone-200 bg-stone-50 px-3 py-3 xl:grid">
         <div className="col-span-3 text-xs font-semibold uppercase tracking-wide text-stone-700">Scholar</div>
         <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Program</div>
-        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Current Semester</div>
+        <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">{removedMode ? 'Removed On' : 'Current Semester'}</div>
         <div className="col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-700">Scholarship Status</div>
         <div className="col-span-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-700">Action</div>
       </div>
@@ -2256,15 +2352,18 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
               </div>
 
               <div className="min-w-0 xl:col-span-2">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">Current Semester</p>
-                <p className="break-words text-sm font-semibold leading-5 text-stone-700">
-                  {scholar.semester || 'Not set'}
-                </p>
-                <p className="mt-0.5 break-words text-[10px] leading-4 text-stone-400">
-                  {scholar.academic_year
-                    ? `AY ${scholar.academic_year}`
-                    : cycle || 'No active period'}
-                </p>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400 xl:hidden">{removedMode ? 'Removed On' : 'Current Semester'}</p>
+                {removedMode ? (
+                  <>
+                    <p className="break-words text-sm font-semibold leading-5 text-stone-700">{formatDateTime(scholar.scholar_archived_at)}</p>
+                    <p className="mt-0.5 break-words text-[10px] leading-4 text-stone-400">{scholar.scholar_removal_reason || 'Scholarship privilege removed'}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="break-words text-sm font-semibold leading-5 text-stone-700">{scholar.semester || 'Not set'}</p>
+                    <p className="mt-0.5 break-words text-[10px] leading-4 text-stone-400">{scholar.academic_year ? `AY ${scholar.academic_year}` : cycle || 'No active period'}</p>
+                  </>
+                )}
               </div>
 
               <div className="min-w-0 xl:col-span-2">
@@ -2286,16 +2385,18 @@ function ScholarRegistryTable({ rows, onView, onRemove }) {
                     View Profile
                   </Button>
 
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onRemove(scholar)}
-                    className="min-w-0 flex-1 rounded-lg border-red-200 px-3 text-xs text-red-700 hover:bg-red-50 sm:flex-none"
-                  >
-                    <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
-                    Remove Privilege
-                  </Button>
+                  {!removedMode ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRemove(scholar)}
+                      className="min-w-0 flex-1 rounded-lg border-red-200 px-3 text-xs text-red-700 hover:bg-red-50 sm:flex-none"
+                    >
+                      <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
+                      Remove Privilege
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>

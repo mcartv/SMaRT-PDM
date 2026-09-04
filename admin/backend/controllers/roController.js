@@ -82,12 +82,15 @@ function writeAudit(req, actionTaken, entityId, description, metadata = {}) {
   }
 }
 
-function emitCoordinatorNotifications(req, entries = []) {
+function emitAssignmentNotifications(req, entries = []) {
   const io = req.app?.get?.('io');
   if (!io) return;
 
   entries.forEach((entry) => {
-    const userId = entry?.coordinator?.user_id;
+    const userId =
+      entry?.notification_target_user_id ||
+      entry?.coordinator?.user_id ||
+      null;
     const notification = entry?.notification;
     if (userId && notification) {
       socketEvents.notificationCreated(io, userId, {
@@ -196,6 +199,42 @@ exports.getScholarObligationHistory = async (req, res) => {
   }
 };
 
+
+exports.assignScholarsToRequest = async (req, res) => {
+  try {
+    const data = await roService.assignScholarsToRequest(
+      req.params.requestId,
+      req.body || {},
+      req.user || {}
+    );
+
+    emitAssignmentNotifications(req, data?.successful || []);
+    emitRoUpdated(req, 'assign-request-scholars', {
+      request_id: req.params.requestId,
+      success_count: data?.success_count || 0,
+      failed_count: data?.failed_count || 0,
+      data,
+    });
+
+    writeAudit(
+      req,
+      'ASSIGN_RO_REQUEST_SCHOLARS',
+      req.params.requestId,
+      'Assigned scholars to an RO Coordinator scholar request.',
+      {
+        selected_student_ids: req.body?.studentIds || req.body?.student_ids || [],
+        success_count: data?.success_count || 0,
+        failed_count: data?.failed_count || 0,
+      }
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('ASSIGN RO REQUEST SCHOLARS ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
 exports.assignScholarRO = async (req, res) => {
   try {
     const data = await roService.assignScholarRO(
@@ -203,7 +242,7 @@ exports.assignScholarRO = async (req, res) => {
       req.body || {},
       req.user || {}
     );
-    emitCoordinatorNotifications(req, [data]);
+    emitAssignmentNotifications(req, [data]);
 
     emitRoUpdated(req, 'assign', {
       student_id: req.params.studentId,
@@ -235,7 +274,7 @@ exports.batchAssignScholarsRO = async (req, res) => {
       req.body || {},
       req.user || {}
     );
-    emitCoordinatorNotifications(req, data?.successful || []);
+    emitAssignmentNotifications(req, data?.successful || []);
 
     emitRoUpdated(req, 'batch-assign', {
       total: data.total,

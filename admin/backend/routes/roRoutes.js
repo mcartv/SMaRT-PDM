@@ -29,6 +29,12 @@ router.patch(
 );
 
 router.post(
+    '/scholar-requests/:requestId/assign',
+    adminOnly,
+    roController.assignScholarsToRequest
+);
+
+router.post(
     '/scholars/batch-assign',
     adminOnly,
     roController.batchAssignScholarsRO

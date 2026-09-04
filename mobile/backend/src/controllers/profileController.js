@@ -22,7 +22,7 @@ async function getMyProfile(req, res) {
 async function setupMyProfile(req, res) {
     try {
         const userId = getRequestUserId(req);
-        const result = await profileService.updateMyProfile(userId, req.body || {});
+        const result = await profileService.setupMyProfile(userId, req.body || {});
 
         return res.status(200).json({
             message: 'Profile completed successfully.',
@@ -54,12 +54,6 @@ async function updateMyProfile(req, res) {
             'city',
             'province',
             'zip_code',
-            'date_of_birth',
-            'place_of_birth',
-            'civil_status',
-            'religion',
-            'citizenship',
-            'landline_number',
         ].forEach((key) => {
             if (Object.prototype.hasOwnProperty.call(body, key)) {
                 allowedPayload[key] = body[key];

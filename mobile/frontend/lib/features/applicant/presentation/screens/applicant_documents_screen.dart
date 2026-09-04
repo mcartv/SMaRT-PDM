@@ -1165,7 +1165,12 @@ class _DocumentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      document.isRequired ? 'Required' : 'Optional',
+                      document.isRequired
+                          ? 'Required'
+                          : document.documentType.toLowerCase().contains('birth') ||
+                                document.documentType.toLowerCase().contains('psa')
+                              ? 'Optional Mobile Upload'
+                              : 'Optional',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: subtitleColor,
                         fontWeight: FontWeight.w700,

@@ -7,10 +7,58 @@ const REQUIRED_RENEWAL_DOCUMENTS = [
     'Certificate of Enrollment / Registration',
 ];
 
-function createHttpError(statusCode, message) {
+function createHttpError(statusCode, message, code = null) {
     const error = new Error(message);
     error.statusCode = statusCode;
+    if (code) {
+        error.code = code;
+    }
     return error;
+}
+
+function calculateAcademicYearWindow({ calendarYear, month }) {
+    const startYear = month >= 6 ? calendarYear : calendarYear - 1;
+
+    return {
+        start_year: startYear,
+        end_year: startYear + 1,
+        label: `${startYear}-${startYear + 1}`,
+    };
+}
+
+async function getCurrentAcademicYearWindow(client) {
+    const result = await client.query(`
+        SELECT
+            EXTRACT(YEAR FROM CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::integer AS calendar_year,
+            EXTRACT(MONTH FROM CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::integer AS calendar_month
+    `);
+
+    return calculateAcademicYearWindow({
+        calendarYear: Number(result.rows[0].calendar_year),
+        month: Number(result.rows[0].calendar_month),
+    });
+}
+
+async function assertCurrentAcademicYear(client, startYear, endYear) {
+    const current = await getCurrentAcademicYearWindow(client);
+
+    if (startYear === current.start_year && endYear === current.end_year) {
+        return current;
+    }
+
+    if (startYear < current.start_year) {
+        throw createHttpError(
+            409,
+            `Only the current Asia/Manila academic year (${current.label}) can be activated. This academic year is historical.`,
+            'ACADEMIC_YEAR_HISTORICAL'
+        );
+    }
+
+    throw createHttpError(
+        409,
+        `Only the current Asia/Manila academic year (${current.label}) can be activated. This academic year is not yet current.`,
+        'ACADEMIC_YEAR_NOT_YET_CURRENT'
+    );
 }
 
 function toRequiredYear(value, fieldName) {
@@ -541,6 +589,21 @@ exports.getAcademicPeriods = async () => {
     }));
 };
 
+exports.getCurrentAcademicYearWindow = async () => {
+    const client = await pool.connect();
+
+    try {
+        return await getCurrentAcademicYearWindow(client);
+    } finally {
+        client.release();
+    }
+};
+
+// Exported pure helpers keep the Manila rollover rule regression-testable
+// without relying on the API server's host timezone.
+exports.calculateAcademicYearWindow = calculateAcademicYearWindow;
+exports.assertCurrentAcademicYear = assertCurrentAcademicYear;
+
 exports.createAcademicYear = async (payload = {}) => {
     const startYear = toRequiredYear(payload.start_year, 'Start year');
     const endYear = toRequiredYear(payload.end_year, 'End year');
@@ -556,6 +619,12 @@ exports.createAcademicYear = async (payload = {}) => {
         await ensureUniqueRange(client, startYear, endYear);
 
         if (isActive) {
+            await assertCurrentAcademicYear(
+                client,
+                startYear,
+                endYear
+            );
+
             await client.query(
                 `
                 UPDATE academic_years
@@ -684,6 +753,12 @@ exports.updateAcademicYear = async (academicYearId, payload = {}) => {
         );
 
         if (isActive) {
+            await assertCurrentAcademicYear(
+                client,
+                startYear,
+                endYear
+            );
+
             await client.query(
                 `
                 UPDATE academic_years
@@ -759,6 +834,8 @@ exports.activateAcademicYear = async (academicYearId) => {
             `
             SELECT
                 academic_year_id,
+                start_year,
+                end_year,
                 is_archived
             FROM academic_years
             WHERE academic_year_id = $1
@@ -780,6 +857,12 @@ exports.activateAcademicYear = async (academicYearId) => {
                 'Cannot activate an archived academic year. Restore it first.'
             );
         }
+
+        await assertCurrentAcademicYear(
+            client,
+            Number(existing.start_year),
+            Number(existing.end_year)
+        );
 
         await client.query(
             `
@@ -864,6 +947,12 @@ exports.activateAcademicPeriod = async (
                 'Restore the academic year before activating one of its semesters.'
             );
         }
+
+        await assertCurrentAcademicYear(
+            client,
+            Number(period.start_year),
+            Number(period.end_year)
+        );
 
         await client.query(
             `

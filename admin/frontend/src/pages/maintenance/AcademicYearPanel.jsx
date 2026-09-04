@@ -187,6 +187,7 @@ function AcademicYearModal({
     setForm,
     saving,
     activeYearLabel,
+    currentAcademicWindow,
     onClose,
     onSave,
 }) {
@@ -203,6 +204,9 @@ function AcademicYearModal({
         String(form.start_year || '').length === 4 &&
         String(form.end_year || '').length === 4 &&
         end === start + 1;
+    const isCurrentAcademicWindow =
+        start === Number(currentAcademicWindow?.start_year) &&
+        end === Number(currentAcademicWindow?.end_year);
 
     return (
         <div
@@ -300,7 +304,7 @@ function AcademicYearModal({
                                 }))
                             }
                             className="mt-1 h-4 w-4 accent-[var(--portal-base)]"
-                            disabled={saving}
+                            disabled={saving || !isCurrentAcademicWindow}
                         />
                         <div>
                             <p className="text-sm font-semibold text-stone-800">
@@ -309,6 +313,11 @@ function AcademicYearModal({
                             <p className="mt-1 text-xs text-stone-500">
                                 This selects the active school year only. The actual working semester is controlled separately below.
                             </p>
+                            {!isCurrentAcademicWindow ? (
+                                <p className="mt-2 text-xs text-amber-700">
+                                    Only AY {currentAcademicWindow?.label || 'calculated by the server'} can be made active.
+                                </p>
+                            ) : null}
                             {activeYearLabel &&
                             activeYearLabel !== computedLabel &&
                             form.is_active ? (
@@ -401,12 +410,14 @@ export default function AcademicYearPanel() {
         end_year: '',
         is_active: false,
     });
+    const [currentAcademicWindow, setCurrentAcademicWindow] =
+        useState(null);
 
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
 
-            const [yearsRes, periodsRes] =
+            const [yearsRes, periodsRes, currentWindowRes] =
                 await Promise.all([
                     fetch(
                         buildApiUrl('/api/academic-years'),
@@ -418,6 +429,12 @@ export default function AcademicYearPanel() {
                         ),
                         { headers: authHeaders() }
                     ),
+                    fetch(
+                        buildApiUrl(
+                            '/api/academic-years/current-window'
+                        ),
+                        { headers: authHeaders() }
+                    ),
                 ]);
 
             const yearsPayload =
@@ -425,6 +442,10 @@ export default function AcademicYearPanel() {
             const periodsPayload =
                 await periodsRes.json().catch(
                     () => []
+                );
+            const currentWindowPayload =
+                await currentWindowRes.json().catch(
+                    () => null
                 );
 
             if (!yearsRes.ok) {
@@ -441,6 +462,13 @@ export default function AcademicYearPanel() {
                 );
             }
 
+            if (!currentWindowRes.ok) {
+                throw new Error(
+                    currentWindowPayload?.error ||
+                        'Failed to determine the current academic year'
+                );
+            }
+
             setYears(
                 Array.isArray(yearsPayload)
                     ? yearsPayload
@@ -450,6 +478,12 @@ export default function AcademicYearPanel() {
                 Array.isArray(periodsPayload)
                     ? periodsPayload
                     : []
+            );
+            setCurrentAcademicWindow(
+                currentWindowPayload?.start_year &&
+                    currentWindowPayload?.end_year
+                    ? currentWindowPayload
+                    : null
             );
         } catch (error) {
             console.error(
@@ -554,12 +588,21 @@ export default function AcademicYearPanel() {
     };
 
     const openCreate = () => {
-        const year = new Date().getFullYear();
+        const startYear = Number(
+            currentAcademicWindow?.start_year
+        );
+        const endYear = Number(
+            currentAcademicWindow?.end_year
+        );
         setModalMode('create');
         setEditingId(null);
         setForm({
-            start_year: String(year),
-            end_year: String(year + 1),
+            start_year: Number.isInteger(startYear)
+                ? String(startYear)
+                : '',
+            end_year: Number.isInteger(endYear)
+                ? String(endYear)
+                : '',
             is_active: !activeYear,
         });
         setModalOpen(true);
@@ -952,6 +995,7 @@ export default function AcademicYearPanel() {
                 activeYearLabel={
                     activeYear?.label || ''
                 }
+                currentAcademicWindow={currentAcademicWindow}
                 onClose={resetModal}
                 onSave={saveYear}
             />

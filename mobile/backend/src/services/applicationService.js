@@ -1,5 +1,10 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
+const {
+    loadApplicationAvailabilityPolicy,
+    assertGlobalApplicationAvailability,
+    assertOpeningInActivePeriod,
+} = require('./applicationAvailabilityService');
 const { validateApplicationFieldLimits } = require('../validation/applicationFieldLimits');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
@@ -3846,6 +3851,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
         .select(`
             opening_id,
             program_id,
+            period_id,
             posting_status,
             is_archived
         `)
@@ -3859,6 +3865,12 @@ async function submitMyApplicationForm(userId, payload = {}) {
             404,
             'Scholarship not found.'
         );
+    }
+
+    if (!editExistingApplication) {
+        const availability = await loadApplicationAvailabilityPolicy();
+        assertGlobalApplicationAvailability(availability);
+        assertOpeningInActivePeriod(opening, availability);
     }
 
     if (

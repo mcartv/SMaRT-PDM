@@ -18,6 +18,12 @@ router.get(
     academicYearController.getAcademicPeriods
 );
 
+router.get(
+    '/current-window',
+    ...adminOnly,
+    academicYearController.getCurrentAcademicYearWindow
+);
+
 router.patch(
     '/periods/:periodId/activate',
     ...adminOnly,

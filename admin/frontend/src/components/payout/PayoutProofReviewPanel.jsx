@@ -74,6 +74,29 @@ export default function PayoutProofReviewPanel() {
   const [selected, setSelected] = useState(null);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  const [openedProofId, setOpenedProofId] = useState(null);
+
+  const closeReview = () => {
+    if (saving) return;
+    setSelected(null);
+    setComment('');
+    setOpenedProofId(null);
+  };
+
+  const openSelectedProof = () => {
+    const url = selected?.signed_url || selected?.file_url;
+    if (!url || !selected?.payout_proof_id) return;
+
+    const previewWindow = window.open(url, '_blank');
+    if (!previewWindow) {
+      setError('The submitted file could not be opened. Allow pop-ups and try again.');
+      return;
+    }
+
+    previewWindow.opener = null;
+    setOpenedProofId(selected.payout_proof_id);
+    setError('');
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +169,7 @@ export default function PayoutProofReviewPanel() {
       }
       setSelected(null);
       setComment('');
+      setOpenedProofId(null);
       await load();
     } catch (requestError) {
       setError(requestError.message || 'Unable to review payout proof.');
@@ -251,6 +275,7 @@ export default function PayoutProofReviewPanel() {
                         onClick={() => {
                           setSelected(item);
                           setComment(item.admin_comment || '');
+                          setOpenedProofId(null);
                           setError('');
                         }}
                       >
@@ -269,7 +294,7 @@ export default function PayoutProofReviewPanel() {
       {selected ? (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-          onClick={() => !saving && setSelected(null)}
+          onClick={closeReview}
         >
           <Card className="w-full max-w-lg border-stone-200 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-stone-100 px-5 py-4">
@@ -282,12 +307,18 @@ export default function PayoutProofReviewPanel() {
               <Button
                 variant="outline"
                 className="w-full rounded-xl"
-                onClick={() => window.open(selected.signed_url || selected.file_url, '_blank', 'noopener,noreferrer')}
+                onClick={openSelectedProof}
                 disabled={!selected.signed_url && !selected.file_url}
               >
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Open Submitted File
               </Button>
+
+              {openedProofId !== selected.payout_proof_id ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Open the selected proof before verifying it. This is a review reminder, not an audit record.
+                </p>
+              ) : null}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-stone-600">Review comment</label>
@@ -312,7 +343,7 @@ export default function PayoutProofReviewPanel() {
                 <Button
                   className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
                   onClick={() => review('Verified')}
-                  disabled={saving}
+                  disabled={saving || openedProofId !== selected.payout_proof_id}
                 >
                   {saving ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

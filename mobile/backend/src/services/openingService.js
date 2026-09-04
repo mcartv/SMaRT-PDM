@@ -1,4 +1,9 @@
 const supabase = require('../config/supabase');
+const {
+  loadApplicationAvailabilityPolicy,
+  assertGlobalApplicationAvailability,
+  assertOpeningInActivePeriod,
+} = require('./applicationAvailabilityService');
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -347,7 +352,8 @@ async function getOpeningsForMobile(userId) {
   const activeApplication =
     applications.find(isActiveApplication) || null;
 
-  const activePeriod = await getActiveAcademicPeriod();
+  const availability = await loadApplicationAvailabilityPolicy();
+  const activePeriod = availability.activePeriod;
 
   const { data, error } = await supabase
     .from('program_openings')
@@ -395,7 +401,7 @@ async function getOpeningsForMobile(userId) {
         )
       )
     `)
-    .in('posting_status', ['open', 'closed'])
+    .eq('posting_status', 'open')
     .eq('is_archived', false)
     .order('created_at', { ascending: false });
 
@@ -668,9 +674,7 @@ async function getOpeningsForMobile(userId) {
   // opening is retained only when this student already has an application
   // tied to it, so their existing status remains reachable.
   const scopedItems = allItems.filter(
-    (item) =>
-      item.is_current_period === true ||
-      item.has_previous_application === true
+    (item) => item.is_current_period === true
   );
 
   const items = activeApplication?.opening_id
@@ -688,18 +692,27 @@ async function getOpeningsForMobile(userId) {
       activeApplication?.application_id || '',
     activeOpeningId:
       activeApplication?.opening_id || '',
-    items,
+    items: availability.can_apply ? items : [],
+    availability: {
+      can_apply: availability.can_apply,
+      code: availability.code,
+      message: availability.message,
+      deadline: availability.deadline,
+      timezone: availability.timezone,
+    },
   };
 }
 
 async function getLatestOpeningForMobile(userId) {
   const payload = await getOpeningsForMobile(userId);
 
-  return (
-    payload.items.find((item) => item.can_apply) ||
-    payload.items[0] ||
-    null
-  );
+  return {
+    item:
+      payload.items.find((item) => item.can_apply) ||
+      payload.items[0] ||
+      null,
+    availability: payload.availability,
+  };
 }
 
 async function applyToOpeningForMobile(
@@ -737,14 +750,8 @@ async function applyToOpeningForMobile(
     );
   }
 
-  const activePeriod = await getActiveAcademicPeriod();
-
-  if (!activePeriod?.period_id) {
-    throw createHttpError(
-      409,
-      'No current academic semester is active. Applications are temporarily unavailable.'
-    );
-  }
+  const availability = await loadApplicationAvailabilityPolicy();
+  assertGlobalApplicationAvailability(availability);
 
   const { data: opening, error: openingError } = await supabase
     .from('program_openings')
@@ -772,15 +779,7 @@ async function applyToOpeningForMobile(
     );
   }
 
-  if (
-    String(opening.period_id || '') !==
-    String(activePeriod.period_id)
-  ) {
-    throw createHttpError(
-      400,
-      'This scholarship opening belongs to a previous academic period.'
-    );
-  }
+  assertOpeningInActivePeriod(opening, availability);
 
   if (
     opening.is_archived ||

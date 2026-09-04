@@ -64,10 +64,7 @@ class RoActionInput {
 }
 
 class RoConcernInput {
-  const RoConcernInput({
-    required this.category,
-    required this.description,
-  });
+  const RoConcernInput({required this.category, required this.description});
 
   final String category;
   final String description;
@@ -79,7 +76,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   final SessionService _sessionService = const SessionService();
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _noteController = TextEditingController();
-
 
   NotificationProvider? _notificationProvider;
   int _lastRoRevision = 0;
@@ -120,6 +116,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       _requestRoRefresh();
     });
   }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -144,8 +141,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     _lastRoRevision = provider.roRevision;
     _requestRoRefresh();
   }
-
-
 
   @override
   void dispose() {
@@ -208,7 +203,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
-      if (_pendingRealtimeReload && mounted && !_isSubmitting && !_isConcernSheetOpen) {
+      if (_pendingRealtimeReload &&
+          mounted &&
+          !_isSubmitting &&
+          !_isConcernSheetOpen) {
         _pendingRealtimeReload = false;
         scheduleMicrotask(() => _loadRo(silent: true));
       }
@@ -524,7 +522,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isDark ? scheme.surfaceContainer : const Color(0xFFFFF7ED),
+                        color: isDark
+                            ? scheme.surfaceContainer
+                            : const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
                           color: isDark
@@ -548,7 +548,9 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               width: 44,
                               height: 5,
                               decoration: BoxDecoration(
-                                color: isDark ? scheme.outline : const Color(0xFFB8A99A),
+                                color: isDark
+                                    ? scheme.outline
+                                    : const Color(0xFFB8A99A),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
@@ -780,7 +782,11 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                             Icons.camera_alt_rounded,
                                             size: 18,
                                           ),
-                                          label: Text(selectedPhoto == null ? 'Take Photo' : 'Retake Photo'),
+                                          label: Text(
+                                            selectedPhoto == null
+                                                ? 'Take Photo'
+                                                : 'Retake Photo',
+                                          ),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: const Color(
                                               0xFF4A2400,
@@ -830,10 +836,12 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                               width: double.infinity,
                               child: FilledButton(
                                 style: FilledButton.styleFrom(
-                                  backgroundColor:
-                                      isDark ? AppColors.gold : AppColors.darkBrown,
-                                  foregroundColor:
-                                      isDark ? AppColors.darkBrown : Colors.white,
+                                  backgroundColor: isDark
+                                      ? AppColors.gold
+                                      : AppColors.darkBrown,
+                                  foregroundColor: isDark
+                                      ? AppColors.darkBrown
+                                      : Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
                                   ),
@@ -959,6 +967,46 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     return fields;
   }
 
+  Future<bool> _confirmPreparedRoAction({
+    required String actionLabel,
+    required RoAssignment item,
+    required RoActionInput input,
+    required Map<String, String> fields,
+  }) async {
+    if (!mounted) return false;
+
+    final hasLocation =
+        fields['latitude'] != null && fields['longitude'] != null;
+    final hasPhoto = input.photo != null;
+
+    return (await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('Confirm $actionLabel?'),
+            content: Text(
+              'Your evidence is ready for ${item.assignedArea}. '
+              '${hasPhoto ? 'A live camera photo is attached. ' : ''}'
+              '${hasLocation ? 'Location data is ready. ' : 'Location data could not be collected. '}'
+              'Submit this RO $actionLabel now?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                style: AppButtonStyles.destructiveText(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: AppButtonStyles.confirmFilled(dialogContext),
+                child: const Text('Submit'),
+              ),
+            ],
+          ),
+        )) ==
+        true;
+  }
+
   Future<void> _acknowledge(RoAssignment item) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1008,7 +1056,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     }
   }
 
-    Future<void> _reportConcern(RoAssignment item) async {
+  Future<void> _reportConcern(RoAssignment item) async {
     if (_isSubmitting || _isConcernSheetOpen || item.hasConflict) {
       if (item.hasConflict) {
         _showSnack(
@@ -1045,10 +1093,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     try {
       final response = await _apiClient.postJson(
         '/api/ro/${item.roId}/conflict',
-        body: {
-          'category': concern.category,
-          'reason': concern.description,
-        },
+        body: {'category': concern.category, 'reason': concern.description},
       );
 
       _applyResponse(response);
@@ -1060,9 +1105,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     } catch (error) {
       if (!mounted) return;
 
-      _showSnack(
-        'Unable to submit concern: ${_cleanError(error)}',
-      );
+      _showSnack('Unable to submit concern: ${_cleanError(error)}');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1115,17 +1158,25 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
     if (input == null) return;
 
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-    });
-
     try {
       final fields = await _buildProofFields(
         studentNote: input.note,
         photo: input.photo,
       );
       fields['placementId'] = selectedPlacement.placementId;
+
+      final confirmed = await _confirmPreparedRoAction(
+        actionLabel: 'Time In',
+        item: item,
+        input: input,
+        fields: fields,
+      );
+      if (!confirmed) return;
+
+      setState(() {
+        _isSubmitting = true;
+        _errorMessage = null;
+      });
 
       final response = await _sendRoMultipart(
         path: '/api/ro/${item.roId}/time-in',
@@ -1156,16 +1207,24 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
     if (input == null) return;
 
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-    });
-
     try {
       final fields = await _buildProofFields(
         studentNote: input.note,
         photo: input.photo,
       );
+
+      final confirmed = await _confirmPreparedRoAction(
+        actionLabel: 'Time Out',
+        item: item,
+        input: input,
+        fields: fields,
+      );
+      if (!confirmed) return;
+
+      setState(() {
+        _isSubmitting = true;
+        _errorMessage = null;
+      });
 
       final response = await _sendRoMultipart(
         path: '/api/ro/${item.roId}/time-out',
@@ -1199,7 +1258,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     });
   }
 
-    Future<RoConcernInput?> _showConcernSheet({
+  Future<RoConcernInput?> _showConcernSheet({
     required String title,
     required String hint,
     required String primaryLabel,
@@ -1249,10 +1308,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
               Navigator.pop(
                 sheetContext,
-                RoConcernInput(
-                  category: selectedCategory,
-                  description: text,
-                ),
+                RoConcernInput(category: selectedCategory, description: text),
               );
             }
 
@@ -1347,10 +1403,12 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                     width: double.infinity,
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        backgroundColor:
-                            isDark ? AppColors.gold : AppColors.darkBrown,
-                        foregroundColor:
-                            isDark ? AppColors.darkBrown : Colors.white,
+                        backgroundColor: isDark
+                            ? AppColors.gold
+                            : AppColors.darkBrown,
+                        foregroundColor: isDark
+                            ? AppColors.darkBrown
+                            : Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: submit,
@@ -1367,7 +1425,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     );
   }
 
-Future<String?> _showNoteSheet({
+  Future<String?> _showNoteSheet({
     required String title,
     required String hint,
     required String primaryLabel,
@@ -1419,10 +1477,12 @@ Future<String?> _showNoteSheet({
                 width: double.infinity,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        isDark ? AppColors.gold : AppColors.darkBrown,
-                    foregroundColor:
-                        isDark ? AppColors.darkBrown : Colors.white,
+                    backgroundColor: isDark
+                        ? AppColors.gold
+                        : AppColors.darkBrown,
+                    foregroundColor: isDark
+                        ? AppColors.darkBrown
+                        : Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
@@ -2156,10 +2216,7 @@ class _AssignmentCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 6),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: scheme.onSurfaceVariant,
-              ),
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
             ],
           ),
         ),
@@ -2455,12 +2512,13 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       const SizedBox(height: 12),
                       _InfoBox(
                         icon: Icons.fact_check_outlined,
-                        title: validationFeedbackStatus == 'returned' ||
+                        title:
+                            validationFeedbackStatus == 'returned' ||
                                 validationFeedbackStatus == 'rejected'
                             ? 'Validation Feedback - Returned'
                             : validationFeedbackStatus == 'approved'
-                                ? 'Validation Feedback - Approved'
-                                : 'Validation Feedback',
+                            ? 'Validation Feedback - Approved'
+                            : 'Validation Feedback',
                         message: validationFeedback,
                         color: validationFeedbackColor,
                       ),
@@ -2644,10 +2702,12 @@ class _ObligationActionFooter extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor:
-                          isDark ? AppColors.gold : AppColors.darkBrown,
-                      foregroundColor:
-                          isDark ? AppColors.darkBrown : Colors.white,
+                      backgroundColor: isDark
+                          ? AppColors.gold
+                          : AppColors.darkBrown,
+                      foregroundColor: isDark
+                          ? AppColors.darkBrown
+                          : Colors.white,
                       disabledBackgroundColor: isDark
                           ? scheme.surfaceContainerHighest
                           : AppColors.darkBrown.withOpacity(0.18),
@@ -2709,7 +2769,9 @@ class _ObligationActionFooter extends StatelessWidget {
                       decoration: TextDecoration.underline,
                       decorationThickness: 1.2,
                       color: canReportConcern
-                          ? (isDark ? const Color(0xFFFFC7C7) : AppColors.darkBrown)
+                          ? (isDark
+                                ? const Color(0xFFFFC7C7)
+                                : AppColors.darkBrown)
                           : scheme.onSurfaceVariant.withValues(alpha: 0.38),
                     ),
                   ),
@@ -2873,7 +2935,9 @@ class _ProofPreviewCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 9,
-                          color: scheme.onSurfaceVariant.withValues(alpha: 0.82),
+                          color: scheme.onSurfaceVariant.withValues(
+                            alpha: 0.82,
+                          ),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -3067,9 +3131,7 @@ class _DetailRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurface,
                   fontWeight: FontWeight.w900,
                 ),
@@ -3121,7 +3183,10 @@ class _ProgressLine extends StatelessWidget {
             ),
             Text(
               '$percent%',
-              style: TextStyle(color: readableProgressColor, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                color: readableProgressColor,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
         ),
@@ -3190,12 +3255,8 @@ class _ActiveSessionBox extends StatelessWidget {
         : graceDeadline.difference(now).inSeconds.clamp(0, 1 << 31);
 
     final boxColor = requirementReached
-        ? (isDark
-              ? const Color(0xFF173D28)
-              : const Color(0xFFE8F5E9))
-        : (isDark
-              ? const Color(0xFF4A380F)
-              : AppColors.gold.withOpacity(0.12));
+        ? (isDark ? const Color(0xFF173D28) : const Color(0xFFE8F5E9))
+        : (isDark ? const Color(0xFF4A380F) : AppColors.gold.withOpacity(0.12));
 
     final borderColor = requirementReached
         ? Colors.green.withOpacity(0.45)
@@ -3219,9 +3280,7 @@ class _ActiveSessionBox extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w900,
               color: requirementReached
-                  ? (isDark
-                        ? const Color(0xFF9BE9A8)
-                        : Colors.green.shade800)
+                  ? (isDark ? const Color(0xFF9BE9A8) : Colors.green.shade800)
                   : scheme.onSurface,
             ),
           ),
@@ -3239,9 +3298,7 @@ class _ActiveSessionBox extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
               color: requirementReached
-                  ? (isDark
-                        ? const Color(0xFF9BE9A8)
-                        : Colors.green.shade800)
+                  ? (isDark ? const Color(0xFF9BE9A8) : Colors.green.shade800)
                   : scheme.onSurface,
             ),
           ),
@@ -3258,9 +3315,7 @@ class _ActiveSessionBox extends StatelessWidget {
             Text(
               'Your credited time has stopped. Please Time Out and submit your proof within ${formatElapsed(graceSecondsRemaining)}. The checkout grace period is $checkoutGraceMinutes minute(s).',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? const Color(0xFF9BE9A8)
-                    : Colors.green.shade800,
+                color: isDark ? const Color(0xFF9BE9A8) : Colors.green.shade800,
                 fontWeight: FontWeight.w700,
               ),
             )
@@ -3497,9 +3552,7 @@ class _StateCard extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: scheme.onSurface,
                   fontWeight: FontWeight.w900,
                 ),
@@ -3519,10 +3572,12 @@ class _StateCard extends StatelessWidget {
                 FilledButton(
                   onPressed: onAction,
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        isDark ? AppColors.gold : AppColors.darkBrown,
-                    foregroundColor:
-                        isDark ? AppColors.darkBrown : Colors.white,
+                    backgroundColor: isDark
+                        ? AppColors.gold
+                        : AppColors.darkBrown,
+                    foregroundColor: isDark
+                        ? AppColors.darkBrown
+                        : Colors.white,
                   ),
                   child: Text(actionLabel!),
                 ),

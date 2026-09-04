@@ -287,6 +287,7 @@ export default function AllEndorsementsTracker({
           (row.pdm_id || '').toLowerCase().includes(query) ||
           (row.program_name || '').toLowerCase().includes(query) ||
           (row.course_display || row.course_code || row.course_name || '').toLowerCase().includes(query) ||
+          (row.section || '').toLowerCase().includes(query) ||
           (row.opening_title || '').toLowerCase().includes(query) ||
           (row.current_stage_label || '').toLowerCase().includes(query);
 
@@ -620,7 +621,7 @@ export default function AllEndorsementsTracker({
                         </p>
 
                         <p className="text-xs font-medium text-stone-700">
-                          {row.course_display || row.course_code || row.course_name || 'N/A'}
+                          {row.course_display || row.course_code || row.course_name || 'N/A'} • Section {row.section || 'Not provided'}
                         </p>
 
                         <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
@@ -683,7 +684,7 @@ export default function AllEndorsementsTracker({
                         </p>
 
                         <p className="text-xs font-medium text-stone-700">
-                          {row.course_display || row.course_code || row.course_name || 'N/A'}
+                          {row.course_display || row.course_code || row.course_name || 'N/A'} • Section {row.section || 'Not provided'}
                         </p>
 
                         <p className="text-xs text-stone-500">

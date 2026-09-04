@@ -406,6 +406,9 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             <DetailItem label="Student" value={slip.student_name} />
             <DetailItem label="Opening" value={slip.opening_title} />
             <DetailItem label="Program" value={slip.program_name || 'N/A'} />
+            <DetailItem label="Course" value={slip.course_display || slip.course_code || slip.course_name || 'Not provided'} />
+            <DetailItem label="Year Level" value={slip.year_level || 'Not provided'} />
+            <DetailItem label="Section" value={slip.section || 'Not provided'} />
             <DetailItem label="Semester" value={slip.semester || 'N/A'} />
             <DetailItem label="School Year" value={slip.school_year || 'N/A'} />
 

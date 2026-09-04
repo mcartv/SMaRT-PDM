@@ -22,6 +22,7 @@ function sendError(res, err, fallbackMessage) {
     ).json({
         message,
         error: message,
+        ...(err?.code ? { code: err.code } : {}),
     });
 }
 
@@ -211,6 +212,25 @@ exports.getAcademicPeriods = async (_req, res) => {
             res,
             err,
             'Failed to fetch academic periods'
+        );
+    }
+};
+
+exports.getCurrentAcademicYearWindow = async (_req, res) => {
+    try {
+        const currentWindow =
+            await academicYearService.getCurrentAcademicYearWindow();
+
+        return res.status(200).json(currentWindow);
+    } catch (err) {
+        console.error(
+            'GET CURRENT ACADEMIC YEAR WINDOW ERROR:',
+            err
+        );
+        return sendError(
+            res,
+            err,
+            'Failed to determine the current academic year'
         );
     }
 };

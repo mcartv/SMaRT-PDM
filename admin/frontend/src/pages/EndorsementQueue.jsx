@@ -600,7 +600,7 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Applicant</p>
                 <h2 className="mt-1 truncate text-base font-semibold text-stone-900">{row.student_name}</h2>
                 <p className="mt-0.5 text-sm text-stone-600">{row.pdm_id || 'No PDM ID'}</p>
-                <p className="mt-0.5 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}</p>
+                <p className="mt-0.5 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}{` • Section ${row.section || 'Not provided'}`}</p>
                 <p className="mt-0.5 text-xs text-stone-500">{row.program_name || 'Scholarship N/A'}{row.opening_title ? ` • ${row.opening_title}` : ''}</p>
               </div>
             </div>
@@ -758,7 +758,7 @@ export default function EndorsementQueue({
     const result = rows.filter((row) => {
       const decision = getDecision(queueKey, row);
       const status = decision === 'pending' ? 'pending' : 'completed';
-      const searchable = [row.student_name, row.pdm_id, row.course_code, row.year_level, row.program_name, row.opening_title].filter(Boolean).join(' ').toLowerCase();
+      const searchable = [row.student_name, row.pdm_id, row.course_code, row.year_level, row.section, row.program_name, row.opening_title].filter(Boolean).join(' ').toLowerCase();
       return (!query || searchable.includes(query))
         && (statusFilter === 'all' || status === statusFilter)
         && (programFilter === 'all' || row.program_name === programFilter)
@@ -1071,7 +1071,7 @@ export default function EndorsementQueue({
                       </div>
                       <Badge variant="outline" className={`${decisionTone(decision)} shrink-0`}>{decision === 'pending' ? 'Awaiting Review' : decisionLabel(queueKey, row)}</Badge>
                     </div>
-                    <p className="mt-2 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}</p>
+                    <p className="mt-2 text-[13px] font-medium leading-5 text-stone-800">{formatCourse(row)}{row.year_level ? ` • ${formatYearLevel(row.year_level)}` : ''}{` • Section ${row.section || 'Not provided'}`}</p>
                     <p className="mt-0.5 truncate text-xs text-stone-500">{row.program_name || 'Scholarship N/A'}{row.opening_title ? ` • ${row.opening_title}` : ''}</p>
                   </div>
                 </div>

@@ -206,6 +206,7 @@ async function submitMyApplicationForm(req, res) {
 
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to submit application.',
+            code: error.code || undefined,
         });
     }
 }

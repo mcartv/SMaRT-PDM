@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -1136,6 +1136,7 @@ export default function AnnouncementsManagement() {
   const [restoringId, setRestoringId] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
+  const operationGuards = useRef(new Set());
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -1559,6 +1560,7 @@ export default function AnnouncementsManagement() {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': crypto.randomUUID(),
       },
       body: JSON.stringify({
         title: title.trim(),
@@ -1582,9 +1584,12 @@ export default function AnnouncementsManagement() {
   };
 
   const handlePost = async () => {
-    await loadAnnouncements({ silent: true });
+    const operationKey = 'compose:publish';
+    if (operationGuards.current.has(operationKey)) return;
+    operationGuards.current.add(operationKey);
 
     try {
+      await loadAnnouncements({ silent: true });
       if (!validateForPublish()) return;
 
       const wasEditing = !!editingAnnouncementId;
@@ -1624,13 +1629,17 @@ export default function AnnouncementsManagement() {
       );
     } finally {
       setPosting(false);
+      operationGuards.current.delete(operationKey);
     }
   };
 
   const handleSaveDraft = async () => {
-    await loadAnnouncements({ silent: true });
+    const operationKey = 'compose:draft';
+    if (operationGuards.current.has(operationKey)) return;
+    operationGuards.current.add(operationKey);
 
     try {
+      await loadAnnouncements({ silent: true });
       if (!title.trim() && !content.trim()) {
         handleCancelAnnouncement();
         return;
@@ -1685,17 +1694,23 @@ export default function AnnouncementsManagement() {
       );
     } finally {
       setDraftSaving(false);
+      operationGuards.current.delete(operationKey);
     }
   };
 
   const handleArchive = async (id) => {
+    const operationKey = `archive:${id}`;
+    if (operationGuards.current.has(operationKey)) return;
+    operationGuards.current.add(operationKey);
     const announcement = items.find((item) => item.id === id);
     const announcementName = announcement?.subject || announcement?.title || 'this announcement';
-    if (!(await confirmArchive({ itemName: announcementName }))) return;
-
-    await loadAnnouncements({ silent: true });
+    if (!(await confirmArchive({ itemName: announcementName }))) {
+      operationGuards.current.delete(operationKey);
+      return;
+    }
 
     try {
+      await loadAnnouncements({ silent: true });
       setArchivingId(id);
 
       const token = sessionStorage.getItem('adminToken');
@@ -1740,13 +1755,17 @@ export default function AnnouncementsManagement() {
       );
     } finally {
       setArchivingId(null);
+      operationGuards.current.delete(operationKey);
     }
   };
 
   const handleRestore = async (id) => {
-    await loadAnnouncements({ silent: true });
+    const operationKey = `restore:${id}`;
+    if (operationGuards.current.has(operationKey)) return;
+    operationGuards.current.add(operationKey);
 
     try {
+      await loadAnnouncements({ silent: true });
       setRestoringId(id);
 
       const token = sessionStorage.getItem('adminToken');
@@ -1783,13 +1802,17 @@ export default function AnnouncementsManagement() {
       );
     } finally {
       setRestoringId(null);
+      operationGuards.current.delete(operationKey);
     }
   };
 
   const handlePublish = async (id) => {
-    await loadAnnouncements({ silent: true });
+    const operationKey = `publish:${id}`;
+    if (operationGuards.current.has(operationKey)) return;
+    operationGuards.current.add(operationKey);
 
     try {
+      await loadAnnouncements({ silent: true });
       setPublishingId(id);
 
       const token = sessionStorage.getItem('adminToken');
@@ -1799,6 +1822,7 @@ export default function AnnouncementsManagement() {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
         },
       });
 
@@ -1825,6 +1849,7 @@ export default function AnnouncementsManagement() {
       );
     } finally {
       setPublishingId(null);
+      operationGuards.current.delete(operationKey);
     }
   };
 

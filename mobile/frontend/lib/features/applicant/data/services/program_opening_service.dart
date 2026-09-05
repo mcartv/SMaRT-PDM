@@ -9,7 +9,11 @@ class ProgramOpeningService {
   final ApiClient _apiClient;
 
   Future<ProgramOpeningsResult> fetchAvailableOpenings() async {
-    final response = await _apiClient.getObject('/api/openings');
+    // This list must always reflect the current admin-controlled posting
+    // status. The revision prevents web/proxy caches from retaining a closed
+    // opening in Available Scholarships.
+    final revision = DateTime.now().millisecondsSinceEpoch;
+    final response = await _apiClient.getObject('/api/openings?revision=$revision');
     final items = (response['items'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((item) => ProgramOpening.fromJson(Map<String, dynamic>.from(item)))

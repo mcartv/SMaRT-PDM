@@ -39,9 +39,11 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   void initState() {
     super.initState();
     _loadOpenings();
-    _liveSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+    _liveSyncTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      if (MobileRealtimeService.instance.isRealtimeHealthy) return;
+      // Realtime remains the immediate path, while this inexpensive
+      // reconciliation covers events missed between the admin and mobile
+      // backend services even when the socket itself still looks healthy.
       _requestLiveRefresh();
     });
   }

@@ -254,6 +254,8 @@ const getAllProgramOpenings = async (req, res) => {
 
 const getMobileOpenings = async (req, res) => {
     try {
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
         const rows = await programOpeningService.fetchMobileOpenings();
         return res.status(200).json(rows);
     } catch (err) {

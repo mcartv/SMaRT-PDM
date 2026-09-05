@@ -6,6 +6,7 @@ const {
     assertOpeningInActivePeriod,
 } = require('./applicationAvailabilityService');
 const { validateApplicationFieldLimits } = require('../validation/applicationFieldLimits');
+const { validateSection } = require('../validation/applicationSection');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 const { removeDocumentPreview } = require('./documentPreviewService');
@@ -1395,6 +1396,7 @@ async function saveMyFormData(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
     }
+    validateSection(payload.academic);
 
     const lifecycleStudent = await getStudent(userId);
     if (lifecycleStudent?.scholar_is_archived === true) {
@@ -3321,6 +3323,7 @@ function normalizePhilippineMobileSubmission(value) {
 }
 
 function validateApplicationSubmissionPayload(payload = {}) {
+    validateSection(payload.academic, { required: true });
     validateApplicationFieldLimits(payload);
     const missingFields = collectMissingSubmissionFields(payload);
 

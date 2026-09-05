@@ -8,6 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
@@ -168,10 +171,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     final items = List<ApplicantRequirementDocument>.from(documents);
 
     items.sort((a, b) {
-      // Keep every outstanding upload visible before files that have already
-      // been submitted. This order remains stable after realtime refreshes.
+      if (a.needsReplacement != b.needsReplacement) {
+        return a.needsReplacement ? -1 : 1;
+      }
       if (a.isSubmitted != b.isSubmitted) return a.isSubmitted ? 1 : -1;
-
       if (a.isRequired != b.isRequired) return a.isRequired ? -1 : 1;
 
       final orderA = _documentOrder(a.documentType);
@@ -414,7 +417,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             vertical: 28,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadii.card,
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
@@ -449,7 +452,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                       color: Theme.of(
                         dialogContext,
                       ).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadii.control,
                     ),
                     child: isImage
                         ? InteractiveViewer(
@@ -494,7 +497,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: FilledButton.icon(
                           onPressed: _package?.uploadsLocked == true
                               ? null
                               : () => Navigator.of(dialogContext).pop(true),
@@ -592,17 +595,18 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   @override
   Widget build(BuildContext context) {
     final package = _package;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final subtitleColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : Colors.black54;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final titleColor = AppSurfacePalette.text(context);
+    final subtitleColor = AppSurfacePalette.mutedText(context);
+    final accentColor = AppColors.gold;
     final applicationRejected =
         package?.applicationStatus.trim().toLowerCase() == 'rejected';
-    final lockStateColor = applicationRejected ? Colors.red : Colors.green;
+    final lockTone = applicationRejected
+        ? AppStatusTone.danger
+        : AppStatusTone.success;
+    final lockColors = AppStatusColors.of(context);
+    final lockStateColor = applicationRejected
+        ? lockColors.dangerOutline
+        : lockColors.successOutline;
 
     final documents = package == null
         ? const <ApplicantRequirementDocument>[]
@@ -617,8 +621,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Required Documents'),
-        backgroundColor: primaryColor,
-        foregroundColor: AppColors.darkBrown,
+        backgroundColor: AppSurfacePalette.surface(context),
+        foregroundColor: AppSurfacePalette.text(context),
       ),
       selectedIndex: 0,
       child: RefreshIndicator(
@@ -627,7 +631,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
           key: const PageStorageKey<String>('applicant-required-documents'),
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
           children: [
             _HeaderCard(
               title:
@@ -650,44 +654,49 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             ),
             if (package?.uploadsLocked == true) ...[
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: lockStateColor.withValues(
-                    alpha: isDark ? 0.12 : 0.07,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: lockStateColor.withValues(alpha: 0.24),
-                  ),
-                ),
+              AppSurfaceCard(
+                backgroundColor: applicationRejected
+                    ? lockColors.dangerContainer
+                    : lockColors.successContainer,
+                borderColor: applicationRejected
+                    ? lockColors.dangerOutline
+                    : lockColors.successOutline,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      applicationRejected
+                    AppIconTile(
+                      icon: applicationRejected
                           ? Icons.cancel_outlined
                           : Icons.lock_outline_rounded,
-                      color: lockStateColor,
-                      size: 20,
+                      accent: lockStateColor,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
-                      child: Text(
-                        applicationRejected
-                            ? ((package?.rejectionReason?.trim().isNotEmpty ?? false)
-                                  ? 'Application rejected. Admin feedback: ${package!.rejectionReason}'
-                                  : 'Application rejected by Admin. Document upload and replacement are locked.')
-                            : (package?.uploadLockReason ??
-                                  'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.'),
-                        style: TextStyle(
-                          color: isDark
-                              ? AppColors.applicantDarkText
-                              : AppColors.darkBrown,
-                          height: 1.4,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AppStatusCapsule(
+                            label: applicationRejected ? 'Rejected' : 'Locked',
+                            tone: lockTone,
+                            compact: true,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            applicationRejected
+                                ? ((package?.rejectionReason?.trim().isNotEmpty ?? false)
+                                      ? 'Application rejected. Admin feedback: ${package!.rejectionReason}'
+                                      : 'Application rejected by Admin. Document upload and replacement are locked.')
+                                : (package?.uploadLockReason ??
+                                      'Documents verified by Admin. Upload and replacement are locked unless a correction is requested.'),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: applicationRejected
+                                  ? lockColors.onDangerContainer
+                                  : lockColors.onSuccessContainer,
+                              height: 1.4,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -710,24 +719,8 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(0, 54),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        backgroundColor: accentColor,
-                        foregroundColor: isDark
-                            ? AppColors.darkBrown
-                            : Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 52),
                       ),
                     ),
                   ),
@@ -743,25 +736,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 54),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        foregroundColor: accentColor,
-                        side: BorderSide(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF665E57)
-                              : const Color(0xFFD2D2D2),
-                          width: 1,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        minimumSize: const Size(0, 52),
                       ),
                     ),
                   ),
@@ -776,21 +751,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                   icon: const Icon(Icons.dashboard_outlined, size: 20),
                   label: const Text('Back to Dashboard'),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 54),
-                    foregroundColor: accentColor,
-                    side: BorderSide(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFF665E57)
-                          : const Color(0xFFD2D2D2),
-                      width: 1,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    minimumSize: const Size(0, 52),
                   ),
                 ),
               ),
@@ -810,19 +771,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             else if (_errorMessage != null && package == null)
               _ErrorCard(message: _errorMessage!, onRetry: _loadPackage)
             else if (package != null) ...[
-              Text(
-                'Required Documents',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: titleColor,
-                ),
+              AppSectionHeading(
+                title: 'Required Documents',
+                subtitle:
+                    'All documents in this section are required. Accepted formats: PDF, JPG, JPEG, PNG, and WEBP. Maximum file size: 10 MB.',
               ),
-              const SizedBox(height: 6),
-              Text(
-                'All documents in this section are required. Accepted formats: PDF, JPG, JPEG, PNG, and WEBP. Maximum file size: 10 MB.',
-                style: TextStyle(color: subtitleColor, height: 1.45),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.md),
               if (requiredDocuments.isEmpty)
                 _ErrorCard(
                   message:
@@ -849,14 +803,12 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 ),
               if (optionalDocuments.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                Text(
-                  'Optional Documents',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: titleColor,
-                  ),
+                const AppSectionHeading(
+                  title: 'Optional Documents',
+                  subtitle:
+                      'These can support verification but do not block a Mobile application when they are not uploaded.',
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.md),
                 ...optionalDocuments.map(
                   (document) => _DocumentCard(
                     document: document,
@@ -912,9 +864,9 @@ class _HeaderCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF2D1E12)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+            ? AppColors.applicantDarkSurface
+            : AppColors.applicantLightSurface,
+        borderRadius: AppRadii.card,
         border: Border.all(color: accentColor.withOpacity(0.16)),
         boxShadow: [
           BoxShadow(
@@ -958,7 +910,7 @@ class _HeaderCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 8,
-                    borderRadius: BorderRadius.circular(99),
+                    borderRadius: AppRadii.status,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1049,14 +1001,8 @@ class _SimpleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2D1E12) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: primaryColor.withOpacity(0.12)),
-      ),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1106,9 +1052,9 @@ class _DocumentCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF2D1E12)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+            ? AppColors.applicantDarkSurface
+            : AppColors.applicantLightSurface,
+        borderRadius: AppRadii.card,
         border: Border.all(
           color: statusColor.withOpacity(
             document.needsReplacement ? 0.42 : 0.18,
@@ -1144,12 +1090,9 @@ class _DocumentCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: statusColor.withOpacity(0.12),
-                child: Icon(
-                  _iconForDocument(document.documentType),
-                  color: statusColor,
-                ),
+              AppIconTile(
+                icon: _iconForDocument(document.documentType),
+                accent: statusColor,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1199,15 +1142,15 @@ class _DocumentCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: document.needsReplacement
-                    ? Colors.red.withOpacity(0.06)
-                    : statusColor.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
+                    ? AppStatusColors.of(context).actionRequiredContainer
+                    : AppSurfacePalette.surfaceMuted(context),
+                borderRadius: AppRadii.control,
               ),
               child: Text(
                 'Reviewer note: ${document.adminComment!}',
                 style: TextStyle(
                   color: document.needsReplacement
-                      ? Colors.red.shade700
+                      ? AppStatusColors.of(context).onActionRequiredContainer
                       : subtitleColor,
                   height: 1.4,
                   fontWeight: FontWeight.w600,
@@ -1315,7 +1258,7 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
       ),
       child: Text(
         label,
@@ -1346,7 +1289,7 @@ class _InfoChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: accentColor.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadii.control,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

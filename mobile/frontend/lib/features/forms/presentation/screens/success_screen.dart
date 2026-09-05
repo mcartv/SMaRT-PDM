@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
 class SuccessScreen extends StatefulWidget {
   const SuccessScreen({super.key, this.printableApplicationService});
@@ -83,16 +86,16 @@ class _SuccessScreenState extends State<SuccessScreen> {
     bool isLoading = false,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: InkWell(
         onTap: isLoading ? null : onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: AppRadii.card,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 64),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          constraints: const BoxConstraints(minHeight: AppSizes.minimumTapTarget),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: AppRadii.card,
             border: borderColor != null
                 ? Border.all(color: borderColor, width: 1)
                 : null,
@@ -122,10 +125,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: textColor,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -140,22 +142,12 @@ class _SuccessScreenState extends State<SuccessScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pageColor = isDark
-        ? AppColors.applicantDarkBackground
-        : const Color(0xFFF7F1E8);
-    final surfaceColor = isDark ? AppColors.applicantDarkSurface : Colors.white;
-    final secondarySurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : Colors.white;
-    final outlineColor = isDark
-        ? AppColors.applicantDarkOutline
-        : const Color(0xFFF0D59A);
-    final titleColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final bodyColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : const Color(0xFF6A5B4B);
+    final pageColor = AppSurfacePalette.background(context);
+    final surfaceColor = AppSurfacePalette.surface(context);
+    final secondarySurface = AppSurfacePalette.surface(context);
+    final outlineColor = AppSurfacePalette.outline(context);
+    final titleColor = AppSurfacePalette.text(context);
+    final bodyColor = AppSurfacePalette.mutedText(context);
 
     final args = ModalRoute.of(context)?.settings.arguments;
     final payload = args is Map<String, dynamic> ? args : const {};
@@ -186,13 +178,11 @@ class _SuccessScreenState extends State<SuccessScreen> {
       appBar: AppBar(
         title: Text(
           appBarTitle,
-          style: TextStyle(
-            color: titleColor,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
-        backgroundColor: pageColor,
+        backgroundColor: AppSurfacePalette.surface(context),
+        foregroundColor: AppSurfacePalette.text(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
@@ -226,15 +216,17 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: surfaceColor,
-                      borderRadius: BorderRadius.circular(28),
+                      borderRadius: AppRadii.card,
                       border: Border.all(color: outlineColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                      boxShadow: isDark
+                          ? const []
+                          : const [
+                              BoxShadow(
+                                color: Color(0x0D000000),
+                                blurRadius: 18,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
                     ),
                     child: Column(
                       children: [
@@ -339,23 +331,24 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         const SizedBox(height: 18),
                         Text(
                           title,
-                          style: TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                            color: titleColor,
-                            height: 1.2,
-                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: titleColor,
+                                height: 1.2,
+                              ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 14),
                         Text(
                           message,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 17,
-                            color: bodyColor,
-                            height: 1.55,
-                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: bodyColor, height: 1.5),
                         ),
                       ],
                     ),
@@ -388,9 +381,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       backgroundColor: secondarySurface,
                       textColor: titleColor,
                       iconColor: AppColors.gold,
-                      borderColor: isDark
-                          ? AppColors.applicantDarkOutline
-                          : Colors.grey.shade200,
+                      borderColor: outlineColor,
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -408,10 +399,10 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   _buildActionTile(
                     icon: Icons.home_outlined,
                     title: 'Back to Dashboard',
-                    backgroundColor: Colors.white,
-                    textColor: Colors.black,
+                    backgroundColor: secondarySurface,
+                    textColor: titleColor,
                     iconColor: AppColors.gold,
-                    borderColor: Colors.grey.shade200,
+                    borderColor: outlineColor,
                     onTap: () {
                       Navigator.pushNamedAndRemoveUntil(
                         context,
@@ -427,19 +418,10 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.applicantDarkSurfaceMuted
-                          : null,
-                      gradient: isDark
-                          ? null
-                          : const LinearGradient(
-                              colors: [Color(0xFFFFF9E6), Color(0xFFFFF0C2)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                      borderRadius: BorderRadius.circular(16),
+                      color: AppStatusColors.of(context).inProgressContainer,
+                      borderRadius: AppRadii.card,
                       border: Border.all(
-                        color: AppColors.gold.withOpacity(0.3),
+                        color: AppStatusColors.of(context).inProgressOutline,
                       ),
                     ),
                     child: Row(
@@ -468,13 +450,14 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         Expanded(
                           child: Text(
                             "You can track your application status anytime in your dashboard.",
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppColors.applicantDarkTextMuted
-                                  : Colors.grey.shade800,
-                              fontSize: 15,
-                              height: 1.4,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppStatusColors.of(context)
+                                      .onInProgressContainer,
+                                  height: 1.4,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 12),

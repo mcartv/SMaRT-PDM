@@ -12,7 +12,7 @@ const QUIET_PATHS = [
     /^\/api\/messages(?:\/|$)/i,
     // Read-state changes are UI bookkeeping, not operational System Logs.
     /^\/api\/notifications\/(?:read-all|seen)(?:\/|$)/i,
-    /^\/api\/notifications\/[^/]+\/(?:read|seen)(?:\/|$)/i,
+    /^\/api\/notifications\/[^/]+\/(?:read|unread|seen)(?:\/|$)/i,
     // Session keep-alive/page lifecycle calls must not flood System Logs.
     /^\/api\/auth\/session\/(?:resume|heartbeat|release|release-beacon)(?:\/|$)/i,
     // Presence and visitor counters are diagnostics, not meaningful user actions.

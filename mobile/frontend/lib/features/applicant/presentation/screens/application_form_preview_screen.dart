@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
 class ApplicationFormPreviewScreen extends StatefulWidget {
   const ApplicationFormPreviewScreen({super.key});
@@ -471,42 +474,20 @@ class _ApplicationFormPreviewScreenState
     required IconData icon,
     required List<Widget> children,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      elevation: 0,
-      color: isDark ? AppColors.applicantDarkSurface : const Color(0xFFFFFEFC),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isDark
-              ? AppColors.applicantDarkOutline
-              : const Color(0xFFE9DED2),
-        ),
+    return AppSurfaceCard(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.xs,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 17, 18, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: isDark
-                        ? const Color(0xFFFFD54F)
-                        : AppColors.darkBrown,
-                  ),
-                ),
+                AppIconTile(icon: icon),
                 const SizedBox(width: 11),
                 Expanded(
                   child: Text(
@@ -519,10 +500,9 @@ class _ApplicationFormPreviewScreenState
               ],
             ),
             const SizedBox(height: 17),
-            ...children,
-          ],
-        ),
-      ),
+        ...children,
+      ],
+    ),
     );
   }
 
@@ -571,7 +551,6 @@ class _ApplicationFormPreviewScreenState
   }
 
   Widget _content(ApplicationData data) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final applicationStatus =
         _optional(_application['application_status']) ?? 'Submitted';
     final openingTitle =
@@ -583,24 +562,11 @@ class _ApplicationFormPreviewScreenState
       onRefresh: () => _load(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 26),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
         children: [
-          Card(
-            elevation: 0,
-            color: isDark
-                ? AppColors.applicantDarkSurface
-                : const Color(0xFFFFFEFC),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(
-                color: isDark
-                    ? AppColors.applicantDarkOutline
-                    : const Color(0xFFE9DED2),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
+          AppSurfaceCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -616,9 +582,7 @@ class _ApplicationFormPreviewScreenState
                     Text(
                       programName,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.62),
+                        color: AppSurfacePalette.mutedText(context),
                       ),
                     ),
                   ],
@@ -652,16 +616,13 @@ class _ApplicationFormPreviewScreenState
                     'This is the information currently saved with your submitted application.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       height: 1.45,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.58),
+                      color: AppSurfacePalette.mutedText(context),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md),
           _section(
             title: 'Personal Information',
             icon: Icons.person_outline_rounded,
@@ -819,19 +780,26 @@ class _ApplicationFormPreviewScreenState
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: AppColors.darkBrown),
+          Icon(
+            icon,
+            size: 15,
+            color: AppSurfacePalette.isDark(context)
+                ? AppColors.gold
+                : AppColors.darkBrown,
+          ),
           const SizedBox(width: 6),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.darkBrown,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppSurfacePalette.isDark(context)
+                  ? AppColors.gold
+                  : AppColors.darkBrown,
             ),
           ),
         ],
@@ -848,13 +816,9 @@ class _ApplicationFormPreviewScreenState
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: AppSurfacePalette.surface(context),
           border: Border(
-            top: BorderSide(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: 0.8),
-            ),
+            top: BorderSide(color: AppSurfacePalette.outline(context)),
           ),
           boxShadow: [
             BoxShadow(
@@ -876,10 +840,10 @@ class _ApplicationFormPreviewScreenState
                 ),
                 margin: const EdgeInsets.only(bottom: 9),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppStatusColors.of(context).inProgressContainer,
+                  borderRadius: AppRadii.control,
                   border: Border.all(
-                    color: AppColors.gold.withValues(alpha: 0.28),
+                    color: AppStatusColors.of(context).inProgressOutline,
                   ),
                 ),
                 child: Row(
@@ -922,18 +886,13 @@ class _ApplicationFormPreviewScreenState
                         context,
                       ).colorScheme.onSurface.withValues(alpha: 0.38),
                       side: BorderSide(
-                        color: canEdit
-                            ? (Theme.of(context).brightness == Brightness.dark
-                                  ? const Color(0xFF665E57)
-                                  : const Color(0xFFD2D2D2))
-                            : Theme.of(context).colorScheme.outlineVariant,
+                        color: AppSurfacePalette.outline(context),
                         width: 1,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: AppRadii.control,
                       ),
                       textStyle: const TextStyle(
-                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -970,10 +929,9 @@ class _ApplicationFormPreviewScreenState
                       ).colorScheme.onSurface.withValues(alpha: 0.48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: AppRadii.control,
                       ),
                       textStyle: const TextStyle(
-                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1011,8 +969,10 @@ class _ApplicationFormPreviewScreenState
     return Scaffold(
       appBar: AppBar(
         title: const Text('Preview Form'),
-        backgroundColor: AppColors.gold,
-        foregroundColor: AppColors.darkBrown,
+        backgroundColor: AppSurfacePalette.surface(context),
+        foregroundColor: AppSurfacePalette.text(context),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       bottomNavigationBar: _loading || _error != null ? null : _bottomAction(),
       body: _loading

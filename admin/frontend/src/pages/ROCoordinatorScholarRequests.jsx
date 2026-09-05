@@ -34,8 +34,10 @@ function formatDate(value, includeTime = false) {
   });
 }
 
-function statusLabel(status) {
-  return status === 'Acknowledged' ? 'In Progress' : status;
+function statusLabel(request = {}) {
+  const status = request.request_status;
+  if (['Fulfilled', 'Declined', 'Cancelled'].includes(status)) return status;
+  return request.assignment_stage || (status === 'Acknowledged' ? 'Assigned' : status);
 }
 
 function statusStyle(status) {
@@ -43,7 +45,7 @@ function statusStyle(status) {
   if (status === 'Declined' || status === 'Cancelled') {
     return 'border-red-100 bg-red-50 text-red-700';
   }
-  if (status === 'Acknowledged') return 'border-blue-100 bg-blue-50 text-blue-700';
+  if (status === 'Partially Assigned' || status === 'Fully Assigned') return 'border-blue-100 bg-blue-50 text-blue-700';
   return 'border-amber-100 bg-amber-50 text-amber-700';
 }
 
@@ -310,9 +312,9 @@ export default function ROCoordinatorScholarRequests({
                   </p>
                 </div>
                 <span
-                  className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(item.request_status)}`}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(statusLabel(item))}`}
                 >
-                  {statusLabel(item.request_status)}
+                  {statusLabel(item)}
                 </span>
               </div>
 

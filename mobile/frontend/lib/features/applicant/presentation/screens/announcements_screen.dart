@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class AnnouncementsScreen extends StatefulWidget {
@@ -43,9 +44,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     super.didChangeDependencies();
 
     final provider = context.read<NotificationProvider>();
-    if (_notificationProvider == provider) {
-      return;
-    }
+    if (_notificationProvider == provider) return;
 
     _notificationProvider?.removeListener(_handleRealtimeAnnouncements);
     _notificationProvider = provider;
@@ -70,7 +69,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     try {
       final items = await _announcementService.fetchAnnouncements();
       if (!mounted) return;
-
       setState(() {
         _announcements = items;
         _errorMessage = null;
@@ -84,10 +82,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       }
     } finally {
       _fetchInProgress = false;
-      if (mounted && !silent) {
-        setState(() => _isLoading = false);
-      }
-
+      if (mounted && !silent) setState(() => _isLoading = false);
       if (_pendingLiveRefresh && mounted) {
         _pendingLiveRefresh = false;
         scheduleMicrotask(() => _loadAnnouncements(silent: true));
@@ -106,16 +101,11 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   void _handleRealtimeAnnouncements() {
     final provider = _notificationProvider;
-    if (provider == null) {
+    if (provider == null ||
+        provider.announcementRevision == _lastAnnouncementRevision) {
       return;
     }
-
-    if (provider.announcementRevision == _lastAnnouncementRevision) {
-      return;
-    }
-
     _lastAnnouncementRevision = provider.announcementRevision;
-
     _requestLiveRefresh();
   }
 
@@ -127,10 +117,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   List<MobileAnnouncement> _getFilteredAnnouncements() {
-    if (_selectedFilter == 'All') {
-      return _announcements;
-    }
-
+    if (_selectedFilter == 'All') return _announcements;
     return _announcements
         .where((item) => _labelForAudience(item.audienceKey) == _selectedFilter)
         .toList();
@@ -151,24 +138,21 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
-  Color _getCategoryColor(String category) {
+  AppStatusTone _toneForAudience(String category) {
     switch (category) {
       case 'Applicants':
-        return Colors.blue;
+        return AppStatusTone.inProgress;
       case 'Scholars':
-        return Colors.red;
-      case 'All':
-        return Colors.green;
+        return AppStatusTone.brand;
       case 'Targeted':
-        return Colors.orange;
+        return AppStatusTone.actionRequired;
       default:
-        return Colors.grey;
+        return AppStatusTone.neutral;
     }
   }
 
-  String _formatDate(DateTime value) {
-    return DateFormat('MMMM d, yyyy').format(value.toLocal());
-  }
+  String _formatDate(DateTime value) =>
+      DateFormat('MMMM d, yyyy').format(value.toLocal());
 
   @override
   Widget build(BuildContext context) {
@@ -178,168 +162,80 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     final filtered = _getFilteredAnnouncements();
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(
-        title: const Text('Announcements'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text('Announcements')),
       selectedIndex: selectedTabIndex,
-      child: RefreshIndicator(
-        onRefresh: _loadAnnouncements,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildFilterChip('All'),
-                    _buildFilterChip('Applicants'),
-                    _buildFilterChip('Scholars'),
-                    _buildFilterChip('Targeted'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.only(top: 48),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_errorMessage != null)
-                _buildErrorState()
-              else ...[
-                Text(
-                  'Showing ${filtered.length} announcements',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelMedium?.copyWith(color: Colors.grey),
-                ),
-                const SizedBox(height: 12),
-                if (filtered.isEmpty)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No announcements are available right now.',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                      ),
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final announcement = filtered[index];
-                      final category = _labelForAudience(
-                        announcement.audienceKey,
-                      );
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: InkWell(
-                          onTap: () {
-                            // A view means the authenticated user actually opened
-                            // the announcement detail. The backend de-duplicates
-                            // repeat opens by announcement + user.
-                            _announcementService
-                                .markViewed(announcement.announcementId)
-                                .catchError((error) {
-                                  debugPrint(
-                                    'ANNOUNCEMENT VIEW TRACKING ERROR: $error',
-                                  );
-                                });
-
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              builder: (_) =>
-                                  _buildAnnouncementDetail(announcement),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  announcement.title,
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getCategoryColor(
-                                          category,
-                                        ).withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        category,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: _getCategoryColor(
-                                                category,
-                                              ),
-                                            ),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      _formatDate(announcement.date),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelMedium
-                                          ?.copyWith(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  announcement.content,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: Colors.grey,
-                                        height: 1.4,
-                                      ),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Tap to read more ->',
-                                  style: Theme.of(context).textTheme.labelMedium
-                                      ?.copyWith(
-                                        color: primaryColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+      child: ColoredBox(
+        color: AppSurfacePalette.background(context),
+        child: RefreshIndicator(
+          onRefresh: _loadAnnouncements,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.xxl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip('All'),
+                      _buildFilterChip('Applicants'),
+                      _buildFilterChip('Scholars'),
+                      _buildFilterChip('Targeted'),
+                    ],
                   ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                if (_isLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: AppSpacing.jumbo),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_errorMessage != null)
+                  _buildErrorState()
+                else ...[
+                  AppSectionHeading(
+                    title: 'Latest announcements',
+                    subtitle: '${filtered.length} announcement${filtered.length == 1 ? '' : 's'} in this view',
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (filtered.isEmpty)
+                    AppSurfaceCard(
+                      child: Text(
+                        'No announcements are available for this filter right now.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppSurfacePalette.mutedText(context),
+                            ),
+                      ),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppSpacing.md),
+                      itemBuilder: (context, index) {
+                        final announcement = filtered[index];
+                        return _AnnouncementListCard(
+                          announcement: announcement,
+                          category: _labelForAudience(announcement.audienceKey),
+                          categoryTone: _toneForAudience(
+                            _labelForAudience(announcement.audienceKey),
+                          ),
+                          dateLabel: _formatDate(announcement.date),
+                          onTap: () => _openAnnouncement(announcement),
+                        );
+                      },
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -349,50 +245,119 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   Widget _buildFilterChip(String label) {
     final isSelected = _selectedFilter == label;
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: AppSpacing.sm),
       child: FilterChip(
         label: Text(label),
         selected: isSelected,
-        onSelected: (_) {
-          setState(() {
-            _selectedFilter = label;
-          });
-        },
-        backgroundColor: Colors.grey[200],
-        selectedColor: primaryColor,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Colors.black,
-          fontWeight: FontWeight.bold,
-        ),
+        showCheckmark: false,
+        onSelected: (_) => setState(() => _selectedFilter = label),
       ),
     );
   }
 
   Widget _buildErrorState() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppIconTile(icon: Icons.cloud_off_rounded),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Unable to load announcements',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppSurfacePalette.text(context),
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _errorMessage ?? '',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppSurfacePalette.mutedText(context),
+                ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton(
+            onPressed: _loadAnnouncements,
+            child: const Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAnnouncement(MobileAnnouncement announcement) async {
+    _announcementService.markViewed(announcement.announcementId).catchError(
+      (error) => debugPrint('ANNOUNCEMENT VIEW TRACKING ERROR: $error'),
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _buildAnnouncementDetail(announcement),
+    );
+  }
+
+  Widget _buildAnnouncementDetail(MobileAnnouncement announcement) {
+    final category = _labelForAudience(announcement.audienceKey);
+    return DraggableScrollableSheet(
+      expand: false,
+      minChildSize: 0.36,
+      initialChildSize: 0.68,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) => SingleChildScrollView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.sm,
+          AppSpacing.xl,
+          AppSpacing.xxl,
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Unable to load announcements.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    announcement.title,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppSurfacePalette.text(context),
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                AppStatusCapsule(
+                  label: category,
+                  tone: _toneForAudience(category),
+                  compact: true,
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Text(
-              _errorMessage ?? '',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
+              _formatDate(announcement.date),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppSurfacePalette.mutedText(context),
+                  ),
             ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _loadAnnouncements,
-              style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-              child: const Text(
-                'Try Again',
-                style: TextStyle(color: Colors.white),
+            const SizedBox(height: AppSpacing.xl),
+            SelectableText(
+              announcement.content,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppSurfacePalette.text(context),
+                    height: 1.6,
+                  ),
+            ),
+            const SizedBox(height: AppSpacing.xxl),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
               ),
             ),
           ],
@@ -400,80 +365,85 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       ),
     );
   }
+}
 
-  Widget _buildAnnouncementDetail(MobileAnnouncement announcement) {
-    final category = _labelForAudience(announcement.audienceKey);
+class _AnnouncementListCard extends StatelessWidget {
+  const _AnnouncementListCard({
+    required this.announcement,
+    required this.category,
+    required this.categoryTone,
+    required this.dateLabel,
+    required this.onTap,
+  });
 
-    return DraggableScrollableSheet(
-      expand: false,
-      builder: (context, scrollController) => SingleChildScrollView(
-        controller: scrollController,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
+  final MobileAnnouncement announcement;
+  final String category;
+  final AppStatusTone categoryTone;
+  final String dateLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      announcement.title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+              const AppIconTile(icon: Icons.campaign_rounded),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  announcement.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppSurfacePalette.text(context),
+                        fontWeight: FontWeight.w800,
                       ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getCategoryColor(category).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      category,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: _getCategoryColor(category),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _formatDate(announcement.date),
-                style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                announcement.content,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(height: 1.6),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                  ),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(color: Colors.white),
-                  ),
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              AppStatusCapsule(
+                label: category,
+                tone: categoryTone,
+                compact: true,
+              ),
+              const Spacer(),
+              Text(
+                dateLabel,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppSurfacePalette.mutedText(context),
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            announcement.content,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppSurfacePalette.mutedText(context),
+                  height: 1.4,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Read announcement',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ],
       ),
     );
   }
-
 }

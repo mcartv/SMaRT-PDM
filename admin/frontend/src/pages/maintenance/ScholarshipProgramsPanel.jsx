@@ -460,6 +460,8 @@ export default function ScholarshipProgramsPanel() {
 
   useEffect(() => {
     loadAll();
+    // Initial maintenance load; realtime updates are subscribed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useSocketEvent(

@@ -1,4 +1,6 @@
 const supabase = require('../config/supabase');
+const db = require('../config/db');
+const { normalizeSection } = require('../validation/applicationSection');
 const notificationService = require('./notificationService');
 const {
   AVATAR_BUCKET,
@@ -283,6 +285,7 @@ async function getMyProfile(userId) {
     submittedAcademic.current_section,
     submittedAcademic.section
   );
+  const normalizedCurrentSection = normalizeSection(currentSection);
 
   const firstName = firstNonEmpty(master.first_name, student.first_name);
   const middleName = firstNonEmpty(master.middle_name, student.middle_name);
@@ -339,8 +342,10 @@ async function getMyProfile(userId) {
       course_id: effectiveCourseId,
       course_code: course?.course_code || '',
       course_name: course?.course_name || '',
-      section: currentSection,
-      current_section: currentSection,
+      section: normalizedCurrentSection,
+      current_section: normalizedCurrentSection,
+      section_requires_correction:
+        Boolean(currentSection) && !normalizedCurrentSection,
 
       year_level: master.year_level || student.year_level || null,
       gwa: student.gwa || null,
@@ -404,16 +409,23 @@ async function setupMyProfile(userId, payload = {}) {
     throw createHttpError(401, 'Authentication required.');
   }
 
-  const { data: student, error: studentError } = await supabase
-    .from('students')
-    .select('student_id, user_id, course_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (studentError) throw studentError;
+  const client = await db.connect();
+  try {
+  await client.query('BEGIN');
+  const { rows: [student] } = await client.query(
+    'SELECT student_id, user_id, course_id, is_profile_complete FROM students WHERE user_id = $1 FOR UPDATE',
+    [userId]
+  );
 
   if (!student) {
     throw createHttpError(404, 'No student profile is linked to this account.');
+  }
+
+  if (student.is_profile_complete === true) {
+    throw createHttpError(
+      409,
+      'Profile setup is already complete. Use Profile & Account to update phone number and address.'
+    );
   }
 
   const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
@@ -442,12 +454,11 @@ async function setupMyProfile(userId, payload = {}) {
   }
 
   if (Object.keys(userUpdate).length > 0) {
-    const { error: userUpdateError } = await supabase
-      .from('users')
-      .update(userUpdate)
-      .eq('user_id', userId);
-
-    if (userUpdateError) throw userUpdateError;
+    const keys = Object.keys(userUpdate);
+    await client.query(
+      `UPDATE users SET ${keys.map((key, index) => `${key} = $${index + 1}`).join(', ')} WHERE user_id = $${keys.length + 1}`,
+      [...Object.values(userUpdate), userId]
+    );
   }
 
   if (hasOwn('first_name')) studentUpdate.first_name = safeText(payload.first_name) || null;
@@ -467,13 +478,10 @@ async function setupMyProfile(userId, payload = {}) {
   } else if (hasOwn('course_code')) {
     const courseCode = safeText(payload.course_code);
     if (courseCode) {
-      const { data: course, error: courseError } = await supabase
-        .from('academic_course')
-        .select('course_id')
-        .eq('course_code', courseCode)
-        .maybeSingle();
-
-      if (courseError) throw courseError;
+      const { rows: [course] } = await client.query(
+        'SELECT course_id FROM academic_course WHERE course_code = $1',
+        [courseCode]
+      );
       if (!course?.course_id) {
         throw createHttpError(400, 'Selected course was not found.');
       }
@@ -484,13 +492,6 @@ async function setupMyProfile(userId, payload = {}) {
   if (hasOwn('course_id') || hasOwn('course_code')) {
     studentUpdate.course_id = courseId;
   }
-
-  const { error: updateStudentError } = await supabase
-    .from('students')
-    .update(studentUpdate)
-    .eq('student_id', student.student_id);
-
-  if (updateStudentError) throw updateStudentError;
 
   const profilePayload = { student_id: student.student_id };
   const textProfileFields = [
@@ -527,13 +528,28 @@ async function setupMyProfile(userId, payload = {}) {
   }
 
   if (Object.keys(profilePayload).length > 1) {
-    const { error: upsertProfileError } = await supabase
-      .from('student_profiles')
-      .upsert(profilePayload, { onConflict: 'student_id' });
-
-    if (upsertProfileError) throw upsertProfileError;
+    const keys = Object.keys(profilePayload);
+    await client.query(
+      `INSERT INTO student_profiles (${keys.join(', ')}) VALUES (${keys.map((_, index) => `$${index + 1}`).join(', ')})
+       ON CONFLICT (student_id) DO UPDATE SET ${keys.filter((key) => key !== 'student_id').map((key) => `${key} = EXCLUDED.${key}`).join(', ')}`,
+      Object.values(profilePayload)
+    );
   }
 
+  // All column names above and below come from the server's fixed field lists.
+  // Complete setup only after every detail has saved, on the same connection.
+  const studentKeys = Object.keys(studentUpdate);
+  await client.query(
+    `UPDATE students SET ${studentKeys.map((key, index) => `${key} = $${index + 1}`).join(', ')} WHERE student_id = $${studentKeys.length + 1}`,
+    [...Object.values(studentUpdate), student.student_id]
+  );
+  await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
   return getMyProfile(userId);
 }
 

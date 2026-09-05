@@ -10,7 +10,7 @@ test('public access copy uses User terminology and the single Login entry', () =
   const landingDefaults = read('frontend/src/constants/landingContent.js');
 
   assert.match(landing, />\s*Login\s*</);
-  assert.match(landing, />\s*Login Access\s*</);
+  assert.match(loginCard, />\s*Login Access\s*</);
   assert.match(landingDefaults, /authorized users manage scholarship/);
   assert.doesNotMatch(loginCard, /\bstaff\b/i);
   assert.doesNotMatch(landing, /Select your access/);

@@ -24,8 +24,9 @@ test('Admin-assisted password reset revokes existing sessions', () => {
   const controller = read('backend/controllers/accountController.js');
 
   assert.match(service, /const passwordChanged = Boolean\(validPassword\)/);
-  assert.match(service, /if \(sessionIdentityChanged \|\| passwordChanged\)\s*\{\s*await revokeStaffSessionVersion/);
-  assert.match(service, /updatedAccount && \(sessionIdentityChanged \|\| passwordChanged\)/);
+  assert.match(service, /const shouldInvalidateSession\s*=\s*sessionIdentityChanged \|\| \(passwordChanged && !isSelfUpdate\)/);
+  assert.match(service, /if \(shouldInvalidateSession\)\s*\{\s*await revokeStaffSessionVersion/);
+  assert.match(service, /updatedAccount && shouldInvalidateSession/);
   assert.match(controller, /reason: passwordResetRequested[\s\S]{0,120}'admin-password-reset'/);
   assert.match(controller, /code: passwordResetRequested[\s\S]{0,120}'PASSWORD_CHANGED'/);
 });

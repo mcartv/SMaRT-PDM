@@ -1,6 +1,6 @@
 import DepartmentSettingsPage from '@/components/department/DepartmentSettingsPage';
 
-// eslint-disable-next-line react-refresh/only-export-components -- shared with the matching profile page
+
 export const sdoMaintenanceConfig = {
   shortName: 'SDO',
   account: {

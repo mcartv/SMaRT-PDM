@@ -7,8 +7,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class StatusTrackingScreen extends StatefulWidget {
@@ -174,21 +177,27 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadii.card,
           side: BorderSide(color: baseTheme.colorScheme.outlineVariant),
         ),
       ),
     );
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Application Status')),
+      appBar: AppBar(
+        title: const Text('Application Status'),
+        backgroundColor: AppSurfacePalette.surface(context),
+        foregroundColor: AppSurfacePalette.text(context),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
       selectedIndex: 0,
       child: Theme(
         data: contentTheme,
         child: RefreshIndicator(
           onRefresh: () => _loadStatus(),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               if (_isLoading)
                 const Padding(
@@ -800,7 +809,7 @@ class _WorkflowStageTracker extends StatelessWidget {
                             color: i < resolvedIndex
                                 ? activeColor
                                 : Theme.of(context).colorScheme.outlineVariant,
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: AppRadii.status,
                           ),
                         ),
                     ],
@@ -917,7 +926,7 @@ class _WorkflowGateCard extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppRadii.control,
               ),
               child: Icon(icon, color: color, size: 20),
             ),
@@ -1031,8 +1040,8 @@ class _OfficeReviewTile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(14),
+              color: AppSurfacePalette.surfaceMuted(context),
+              borderRadius: AppRadii.control,
               border: Border.all(
                 color: Theme.of(context).colorScheme.outlineVariant,
               ),
@@ -1187,7 +1196,7 @@ class _EndorsementSlipCard extends StatelessWidget {
                 color: slip.available
                     ? Theme.of(context).colorScheme.secondaryContainer
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: AppRadii.card,
                 border: Border.all(
                   color: slip.available
                       ? Theme.of(
@@ -1235,7 +1244,7 @@ class _EndorsementSlipCard extends StatelessWidget {
                     context,
                   ).colorScheme.onSurfaceVariant,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: AppRadii.card,
                   ),
                   elevation: 0,
                 ),
@@ -1282,7 +1291,7 @@ class _NextStepCard extends StatelessWidget {
     return Card(
       color: scheme.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.card,
         side: BorderSide(color: color.withValues(alpha: 0.35)),
       ),
       child: Padding(
@@ -1390,17 +1399,21 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
+        border: Border.all(color: color.withValues(alpha: 0.30)),
       ),
       child: Text(
-        label,
-        style: TextStyle(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -1417,9 +1430,9 @@ class _MiniTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfacePalette.surfaceMuted(context),
+        borderRadius: AppRadii.status,
+        border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
       child: Text(
         label,
@@ -1504,7 +1517,7 @@ class _QuickStatusRow extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadii.card,
                   border: Border.all(color: item.color.withValues(alpha: 0.28)),
                 ),
                 child: Row(
@@ -1515,7 +1528,7 @@ class _QuickStatusRow extends StatelessWidget {
                       height: 34,
                       decoration: BoxDecoration(
                         color: item.color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: AppRadii.control,
                       ),
                       child: Icon(item.icon, color: item.color, size: 18),
                     ),
@@ -1582,8 +1595,8 @@ class _StatusMessageCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 34),
-            const SizedBox(height: 14),
+            AppIconTile(icon: icon),
+            const SizedBox(height: AppSpacing.md),
             Text(
               title,
               style: Theme.of(

@@ -9,7 +9,7 @@ test('Maintenance uses responsive current sizing rather than old fixed pixel con
 
   assert.match(maintenance, /overflow-x-auto/);
   assert.match(maintenance, /shrink-0/);
-  assert.match(maintenance, /2xl:/);
+  assert.match(maintenance, /w-max min-w-max/);
 });
 
 test('Maintenance active theme controls use the portal theme token', () => {

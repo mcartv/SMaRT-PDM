@@ -43,8 +43,8 @@ void main() {
       'lib/features/menu/presentation/screens/mobile_menu_screen.dart',
     );
 
-    expect(source, contains('AppColors.applicantDarkText'));
-    expect(source, contains('AppColors.applicantDarkTextMuted'));
+    expect(source, contains('AppSurfacePalette.text(context)'));
+    expect(source, contains('AppSurfacePalette.mutedText(context)'));
   });
 
   test('global dark theme covers dialogs and menus', () {

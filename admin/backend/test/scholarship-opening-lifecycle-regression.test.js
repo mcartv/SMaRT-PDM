@@ -93,10 +93,7 @@ test('mobile application intake is restricted to the active academic period', ()
     mobileOpenings,
     /openingAcceptsApplications =[\s\S]*isCurrentPeriod/i
   );
-  assert.match(
-    mobileOpenings,
-    /belongs to a previous academic period/i
-  );
+  assert.match(mobileOpenings, /assertOpeningInActivePeriod\(opening, availability\)/i);
 });
 
 test('legacy mobile opening feed is also restricted to the active period', () => {

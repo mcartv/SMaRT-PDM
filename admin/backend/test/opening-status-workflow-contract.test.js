@@ -21,7 +21,7 @@ const frontend = fs.readFileSync(
 
 test('Review Draft opening behavior', () => {
   assert.match(service, /draft: new Set\(\['draft', 'open', 'archived'\]\)/);
-  assert.ok(frontend.includes("const canSubmit =\n        !!form.opening_title?.trim() &&\n        !!form.program_id &&\n        !!form.academic_year_id;"));
+  assert.match(frontend, /const canSubmit\s*=\s*!!form\.opening_title\?\.trim\(\)\s*&&\s*!!form\.program_id\s*&&\s*!!form\.academic_year_id/);
 });
 
 test('Review Open opening behavior', () => {

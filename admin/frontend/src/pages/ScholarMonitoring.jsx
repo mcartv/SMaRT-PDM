@@ -1371,7 +1371,7 @@ export default function ScholarMonitoring() {
   const location = useLocation();
 
   const [scholars, setScholars] = useState([]);
-  const [stats, setStats] = useState({
+  const [_stats, setStats] = useState({
     total: 0,
     active: 0,
     at_risk: 0,

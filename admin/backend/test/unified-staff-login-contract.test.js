@@ -20,12 +20,12 @@ test('unified login card routes by the returned primary role', () => {
 test('login loading state remains busy until successful navigation unmounts the page', () => {
   const card = read('frontend/src/components/auth/UnifiedUserLoginCard.jsx');
 
-  assert.match(card, /if \(isLoading\) return/);
+  assert.match(card, /if \(loginRequestRef\.current \|\| isLoading\) return/);
   assert.match(card, /Signing in\.\.\./);
-  assert.match(card, /disabled=\{isLoading \|\| !email\.trim\(\) \|\| !password\}/);
+  assert.match(card, /disabled=\{isLoading \|\| !turnstileToken\}/);
   assert.match(card, /onClick=\{\(\) => navigate\('\/admin\/forgot-password'[\s\S]{0,220}disabled=\{isLoading\}/);
   assert.match(card, /Admin password recovery/);
-  assert.match(card, /catch \(err\)[\s\S]{0,180}setIsLoading\(false\)/);
+  assert.match(card, /catch \(err\)[\s\S]{0,320}setIsLoading\(false\)/);
   assert.doesNotMatch(card, /finally\s*\{\s*setIsLoading\(false\)/);
 });
 

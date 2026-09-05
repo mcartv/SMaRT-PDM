@@ -6,9 +6,12 @@ import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class EndorsementScreen extends StatefulWidget {
@@ -166,11 +169,13 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Endorsement')),
       selectedIndex: 0,
-      child: RefreshIndicator(
-        onRefresh: () => _loadStatus(),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+      child: ColoredBox(
+        color: AppSurfacePalette.background(context),
+        child: RefreshIndicator(
+          onRefresh: () => _loadStatus(),
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
             if (_isLoading)
               const Padding(
                 padding: EdgeInsets.only(top: 64),
@@ -200,7 +205,8 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
                 isDownloadingSlip: _isDownloadingSlip,
                 onDownloadSlip: _downloadEndorsementSlip,
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -349,6 +355,7 @@ class _EndorsementView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusColors = AppStatusColors.of(context);
     final workflow = summary.workflow;
     final endorsement = workflow?.endorsement;
 
@@ -458,7 +465,7 @@ class _EndorsementView extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: AppRadii.control,
                   ),
                   child: Text(
                     'Your endorsement moves in this order: SDO, Guidance, then Program Director.',
@@ -475,7 +482,7 @@ class _EndorsementView extends StatelessWidget {
         if (blockerCode == 'endorsement.grade_document_missing') ...[
           const SizedBox(height: 16),
           _EndorsementAlertCard(
-            color: const Color(0xFFC76917),
+            color: statusColors.actionRequiredOutline,
             icon: Icons.warning_amber_rounded,
             title: 'Grade Report Required',
             message:
@@ -487,7 +494,7 @@ class _EndorsementView extends StatelessWidget {
         ] else if (blockerCode == 'endorsement.held') ...[
           const SizedBox(height: 16),
           _EndorsementAlertCard(
-            color: const Color(0xFFC76917),
+            color: statusColors.actionRequiredOutline,
             icon: Icons.pause_circle_filled_rounded,
             title: 'Historical Guidance Hold',
             message:
@@ -500,7 +507,7 @@ class _EndorsementView extends StatelessWidget {
             blockerCode == 'endorsement.rejected') ...[
           const SizedBox(height: 16),
           _EndorsementAlertCard(
-            color: const Color(0xFFD14343),
+            color: statusColors.dangerOutline,
             icon: Icons.report_gmailerrorred_rounded,
             title: 'Endorsement Stopped',
             message:
@@ -512,7 +519,7 @@ class _EndorsementView extends StatelessWidget {
         ] else if (workflow.stage == 'ready_for_activation') ...[
           const SizedBox(height: 16),
           _EndorsementAlertCard(
-            color: const Color(0xFF2E8B57),
+            color: statusColors.successOutline,
             icon: Icons.verified_rounded,
             title: 'Endorsement Complete',
             message:
@@ -524,7 +531,7 @@ class _EndorsementView extends StatelessWidget {
         ] else if (workflow.stage == 'scholar_activated') ...[
           const SizedBox(height: 16),
           _EndorsementAlertCard(
-            color: const Color(0xFF2E8B57),
+            color: statusColors.successOutline,
             icon: Icons.celebration_rounded,
             title: 'Scholar Activated',
             message:
@@ -594,7 +601,7 @@ class _EndorsementView extends StatelessWidget {
                     color: slip.available
                         ? colorScheme.primaryContainer
                         : colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: AppRadii.card,
                     border: Border.all(
                       color: slip.available
                           ? colorScheme.primary.withOpacity(0.30)
@@ -639,7 +646,7 @@ class _EndorsementView extends StatelessWidget {
                           colorScheme.surfaceContainerHighest,
                       disabledForegroundColor: colorScheme.onSurfaceVariant,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: AppRadii.card,
                       ),
                       elevation: slip.available ? 0 : 0,
                     ),
@@ -913,7 +920,7 @@ class _ReviewTile extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.card,
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
@@ -1016,7 +1023,7 @@ class _OverviewMiniItem extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1102,36 +1109,14 @@ class _EndorsementAlertCard extends StatelessWidget {
 }
 
 class _EndorsementSectionHeading extends StatelessWidget {
-  const _EndorsementSectionHeading({
-    required this.title,
-    required this.subtitle,
-  });
+  const _EndorsementSectionHeading({required this.title, this.subtitle});
 
   final String title;
-  final String subtitle;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-            height: 1.35,
-          ),
-        ),
-      ],
-    );
+    return AppSectionHeading(title: title, subtitle: subtitle);
   }
 }
 
@@ -1144,17 +1129,20 @@ class _EndorsementTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colorScheme.outlineVariant),
+        color: AppSurfacePalette.surfaceMuted(context),
+        borderRadius: AppRadii.status,
+        border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: colorScheme.onSurface,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -1170,17 +1158,23 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: AppRadii.status,
+        border: Border.all(color: color.withValues(alpha: 0.30)),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.25,
         ),
       ),
     );

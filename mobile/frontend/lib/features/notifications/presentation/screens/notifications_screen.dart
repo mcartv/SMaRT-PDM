@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
@@ -194,20 +197,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (notification.isPayoutNotification ||
         type.contains('payout') ||
         title.contains('payout')) {
-      return const Color(0xFF16A34A);
+      return AppStatusColors.of(context).successOutline;
     }
 
     if (type.contains('rejected') ||
         title.contains('rejected') ||
         title.contains('failed')) {
-      return const Color(0xFFDC2626);
+      return AppStatusColors.of(context).dangerOutline;
     }
 
     if (type.contains('warning') ||
         title.contains('required') ||
         title.contains('missing') ||
         _isRenewalNotification(notification)) {
-      return const Color(0xFFD97706);
+      return AppStatusColors.of(context).actionRequiredOutline;
     }
 
     if (_isRoNotification(notification)) {
@@ -472,7 +475,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildFilterChips(NotificationProvider provider) {
     return SizedBox(
-      height: 56,
+      height: 64,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -498,7 +501,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildEmptyState(NotificationProvider provider) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final title = provider.isLoading
         ? 'Loading notifications...'
         : 'No notifications found';
@@ -520,35 +522,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      height: 72,
-                      width: 72,
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(24),
+                    if (provider.isLoading)
+                      const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Padding(
+                          padding: EdgeInsets.all(AppSpacing.md),
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      )
+                    else
+                      const AppIconTile(
+                        icon: Icons.notifications_none_rounded,
+                        size: 48,
                       ),
-                      child: provider.isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(22),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : Icon(
-                              Icons.notifications_none_rounded,
-                              color: AppColors.gold,
-                              size: 34,
-                            ),
-                    ),
                     const SizedBox(height: 16),
                     Text(
                       title,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? AppColors.applicantDarkText
-                            : AppColors.black,
+                        color: AppSurfacePalette.text(context),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -556,9 +550,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       message,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.applicantDarkTextMuted
-                            : const Color(0xFF8A8378),
+                        color: AppSurfacePalette.mutedText(context),
                         height: 1.4,
                         fontWeight: FontWeight.w600,
                       ),
@@ -592,26 +584,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final isUnread = !notification.isRead;
 
     return Material(
-      color: isDark
-          ? (isUnread
-                ? AppColors.applicantDarkSurfaceMuted
-                : AppColors.applicantDarkSurface)
-          : (isUnread ? const Color(0xFFFFFBEB) : Colors.white),
-      borderRadius: BorderRadius.circular(18),
+      color: isUnread
+          ? AppColors.gold.withValues(alpha: isDark ? 0.10 : 0.07)
+          : AppSurfacePalette.surface(context),
+      borderRadius: AppRadii.card,
       child: InkWell(
         onTap: () => _openNotification(notification),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: AppRadii.card,
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: AppRadii.card,
             border: Border.all(
               color: isUnread
                   ? AppColors.gold.withOpacity(isDark ? 0.46 : 0.40)
-                  : (isDark
-                        ? AppColors.applicantDarkOutline.withOpacity(0.72)
-                        : const Color(0xFFE8E2D8)),
-              width: 0.8,
+                  : AppSurfacePalette.outline(context),
+              width: 1,
             ),
             boxShadow: const [
               BoxShadow(
@@ -632,7 +620,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     height: 44,
                     decoration: BoxDecoration(
                       color: accent.withOpacity(0.13),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: AppRadii.control,
                     ),
                     child: Icon(icon, color: accent, size: 23),
                   ),
@@ -647,9 +635,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           color: AppColors.gold,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isDark
-                                ? AppColors.applicantDarkSurface
-                                : Colors.white,
+                            color: AppSurfacePalette.surface(context),
                             width: 1.2,
                           ),
                         ),
@@ -669,10 +655,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: isDark
-                            ? AppColors.applicantDarkText
-                            : AppColors.black,
-                        fontSize: 15,
+                        color: AppSurfacePalette.text(context),
                         fontWeight: isUnread
                             ? FontWeight.w900
                             : FontWeight.w700,
@@ -687,10 +670,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.applicantDarkTextMuted
-                            : const Color(0xFF8A8378),
-                        fontSize: 13,
+                        color: AppSurfacePalette.mutedText(context),
                         height: 1.35,
                         fontWeight: FontWeight.w600,
                       ),
@@ -711,10 +691,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           _formatTime(notification.createdAt),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                color: isDark
-                                    ? AppColors.applicantDarkTextMuted
-                                          .withOpacity(0.78)
-                                    : const Color(0xFF817A71),
+                                color: AppSurfacePalette.mutedText(context),
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -782,8 +759,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationProvider provider,
     List<AppNotification> items,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     if (items.isEmpty) {
       return _buildEmptyState(provider);
     }
@@ -806,11 +781,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Text(
                       section,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.applicantDarkText
-                            : AppColors.black,
+                        color: AppSurfacePalette.text(context),
                         fontWeight: FontWeight.w900,
-                        fontSize: 14,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -820,15 +792,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(999),
+                        color: AppColors.gold.withValues(alpha: 0.12),
+                        borderRadius: AppRadii.status,
                       ),
                       child: Text(
                         '${grouped[section]!.length}',
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
-                              color: isDark
-                                  ? const Color(0xFFFFD76A)
+                              color: AppSurfacePalette.isDark(context)
+                                  ? AppColors.gold
                                   : AppColors.brown,
                               fontWeight: FontWeight.w900,
                             ),
@@ -851,8 +823,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return SmartPdmPageScaffold(
       selectedIndex: 0,
       showBottomNav: widget.showBottomNav,
@@ -860,8 +830,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         elevation: 0,
         centerTitle: false,
-        backgroundColor: isDark ? AppColors.applicantDarkSurface : Colors.white,
-        foregroundColor: isDark ? AppColors.applicantDarkText : AppColors.black,
+        backgroundColor: AppSurfacePalette.surface(context),
+        foregroundColor: AppSurfacePalette.text(context),
         surfaceTintColor: Colors.transparent,
         titleSpacing: 0,
         leading: IconButton(
@@ -870,7 +840,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         title: const Text(
           'Notifications',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: [
           Consumer<NotificationProvider>(
@@ -886,11 +856,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   style: TextStyle(
                     color: hasUnread
                         ? AppColors.gold
-                        : (isDark
-                              ? AppColors.applicantDarkTextMuted.withOpacity(
-                                  0.72,
-                                )
-                              : const Color(0xFF8F887F)),
+                        : AppSurfacePalette.mutedText(context),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -905,9 +871,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           final items = _filteredItems(provider);
 
           return Container(
-            color: isDark
-                ? AppColors.applicantDarkBackground
-                : const Color(0xFFF7F7F6),
+            color: AppSurfacePalette.background(context),
             child: Column(
               children: [
                 if (provider.errorMessage != null &&
@@ -917,23 +881,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF3A2020)
-                          : const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(14),
+                      color: AppStatusColors.of(context).dangerContainer,
+                      borderRadius: AppRadii.control,
                       border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF7F4545)
-                            : const Color(0xFFFECACA),
-                        width: 0.8,
+                        color: AppStatusColors.of(context).dangerOutline,
                       ),
                     ),
                     child: Text(
                       provider.errorMessage!,
                       style: TextStyle(
-                        color: isDark
-                            ? const Color(0xFFFFA3A3)
-                            : const Color(0xFFB91C1C),
+                        color: AppStatusColors.of(context).onDangerContainer,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -967,30 +924,28 @@ class _FilterButton extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = selected
         ? AppColors.gold.withOpacity(isDark ? 0.68 : 0.72)
-        : (isDark
-              ? AppColors.applicantDarkOutline.withOpacity(0.72)
-              : const Color(0xFFE2DDD6));
+        : AppSurfacePalette.outline(context);
 
     final backgroundColor = selected
         ? AppColors.gold.withOpacity(isDark ? 0.20 : 0.26)
-        : (isDark ? AppColors.applicantDarkSurface : Colors.white);
+        : AppSurfacePalette.surface(context);
 
     final textColor = selected
         ? (isDark ? AppColors.applicantDarkText : AppColors.darkBrown)
-        : (isDark ? AppColors.applicantDarkTextMuted : const Color(0xFF625B52));
+        : AppSurfacePalette.mutedText(context);
 
     return Material(
       color: backgroundColor,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: AppRadii.status,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
         child: Container(
-          height: 38,
+          height: AppSizes.minimumTapTarget,
           constraints: const BoxConstraints(minWidth: 64, maxWidth: 132),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: AppRadii.status,
             border: Border.all(color: borderColor, width: 0.8),
           ),
           child: Row(
@@ -1005,9 +960,8 @@ class _FilterButton extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: textColor,
-                    fontSize: 12,
                     fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                   ),
                 ),
@@ -1031,7 +985,7 @@ class _FilterButton extends StatelessWidget {
                         : (isDark
                               ? AppColors.gold.withOpacity(0.18)
                               : AppColors.gold.withOpacity(0.16)),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: AppRadii.status,
                     border: Border.all(
                       color: selected
                           ? (isDark
@@ -1046,13 +1000,12 @@ class _FilterButton extends StatelessWidget {
                   child: Text(
                     count > 99 ? '99+' : '$count',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: selected
                           ? AppColors.darkBrown
                           : (isDark
                                 ? const Color(0xFFFFD76A)
                                 : AppColors.brown),
-                      fontSize: 10,
                       fontWeight: FontWeight.w900,
                       height: 1.2,
                     ),
@@ -1085,7 +1038,7 @@ class _MetaChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: readableColor.withOpacity(isDark ? 0.16 : 0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
         border: Border.all(
           color: readableColor.withOpacity(isDark ? 0.24 : 0.14),
           width: 0.6,

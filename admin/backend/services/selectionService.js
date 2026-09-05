@@ -829,10 +829,14 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     if (!scholar) throw httpError(404, 'Scholar not found.');
     if (!scholar.opening_id) throw httpError(409, 'Scholar has no active scholarship slot to release.');
 
-    const normalizedReason = String(reason || 'Inactive').trim();
-    const status = /graduat|withdraw|inactive/i.test(normalizedReason)
-      ? 'Inactive'
-      : 'Removed';
+    const normalizedReason = String(reason || '').trim();
+    if (!normalizedReason) {
+      throw httpError(400, 'A removal reason is required.');
+    }
+    // Keep one clear lifecycle state. Graduation, withdrawal, inactivity, and
+    // disciplinary removal remain distinguishable through the required reason
+    // instead of creating several meanings for an archived scholar record.
+    const status = 'Removed';
 
     await client.query(
       `
@@ -878,6 +882,7 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       user_id: scholar.user_id || null,
       opening_id: scholar.opening_id,
       scholar_status: status,
+      removal_reason: normalizedReason,
       promotion: promotionResult,
     };
   } catch (error) {

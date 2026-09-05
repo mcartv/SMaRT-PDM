@@ -101,8 +101,6 @@ export default function AuditPanel() {
     const [moduleOptions, setModuleOptions] = useState([]);
 
     const isFiltered = search.trim() || moduleFilter !== 'all';
-    const canUnlock = password.trim().length > 0 && !unlocking;
-
     const loadLogs = useCallback(async () => {
         if (!auditToken) return;
 

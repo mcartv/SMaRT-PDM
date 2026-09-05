@@ -1053,7 +1053,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
                   ? 'Open the scholarship list or pull to refresh and try again.'
                   : _latestOpenings.isEmpty
                       ? 'New scholarship openings will appear here when published.'
-                      : 'Review eligibility, slots, and application details.',
+                      : 'Review eligibility and application details.',
               onTap: () => Navigator.pushNamed(
                 context,
                 AppRoutes.scholarshipOpenings,
@@ -1950,5 +1950,4 @@ class _ResponsibilityRow extends StatelessWidget {
     );
   }
 }
-
 

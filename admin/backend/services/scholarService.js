@@ -1303,9 +1303,7 @@ exports.archiveScholarAndReleaseSlot =
         studentId,
         actor,
 
-        reason:
-          payload.reason ||
-          'Removed from scholarship',
+        reason: payload.reason,
 
         notes:
           payload.notes || '',

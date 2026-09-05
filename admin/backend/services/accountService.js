@@ -1241,33 +1241,44 @@ async function changeCurrentStaffPassword(userId, payload = {}) {
         throw createHttpError(400, 'New password is required.');
     }
 
-    const result = await db.query(
-        `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1`,
-        [userId]
-    );
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        const result = await client.query(
+            `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1 FOR UPDATE`,
+            [userId]
+        );
 
-    const passwordHash = result.rows[0]?.password_hash || '';
-    if (!passwordHash) {
-        throw createHttpError(404, 'Account not found.');
+        const passwordHash = result.rows[0]?.password_hash || '';
+        if (!passwordHash) {
+            throw createHttpError(404, 'Account not found.');
+        }
+
+        const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
+        if (!currentMatches) {
+            throw createHttpError(401, 'Current password is incorrect.');
+        }
+
+        const reusesCurrentPassword = await bcrypt.compare(validPassword, passwordHash);
+        if (reusesCurrentPassword) {
+            throw createHttpError(400, 'New password must be different from the current password.');
+        }
+
+        const nextHash = await bcrypt.hash(validPassword, 12);
+        await client.query(
+            `UPDATE users SET password_hash = $2 WHERE user_id = $1`,
+            [userId, nextHash]
+        );
+        await revokeStaffSessionVersion(client, userId);
+        await client.query('COMMIT');
+
+        return { changed: true, session_invalidated: true };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
     }
-
-    const currentMatches = await bcrypt.compare(currentPassword, passwordHash);
-    if (!currentMatches) {
-        throw createHttpError(401, 'Current password is incorrect.');
-    }
-
-    const reusesCurrentPassword = await bcrypt.compare(validPassword, passwordHash);
-    if (reusesCurrentPassword) {
-        throw createHttpError(400, 'New password must be different from the current password.');
-    }
-
-    const nextHash = await bcrypt.hash(validPassword, 12);
-    await db.query(
-        `UPDATE users SET password_hash = $2 WHERE user_id = $1`,
-        [userId, nextHash]
-    );
-
-    return { changed: true };
 }
 
 async function uploadCurrentStaffProfilePhoto(userId, file) {

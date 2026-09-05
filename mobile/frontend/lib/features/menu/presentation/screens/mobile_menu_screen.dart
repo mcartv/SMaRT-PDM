@@ -2,19 +2,19 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:smartpdm_mobileapp/app/motion/app_motion.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/app/settings/interaction_settings_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
 class MobileMenuScreen extends StatefulWidget {
   const MobileMenuScreen({super.key});
@@ -31,6 +31,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   String _studentId = '';
   String? _avatarUrl;
   bool _hasScholarAccess = false;
+  bool _scholarPrivilegeRemoved = false;
   bool _isRefreshing = false;
 
   static const List<String> _scholarResponsibilities = [
@@ -62,9 +63,11 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
       setState(() => _isRefreshing = true);
     }
 
+    var scholarPrivilegeRemoved = _scholarPrivilegeRemoved;
     if (refreshRemote) {
       try {
-        await _profileService.fetchMyProfile();
+        final profile = await _profileService.fetchMyProfile();
+        scholarPrivilegeRemoved = profile['scholar_privilege_removed'] == true;
       } catch (_) {
         // Keep the cached session values when the profile endpoint is unavailable.
       }
@@ -84,7 +87,8 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
       _avatarUrl = session.avatarUrl?.trim().isNotEmpty == true
           ? session.avatarUrl!.trim()
           : null;
-      _hasScholarAccess = session.hasScholarAccess;
+      _scholarPrivilegeRemoved = scholarPrivilegeRemoved;
+      _hasScholarAccess = !scholarPrivilegeRemoved && session.hasScholarAccess;
       _isRefreshing = false;
     });
   }
@@ -93,8 +97,6 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
-
         return AlertDialog(
           icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
           title: const Text('Log out?'),
@@ -110,7 +112,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               style: AppButtonStyles.destructiveFilled(dialogContext),
-              child: Text(isDark ? 'Log out' : 'Log out'),
+              child: const Text('Log out'),
             ),
           ],
         );
@@ -171,22 +173,12 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
-    final interactionSettings =
-        context.watch<InteractionSettingsProvider>();
-    final hasScholarAccess = notificationProvider.scholarAccessRevision > 0
+    final providerScholarAccess = notificationProvider.scholarAccessRevision > 0
         ? notificationProvider.hasScholarAccess
         : notificationProvider.hasScholarAccess || _hasScholarAccess;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark
-        ? AppColors.applicantDarkBackground
-        : const Color(0xFFF6F1EA);
-    final surface = isDark ? AppColors.applicantDarkSurface : Colors.white;
-    final titleColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final mutedColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.brown.withValues(alpha: 0.66);
+    final hasScholarAccess = !_scholarPrivilegeRemoved && providerScholarAccess;
+    final background = AppSurfacePalette.background(context);
+    final mutedColor = AppSurfacePalette.mutedText(context);
 
     return ColoredBox(
       color: background,
@@ -208,6 +200,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                   displayName: _displayName,
                   studentId: _studentId,
                   hasScholarAccess: hasScholarAccess,
+                  scholarPrivilegeRemoved: _scholarPrivilegeRemoved,
                   isRefreshing: _isRefreshing,
                   avatar: _buildAvatar(),
                 ),
@@ -215,24 +208,13 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
             ),
             ),
             const SizedBox(height: 22),
-            Text(
-              'Account Settings',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: titleColor,
-                fontWeight: FontWeight.w900,
-              ),
+            const AppSectionHeading(
+              title: 'Account Settings',
+              subtitle: 'Security, registered email, and app preferences',
             ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : AppColors.brown.withValues(alpha: 0.09),
-                ),
-              ),
+            const SizedBox(height: AppSpacing.md),
+            AppSurfaceCard(
+              padding: EdgeInsets.zero,
               child: Column(
                 children: [
                   _MenuListTile(
@@ -241,75 +223,32 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     subtitle: 'Update account security',
                     onTap: () => _openRoute(AppRoutes.forgotPassword),
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 72,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.07)
-                        : AppColors.brown.withValues(alpha: 0.08),
-                  ),
+                  const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.alternate_email_rounded,
                     title: 'Registered Email',
                     subtitle: 'Update your account email',
                     onTap: () => _openRoute(AppRoutes.changeEmail),
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 72,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.07)
-                        : AppColors.brown.withValues(alpha: 0.08),
-                  ),
+                  const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.palette_rounded,
                     title: 'Appearance',
                     subtitle: 'System, light, or dark',
                     onTap: () => showAppearanceSheet(context),
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 72,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.07)
-                        : AppColors.brown.withValues(alpha: 0.08),
-                  ),
-                  _MenuSwitchTile(
-                    icon: Icons.vibration_rounded,
-                    title: 'Haptic Feedback',
-                    subtitle: 'Subtle vibration for navigation and menu taps',
-                    value: interactionSettings.hapticsEnabled,
-                    onChanged: (value) {
-                      if (value) {
-                        HapticFeedback.selectionClick();
-                      } else {
-                        AppHaptics.selection(context);
-                      }
-                      interactionSettings.setHapticsEnabled(value);
-                    },
-                  ),
+                  const Divider(height: 1, indent: 72),
                 ],
               ),
             ),
             const SizedBox(height: 22),
-            Text(
-              'Information',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: titleColor,
-                fontWeight: FontWeight.w900,
-              ),
+            const AppSectionHeading(
+              title: 'Information',
+              subtitle: 'Guides, responsibilities, and SMaRT-PDM details',
             ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : AppColors.brown.withValues(alpha: 0.09),
-                ),
-              ),
+            const SizedBox(height: AppSpacing.md),
+            AppSurfaceCard(
+              padding: EdgeInsets.zero,
               child: Column(
                 children: [
                   _MenuListTile(
@@ -318,13 +257,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                     subtitle: 'Answers about applications and scholarships',
                     onTap: () => _openRoute(AppRoutes.faqs),
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 72,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.07)
-                        : AppColors.brown.withValues(alpha: 0.08),
-                  ),
+                  const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.explore_outlined,
                     title: 'Getting Started Guide',
@@ -333,13 +266,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                         showSmartPdmGettingStartedGuide(context),
                   ),
                   if (hasScholarAccess) ...[
-                    Divider(
-                      height: 1,
-                      indent: 72,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : AppColors.brown.withValues(alpha: 0.08),
-                    ),
+                    const Divider(height: 1, indent: 72),
                     _MenuListTile(
                       icon: Icons.rule_rounded,
                       title: 'Scholar Responsibilities',
@@ -347,13 +274,7 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
                       onTap: _openScholarResponsibilities,
                     ),
                   ],
-                  Divider(
-                    height: 1,
-                    indent: 72,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.07)
-                        : AppColors.brown.withValues(alpha: 0.08),
-                  ),
+                  const Divider(height: 1, indent: 72),
                   _MenuListTile(
                     icon: Icons.info_outline_rounded,
                     title: 'About SMaRT-PDM',
@@ -370,9 +291,9 @@ class _MobileMenuScreenState extends State<MobileMenuScreen> {
               label: const Text('Log Out'),
               style: AppButtonStyles.destructiveOutlined(context).merge(
                 OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
+                  minimumSize: const Size.fromHeight(AppSizes.minimumTapTarget),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppRadii.control,
                   ),
                   textStyle: const TextStyle(fontWeight: FontWeight.w900),
                 ),
@@ -400,6 +321,7 @@ class _ProfileSummaryCard extends StatelessWidget {
     required this.displayName,
     required this.studentId,
     required this.hasScholarAccess,
+    required this.scholarPrivilegeRemoved,
     required this.isRefreshing,
     required this.avatar,
   });
@@ -407,6 +329,7 @@ class _ProfileSummaryCard extends StatelessWidget {
   final String displayName;
   final String studentId;
   final bool hasScholarAccess;
+  final bool scholarPrivilegeRemoved;
   final bool isRefreshing;
   final Widget avatar;
 
@@ -415,7 +338,7 @@ class _ProfileSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: AppRadii.card,
         gradient: const LinearGradient(
           colors: [Color(0xFF2E1600), Color(0xFF4A2600)],
           begin: Alignment.topLeft,
@@ -487,10 +410,14 @@ class _ProfileSummaryCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.gold,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: AppRadii.status,
                   ),
                   child: Text(
-                    hasScholarAccess ? 'SCHOLAR' : 'APPLICANT',
+                    scholarPrivilegeRemoved
+                        ? 'REMOVED'
+                        : hasScholarAccess
+                        ? 'SCHOLAR'
+                        : 'APPLICANT',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: AppColors.darkBrown,
                       fontWeight: FontWeight.w900,
@@ -520,23 +447,15 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark
-        ? const Color(0xFF17110B)
-        : const Color(0xFFF6F1EA);
-    final surface = isDark ? const Color(0xFF2B1D13) : Colors.white;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final bodyColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.brown;
+    final background = AppSurfacePalette.background(context);
+    final titleColor = AppSurfacePalette.text(context);
+    final bodyColor = AppSurfacePalette.mutedText(context);
 
     return Scaffold(
       backgroundColor: background,
       appBar: AppBar(
         title: const Text('Scholar Responsibilities'),
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: titleColor,
-        elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -544,8 +463,8 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: isDark ? 0.14 : 0.12),
-              borderRadius: BorderRadius.circular(18),
+              color: AppColors.gold.withValues(alpha: 0.12),
+              borderRadius: AppRadii.card,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -578,27 +497,13 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : AppColors.brown.withValues(alpha: 0.09),
-              ),
-            ),
+          AppSurfaceCard(
+            padding: EdgeInsets.zero,
             child: ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: responsibilities.length,
-              separatorBuilder: (_, _) => Divider(
-                height: 1,
-                indent: 54,
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.07)
-                    : AppColors.brown.withValues(alpha: 0.08),
-              ),
+              separatorBuilder: (_, _) => const Divider(height: 1, indent: 54),
               itemBuilder: (context, index) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(
@@ -613,16 +518,14 @@ class _ScholarResponsibilitiesScreen extends StatelessWidget {
                         height: 28,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: AppColors.gold.withValues(
-                            alpha: isDark ? 0.18 : 0.14,
-                          ),
-                          borderRadius: BorderRadius.circular(9),
+                          color: AppColors.gold.withValues(alpha: 0.14),
+                          borderRadius: const BorderRadius.all(Radius.circular(AppRadii.sm)),
                         ),
                         child: Text(
                           '${index + 1}',
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                color: isDark
+                                color: AppSurfacePalette.isDark(context)
                                     ? AppColors.gold
                                     : AppColors.darkBrown,
                                 fontWeight: FontWeight.w900,
@@ -666,34 +569,16 @@ class _MenuSwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 14,
         vertical: 5,
       ),
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.gold.withValues(
-            alpha: isDark ? 0.18 : 0.14,
-          ),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(
-          icon,
-          color: AppColors.gold,
-          size: 23,
-        ),
-      ),
+      leading: AppIconTile(icon: icon),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: isDark
-              ? AppColors.applicantDarkText
-              : AppColors.darkBrown,
+          color: AppSurfacePalette.text(context),
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -702,9 +587,7 @@ class _MenuSwitchTile extends StatelessWidget {
         child: Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: isDark
-                ? AppColors.applicantDarkTextMuted
-                : AppColors.brown.withValues(alpha: 0.63),
+            color: AppSurfacePalette.mutedText(context),
           ),
         ),
       ),
@@ -733,27 +616,16 @@ class _MenuListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return ListTile(
       onTap: () {
-        AppHaptics.selection(context);
         onTap();
       },
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(icon, color: AppColors.gold, size: 23),
-      ),
+      leading: AppIconTile(icon: icon),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: isDark ? AppColors.applicantDarkText : AppColors.darkBrown,
+          color: AppSurfacePalette.text(context),
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -762,17 +634,13 @@ class _MenuListTile extends StatelessWidget {
         child: Text(
           subtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: isDark
-                ? AppColors.applicantDarkTextMuted
-                : AppColors.brown.withValues(alpha: 0.63),
+            color: AppSurfacePalette.mutedText(context),
           ),
         ),
       ),
       trailing: Icon(
         Icons.chevron_right_rounded,
-        color: isDark
-            ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.58)
-            : AppColors.brown.withValues(alpha: 0.42),
+        color: AppSurfacePalette.mutedText(context),
       ),
     );
   }

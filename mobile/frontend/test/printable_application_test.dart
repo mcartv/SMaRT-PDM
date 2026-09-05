@@ -128,7 +128,7 @@ void main() {
     expect(model.aimsAndAmbitions, 'Finish college');
   });
 
-  testWidgets('success screen generates PDF from local submission payload', (
+  testWidgets('success screen exports the persisted submitted application', (
     tester,
   ) async {
     final fakeService = _FakePrintableApplicationService();
@@ -176,7 +176,7 @@ void main() {
     await tester.tap(find.text('Export Application Form'));
     await tester.pump();
 
-    expect(fakeService.submissionPayload, submissionPayload);
-    expect(fakeService.applicationId, isNull);
+    expect(fakeService.submissionPayload, isNull);
+    expect(fakeService.applicationId, 'submitted-form-fallback');
   });
 }

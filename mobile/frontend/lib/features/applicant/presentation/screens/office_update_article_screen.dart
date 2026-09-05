@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/features/applicant/data/services/announcement_service.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class OfficeUpdateArticleScreen extends StatefulWidget {
@@ -16,7 +18,8 @@ class OfficeUpdateArticleScreen extends StatefulWidget {
   final bool showBottomNav;
 
   @override
-  State<OfficeUpdateArticleScreen> createState() => _OfficeUpdateArticleScreenState();
+  State<OfficeUpdateArticleScreen> createState() =>
+      _OfficeUpdateArticleScreenState();
 }
 
 class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
@@ -25,257 +28,163 @@ class _OfficeUpdateArticleScreenState extends State<OfficeUpdateArticleScreen> {
   @override
   void initState() {
     super.initState();
-
     final referenceId = widget.notification.referenceId?.trim() ?? '';
-    if (widget.notification.isAnnouncementNotification && referenceId.isNotEmpty) {
+    if (widget.notification.isAnnouncementNotification &&
+        referenceId.isNotEmpty) {
       _announcementService.markViewed(referenceId).catchError((error) {
         debugPrint('ANNOUNCEMENT VIEW TRACKING ERROR: $error');
       });
     }
   }
 
-  void _openOpenings(BuildContext context) {
-    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
-  }
-
   @override
   Widget build(BuildContext context) {
     final notification = widget.notification;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scheme = Theme.of(context).colorScheme;
-    final titleColor = isDark ? scheme.onSurface : const Color(0xFF2A1608);
-    final bodyColor = isDark ? scheme.onSurfaceVariant : const Color(0xFF5F5A55);
-    final canvasColor = isDark
-        ? scheme.surfaceContainer
-        : const Color(0xFFF8F3ED);
-    final accent = notification.accentColor;
     final fullMessage = notification.message.trim();
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Office Update'), centerTitle: false),
+      appBar: AppBar(title: const Text('Office Update')),
       selectedIndex: 2,
       showBottomNav: widget.showBottomNav,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: accent.withOpacity(0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.school_rounded, color: accent, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accent.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    notification.officeUpdateLabel,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: titleColor,
-                      letterSpacing: 0.3,
+      child: ColoredBox(
+        color: AppSurfacePalette.background(context),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const AppIconTile(icon: Icons.campaign_rounded),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: AppStatusCapsule(
+                      label: notification.officeUpdateLabel,
+                      tone: notification.isOpeningUpdate
+                          ? AppStatusTone.brand
+                          : AppStatusTone.neutral,
+                      compact: true,
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                notification.title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: AppSurfacePalette.text(context),
+                      fontWeight: FontWeight.w900,
+                      height: 1.12,
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_month_outlined,
+                    size: 18,
+                    color: AppSurfacePalette.mutedText(context),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    _formatArticleTimestamp(notification.createdAt),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppSurfacePalette.mutedText(context),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+              AppSectionHeading(
+                title: notification.isOpeningUpdate
+                    ? 'Scholarship opening'
+                    : 'Announcement details',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppSurfaceCard(
+                backgroundColor: AppSurfacePalette.surfaceMuted(context),
+                child: SelectableText(
+                  fullMessage.isEmpty
+                      ? 'No additional announcement details were provided.'
+                      : fullMessage,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppSurfacePalette.text(context),
+                        height: 1.58,
+                      ),
+                ),
+              ),
+              if (notification.isOpeningUpdate) ...[
+                const SizedBox(height: AppSpacing.lg),
+                AppSurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const AppIconTile(
+                            icon: Icons.description_outlined,
+                            size: 52,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Ready to apply?',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        color: AppSurfacePalette.text(context),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  'Review the available scholarship openings, eligibility, slots, and requirements before starting your application.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppSurfacePalette.mutedText(
+                                          context,
+                                        ),
+                                        height: 1.45,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.scholarshipOpenings,
+                          ),
+                          icon: const Icon(Icons.school_rounded),
+                          label: const Text('View Scholarship Openings'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              notification.title,
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: titleColor,
-                height: 1.08,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _MetaPill(
-                  icon: Icons.calendar_month_outlined,
-                  label: _formatArticleTimestamp(notification.createdAt),
-                  accent: accent,
-                  textColor: bodyColor,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              notification.officeUpdateLabel == 'SCHOLARSHIP OPENING'
-                  ? 'Scholarship Opening'
-                  : 'Announcement Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: titleColor.withOpacity(0.92),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: canvasColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isDark
-                      ? scheme.outlineVariant
-                      : const Color(0xFFE8DED4),
-                ),
-              ),
-              child: SelectableText(
-                fullMessage.isEmpty
-                    ? 'No additional announcement details were provided.'
-                    : fullMessage,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: bodyColor,
-                  height: 1.58,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            if (notification.isOpeningUpdate) ...[
-              const SizedBox(height: 18),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: canvasColor,
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 78,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            color: accent.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                          child: Icon(
-                            Icons.description_outlined,
-                            size: 42,
-                            color: accent.withOpacity(0.9),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Ready to apply?',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: titleColor,
-                                    ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'View available scholarship openings and continue your application flow from there.',
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(color: bodyColor, height: 1.45),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => _openOpenings(context),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        child: const Text('Apply Now'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => _openOpenings(context),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        child: const Text('View Scholarship Openings'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
             ],
-          ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-class _MetaPill extends StatelessWidget {
-  const _MetaPill({
-    required this.icon,
-    required this.label,
-    required this.accent,
-    required this.textColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color accent;
-  final Color textColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.12),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: accent, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: textColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -306,10 +215,6 @@ String _monthLabel(int month) {
     'Nov',
     'Dec',
   ];
-
-  if (month < 1 || month > 12) {
-    return 'Date';
-  }
-
+  if (month < 1 || month > 12) return 'Date';
   return labels[month - 1];
 }

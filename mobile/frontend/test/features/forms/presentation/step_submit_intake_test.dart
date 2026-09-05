@@ -51,7 +51,12 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: StepSubmit(data: data, onChanged: () {}, onEditStep: (_) {}),
+            child: StepSubmit(
+              data: data,
+              onChanged: () {},
+              onEditStep: (_) {},
+              showErrors: true,
+            ),
           ),
         ),
       ),
@@ -71,6 +76,7 @@ void main() {
               data: _validApplicationData(),
               onChanged: () {},
               onEditStep: (_) {},
+              showErrors: true,
             ),
           ),
         ),
@@ -132,6 +138,7 @@ ApplicationData _validApplicationData() {
     ..elementaryYearGraduated = '2018'
     ..currentCourse = 'BTLED'
     ..currentYearLevel = '1'
+    ..currentSection = 'A'
     ..studentNumber = 'PDM-2026-001001'
     ..financialSupport = 'Scholarship'
     ..scholarshipHistory = false

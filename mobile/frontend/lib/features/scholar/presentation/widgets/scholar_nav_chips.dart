@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
 class ScholarNavChips extends StatelessWidget {
   final String selectedLabel;
@@ -17,112 +20,89 @@ class ScholarNavChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scheme = Theme.of(context).colorScheme;
-    final sectionLabelColor = scheme.onSurfaceVariant;
-    final unselectedBackgroundColor = isDark
-        ? scheme.surfaceContainerHigh
-        : Colors.white;
-    final unselectedBorderColor = isDark
-        ? scheme.outline
-        : primaryColor.withOpacity(0.25);
-    final unselectedTextColor = scheme.onSurface;
+    final status = Theme.of(context).extension<AppStatusColors>()!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /// 🔹 SECTION LABEL
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: sectionLabelColor,
-              letterSpacing: 0.3,
-            ),
-          ),
+        AppSectionHeading(
+          title: 'Quick Actions',
+          subtitle: 'Open your current scholar records and requirements.',
         ),
-
-        /// 🔹 GRID TABS
+        const SizedBox(height: AppSpacing.sm),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _labels.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisExtent: 46,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
+            mainAxisExtent: AppSizes.minimumTapTarget,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
           ),
           itemBuilder: (context, index) {
             final label = _labels[index];
             final isSelected = selectedLabel == label;
             final showDot = label == 'Payout Schedule' && hasNewPayouts;
 
-            return InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () => onTap(label),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? primaryColor : unselectedBackgroundColor,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isSelected ? primaryColor : unselectedBorderColor,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: primaryColor.withOpacity(0.18),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : [],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (isSelected) ...[
-                      const Icon(
-                        Icons.check,
-                        size: 16,
-                        color: AppColors.darkBrown,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: isSelected
-                                  ? AppColors.darkBrown
-                                  : unselectedTextColor,
-                            ),
-                      ),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: AppRadii.control,
+                onTap: () => onTap(label),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.gold
+                        : AppSurfacePalette.surface(context),
+                    borderRadius: AppRadii.control,
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.gold
+                          : AppSurfacePalette.outline(context),
                     ),
-
-                    if (showDot) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: Colors.redAccent,
-                          shape: BoxShape.circle,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isSelected) ...[
+                        const Icon(
+                          Icons.check_rounded,
+                          size: 16,
+                          color: AppColors.darkBrown,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                      ],
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: isSelected
+                                ? AppColors.darkBrown
+                                : AppSurfacePalette.text(context),
+                          ),
                         ),
                       ),
+                      if (showDot) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: status.actionRequiredOutline,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             );

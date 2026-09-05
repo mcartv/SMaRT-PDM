@@ -858,7 +858,7 @@ function MessageText({ value, onOpenExternalLink }) {
           return <span key={`text-${index}`}>{part}</span>
         }
 
-        const trailingPunctuation = part.match(/[.,!?;:\]\)}]+$/)?.[0] || ''
+        const trailingPunctuation = part.match(/[.,!?;:\])}]+$/)?.[0] || ''
         const url = trailingPunctuation ? part.slice(0, -trailingPunctuation.length) : part
         const safeUrl = parseSafeExternalUrl(url)
 
@@ -2150,7 +2150,6 @@ export default function AdminMessages({
 
   const [groupInfoOpen, setGroupInfoOpen] = useState(false)
   const [groupMembers, setGroupMembers] = useState([])
-  const [groupMemberSearchTerm, setGroupMemberSearchTerm] = useState('')
   const [loadingGroupMembers, setLoadingGroupMembers] = useState(false)
   const [selectedMemberProfile, setSelectedMemberProfile] = useState(null)
   const [pendingRemoveMember, setPendingRemoveMember] = useState(null)
@@ -3712,7 +3711,6 @@ export default function AdminMessages({
     setChatMatchIndex(0)
     setGroupInfoOpen(false)
     setGroupMembers([])
-    setGroupMemberSearchTerm('')
     setTypingUserIds([])
     setReplyingTo(null)
     typingExpiryTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))

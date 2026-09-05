@@ -660,17 +660,22 @@ exports.changeCurrentStaffPassword = async (req, res) => {
                     referenceType: 'staff_profile',
                 });
                 emitCreatedNotifications(req, [{ ...notification, target_user_id: actorUserId }]);
-            } catch (notificationError) {
-                console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
+                } catch (notificationError) {
+                    console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
+                }
+
+                disconnectAccountSockets(req, actorUserId, {
+                    reason: 'password-changed',
+                    code: 'PASSWORD_CHANGED',
+                    message: 'Your password was changed. Please sign in again using your new password.',
+                });
             }
 
-        }
-
-        return res.status(200).json({
-            success: true,
-            session_invalidated: false,
-            message: 'Password changed successfully.',
-        });
+            return res.status(200).json({
+                success: true,
+                session_invalidated: true,
+                message: 'Password changed successfully. Please sign in again.',
+            });
     } catch (err) {
         console.error('CHANGE CURRENT STAFF PASSWORD ERROR:', err);
         return sendError(res, err, 'Failed to change password');

@@ -289,7 +289,7 @@ exports.archiveScholar = async (req, res) => {
                     userId: result.user_id,
                     type: 'Scholarship Status',
                     title: 'Scholarship privilege removed',
-                    message: 'Your scholarship privilege has been removed. Your previous scholarship record remains on file. Contact OSFA regarding eligibility or future applications.',
+                    message: `Your scholarship privilege has been removed. Reason: ${result.removal_reason}. Your previous scholarship record remains on file. Contact OSFA for an eligibility review before applying again.`,
                     referenceId: id,
                     referenceType: 'student_scholar',
                 });

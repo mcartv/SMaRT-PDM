@@ -77,6 +77,8 @@ export default function AdminLayout() {
     unreadCount,
     loading: notificationsLoading,
     markingAll,
+    markAsRead,
+    markAsUnread,
     markAllAsRead,
     openNotification,
     formatNotificationTime,
@@ -457,6 +459,16 @@ export default function AdminLayout() {
                             <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void markAsRead(n.notification_id);
+                              }}
+                              className="mt-2 text-[11px] font-semibold text-stone-500 underline-offset-2 hover:text-stone-900 hover:underline"
+                            >
+                              Mark as read
+                            </button>
                           </div>
                         ))}
                         {earlierNotifications.length > 0 ? (
@@ -497,6 +509,20 @@ export default function AdminLayout() {
                             <p className="mt-1.5 text-[11px] font-medium text-stone-400">
                               {formatNotificationTime(n.created_at)}
                             </p>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (n.is_read === true) {
+                                  void markAsUnread(n.notification_id);
+                                } else {
+                                  void markAsRead(n.notification_id);
+                                }
+                              }}
+                              className="mt-2 text-[11px] font-semibold text-stone-500 underline-offset-2 hover:text-stone-900 hover:underline"
+                            >
+                              {n.is_read === true ? 'Mark as unread' : 'Mark as read'}
+                            </button>
                           </div>
                         ))}
                       </>

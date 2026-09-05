@@ -15,7 +15,9 @@ void main() {
 
     expect(
       source,
-      contains('generateBytesFromSubmissionPayload(submissionPayload)'),
+      contains(
+        'generateBytesFromSubmissionPayload(submissionPayload ?? const {})',
+      ),
     );
     expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
     expect(source, contains('XFile.fromData('));

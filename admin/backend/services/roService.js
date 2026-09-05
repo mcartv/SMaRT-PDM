@@ -747,11 +747,11 @@ async function getCurrentPlacement(roId, roAreaId) {
     return current || null;
 }
 
-async function getScholarRequestForAssignment(requestId) {
+async function getScholarRequestForAssignment(requestId, client = db) {
     const normalizedRequestId = cleanText(requestId);
     if (!normalizedRequestId) return null;
 
-    const result = await db.query(
+    const result = await client.query(
         `SELECT
            rsr.request_id,
            rsr.ro_area_id,
@@ -793,8 +793,8 @@ async function getScholarRequestForAssignment(requestId) {
     return request;
 }
 
-async function getScholarRequestProgress(requestId) {
-    const result = await db.query(
+async function getScholarRequestProgress(requestId, client = db) {
+    const result = await client.query(
         `SELECT
            rsr.request_id,
            rsr.requested_scholar_count,
@@ -844,16 +844,25 @@ async function getScholarRequestProgress(requestId) {
     };
 }
 
-async function syncScholarRequestStatus(requestId, adminUserId = null) {
+function getRequestAssignmentStage(progress = {}) {
+    const requested = Math.max(0, Number(progress.requested_scholar_count || 0));
+    const assigned = Math.max(0, Number(progress.active_assignment_count || 0));
+
+    if (assigned <= 0) return 'Pending';
+    if (requested > 0 && assigned >= requested) return 'Fully Assigned';
+    return 'Partially Assigned';
+}
+
+async function syncScholarRequestStatus(requestId, adminUserId = null, client = db) {
     if (!requestId) return null;
-    const progress = await getScholarRequestProgress(requestId);
+    const progress = await getScholarRequestProgress(requestId, client);
     const nextStatus = progress.acknowledged_count >= progress.requested_scholar_count
         ? 'Fulfilled'
         : progress.active_assignment_count > 0 || progress.concern_count > 0
             ? 'Acknowledged'
             : 'Pending';
 
-    const result = await db.query(
+    const result = await client.query(
         `UPDATE ro_scholar_requests
          SET request_status = CASE
                WHEN request_status IN ('Declined', 'Cancelled') THEN request_status
@@ -872,7 +881,10 @@ async function syncScholarRequestStatus(requestId, adminUserId = null) {
 
     return {
         request: result.rows[0] || null,
-        progress,
+        progress: {
+            ...progress,
+            assignment_stage: getRequestAssignmentStage(progress),
+        },
     };
 }
 
@@ -895,6 +907,7 @@ async function sendScholarAssignmentNotification({ student, roId, assignedArea }
 }
 
 async function createPlacementRequest({
+    client,
     roId,
     department,
     coordinator,
@@ -934,30 +947,28 @@ async function createPlacementRequest({
     };
 
     if (current?.placement_id) {
-        const { data, error } = await supabase
-            .from('ro_placements')
-            .update(payload)
-            .eq('placement_id', current.placement_id)
-            .select()
-            .single();
-
-        if (error) throw createHttpError(500, error.message);
-        return data;
+        return saveAssignmentRecord(client, 'ro_placements', payload, 'placement_id', current.placement_id);
     }
 
-    const { data, error } = await supabase
-        .from('ro_placements')
-        .insert({
+    return saveAssignmentRecord(client, 'ro_placements', {
             ro_id: roId,
             ro_area_id: department.department_id,
             ...payload,
             created_at: now,
-        })
-        .select()
-        .single();
+        });
+}
 
-    if (error) throw createHttpError(500, error.message);
-    return data;
+// Table/column names and payload keys are supplied only by the fixed assignment
+// code below. Values always use parameters, including IDs and Admin remarks.
+async function saveAssignmentRecord(client, table, payload, idColumn = null, id = null) {
+    const keys = Object.keys(payload);
+    const values = Object.values(payload);
+    const sql = idColumn
+        ? `UPDATE ${table} SET ${keys.map((key, index) => `${key} = $${index + 1}`).join(', ')} WHERE ${idColumn} = $${keys.length + 1} RETURNING *`
+        : `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${keys.map((_, index) => `$${index + 1}`).join(', ')}) RETURNING *`;
+    const result = await client.query(sql, idColumn ? [...values, id] : values);
+    if (!result.rows[0]) throw createHttpError(409, 'The RO record changed. Refresh before assigning again.');
+    return result.rows[0];
 }
 
 async function sendCoordinatorRequestNotification({ coordinator, roId, student, assignedArea }) {
@@ -2130,6 +2141,13 @@ async function getActiveRoSettingForAssignments(currentPeriod = null) {
 }
 
 exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
+    const client = await db.connect();
+    let committed = false;
+    try {
+    await client.query('BEGIN');
+    // Serialize assignments for this student, including requests for different
+    // RO areas. Read placement eligibility only after obtaining this lock.
+    await client.query('SELECT student_id FROM students WHERE student_id = $1 FOR UPDATE', [studentId]);
     const currentPeriod = await getCurrentAcademicPeriod();
     const scholarRequestId = cleanText(
         payload.scholarRequestId || payload.scholar_request_id
@@ -2142,12 +2160,15 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
             'Request-linked RO placements must be created from the RO Area scholar request workflow.'
         );
     }
+    if (scholarRequestId) {
+        await client.query('SELECT request_id FROM ro_scholar_requests WHERE request_id = $1 FOR UPDATE', [scholarRequestId]);
+    }
     const scholarRequest = scholarRequestId
-        ? await getScholarRequestForAssignment(scholarRequestId)
+        ? await getScholarRequestForAssignment(scholarRequestId, client)
         : null;
 
     if (scholarRequest) {
-        const progress = await getScholarRequestProgress(scholarRequestId);
+        const progress = await getScholarRequestProgress(scholarRequestId, client);
         if (progress.remaining_assignment_count <= 0) {
             throw createHttpError(
                 409,
@@ -2261,9 +2282,7 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
             ['Assigned', 'Acknowledged', 'In Progress', 'For Validation'].includes(
                 existingRO.assignment_status
             );
-        const { data, error } = await supabase
-            .from('return_of_obligations')
-            .update({
+        assignment = await saveAssignmentRecord(client, 'return_of_obligations', {
                 assigned_area: preserveActivePlacement
                     ? existingRO.assigned_area
                     : assignedDepartmentName,
@@ -2292,36 +2311,18 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
                 academic_year_id: currentPeriod.academic_year_id,
                 period_id: currentPeriod.period_id,
                 updated_at: now,
-            })
-            .eq('ro_id', existingRO.ro_id)
-            .select()
-            .single();
-
-        if (error) {
-            throw createHttpError(500, error.message);
-        }
-
-        assignment = data;
+            }, 'ro_id', existingRO.ro_id);
     } else {
-        const { data, error } = await supabase
-            .from('return_of_obligations')
-            .insert({
+        assignment = await saveAssignmentRecord(client, 'return_of_obligations', {
                 ...assignmentPayload,
                 ro_status: 'Pending',
                 setting_id: activeRoSetting?.setting_id || null,
                 created_at: now,
-            })
-            .select()
-            .single();
-
-        if (error) {
-            throw createHttpError(500, error.message);
-        }
-
-        assignment = data;
+            });
     }
 
     const placement = await createPlacementRequest({
+        client,
         roId: assignment.ro_id,
         department: assignedDepartment,
         coordinator,
@@ -2331,6 +2332,12 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         scholarRequestId,
         coordinatorPreapproved: Boolean(scholarRequest),
     });
+
+    const requestState = scholarRequest
+        ? await syncScholarRequestStatus(scholarRequestId, adminUserId, client)
+        : null;
+    await client.query('COMMIT');
+    committed = true;
 
     const notification = scholarRequest
         ? await sendScholarAssignmentNotification({
@@ -2344,10 +2351,6 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
             roId: assignment.ro_id,
             assignedArea: assignedDepartmentName,
         });
-
-    const requestState = scholarRequest
-        ? await syncScholarRequestStatus(scholarRequestId, adminUserId)
-        : null;
 
     return {
         message: scholarRequest
@@ -2367,6 +2370,15 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         scholar_request_id: scholarRequestId,
         scholar_request: requestState,
     };
+    } catch (error) {
+        if (!committed) await client.query('ROLLBACK');
+        if (error.code === '23514') {
+            throw createHttpError(409, 'The RO assignment no longer meets the request or placement rules. Refresh before assigning again.');
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 exports.assignScholarsToRequest = async (requestId, payload = {}, user = {}) => {
@@ -2718,6 +2730,10 @@ exports.getScholarRequests = async (query = {}) => {
             concern_count: Math.max(0, Number(row.concern_count || 0)),
             remaining_assignment_count: Math.max(0, requested - active),
             remaining_confirmation_count: Math.max(0, requested - acknowledged),
+            assignment_stage: getRequestAssignmentStage({
+                requested_scholar_count: requested,
+                active_assignment_count: active,
+            }),
         };
     });
 
@@ -2886,4 +2902,3 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
         clearance: data,
     };
 };
-

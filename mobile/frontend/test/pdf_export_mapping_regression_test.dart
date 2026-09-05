@@ -158,15 +158,10 @@ void main() {
     expect(source, contains('model.siblingOccupation'));
     expect(source, contains('model.siblingCompanyNameAddress'));
 
-    expect(
-      source,
-      contains(
-        'model.studentNumber,\n'
-        '      r(420, 2230, 445, 55),\n'
-        '      textFont: smallFont,\n'
-        '      align: PdfTextAlignment.center,',
-      ),
-    );
+    expect(source, contains('model.studentNumber,'));
+    expect(source, contains('r(420, 2230, 445, 55),'));
+    expect(source, contains('align: PdfTextAlignment.center,'));
+    expect(source, contains('minFontSize: 6.0,'));
   });
 
   test('application preview exposes adjacent Edit and Export actions', () {

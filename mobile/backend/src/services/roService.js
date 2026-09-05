@@ -3079,8 +3079,11 @@ async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
         ? `Required RO hours were already satisfied. The ${RO_CHECKOUT_GRACE_MINUTES}-minute checkout grace period expired, so the session was automatically closed with no additional counted time.`
         : `Required RO time was reached, then the ${RO_CHECKOUT_GRACE_MINUTES}-minute checkout grace period expired without a manual time-out. Extra elapsed time was not counted.`,
 
+    // Reaching the normal grace-period timeout is expected behavior. The log
+    // still follows the regular validation workflow, but it should not create
+    // a separate exception alert for Admin.
     requires_admin_attention:
-      true,
+      false,
 
     updated_at:
       new Date().toISOString(),
@@ -3354,4 +3357,3 @@ module.exports = {
   startAutoTimeoutWorker,
   stopAutoTimeoutWorker,
 };
-

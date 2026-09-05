@@ -89,6 +89,8 @@ export default function FinalSelectionPanel({ openingId, onFinalized }) {
 
   useEffect(() => {
     load();
+    // Reload only when the selected opening changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingId]);
 
   const finalize = async () => {

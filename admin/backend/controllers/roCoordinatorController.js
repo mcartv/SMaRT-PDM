@@ -313,6 +313,12 @@ exports.getScholarRequests = async (req, res) => {
         concern_count: Math.max(0, Number(row.concern_count || 0)),
         remaining_assignment_count: Math.max(0, requested - active),
         remaining_confirmation_count: Math.max(0, requested - acknowledged),
+        assignment_stage:
+          active <= 0
+            ? 'Pending'
+            : requested > 0 && active >= requested
+              ? 'Fully Assigned'
+              : 'Partially Assigned',
       };
     });
 

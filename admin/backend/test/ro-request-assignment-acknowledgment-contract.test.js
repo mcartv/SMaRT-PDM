@@ -8,6 +8,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('RO Coordinator scholar requests are linked to real placements and cannot be manually fulfilled', () => {
   const migration = read('supabase/migrations/20260904000200_link_ro_placements_to_scholar_requests.sql');
+  const hardeningMigration = read('supabase/migrations/20260905000100_harden_alpha_lifecycle_and_ro_requests.sql');
   const routes = read('admin/backend/routes/roRoutes.js');
   const service = read('admin/backend/services/roService.js');
   const panel = read('admin/frontend/src/pages/ROScholarRequestsPanel.jsx');
@@ -16,6 +17,9 @@ test('RO Coordinator scholar requests are linked to real placements and cannot b
   assert.match(routes, /scholar-requests\/:requestId\/assign/);
   assert.match(service, /scholar_request_id:\s*scholarRequestId/);
   assert.match(service, /pg_advisory_lock\(hashtext\(\$1\)\)/);
+  assert.match(hardeningMigration, /guard_ro_scholar_request_capacity/);
+  assert.match(hardeningMigration, /FOR UPDATE/);
+  assert.match(hardeningMigration, /v_active_count\s*>=\s*v_requested_count/);
   assert.match(service, /SCHOLAR_REQUEST_ASSIGNMENT_TOKEN\] === true/);
   assert.match(service, /Request-linked RO placements must be created from the RO Area scholar request workflow/);
   assert.match(service, /allowedStatuses\s*=\s*\['Declined'\]/);
@@ -25,6 +29,21 @@ test('RO Coordinator scholar requests are linked to real placements and cannot b
   assert.match(panel, /Awaiting acknowledgment/);
   assert.match(service, /Replaced by Admin after the scholar reported a concern/);
   assert.match(service, /placement_status = 'Cancelled'/);
+  assert.match(service, /assignment_stage:\s*getRequestAssignmentStage/);
+  assert.match(panel, /Partially Assigned/);
+  assert.match(panel, /Fully Assigned/);
+});
+
+test('RO automatic timeout keeps the grace period and does not flag normal expiry as an exception', () => {
+  const migration = read('supabase/migrations/20260905000100_harden_alpha_lifecycle_and_ro_requests.sql');
+  const mobileService = read('mobile/backend/src/services/roService.js');
+
+  assert.match(migration, /v_grace_minutes integer := 30/);
+  assert.match(migration, /v_timeout_time := v_requirement_time \+ make_interval/);
+  assert.match(migration, /time_out_at = v_now/);
+  assert.match(migration, /requires_admin_attention = false/);
+  assert.match(mobileService, /RO_CHECKOUT_GRACE_MINUTES/);
+  assert.match(mobileService, /requires_admin_attention:\s*false/);
 });
 
 test('request-originated placements notify scholars and require their existing acknowledgment', () => {

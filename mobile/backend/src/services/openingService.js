@@ -203,6 +203,7 @@ async function getStudentByUserId(userId) {
       pdm_id,
       is_active_scholar,
       scholarship_status,
+      scholar_is_archived,
       current_program_id,
       current_application_id,
       is_archived
@@ -441,6 +442,7 @@ async function getOpeningsForMobile(userId) {
   );
 
   const scholar = isApprovedScholar(student);
+  const scholarPrivilegeRemoved = student?.scholar_is_archived === true;
 
   const allItems = (data || [])
     .filter((row) => {
@@ -562,6 +564,7 @@ async function getOpeningsForMobile(userId) {
 
       const canApply =
         !scholar &&
+        !scholarPrivilegeRemoved &&
         !activeExisting &&
         previousApplicationAllowsAttempt &&
         openingAcceptsApplications;
@@ -570,6 +573,8 @@ async function getOpeningsForMobile(userId) {
 
       if (scholar) {
         applyLabel = 'Scholar Account';
+      } else if (scholarPrivilegeRemoved) {
+        applyLabel = 'Eligibility Review Required';
       } else if (hasApplied) {
         applyLabel = 'Manage Documents';
       } else if (blockedByMajorRejection) {
@@ -688,6 +693,7 @@ async function getOpeningsForMobile(userId) {
   return {
     hasBaseApplicationProfile: !!student?.student_id,
     isApprovedScholar: scholar,
+    scholarPrivilegeRemoved,
     activeApplicationId:
       activeApplication?.application_id || '',
     activeOpeningId:
@@ -740,6 +746,13 @@ async function applyToOpeningForMobile(
     throw createHttpError(
       400,
       'Complete your student profile before applying.'
+    );
+  }
+
+  if (student.scholar_is_archived === true) {
+    throw createHttpError(
+      409,
+      'Your previous scholarship privilege was removed. Contact OSFA for an eligibility review before applying again.'
     );
   }
 

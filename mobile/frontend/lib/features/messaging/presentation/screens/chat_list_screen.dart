@@ -8,8 +8,11 @@ import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 String _messagePreview(String? value, String fallback) {
@@ -149,14 +152,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark
-        ? const Color(0xFF17110B)
-        : const Color(0xFFF6F1EA);
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final mutedColor = isDark
-        ? Colors.white60
-        : AppColors.brown.withValues(alpha: 0.65);
+    final titleColor = AppSurfacePalette.text(context);
+    final mutedColor = AppSurfacePalette.mutedText(context);
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -168,7 +165,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        backgroundColor: AppSurfacePalette.surface(context),
         foregroundColor: titleColor,
         actions: [
           IconButton(
@@ -182,13 +179,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
       showBottomNav: false,
       applyPadding: false,
       child: ColoredBox(
-        color: background,
+        color: AppSurfacePalette.background(context),
         child: RefreshIndicator(
           color: AppColors.gold,
           onRefresh: _refreshMessaging,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.xxl,
+            ),
             children: [
               _MessagesHeader(totalUnread: provider.unreadCount),
               const SizedBox(height: 18),
@@ -285,22 +287,9 @@ class _MessagesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.forum_rounded,
-            color: AppColors.gold,
-            size: 24,
-          ),
-        ),
+        const AppIconTile(icon: Icons.forum_rounded),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -309,7 +298,7 @@ class _MessagesHeader extends StatelessWidget {
               Text(
                 'Conversations',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isDark ? Colors.white : AppColors.darkBrown,
+                  color: AppSurfacePalette.text(context),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -319,9 +308,7 @@ class _MessagesHeader extends StatelessWidget {
                     ? '$totalUnread unread message${totalUnread == 1 ? '' : 's'}'
                     : 'You are all caught up.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.brown.withValues(alpha: 0.62),
+                  color: AppSurfacePalette.mutedText(context),
                 ),
               ),
             ],
@@ -351,32 +338,28 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final hasUnread = unreadCount > 0;
+    final status = Theme.of(context).extension<AppStatusColors>()!;
 
     return Material(
       color: hasUnread
-          ? AppColors.gold.withValues(alpha: isDark ? 0.12 : 0.09)
-          : (isDark ? const Color(0xFF2B1D13) : Colors.white),
-      borderRadius: BorderRadius.circular(16),
+          ? AppColors.gold.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark ? 0.12 : 0.08,
+            )
+          : AppSurfacePalette.surface(context),
+      borderRadius: AppRadii.card,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.card,
         child: Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: AppRadii.card,
+            border: Border.all(color: AppSurfacePalette.outline(context)),
+          ),
           child: Row(
             children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: AppColors.gold, size: 25),
-              ),
+              AppIconTile(icon: icon),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
@@ -387,7 +370,7 @@ class _ConversationTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: isDark ? Colors.white : AppColors.darkBrown,
+                        color: AppSurfacePalette.text(context),
                         fontWeight: hasUnread
                             ? FontWeight.w900
                             : FontWeight.w700,
@@ -400,10 +383,8 @@ class _ConversationTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: hasUnread
-                            ? (isDark ? Colors.white : AppColors.darkBrown)
-                            : (isDark
-                                  ? Colors.white60
-                                  : AppColors.brown.withValues(alpha: 0.64)),
+                            ? AppSurfacePalette.text(context)
+                            : AppSurfacePalette.mutedText(context),
                         fontWeight: hasUnread
                             ? FontWeight.w700
                             : FontWeight.w500,
@@ -425,8 +406,8 @@ class _ConversationTile extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE53935),
-                    borderRadius: BorderRadius.circular(999),
+                    color: status.dangerOutline,
+                    borderRadius: AppRadii.status,
                   ),
                   child: Text(
                     unreadCount > 99 ? '99+' : '$unreadCount',
@@ -468,9 +449,7 @@ class _ConversationTile extends StatelessWidget {
               else if (unreadCount == 0)
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: isDark
-                      ? Colors.white38
-                      : AppColors.brown.withValues(alpha: 0.40),
+                  color: AppSurfacePalette.mutedText(context),
                 ),
             ],
           ),
@@ -611,26 +590,17 @@ class _EmptyGroupsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final status = Theme.of(context).extension<AppStatusColors>()!;
 
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2B1D13) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : AppColors.brown.withValues(alpha: 0.09),
-        ),
-      ),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         children: [
           Icon(
             errorMessage != null
                 ? Icons.cloud_off_rounded
                 : Icons.groups_outlined,
-            color: errorMessage != null ? Colors.redAccent : AppColors.gold,
+            color: errorMessage != null ? status.dangerOutline : AppColors.gold,
             size: 34,
           ),
           const SizedBox(height: 10),
@@ -641,7 +611,7 @@ class _EmptyGroupsCard extends StatelessWidget {
                 ? 'Unable to load group chats'
                 : 'No group chats yet',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: isDark ? Colors.white : AppColors.darkBrown,
+              color: AppSurfacePalette.text(context),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -651,9 +621,7 @@ class _EmptyGroupsCard extends StatelessWidget {
                 'Once OSFA adds you to a scholarship group, it will appear here.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isDark
-                  ? Colors.white60
-                  : AppColors.brown.withValues(alpha: 0.64),
+              color: AppSurfacePalette.mutedText(context),
               height: 1.4,
             ),
           ),

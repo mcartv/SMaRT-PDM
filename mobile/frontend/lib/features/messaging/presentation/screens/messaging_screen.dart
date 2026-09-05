@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class MessagingScreen extends StatefulWidget {
@@ -267,7 +270,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 });
               }
             }
-            final isDark = Theme.of(context).brightness == Brightness.dark;
             final normalizedQuery = chatQuery.trim().toLowerCase();
             final matchCount = normalizedQuery.isEmpty
                 ? 0
@@ -282,8 +284,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
             return Container(
               height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF24180F) : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+                color: AppSurfacePalette.surface(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
               ),
               child: Column(
                 children: [
@@ -291,11 +293,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     padding: const EdgeInsets.fromLTRB(18, 14, 10, 12),
                     child: Row(
                       children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
-                          child: const Icon(Icons.groups_rounded, color: AppColors.gold, size: 22),
-                        ),
+                        const AppIconTile(icon: Icons.groups_rounded),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -306,7 +304,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                                     ? widget.title!.trim()
                                     : 'Group information',
                                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      color: isDark ? Colors.white : AppColors.darkBrown,
+                                      color: AppSurfacePalette.text(context),
                                       fontWeight: FontWeight.w900,
                                     ),
                               ),
@@ -314,7 +312,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                               Text(
                                 'Group chat',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.62),
+                                      color: AppSurfacePalette.mutedText(context),
                                     ),
                               ),
                             ],
@@ -345,9 +343,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                         prefixIcon: const Icon(Icons.search_rounded),
                         suffixText: normalizedQuery.isEmpty ? null : '$matchCount',
                         filled: true,
-                        fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF7F3ED),
+                        fillColor: AppSurfacePalette.surfaceMuted(context),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: AppRadii.card,
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -360,7 +358,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                       child: Text(
                         'All members',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: isDark ? Colors.white : AppColors.darkBrown,
+                              color: AppSurfacePalette.text(context),
                               fontWeight: FontWeight.w800,
                             ),
                       ),
@@ -375,7 +373,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                         final member = members[index];
                         return ListTile(
                           onTap: () => _showMemberProfile(member),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(borderRadius: AppRadii.card),
                           leading: _GroupMemberAvatar(member: member),
                           title: Row(
                             children: [
@@ -393,15 +391,17 @@ class _MessagingScreenState extends State<MessagingScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                   decoration: BoxDecoration(
                                     color: AppColors.gold.withValues(alpha: 0.16),
-                                    borderRadius: BorderRadius.circular(999),
+                                    borderRadius: AppRadii.status,
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     'Admin',
-                                    style: TextStyle(
-                                      color: AppColors.gold,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: AppColors.gold,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -446,13 +446,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   Future<void> _showMemberProfile(GroupMember member) async {
     if (!mounted) return;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
-      backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+      backgroundColor: AppSurfacePalette.surface(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
       ),
       builder: (context) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -571,9 +570,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark
-        ? const Color(0xFF17110B)
-        : const Color(0xFFF4EFE8);
+    final background = AppSurfacePalette.background(context);
     final conversationTitle = widget.title?.trim().isNotEmpty == true
         ? widget.title!.trim()
         : 'OSFA Administrator';
@@ -605,7 +602,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      color: AppSurfacePalette.text(context),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -617,8 +614,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: provider.isConnected
-                          ? (isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.62))
-                          : const Color(0xFFB7791F),
+                          ? AppSurfacePalette.mutedText(context)
+                          : Theme.of(context)
+                              .extension<AppStatusColors>()!
+                              .actionRequiredOutline,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -648,8 +647,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
         ],
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        backgroundColor: AppSurfacePalette.surface(context),
+        foregroundColor: AppSurfacePalette.text(context),
       ),
       selectedIndex: 0,
       showBottomNav: false,
@@ -708,25 +707,18 @@ class _MessagingScreenState extends State<MessagingScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 28),
           children: [
             SizedBox(height: MediaQuery.of(context).size.height * 0.17),
-            Container(
-              width: 76,
-              height: 76,
-              margin: const EdgeInsets.only(bottom: 18),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: isDark ? 0.16 : 0.13),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 34,
-                color: AppColors.gold,
+            const Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.lg),
+              child: AppIconTile(
+                icon: Icons.chat_bubble_outline_rounded,
+                size: 56,
               ),
             ),
             Text(
               'No messages yet',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: isDark ? Colors.white : AppColors.darkBrown,
+                color: AppSurfacePalette.text(context),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -820,43 +812,31 @@ class _DateDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         children: [
           Expanded(
-            child: Divider(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.10)
-                  : AppColors.brown.withValues(alpha: 0.10),
-            ),
+            child: Divider(color: AppSurfacePalette.outline(context)),
           ),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF2B1D13) : Colors.white,
-              borderRadius: BorderRadius.circular(999),
+              color: AppSurfacePalette.surface(context),
+              borderRadius: AppRadii.status,
             ),
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: isDark
-                    ? Colors.white60
-                    : AppColors.brown.withValues(alpha: 0.62),
+                color: AppSurfacePalette.mutedText(context),
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Divider(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.10)
-                  : AppColors.brown.withValues(alpha: 0.10),
-            ),
+            child: Divider(color: AppSurfacePalette.outline(context)),
           ),
         ],
       ),
@@ -897,13 +877,13 @@ class _MessageBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(children: [
           Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(message.messageBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white60 : AppColors.brown.withValues(alpha: 0.65), fontWeight: FontWeight.w700))),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(message.messageBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppSurfacePalette.mutedText(context), fontWeight: FontWeight.w700))),
           Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
         ]),
       );
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final incomingSurface = isDark ? const Color(0xFF2B1D13) : Colors.white;
+    final incomingSurface = AppSurfacePalette.surface(context);
     final senderName = message.senderName?.trim() ?? '';
 
     final bubble = Container(
@@ -950,7 +930,7 @@ class _MessageBubble extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: isMe
                       ? Colors.white
-                      : (isDark ? Colors.white : AppColors.darkBrown),
+                      : (AppSurfacePalette.text(context)),
                   height: 1.38,
                 ),
           ),
@@ -1031,10 +1011,7 @@ class _MessageBubble extends StatelessWidget {
                 child: Text(
                   'Delivered · $timeLabel',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isDark
-                            ? Colors.white60
-                            : AppColors.brown.withValues(alpha: 0.62),
-                        fontSize: 10.5,
+                        color: AppSurfacePalette.mutedText(context),
                         fontWeight: FontWeight.w600,
                       ),
                 ),
@@ -1063,17 +1040,17 @@ class _ChatSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF24180F) : Colors.white,
+        color: AppSurfacePalette.surface(context),
         border: Border(
-          bottom: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : AppColors.brown.withValues(alpha: 0.08),
-          ),
+          bottom: BorderSide(color: AppSurfacePalette.outline(context)),
         ),
       ),
       child: Row(
@@ -1088,11 +1065,9 @@ class _ChatSearchBar extends StatelessWidget {
                 hintText: 'Search this conversation',
                 prefixIcon: const Icon(Icons.search_rounded, size: 20),
                 filled: true,
-                fillColor: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : const Color(0xFFF7F3ED),
+                fillColor: AppSurfacePalette.surfaceMuted(context),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: AppRadii.control,
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -1103,7 +1078,7 @@ class _ChatSearchBar extends StatelessWidget {
             Text(
               '$matchCount',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isDark ? Colors.white60 : AppColors.brown,
+                    color: AppSurfacePalette.mutedText(context),
                     fontWeight: FontWeight.w800,
                   ),
             ),
@@ -1223,7 +1198,6 @@ class _MessageComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final canSend = controller.text.trim().isNotEmpty && !isSending;
 
     return SafeArea(
@@ -1231,13 +1205,9 @@ class _MessageComposer extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF24180F) : Colors.white,
+          color: AppSurfacePalette.surface(context),
           border: Border(
-            top: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : AppColors.brown.withValues(alpha: 0.08),
-            ),
+            top: BorderSide(color: AppSurfacePalette.outline(context)),
           ),
         ),
         child: Row(
@@ -1252,23 +1222,19 @@ class _MessageComposer extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: 'Message',
                   filled: true,
-                  fillColor: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : const Color(0xFFF7F3ED),
+                  fillColor: AppSurfacePalette.surfaceMuted(context),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: AppRadii.control,
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: AppRadii.control,
                     borderSide: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : AppColors.brown.withValues(alpha: 0.07),
+                      color: AppSurfacePalette.outline(context),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: AppRadii.control,
                     borderSide: const BorderSide(
                       color: AppColors.gold,
                       width: 1.4,
@@ -1291,9 +1257,7 @@ class _MessageComposer extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   backgroundColor: AppColors.gold,
                   foregroundColor: AppColors.darkBrown,
-                  disabledBackgroundColor: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : const Color(0xFFE4DED5),
+                  disabledBackgroundColor: AppSurfacePalette.surfaceMuted(context),
                   shape: const CircleBorder(),
                 ),
                 child: isSending
@@ -1325,25 +1289,25 @@ class _MessageErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final status = Theme.of(context).extension<AppStatusColors>()!;
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(28),
+        padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.cloud_off_rounded,
               size: 42,
-              color: Colors.redAccent,
+              color: status.dangerOutline,
             ),
             const SizedBox(height: 12),
             Text(
               'Unable to load conversation',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: isDark ? Colors.white : AppColors.darkBrown,
+                color: AppSurfacePalette.text(context),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1352,9 +1316,7 @@ class _MessageErrorState extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? Colors.white60
-                    : AppColors.brown.withValues(alpha: 0.64),
+                color: AppSurfacePalette.mutedText(context),
                 height: 1.4,
               ),
             ),

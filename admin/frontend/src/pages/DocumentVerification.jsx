@@ -171,17 +171,17 @@ function isActiveIotRequest(request) {
 
 
 // Transitional until document contract status is persisted with OCR snapshots.
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const REVIEW_ONLY_DOCUMENT_KEYS = Object.freeze([
   'certificate_of_indigency',
   'student_grade_forms',
 ]);
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const REVIEW_ONLY_MESSAGES = Object.freeze([
   'Structured extraction not implemented',
   'Manual review required',
 ]);
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const APPLICANT_IDENTITY_UNCONFIRMED = 'APPLICANT_IDENTITY_UNCONFIRMED';
 
 const MINOR_REUPLOAD_OPTIONS = [
@@ -543,7 +543,7 @@ function hasStructuredOcrFields(document) {
   return Object.keys(getStructuredOcrFields(document)).length > 0;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function getIotOcrRequestId(value = {}) {
   const candidate =
     value?.request_id ||
@@ -557,7 +557,7 @@ export function getIotOcrRequestId(value = {}) {
     : String(candidate);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function buildIotOcrSnapshotOverride(snapshot = {}) {
   const ocr = snapshot?.ocr && typeof snapshot.ocr === 'object'
     ? snapshot.ocr
@@ -574,7 +574,7 @@ export function buildIotOcrSnapshotOverride(snapshot = {}) {
   };
 }
 
-function getFileType(document = {}) {
+function _getFileType(document = {}) {
   const raw = (document?.file_name || document?.url || document?.file_path || '').toLowerCase();
 
   if (
@@ -764,7 +764,7 @@ export function buildExtractedData(activeDoc, application) {
   };
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function buildRawOcrSnapshot(activeDoc) {
   if (!activeDoc) return '';
 
@@ -796,7 +796,7 @@ function normalizeIdentityText(value = '') {
     .trim();
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function reviewBirthApplicantIdentity({
   applicantName,
   childNameRawText,
@@ -1312,6 +1312,8 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
+  // Preview reloads only when its identity or backing file changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc?.id, activeDoc?.file_path, activeDoc?.preview_path, activeDoc?.is_submitted, application?.application_id, application?.id]);
 
   const isImage = previewMimeType.startsWith('image/');
@@ -1381,7 +1383,7 @@ function deriveGradeReviewValues(rawText) {
   if (number) derived.student_number = number[1].replace(/\s+/g, '-').toUpperCase();
 
   const identity = text.match(
-    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|\-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
   );
   if (identity) {
     const parts = identity[1]
@@ -1399,7 +1401,7 @@ function deriveGradeReviewValues(rawText) {
     'THE PERIOD'
   );
   const period = periodText.match(
-    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-\u2013\u2014]\s*\d{4})?/i
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-\u2013\u2014]\s*\d{4})?/i
   );
   if (period) {
     derived.semester = {
@@ -1430,12 +1432,12 @@ function deriveIndigencyReviewValues(rawText) {
   if (!text) return derived;
 
   const subject = text.match(
-    /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Full\s+Address\s*[:\-]?|\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    /Certificate\s+Subject\s+Name\s*[:-]?\s*(.+?)(?=\s+Full\s+Address\s*[:-]?|\s+Issue\s+Date\s*[:-]?|\s+Issuing\s+Barangay\s*[:-]?|$)/i
   );
   if (subject) derived.certificate_subject_name = subject[1].replace(/\s+,/g, ',').trim();
 
   const address = text.match(
-    /Full\s+Address\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    /Full\s+Address\s*[:-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:-]?|\s+Issuing\s+Barangay\s*[:-]?|$)/i
   );
   if (address) derived.residency_address = address[1].trim();
 
@@ -1649,14 +1651,14 @@ export function normalizeReviewFields(candidate) {
   return fields;
 }
 
-function ocrScoreLabel(candidate, key, displayedValue) {
+function _ocrScoreLabel(candidate, key, displayedValue) {
   const rawScore = candidate?.field_confidence?.[key];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
   return String(displayedValue || '').trim() ? 'Detected' : '\u2014';
 }
 
-function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
+function _birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
@@ -1788,7 +1790,7 @@ function OCRPanel({
     isBirthReview && reviewCandidate?.processing?.diagnostic_only
   );
   const birthV2Review = Boolean(isBirthReview && reviewCandidate?.ocr_version === 'v2');
-  const birthFullPageRecovery = Boolean(
+  const _birthFullPageRecovery = Boolean(
     birthV2Review
     && reviewCandidate?.processing?.structured_value_source === 'birth_v2_full_page_enhanced_recovery'
   );
@@ -3880,7 +3882,7 @@ export default function DocumentVerification() {
   const allRequiredDocsReviewed = requiredDocs.every(
     (d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
   );
-  const allRequiredDocsVerified = requiredDocs.every(
+  const _allRequiredDocsVerified = requiredDocs.every(
     (d) => isDocumentAvailable(d) && d.status === 'verified'
   );
 
@@ -4035,6 +4037,8 @@ export default function DocumentVerification() {
     if (!runningIotOcr && !isSameOcrDocument(reviewCandidate?.document_key, activeDoc.id)) {
       setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
     }
+  // Candidate content is intentionally keyed by document identity here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc, application, docComments, runningIotOcr, reviewCandidate?.document_key]);
 
   useEffect(() => {
@@ -4145,6 +4149,7 @@ export default function DocumentVerification() {
     activeDoc,
     activeDocId,
     fetchApplicationDocuments,
+    id,
     runningIotOcr,
     stopPolling,
   ]);
@@ -4213,6 +4218,8 @@ export default function DocumentVerification() {
     if (!requestId || activeIotRequestRef.current?.requestId === requestId) {
       activeIotRequestRef.current = null;
     }
+  // Poll completion is keyed by candidate identity/status, not object identity.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
 
   useEffect(() => {
@@ -4978,6 +4985,8 @@ export default function DocumentVerification() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  // Action functions use the same current state already listed below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc?.id, birthReviewReason, correctedFields, reviewCandidate]);
 
   if (loading) {

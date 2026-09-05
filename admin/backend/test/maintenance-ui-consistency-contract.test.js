@@ -21,7 +21,7 @@ test('Maintenance navigation remains compact and horizontally scrollable', () =>
   assert.match(maintenance, /overflow-x-auto/);
   assert.match(maintenance, /flex w-max min-w-max/);
   assert.match(maintenance, /min-w-max/);
-  assert.match(maintenance, /text-sm font-semibold leading-none/);
+  assert.match(maintenance, /text-sm font-semibold leading-tight/);
   assert.match(maintenance, /strokeWidth=\{1\.8\}/);
   assert.doesNotMatch(maintenance, /text-\[13px\]|2xl:text-sm|font-medium transition 2xl:/);
 });

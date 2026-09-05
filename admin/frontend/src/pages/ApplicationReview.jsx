@@ -213,7 +213,7 @@ function getOpeningGroup(status = '') {
   return 'open';
 }
 
-function getApplicationStatusMeta(row) {
+function _getApplicationStatusMeta(row) {
   const group = getStatusGroup(row?.application_status || row?.status || '');
 
   if (group === 'qualified') {
@@ -235,7 +235,7 @@ function getApplicationStatusMeta(row) {
   };
 }
 
-function getDocumentStatusMeta(row) {
+function _getDocumentStatusMeta(row) {
   const group = getDocumentGroup(row?.document_status || '');
 
   if (group === 'ready') {
@@ -348,12 +348,12 @@ function normalizeApplicantRow(app) {
   };
 }
 
-function isApplicantAtRisk(app) {
+function _isApplicantAtRisk(app) {
   const gwa = Number(app?.gwa);
   const rawStatus = (app?.application_status || '').toLowerCase();
   const docStatus = (app?.document_status || '').toLowerCase();
   const verificationStatus = (app?.verification_status || '').toLowerCase();
-  const sdo = normalizeSdo(app?.sdu_level || app?.sdo_status || '');
+  const sdo = normalizeStatus(app?.sdu_level || app?.sdo_status || '');
 
   const gwaRisk = Number.isFinite(gwa) && gwa > 2.0;
   const docRisk = docStatus === 'missing docs' || docStatus === 'under review';
@@ -2040,8 +2040,6 @@ export default function ApplicationReview() {
 
   const filteredOpeningCards = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
-
     return openingCards.filter((opening) => {
       const openingGroup = getOpeningGroup(opening.posting_status);
 
@@ -2189,7 +2187,6 @@ export default function ApplicationReview() {
 
   const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
-  const readinessTotalPages = Math.max(1, Math.ceil(readinessRows.length / PAGE_SIZE));
 
   const tablePageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -2200,11 +2197,6 @@ export default function ApplicationReview() {
     const start = (page - 1) * PAGE_SIZE;
     return filteredOpeningCards.slice(start, start + PAGE_SIZE);
   }, [filteredOpeningCards, page]);
-
-  const readinessPageData = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return readinessRows.slice(start, start + PAGE_SIZE);
-  }, [readinessRows, page]);
 
   const applyFilters = () => setFilters(draftFilters);
 

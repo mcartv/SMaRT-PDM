@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
@@ -214,64 +216,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return knownLabels.contains(normalized);
   }
 
-  Widget _buildAvailabilityHighlight({
-    required ProgramOpening opening,
-    required Color accentColor,
-    required Color titleColor,
-    required Color subtitleColor,
-  }) {
-    final assignedSlots = opening.allocatedSlots;
-
-    if (assignedSlots <= 0) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accentColor.withValues(alpha: 0.20)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.school_outlined, color: accentColor, size: 21),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '$assignedSlots',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: accentColor,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              assignedSlots == 1 ? 'Scholarship Slot' : 'Scholarship Slots',
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: titleColor,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _openApplicationForm({
     ProgramOpening? opening,
     bool replaceExistingDraft = false,
@@ -393,11 +337,11 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         ),
         const SizedBox(height: 8),
         ClipRRect(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: AppRadii.status,
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 10,
-            backgroundColor: const Color(0xFFE8E0D6),
+            backgroundColor: AppSurfacePalette.surfaceMuted(context),
             valueColor: AlwaysStoppedAnimation<Color>(accentColor),
           ),
         ),
@@ -414,92 +358,83 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
-    final cardColor = isDark ? const Color(0xFF2D1E12) : Colors.white;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final titleColor = AppSurfacePalette.text(context);
+    final subtitleColor = AppSurfacePalette.mutedText(context);
+    final cardColor = AppSurfacePalette.surface(context);
+    final accentColor = AppColors.gold;
     final result = _result;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: Text('Available Scholarships')),
+      appBar: AppBar(title: const Text('Available Scholarships')),
       selectedIndex: 0,
       child: RefreshIndicator(
         onRefresh: _loadOpenings,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
           children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: accentColor.withOpacity(0.14)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Available Scholarships',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Select a scholarship to start your application. After applying, only your selected scholarship will remain visible until that application is completed.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      height: 1.45,
-                      color: subtitleColor,
-                    ),
-                  ),
-                ],
-              ),
+            AppSectionHeading(
+              title: 'Open scholarships',
+              subtitle:
+                  'Choose an eligible scholarship to begin. If you already started an application, continue that work before starting another.',
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.md),
             if (result?.hasSavedDraft == true)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              AppSurfaceCard(
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                backgroundColor: AppColors.gold.withValues(alpha: 0.10),
+                borderColor: AppColors.gold.withValues(alpha: 0.32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const AppStatusCapsule(
+                      label: 'Continue application',
+                      tone: AppStatusTone.actionRequired,
+                      compact: true,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Saved application available',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
                         color: titleColor,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       'Continue your saved application for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'}, or choose another scholarship to replace it.',
-                      style: TextStyle(color: subtitleColor, height: 1.4),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: subtitleColor,
+                        height: 1.4,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    TextButton(
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton.icon(
                       onPressed: () => _openApplicationForm(),
-                      child: Text('Continue Application'),
+                      icon: const Icon(Icons.edit_document, size: 18),
+                      label: const Text('Continue Application'),
                     ),
                   ],
                 ),
               ),
             if (result?.isApprovedScholar == true)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  'You are already an approved scholar. Only eligible TES scholarships are shown here.',
-                  style: TextStyle(color: subtitleColor, height: 1.4),
+              AppSurfaceCard(
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                backgroundColor: AppSurfacePalette.surfaceMuted(context),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const AppIconTile(icon: Icons.workspace_premium_rounded),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Text(
+                        'You are already an approved scholar. Only eligible TES scholarships are shown here.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: subtitleColor,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (_isLoading)
@@ -508,54 +443,53 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 32),
+              AppSurfaceCard(
                 child: Column(
                   children: [
+                    const AppIconTile(icon: Icons.cloud_off_rounded),
+                    const SizedBox(height: AppSpacing.md),
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: subtitleColor),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: subtitleColor,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton.icon(
                       onPressed: _loadOpenings,
-                      child: Text('Try Again'),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Try Again'),
                     ),
                   ],
                 ),
               )
             else if (_openings.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 32),
-                child: Text(
-                  result?.isApprovedScholar == true
-                      ? 'No TES scholarships are currently available.'
-                      : 'No scholarships are currently available.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: subtitleColor),
+              AppSurfaceCard(
+                child: Column(
+                  children: [
+                    const AppIconTile(icon: Icons.school_outlined),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      result?.isApprovedScholar == true
+                          ? 'No TES scholarships are currently available.'
+                          : 'No scholarships are currently available.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: subtitleColor,
+                      ),
+                    ),
+                  ],
                 ),
               )
             else
               ..._openings.map((opening) {
                 final showUploadProgress = opening.hasApplied;
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
+                return AppSurfaceCard(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  backgroundColor: cardColor,
+                  child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
@@ -583,35 +517,14 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   if (opening.isTes)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: accentColor.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'TES',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: accentColor,
-                                        ),
-                                      ),
+                                    const AppStatusCapsule(
+                                      label: 'TES',
+                                      tone: AppStatusTone.brand,
+                                      compact: true,
                                     ),
                                 ],
                               ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        _buildAvailabilityHighlight(
-                          opening: opening,
-                          accentColor: accentColor,
-                          titleColor: titleColor,
-                          subtitleColor: subtitleColor,
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -688,8 +601,8 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: accentColor.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(14),
+                              color: AppSurfacePalette.surfaceMuted(context),
+                              borderRadius: AppRadii.control,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,21 +650,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                         const SizedBox(height: 14),
                         SizedBox(
                           width: double.infinity,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: accentColor,
-                              foregroundColor: AppColors.darkBrown,
-                              disabledBackgroundColor: isDark
-                                  ? AppColors.applicantDarkSurfaceMuted
-                                  : Colors.grey.shade300,
-                              disabledForegroundColor: isDark
-                                  ? AppColors.applicantDarkTextMuted
-                                  : Colors.grey.shade600,
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
                               minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              elevation: 0,
                             ),
                             onPressed: opening.hasApplied || opening.canApply
                                 ? () => _handleApply(opening)
@@ -765,7 +666,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                         ),
                       ],
                     ),
-                  ),
                 );
               }),
           ],

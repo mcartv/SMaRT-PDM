@@ -6,6 +6,8 @@ import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/faq_item.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/data/services/faq_service.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class FaqsScreen extends StatefulWidget {
@@ -116,20 +118,12 @@ class _FaqsScreenState extends State<FaqsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
-    final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : AppColors.gold;
+    final titleColor = AppSurfacePalette.text(context);
+    final subtitleColor = AppSurfacePalette.mutedText(context);
     final filteredFaqs = _filteredFaqs;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(
-        title: Text('FAQs'),
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('FAQs')),
       selectedIndex: 0,
       showBottomNav: false,
       child: RefreshIndicator(
@@ -138,20 +132,8 @@ class _FaqsScreenState extends State<FaqsScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(top: 12, bottom: 20),
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: accentColor.withValues(alpha: 0.18)),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x12000000),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
+            AppSurfaceCard(
+              padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -189,13 +171,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
                               icon: const Icon(Icons.close),
                             ),
                       filled: true,
-                      fillColor: isDark
-                          ? const Color(0xFF3A2718)
-                          : const Color(0xFFF7F2EB),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
+                      fillColor: AppSurfacePalette.surfaceMuted(context),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -211,7 +187,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
             if (_isLoading && _faqs.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 48),
@@ -248,32 +224,18 @@ class _FaqCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final bodyColor = isDark ? Colors.white70 : Colors.black87;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : AppColors.gold;
+    final titleColor = AppSurfacePalette.text(context);
+    final bodyColor = AppSurfacePalette.mutedText(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppSurfaceCard(
+      padding: EdgeInsets.zero,
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
           childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-          iconColor: accentColor,
-          collapsedIconColor: accentColor,
+          iconColor: AppColors.gold,
+          collapsedIconColor: AppColors.gold,
           title: Text(
             item.question,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -322,7 +284,7 @@ class _FaqsEmptyState extends StatelessWidget {
               Icon(
                 isSearching ? Icons.search_off : Icons.help_outline,
                 size: 56,
-                color: Colors.grey,
+                color: AppSurfacePalette.mutedText(context),
               ),
               const SizedBox(height: 14),
               Text(
@@ -368,7 +330,11 @@ class _FaqsErrorState extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off, size: 52, color: Colors.redAccent),
+              Icon(
+                Icons.cloud_off,
+                size: 52,
+                color: Theme.of(context).colorScheme.error,
+              ),
               const SizedBox(height: 12),
               Text(
                 'Unable to load FAQs',

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 
 class AppHeader extends StatelessWidget {
   final String subtitle;
@@ -9,13 +11,8 @@ class AppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final backSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : const Color(0xFFF8F2E7);
+    final textColor = AppSurfacePalette.text(context);
+    final backSurface = AppSurfacePalette.surfaceMuted(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -31,13 +28,13 @@ class AppHeader extends StatelessWidget {
             children: [
               InkWell(
                 onTap: onBack,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: AppRadii.control,
                 child: Container(
-                  width: compact ? 40 : 46,
-                  height: compact ? 40 : 46,
+                  width: AppSizes.minimumTapTarget,
+                  height: AppSizes.minimumTapTarget,
                   decoration: BoxDecoration(
                     color: backSurface,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: AppRadii.control,
                   ),
                   child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                 ),
@@ -48,7 +45,6 @@ class AppHeader extends StatelessWidget {
                   subtitle,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
-                    fontSize: compact ? 21 : 25,
                     height: 1.1,
                     color: textColor,
                   ),
@@ -76,16 +72,9 @@ class StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inactiveColor = isDark
-        ? AppColors.applicantDarkTextMuted.withValues(alpha: 0.52)
-        : const Color(0xFFDDD4C6);
-    final inactiveSurface = isDark
-        ? AppColors.applicantDarkSurfaceMuted
-        : const Color(0xFFF9F4EA);
-    final currentTextColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
+    final inactiveColor = AppSurfacePalette.mutedText(context).withValues(alpha: 0.58);
+    final inactiveSurface = AppSurfacePalette.surfaceMuted(context);
+    final currentTextColor = AppSurfacePalette.text(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -187,23 +176,16 @@ class GhostButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final outlineColor = isDark
-        ? const Color(0xFF665E57)
-        : const Color(0xFFD2D2D2);
+    final outlineColor = AppSurfacePalette.outline(context);
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        foregroundColor: isDark
-            ? AppColors.applicantDarkText
-            : AppColors.darkBrown,
+        foregroundColor: AppSurfacePalette.text(context),
         side: BorderSide(color: outlineColor, width: 1),
-        minimumSize: const Size(0, 56),
+        minimumSize: const Size(0, 52),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        backgroundColor: isDark
-            ? AppColors.applicantDarkSurfaceMuted
-            : const Color(0xFFFFFBF1),
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+        backgroundColor: AppSurfacePalette.surfaceMuted(context),
       ),
       child: icon == null
           ? Text(
@@ -241,12 +223,12 @@ class NavyButton extends StatelessWidget {
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.gold,
-        disabledBackgroundColor: const Color(0xFFF0D8A0),
-        disabledForegroundColor: AppColors.darkBrown.withValues(alpha: 0.55),
+        disabledBackgroundColor: AppSurfacePalette.outline(context),
+        disabledForegroundColor: AppSurfacePalette.mutedText(context),
         foregroundColor: AppColors.darkBrown,
-        minimumSize: const Size(0, 56),
+        minimumSize: const Size(0, 52),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
         elevation: 0,
       ),
       child: Text(
@@ -270,9 +252,9 @@ class GoldButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.gold,
         foregroundColor: AppColors.darkBrown,
-        minimumSize: const Size(0, 56),
+        minimumSize: const Size(0, 52),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
         elevation: 0,
       ),
       child: Text(

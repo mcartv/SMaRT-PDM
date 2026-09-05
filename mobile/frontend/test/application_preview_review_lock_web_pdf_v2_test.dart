@@ -54,8 +54,8 @@ void main() {
       'lib/features/forms/data/services/scholarship_form_pdf_service.dart',
     ).readAsStringSync();
 
-    expect(preview, contains('XFile.fromData('));
-    expect(preview, contains("mimeType: 'application/pdf'"));
+    expect(preview, contains('saveAndOpenDownloadedFile('));
+    expect(preview, contains("contentType: 'application/pdf'"));
     expect(preview, contains('generateBytesFromSubmissionPayload('));
     expect(printable, contains('generateBytesFromSubmissionPayload('));
     expect(pdf, contains('generateBytesFromSavedApplication('));

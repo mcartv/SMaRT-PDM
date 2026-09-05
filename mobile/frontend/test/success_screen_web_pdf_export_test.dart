@@ -20,8 +20,8 @@ void main() {
       ),
     );
     expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
-    expect(source, contains('XFile.fromData('));
-    expect(source, contains("mimeType: 'application/pdf'"));
+    expect(source, contains('saveAndOpenDownloadedFile('));
+    expect(source, contains("contentType: 'application/pdf'"));
   });
 
   test('existing SuccessScreen fake tracks byte generation', () {

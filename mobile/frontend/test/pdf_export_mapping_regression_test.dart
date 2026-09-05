@@ -173,6 +173,6 @@ void main() {
     expect(source, contains("'Export PDF'"));
     expect(source, contains('Row('));
     expect(source, contains('generateBytesFromSubmissionPayload('));
-    expect(source, contains('XFile.fromData('));
+    expect(source, contains('saveAndOpenDownloadedFile('));
   });
 }

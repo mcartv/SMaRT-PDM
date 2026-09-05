@@ -6,7 +6,7 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:smartpdm_mobileapp/core/files/downloaded_file_handler.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
@@ -231,13 +231,16 @@ class _ApplicationFormPreviewScreenState
 
       if (!mounted) return;
 
-      await Share.shareXFiles([
-        XFile.fromData(
-          bytes,
-          mimeType: 'application/pdf',
-          name: 'SMaRT-PDM_Application_Form.pdf',
-        ),
-      ], text: 'SMaRT-PDM Scholarship Application');
+      final message = await saveAndOpenDownloadedFile(
+        bytes: bytes,
+        fileName: 'SMaRT-PDM_Application_Form.pdf',
+        contentType: 'application/pdf',
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) return;
 

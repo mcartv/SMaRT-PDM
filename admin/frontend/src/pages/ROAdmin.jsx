@@ -70,35 +70,39 @@ function getPlacementApprovalState(scholar = {}) {
 // SMART-PDM_RO_ASSIGNMENT_CLASSIFICATION_V1
 // ro_id identifies the obligation record itself, not an actual RO assignment.
 function hasRoAssignment(scholar = {}) {
+  if (typeof scholar.has_active_assignment === 'boolean') {
+    return scholar.has_active_assignment;
+  }
+  if (typeof scholar.hasActiveAssignment === 'boolean') {
+    return scholar.hasActiveAssignment;
+  }
+
   const assignmentStatus = normalizeStatus(
     scholar.assignment_status || scholar.assignmentStatus
   );
-
-  const assignedArea = String(
-    scholar.assigned_area || scholar.assignedArea || ''
-  ).trim();
 
   const placements = Array.isArray(scholar.placements)
     ? scholar.placements
     : [];
 
-  const hasPlacement = placements.some((placement) => {
-    const status = normalizeStatus(
-      placement?.placement_status || placement?.placementStatus
-    );
+  if (placements.length) {
+    return placements.some((placement) => {
+      const status = normalizeStatus(
+        placement?.placement_status || placement?.placementStatus
+      );
 
-    return status && status !== 'cancelled';
-  });
-
-  if (
-    !assignmentStatus ||
-    assignmentStatus === 'unassigned' ||
-    assignmentStatus === 'not assigned'
-  ) {
-    return Boolean(assignedArea) || hasPlacement;
+      return status === 'pending' || status === 'approved';
+    });
   }
 
-  return assignmentStatus !== 'cleared';
+  return [
+    'pending coordinator approval',
+    'assigned',
+    'acknowledged',
+    'conflict reported',
+    'in progress',
+    'for validation',
+  ].includes(assignmentStatus);
 }
 
 function getDepartmentValidationStatus(log = {}) {

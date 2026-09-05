@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
@@ -1651,14 +1652,15 @@ export default function ScholarMonitoring() {
         loadRemovedScholars({ quiet: true }),
       ]);
 
-      window.alert(
-        data?.message ||
-        (data?.promotion?.promoted
-          ? `Scholar removed. ${data.promotion.applicant_name ||
-          'The next waiting applicant'
-          } was promoted automatically.`
-          : 'Scholar removed and the scholarship slot was released.')
-      );
+      toast.success('Scholarship privilege removed', {
+        description:
+          data?.message ||
+          (data?.data?.promotion?.promoted
+            ? `Scholar removed. ${data.data.promotion.applicant_name ||
+            'The next waiting applicant'
+            } was promoted automatically.`
+            : 'Scholar removed and the scholarship slot was released.'),
+      });
     } catch (err) {
       console.error('ARCHIVE SCHOLAR ERROR:', err);
       window.alert(

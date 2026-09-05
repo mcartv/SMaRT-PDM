@@ -12,16 +12,28 @@ test('Remove Privilege preserves the student record and archives only the schola
   const end = selection.indexOf('\nmodule.exports', start);
   const releaseFlow = selection.slice(start, end);
   const routes = read('admin/backend/routes/scholarRoutes.js');
+  const controller = read('admin/backend/controllers/scholarController.js');
   const monitoring = read('admin/frontend/src/pages/ScholarMonitoring.jsx');
 
   assert.match(releaseFlow, /is_active_scholar\s*=\s*false/);
   assert.match(releaseFlow, /scholar_is_archived\s*=\s*true/);
   assert.match(releaseFlow, /scholar_removal_reason/);
   assert.match(releaseFlow, /const status = 'Removed'/);
+  assert.match(releaseFlow, /hasActivePrivilege/);
+  assert.match(releaseFlow, /already removed or has no occupied opening slot/);
+  assert.match(releaseFlow, /const occupiedBefore = await countOccupiedSlots/);
+  assert.match(releaseFlow, /const occupiedAfter = await countOccupiedSlots/);
+  assert.match(releaseFlow, /RETURNING opening_id, allocated_slots, filled_slots/);
+  assert.match(releaseFlow, /available_slots:\s*Math\.max\(0, allocatedSlots - filledSlots\)/);
+  assert.match(releaseFlow, /released_slots:\s*Math\.max/);
+  assert.match(controller, /socketEvents\.openingUpdated\(io, openingUpdate\)/);
+  assert.match(controller, /action:\s*'slot_released'/);
   assert.doesNotMatch(releaseFlow, /\?\s*'Inactive'\s*:\s*'Removed'/);
   assert.doesNotMatch(releaseFlow, /SET\s+is_archived\s*=\s*true/i);
   assert.match(routes, /\/removed/);
   assert.match(monitoring, /Removed Scholars/);
+  assert.match(monitoring, /import \{ toast \} from 'sonner'/);
+  assert.match(monitoring, /toast\.success\('Scholarship privilege removed'/);
   assert.doesNotMatch(monitoring, /Also archive student record/);
 });
 

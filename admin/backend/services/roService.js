@@ -37,6 +37,14 @@ function isClearedStatus(status) {
     return normalizeText(status) === 'cleared';
 }
 
+function hasActiveRoPlacement(placements = []) {
+    return placements.some((placement) =>
+        ['pending', 'approved'].includes(
+            normalizeText(placement?.placement_status || placement?.placementStatus)
+        )
+    );
+}
+
 function percentFromMinutes(doneMinutes, requiredMinutes) {
     const done = toNumber(doneMinutes);
     const required = toNumber(requiredMinutes);
@@ -1917,6 +1925,7 @@ exports.getROScholars = async (filters = {}) => {
 
             const name = fullName(student) || 'Unknown Scholar';
             const cleared = !!ro && isClearedStatus(ro.ro_status);
+            const hasActiveAssignment = !cleared && hasActiveRoPlacement(placements);
 
             const requiredHours = toNumber(ro?.required_hours);
             const requiredMinutes = requiredHours * 60;
@@ -1995,6 +2004,8 @@ exports.getROScholars = async (filters = {}) => {
 
                 assignment_status: assignmentStatus,
                 assignmentStatus,
+                has_active_assignment: hasActiveAssignment,
+                hasActiveAssignment,
 
                 assignment_acknowledged_at: ro?.assignment_acknowledged_at || null,
                 assignmentAcknowledgedAt: ro?.assignment_acknowledged_at || null,
@@ -2062,8 +2073,10 @@ exports.getROScholars = async (filters = {}) => {
 
             if (status === 'pending') return !row.is_cleared;
             if (status === 'cleared') return row.is_cleared;
-            if (status === 'unassigned') return !row.ro_id;
-            if (status === 'assigned') return assignmentStatus === 'assigned';
+            if (status === 'unassigned') {
+                return !row.is_cleared && !row.has_active_assignment;
+            }
+            if (status === 'assigned') return row.has_active_assignment;
             if (status === 'acknowledged') return assignmentStatus === 'acknowledged';
             if (status === 'conflict') return assignmentStatus === 'conflict reported';
             if (status === 'in_progress') {

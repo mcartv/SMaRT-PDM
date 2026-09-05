@@ -3,7 +3,7 @@ const SESSION_FEEDBACK_KEY = 'smartpdmPortalSessionFeedback';
 const SESSION_FEEDBACK_MAX_AGE_MS = 10 * 60_000;
 const ACTIVE_PORTAL_HINT_KEY = 'smartpdmActivePortal';
 const PORTAL_SESSION_CHANNEL = 'smartpdm-portal-session-sync-v1';
-const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 160;
+const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 600;
 
 export const PORTAL_CONFIG = {
     admin: {
@@ -313,6 +313,7 @@ export function invalidateStoredPortalSession({ portalName, code, message }) {
     });
 
     clearPortalSession(resolvedPortalName);
+    broadcastPortalSessionCleared(resolvedPortalName);
 
     if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -409,6 +410,11 @@ export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
     }
 
     setActivePortalHint(portalName);
+    broadcastPortalSessionEstablished({
+        portalName,
+        token,
+        profile: user || {},
+    });
 }
 
 export function getPortalNameFromRole(role) {
@@ -491,6 +497,10 @@ export async function hydratePortalSessionFromPeerTabs({
         return existing;
     }
 
+    // Without a route or shared active-portal hint there is no authenticated
+    // peer session to request. This keeps first-time public/login loads instant.
+    if (!requestedPortal) return null;
+
     const channel = createPortalSessionChannel();
     if (!channel) return null;
 
@@ -565,6 +575,29 @@ export function installPortalSessionSync() {
             return;
         }
 
+        if (payload.type === 'SESSION_ESTABLISHED' && isKnownPortalName(payload.portalName)) {
+            if (!payload.token) return;
+
+            const previous = getStoredPortalSession();
+            const session = writePortalSessionToTab({
+                portalName: payload.portalName,
+                token: payload.token,
+                profile: payload.profile || {},
+            });
+            if (!session) return;
+
+            const currentPortal = getPortalNameFromPath(window.location.pathname);
+            if (currentPortal !== session.portalName) {
+                window.location.replace(session.redirectPath);
+                return;
+            }
+
+            if (previous?.token !== session.token) {
+                window.location.reload();
+            }
+            return;
+        }
+
         if (payload.type === 'SESSION_CLEARED' && isKnownPortalName(payload.portalName)) {
             const active = getStoredPortalSession(payload.portalName);
             if (!active?.token) return;
@@ -573,6 +606,24 @@ export function installPortalSessionSync() {
             redirectPortalToLogin(payload.portalName);
         }
     };
+}
+
+export function broadcastPortalSessionEstablished({ portalName, token, profile }) {
+    if (!isKnownPortalName(portalName) || !token) return;
+
+    const channel = portalSessionSyncChannel || createPortalSessionChannel();
+    if (!channel) return;
+
+    channel.postMessage({
+        type: 'SESSION_ESTABLISHED',
+        portalName,
+        token,
+        profile: profile || {},
+    });
+
+    if (channel !== portalSessionSyncChannel) {
+        channel.close();
+    }
 }
 
 export function broadcastPortalSessionCleared(portalName) {
@@ -590,4 +641,3 @@ export function broadcastPortalSessionCleared(portalName) {
         channel.close();
     }
 }
-

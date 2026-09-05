@@ -20,6 +20,7 @@ import useForceDarkMode from '../../hooks/useForceDarkMode';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
+import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
@@ -207,10 +208,8 @@ export default function DepartmentPortalLayout({
     [profileStorageKey]
   );
 
-  const handleLogout = () => {
-    sessionStorage.removeItem(tokenStorageKey);
-    sessionStorage.removeItem(profileStorageKey);
-    navigate(loginPath);
+  const handleLogout = async () => {
+    await authService.logout();
   };
 
   const handleNavRefresh = (event, path) => {

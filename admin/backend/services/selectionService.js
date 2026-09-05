@@ -814,9 +814,12 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
           st.user_id,
           st.current_application_id,
           st.current_program_id,
+          st.is_active_scholar,
           st.scholarship_status,
+          st.scholar_is_archived,
           a.opening_id,
-          a.application_id
+          a.application_id,
+          a.application_status
         FROM students st
         LEFT JOIN applications a ON a.application_id = st.current_application_id
         WHERE st.student_id = $1
@@ -828,6 +831,14 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     const scholar = result.rows[0];
     if (!scholar) throw httpError(404, 'Scholar not found.');
     if (!scholar.opening_id) throw httpError(409, 'Scholar has no active scholarship slot to release.');
+    const hasActivePrivilege =
+      scholar.is_active_scholar === true &&
+      String(scholar.scholarship_status || '').trim().toLowerCase() === 'active' &&
+      scholar.scholar_is_archived !== true &&
+      String(scholar.application_status || '').trim().toLowerCase() === 'approved';
+    if (!hasActivePrivilege) {
+      throw httpError(409, 'This scholar privilege was already removed or has no occupied opening slot.');
+    }
 
     const normalizedReason = String(reason || '').trim();
     if (!normalizedReason) {
@@ -837,6 +848,8 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     // disciplinary removal remain distinguishable through the required reason
     // instead of creating several meanings for an archived scholar record.
     const status = 'Removed';
+    await getOpeningForUpdate(client, scholar.opening_id);
+    const occupiedBefore = await countOccupiedSlots(client, scholar.opening_id);
 
     await client.query(
       `
@@ -865,15 +878,22 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     // Always reconcile the stored slot count from actual active scholar rows.
     // This prevents stale counts after remove + automatic replacement.
     const occupiedAfter = await countOccupiedSlots(client, scholar.opening_id);
-    await client.query(
+    const openingResult = await client.query(
       `
         UPDATE program_openings
         SET filled_slots = LEAST(allocated_slots, $2),
             updated_at = now()
         WHERE opening_id = $1
+        RETURNING opening_id, allocated_slots, filled_slots, posting_status, updated_at
       `,
       [scholar.opening_id, occupiedAfter]
     );
+    const updatedOpening = openingResult.rows[0];
+    if (!updatedOpening) {
+      throw httpError(404, 'Scholarship opening not found while releasing its slot.');
+    }
+    const allocatedSlots = Math.max(0, Number(updatedOpening.allocated_slots || 0));
+    const filledSlots = Math.max(0, Number(updatedOpening.filled_slots || 0));
 
     await client.query('COMMIT');
     return {
@@ -884,6 +904,19 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
       scholar_status: status,
       removal_reason: normalizedReason,
       promotion: promotionResult,
+      slot_counts: {
+        allocated_slots: allocatedSlots,
+        filled_slots_before: Math.max(0, Number(occupiedBefore || 0)),
+        filled_slots: filledSlots,
+        available_slots: Math.max(0, allocatedSlots - filledSlots),
+        released_slots: Math.max(0, Number(occupiedBefore || 0) - filledSlots),
+      },
+      opening: {
+        ...updatedOpening,
+        allocated_slots: allocatedSlots,
+        filled_slots: filledSlots,
+        remaining_slots: Math.max(0, allocatedSlots - filledSlots),
+      },
     };
   } catch (error) {
     await client.query('ROLLBACK');

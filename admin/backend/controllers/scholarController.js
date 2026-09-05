@@ -321,6 +321,18 @@ exports.archiveScholar = async (req, res) => {
                     updated_at: new Date().toISOString(),
                 });
             }
+            const openingUpdate = {
+                ...(result.opening || {}),
+                opening_id: result.opening_id,
+                action: 'slot_released',
+                slot_counts: result.slot_counts || null,
+                updated_at: new Date().toISOString(),
+            };
+            if (socketEvents?.openingUpdated) {
+                socketEvents.openingUpdated(io, openingUpdate);
+            } else {
+                io.emit('opening:updated', openingUpdate);
+            }
         }
 
         await writeScholarAudit(
@@ -332,6 +344,7 @@ exports.archiveScholar = async (req, res) => {
                 student_id: id,
                 changes: req.body || {},
                 promotion: result.promotion || null,
+                slot_counts: result.slot_counts || null,
             }
         );
 

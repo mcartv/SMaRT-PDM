@@ -74,6 +74,13 @@ test('Verify realtime status updates', () => {
   assert.ok(frontend.includes("useSocketEvent('opening:closed'"));
 });
 
+test('Opening slot cards use the stored active-scholar count before historical qualified applications', () => {
+  assert.match(
+    frontend,
+    /function getFilledSlots[\s\S]*openingLike\.filled_slots \?\?[\s\S]*openingLike\.qualified_count \?\?/
+  );
+});
+
 test('Verify status badges and available actions match the actual state', () => {
   for (const status of ['draft', 'open', 'closed', 'archived']) {
     assert.ok(frontend.includes(`${status}: { label:`));

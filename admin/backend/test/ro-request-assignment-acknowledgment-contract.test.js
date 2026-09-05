@@ -32,6 +32,10 @@ test('RO Coordinator scholar requests are linked to real placements and cannot b
   assert.match(service, /assignment_stage:\s*getRequestAssignmentStage/);
   assert.match(panel, /Partially Assigned/);
   assert.match(panel, /Fully Assigned/);
+  assert.match(panel, /\/api\/ro\/scholars\?status=unassigned/);
+  assert.doesNotMatch(panel, /\/api\/ro\/scholars\?status=all/);
+  assert.match(service, /has_active_assignment:\s*hasActiveAssignment/);
+  assert.match(service, /!row\.is_cleared\s*&&\s*!row\.has_active_assignment/);
 });
 
 test('RO automatic timeout keeps the grace period and does not flag normal expiry as an exception', () => {

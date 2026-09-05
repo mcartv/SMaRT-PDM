@@ -114,14 +114,31 @@ function scholarName(scholar = {}) {
 }
 
 function hasActivePlacement(scholar = {}) {
+  if (typeof scholar.has_active_assignment === 'boolean') {
+    return scholar.has_active_assignment;
+  }
+  if (typeof scholar.hasActiveAssignment === 'boolean') {
+    return scholar.hasActiveAssignment;
+  }
+
   const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
   if (placements.length) {
     return placements.some((placement) =>
       ['Pending', 'Approved'].includes(placement.placement_status)
     );
   }
-  const status = String(scholar.assignment_status || scholar.assignmentStatus || '').trim();
-  return Boolean(scholar.ro_id) && !['', 'Coordinator Rejected', 'Cleared'].includes(status);
+
+  const status = String(scholar.assignment_status || scholar.assignmentStatus || '')
+    .trim()
+    .toLowerCase();
+  return [
+    'pending coordinator approval',
+    'assigned',
+    'acknowledged',
+    'in progress',
+    'for validation',
+    'conflict reported',
+  ].includes(status);
 }
 
 function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
@@ -140,7 +157,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
       try {
         setLoadingScholars(true);
         setLoadError('');
-        const response = await fetch(buildApiUrl('/api/ro/scholars?status=all'), {
+        const response = await fetch(buildApiUrl('/api/ro/scholars?status=unassigned'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const payload = await response.json().catch(() => ({}));
@@ -159,6 +176,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
 
   const needle = search.trim().toLowerCase();
   const visible = scholars.filter((scholar) => {
+    if (hasActivePlacement(scholar)) return false;
     const haystack = [
       scholarName(scholar),
       scholar.pdm_id,

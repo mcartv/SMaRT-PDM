@@ -21,6 +21,10 @@ test('Admin notifications support per-item mark as read and unread', () => {
 
   assert.match(layout, /Mark as unread/);
   assert.match(layout, /Mark as read/);
+  assert.ok(
+    (layout.match(/n\.is_read === true \? 'Mark as unread' : 'Mark as read'/g) || []).length >= 2,
+    'both recent and earlier notification groups should expose the read/unread toggle',
+  );
   assert.match(hook, /const markAsUnread = useCallback/);
   assert.match(hook, /notifications\/\$\{notificationId\}\/unread/);
   assert.match(routes, /\/:notificationId\/unread/);

@@ -806,9 +806,6 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
 
         const sessionIdentityChanged =
             roleChanged || nextIsArchived !== (current.is_archived === true);
-        const isSelfUpdate = Boolean(
-            actorUserId && String(actorUserId) === String(userId)
-        );
 
         if (
             currentRole === 'ro_coordinator' &&
@@ -903,11 +900,12 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             );
         }
 
-        // Keep the current Admin signed in when changing their own password.
-        // A password reset performed for another account still revokes every
-        // session for that target account immediately.
+        // Any password change is a credential boundary. Revoke every active
+        // staff/admin session for the account, including self-updates made
+        // through the managed-account editor, so an old authenticated session
+        // cannot survive a credential rotation.
         const shouldInvalidateSession =
-            sessionIdentityChanged || (passwordChanged && !isSelfUpdate);
+            sessionIdentityChanged || passwordChanged;
 
         if (shouldInvalidateSession) {
             await revokeStaffSessionVersion(client, userId);

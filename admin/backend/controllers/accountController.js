@@ -398,7 +398,7 @@ exports.updateStaffAccount = async (req, res) => {
                     module: 'Accounts',
                     entityType: 'staff_account',
                     entityId: account.user_id || req.params.id,
-                    description: 'Changed own account password. Current session retained. Password values are not stored in System Logs.',
+                    description: 'Changed own account password. Active sessions were invalidated. Password values are not stored in System Logs.',
                     metadata: {
                         target_user_id: account.user_id || req.params.id,
                         target_email: account.email || null,

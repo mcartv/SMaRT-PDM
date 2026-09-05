@@ -463,11 +463,15 @@ export default function AdminLayout() {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void markAsRead(n.notification_id);
+                                if (n.is_read === true) {
+                                  void markAsUnread(n.notification_id);
+                                } else {
+                                  void markAsRead(n.notification_id);
+                                }
                               }}
                               className="mt-2 text-[11px] font-semibold text-stone-500 underline-offset-2 hover:text-stone-900 hover:underline"
                             >
-                              Mark as read
+                              {n.is_read === true ? 'Mark as unread' : 'Mark as read'}
                             </button>
                           </div>
                         ))}

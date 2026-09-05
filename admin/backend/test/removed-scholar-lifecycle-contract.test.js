@@ -26,6 +26,11 @@ test('Remove Privilege preserves the student record and archives only the schola
   assert.match(releaseFlow, /RETURNING opening_id, allocated_slots, filled_slots/);
   assert.match(releaseFlow, /available_slots:\s*Math\.max\(0, allocatedSlots - filledSlots\)/);
   assert.match(releaseFlow, /released_slots:\s*Math\.max/);
+  assert.match(releaseFlow, /const openingWasFull =/);
+  assert.match(releaseFlow, /const shouldReopenOpening =/);
+  assert.match(releaseFlow, /promotionResult\?\.promoted !== true/);
+  assert.match(releaseFlow, /opening\.period_is_active === true/);
+  assert.match(releaseFlow, /WHEN \$3::boolean THEN 'open'/);
   assert.match(controller, /socketEvents\.openingUpdated\(io, openingUpdate\)/);
   assert.match(controller, /action:\s*'slot_released'/);
   assert.doesNotMatch(releaseFlow, /\?\s*'Inactive'\s*:\s*'Removed'/);

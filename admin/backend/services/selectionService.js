@@ -68,7 +68,8 @@ async function getOpeningForUpdate(client, openingId) {
         sp.program_name,
         sp.gwa_threshold,
         ay.label AS academic_year,
-        ap.term AS semester
+        ap.term AS semester,
+        ap.is_active AS period_is_active
       FROM program_openings po
       LEFT JOIN scholarship_program sp ON sp.program_id = po.program_id
       LEFT JOIN academic_years ay ON ay.academic_year_id = po.academic_year_id
@@ -878,15 +879,30 @@ async function releaseScholarSlotAndPromote({ studentId, actor = {}, reason, not
     // Always reconcile the stored slot count from actual active scholar rows.
     // This prevents stale counts after remove + automatic replacement.
     const occupiedAfter = await countOccupiedSlots(client, scholar.opening_id);
+    const allocatedCapacity = Math.max(0, Number(opening.allocated_slots || 0));
+    const openingWasFull = allocatedCapacity > 0 && occupiedBefore >= allocatedCapacity;
+    const releasedSlotStillAvailable =
+      promotionResult?.promoted !== true && occupiedAfter < allocatedCapacity;
+    const shouldReopenOpening =
+      openingWasFull &&
+      releasedSlotStillAvailable &&
+      opening.period_is_active === true &&
+      opening.is_archived !== true &&
+      String(opening.posting_status || '').trim().toLowerCase() === 'closed';
+
     const openingResult = await client.query(
       `
         UPDATE program_openings
         SET filled_slots = LEAST(allocated_slots, $2),
+            posting_status = CASE
+              WHEN $3::boolean THEN 'open'
+              ELSE posting_status
+            END,
             updated_at = now()
         WHERE opening_id = $1
         RETURNING opening_id, allocated_slots, filled_slots, posting_status, updated_at
       `,
-      [scholar.opening_id, occupiedAfter]
+      [scholar.opening_id, occupiedAfter, shouldReopenOpening]
     );
     const updatedOpening = openingResult.rows[0];
     if (!updatedOpening) {

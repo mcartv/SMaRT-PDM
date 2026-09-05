@@ -162,6 +162,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   bool _isLoadingRequirements = true;
   bool _isLoadingAnnouncements = true;
   bool _isLoadingOpenings = true;
+  Timer? _openingReconciliationTimer;
+  bool _openingRefreshInProgress = false;
 
   ApplicationStatusSummary? _statusSummary;
   ApplicantDocumentsPackage? _requirementsPackage;
@@ -223,6 +225,13 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
       if (!mounted || _identityError != null) return;
       await _showFirstTimeGuideIfNeeded();
     });
+    _openingReconciliationTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) {
+        if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+        unawaited(_loadOpenings());
+      },
+    );
   }
 
   Future<void> _showFirstTimeGuideIfNeeded() async {
@@ -547,6 +556,9 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
   }
 
   Future<void> _loadOpenings() async {
+    if (_openingRefreshInProgress) return;
+    _openingRefreshInProgress = true;
+
     try {
       final result = await _openingService.fetchDashboardOpenings();
       if (!mounted) return;
@@ -564,6 +576,8 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
             .trim();
         _isLoadingOpenings = false;
       });
+    } finally {
+      _openingRefreshInProgress = false;
     }
   }
 
@@ -1187,6 +1201,7 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
 
   @override
   void dispose() {
+    _openingReconciliationTimer?.cancel();
     _notificationProvider?.removeListener(_handleProviderChange);
     super.dispose();
   }

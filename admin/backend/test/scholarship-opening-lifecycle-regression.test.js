@@ -84,6 +84,15 @@ test('existing waiting-list promotion remains available when a scholar slot is r
   );
 });
 
+test('a released slot reopens a previously full current-period opening only when the vacancy remains unclaimed', () => {
+  assert.match(selection, /ap\.is_active AS period_is_active/i);
+  assert.match(selection, /openingWasFull[\s\S]*occupiedBefore >= allocatedCapacity/i);
+  assert.match(selection, /releasedSlotStillAvailable[\s\S]*promotionResult\?\.promoted !== true/i);
+  assert.match(selection, /opening\.period_is_active === true/i);
+  assert.match(selection, /String\(opening\.posting_status[\s\S]*=== 'closed'/i);
+  assert.match(selection, /posting_status = CASE[\s\S]*WHEN \$3::boolean THEN 'open'/i);
+});
+
 test('mobile application intake is restricted to the active academic period', () => {
   assert.match(
     mobileOpenings,

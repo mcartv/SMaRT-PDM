@@ -60,7 +60,7 @@ test('Ensure the same requirement name is used in applicant requirements', () =>
   );
 });
 
-test('optional PSA review is accepted but excluded from required completion', () => {
+test('PSA upload stays optional but confirmed OCR is required for successful completion', () => {
   const requiredKeys =
     applicationService.match(/const REQUIRED_REVIEW_DOCUMENT_KEYS[\s\S]*?\]\);/)?.[0] || '';
   const requiredOutcome =
@@ -69,6 +69,13 @@ test('optional PSA review is accepted but excluded from required completion', ()
   assert.doesNotMatch(requiredKeys, /birth_certificate/);
   assert.match(requiredOutcome, /REQUIRED_REVIEW_DOCUMENT_KEYS\.map/);
   assert.match(requiredOutcome, /deriveVerificationOutcome\(requiredReviews\)/);
+  assert.match(applicationService, /getConfirmedPsaBirthCertificateOcrReview/);
+  assert.match(
+    applicationService,
+    /Confirm the PSA \/ Birth Certificate IoT OCR scan before saving the requirements review\./
+  );
+  assert.match(docReview, /Mobile upload optional · OCR verification required/);
+  assert.match(docReview, /PSA \/ Birth Certificate scan required/);
 });
 
 test('Ensure web document review displays the correct document type', () => {

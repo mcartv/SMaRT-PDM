@@ -548,14 +548,20 @@ exports.fetchScholarById = async (studentId, options = {}) => {
         OR $2::boolean = true
       )
 
-      AND COALESCE(
-        st.scholarship_status,
-        'None'
-      ) IN (
-        'Active',
-        'On Hold',
-        'Inactive',
-        'Removed'
+      AND (
+        COALESCE(
+          st.scholarship_status,
+          'None'
+        ) IN (
+          'Active',
+          'On Hold',
+          'Inactive',
+          'Removed'
+        )
+        OR (
+          $2::boolean = true
+          AND COALESCE(st.scholar_is_archived, false) = true
+        )
       )
 
     LIMIT 1;
@@ -564,7 +570,7 @@ exports.fetchScholarById = async (studentId, options = {}) => {
   );
 
   if (!scholarResult.rows.length) {
-    throw new Error('Scholar not found');
+    return null;
   }
 
   const row = scholarResult.rows[0];

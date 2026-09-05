@@ -28,4 +28,23 @@ test('frontend continues to identify PSA as optional', () => {
     page,
     /id: 'birth_certificate',[\s\S]*?required: false,/
   );
+  assert.match(page, /Mobile upload optional · OCR verification required/);
+});
+
+test('successful Admin completion requires confirmed PSA IoT OCR evidence', () => {
+  assert.match(service, /getConfirmedPsaBirthCertificateOcrReview/);
+  assert.match(service, /r\.document_key = \$2/);
+  assert.match(service, /r\.status = 'completed'/);
+  assert.match(service, /JOIN public\.iot_ocr_reviews/);
+  assert.match(
+    service,
+    /if \(derivedVerificationStatus === 'verified'\)[\s\S]*?Confirm the PSA \/ Birth Certificate IoT OCR scan before saving the requirements review\./
+  );
+  assert.match(service, /reviewStatus: 'verified'/);
+  assert.match(page, /const psaOcrVerified = isPsaBirthCertificateOcrVerified/);
+  assert.match(
+    page,
+    /finalVerificationStatus !== 'verified' \|\| psaOcrVerified/
+  );
+  assert.match(page, /Scan PSA \/ Birth Certificate First/);
 });

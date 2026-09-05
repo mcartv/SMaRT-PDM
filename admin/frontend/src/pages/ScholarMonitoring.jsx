@@ -2110,16 +2110,6 @@ export default function ScholarMonitoring() {
               </button>
               <button
                 type="button"
-                onClick={() => handleSectionModeChange('removed')}
-                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'removed'
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
-                  }`}
-              >
-                Removed Scholars
-              </button>
-              <button
-                type="button"
                 onClick={() =>
                   handleSectionModeChange('renewals')
                 }
@@ -2129,6 +2119,16 @@ export default function ScholarMonitoring() {
                   }`}
               >
                 Renewals
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSectionModeChange('removed')}
+                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'removed'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-600'
+                  }`}
+              >
+                Archived
               </button>
             </div>
 
@@ -2157,7 +2157,7 @@ export default function ScholarMonitoring() {
             {sectionMode === 'registry'
               ? 'Scholar Registry'
               : sectionMode === 'removed'
-                ? 'Removed Scholars'
+                ? 'Archived'
                 : 'Renewal Queue'}
           </h2>
           {sectionMode === 'renewals' ? (

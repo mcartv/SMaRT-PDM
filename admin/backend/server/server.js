@@ -93,9 +93,6 @@ const { createStaffSocketAuthMiddleware } = require('../utils/socketAuth');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const systemActivityService = require('../services/systemActivityService');
-const {
-  attachSystemAuditCoverage,
-} = require('../middleware/systemAuditCoverageMiddleware');
 
 const app = express();
 
@@ -226,7 +223,6 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
-app.use(attachSystemAuditCoverage);
 
 // =========================
 // SERVE STATIC FILES (React Frontend)

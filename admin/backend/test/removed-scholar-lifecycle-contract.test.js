@@ -42,3 +42,20 @@ test('removed scholars have an explicit Mobile lifecycle and cannot silently sta
   assert.match(dashboard, /Privilege Removed/);
   assert.match(profile, /Removed Scholar/);
 });
+
+
+test('Removed Scholar profile lookup accepts legacy archived statuses and returns 404 semantics for missing records', () => {
+  const service = read('admin/backend/services/scholarService.js');
+  const controller = read('admin/backend/controllers/scholarController.js');
+  const detailStart = service.indexOf('exports.fetchScholarById = async');
+  const detailEnd = service.indexOf('exports.fetchScholarRenewalDocuments', detailStart);
+  const detailFlow = service.slice(detailStart, detailEnd);
+
+  assert.match(
+    detailFlow,
+    /\$2::boolean\s*=\s*true[\s\S]{0,100}scholar_is_archived,\s*false\)\s*=\s*true/
+  );
+  assert.match(detailFlow, /if \(!scholarResult\.rows\.length\)\s*\{\s*return null;/);
+  assert.doesNotMatch(detailFlow, /throw new Error\('Scholar not found'\)/);
+  assert.match(controller, /if \(!scholar\)\s*\{\s*return res\.status\(404\)/);
+});

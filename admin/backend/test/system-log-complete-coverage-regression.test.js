@@ -21,8 +21,13 @@ test('core modules are mapped',()=>{
 test('explicit logs suppress fallback duplicates',()=>{
   assert.match(read('services/auditLogService.js'),/req\.__systemAuditLogged = true/);
 });
-test('server installs fallback middleware',()=>{
-  assert.match(read('server/server.js'),/app\.use\(attachSystemAuditCoverage\)/);
+test('authenticated routes attach fallback audit coverage without blocking public routes',()=>{
+  const server = read('server/server.js');
+  const auth = read('middleware/authMiddleware.js');
+
+  assert.match(auth, /attachSystemAuditCoverage\(req, res\)/);
+  assert.doesNotMatch(server, /app\.use\(attachSystemAuditCoverage\)/);
+  assert.doesNotMatch(server, /require\(['"]\.\.\/middleware\/systemAuditCoverageMiddleware['"]\)/);
 });
 test('fallback does not copy request bodies/files',()=>{
   const s=read('middleware/systemAuditCoverageMiddleware.js');

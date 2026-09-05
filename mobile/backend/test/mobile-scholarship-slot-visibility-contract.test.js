@@ -21,11 +21,9 @@ const openingController = fs.readFileSync(
   path.resolve(__dirname, '../src/controllers/openingController.js'),
   'utf8'
 );
-const dashboardScreen = fs.readFileSync(
-  path.resolve(
-    __dirname,
-    '../../frontend/lib/features/dashboard/presentation/screens/dashboard_screen.dart'
-  ),
+
+const openingService = fs.readFileSync(
+  path.resolve(__dirname, '../src/services/openingService.js'),
   'utf8'
 );
 
@@ -52,11 +50,22 @@ test('Mobile opening responses cannot be cached after an admin status change', (
   assert.match(openingController, /Pragma', 'no-cache'/);
 });
 
-test('Mobile Dashboard reconciles Available Scholarships after a missed opening realtime event', () => {
+test('Mobile opening visibility is no longer suppressed by applicant eligibility', () => {
+  assert.match(openingService, /\.in\('posting_status', \['open', 'closed'\]\)/);
   assert.match(
-    dashboardScreen,
-    /_openingReconciliationTimer = Timer\.periodic\([\s\S]*Duration\(seconds: 20\)/
+    openingService,
+    /status === 'closed'[\s\S]*Number\(item\.available_slots \|\| 0\) > 0/
   );
-  assert.match(dashboardScreen, /unawaited\(_loadOpenings\(\)\)/);
-  assert.match(dashboardScreen, /_openingReconciliationTimer\?\.cancel\(\)/);
+  assert.match(openingService, /availability\.can_apply === true[\s\S]*!activeApplication/);
+  assert.doesNotMatch(openingService, /const scopedItems = allItems\.filter/);
+  assert.doesNotMatch(openingService, /items:\s*availability\.can_apply \? items : \[\]/);
+  assert.doesNotMatch(
+    openingClient,
+    /opening\.postingStatus\.trim\(\)\.toLowerCase\(\) == 'open'/
+  );
+  assert.doesNotMatch(
+    openingClient,
+    /opening\.canApply &&\s*!opening\.hasApplied/
+  );
 });
+

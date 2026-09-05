@@ -402,7 +402,7 @@ async function getOpeningsForMobile(userId) {
         )
       )
     `)
-    .eq('posting_status', 'open')
+    .in('posting_status', ['open', 'closed'])
     .eq('is_archived', false)
     .order('created_at', { ascending: false });
 
@@ -562,12 +562,24 @@ async function getOpeningsForMobile(userId) {
         !previousApplication ||
         canReapply;
 
+      // Visibility and eligibility are intentionally separate. An Admin
+      // opening can remain visible in Mobile even when this specific student
+      // cannot start another application yet. Application creation itself is
+      // still restricted to the active academic period and global intake
+      // policy.
       const canApply =
+        availability.can_apply === true &&
         !scholar &&
         !scholarPrivilegeRemoved &&
+        !activeApplication &&
         !activeExisting &&
         previousApplicationAllowsAttempt &&
         openingAcceptsApplications;
+
+      const canReapplyNow = canReapply && canApply;
+      const postingStatus = String(row.posting_status || '')
+        .trim()
+        .toLowerCase();
 
       let applyLabel = 'Apply for Scholarship';
 
@@ -577,9 +589,15 @@ async function getOpeningsForMobile(userId) {
         applyLabel = 'Eligibility Review Required';
       } else if (hasApplied) {
         applyLabel = 'Manage Documents';
+      } else if (activeApplication) {
+        applyLabel = 'Finish Current Application First';
       } else if (blockedByMajorRejection) {
         applyLabel = 'Application Rejected';
-      } else if (canReapply) {
+      } else if (!isCurrentPeriod) {
+        applyLabel = 'Previous Academic Period';
+      } else if (postingStatus !== 'open' || availability.can_apply !== true) {
+        applyLabel = 'Applications Closed';
+      } else if (canReapplyNow) {
         applyLabel = waitingListAvailable
           ? 'Apply Again for Waiting List'
           : 'Apply Again';
@@ -650,7 +668,7 @@ async function getOpeningsForMobile(userId) {
           documentSummary?.requiredDocumentCount ||
           REQUIRED_APPLICATION_UPLOAD_KEYS.length,
 
-        can_reapply: canReapply,
+        can_reapply: canReapplyNow,
         can_apply: canApply,
         can_join_waiting_list:
           waitingListAvailable && canApply,
@@ -675,20 +693,23 @@ async function getOpeningsForMobile(userId) {
       };
     });
 
-  // Do not clutter the scholarship list with old semesters. A historical
-  // opening is retained only when this student already has an application
-  // tied to it, so their existing status remains reachable.
-  const scopedItems = allItems.filter(
-    (item) => item.is_current_period === true
-  );
+  // The Admin Openings module is the visibility source of truth. Keep
+  // published, non-archived openings visible even when the student cannot
+  // currently apply. Closed openings are retained only when they still have
+  // a real unfilled slot, which lets released/historical vacancies remain
+  // visible without reopening an old academic period.
+  const items = allItems.filter((item) => {
+    const status = String(item.posting_status || '')
+      .trim()
+      .toLowerCase();
 
-  const items = activeApplication?.opening_id
-    ? scopedItems.filter(
-        (item) =>
-          String(item.opening_id) ===
-          String(activeApplication.opening_id)
-      )
-    : scopedItems;
+    if (status === 'open') return true;
+
+    return (
+      status === 'closed' &&
+      Number(item.available_slots || 0) > 0
+    );
+  });
 
   return {
     hasBaseApplicationProfile: !!student?.student_id,
@@ -698,7 +719,7 @@ async function getOpeningsForMobile(userId) {
       activeApplication?.application_id || '',
     activeOpeningId:
       activeApplication?.opening_id || '',
-    items: availability.can_apply ? items : [],
+    items,
     availability: {
       can_apply: availability.can_apply,
       code: availability.code,

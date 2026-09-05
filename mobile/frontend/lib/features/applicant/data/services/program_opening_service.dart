@@ -9,21 +9,18 @@ class ProgramOpeningService {
   final ApiClient _apiClient;
 
   Future<ProgramOpeningsResult> fetchAvailableOpenings() async {
-    // This list must always reflect the current admin-controlled posting
-    // status. The revision prevents web/proxy caches from retaining a closed
-    // opening in Available Scholarships.
+    // This list must always reflect the current Admin opening state. The
+    // revision prevents web/proxy caches from retaining stale status or slot
+    // counts after an Admin update.
     final revision = DateTime.now().millisecondsSinceEpoch;
     final response = await _apiClient.getObject('/api/openings?revision=$revision');
     final items = (response['items'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((item) => ProgramOpening.fromJson(Map<String, dynamic>.from(item)))
-        // Keep closed openings out even if an older backend response is
-        // cached or reaches the app during a deployment.
-        .where(
-          (opening) =>
-              opening.isVisible &&
-              opening.postingStatus.trim().toLowerCase() == 'open',
-        )
+        // The backend decides which Admin openings belong in this list.
+        // Mobile must not hide a released/historical vacancy just because
+        // application intake for that opening is currently disabled.
+        .where((opening) => opening.isVisible)
         .toList(growable: false);
 
     return ProgramOpeningsResult(
@@ -40,9 +37,9 @@ class ProgramOpeningService {
 
   /// Dashboard-only feed.
   ///
-  /// The full scholarship openings screen still receives existing/closed
-  /// records it may need for application/document management. Home should only
-  /// advertise openings that the current applicant can actually act on.
+  /// Keep the Dashboard aligned with the full scholarship-opening list. A
+  /// visible Admin opening should still be previewed when its action is
+  /// disabled for this student; the detail screen explains the actual state.
   Future<ProgramOpeningsResult> fetchDashboardOpenings() async {
     final result = await fetchAvailableOpenings();
 
@@ -50,11 +47,7 @@ class ProgramOpeningService {
         ? const <ProgramOpening>[]
         : result.items
               .where(
-                (opening) =>
-                    opening.isVisible &&
-                    opening.postingStatus.trim().toLowerCase() == 'open' &&
-                    opening.canApply &&
-                    !opening.hasApplied,
+                (opening) => opening.isVisible && !opening.hasApplied,
               )
               .toList(growable: false);
 

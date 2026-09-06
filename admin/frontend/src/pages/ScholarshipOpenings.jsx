@@ -167,9 +167,9 @@ function getDefaultAcademicYear(academicYears = []) {
 
 function getFilledSlots(openingLike = {}) {
     return Number(
-        openingLike.qualified_count ??
         openingLike.filled_slots ??
         openingLike.filled_slots_preview ??
+        openingLike.qualified_count ??
         0
     );
 }

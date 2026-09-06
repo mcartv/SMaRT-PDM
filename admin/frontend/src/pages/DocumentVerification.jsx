@@ -171,17 +171,17 @@ function isActiveIotRequest(request) {
 
 
 // Transitional until document contract status is persisted with OCR snapshots.
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const REVIEW_ONLY_DOCUMENT_KEYS = Object.freeze([
   'certificate_of_indigency',
   'student_grade_forms',
 ]);
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const REVIEW_ONLY_MESSAGES = Object.freeze([
   'Structured extraction not implemented',
   'Manual review required',
 ]);
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const APPLICANT_IDENTITY_UNCONFIRMED = 'APPLICANT_IDENTITY_UNCONFIRMED';
 
 const MINOR_REUPLOAD_OPTIONS = [
@@ -532,6 +532,23 @@ function isDocumentAvailable(document) {
   );
 }
 
+function isPsaBirthCertificateOcrVerified(document) {
+  if (document?.id !== 'birth_certificate') return false;
+
+  return String(getActiveIotRequest(document)?.status || '')
+    .trim()
+    .toLowerCase() === 'completed';
+}
+
+function isPsaBirthCertificateRequirementSatisfied(document) {
+  if (document?.id !== 'birth_certificate') return false;
+
+  return (
+    isPsaBirthCertificateOcrVerified(document) ||
+    (isDocumentAvailable(document) && document.status === 'verified')
+  );
+}
+
 function getStructuredOcrFields(document) {
   const structuredFields = document?.ocr?.structured_fields;
   return structuredFields?.fields && typeof structuredFields.fields === 'object'
@@ -543,7 +560,7 @@ function hasStructuredOcrFields(document) {
   return Object.keys(getStructuredOcrFields(document)).length > 0;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function getIotOcrRequestId(value = {}) {
   const candidate =
     value?.request_id ||
@@ -557,7 +574,7 @@ export function getIotOcrRequestId(value = {}) {
     : String(candidate);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function buildIotOcrSnapshotOverride(snapshot = {}) {
   const ocr = snapshot?.ocr && typeof snapshot.ocr === 'object'
     ? snapshot.ocr
@@ -574,7 +591,7 @@ export function buildIotOcrSnapshotOverride(snapshot = {}) {
   };
 }
 
-function getFileType(document = {}) {
+function _getFileType(document = {}) {
   const raw = (document?.file_name || document?.url || document?.file_path || '').toLowerCase();
 
   if (
@@ -764,7 +781,7 @@ export function buildExtractedData(activeDoc, application) {
   };
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function buildRawOcrSnapshot(activeDoc) {
   if (!activeDoc) return '';
 
@@ -796,7 +813,7 @@ function normalizeIdentityText(value = '') {
     .trim();
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function reviewBirthApplicantIdentity({
   applicantName,
   childNameRawText,
@@ -1312,6 +1329,8 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
+  // Preview reloads only when its identity or backing file changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc?.id, activeDoc?.file_path, activeDoc?.preview_path, activeDoc?.is_submitted, application?.application_id, application?.id]);
 
   const isImage = previewMimeType.startsWith('image/');
@@ -1381,7 +1400,7 @@ function deriveGradeReviewValues(rawText) {
   if (number) derived.student_number = number[1].replace(/\s+/g, '-').toUpperCase();
 
   const identity = text.match(
-    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|\-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
+    /STUDENT\s+NUMBER\s+STUDENT\s+NAME\s+COURSE\s*[:|-]?\s*(?:PDM[-\s]?)?\d{4}[-\s]\d{4,7}\s+(.+?)\s+COPY\s+OF\s+GRADE(?:\s*FOR)?\b/i
   );
   if (identity) {
     const parts = identity[1]
@@ -1399,7 +1418,7 @@ function deriveGradeReviewValues(rawText) {
     'THE PERIOD'
   );
   const period = periodText.match(
-    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:\-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-\u2013\u2014]\s*\d{4})?/i
+    /GRADE\s*FOR\s+THE\s+PERIOD\s*[:-]?\s*(1ST|2ND|FIRST|SECOND)(?:\s+SEMESTER)?(?:\s+\d{4}\s*[-\u2013\u2014]\s*\d{4})?/i
   );
   if (period) {
     derived.semester = {
@@ -1430,12 +1449,12 @@ function deriveIndigencyReviewValues(rawText) {
   if (!text) return derived;
 
   const subject = text.match(
-    /Certificate\s+Subject\s+Name\s*[:\-]?\s*(.+?)(?=\s+Full\s+Address\s*[:\-]?|\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    /Certificate\s+Subject\s+Name\s*[:-]?\s*(.+?)(?=\s+Full\s+Address\s*[:-]?|\s+Issue\s+Date\s*[:-]?|\s+Issuing\s+Barangay\s*[:-]?|$)/i
   );
   if (subject) derived.certificate_subject_name = subject[1].replace(/\s+,/g, ',').trim();
 
   const address = text.match(
-    /Full\s+Address\s*[:\-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:\-]?|\s+Issuing\s+Barangay\s*[:\-]?|$)/i
+    /Full\s+Address\s*[:-]?\s*(.+?)(?=\s+Issue\s+Date\s*[:-]?|\s+Issuing\s+Barangay\s*[:-]?|$)/i
   );
   if (address) derived.residency_address = address[1].trim();
 
@@ -1649,14 +1668,14 @@ export function normalizeReviewFields(candidate) {
   return fields;
 }
 
-function ocrScoreLabel(candidate, key, displayedValue) {
+function _ocrScoreLabel(candidate, key, displayedValue) {
   const rawScore = candidate?.field_confidence?.[key];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
   return String(displayedValue || '').trim() ? 'Detected' : '\u2014';
 }
 
-function birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
+function _birthComponentScoreLabel(candidate, fieldKey, componentKey, displayedValue) {
   const rawScore = candidate?.fields?.[fieldKey]?.component_confidence?.[componentKey];
   const numeric = rawScore === null || rawScore === undefined ? NaN : Number(rawScore);
   if (Number.isFinite(numeric) && numeric >= 0) return `${numeric.toFixed(1)}%`;
@@ -1788,7 +1807,7 @@ function OCRPanel({
     isBirthReview && reviewCandidate?.processing?.diagnostic_only
   );
   const birthV2Review = Boolean(isBirthReview && reviewCandidate?.ocr_version === 'v2');
-  const birthFullPageRecovery = Boolean(
+  const _birthFullPageRecovery = Boolean(
     birthV2Review
     && reviewCandidate?.processing?.structured_value_source === 'birth_v2_full_page_enhanced_recovery'
   );
@@ -2845,7 +2864,6 @@ function ChecklistCard({
   docs,
   activeDocId,
   onSelectDoc,
-  availableCount,
   verifiedCount,
   rejectedCount,
   reuploadCount,
@@ -2857,13 +2875,16 @@ function ChecklistCard({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/50 px-3.5 py-3 sm:px-4">
         <h3 className="text-sm font-semibold text-stone-900">Checklist</h3>
         <span className="text-sm text-stone-400">
-          {availableCount}/{docs.length} uploaded
+          {verifiedCount}/{docs.length} verified
         </span>
       </div>
 
       <CardContent className="space-y-1 p-2 sm:p-2.5">
         {docs.map((d) => {
-          const baseMeta = getDocumentStatusMeta(d.status);
+          const psaOcrVerified = isPsaBirthCertificateOcrVerified(d);
+          const psaRequirementSatisfied = isPsaBirthCertificateRequirementSatisfied(d);
+          const effectiveStatus = psaRequirementSatisfied ? 'verified' : d.status;
+          const baseMeta = getDocumentStatusMeta(effectiveStatus);
           const meta =
             d.id === 'application_form' &&
               d.status === 'reupload_required'
@@ -2909,7 +2930,15 @@ function ChecklistCard({
                     {d.name}
                   </p>
                   <p className="mt-0.5 text-xs text-stone-400">
-                    {d.id === 'application_form'
+                    {d.id === 'birth_certificate'
+                      ? psaRequirementSatisfied
+                        ? psaOcrVerified
+                          ? 'Physical document verified by OCR'
+                          : 'Mobile upload verified by Admin'
+                        : available
+                          ? 'Mobile copy uploaded · Admin review or OCR required'
+                          : 'Mobile upload optional · physical OCR required'
+                      : d.id === 'application_form'
                       ? 'Text-based application data'
                       : available
                         ? 'File uploaded'
@@ -2969,6 +2998,8 @@ function VerificationActions({
   canCompleteVerification,
   finalVerificationStatus,
   requirementsReviewAlreadySaved,
+  psaRequirementSatisfied,
+  psaUploaded,
 }) {
   const isSaved = requirementsReviewAlreadySaved === true;
 
@@ -3042,6 +3073,21 @@ function VerificationActions({
       titleColor: 'text-amber-900',
       descriptionColor: 'text-amber-700',
     };
+  } else if (!psaRequirementSatisfied) {
+    statusConfig = {
+      icon: ScanText,
+      title: psaUploaded
+        ? 'PSA / Birth Certificate review required'
+        : 'PSA / Birth Certificate scan required',
+      description:
+        psaUploaded
+          ? 'Verify the uploaded PSA / Birth Certificate after reviewing it, or confirm the physical document through IoT OCR.'
+          : 'Mobile upload is optional, but the physical PSA / Birth Certificate must be scanned and confirmed through IoT OCR before requirements verification can be completed.',
+      container: 'border-amber-200 bg-amber-50/80',
+      iconContainer: 'bg-amber-100 text-amber-700',
+      titleColor: 'text-amber-900',
+      descriptionColor: 'text-amber-700',
+    };
   } else {
     statusConfig = {
       icon: CheckCircle,
@@ -3074,6 +3120,11 @@ function VerificationActions({
     }
     if (finalVerificationStatus === 'requires_reupload') {
       return 'Save Correction Request';
+    }
+    if (!psaRequirementSatisfied) {
+      return psaUploaded
+        ? 'Verify PSA / Birth Certificate First'
+        : 'Scan PSA / Birth Certificate First';
     }
     return 'Save Requirements Review';
   })();
@@ -3851,8 +3902,20 @@ export default function DocumentVerification() {
     [requiredDocs]
   );
 
+  const psaBirthCertificateDocument = useMemo(
+    () => docs.find((d) => d.id === 'birth_certificate') || null,
+    [docs]
+  );
+  const psaUploaded = isDocumentAvailable(psaBirthCertificateDocument);
+  const psaRequirementSatisfied =
+    isPsaBirthCertificateRequirementSatisfied(psaBirthCertificateDocument);
+
   const verifiedCount = useMemo(
-    () => docs.filter((d) => d.status === 'verified').length,
+    () => docs.filter((d) => (
+      d.id === 'birth_certificate'
+        ? isPsaBirthCertificateRequirementSatisfied(d)
+        : d.status === 'verified'
+    )).length,
     [docs]
   );
 
@@ -3868,7 +3931,11 @@ export default function DocumentVerification() {
 
   const reviewedCount = useMemo(
     () =>
-      docs.filter((d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded')
+      docs.filter((d) => (
+        d.id === 'birth_certificate'
+          ? isPsaBirthCertificateRequirementSatisfied(d)
+          : isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
+      ))
         .length,
     [docs]
   );
@@ -3880,7 +3947,7 @@ export default function DocumentVerification() {
   const allRequiredDocsReviewed = requiredDocs.every(
     (d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
   );
-  const allRequiredDocsVerified = requiredDocs.every(
+  const _allRequiredDocsVerified = requiredDocs.every(
     (d) => isDocumentAvailable(d) && d.status === 'verified'
   );
 
@@ -3899,6 +3966,7 @@ export default function DocumentVerification() {
   const canCompleteVerification =
     allRequiredDocsUploaded &&
     allRequiredDocsReviewed &&
+    (finalVerificationStatus !== 'verified' || psaRequirementSatisfied) &&
     !requirementsReviewAlreadySaved;
 
   // SMART-PDM_DOCUMENT_VERIFICATION_ENDORSEMENT_GATE_V1
@@ -4035,6 +4103,8 @@ export default function DocumentVerification() {
     if (!runningIotOcr && !isSameOcrDocument(reviewCandidate?.document_key, activeDoc.id)) {
       setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
     }
+  // Candidate content is intentionally keyed by document identity here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc, application, docComments, runningIotOcr, reviewCandidate?.document_key]);
 
   useEffect(() => {
@@ -4145,6 +4215,7 @@ export default function DocumentVerification() {
     activeDoc,
     activeDocId,
     fetchApplicationDocuments,
+    id,
     runningIotOcr,
     stopPolling,
   ]);
@@ -4213,6 +4284,8 @@ export default function DocumentVerification() {
     if (!requestId || activeIotRequestRef.current?.requestId === requestId) {
       activeIotRequestRef.current = null;
     }
+  // Poll completion is keyed by candidate identity/status, not object identity.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc, reviewCandidate?.document_key, reviewCandidate?.request_id, stopPolling]);
 
   useEffect(() => {
@@ -4978,6 +5051,8 @@ export default function DocumentVerification() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  // Action functions use the same current state already listed below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDoc?.id, birthReviewReason, correctedFields, reviewCandidate]);
 
   if (loading) {
@@ -5109,7 +5184,6 @@ export default function DocumentVerification() {
             docs={docs}
             activeDocId={activeDocId}
             onSelectDoc={setActiveDocId}
-            availableCount={availableCount}
             verifiedCount={verifiedCount}
             rejectedCount={rejectedCount}
             reuploadCount={reuploadCount}
@@ -5298,10 +5372,11 @@ export default function DocumentVerification() {
             canCompleteVerification={canCompleteVerification}
             finalVerificationStatus={finalVerificationStatus}
             requirementsReviewAlreadySaved={requirementsReviewAlreadySaved}
+            psaRequirementSatisfied={psaRequirementSatisfied}
+            psaUploaded={psaUploaded}
           />
         </div>
       </div>
     </div>
   );
 }
-

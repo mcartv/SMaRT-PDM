@@ -103,7 +103,7 @@ test('storage and egress optimization contract', () => {
     notifications.includes('_queueScholarAccessRefresh')
   );
   assert.ok(
-    notifications.includes('milliseconds: 400')
+    notifications.includes('milliseconds: 250')
   );
 
   assert.ok(cleanup.includes("const apply = process.argv.includes('--apply')"));

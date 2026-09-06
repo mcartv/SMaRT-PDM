@@ -149,7 +149,18 @@ async function fetchPayoutOpenings() {
       po.period_id,
       ay.label AS academic_year,
       ap.term AS semester,
-      po.per_scholar_amount AS amount_per_scholar,
+      CASE
+        WHEN COALESCE(po.per_scholar_amount, 0) > 0
+          THEN po.per_scholar_amount
+        WHEN COALESCE(po.financial_allocation, 0) > 0
+          AND COALESCE(po.allocated_slots, 0) > 0
+          THEN ROUND(
+            po.financial_allocation::numeric /
+            NULLIF(po.allocated_slots, 0)::numeric,
+            2
+          )
+        ELSE 0
+      END AS amount_per_scholar,
       po.posting_status AS status,
       po.allocated_slots,
       po.filled_slots,
@@ -186,7 +197,18 @@ async function fetchEligibleScholarsByOpening(openingId) {
       po.period_id,
       ay.label AS academic_year,
       ap.term AS semester,
-      po.per_scholar_amount AS amount_per_scholar,
+      CASE
+        WHEN COALESCE(po.per_scholar_amount, 0) > 0
+          THEN po.per_scholar_amount
+        WHEN COALESCE(po.financial_allocation, 0) > 0
+          AND COALESCE(po.allocated_slots, 0) > 0
+          THEN ROUND(
+            po.financial_allocation::numeric /
+            NULLIF(po.allocated_slots, 0)::numeric,
+            2
+          )
+        ELSE 0
+      END AS amount_per_scholar,
       po.posting_status AS status,
       sp.program_name,
       b.benefactor_name
@@ -292,7 +314,18 @@ async function createPayoutBatchFromOpening({
       po.period_id,
       ay.label AS academic_year,
       ap.term AS semester,
-      po.per_scholar_amount AS amount_per_scholar,
+      CASE
+        WHEN COALESCE(po.per_scholar_amount, 0) > 0
+          THEN po.per_scholar_amount
+        WHEN COALESCE(po.financial_allocation, 0) > 0
+          AND COALESCE(po.allocated_slots, 0) > 0
+          THEN ROUND(
+            po.financial_allocation::numeric /
+            NULLIF(po.allocated_slots, 0)::numeric,
+            2
+          )
+        ELSE 0
+      END AS amount_per_scholar,
       sp.program_name
     FROM program_openings po
     LEFT JOIN scholarship_program sp

@@ -30,6 +30,11 @@ const screen = fs.readFileSync(
   'utf8'
 );
 
+const openingModel = fs.readFileSync(
+  path.join(frontendRoot, 'lib', 'shared', 'models', 'program_opening.dart'),
+  'utf8'
+);
+
 test('Review current Required Documents upload behavior', () => {
   assert.match(service, /finalize_application_document_upload/);
   assert.match(screen, /ApplicantDocumentsService/);
@@ -45,6 +50,7 @@ test('PSA remains uploadable but is optional for mobile upload completion', () =
   );
   assert.match(service, /required:\s*isRequiredUploadDocumentType\(document\.document_type\)/);
   assert.match(service, /requiredCount:\s*REQUIRED_UPLOAD_DOCUMENT_TYPES\.length/);
+  assert.match(openingModel, /applicationUploadRequirementCount = 4/);
   assert.doesNotMatch(
     openingService,
     /REQUIRED_APPLICATION_UPLOAD_KEYS[^\]]*'birth_certificate'/
@@ -134,6 +140,9 @@ test('Ensure OCR uses the latest/current document where applicable', () => {
 test('Prevent duplicate active document records', () => {
   assert.match(service, /document_id, application_id, document_type/);
   assert.match(service, /\.eq\('document_id', documentId\)/);
+  assert.match(service, /\.upsert\(missingRows,\s*\{/);
+  assert.match(service, /onConflict: 'application_id,document_type'/);
+  assert.match(service, /ignoreDuplicates: true/);
 });
 
 test('Verify realtime document updates', () => {

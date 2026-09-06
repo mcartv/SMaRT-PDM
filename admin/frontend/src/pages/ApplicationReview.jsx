@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
@@ -213,7 +213,7 @@ function getOpeningGroup(status = '') {
   return 'open';
 }
 
-function getApplicationStatusMeta(row) {
+function _getApplicationStatusMeta(row) {
   const group = getStatusGroup(row?.application_status || row?.status || '');
 
   if (group === 'qualified') {
@@ -235,7 +235,7 @@ function getApplicationStatusMeta(row) {
   };
 }
 
-function getDocumentStatusMeta(row) {
+function _getDocumentStatusMeta(row) {
   const group = getDocumentGroup(row?.document_status || '');
 
   if (group === 'ready') {
@@ -348,12 +348,12 @@ function normalizeApplicantRow(app) {
   };
 }
 
-function isApplicantAtRisk(app) {
+function _isApplicantAtRisk(app) {
   const gwa = Number(app?.gwa);
   const rawStatus = (app?.application_status || '').toLowerCase();
   const docStatus = (app?.document_status || '').toLowerCase();
   const verificationStatus = (app?.verification_status || '').toLowerCase();
-  const sdo = normalizeSdo(app?.sdu_level || app?.sdo_status || '');
+  const sdo = normalizeStatus(app?.sdu_level || app?.sdo_status || '');
 
   const gwaRisk = Number.isFinite(gwa) && gwa > 2.0;
   const docRisk = docStatus === 'missing docs' || docStatus === 'under review';
@@ -375,13 +375,18 @@ function StatusPill({ meta }) {
   );
 }
 
-function MetricItem({ label, value }) {
+function MetricItem({ label, value, emphasis = false }) {
   return (
-    <div className="rounded-lg bg-stone-50 px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">
+    <div
+      className={`rounded-xl border px-3 py-2.5 ${emphasis
+          ? 'border-[var(--portal-border)] bg-[var(--portal-accent-soft)]'
+          : 'border-stone-100 bg-stone-50'
+        }`}
+    >
+      <p className={`text-[10px] font-semibold uppercase tracking-wide ${emphasis ? 'text-[var(--portal-base)]' : 'text-stone-500'}`}>
         {label}
       </p>
-      <p className="mt-0.5 text-base font-semibold text-stone-900">{value}</p>
+      <p className={`mt-1 text-lg font-semibold ${emphasis ? 'text-[var(--portal-base)]' : 'text-stone-900'}`}>{value}</p>
     </div>
   );
 }
@@ -809,39 +814,42 @@ function ReadinessCompletionSummary({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="overflow-hidden rounded-2xl border-stone-200 p-0 sm:max-w-xl">
-        {/* Header */}
-        <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left sm:px-6">
-          <DialogTitle className="text-lg font-semibold text-stone-900">
-            Final Readiness Summary
-          </DialogTitle>
-
-          <p className="mt-1 text-sm text-stone-500">
-            {row.applicant_name} · {row.pdm_id}
-          </p>
+      <DialogContent className="!flex !max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] flex-col !gap-0 overflow-hidden rounded-2xl border-stone-200 !p-0 sm:max-w-xl">
+        <DialogHeader className="shrink-0 border-b border-stone-100 px-5 py-4 pr-12 text-left sm:px-6 sm:py-5 sm:pr-12">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
+              <Trophy className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="text-lg font-semibold text-stone-900">
+                Final Readiness Summary
+              </DialogTitle>
+              <p className="mt-0.5 truncate text-sm text-stone-500">
+                {row.applicant_name} · {row.pdm_id}
+              </p>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 px-5 py-5 sm:px-6">
-          {/* Overall status */}
-          <div className="flex items-center gap-3 rounded-xl bg-green-50 px-4 py-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle2 className="h-4 w-4 text-green-700" />
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-start gap-3 rounded-xl border border-[var(--portal-border)] bg-[var(--portal-accent-soft)] px-4 py-3.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[var(--portal-base)] shadow-sm">
+              <CheckCircle2 className="h-4 w-4" />
             </div>
 
-            <div>
-              <p className="text-sm font-semibold text-green-900">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[var(--portal-base)]">
                 Ready for final activation
               </p>
-              <p className="mt-0.5 text-xs text-green-700">
+              <p className="mt-0.5 text-xs leading-5 text-stone-600">
                 Requirements and endorsement have been completed.
               </p>
             </div>
           </div>
 
-          {/* Completed process */}
           <div className="overflow-hidden rounded-xl border border-stone-200">
             <div className="flex items-start gap-3 border-b border-stone-100 px-4 py-3.5">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--portal-base)]" />
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -849,7 +857,7 @@ function ReadinessCompletionSummary({
                     Application Requirements
                   </p>
 
-                  <span className="text-xs font-semibold text-green-700">
+                  <span className="rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--portal-base)]">
                     Verified
                   </span>
                 </div>
@@ -864,7 +872,7 @@ function ReadinessCompletionSummary({
             </div>
 
             <div className="flex items-start gap-3 px-4 py-3.5">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--portal-base)]" />
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -872,7 +880,7 @@ function ReadinessCompletionSummary({
                     Endorsement
                   </p>
 
-                  <span className="text-xs font-semibold text-green-700">
+                  <span className="rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--portal-base)]">
                     Completed
                   </span>
                 </div>
@@ -890,9 +898,8 @@ function ReadinessCompletionSummary({
             </div>
           </div>
 
-          {/* FCFS */}
-          <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-stone-200">
-            <div className="border-r border-stone-100 px-4 py-3.5">
+          <div className="grid overflow-hidden rounded-xl border border-stone-200 sm:grid-cols-2">
+            <div className="border-b border-stone-100 px-4 py-3.5 sm:border-b-0 sm:border-r">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
                 FCFS Position
               </p>
@@ -925,8 +932,7 @@ function ReadinessCompletionSummary({
             </div>
           </div>
 
-          {/* Scholarship */}
-          <div className="px-1">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
               Scholarship
             </p>
@@ -942,15 +948,23 @@ function ReadinessCompletionSummary({
           </div>
         </div>
 
-        {/* Footer */}
-        <DialogFooter className="border-t border-stone-100 bg-stone-50/70 px-5 py-3 sm:px-6">
-          <div className="flex w-full flex-wrap justify-end gap-2">
+        <div className="shrink-0 border-t border-stone-100 bg-stone-50/80 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 w-full rounded-lg border-stone-200 bg-white sm:w-auto"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+
             {row.endorsement_slip_id ? (
-              <>
+              <div className="grid w-full grid-cols-1 gap-2 min-[440px]:grid-cols-2 sm:w-auto">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-9 rounded-lg border-stone-200 bg-white"
+                  className="h-10 w-full rounded-lg border-stone-200 bg-white px-4"
                   onClick={() =>
                     navigate(
                       `/admin/endorsements/${row.endorsement_slip_id}`
@@ -962,26 +976,17 @@ function ReadinessCompletionSummary({
 
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-9 rounded-lg border-stone-200 bg-white"
+                  className="h-10 w-full rounded-lg border-none bg-[var(--portal-base)] px-4 text-white shadow-sm hover:brightness-95"
                   onClick={() => onDownloadSlip(row)}
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   Download PDF
                 </Button>
-              </>
+              </div>
             ) : null}
 
-            <Button
-              size="sm"
-              className="h-9 rounded-lg border-none px-4 text-white"
-              style={{ background: C.brownMid }}
-              onClick={onClose}
-            >
-              Close
-            </Button>
           </div>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -1072,6 +1077,7 @@ function ReadinessOpeningCards({
   const [selectedOpeningId, setSelectedOpeningId] =
     useState('');
   const [summaryRow, setSummaryRow] = useState(null);
+  const openingsScrollRef = useRef(null);
 
   useEffect(() => {
     if (!grouped.length) {
@@ -1142,27 +1148,66 @@ function ReadinessOpeningCards({
       />
 
       <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-none sm:p-6">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-stone-900">
-              Scholarship Opening
-            </p>
-            <p className="text-xs text-stone-500">
-              Switch openings without hiding the readiness list.
-            </p>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
+              <LayoutGrid className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-stone-900">
+                Choose a scholarship opening
+              </h2>
+              <p className="mt-0.5 text-xs leading-5 text-stone-500">
+                Select an opening to review its capacity and applicant queues. Scroll to see more.
+              </p>
+            </div>
           </div>
 
-          <span className="text-xs text-stone-400">
-            {grouped.length} open
-            {grouped.length === 1 ? ' opening' : ' openings'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="w-fit rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
+              {grouped.length} open
+              {grouped.length === 1 ? ' opening' : ' openings'}
+            </span>
+            <div className="flex items-center gap-1" aria-label="Scroll scholarship openings">
+              <button
+                type="button"
+                onClick={() => openingsScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 transition hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-base)]"
+                title="Previous openings"
+                aria-label="Previous openings"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => openingsScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 transition hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] hover:text-[var(--portal-base)]"
+                title="Next openings"
+                aria-label="Next openings"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div
+          ref={openingsScrollRef}
+          className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Open scholarship openings"
+        >
           {grouped.map((group) => {
             const itemOpening = group.opening || {};
             const itemId = String(
               itemOpening.opening_id || ''
+            );
+            const itemAllocated = Number(
+              itemOpening.allocated_slots || itemOpening.slot_count || 0
+            );
+            const itemActive = Number(itemOpening.filled_slots || 0);
+            const itemAvailable = Math.max(
+              0,
+              itemAllocated - itemActive - group.reserved.length
             );
 
             const selected =
@@ -1177,23 +1222,22 @@ function ReadinessOpeningCards({
                 key={itemId}
                 type="button"
                 aria-pressed={selected}
-                onClick={() => {
+                onClick={(event) => {
                   setSelectedOpeningId(itemId);
                   onOpeningViewed(itemId);
+                  event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                 }}
-                className={`min-h-[118px] transform-gpu rounded-2xl border px-4 py-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${selected
-                    ? 'border-[#6b472f] bg-[#6b472f] text-white hover:border-[#6b472f] hover:bg-[#6b472f]'
-                    : 'border-stone-200 bg-white text-stone-700 hover:border-[#d8b27a] hover:bg-[#fff8eb]'
+                className={`relative min-h-[126px] w-[82vw] max-w-[320px] shrink-0 snap-start overflow-hidden rounded-2xl border px-4 py-4 text-left transition duration-200 sm:w-[290px] lg:w-[300px] xl:w-[calc((100%-36px)/4)] xl:max-w-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--portal-border)] focus-visible:ring-offset-2 ${selected
+                    ? 'border-[var(--portal-border)] bg-[var(--portal-accent-soft)] shadow-sm ring-1 ring-[var(--portal-border)]'
+                    : 'border-stone-200 bg-white hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] hover:shadow-sm'
                   }`}
               >
+                {selected ? <span className="absolute inset-y-0 left-0 w-1 bg-[var(--portal-base)]" /> : null}
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
                       <p
-                        className={`min-w-0 truncate text-sm font-semibold ${selected
-                            ? 'text-white'
-                            : 'text-stone-900'
-                          }`}
+                        className="min-w-0 truncate text-sm font-semibold text-stone-900"
                       >
                         {itemOpening.opening_title ||
                           'Scholarship Opening'}
@@ -1207,38 +1251,31 @@ function ReadinessOpeningCards({
                       ) : null}
                     </div>
 
-                    <p
-                      className={`mt-0.5 truncate text-xs ${selected
-                          ? 'text-white/70'
-                          : 'text-stone-500'
-                        }`}
-                    >
+                    <p className="mt-1 truncate text-xs text-stone-500">
                       {itemOpening.program_name ||
                         'Scholarship Program'}
                     </p>
                   </div>
 
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${selected
-                        ? 'bg-white/15 text-white'
-                        : 'bg-green-50 text-green-700'
-                      }`}
-                  >
-                    {group.reserved.length} ready
-                  </span>
+                  {selected ? (
+                    <span className="shrink-0 rounded-full bg-[var(--portal-base)] px-2.5 py-1 text-[10px] font-semibold text-white">
+                      Selected
+                    </span>
+                  ) : null}
                 </div>
 
-                <div
-                  className={`mt-2 flex items-center gap-3 text-[11px] ${selected
-                      ? 'text-white/70'
-                      : 'text-stone-500'
-                    }`}
-                >
-                  <span>
-                    {group.reserved.length} reserved
+                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-stone-200/80 pt-3 text-xs">
+                  <span className="text-stone-500">
+                    <strong className="block text-sm font-semibold text-stone-900">{group.reserved.length}</strong>
+                    Ready
                   </span>
-                  <span>
-                    {group.waiting.length} waiting
+                  <span className="text-stone-500">
+                    <strong className="block text-sm font-semibold text-stone-900">{group.waiting.length}</strong>
+                    Waiting
+                  </span>
+                  <span className="text-stone-500">
+                    <strong className="block text-sm font-semibold text-[var(--portal-base)]">{itemAvailable}</strong>
+                    Available
                   </span>
                 </div>
               </button>
@@ -1250,25 +1287,30 @@ function ReadinessOpeningCards({
       <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
         <div className="border-b border-stone-100 px-5 py-5 sm:px-6 sm:py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <h2 className="truncate text-base font-semibold text-stone-900 sm:text-lg">
-                {opening.opening_title ||
-                  'Scholarship Opening'}
-              </h2>
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
+                <ListOrdered className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--portal-base)]">Selected opening</p>
+                <h2 className="mt-0.5 truncate text-base font-semibold text-stone-900 sm:text-lg">
+                  {opening.opening_title ||
+                    'Scholarship Opening'}
+                </h2>
 
-              <p className="mt-0.5 text-sm text-stone-500">
-                {opening.program_name ||
-                  'Scholarship Program'}
-                {opening.academic_year
-                  ? ` · ${opening.academic_year}`
-                  : ''}
-              </p>
+                <p className="mt-0.5 text-sm text-stone-500">
+                  {opening.program_name ||
+                    'Scholarship Program'}
+                  {opening.academic_year
+                    ? ` · ${opening.academic_year}`
+                    : ''}
+                </p>
+              </div>
             </div>
 
             <Button
-              variant="outline"
               size="sm"
-              className="h-9 shrink-0 rounded-lg border-stone-200 text-sm"
+              className="h-9 shrink-0 rounded-lg border-none bg-[var(--portal-base)] px-4 text-sm text-white hover:brightness-95"
               onClick={() => {
                 onOpeningViewed(opening.opening_id);
                 navigate(
@@ -1276,7 +1318,7 @@ function ReadinessOpeningCards({
                 );
               }}
             >
-              Open Queue
+              View Full Queue
               <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
           </div>
@@ -1301,13 +1343,14 @@ function ReadinessOpeningCards({
             <MetricItem
               label="Available"
               value={available}
+              emphasis
             />
           </div>
         </div>
 
-        <CardContent className="grid gap-8 p-5 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <section className="min-w-0">
-            <div className="mb-5 flex items-center justify-between gap-4">
+        <CardContent className="grid gap-4 bg-stone-50/40 p-5 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-sm font-semibold leading-5 text-stone-900">
                   Ready for Activation
@@ -1320,57 +1363,52 @@ function ReadinessOpeningCards({
 
               <StatusPill
                 meta={{
-                  label: `${reserved.length} reserved`,
-                  bg: C.greenSoft,
-                  color: C.green,
+                  label: `${reserved.length} ready`,
+                  bg: 'var(--portal-accent-soft)',
+                  color: 'var(--portal-base)',
                 }}
               />
             </div>
 
             {reserved.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-200 px-5 py-12 text-center text-sm text-stone-400">
-                No applicants are currently reserved for
-                activation.
+              <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/60 px-5 py-8 text-center">
+                <p className="text-sm font-medium text-stone-600">No applicants ready for activation</p>
+                <p className="mt-1 text-xs leading-5 text-stone-400">Applicants will appear here after completing the FCFS requirements.</p>
               </div>
             ) : (
-              <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
+              <div className="space-y-2">
                 {reserved.map((row) => (
                   <div
                     key={row.application_id}
-                    className="flex flex-col gap-4 bg-white px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between"
+                    className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 rounded-xl border border-stone-200 bg-white p-4 transition hover:border-[var(--portal-border)] hover:shadow-sm lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center"
                   >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2 text-sm font-bold text-amber-800">
-                        {getFcfsLabel(row)}
-                      </span>
+                    <span className="inline-flex h-10 min-w-10 items-center justify-center self-start whitespace-nowrap rounded-full border border-[var(--portal-border)] bg-[var(--portal-accent-soft)] px-2 text-sm font-bold text-[var(--portal-base)]">
+                      {getFcfsLabel(row)}
+                    </span>
 
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-stone-900">
-                          {row.applicant_name}
-                        </p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-stone-900">
+                        {row.applicant_name}
+                      </p>
 
-                        <p className="mt-1 text-sm text-stone-500">
-                          {row.pdm_id} {'·'} Ready{' '}
-                          {formatDate(
-                            row.fcfs_completed_at
-                          )}
-                        </p>
-
-                        <p className="mt-1 text-xs font-medium text-green-700">
-                          {normalizeStatus(
-                            row.selection_status
-                          ) === 'promoted'
-                            ? 'Promoted from waiting list'
-                            : 'Reserved by FCFS'}
-                        </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-500">
+                        <span className="font-medium text-stone-600">{row.pdm_id}</span>
+                        <span className="hidden h-1 w-1 rounded-full bg-stone-300 sm:block" aria-hidden="true" />
+                        <span>Ready {formatDate(row.fcfs_completed_at)}</span>
                       </div>
+
+                      <span className="mt-2 inline-flex w-fit rounded-full bg-[var(--portal-accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--portal-base)]">
+                        {normalizeStatus(row.selection_status) === 'promoted'
+                          ? 'Promoted from waiting list'
+                          : 'Reserved by FCFS'}
+                      </span>
                     </div>
 
-                    <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+                    <div className="col-span-2 flex flex-col gap-2 min-[440px]:flex-row lg:col-span-1 lg:justify-end">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-9 rounded-lg border-stone-200 text-sm"
+                        className="h-10 w-full rounded-lg border-stone-200 px-4 text-sm min-[440px]:w-auto"
                         onClick={() => setSummaryRow(row)}
                       >
                         View Summary
@@ -1378,10 +1416,7 @@ function ReadinessOpeningCards({
 
                       <Button
                         size="sm"
-                        className="h-9 rounded-lg border-none px-4 text-sm text-white"
-                        style={{
-                          background: C.green,
-                        }}
+                        className="h-10 w-full rounded-lg border-none bg-[var(--portal-base)] px-4 text-sm text-white hover:brightness-95 min-[440px]:w-auto"
                         disabled={
                           approvalLoadingId ===
                           row.application_id
@@ -1406,8 +1441,8 @@ function ReadinessOpeningCards({
             )}
           </section>
 
-          <section className="min-w-0">
-            <div className="mb-5 flex items-center justify-between gap-4">
+          <section className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-sm font-semibold text-stone-900">
                   Waiting List
@@ -1429,8 +1464,9 @@ function ReadinessOpeningCards({
             </div>
 
             {waiting.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-200 px-5 py-12 text-center text-sm text-stone-400">
-                No applicants are currently waiting for a slot.
+              <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/60 px-5 py-8 text-center">
+                <p className="text-sm font-medium text-stone-600">Waiting list is empty</p>
+                <p className="mt-1 text-xs leading-5 text-stone-400">Waitlisted applicants will appear here in their current queue order.</p>
               </div>
             ) : (
               <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
@@ -2040,8 +2076,6 @@ export default function ApplicationReview() {
 
   const filteredOpeningCards = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
-
     return openingCards.filter((opening) => {
       const openingGroup = getOpeningGroup(opening.posting_status);
 
@@ -2189,7 +2223,6 @@ export default function ApplicationReview() {
 
   const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
-  const readinessTotalPages = Math.max(1, Math.ceil(readinessRows.length / PAGE_SIZE));
 
   const tablePageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -2200,11 +2233,6 @@ export default function ApplicationReview() {
     const start = (page - 1) * PAGE_SIZE;
     return filteredOpeningCards.slice(start, start + PAGE_SIZE);
   }, [filteredOpeningCards, page]);
-
-  const readinessPageData = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return readinessRows.slice(start, start + PAGE_SIZE);
-  }, [readinessRows, page]);
 
   const applyFilters = () => setFilters(draftFilters);
 

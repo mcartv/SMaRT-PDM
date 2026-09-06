@@ -7,6 +7,10 @@ function getRequestUserId(req) {
 
 async function getOpenings(req, res) {
     try {
+        // Availability is operational state. Never let a browser, proxy, or
+        // service worker reuse a response after an admin closes an opening.
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
         const userId = getRequestUserId(req);
         const result = await openingService.getOpeningsForMobile(userId);
 
@@ -22,6 +26,8 @@ async function getOpenings(req, res) {
 
 async function getLatestOpening(req, res) {
     try {
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
         const userId = getRequestUserId(req);
         const result = await openingService.getLatestOpeningForMobile(userId);
 

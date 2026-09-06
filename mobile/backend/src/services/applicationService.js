@@ -6,6 +6,7 @@ const {
     assertOpeningInActivePeriod,
 } = require('./applicationAvailabilityService');
 const { validateApplicationFieldLimits } = require('../validation/applicationFieldLimits');
+const { validateSection } = require('../validation/applicationSection');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 const { removeDocumentPreview } = require('./documentPreviewService');
@@ -1395,6 +1396,7 @@ async function saveMyFormData(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
     }
+    validateSection(payload.academic);
 
     const lifecycleStudent = await getStudent(userId);
     if (lifecycleStudent?.scholar_is_archived === true) {
@@ -1596,7 +1598,13 @@ async function getMyDocuments(userId) {
     if (missingDocuments.length > 0) {
         const { error: insertDocsError } = await supabase
             .from('application_documents')
-            .insert(missingDocuments);
+            .upsert(missingDocuments, {
+                onConflict: 'application_id,document_type',
+                // Document initialization can overlap with application submit.
+                // Preserve an existing upload instead of replacing it or
+                // failing the request on the unique document-slot constraint.
+                ignoreDuplicates: true,
+            });
         if (insertDocsError) throw insertDocsError;
     }
 
@@ -3126,7 +3134,12 @@ async function createRequiredDocumentSlots(applicationId, studentId) {
 
     const { error } = await supabase
         .from('application_documents')
-        .insert(missingRows);
+        .upsert(missingRows, {
+            onConflict: 'application_id,document_type',
+            // Make retries and concurrent document initialization idempotent.
+            // Existing uploaded rows must never be overwritten with blanks.
+            ignoreDuplicates: true,
+        });
 
     if (error) throw error;
 }
@@ -3321,6 +3334,7 @@ function normalizePhilippineMobileSubmission(value) {
 }
 
 function validateApplicationSubmissionPayload(payload = {}) {
+    validateSection(payload.academic, { required: true });
     validateApplicationFieldLimits(payload);
     const missingFields = collectMissingSubmissionFields(payload);
 

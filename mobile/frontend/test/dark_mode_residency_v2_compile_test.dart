@@ -48,9 +48,9 @@ void main() {
       'lib/features/notifications/presentation/screens/notifications_screen.dart',
     ).readAsStringSync();
 
-    expect(success, contains('AppColors.applicantDarkBackground'));
-    expect(success, contains('AppColors.applicantDarkSurface'));
-    expect(notifications, contains('AppColors.applicantDarkBackground'));
-    expect(notifications, contains('AppColors.applicantDarkSurface'));
+    expect(success, contains('AppSurfacePalette.background(context)'));
+    expect(success, contains('AppSurfacePalette.surface(context)'));
+    expect(notifications, contains('AppSurfacePalette.background(context)'));
+    expect(notifications, contains('AppSurfacePalette.surface(context)'));
   });
 }

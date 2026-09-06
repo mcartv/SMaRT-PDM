@@ -17,7 +17,9 @@ void main() {
     ).readAsStringSync();
 
     expect(source, isNot(contains('_scholarshipRules(opening)')));
-    expect(source, contains('_availabilitySummary(opening)'));
+    expect(source, contains('_applicationPeriodLabel(opening)'));
+    expect(source.toLowerCase(), isNot(contains('available slots')));
+    expect(source.toLowerCase(), isNot(contains('remaining slots')));
   });
 
   test(

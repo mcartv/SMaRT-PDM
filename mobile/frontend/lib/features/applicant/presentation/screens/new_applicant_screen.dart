@@ -17,6 +17,8 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_fo
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
@@ -389,19 +391,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       barrierDismissible: false,
       builder: (dialogContext) {
         final theme = Theme.of(dialogContext);
-        final isDark = theme.brightness == Brightness.dark;
-        final surfaceColor = isDark
-            ? AppColors.applicantDarkSurface
-            : Colors.white;
-        final titleColor = isDark
-            ? AppColors.applicantDarkText
-            : const Color(0xFF2F2924);
-        final bodyColor = isDark
-            ? AppColors.applicantDarkTextMuted
-            : const Color(0xFF6F675F);
-        final borderColor = isDark
-            ? const Color(0xFF665E57)
-            : const Color(0xFFD2D2D2);
+        final surfaceColor = AppSurfacePalette.surface(dialogContext);
+        final titleColor = AppSurfacePalette.text(dialogContext);
+        final bodyColor = AppSurfacePalette.mutedText(dialogContext);
+        final borderColor = AppSurfacePalette.outline(dialogContext);
 
         Widget reviewPoint(String text) {
           return Padding(
@@ -415,7 +408,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
                     color: AppColors.gold.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(7),
+                    borderRadius: BorderRadius.all(Radius.circular(AppRadii.sm)),
                   ),
                   child: Icon(
                     Icons.check_rounded,
@@ -444,11 +437,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           icon: const Icon(Icons.arrow_back_rounded, size: 18),
           label: const Text('Back to Edit'),
           style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 46),
+            minimumSize: const Size(0, AppSizes.minimumTapTarget),
             foregroundColor: titleColor,
             side: BorderSide(color: borderColor),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppRadii.control,
             ),
             textStyle: const TextStyle(
               fontWeight: FontWeight.w800,
@@ -461,12 +454,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           icon: const Icon(Icons.verified_outlined, size: 18),
           label: const Text('Submit for Verification'),
           style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 46),
+            minimumSize: const Size(0, AppSizes.minimumTapTarget),
             backgroundColor: AppColors.gold,
             foregroundColor: const Color(0xFF3D2A1D),
             elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppRadii.control,
             ),
             textStyle: const TextStyle(
               fontWeight: FontWeight.w900,
@@ -486,7 +479,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: Container(
               decoration: BoxDecoration(
                 color: surfaceColor,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: AppRadii.card,
                 border: Border.all(color: borderColor),
                 boxShadow: const [
                   BoxShadow(
@@ -510,7 +503,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                           height: 44,
                           decoration: BoxDecoration(
                             color: AppColors.gold.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: AppRadii.control,
                           ),
                           child: Icon(
                             Icons.fact_check_outlined,
@@ -551,10 +544,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.applicantDarkSurfaceMuted
-                            : const Color(0xFFFFFBF2),
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppSurfacePalette.surfaceMuted(dialogContext),
+                        borderRadius: AppRadii.card,
                         border: Border.all(
                           color: AppColors.gold.withOpacity(0.25),
                         ),
@@ -954,37 +945,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NewScholarProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark
-        ? AppColors.applicantDarkSurface
-        : const Color(0xFFFDFCF8);
-    final borderColor = isDark
-        ? AppColors.applicantDarkOutline
-        : const Color(0xFFF0D59A);
+    final cardColor = AppSurfacePalette.surface(context);
+    final borderColor = AppSurfacePalette.outline(context);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? AppColors.applicantDarkBackground
-          : const Color(0xFFF7F1E8),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? const [
-                    AppColors.applicantDarkBackground,
-                    Color(0xFF24180F),
-                    AppColors.applicantDarkBackground,
-                  ]
-                : const [
-                    Color(0xFFFBF5EA),
-                    Color(0xFFF7F1E5),
-                    Color(0xFFFDFCF8),
-                  ],
-            stops: const [0.0, 0.55, 1.0],
-          ),
-        ),
+      backgroundColor: AppSurfacePalette.background(context),
+      body: ColoredBox(
+        color: AppSurfacePalette.background(context),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -993,15 +960,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               final gutter = IntakeLayout.horizontalPadding(width);
               final formTheme = Theme.of(context).copyWith(
                 textTheme: Theme.of(context).textTheme.copyWith(
-                  bodyLarge: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.45),
-                  bodyMedium: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontSize: 15, height: 1.45),
-                  labelLarge: Theme.of(
-                    context,
-                  ).textTheme.labelLarge?.copyWith(fontSize: 15),
+                  bodyLarge: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(height: 1.45),
+                  bodyMedium: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(height: 1.45),
                 ),
               );
 
@@ -1021,13 +987,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                         compact ? 6 : 12,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(compact ? 22 : 28),
-                        side: BorderSide(color: borderColor, width: 1.2),
+                        borderRadius: AppRadii.card,
+                        side: BorderSide(color: borderColor, width: 1),
                       ),
-                      elevation: isDark ? 2 : 10,
-                      shadowColor: Colors.black.withValues(
-                        alpha: isDark ? 0.28 : 0.26,
-                      ),
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: [
@@ -1037,18 +1001,29 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                 : 'Scholarship Application Form',
                             onBack: () => Navigator.maybePop(context),
                           ),
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              compact ? 10 : 20,
-                              4,
-                              compact ? 10 : 20,
-                              compact ? 8 : 12,
+                          if (!_isBootstrapping && _hasSelectedOpening) ...[
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 12 : 20,
+                                2,
+                                compact ? 12 : 20,
+                                AppSpacing.md,
+                              ),
+                              child: _buildSelectedOpeningCard(context),
                             ),
-                            child: StepIndicator(
-                              currentStep: _step,
-                              labels: _stepLabels,
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 10 : 20,
+                                0,
+                                compact ? 10 : 20,
+                                compact ? 8 : 12,
+                              ),
+                              child: StepIndicator(
+                                currentStep: _step,
+                                labels: _stepLabels,
+                              ),
                             ),
-                          ),
+                          ],
                           Expanded(
                             child: SingleChildScrollView(
                               controller: _scrollCtrl,
@@ -1072,7 +1047,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                   else
                                     Column(
                                       children: [
-                                        _buildSelectedOpeningCard(context),
                                         AnimatedSwitcher(
                                           duration: const Duration(
                                             milliseconds: 220,
@@ -1103,27 +1077,17 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildOpeningReminder(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final mutedColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.brown;
+    final textColor = AppSurfacePalette.text(context);
+    final mutedColor = AppSurfacePalette.mutedText(context);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.applicantDarkSurfaceMuted : Colors.white,
-        border: Border.all(
-          color: isDark
-              ? AppColors.applicantDarkOutline
-              : const Color(0xFFF0D59A),
-          width: 1.2,
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: AppSurfacePalette.surfaceMuted(context),
+        border: Border.all(color: AppSurfacePalette.outline(context)),
+        borderRadius: AppRadii.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1159,27 +1123,16 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildSelectedOpeningCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark
-        ? AppColors.applicantDarkText
-        : AppColors.darkBrown;
-    final mutedColor = isDark
-        ? AppColors.applicantDarkTextMuted
-        : AppColors.brown;
+    final textColor = AppSurfacePalette.text(context);
+    final mutedColor = AppSurfacePalette.mutedText(context);
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.applicantDarkSurfaceMuted : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark
-              ? AppColors.applicantDarkOutline
-              : const Color(0xFFF0D59A),
-          width: 1.2,
-        ),
+        color: AppSurfacePalette.surfaceMuted(context),
+        borderRadius: AppRadii.card,
+        border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1192,10 +1145,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.applicantDarkSurface
-                      : const Color(0xFFFFF1C9),
-                  borderRadius: BorderRadius.circular(999),
+                  color: AppColors.gold.withValues(alpha: 0.14),
+                  borderRadius: AppRadii.status,
                 ),
                 child: Text(
                   'Selected Opening',
@@ -1233,10 +1184,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.applicantDarkSurface
-                  : const Color(0xFFFFF9EE),
-              borderRadius: BorderRadius.circular(18),
+              color: AppSurfacePalette.surface(context),
+              borderRadius: AppRadii.control,
             ),
             child: Row(
               children: [
@@ -1303,7 +1252,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildFooter(NewScholarProvider provider) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final compact = MediaQuery.sizeOf(context).width < 360;
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -1313,15 +1261,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         compact ? 12 : 18,
       ),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.applicantDarkSurface
-            : const Color(0xFFFDFCF8),
+        color: AppSurfacePalette.surface(context),
         border: Border(
-          top: BorderSide(
-            color: isDark
-                ? AppColors.applicantDarkOutline
-                : const Color(0xFFE9DED2),
-          ),
+          top: BorderSide(color: AppSurfacePalette.outline(context)),
         ),
       ),
       child: Row(
@@ -1354,17 +1296,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.darkBrown,
-                      disabledBackgroundColor: const Color(0xFFF0D8A0),
-                      disabledForegroundColor: AppColors.darkBrown.withValues(
-                        alpha: 0.6,
-                      ),
+                      disabledBackgroundColor: AppSurfacePalette.outline(context),
+                      disabledForegroundColor: AppSurfacePalette.mutedText(context),
                       minimumSize: const Size(0, 56),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 16,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: AppRadii.control,
                       ),
                       elevation: 0,
                     ),
@@ -1374,7 +1314,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                           : 'Submit Application',
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
-                        fontSize: 16,
                       ),
                     ),
                   ),

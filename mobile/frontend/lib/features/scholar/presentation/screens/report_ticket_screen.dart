@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
 import 'package:smartpdm_mobileapp/shared/models/support_ticket.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/support_ticket_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ReportTicketScreen extends StatefulWidget {
@@ -191,71 +193,54 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
     return '${months[local.month - 1]} ${local.day}, ${local.year}';
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'Resolved':
-        return Colors.green;
-      case 'Closed':
-        return Colors.blueGrey;
-      case 'In Progress':
-        return Colors.orange;
-      case 'Open':
+  AppStatusTone _statusTone(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'resolved':
+        return AppStatusTone.success;
+      case 'closed':
+        return AppStatusTone.neutral;
+      case 'in progress':
+        return AppStatusTone.actionRequired;
+      case 'open':
       default:
-        return primaryColor;
+        return AppStatusTone.inProgress;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final surfaceMutedColor = isDark
-        ? const Color(0xFF2D1E12)
-        : Colors.blue[50]!;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final titleColor = AppSurfacePalette.text(context);
+    final subtitleColor = AppSurfacePalette.mutedText(context);
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(
-        title: Text('Support Ticket'),
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
-      ),
+      appBar: AppBar(title: const Text('Support Ticket')),
       selectedIndex: 0,
       child: RefreshIndicator(
         onRefresh: _loadTickets,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            Card(
-              color: surfaceMutedColor,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.support_agent,
-                      color: isDark ? accentColor : Colors.blue,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Submit concerns directly to OSFA. Ticket status and handling will follow the live support_tickets table.',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelMedium?.copyWith(color: titleColor),
+            AppSurfaceCard(
+              backgroundColor: AppSurfacePalette.surfaceMuted(context),
+              child: Row(
+                children: [
+                  const AppIconTile(icon: Icons.support_agent_rounded),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      'Submit concerns directly to OSFA and monitor each ticket until it is resolved.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: subtitleColor,
+                        height: 1.4,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
-            Card(
-              color: surfaceColor,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Form(
+            AppSurfaceCard(
+              child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,25 +329,13 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                     ],
                   ),
                 ),
-              ),
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'My Tickets',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: titleColor,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _isLoadingTickets ? null : _loadTickets,
-                  icon: const Icon(Icons.refresh),
-                  label: Text('Refresh'),
-                ),
-              ],
+            const SizedBox(height: AppSpacing.xl),
+            AppSectionHeading(
+              title: 'My Tickets',
+              subtitle: 'Review status changes and previously submitted concerns.',
+              actionLabel: 'Refresh',
+              onAction: _isLoadingTickets ? null : _loadTickets,
             ),
             const SizedBox(height: 8),
             if (_isLoadingTickets)
@@ -373,67 +346,71 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                 ),
               )
             else if (_loadError.isNotEmpty)
-              Card(
-                color: surfaceColor,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Failed to load tickets',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: titleColor,
-                        ),
+              AppSurfaceCard(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppIconTile(
+                      icon: Icons.cloud_off_rounded,
+                      accent: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Failed to load tickets',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
+                                ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            _loadError,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(_loadError, style: TextStyle(color: subtitleColor)),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               )
             else if (_tickets.isEmpty)
-              Card(
-                color: surfaceColor,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.inbox_outlined,
-                        size: 36,
+              AppSurfaceCard(
+                child: Column(
+                  children: [
+                    const AppIconTile(icon: Icons.inbox_outlined),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'No support tickets yet.',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Submit a ticket above if you need help from OSFA.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: subtitleColor,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No support tickets yet.',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: titleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Submit a ticket above if you need help from OSFA.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: subtitleColor),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               )
             else
               ..._tickets.map((ticket) {
-                final statusColor = _statusColor(ticket.status);
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Card(
-                    color: surfaceColor,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
+                return AppSurfaceCard(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
@@ -464,23 +441,10 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                   ],
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  ticket.status,
-                                  style: Theme.of(context).textTheme.labelMedium
-                                      ?.copyWith(
-                                        color: statusColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
+                              AppStatusCapsule(
+                                label: ticket.status,
+                                tone: _statusTone(ticket.status),
+                                compact: true,
                               ),
                             ],
                           ),
@@ -509,8 +473,6 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                           ),
                         ],
                       ),
-                    ),
-                  ),
                 );
               }),
           ],
@@ -528,15 +490,18 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final chipColor = isDark ? const Color(0xFF2D1E12) : Colors.grey.shade100;
-    final chipIconColor = isDark ? Colors.white70 : Colors.grey.shade700;
+    final chipColor = AppSurfacePalette.surfaceMuted(context);
+    final chipIconColor = AppSurfacePalette.mutedText(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: chipColor,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
+        border: Border.all(color: AppSurfacePalette.outline(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

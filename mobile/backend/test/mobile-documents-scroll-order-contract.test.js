@@ -21,10 +21,15 @@ const source = fs.readFileSync(
   'utf8'
 );
 
-test('not-yet-uploaded document cards sort before submitted files', () => {
+test('re-upload requests are prioritized while missing uploads still precede ordinary submitted files', () => {
+  assert.match(source, /if \(a\.needsReplacement != b\.needsReplacement\)/);
   assert.match(
     source,
     /if \(a\.isSubmitted != b\.isSubmitted\) return a\.isSubmitted \? 1 : -1;/
+  );
+  assert.match(
+    source,
+    /if \(a\.isRequired != b\.isRequired\) return a\.isRequired \? -1 : 1;/
   );
 });
 
@@ -40,6 +45,9 @@ test('documents list preserves its scroll position and bottom clearance', () => 
   assert.match(source, /PageStorageKey<String>\('applicant-required-documents'\)/);
   assert.match(source, /controller: _scrollController/);
   assert.match(source, /AlwaysScrollableScrollPhysics/);
-  assert.match(source, /EdgeInsets\.fromLTRB\(16, 16, 16, 32\)/);
+  assert.match(
+    source,
+    /EdgeInsets\.fromLTRB\(AppSpacing\.lg, AppSpacing\.lg, AppSpacing\.lg, AppSpacing\.xxl\)/
+  );
   assert.match(source, /_scrollController\.dispose\(\)/);
 });

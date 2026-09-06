@@ -10,11 +10,24 @@ const sourceRoots = [
   path.join(projectRoot, 'admin', 'backend'),
   path.join(projectRoot, 'admin', 'frontend', 'src'),
   path.join(projectRoot, 'backend', 'src'),
-  path.join(projectRoot, 'mobile', 'smartpdm_mobileapp', 'lib'),
+  path.join(projectRoot, 'mobile', 'frontend', 'lib'),
   path.join(projectRoot, 'ocr-scanner'),
 ];
 const textExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.dart', '.py', '.sql', '.css', '.json']);
-const badSequences = ['•', '—', '–', '’', '“', 'â€', '₱', 'ï»¿', 'Ã', 'Â'];
+// Express mojibake as code points so editors cannot silently turn these into
+// valid punctuation such as bullets, smart quotes, dashes, or peso signs.
+const badSequences = [
+  '\u00e2\u20ac\u00a2',
+  '\u00e2\u20ac\u201d',
+  '\u00e2\u20ac\u201c',
+  '\u00e2\u20ac\u2122',
+  '\u00e2\u20ac\u0153',
+  '\u00c3\u00a2\u00e2\u201a\u00ac',
+  '\u00e2\u201a\u00b1',
+  '\u00c3\u00af\u00c2\u00bb\u00c2\u00bf',
+  '\u00c3\u0192',
+  '\u00c3\u201a',
+];
 
 function shouldSkip(filePath) {
   const name = path.basename(filePath).toLowerCase();

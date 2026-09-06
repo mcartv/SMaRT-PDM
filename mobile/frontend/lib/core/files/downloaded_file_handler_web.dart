@@ -17,6 +17,10 @@ Future<String> saveAndOpenDownloadedFileImpl({
   html.document.body?.append(anchor);
   anchor.click();
   anchor.remove();
+
+  // Keep the object URL alive until the browser consumes the synthetic click.
+  // Revoking it synchronously can cancel downloads in desktop browsers.
+  await Future<void>.delayed(const Duration(seconds: 1));
   html.Url.revokeObjectUrl(url);
   return 'Download started for $safeName.';
 }

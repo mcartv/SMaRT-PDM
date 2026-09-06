@@ -21,6 +21,7 @@ import useForceDarkMode from '../../hooks/useForceDarkMode';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
 import { buildApiUrl } from '../../api';
+import { authService } from '../../services/authService';
 import { clearPortalSession } from '../../utils/authStorage';
 import ProfilePhotoPreviewDialog from '../profile/ProfilePhotoPreviewDialog';
 
@@ -210,10 +211,8 @@ export default function SDOLayout() {
     []
   );
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('sdoToken');
-    sessionStorage.removeItem('sdoProfile');
-    navigate('/sdo/login');
+  const handleLogout = async () => {
+    await authService.logout();
   };
 
   const getInitials = () => {

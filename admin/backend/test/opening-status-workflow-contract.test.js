@@ -21,7 +21,7 @@ const frontend = fs.readFileSync(
 
 test('Review Draft opening behavior', () => {
   assert.match(service, /draft: new Set\(\['draft', 'open', 'archived'\]\)/);
-  assert.ok(frontend.includes("const canSubmit =\n        !!form.opening_title?.trim() &&\n        !!form.program_id &&\n        !!form.academic_year_id;"));
+  assert.match(frontend, /const canSubmit\s*=\s*!!form\.opening_title\?\.trim\(\)\s*&&\s*!!form\.program_id\s*&&\s*!!form\.academic_year_id/);
 });
 
 test('Review Open opening behavior', () => {
@@ -72,6 +72,13 @@ test('Verify realtime status updates', () => {
   assert.ok(controller.includes("emitOpeningRealtime(req, 'opening:closed', updated, audit.eventAction);"));
   assert.ok(frontend.includes("useSocketEvent('opening:updated'"));
   assert.ok(frontend.includes("useSocketEvent('opening:closed'"));
+});
+
+test('Opening slot cards use the stored active-scholar count before historical qualified applications', () => {
+  assert.match(
+    frontend,
+    /function getFilledSlots[\s\S]*openingLike\.filled_slots \?\?[\s\S]*openingLike\.qualified_count \?\?/
+  );
 });
 
 test('Verify status badges and available actions match the actual state', () => {

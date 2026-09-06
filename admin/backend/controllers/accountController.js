@@ -398,7 +398,7 @@ exports.updateStaffAccount = async (req, res) => {
                     module: 'Accounts',
                     entityType: 'staff_account',
                     entityId: account.user_id || req.params.id,
-                    description: 'Changed own account password. Current session retained. Password values are not stored in System Logs.',
+                    description: 'Changed own account password. Active sessions were invalidated. Password values are not stored in System Logs.',
                     metadata: {
                         target_user_id: account.user_id || req.params.id,
                         target_email: account.email || null,
@@ -660,17 +660,22 @@ exports.changeCurrentStaffPassword = async (req, res) => {
                     referenceType: 'staff_profile',
                 });
                 emitCreatedNotifications(req, [{ ...notification, target_user_id: actorUserId }]);
-            } catch (notificationError) {
-                console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
+                } catch (notificationError) {
+                    console.error('PASSWORD CHANGE NOTIFICATION ERROR:', notificationError.message || notificationError);
+                }
+
+                disconnectAccountSockets(req, actorUserId, {
+                    reason: 'password-changed',
+                    code: 'PASSWORD_CHANGED',
+                    message: 'Your password was changed. Please sign in again using your new password.',
+                });
             }
 
-        }
-
-        return res.status(200).json({
-            success: true,
-            session_invalidated: false,
-            message: 'Password changed successfully.',
-        });
+            return res.status(200).json({
+                success: true,
+                session_invalidated: true,
+                message: 'Password changed successfully. Please sign in again.',
+            });
     } catch (err) {
         console.error('CHANGE CURRENT STAFF PASSWORD ERROR:', err);
         return sendError(res, err, 'Failed to change password');

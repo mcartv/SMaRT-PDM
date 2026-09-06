@@ -53,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isProfileIncomplete = false;
   bool _hasScholarAccess = false;
   bool _scholarPrivilegeRemoved = false;
+  bool _sectionRequiresCorrection = false;
 
   String _displayName = 'SMaRT-PDM User';
   String? _avatarUrl;
@@ -134,6 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       try {
         final profile = await _profileService.fetchMyProfile();
         if (!mounted) return;
+        _sectionRequiresCorrection = profile['section_requires_correction'] == true;
 
         _applyValues(
           firstName: profile['first_name']?.toString() ?? session.firstName,
@@ -939,7 +941,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.groups_2_outlined,
             controller: _sectionController,
             enabled: false,
-            helperText: 'Section is based on your current academic/application record.',
+            helperText: _sectionRequiresCorrection
+                ? 'Your recorded section needs correction. Only A, B, C, or D is allowed. Contact OSFA for assistance.'
+                : 'Section is based on your current academic/application record.',
           ),
           _ProfileField(
             label: 'Phone Number',

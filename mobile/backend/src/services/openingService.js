@@ -203,6 +203,7 @@ async function getStudentByUserId(userId) {
       pdm_id,
       is_active_scholar,
       scholarship_status,
+      scholar_is_archived,
       current_program_id,
       current_application_id,
       is_archived
@@ -441,6 +442,7 @@ async function getOpeningsForMobile(userId) {
   );
 
   const scholar = isApprovedScholar(student);
+  const scholarPrivilegeRemoved = student?.scholar_is_archived === true;
 
   const allItems = (data || [])
     .filter((row) => {
@@ -560,21 +562,42 @@ async function getOpeningsForMobile(userId) {
         !previousApplication ||
         canReapply;
 
+      // Visibility and eligibility are intentionally separate. An Admin
+      // opening can remain visible in Mobile even when this specific student
+      // cannot start another application yet. Application creation itself is
+      // still restricted to the active academic period and global intake
+      // policy.
       const canApply =
+        availability.can_apply === true &&
         !scholar &&
+        !scholarPrivilegeRemoved &&
+        !activeApplication &&
         !activeExisting &&
         previousApplicationAllowsAttempt &&
         openingAcceptsApplications;
+
+      const canReapplyNow = canReapply && canApply;
+      const postingStatus = String(row.posting_status || '')
+        .trim()
+        .toLowerCase();
 
       let applyLabel = 'Apply for Scholarship';
 
       if (scholar) {
         applyLabel = 'Scholar Account';
+      } else if (scholarPrivilegeRemoved) {
+        applyLabel = 'Eligibility Review Required';
       } else if (hasApplied) {
         applyLabel = 'Manage Documents';
+      } else if (activeApplication) {
+        applyLabel = 'Finish Current Application First';
       } else if (blockedByMajorRejection) {
         applyLabel = 'Application Rejected';
-      } else if (canReapply) {
+      } else if (!isCurrentPeriod) {
+        applyLabel = 'Previous Academic Period';
+      } else if (postingStatus !== 'open' || availability.can_apply !== true) {
+        applyLabel = 'Applications Closed';
+      } else if (canReapplyNow) {
         applyLabel = waitingListAvailable
           ? 'Apply Again for Waiting List'
           : 'Apply Again';
@@ -645,7 +668,7 @@ async function getOpeningsForMobile(userId) {
           documentSummary?.requiredDocumentCount ||
           REQUIRED_APPLICATION_UPLOAD_KEYS.length,
 
-        can_reapply: canReapply,
+        can_reapply: canReapplyNow,
         can_apply: canApply,
         can_join_waiting_list:
           waitingListAvailable && canApply,
@@ -670,29 +693,26 @@ async function getOpeningsForMobile(userId) {
       };
     });
 
-  // Do not clutter the scholarship list with old semesters. A historical
-  // opening is retained only when this student already has an application
-  // tied to it, so their existing status remains reachable.
-  const scopedItems = allItems.filter(
-    (item) => item.is_current_period === true
+  // Available Scholarships is an intake/discovery list. Once Admin closes
+  // an opening, it must disappear from Mobile even if it still has unused
+  // allocated slots. Existing applications remain reachable through the
+  // Application Status / Documents workflow instead of this discovery list.
+  const items = allItems.filter(
+    (item) =>
+      String(item.posting_status || '')
+        .trim()
+        .toLowerCase() === 'open'
   );
-
-  const items = activeApplication?.opening_id
-    ? scopedItems.filter(
-        (item) =>
-          String(item.opening_id) ===
-          String(activeApplication.opening_id)
-      )
-    : scopedItems;
 
   return {
     hasBaseApplicationProfile: !!student?.student_id,
     isApprovedScholar: scholar,
+    scholarPrivilegeRemoved,
     activeApplicationId:
       activeApplication?.application_id || '',
     activeOpeningId:
       activeApplication?.opening_id || '',
-    items: availability.can_apply ? items : [],
+    items,
     availability: {
       can_apply: availability.can_apply,
       code: availability.code,
@@ -740,6 +760,13 @@ async function applyToOpeningForMobile(
     throw createHttpError(
       400,
       'Complete your student profile before applying.'
+    );
+  }
+
+  if (student.scholar_is_archived === true) {
+    throw createHttpError(
+      409,
+      'Your previous scholarship privilege was removed. Contact OSFA for an eligibility review before applying again.'
     );
   }
 

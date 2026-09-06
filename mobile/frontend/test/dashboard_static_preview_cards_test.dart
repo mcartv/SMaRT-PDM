@@ -22,33 +22,42 @@ String extractClass(String source, String className) {
 }
 
 void main() {
-  final source = File(
+  final dashboardSource = File(
     'lib/features/dashboard/presentation/screens/dashboard_screen.dart',
   ).readAsStringSync();
+  final openingsSource = File(
+    'lib/features/dashboard/presentation/widgets/applicant_openings_section.dart',
+  ).readAsStringSync();
 
-  test('Latest Announcements dashboard cards are static previews', () {
-    final card = extractClass(source, '_AnnouncementCard');
+  test('Latest Announcements cards open the selected announcement', () {
+    final card = extractClass(dashboardSource, '_AnnouncementCard');
 
-    expect(card, isNot(contains('InkWell(')));
-    expect(card, isNot(contains('chevron_right_rounded')));
-    expect(card, contains('button: false'));
-    expect(card, contains("label: 'Announcement preview'"));
+    expect(card, contains('InkWell('));
+    expect(card, contains('onTap: onTap'));
+    expect(card, contains('button: true'));
+    expect(card, contains("label: 'Open announcement:"));
   });
 
-  test('Available Scholarships dashboard cards are static previews', () {
-    final card = extractClass(source, '_OpeningCard');
+  test('Available Scholarship cards expose one clear action', () {
+    final card = extractClass(openingsSource, '_OpeningCard');
 
     expect(card, isNot(contains('InkWell(')));
-    expect(card, isNot(contains('chevron_right_rounded')));
-    expect(card, contains('button: false'));
-    expect(card, contains("label: 'Scholarship opening preview'"));
+    expect(card, contains('OutlinedButton.icon('));
+    expect(card, contains('onAction(opening.action)'));
+    expect(card.toLowerCase(), isNot(contains('available slots')));
   });
 
-  test('View all remains the explicit navigation action', () {
-    expect(source, contains("title: 'Latest Announcements'"));
-    expect(source, contains("title: 'Available Scholarships'"));
-    expect(source, contains("actionLabel: 'View all'"));
-    expect(source, contains('AppRoutes.announcements'));
-    expect(source, contains('AppRoutes.scholarshipOpenings'));
+  test('Dashboard keeps announcements directly below the main card', () {
+    final buildStart = dashboardSource.indexOf(
+      '// The existing Welcome card remains intentionally unchanged.',
+    );
+    final hero = dashboardSource.indexOf('_buildHero()', buildStart);
+    final announcements = dashboardSource.indexOf("'Latest Announcements'", hero);
+    final dashboardDetails = dashboardSource.indexOf('_buildBentoDashboard()', hero);
+
+    expect(hero, greaterThanOrEqualTo(0));
+    expect(announcements, greaterThan(hero));
+    expect(dashboardDetails, greaterThan(announcements));
+    expect(dashboardSource, contains('AppRoutes.scholarshipOpenings'));
   });
 }

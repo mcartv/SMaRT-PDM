@@ -11,6 +11,9 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_button_styles.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -153,7 +156,16 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   List<RoAssignment> get _activeItems {
-    return _items.where((item) => !item.isCleared).toList();
+    final items = _items.where((item) => !item.isCleared).toList();
+    int priority(RoAssignment item) {
+      if (item.activeLog != null) return 0;
+      if (!item.isAcknowledged && !item.hasConflict) return 1;
+      if (item.hasConflict) return 2;
+      return 3;
+    }
+
+    items.sort((a, b) => priority(a).compareTo(priority(b)));
+    return items;
   }
 
   List<RoAssignment> get _completedItems {
@@ -551,7 +563,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                 color: isDark
                                     ? scheme.outline
                                     : const Color(0xFFB8A99A),
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: AppRadii.status,
                               ),
                             ),
                             const SizedBox(height: 18),
@@ -585,7 +597,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                   vertical: 14,
                                 ),
                                 enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                                  borderRadius: AppRadii.card,
                                   borderSide: BorderSide(
                                     color: isDark
                                         ? scheme.outline
@@ -593,7 +605,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                                  borderRadius: AppRadii.card,
                                   borderSide: BorderSide(
                                     color: isDark
                                         ? AppColors.gold
@@ -611,7 +623,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                 color: isDark
                                     ? scheme.surfaceContainerHigh
                                     : Colors.white.withOpacity(0.74),
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: AppRadii.card,
                                 border: Border.all(
                                   color: isDark
                                       ? scheme.outlineVariant
@@ -644,7 +656,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                   if (selectedPhoto != null) ...[
                                     const SizedBox(height: 12),
                                     ClipRRect(
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: AppRadii.card,
                                       child: Stack(
                                         children: [
                                           Container(
@@ -702,7 +714,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                                   0.62,
                                                 ),
                                                 borderRadius:
-                                                    BorderRadius.circular(999),
+                                                    AppRadii.status,
                                               ),
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
@@ -747,7 +759,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                                       });
                                                     },
                                               borderRadius:
-                                                  BorderRadius.circular(999),
+                                                  AppRadii.status,
                                               child: Container(
                                                 width: 32,
                                                 height: 32,
@@ -846,7 +858,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                     vertical: 14,
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999),
+                                    borderRadius: AppRadii.status,
                                   ),
                                 ),
                                 onPressed: _isSubmitting
@@ -1324,7 +1336,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                       height: 5,
                       decoration: BoxDecoration(
                         color: scheme.outline,
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: AppRadii.status,
                       ),
                     ),
                   ),
@@ -1349,7 +1361,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                     decoration: InputDecoration(
                       labelText: 'Concern Category',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: AppRadii.card,
                       ),
                     ),
                     items: categories
@@ -1386,7 +1398,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                       alignLabelWithHint: true,
                       errorText: validationMessage,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: AppRadii.card,
                       ),
                     ),
                   ),
@@ -1451,7 +1463,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                 height: 5,
                 decoration: BoxDecoration(
                   color: scheme.outline,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: AppRadii.status,
                 ),
               ),
               const SizedBox(height: 18),
@@ -1468,7 +1480,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                 decoration: InputDecoration(
                   hintText: hint,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: AppRadii.card,
                   ),
                 ),
               ),
@@ -1561,8 +1573,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       showBottomNav: widget.showBottomNav,
       appBar: widget.showTopBar
           ? AppBar(
-              backgroundColor: AppColors.darkBrown,
-              foregroundColor: Colors.white,
+              backgroundColor: AppSurfacePalette.surface(context),
+              foregroundColor: AppSurfacePalette.text(context),
               title: const Text(
                 'Return of Obligation',
                 style: TextStyle(fontWeight: FontWeight.w900),
@@ -1630,47 +1642,83 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       );
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
-    final tabSurfaceColor = isDark
-        ? scheme.surfaceContainerHigh
-        : Colors.grey.withOpacity(0.12);
-    final selectedTabColor = isDark ? AppColors.gold : AppColors.darkBrown;
-    final selectedTabTextColor = isDark ? AppColors.darkBrown : Colors.white;
-    final unselectedTabColor = scheme.onSurfaceVariant;
+    final pendingAcknowledgment = _activeItems
+        .where((item) => !item.isAcknowledged && !item.hasConflict)
+        .length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'My Return of Obligation',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        AppSectionHeading(
+          title: 'My Return of Obligation',
+          subtitle:
+              '${_activeItems.length} active • ${_completedItems.length} completed',
         ),
-        const SizedBox(height: 12),
+        if (pendingAcknowledgment > 0) ...[
+          const SizedBox(height: AppSpacing.md),
+          AppSurfaceCard(
+            backgroundColor: AppStatusColors.of(context).actionRequiredContainer,
+            borderColor: AppStatusColors.of(context).actionRequiredOutline,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppIconTile(
+                  icon: Icons.notification_important_rounded,
+                  accent: AppStatusColors.of(context).actionRequiredOutline,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$pendingAcknowledgment assignment${pendingAcknowledgment == 1 ? '' : 's'} need acknowledgment',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: AppStatusColors.of(context)
+                                  .onActionRequiredContainer,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Open the assignment and acknowledge the notice before Time In becomes available.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppStatusColors.of(context)
+                                  .onActionRequiredContainer,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.md),
         Container(
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.all(AppSpacing.xs),
           decoration: BoxDecoration(
-            color: tabSurfaceColor,
-            borderRadius: BorderRadius.circular(16),
+            color: AppSurfacePalette.surfaceMuted(context),
+            borderRadius: AppRadii.card,
+            border: Border.all(color: AppSurfacePalette.outline(context)),
           ),
           child: TabBar(
             controller: _tabController,
-            indicator: BoxDecoration(
-              color: selectedTabColor,
-              borderRadius: BorderRadius.circular(14),
+            indicator: const BoxDecoration(
+              color: AppColors.gold,
+              borderRadius: AppRadii.control,
             ),
             indicatorSize: TabBarIndicatorSize.tab,
-            labelColor: selectedTabTextColor,
-            unselectedLabelColor: unselectedTabColor,
+            labelColor: AppColors.darkBrown,
+            unselectedLabelColor: scheme.onSurfaceVariant,
             tabs: const [
               Tab(text: 'Active'),
               Tab(text: 'Completed'),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _loadRo(),
@@ -2085,16 +2133,16 @@ class _AssignmentCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: AppRadii.card,
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: AppRadii.card,
             border: Border.all(
               color: item.activeLog != null
-                  ? Colors.green.withOpacity(0.32)
-                  : AppColors.gold.withOpacity(0.24),
+                  ? AppStatusColors.of(context).successOutline
+                  : AppSurfacePalette.outline(context),
             ),
             boxShadow: const [
               BoxShadow(
@@ -2106,20 +2154,13 @@ class _AssignmentCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  item.isCleared
-                      ? Icons.verified_rounded
-                      : Icons.apartment_rounded,
-                  color: isDark ? AppColors.gold : AppColors.darkBrown,
-                  size: 21,
-                ),
+              AppIconTile(
+                icon: item.isCleared
+                    ? Icons.verified_rounded
+                    : Icons.apartment_rounded,
+                accent: item.isCleared
+                    ? AppStatusColors.of(context).successOutline
+                    : AppColors.gold,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2160,55 +2201,19 @@ class _AssignmentCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (item.activeLog != null) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: Colors.green.withOpacity(0.22),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF9BE9A8)
-                                  : Colors.green,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Ongoing',
-                            style: TextStyle(
-                              color: isDark
-                                  ? const Color(0xFF9BE9A8)
-                                  : Colors.green.shade700,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
+                    const AppStatusCapsule(
+                      label: 'Ongoing',
+                      tone: AppStatusTone.success,
+                      compact: true,
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: AppSpacing.xs),
                   ],
                   Text(
                     '$progress% (${formatMinutes(item.validatedMinutes)} / ${formatMinutes(item.requiredMinutes)})',
                     textAlign: TextAlign.right,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: progress >= 100
-                          ? (isDark
-                                ? const Color(0xFF9BE9A8)
-                                : Colors.green.shade700)
+                          ? AppStatusColors.of(context).successOutline
                           : scheme.onSurface,
                       fontWeight: FontWeight.w900,
                     ),
@@ -2347,7 +2352,7 @@ class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
                       height: 5,
                       decoration: BoxDecoration(
                         color: scheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: AppRadii.status,
                       ),
                     ),
                     const Spacer(),
@@ -2856,11 +2861,11 @@ class _ProofPreviewCard extends StatelessWidget {
         onTap: proof.fileUrl.trim().isEmpty
             ? null
             : () => _openPreview(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.card,
         child: Ink(
           decoration: BoxDecoration(
             color: isDark ? scheme.surfaceContainerHigh : Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadii.card,
             border: Border.all(
               color: isDark ? scheme.outlineVariant : const Color(0xFFE8DDD0),
             ),
@@ -2962,13 +2967,13 @@ class _NoticeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
-    final statusColor = item.isCleared
-        ? Colors.green
+    final statusTone = item.isCleared
+        ? AppStatusTone.success
         : item.hasConflict
-        ? const Color(0xFFB3261E)
+        ? AppStatusTone.danger
         : item.progressStatus == 'For Validation'
-        ? Colors.blue
-        : AppColors.gold;
+        ? AppStatusTone.inProgress
+        : AppStatusTone.brand;
 
     final statusLabel = item.isCleared
         ? 'Cleared'
@@ -2979,18 +2984,7 @@ class _NoticeHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: AppColors.gold.withOpacity(0.18),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(
-            Icons.assignment_turned_in_rounded,
-            color: isDark ? AppColors.gold : AppColors.darkBrown,
-          ),
-        ),
+        const AppIconTile(icon: Icons.assignment_turned_in_rounded),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -3016,7 +3010,7 @@ class _NoticeHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _StatusPill(label: statusLabel, color: statusColor),
+        AppStatusCapsule(label: statusLabel, tone: statusTone, compact: true),
       ],
     );
   }
@@ -3037,14 +3031,10 @@ class _NoticeDetails extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark
-            ? scheme.surfaceContainerHigh
-            : AppColors.gold.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
+        color: AppSurfacePalette.surfaceMuted(context),
+        borderRadius: AppRadii.card,
         border: Border.all(
-          color: isDark
-              ? scheme.outlineVariant
-              : AppColors.gold.withOpacity(0.22),
+          color: AppSurfacePalette.outline(context),
         ),
       ),
       child: Column(
@@ -3192,7 +3182,7 @@ class _ProgressLine extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         ClipRRect(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: AppRadii.status,
           child: LinearProgressIndicator(
             value: value,
             minHeight: 11,
@@ -3267,7 +3257,7 @@ class _ActiveSessionBox extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: boxColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: AppRadii.card,
         border: Border.all(color: borderColor),
       ),
       child: Column(
@@ -3384,7 +3374,7 @@ class _LogsSection extends StatelessWidget {
             color: isDark
                 ? scheme.surfaceContainerHigh
                 : Colors.black.withOpacity(0.03),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: AppRadii.control,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3446,7 +3436,7 @@ class _InfoBox extends StatelessWidget {
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.card,
         border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Row(
@@ -3499,7 +3489,7 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withOpacity(isDark ? 0.22 : 0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadii.status,
         border: Border.all(
           color: readableColor.withOpacity(isDark ? 0.58 : 0.28),
         ),
@@ -3511,7 +3501,6 @@ class _StatusPill extends StatelessWidget {
         style: TextStyle(
           color: readableColor,
           fontWeight: FontWeight.w900,
-          fontSize: 11,
         ),
       ),
     );
@@ -3542,7 +3531,7 @@ class _StateCard extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       child: Card(
         elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.card),
         child: Padding(
           padding: const EdgeInsets.all(22),
           child: Column(
@@ -3571,14 +3560,7 @@ class _StateCard extends StatelessWidget {
                 const SizedBox(height: 18),
                 FilledButton(
                   onPressed: onAction,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isDark
-                        ? AppColors.gold
-                        : AppColors.darkBrown,
-                    foregroundColor: isDark
-                        ? AppColors.darkBrown
-                        : Colors.white,
-                  ),
+
                   child: Text(actionLabel!),
                 ),
               ],

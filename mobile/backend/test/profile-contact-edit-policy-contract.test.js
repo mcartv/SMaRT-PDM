@@ -13,10 +13,13 @@ test('onboarding setup remains separate from contact-only Profile editing', () =
   assert.match(service, /async function setupMyProfile/);
   assert.match(service, /async function updateMyProfile/);
   assert.match(controller, /profileService\.setupMyProfile\(userId, req\.body \|\| \{\}\)/);
+  assert.match(service, /student\.is_profile_complete === true/);
+  assert.match(service, /Profile setup is already complete/);
   assert.match(service, /Profile & Account can only update phone number and address/);
   assert.match(service, /'phone_number'/);
   assert.match(service, /'street_address'/);
   assert.match(service, /'barangay'/);
+  assert.match(controller, /ignored_fields:\s*ignoredFields/);
 });
 
 test('Profile UI keeps Section read-only and preserves structured address fields', () => {

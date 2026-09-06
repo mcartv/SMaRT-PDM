@@ -75,25 +75,27 @@ test('mobile motion, bento dashboard, and menu settings contract', () => {
 
   // Route motion is global and respects accessibility motion preferences.
   assert.ok(appTheme.includes('AppMotion.pageTransitionsTheme'));
-  assert.ok(motion.includes('mediaQuery?.disableAnimations == true'));
+  assert.ok(motion.includes('MediaQuery.maybeOf(context)?.disableAnimations == true'));
   assert.ok(app.includes('themeAnimationDuration'));
 
   // Existing Menu structure remains.
   assert.ok(menu.includes("'Account Settings'"));
   assert.ok(menu.includes("'Information'"));
 
-  // Requested Menu settings.
+  // Requested Menu settings. Haptic Feedback was intentionally removed from
+  // the Menu while navigation haptics remain controlled internally.
   assert.ok(menu.includes("title: 'Appearance'"));
-  assert.ok(menu.includes("title: 'Haptic Feedback'"));
+  assert.equal(menu.includes("title: 'Haptic Feedback'"), false);
   assert.ok(menu.includes("title: 'Getting Started Guide'"));
   assert.ok(settings.includes("title: 'System'"));
   assert.ok(settings.includes("title: 'Light'"));
   assert.ok(settings.includes("title: 'Dark'"));
   assert.ok(themeProvider.includes('ThemeMode.system'));
 
-  // Haptic setting is persisted and wired into primary navigation.
+  // Existing haptic preference remains persisted and wired into navigation.
   assert.ok(interaction.includes('smart_pdm_haptic_feedback_enabled'));
   assert.ok(bootstrap.includes('InteractionSettingsProvider'));
   assert.ok(bottomNav.includes('AppHaptics.selection(context);'));
-  assert.ok(bottomNav.includes('AnimatedScale('));
+  assert.ok(bottomNav.includes('class _NavDestination extends StatelessWidget'));
+  assert.ok(bottomNav.includes('width: selected ? 30 : 0'));
 });

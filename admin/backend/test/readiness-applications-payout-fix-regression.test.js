@@ -21,9 +21,9 @@ test('Readiness cards and activation approval use responsive compact padding', (
   const source = read('frontend/src/pages/ApplicationReview.jsx');
 
   assert.match(source, /grid grid-cols-1 gap-4 2xl:grid-cols-2/);
-  assert.match(source, /w-\[calc\(100vw-1\.5rem\)\] max-w-xl max-h-\[calc\(100dvh-1\.5rem\)\]/);
-  assert.match(source, /max-h-\[calc\(100dvh-13rem\)\] space-y-2\.5 overflow-y-auto px-5 py-4 sm:px-6/);
-  assert.match(source, /flex-col gap-2 border-t border-stone-100 px-5 py-3 sm:flex-row sm:px-6/);
+  assert.match(source, /max-h-\[calc\(100dvh-1\.5rem\)\][\s\S]*w-\[calc\(100vw-1\.5rem\)\][\s\S]*max-w-xl/);
+  assert.match(source, /min-h-0 space-y-2\.5 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6/);
+  assert.match(source, /flex-col-reverse gap-2[\s\S]*border-t border-stone-100[\s\S]*px-5 py-3 sm:flex-row sm:px-6/);
   assert.match(source, /disabled=\{!activationCandidate \|\| Boolean\(approvalLoadingId\)\}/);
 });
 

@@ -60,9 +60,20 @@ async function updateMyProfile(req, res) {
             }
         });
 
+        const ignoredFields = Object.keys(body).filter(
+            (key) => !Object.prototype.hasOwnProperty.call(allowedPayload, key)
+        );
         const result = await profileService.updateMyProfile(userId, allowedPayload);
 
-        return res.status(200).json(result);
+        return res.status(200).json({
+            ...result,
+            ...(ignoredFields.length > 0
+                ? {
+                    warning: 'Only phone number and address were updated.',
+                    ignored_fields: ignoredFields,
+                }
+                : {}),
+        });
     } catch (error) {
         console.error('PROFILE UPDATE ERROR:', error);
         return res.status(getSafeStatusCode(error)).json({

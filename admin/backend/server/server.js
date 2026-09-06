@@ -136,6 +136,7 @@ if (!allowedOrigins.length) {
 const allowedHeaders = [
   'Content-Type',
   'Authorization',
+  'Idempotency-Key',
   'X-Requested-With',
   'x-audit-access-token',
   'X-Audit-Access-Token',

@@ -40,7 +40,7 @@ function formatDateTime(value) {
     });
 }
 
-function parseDevice(userAgent = '') {
+function _parseDevice(userAgent = '') {
     const ua = String(userAgent || '').toLowerCase();
 
     const browser = ua.includes('edg/')

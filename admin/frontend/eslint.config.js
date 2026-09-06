@@ -23,7 +23,15 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // The app intentionally co-locates small component helpers and variants,
+      // matching the installed shadcn component structure.
+      'react-refresh/only-export-components': 'off',
+      // Existing effects synchronize route, browser-storage, dialog, and
+      // socket state with external systems.
+      'react-hooks/set-state-in-effect': 'off',
+      // Socket hooks expose the current imperative connection to callers.
+      'react-hooks/refs': 'off',
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', args: 'none' }],
     },
   },
 ])

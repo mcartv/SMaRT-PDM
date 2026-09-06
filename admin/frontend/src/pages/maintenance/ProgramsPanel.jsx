@@ -345,6 +345,8 @@ export default function ProgramsPanel() {
 
     useEffect(() => {
         loadAll();
+        // Initial maintenance load; realtime updates are subscribed below.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useSocketEvent('maintenance:updated', () => {

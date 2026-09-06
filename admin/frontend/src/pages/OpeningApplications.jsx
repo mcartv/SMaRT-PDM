@@ -755,9 +755,11 @@ export default function OpeningApplications() {
         }
     };
 
-    useEffect(() => {
-        reloadApplications();
-    }, [openingId]);
+  useEffect(() => {
+    reloadApplications();
+    // Reload only when navigating to another opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openingId]);
 
     useSocketEvent('application:updated', () => {
         reloadApplications({ soft: true });

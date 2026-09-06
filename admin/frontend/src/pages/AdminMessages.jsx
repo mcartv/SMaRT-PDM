@@ -464,6 +464,25 @@ function NewMessagesDivider() {
   )
 }
 
+function MessageThreadSkeleton() {
+  return (
+    <div className="flex h-full min-h-[240px] flex-col justify-end gap-3 py-3" role="status" aria-label="Loading messages">
+      <span className="sr-only">Loading messages</span>
+      <div className="flex items-end gap-2 animate-pulse">
+        <div className="h-8 w-8 rounded-full bg-stone-200" />
+        <div className="h-14 w-[min(72%,320px)] rounded-2xl rounded-bl-md bg-stone-200" />
+      </div>
+      <div className="flex justify-end animate-pulse">
+        <div className="h-10 w-[min(58%,260px)] rounded-2xl rounded-br-md bg-[var(--portal-accent-soft)]" />
+      </div>
+      <div className="flex items-end gap-2 animate-pulse">
+        <div className="h-8 w-8 rounded-full bg-stone-200" />
+        <div className="h-20 w-[min(78%,360px)] rounded-2xl rounded-bl-md bg-stone-200" />
+      </div>
+    </div>
+  )
+}
+
 function ThreadIcon({ item }) {
   const initials = (item.name || 'User')
     .split(/\s+/)
@@ -858,7 +877,7 @@ function MessageText({ value, onOpenExternalLink }) {
           return <span key={`text-${index}`}>{part}</span>
         }
 
-        const trailingPunctuation = part.match(/[.,!?;:\]\)}]+$/)?.[0] || ''
+        const trailingPunctuation = part.match(/[.,!?;:\])}]+$/)?.[0] || ''
         const url = trailingPunctuation ? part.slice(0, -trailingPunctuation.length) : part
         const safeUrl = parseSafeExternalUrl(url)
 
@@ -1011,7 +1030,11 @@ function MessageBubble({
   }, [actionsOpen])
 
   if (String(message.subject || '').toLowerCase() === 'system') {
-    return <div className="my-4 flex w-full items-center gap-3 text-center text-xs font-medium text-stone-500"><div className="h-px flex-1 bg-stone-200" /><span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span><div className="h-px flex-1 bg-stone-200" /></div>
+    return (
+      <div className="my-4 flex w-full justify-center px-4 text-center text-xs font-medium text-stone-500">
+        <span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span>
+      </div>
+    )
   }
   const query = searchTerm.trim().toLowerCase()
   const isMatch = Boolean(query && message.messageBody.toLowerCase().includes(query))
@@ -1432,7 +1455,6 @@ function GroupInfoModal({
   loading,
   currentUserId,
   onClose,
-  onSearchChat,
   onViewProfile,
   onMessage,
   onRemove,
@@ -1441,10 +1463,12 @@ function GroupInfoModal({
   onLeave,
 }) {
   const [menuMemberId, setMenuMemberId] = useState('')
+  const [memberSearchQuery, setMemberSearchQuery] = useState('')
 
   useEffect(() => {
-    if (!open) setMenuMemberId('')
-  }, [open])
+    setMenuMemberId('')
+    setMemberSearchQuery('')
+  }, [open, room?.id])
 
   useEffect(() => {
     if (!open) return undefined
@@ -1466,8 +1490,23 @@ function GroupInfoModal({
   const displayedMemberCount = Number(room.memberCount || members.length || 0)
   const mustAssignAdminBeforeLeaving =
     viewerIsAdmin && displayedMemberCount > 1 && adminCount <= 1
-  const adminMembers = members.filter((member) => member.isAdmin)
-  const regularMembers = members.filter((member) => !member.isAdmin)
+  const normalizedMemberSearch = memberSearchQuery.trim().toLowerCase()
+  const visibleMembers = normalizedMemberSearch
+    ? members.filter((member) =>
+        [
+          member.name,
+          member.subtitle,
+          member.studentNumber,
+          member.role,
+          member.email,
+          member.department,
+          member.roArea,
+          member.position,
+        ].some((value) => String(value || '').toLowerCase().includes(normalizedMemberSearch))
+      )
+    : members
+  const adminMembers = visibleMembers.filter((member) => member.isAdmin)
+  const regularMembers = visibleMembers.filter((member) => !member.isAdmin)
 
   const renderMemberRow = (member) => {
     const canPromote =
@@ -1610,14 +1649,20 @@ function GroupInfoModal({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onSearchChat}
-          className="mt-3 flex h-10 w-full items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-left text-sm text-stone-500 transition hover:border-stone-300 hover:bg-white"
-        >
-          <Search className="h-4 w-4 shrink-0" />
-          <span>Search chat</span>
-        </button>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+          <input
+            type="search"
+            value={memberSearchQuery}
+            onChange={(event) => {
+              setMemberSearchQuery(event.target.value)
+              setMenuMemberId('')
+            }}
+            placeholder="Search member"
+            aria-label="Search group members"
+            className="h-10 w-full rounded-xl border border-stone-200 bg-stone-50 pl-9 pr-3 text-sm text-stone-700 outline-none transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[var(--portal-base)] focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -1644,7 +1689,7 @@ function GroupInfoModal({
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Loading members
           </div>
-        ) : members.length ? (
+        ) : members.length && visibleMembers.length ? (
           <div className="space-y-5">
             {adminMembers.length ? (
               <section>
@@ -1667,6 +1712,10 @@ function GroupInfoModal({
                 </div>
               </section>
             ) : null}
+          </div>
+        ) : members.length ? (
+          <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
+            No members match “{memberSearchQuery.trim()}”.
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
@@ -2141,6 +2190,7 @@ export default function AdminMessages({
   const [error, setError] = useState('')
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [sending, setSending] = useState(false)
 
   const [createRoomOpen, setCreateGroupOpen] = useState(false)
@@ -2150,7 +2200,6 @@ export default function AdminMessages({
 
   const [groupInfoOpen, setGroupInfoOpen] = useState(false)
   const [groupMembers, setGroupMembers] = useState([])
-  const [groupMemberSearchTerm, setGroupMemberSearchTerm] = useState('')
   const [loadingGroupMembers, setLoadingGroupMembers] = useState(false)
   const [selectedMemberProfile, setSelectedMemberProfile] = useState(null)
   const [pendingRemoveMember, setPendingRemoveMember] = useState(null)
@@ -2200,6 +2249,7 @@ export default function AdminMessages({
 
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
+  const roomsRef = useRef([])
   const messagesEndRef = useRef(null)
   const messagesScrollRef = useRef(null)
   const composerRef = useRef(null)
@@ -2213,6 +2263,10 @@ export default function AdminMessages({
   const typingTargetRef = useRef(null)
   const lastTypingEmitAtRef = useRef(0)
   const typingExpiryTimersRef = useRef(new Map())
+  const conversationListRequestRef = useRef(0)
+  const roomListRequestRef = useRef(0)
+  const messageRequestRef = useRef({ sequence: 0, controller: null })
+  const conversationsLoadedRef = useRef(false)
 
   const totalUnreadCount = useMemo(
     () =>
@@ -2411,12 +2465,17 @@ export default function AdminMessages({
     activeRoomRef.current = activeRoomId
   }, [activeRoomId])
 
+  useEffect(() => {
+    roomsRef.current = rooms
+  }, [rooms])
+
   const scrollMessagesToBottom = useCallback((behavior = 'auto') => {
     window.requestAnimationFrame(() => {
       const container = messagesScrollRef.current
       if (!container) return
       container.scrollTo({ top: container.scrollHeight, behavior })
       shouldAutoScrollRef.current = true
+      setShowJumpToLatest(false)
     })
   }, [])
 
@@ -2424,7 +2483,9 @@ export default function AdminMessages({
     const container = messagesScrollRef.current
     if (!container) return
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-    shouldAutoScrollRef.current = distanceFromBottom < 120
+    const isNearBottom = distanceFromBottom < 120
+    shouldAutoScrollRef.current = isNearBottom
+    setShowJumpToLatest(!isNearBottom)
   }, [])
 
   const scrollToMessageId = useCallback((messageId, behavior = 'smooth') => {
@@ -2450,6 +2511,7 @@ export default function AdminMessages({
     forceScrollToBottomRef.current = !pendingMatches
     shouldAutoScrollRef.current = !pendingMatches
     setFirstUnreadMessageId('')
+    setShowJumpToLatest(false)
   }, [activeType, activeConversationId, activeRoomId])
 
   useEffect(() => {
@@ -2463,6 +2525,8 @@ export default function AdminMessages({
 
     if (shouldAutoScrollRef.current) {
       scrollMessagesToBottom('smooth')
+    } else {
+      setShowJumpToLatest(true)
     }
   }, [messages, scrollMessagesToBottom])
 
@@ -2489,7 +2553,9 @@ export default function AdminMessages({
 
   const fetchConversations = useCallback(
     async (preferredConversationId = activeConversationRef.current) => {
-      setLoadingConversations(true)
+      const requestId = ++conversationListRequestRef.current
+      const showInitialLoader = !conversationsLoadedRef.current
+      if (showInitialLoader) setLoadingConversations(true)
 
       try {
         const response = await fetch(`${MESSAGING_API_BASE}/api/messages/conversations`, {
@@ -2497,12 +2563,14 @@ export default function AdminMessages({
         })
 
         const payload = await parseApiResponse(response, 'Failed to load conversations.')
+        if (requestId !== conversationListRequestRef.current) return
         const items = sortItems((payload.items || []).map(normalizeConversation))
 
         setConversations(items)
+        conversationsLoadedRef.current = true
         setError('')
 
-        if (!items.length && !rooms.length) {
+        if (!items.length && !roomsRef.current.length) {
           setActiveConversationId('')
           setMessages([])
           return
@@ -2517,25 +2585,32 @@ export default function AdminMessages({
           setActiveConversationId(preferredConversationId)
         }
       } catch (err) {
-        setError(err.message || 'Failed to load conversations.')
+        if (requestId === conversationListRequestRef.current) {
+          setError(err.message || 'Failed to load conversations.')
+        }
       } finally {
-        setLoadingConversations(false)
+        if (requestId === conversationListRequestRef.current && showInitialLoader) {
+          setLoadingConversations(false)
+        }
       }
     },
-    [token, rooms.length]
+    [token]
   )
 
   const fetchRooms = useCallback(
     async (preferredRoomId = activeRoomRef.current) => {
+      const requestId = ++roomListRequestRef.current
       try {
         const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms`, {
           headers: buildMessagingHeaders(token),
         })
 
         const payload = await parseApiResponse(response, 'Failed to load rooms.')
+        if (requestId !== roomListRequestRef.current) return
         const rawItems = Array.isArray(payload) ? payload : payload.items || []
         const items = sortItems(rawItems.map(normalizeRoom))
 
+        roomsRef.current = items
         setRooms(items)
 
         if (
@@ -2547,7 +2622,9 @@ export default function AdminMessages({
           setActiveRoomId(preferredRoomId)
         }
       } catch (err) {
-        console.error('ROOM FETCH ERROR:', err.message)
+        if (requestId === roomListRequestRef.current) {
+          console.error('ROOM FETCH ERROR:', err.message)
+        }
       }
     },
     [token]
@@ -2577,6 +2654,10 @@ export default function AdminMessages({
         return
       }
 
+      messageRequestRef.current.controller?.abort()
+      const controller = new AbortController()
+      const requestId = messageRequestRef.current.sequence + 1
+      messageRequestRef.current = { sequence: requestId, controller }
       if (!silent) setLoadingMessages(true)
 
       try {
@@ -2584,10 +2665,16 @@ export default function AdminMessages({
           `${MESSAGING_API_BASE}/api/messages/conversations/${counterpartyId}`,
           {
             headers: buildMessagingHeaders(token),
+            signal: controller.signal,
           }
         )
 
         const payload = await parseApiResponse(response, 'Failed to load messages.')
+        if (
+          requestId !== messageRequestRef.current.sequence ||
+          activeConversationRef.current !== counterpartyId ||
+          activeRoomRef.current
+        ) return
         const items = sortMessages((payload.items || []).map(normalizeMessage))
         const counterpartyDisabled = payload?.counterparty?.is_disabled === true
 
@@ -2609,12 +2696,12 @@ export default function AdminMessages({
         )
         setError('')
       } catch (err) {
-        if (!silent) {
+        if (err.name !== 'AbortError' && requestId === messageRequestRef.current.sequence && !silent) {
           setError(err.message || 'Failed to load messages.')
           setMessages([])
         }
       } finally {
-        if (!silent) setLoadingMessages(false)
+        if (requestId === messageRequestRef.current.sequence) setLoadingMessages(false)
       }
     },
     [token]
@@ -2627,6 +2714,10 @@ export default function AdminMessages({
         return
       }
 
+      messageRequestRef.current.controller?.abort()
+      const controller = new AbortController()
+      const requestId = messageRequestRef.current.sequence + 1
+      messageRequestRef.current = { sequence: requestId, controller }
       if (!silent) setLoadingMessages(true)
 
       try {
@@ -2634,10 +2725,15 @@ export default function AdminMessages({
           `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/messages`,
           {
             headers: buildMessagingHeaders(token),
+            signal: controller.signal,
           }
         )
 
         const payload = await parseApiResponse(response, 'Failed to load room messages.')
+        if (
+          requestId !== messageRequestRef.current.sequence ||
+          activeRoomRef.current !== roomId
+        ) return
         const items = sortMessages((payload.items || []).map(normalizeMessage))
         const hasMemberPayload =
           Array.isArray(payload.members) ||
@@ -2678,12 +2774,12 @@ export default function AdminMessages({
         }
         setError('')
       } catch (err) {
-        if (!silent) {
+        if (err.name !== 'AbortError' && requestId === messageRequestRef.current.sequence && !silent) {
           setError(err.message || 'Failed to load room messages.')
           setMessages([])
         }
       } finally {
-        if (!silent) setLoadingMessages(false)
+        if (requestId === messageRequestRef.current.sequence) setLoadingMessages(false)
       }
     },
     [token]
@@ -3701,10 +3797,10 @@ export default function AdminMessages({
   }
 
   useEffect(() => {
-    if (groupInfoOpen && activeType === 'group' && activeRoomId) {
+    if (groupInfoOpen && activeType === 'group' && activeRoomId && !groupMembers.length) {
       fetchRoomMembers(activeRoomId)
     }
-  }, [groupInfoOpen, activeType, activeRoomId, fetchRoomMembers])
+  }, [groupInfoOpen, activeType, activeRoomId, groupMembers.length, fetchRoomMembers])
 
   useEffect(() => {
     setChatSearchOpen(false)
@@ -3712,7 +3808,6 @@ export default function AdminMessages({
     setChatMatchIndex(0)
     setGroupInfoOpen(false)
     setGroupMembers([])
-    setGroupMemberSearchTerm('')
     setTypingUserIds([])
     setReplyingTo(null)
     typingExpiryTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))
@@ -3795,6 +3890,10 @@ export default function AdminMessages({
     fetchRoomMessages,
   ])
 
+  useEffect(() => () => {
+    messageRequestRef.current.controller?.abort()
+  }, [])
+
   useEffect(() => {
     if (!isOpen) return undefined
 
@@ -3813,7 +3912,10 @@ export default function AdminMessages({
       }
     }
 
-    const intervalId = window.setInterval(syncOpenThread, 2000)
+    // Socket events update the open thread immediately. Polling is only a
+    // fallback for missed events and becomes more frequent while reconnecting.
+    const pollInterval = socketStatus === 'connected' ? 30000 : 8000
+    const intervalId = window.setInterval(syncOpenThread, pollInterval)
     window.addEventListener('focus', syncOpenThread)
     document.addEventListener('visibilitychange', syncOpenThread)
 
@@ -3831,6 +3933,7 @@ export default function AdminMessages({
     fetchRoomMessages,
     markConversationRead,
     markRoomMessagesRead,
+    socketStatus,
   ])
 
   useEffect(() => {
@@ -4514,11 +4617,6 @@ export default function AdminMessages({
       loading={loadingGroupMembers}
       currentUserId={currentUserId}
       onClose={() => setGroupInfoOpen(false)}
-      onSearchChat={() => {
-        setGroupInfoOpen(false)
-        setChatSearchOpen(true)
-        setChatMatchIndex(0)
-      }}
       onViewProfile={setSelectedMemberProfile}
       onMessage={handleMessageMember}
       onRemove={setPendingRemoveMember}
@@ -4944,7 +5042,7 @@ export default function AdminMessages({
                             <button
                               type="button"
                               disabled={Boolean(editingMessage)}
-                              onClick={() => { setChatSearchOpen((current) => !current); setGroupInfoOpen(false); setChatMatchIndex(0) }}
+                              onClick={() => { setChatSearchOpen((current) => !current); setChatMatchIndex(0) }}
                               className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${chatSearchOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:hover:bg-stone-100'}`}
                               title="Search this conversation"
                               aria-label="Search this conversation"
@@ -4956,7 +5054,7 @@ export default function AdminMessages({
                               <button
                                 type="button"
                                 disabled={Boolean(editingMessage)}
-                                onClick={() => { setGroupInfoOpen((current) => !current); setChatSearchOpen(false) }}
+                                onClick={() => setGroupInfoOpen((current) => !current)}
                                 className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${groupInfoOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:hover:bg-stone-100'}`}
                                 title="Group information"
                                 aria-label="Group information"
@@ -4974,7 +5072,7 @@ export default function AdminMessages({
                           </div>
                         ) : null}
 
-                        {chatSearchOpen && !groupInfoOpen ? (
+                        {chatSearchOpen ? (
                           <div className="mt-3 flex items-center gap-2">
                             <div className="relative min-w-0 flex-1">
                               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
@@ -5009,16 +5107,14 @@ export default function AdminMessages({
                         ) : null}
                       </div>
 
-                      <div
-                        ref={messagesScrollRef}
-                        onScroll={handleMessagesScroll}
-                        className={`message-thread-surface relative min-h-0 flex-1 overflow-y-auto px-3 py-4 transition-colors sm:px-5 sm:py-5 ${editingMessage ? 'bg-neutral-300' : 'bg-[#f7f7f7]'}`}
-                      >
-                        {loadingMessages ? (
-                          <div className="flex h-full items-center justify-center gap-2 py-12 text-sm text-stone-500">
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                            Loading thread
-                          </div>
+                      <div className="relative min-h-0 flex-1">
+                        <div
+                          ref={messagesScrollRef}
+                          onScroll={handleMessagesScroll}
+                          className={`message-thread-surface h-full overflow-y-auto px-3 py-4 transition-colors sm:px-5 sm:py-5 ${editingMessage ? 'bg-neutral-300' : 'bg-[#f7f7f7]'}`}
+                        >
+                          {loadingMessages ? (
+                            <MessageThreadSkeleton />
                         ) : messages.length ? (
                           <div className="flex min-h-full flex-col justify-end">
                             {messages.map((message, index) => {
@@ -5084,7 +5180,19 @@ export default function AdminMessages({
                             <p className="mt-3 text-sm font-semibold text-stone-700">No messages yet</p>
                             <p className="mt-1 text-xs leading-5 text-stone-400">Send the first message to start this conversation.</p>
                           </div>
-                        )}
+                          )}
+                        </div>
+                        {showJumpToLatest && messages.length && !loadingMessages ? (
+                          <button
+                            type="button"
+                            onClick={() => scrollMessagesToBottom('smooth')}
+                            className="absolute bottom-4 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 py-2 text-xs font-semibold text-stone-700 shadow-lg transition hover:border-stone-300 hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+                            aria-label="Jump to latest message"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            Jump to latest
+                          </button>
+                        ) : null}
                       </div>
 
                       {selectedItem.type === 'private' && selectedItem.isDisabled ? (

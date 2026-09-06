@@ -23,7 +23,7 @@ void main() {
     expect(find.text('Welcome, Teresa'), findsOneWidget);
     expect(find.text('PDM-2026-001001'), findsOneWidget);
     expect(find.text('APPLICANT'), findsOneWidget);
-    expect(find.text('How to use SMaRT-PDM'), findsOneWidget);
+    expect(find.text('Latest Announcements'), findsOneWidget);
   });
 
   testWidgets('unified dashboard renders scholar identity and access state', (
@@ -37,7 +37,7 @@ void main() {
     expect(find.text('Welcome, Teresa'), findsOneWidget);
     expect(find.text('PDM-2026-001001'), findsOneWidget);
     expect(find.text('SCHOLAR'), findsOneWidget);
-    expect(find.text('Scholar Responsibilities'), findsOneWidget);
+    expect(find.text('Scholar Updates'), findsOneWidget);
     expect(find.text('How to use SMaRT-PDM'), findsNothing);
   });
 

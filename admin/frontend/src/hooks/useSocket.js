@@ -196,7 +196,7 @@ function refreshSocketAuthFromStorage(socket) {
 }
 
 let socketRecoveryHooksInstalled = false;
-let socketRecoveryTimer = null;
+let _socketRecoveryTimer = null;
 
 function recoverSocketConnection() {
   if (!globalSocket) {
@@ -243,7 +243,7 @@ function installSocketRecoveryHooks() {
 
   // Local connection watchdog only. When the socket is healthy this sends
   // no HTTP request and no application API traffic.
-  socketRecoveryTimer = window.setInterval(() => {
+  _socketRecoveryTimer = window.setInterval(() => {
     if (!globalSocket?.connected && getStoredSocketToken()) {
       recoverSocketConnection();
     }
@@ -500,6 +500,8 @@ export const useSocketEvent = (event, callback, deps = []) => {
     return () => {
       socket.off(event, handler);
     };
+  // Callers deliberately extend this subscription dependency list.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, ...deps]);
 
   return socketRef.current;

@@ -37,7 +37,7 @@ test('only appropriate primary admin actions inherit the personal portal theme',
   assert.match(registry, /onClick=\{onApply\}[\s\S]{0,180}bg-\[var\(--portal-base\)\]/);
   assert.match(academicYear, /bg-\[var\(--portal-base\)\] hover:bg-\[var\(--portal-active\)\]/);
   assert.match(finalSelection, /Finalize List[\s\S]{0,300}|bg-\[var\(--portal-base\)\]/);
-  assert.match(applicationReview, /border-\[var\(--portal-base\)\] bg-\[var\(--portal-base\)\]/);
+  assert.match(applicationReview, /style=\{\{ background: C\.brownMid \}\}/);
 
   // Semantic approval/success actions intentionally remain green instead of
   // being recolored by the user's decorative theme.

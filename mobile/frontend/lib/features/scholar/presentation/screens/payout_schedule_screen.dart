@@ -8,9 +8,12 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_design_tokens.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_status_colors.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/payout_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_surface_widgets.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class PayoutScheduleScreen extends StatefulWidget {
@@ -211,16 +214,16 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Color _proofStatusColor(String status) {
+  AppStatusTone _proofStatusTone(String status) {
     switch (status.trim().toLowerCase()) {
       case 'verified':
-        return Colors.green;
+        return AppStatusTone.success;
       case 'resubmission required':
-        return Colors.orange;
+        return AppStatusTone.actionRequired;
       case 'rejected':
-        return Colors.red;
+        return AppStatusTone.danger;
       default:
-        return Colors.blueGrey;
+        return AppStatusTone.inProgress;
     }
   }
 
@@ -246,7 +249,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Divider(color: Colors.grey.withOpacity(0.2)),
+          const Divider(),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -260,12 +263,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                 ),
               ),
               if (proof != null)
-                Text(
-                  proof.status,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: _proofStatusColor(proof.status),
-                    fontWeight: FontWeight.w700,
-                  ),
+                AppStatusCapsule(
+                  label: proof.status,
+                  tone: _proofStatusTone(proof.status),
+                  compact: true,
                 ),
             ],
           ),
@@ -314,23 +315,35 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
+  AppStatusTone _statusTone(String status) {
+    switch (status.trim().toLowerCase()) {
       case 'released':
       case 'paid':
       case 'completed':
-        return Colors.green;
+        return AppStatusTone.success;
       case 'approved':
-        return Colors.blue;
+        return AppStatusTone.inProgress;
       case 'processing':
       case 'on hold':
-        return Colors.orange;
+        return AppStatusTone.actionRequired;
       case 'absent':
-        return Colors.red;
+        return AppStatusTone.danger;
       case 'pending':
       default:
-        return Colors.grey;
+        return AppStatusTone.neutral;
     }
+  }
+
+  Color _statusAccent(BuildContext context, String status) {
+    final colors = AppStatusColors.of(context);
+    return switch (_statusTone(status)) {
+      AppStatusTone.success => colors.onSuccessContainer,
+      AppStatusTone.inProgress => colors.onInProgressContainer,
+      AppStatusTone.actionRequired => colors.onActionRequiredContainer,
+      AppStatusTone.danger => colors.onDangerContainer,
+      AppStatusTone.neutral => colors.onNeutralContainer,
+      AppStatusTone.brand => AppColors.gold,
+    };
   }
 
   IconData _getStatusIcon(String status) {
@@ -358,18 +371,13 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final titleColor = isDark ? Colors.white : textColor;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final titleColor = AppSurfacePalette.text(context);
+    final subtitleColor = AppSurfacePalette.mutedText(context);
 
     return SmartPdmPageScaffold(
       appBar: widget.showTopBar
           ? AppBar(
               title: const Text('Payout Schedule'),
-              backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-              foregroundColor: isDark ? Colors.white : textColor,
-              elevation: 0,
               automaticallyImplyLeading: false,
             )
           : null,
@@ -379,7 +387,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
         onRefresh: () => _loadPayouts(),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -408,14 +416,12 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   },
                 ),
               if (widget.showTopBar) const SizedBox(height: 20),
-              Text(
-                'Payout Schedule',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: titleColor,
-                ),
+              AppSectionHeading(
+                title: 'Payout Schedule',
+                subtitle:
+                    'Track payout dates, release status, and proof-of-receipt review.',
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.md),
 
               if (_loading)
                 const Center(
@@ -425,44 +431,52 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   ),
                 )
               else if (_error != null)
-                Card(
-                  color: cardColor,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Failed to load payout schedule.',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: titleColor,
-                          ),
+                AppSurfaceCard(
+                  child: Column(
+                    children: [
+                      AppIconTile(
+                        icon: Icons.cloud_off_rounded,
+                        accent: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Failed to load payout schedule.',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(color: subtitleColor),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: subtitleColor,
                         ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: () => _loadPayouts(),
-                          child: Text('Retry'),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton(
+                        onPressed: () => _loadPayouts(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
                 )
               else if (_payouts.isEmpty)
-                Card(
-                  color: cardColor,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'No payout schedule available yet.',
-                      style: TextStyle(color: subtitleColor),
-                    ),
+                AppSurfaceCard(
+                  child: Row(
+                    children: [
+                      const AppIconTile(icon: Icons.payments_outlined),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          'No payout schedule is available yet. New payout records will appear here when OSFA publishes them.',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: subtitleColor,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 )
               else
@@ -472,28 +486,19 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   itemCount: _payouts.length,
                   itemBuilder: (context, index) {
                     final payout = _payouts[index];
-                    return Card(
-                      color: cardColor,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
+                    return AppSurfaceCard(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: _getStatusColor(
-                                      payout.status,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    _getStatusIcon(payout.status),
-                                    color: _getStatusColor(payout.status),
+                                AppIconTile(
+                                  icon: _getStatusIcon(payout.status),
+                                  accent: _statusAccent(
+                                    context,
+                                    payout.status,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -548,36 +553,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                           ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getStatusColor(
-                                          payout.status,
-                                        ).withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        payout.status,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelMedium
-                                            ?.copyWith(
-                                              color: _getStatusColor(
-                                                payout.status,
-                                              ),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
+                                    AppStatusCapsule(
+                                      label: payout.status,
+                                      tone: _statusTone(payout.status),
+                                      compact: true,
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                             const SizedBox(height: 14),
-                            Divider(color: Colors.grey.withOpacity(0.2)),
+                            const Divider(),
                             const SizedBox(height: 10),
                             _infoRow(
                               'Payout Date',
@@ -624,8 +610,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                             ),
                           ],
                         ),
-                      ),
-                    );
+                      );
                   },
                 ),
             ],

@@ -38,7 +38,9 @@ class ProgramOpening {
     this.isBenefactorArchived = false,
   });
 
-  static const int applicationUploadRequirementCount = 5;
+  // PSA/Birth Certificate is accepted as an optional upload. Only the four
+  // remaining documents count toward application upload completion.
+  static const int applicationUploadRequirementCount = 4;
 
   final String openingId;
   final String programId;

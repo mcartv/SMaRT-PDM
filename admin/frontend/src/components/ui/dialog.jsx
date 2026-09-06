@@ -20,9 +20,22 @@ function DialogTrigger({
 }
 
 function DialogPortal({
+  container,
   ...props
 }) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  const portalContainer =
+    container ||
+    (typeof document !== "undefined"
+      ? document.querySelector(".portal-shell") || undefined
+      : undefined)
+
+  return (
+    <DialogPrimitive.Portal
+      data-slot="dialog-portal"
+      container={portalContainer}
+      {...props}
+    />
+  );
 }
 
 function DialogClose({

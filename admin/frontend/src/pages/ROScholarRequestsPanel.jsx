@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarDays,
@@ -30,7 +30,7 @@ function formatDate(value, includeTime = false) {
 
 function statusClass(status) {
   if (status === 'Fulfilled') return 'border-emerald-100 bg-emerald-50 text-emerald-700';
-  if (status === 'Acknowledged') return 'border-blue-100 bg-blue-50 text-blue-700';
+  if (status === 'Partially Assigned' || status === 'Fully Assigned') return 'border-blue-100 bg-blue-50 text-blue-700';
   if (status === 'Declined' || status === 'Cancelled') {
     return 'border-red-100 bg-red-50 text-red-700';
   }
@@ -99,8 +99,10 @@ function ActionModal({ action, request, loading, onClose, onConfirm }) {
   );
 }
 
-function requestStatusLabel(status) {
-  return status === 'Acknowledged' ? 'In Progress' : status;
+function requestStatusLabel(request = {}) {
+  const status = request.request_status;
+  if (['Fulfilled', 'Declined', 'Cancelled'].includes(status)) return status;
+  return request.assignment_stage || (status === 'Acknowledged' ? 'Assigned' : status);
 }
 
 function scholarName(scholar = {}) {
@@ -112,14 +114,31 @@ function scholarName(scholar = {}) {
 }
 
 function hasActivePlacement(scholar = {}) {
+  if (typeof scholar.has_active_assignment === 'boolean') {
+    return scholar.has_active_assignment;
+  }
+  if (typeof scholar.hasActiveAssignment === 'boolean') {
+    return scholar.hasActiveAssignment;
+  }
+
   const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
   if (placements.length) {
     return placements.some((placement) =>
       ['Pending', 'Approved'].includes(placement.placement_status)
     );
   }
-  const status = String(scholar.assignment_status || scholar.assignmentStatus || '').trim();
-  return Boolean(scholar.ro_id) && !['', 'Coordinator Rejected', 'Cleared'].includes(status);
+
+  const status = String(scholar.assignment_status || scholar.assignmentStatus || '')
+    .trim()
+    .toLowerCase();
+  return [
+    'pending coordinator approval',
+    'assigned',
+    'acknowledged',
+    'in progress',
+    'for validation',
+    'conflict reported',
+  ].includes(status);
 }
 
 function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
@@ -138,7 +157,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
       try {
         setLoadingScholars(true);
         setLoadError('');
-        const response = await fetch(buildApiUrl('/api/ro/scholars?status=all'), {
+        const response = await fetch(buildApiUrl('/api/ro/scholars?status=unassigned'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const payload = await response.json().catch(() => ({}));
@@ -157,6 +176,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
 
   const needle = search.trim().toLowerCase();
   const visible = scholars.filter((scholar) => {
+    if (hasActivePlacement(scholar)) return false;
     const haystack = [
       scholarName(scholar),
       scholar.pdm_id,
@@ -181,7 +201,7 @@ function AssignScholarsModal({ request, token, loading, onClose, onAssigned }) {
     if (!selectedIds.length) return;
     try {
       await onAssigned(selectedIds);
-    } catch (_) {
+    } catch {
       // Parent owns toast/error state.
     }
   };
@@ -292,6 +312,7 @@ export default function ROScholarRequestsPanel({ token }) {
   const [error, setError] = useState('');
   const [actionState, setActionState] = useState({ action: '', request: null });
   const [assignRequest, setAssignRequest] = useState(null);
+  const actionInFlightRef = useRef(false);
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -326,7 +347,8 @@ export default function ROScholarRequestsPanel({ token }) {
 
   const updateRequest = async (remarks) => {
     const { action, request } = actionState;
-    if (!action || !request) return;
+    if (!action || !request || actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     try {
       setSaving(true);
       const response = await fetch(buildApiUrl(`/api/ro/scholar-requests/${request.request_id}`), {
@@ -345,12 +367,14 @@ export default function ROScholarRequestsPanel({ token }) {
     } catch (updateError) {
       toast.error('Request was not updated', { description: updateError.message });
     } finally {
+      actionInFlightRef.current = false;
       setSaving(false);
     }
   };
 
   const assignScholars = async (studentIds) => {
-    if (!assignRequest) return;
+    if (!assignRequest || actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     try {
       setSaving(true);
       const response = await fetch(
@@ -379,6 +403,7 @@ export default function ROScholarRequestsPanel({ token }) {
       toast.error('Scholars were not assigned', { description: assignError.message });
       throw assignError;
     } finally {
+      actionInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -424,7 +449,7 @@ export default function ROScholarRequestsPanel({ token }) {
                       : 'text-stone-600'
                   }`}
                 >
-                  {item === 'Acknowledged' ? 'In Progress' : item}
+                  {item === 'Acknowledged' ? 'Assigned' : item}
                 </button>
               ))}
             </div>
@@ -484,9 +509,9 @@ export default function ROScholarRequestsPanel({ token }) {
                     </p>
                   </div>
                   <span
-                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(request.request_status)}`}
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(requestStatusLabel(request))}`}
                   >
-                    {requestStatusLabel(request.request_status)}
+                    {requestStatusLabel(request)}
                   </span>
                 </div>
 

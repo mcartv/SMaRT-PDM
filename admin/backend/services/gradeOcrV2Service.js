@@ -2,7 +2,11 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const iotOcrRequestService = require('./iotOcrRequestService');
-const enhancedOcrProvider = require('./enhancedOcrProvider');
+
+function getEnhancedOcrProvider() {
+    // Load the cloud SDK only when an Enhanced OCR job actually runs.
+    return require('./enhancedOcrProvider');
+}
 
 const BUCKET = String(process.env.IOT_OCR_CAPTURE_BUCKET || 'iot-ocr-captures').trim();
 const FIELD_KEYS = Object.freeze([
@@ -129,7 +133,7 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
     const original = await downloadOriginal(requestId);
     let result;
     try {
-        result = await enhancedOcrProvider.extract({
+        result = await getEnhancedOcrProvider().extract({
             documentType: 'student_grade_forms',
             image: original,
             schema: GRADE_SCHEMA,

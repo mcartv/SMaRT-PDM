@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Semantic workflow colors installed by the scoped Applicant Home theme.
+/// Semantic workflow colors installed by the app theme.
 ///
 /// Widgets should retrieve this extension with [of] instead of selecting a
 /// light or dark palette themselves.
@@ -84,10 +84,6 @@ class AppStatusColors extends ThemeExtension<AppStatusColors> {
   static AppStatusColors of(BuildContext context) {
     final theme = Theme.of(context);
     final extension = theme.extension<AppStatusColors>();
-    assert(
-      extension != null,
-      'AppStatusColors must be installed above Applicant Home.',
-    );
     return extension ??
         (theme.brightness == Brightness.dark
             ? AppStatusColors.dark

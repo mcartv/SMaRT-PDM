@@ -393,6 +393,49 @@ const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
     'letter of request',
 ]);
 
+const PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY = 'birth_certificate';
+
+async function getConfirmedPsaBirthCertificateOcrReview(applicationId) {
+    const result = await pool.query(
+        `
+        SELECT
+            r.request_id,
+            r.completed_at,
+            v.reviewed_at
+        FROM public.iot_ocr_requests r
+        JOIN public.iot_ocr_reviews v
+          ON v.request_id = r.request_id
+        WHERE r.application_id = $1::uuid
+          AND r.document_key = $2
+          AND r.status = 'completed'
+        ORDER BY COALESCE(v.reviewed_at, r.completed_at, r.updated_at) DESC
+        LIMIT 1
+        `,
+        [applicationId, PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY]
+    );
+
+    return result.rows[0] || null;
+}
+
+async function getUploadedPsaBirthCertificate(applicationId) {
+    const { data, error } = await supabase
+        .from('application_documents')
+        .select('document_id, document_type, file_path, file_url, current_version_id, is_submitted')
+        .eq('application_id', applicationId);
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).find((document) =>
+        normalizeDocumentType(document.document_type) === PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY &&
+        document.is_submitted === true &&
+        Boolean(
+            String(document.file_path || '').trim() ||
+            String(document.file_url || '').trim() ||
+            document.current_version_id
+        )
+    ) || null;
+}
+
 async function resolveRequirementsCompletedAt(applicationId) {
     const result = await pool.query(
         `
@@ -3866,6 +3909,52 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         );
     }
 
+    // PSA is optional on Mobile. When supplied, Admin's manual verification of
+    // the persisted upload is sufficient. When omitted, the physical document
+    // must instead be confirmed through IoT OCR.
+    if (derivedVerificationStatus === 'verified') {
+        const existingPsaReviewIndex = normalizedReviews.findIndex(
+            (review) => review.documentKey === PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY
+        );
+        const existingPsaReview = existingPsaReviewIndex >= 0
+            ? normalizedReviews[existingPsaReviewIndex]
+            : null;
+        const uploadedPsa = existingPsaReview?.reviewStatus === 'verified'
+            ? await getUploadedPsaBirthCertificate(applicationId)
+            : null;
+        const confirmedPsaOcrReview = uploadedPsa
+            ? null
+            : await getConfirmedPsaBirthCertificateOcrReview(applicationId);
+
+        if (!uploadedPsa && !confirmedPsaOcrReview) {
+            throw buildHttpError(
+                400,
+                'Verify the uploaded PSA / Birth Certificate or confirm its physical IoT OCR scan before saving the requirements review.'
+            );
+        }
+
+        const verifiedPsaReview = {
+            source: existingPsaReview?.source || {},
+            documentKey: PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY,
+            documentName: DOCUMENT_TYPE_TO_NAME[PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY],
+            reviewStatus: 'verified',
+            issueSeverity: null,
+            reasonCode: null,
+            comment:
+                existingPsaReview?.comment ||
+                (uploadedPsa
+                    ? 'Uploaded PSA / Birth Certificate manually verified by Admin.'
+                    : 'Verified from confirmed IoT OCR scan of the physical PSA / Birth Certificate.'),
+            url: existingPsaReview?.url || null,
+        };
+
+        if (existingPsaReviewIndex >= 0) {
+            normalizedReviews[existingPsaReviewIndex] = verifiedPsaReview;
+        } else {
+            normalizedReviews.push(verifiedPsaReview);
+        }
+    }
+
     const reviewRows = normalizedReviews.map((review) => ({
         application_id: applicationId,
         document_key: review.documentKey,
@@ -4667,4 +4756,3 @@ module.exports = {
     resolveIotExtractedName,
     resolveStoredExtractedName,
 };
-

@@ -11,6 +11,16 @@ function toRequiredNumber(value, fallback = 0) {
     return Number.isNaN(num) ? fallback : num;
 }
 
+function calculatePerScholarAmount(financialAllocation, allocatedSlots) {
+    const allocation = Number(financialAllocation);
+    const slots = Number(allocatedSlots);
+
+    if (!Number.isFinite(allocation) || allocation <= 0) return 0;
+    if (!Number.isFinite(slots) || slots <= 0) return 0;
+
+    return Math.round((allocation / slots) * 100) / 100;
+}
+
 // SMART-PDM_OPENINGS_STATUS_WORKFLOW_V3
 const OPENING_ALLOWED_STATUSES = new Set(['draft', 'open', 'closed', 'archived']);
 
@@ -200,10 +210,12 @@ function mapOpening(opening, counts = {}) {
 
         financial_allocation: opening.financial_allocation ?? null,
         per_scholar_amount:
-            opening.per_scholar_amount ??
-            (allocatedSlots > 0 && opening.financial_allocation != null
-                ? Math.floor(toRequiredNumber(opening.financial_allocation, 0) / allocatedSlots)
-                : null),
+            toRequiredNumber(opening.per_scholar_amount, 0) > 0
+                ? toRequiredNumber(opening.per_scholar_amount, 0)
+                : calculatePerScholarAmount(
+                    opening.financial_allocation,
+                    allocatedSlots
+                ),
 
         posting_status: basePostingStatus,
         computed_status: basePostingStatus,
@@ -622,7 +634,6 @@ exports.createProgramOpening = async (payload = {}) => {
         allocated_slots,
         filled_slots = 0,
         financial_allocation,
-        per_scholar_amount,
         posting_status,
         period_id,
         waiting_list_enabled = true,
@@ -662,10 +673,10 @@ exports.createProgramOpening = async (payload = {}) => {
             financial_allocation !== undefined && financial_allocation !== null && financial_allocation !== ''
                 ? Number(financial_allocation)
                 : null,
-        per_scholar_amount:
-            per_scholar_amount !== undefined && per_scholar_amount !== null && per_scholar_amount !== ''
-                ? Number(per_scholar_amount)
-                : 0,
+        per_scholar_amount: calculatePerScholarAmount(
+            financial_allocation,
+            allocated_slots
+        ),
         posting_status: isArchived ? 'archived' : normalizedStatus || 'draft',
         waiting_list_enabled: waiting_list_enabled !== false,
         waiting_list_limit: Math.max(0, Number(waiting_list_limit || 0)),
@@ -833,12 +844,10 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 merged.financial_allocation !== ''
                 ? Number(merged.financial_allocation)
                 : null,
-        per_scholar_amount:
-            merged.per_scholar_amount !== undefined &&
-                merged.per_scholar_amount !== null &&
-                merged.per_scholar_amount !== ''
-                ? Number(merged.per_scholar_amount)
-                : 0,
+        per_scholar_amount: calculatePerScholarAmount(
+            merged.financial_allocation,
+            merged.allocated_slots
+        ),
         posting_status: effectiveStatus,
         waiting_list_enabled: merged.waiting_list_enabled !== false,
         waiting_list_limit: Math.max(0, Number(merged.waiting_list_limit || 0)),

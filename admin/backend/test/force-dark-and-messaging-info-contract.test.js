@@ -18,7 +18,7 @@ test('web dark mode uses a native palette without globally inverting the page', 
   const css = read('frontend/src/index.css');
 
   assert.match(css, /:root\s*{[\s\S]*--bg-primary:\s*#f6f7f8[\s\S]*--text-main:\s*#202428/);
-  assert.match(css, /\.dark-mode\s*{[\s\S]*--bg-primary:\s*#18191a[\s\S]*--bg-elevated:\s*#2d2e30[\s\S]*--text-main:\s*#e4e6eb/);
+  assert.match(css, /\.dark-mode\s*{[\s\S]*--bg-primary:\s*#18191a[\s\S]*--bg-elevated:\s*#2d2e30[\s\S]*--text-main:\s*#f7f8fa/);
   assert.match(css, /html\.smartpdm-force-dark[\s\S]*color-scheme:\s*dark/);
   assert.match(css, /--portal-surface:\s*var\(--bg-secondary\)/);
   assert.match(css, /html\.smartpdm-force-dark \.bg-white/);

@@ -77,6 +77,11 @@ class NewScholarProvider extends ChangeNotifier {
     required String openingId,
     bool editExistingApplication = false,
   }) async {
+    // Ignore a second tap while the first request is still in flight. The
+    // backend is idempotent as well, but avoiding duplicate requests keeps the
+    // form state and success navigation deterministic.
+    if (_isLoading) return false;
+
     _isLoading = true;
     _submissionError = null;
     _successMessage = null;

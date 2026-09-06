@@ -140,6 +140,9 @@ test('Ensure OCR uses the latest/current document where applicable', () => {
 test('Prevent duplicate active document records', () => {
   assert.match(service, /document_id, application_id, document_type/);
   assert.match(service, /\.eq\('document_id', documentId\)/);
+  assert.match(service, /\.upsert\(missingRows,\s*\{/);
+  assert.match(service, /onConflict: 'application_id,document_type'/);
+  assert.match(service, /ignoreDuplicates: true/);
 });
 
 test('Verify realtime document updates', () => {

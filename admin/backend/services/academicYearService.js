@@ -167,10 +167,10 @@ async function closeOpeningsOutsideActiveCycle(
 
     if (periodId) {
         params.push(periodId);
-        conditions.push(`period_id IS DISTINCT FROM ${params.length}`);
+        conditions.push(`period_id IS DISTINCT FROM $${params.length}`);
     } else if (academicYearId) {
         params.push(academicYearId);
-        conditions.push(`academic_year_id IS DISTINCT FROM ${params.length}`);
+        conditions.push(`academic_year_id IS DISTINCT FROM $${params.length}`);
     }
 
     const result = await client.query(

@@ -647,6 +647,12 @@ exports.startAdminPasswordReset = async (req, res) => {
         return res.status(200).json(genericResponse);
     } catch (err) {
         console.error('ADMIN PASSWORD RESET START ERROR:', err);
+        if (err.code === 'RECOVERY_EMAIL_UNAVAILABLE') {
+            return res.status(503).json({
+                code: err.code,
+                message: 'Recovery email is currently unavailable. Please contact your system administrator.',
+            });
+        }
         return res.status(500).json({
             message: 'Unable to send recovery code right now.',
         });

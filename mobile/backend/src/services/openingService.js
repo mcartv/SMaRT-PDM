@@ -402,7 +402,7 @@ async function getOpeningsForMobile(userId) {
         )
       )
     `)
-    .in('posting_status', ['open', 'closed'])
+    .eq('posting_status', 'open')
     .eq('is_archived', false)
     .order('created_at', { ascending: false });
 
@@ -693,23 +693,16 @@ async function getOpeningsForMobile(userId) {
       };
     });
 
-  // The Admin Openings module is the visibility source of truth. Keep
-  // published, non-archived openings visible even when the student cannot
-  // currently apply. Closed openings are retained only when they still have
-  // a real unfilled slot, which lets released/historical vacancies remain
-  // visible without reopening an old academic period.
-  const items = allItems.filter((item) => {
-    const status = String(item.posting_status || '')
-      .trim()
-      .toLowerCase();
-
-    if (status === 'open') return true;
-
-    return (
-      status === 'closed' &&
-      Number(item.available_slots || 0) > 0
-    );
-  });
+  // Available Scholarships is an intake/discovery list. Once Admin closes
+  // an opening, it must disappear from Mobile even if it still has unused
+  // allocated slots. Existing applications remain reachable through the
+  // Application Status / Documents workflow instead of this discovery list.
+  const items = allItems.filter(
+    (item) =>
+      String(item.posting_status || '')
+        .trim()
+        .toLowerCase() === 'open'
+  );
 
   return {
     hasBaseApplicationProfile: !!student?.student_id,

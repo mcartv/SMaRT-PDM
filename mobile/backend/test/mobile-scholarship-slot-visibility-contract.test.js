@@ -50,22 +50,30 @@ test('Mobile opening responses cannot be cached after an admin status change', (
   assert.match(openingController, /Pragma', 'no-cache'/);
 });
 
-test('Mobile opening visibility is no longer suppressed by applicant eligibility', () => {
-  assert.match(openingService, /\.in\('posting_status', \['open', 'closed'\]\)/);
-  assert.match(
+test('Mobile Available Scholarships excludes Closed openings at both API and client boundaries', () => {
+  assert.match(openingService, /\.eq\('posting_status', 'open'\)/);
+  assert.doesNotMatch(
+    openingService,
+    /\.in\('posting_status', \['open', 'closed'\]\)/
+  );
+  assert.doesNotMatch(
     openingService,
     /status === 'closed'[\s\S]*Number\(item\.available_slots \|\| 0\) > 0/
   );
-  assert.match(openingService, /availability\.can_apply === true[\s\S]*!activeApplication/);
-  assert.doesNotMatch(openingService, /const scopedItems = allItems\.filter/);
-  assert.doesNotMatch(openingService, /items:\s*availability\.can_apply \? items : \[\]/);
-  assert.doesNotMatch(
+  assert.match(
     openingClient,
     /opening\.postingStatus\.trim\(\)\.toLowerCase\(\) == 'open'/
   );
+});
+
+test('Open opening visibility remains separate from individual applicant eligibility', () => {
+  assert.match(
+    openingService,
+    /availability\.can_apply === true[\s\S]*!activeApplication/
+  );
   assert.doesNotMatch(
-    openingClient,
-    /opening\.canApply &&\s*!opening\.hasApplied/
+    openingService,
+    /items:\s*availability\.can_apply \? items : \[\]/
   );
 });
 

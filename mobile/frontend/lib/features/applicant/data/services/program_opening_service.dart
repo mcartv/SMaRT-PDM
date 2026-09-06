@@ -13,14 +13,20 @@ class ProgramOpeningService {
     // revision prevents web/proxy caches from retaining stale status or slot
     // counts after an Admin update.
     final revision = DateTime.now().millisecondsSinceEpoch;
-    final response = await _apiClient.getObject('/api/openings?revision=$revision');
+    final response = await _apiClient.getObject(
+      '/api/openings?revision=$revision',
+    );
     final items = (response['items'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((item) => ProgramOpening.fromJson(Map<String, dynamic>.from(item)))
-        // The backend decides which Admin openings belong in this list.
-        // Mobile must not hide a released/historical vacancy just because
-        // application intake for that opening is currently disabled.
-        .where((opening) => opening.isVisible)
+        // Defense in depth: Available Scholarships only shows Admin Open
+        // openings. The backend already excludes Closed rows, but this keeps
+        // stale/legacy responses from rendering a Closed opening.
+        .where(
+          (opening) =>
+              opening.isVisible &&
+              opening.postingStatus.trim().toLowerCase() == 'open',
+        )
         .toList(growable: false);
 
     return ProgramOpeningsResult(
@@ -46,9 +52,7 @@ class ProgramOpeningService {
     final dashboardItems = result.isApprovedScholar
         ? const <ProgramOpening>[]
         : result.items
-              .where(
-                (opening) => opening.isVisible && !opening.hasApplied,
-              )
+              .where((opening) => opening.isVisible && !opening.hasApplied)
               .toList(growable: false);
 
     return ProgramOpeningsResult(

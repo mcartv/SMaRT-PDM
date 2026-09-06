@@ -255,6 +255,14 @@ const IOT_OCR_API_KEY =
 const INTERNAL_NOTIFICATION_SECRET =
     (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
 const IOT_OCR_TIMEOUT_MS = Number(process.env.IOT_OCR_TIMEOUT_MS || 15000);
+const configuredStudentNotificationRelayTimeoutMs = Number(
+    process.env.STUDENT_NOTIFICATION_RELAY_TIMEOUT_MS || 1500
+);
+const STUDENT_NOTIFICATION_RELAY_TIMEOUT_MS = Number.isFinite(
+    configuredStudentNotificationRelayTimeoutMs
+)
+    ? Math.min(10000, Math.max(250, configuredStudentNotificationRelayTimeoutMs))
+    : 1500;
 const BIRTH_STRUCTURED_FIELD_KEYS = Object.freeze([
     'child_name',
     'mother_maiden_name',
@@ -799,6 +807,11 @@ async function relayStudentNotification({
     createdAt = null,
 }) {
     const endpoint = new URL('/api/internal/notifications/user', STUDENT_BACKEND_BASE_URL);
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(
+        () => abortController.abort(),
+        STUDENT_NOTIFICATION_RELAY_TIMEOUT_MS
+    );
     const headers = {
         'Content-Type': 'application/json',
     };
@@ -807,19 +820,34 @@ async function relayStudentNotification({
         headers['x-internal-notification-secret'] = INTERNAL_NOTIFICATION_SECRET;
     }
 
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-            userId,
-            type,
-            title,
-            message,
-            referenceId,
-            referenceType,
-            createdAt,
-        }),
-    });
+    let response;
+
+    try {
+        response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            signal: abortController.signal,
+            body: JSON.stringify({
+                userId,
+                type,
+                title,
+                message,
+                referenceId,
+                referenceType,
+                createdAt,
+            }),
+        });
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw new Error(
+                `Student notification relay timed out after ${STUDENT_NOTIFICATION_RELAY_TIMEOUT_MS}ms.`
+            );
+        }
+
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 
     const rawBody = await response.text();
     let payload = {};

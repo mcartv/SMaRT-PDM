@@ -9,6 +9,7 @@ import {
   getPortalNameFromTokenKey,
   savePortalSessionFeedback,
   getStoredItem,
+  isSessionInvalidationError,
 } from '@/utils/authStorage';
 
 export default function ProtectedRoute({ children, storageKey, redirectTo }) {
@@ -39,6 +40,15 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         error instanceof AuthRequestError &&
         error.code === 'NETWORK_ERROR'
       ) {
+        setStatus('allowed');
+        return;
+      }
+
+      if (!isSessionInvalidationError(error)) {
+        // A temporary 5xx, proxy failure, or unrelated API error must not erase
+        // an otherwise valid browser session. Protected APIs remain enforced by
+        // the backend while the next lifecycle check retries validation.
+        setStatus('allowed');
         return;
       }
 

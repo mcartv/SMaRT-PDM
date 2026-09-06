@@ -113,11 +113,8 @@ function validatePasswordPolicy(password) {
     const value = String(password || '');
     const errors = [];
 
-    if (value.length < 10) errors.push('at least 10 characters');
-    if (!/[a-z]/.test(value)) errors.push('a lowercase letter');
+    if (value.length < 8) errors.push('at least 8 characters');
     if (!/[A-Z]/.test(value)) errors.push('an uppercase letter');
-    if (!/\d/.test(value)) errors.push('a number');
-    if (!/[^A-Za-z0-9]/.test(value)) errors.push('a special character');
 
     return errors;
 }

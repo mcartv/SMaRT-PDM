@@ -55,3 +55,29 @@ test('Admin recovery keeps the original Admin-only API and accurate loading acti
   assert.match(recovery, /Back to Login/);
   assert.doesNotMatch(recovery, /Enter the registered Admin email address to request a recovery code\./i);
 });
+
+test('Admin recovery presents responsive password strength and confirmation feedback', () => {
+  const recovery = read('frontend/src/pages/ForgotPassword.jsx');
+
+  assert.match(recovery, /Password security/);
+  assert.match(recovery, /passwordStrengthPercent/);
+  assert.match(recovery, /admin-password-requirements/);
+  assert.match(recovery, /Minimum 8 characters and 1 uppercase letter/);
+  assert.match(recovery, /Weak password/);
+  assert.match(recovery, /Strong password/);
+  assert.doesNotMatch(recovery, /At least 10 characters|Special character|Lowercase letter/);
+  assert.match(recovery, /aria-invalid=\{Boolean\(confirmPass && !passwordsMatch\)\}/);
+  assert.match(recovery, /Passwords match\./);
+  assert.doesNotMatch(recovery, /item\.valid \? '✓' : '•'/);
+});
+
+test('Admin recovery password policy requires only eight characters and an uppercase letter', () => {
+  const controller = read('backend/controllers/authController.js');
+
+  assert.match(controller, /value\.length < 8/);
+  assert.match(controller, /!\/\[A-Z\]\//);
+  assert.doesNotMatch(controller, /value\.length < 10/);
+  assert.doesNotMatch(controller, /errors\.push\('a lowercase letter'\)/);
+  assert.doesNotMatch(controller, /errors\.push\('a number'\)/);
+  assert.doesNotMatch(controller, /errors\.push\('a special character'\)/);
+});

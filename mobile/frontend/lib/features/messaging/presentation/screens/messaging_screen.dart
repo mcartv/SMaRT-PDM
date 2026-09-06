@@ -225,6 +225,40 @@ class _MessagingScreenState extends State<MessagingScreen> {
     await _sendMessage();
   }
 
+  Future<void> _confirmUnsend(ChatMessage message) async {
+    if (!message.isUnsent && mounted) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Unsend message?'),
+          content: const Text(
+            'This message will be removed for everyone in the conversation.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Unsend'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      try {
+        await (_provider ?? context.read<MessagingProvider>()).unsendMessage(message);
+      } catch (_) {
+        if (!mounted) return;
+        final provider = _provider ?? context.read<MessagingProvider>();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(provider.errorMessage ?? 'Failed to unsend message.')),
+        );
+      }
+    }
+  }
+
   Future<void> _showGroupInfo() async {
     final roomId = _normalizedRoomId;
     if (roomId == null) return;
@@ -782,6 +816,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     isMe && message.messageId == _deliveredStatusMessageId,
                 isSearchMatch: _chatSearchTerm.trim().isNotEmpty &&
                     message.messageBody.toLowerCase().contains(_chatSearchTerm.trim().toLowerCase()),
+                onLongPress: isMe && !message.isUnsent &&
+                        message.subject?.toLowerCase() != 'system'
+                    ? () => _confirmUnsend(message)
+                    : null,
               ),
             ],
           );
@@ -856,6 +894,7 @@ class _MessageBubble extends StatelessWidget {
     this.showAvatar = true,
     this.showDeliveryStatus = false,
     this.isSearchMatch = false,
+    this.onLongPress,
   });
 
   final ChatMessage message;
@@ -868,18 +907,23 @@ class _MessageBubble extends StatelessWidget {
   final bool showAvatar;
   final bool showDeliveryStatus;
   final bool isSearchMatch;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     if (message.subject?.toLowerCase() == 'system') {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(children: [
-          Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(message.messageBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppSurfacePalette.mutedText(context), fontWeight: FontWeight.w700))),
-          Expanded(child: Divider(color: isDark ? Colors.white24 : AppColors.brown.withValues(alpha: 0.16))),
-        ]),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+        child: Center(
+          child: Text(
+            message.messageBody,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppSurfacePalette.mutedText(context),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       );
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -892,7 +936,9 @@ class _MessageBubble extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isMe ? AppColors.darkBrown : incomingSurface,
+        color: message.isUnsent
+            ? AppSurfacePalette.surface(context)
+            : isMe ? AppColors.darkBrown : incomingSurface,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(!isMe && groupedWithPrevious ? 6 : 18),
           topRight: Radius.circular(isMe && groupedWithPrevious ? 6 : 18),
@@ -900,7 +946,9 @@ class _MessageBubble extends StatelessWidget {
           bottomRight: Radius.circular(isMe && groupedWithNext ? 6 : 18),
         ),
         border: Border.all(
-          color: isMe
+          color: message.isUnsent
+              ? AppSurfacePalette.outline(context)
+              : isMe
               ? AppColors.gold.withValues(alpha: 0.42)
               : (isDark
                     ? Colors.white.withValues(alpha: 0.07)
@@ -928,10 +976,13 @@ class _MessageBubble extends StatelessWidget {
           Text(
             message.messageBody,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isMe
+                  color: message.isUnsent
+                      ? AppSurfacePalette.mutedText(context)
+                      : isMe
                       ? Colors.white
                       : (AppSurfacePalette.text(context)),
                   height: 1.38,
+                  fontStyle: message.isUnsent ? FontStyle.italic : null,
                 ),
           ),
         ],
@@ -959,9 +1010,14 @@ class _MessageBubble extends StatelessWidget {
             children: [
               Tooltip(
                 message: timeLabel,
-                triggerMode: TooltipTriggerMode.longPress,
+                triggerMode: onLongPress == null
+                    ? TooltipTriggerMode.longPress
+                    : TooltipTriggerMode.tap,
                 preferBelow: false,
-                child: bubble,
+                child: GestureDetector(
+                  onLongPress: onLongPress,
+                  child: bubble,
+                ),
               ),
             ],
           ),

@@ -390,6 +390,13 @@ class MessageService {
     await _apiClient.patchJson('/api/messages/rooms/$roomId/read');
   }
 
+  Future<ChatMessage> unsendMessage(String messageId) async {
+    final response = await _apiClient.patchJson(
+      '/api/messages/message/$messageId/unsend',
+    );
+    return ChatMessage.fromJson(response);
+  }
+
   Future<List<ArchivedMessageThread>> fetchArchivedThreads() async {
     final response = await _apiClient.getObject('/api/messages/archived');
     final items = response['items'] as List<dynamic>? ?? const [];

@@ -2,7 +2,7 @@ const adminRealtimeRelayService = require('./adminRealtimeRelayService');
 const { resolveAvatarUrl } = require('./avatarService');
 
 const MESSAGE_FIELDS =
-  'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url';
+  'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url, unsent_at, unsent_by';
 
 const FETCH_PAGE_SIZE = 1000;
 
@@ -148,6 +148,13 @@ function mapMessageRow(row = {}, profiles = null) {
 
     attachmentUrl: row.attachment_url,
     attachment_url: row.attachment_url,
+
+    isUnsent: Boolean(row.unsent_at),
+    is_unsent: Boolean(row.unsent_at),
+    unsentAt: row.unsent_at || null,
+    unsent_at: row.unsent_at || null,
+    unsentBy: row.unsent_by || null,
+    unsent_by: row.unsent_by || null,
 
     senderName: profile?.name || null,
     sender_name: profile?.name || null,
@@ -2216,6 +2223,53 @@ async function markSharedConversationRead(userId, counterpartyId) {
   });
 }
 
+async function unsendMessage(userId, messageId) {
+  const normalizedUserId = safeText(userId);
+  const normalizedMessageId = safeText(messageId);
+  if (!isUuid(normalizedMessageId)) throw createHttpError(400, 'Invalid message ID.');
+
+  const supabase = getSupabase();
+  const { data: current, error: fetchError } = await supabase
+    .from('messages')
+    .select(MESSAGE_FIELDS)
+    .eq('message_id', normalizedMessageId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!current) throw createHttpError(404, 'Message not found.');
+  if (current.sender_id !== normalizedUserId) {
+    throw createHttpError(403, 'You can only unsend your own messages.');
+  }
+  if (normalizeText(current.subject) === 'system') {
+    throw createHttpError(409, 'Conversation activity messages cannot be unsent.');
+  }
+
+  let row = current;
+  if (!current.unsent_at) {
+    const { data, error } = await supabase
+      .from('messages')
+      .update({
+        message_body: 'This message was unsent',
+        attachment_url: null,
+        unsent_at: new Date().toISOString(),
+        unsent_by: normalizedUserId,
+      })
+      .eq('message_id', normalizedMessageId)
+      .select(MESSAGE_FIELDS)
+      .single();
+    if (error) throw new Error(error.message);
+    row = data;
+  }
+
+  const profiles = await fetchConversationProfiles([row.sender_id]);
+  const payload = mapMessageRow(row, buildProfileMap(profiles));
+  const targets = row.room_id
+    ? await fetchRoomMemberIds(row.room_id)
+    : [row.sender_id, row.receiver_id].filter(Boolean);
+  for (const target of new Set(targets)) emitToUser(target, 'message:updated', payload);
+  adminRealtimeRelayService.relayMessageEvent('message:updated', payload, targets).catch(() => {});
+  return payload;
+}
+
 module.exports = {
   configureMessageService,
 
@@ -2250,4 +2304,5 @@ module.exports = {
   fetchSharedConversationMessages,
   sendSharedConversationMessage,
   markSharedConversationRead,
+  unsendMessage,
 };

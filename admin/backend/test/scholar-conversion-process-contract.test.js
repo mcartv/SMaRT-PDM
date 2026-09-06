@@ -13,6 +13,9 @@ function read(relativePath) {
 
 const service = read('admin/backend/services/applicationService.js');
 const controller = read('admin/backend/controllers/applicationController.js');
+const applicationReview = read(
+    'admin/frontend/src/pages/ApplicationReview.jsx'
+);
 const selection = read('admin/backend/services/selectionService.js');
 const migration = read(
     'supabase/migrations/20260902121700_fix_scholar_conversion_process_flow.sql'
@@ -92,6 +95,26 @@ test('fresh conversion sends one canonical application notification', () => {
         service,
         /referenceId: applicationId/
     );
+});
+
+test('activation response is not held open by unbounded auxiliary work or full list reloads', () => {
+    assert.match(service, /STUDENT_NOTIFICATION_RELAY_TIMEOUT_MS/);
+    assert.match(service, /signal: abortController\.signal/);
+    assert.doesNotMatch(
+        controller.slice(
+            controller.indexOf('exports.approveApplication ='),
+            controller.indexOf('exports.requestApplicationFormReedit')
+        ),
+        /await auditLogService\.logAudit/
+    );
+    assert.doesNotMatch(
+        applicationReview.slice(
+            applicationReview.indexOf('const approveScholar ='),
+            applicationReview.indexOf('const loadData =')
+        ),
+        /await loadData/
+    );
+    assert.match(applicationReview, /scheduleSoftRefresh/);
 });
 
 test('database migration suppresses generic notices and repairs historical partial states', () => {

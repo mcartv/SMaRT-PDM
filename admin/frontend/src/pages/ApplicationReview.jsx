@@ -1819,6 +1819,7 @@ export default function ApplicationReview() {
   const [approvalLoadingId, setApprovalLoadingId] = useState('');
   const [activationCandidate, setActivationCandidate] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const softRefreshTimerRef = useRef(null);
   const [readinessSeenSignatures, setReadinessSeenSignatures] = useState(() =>
     readReadinessSeenState()
   );
@@ -1899,13 +1900,32 @@ export default function ApplicationReview() {
         throw new Error(await parseErrorResponse(response, 'Failed to finalize scholar activation'));
       }
 
-      await loadData({ soft: true });
+      const result = await response.json();
+
+      // Reflect the committed activation immediately. The authoritative list
+      // is reconciled just after this without keeping the modal or button busy.
+      setRegistryRows((currentRows) =>
+        currentRows.map((item) =>
+          String(item.application_id) === String(row.application_id)
+            ? {
+                ...item,
+                application_status:
+                  result?.application?.application_status || 'Approved',
+                selection_status:
+                  result?.application?.selection_status || 'Selected',
+                scholar_activation_ready: false,
+                needs_activation_attention: false,
+              }
+            : item
+        )
+      );
       setActivationCandidate(null);
       showAppToast(
         'success',
         'Scholar activation completed',
         `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`
       );
+      scheduleSoftRefresh();
     } catch (err) {
       setFeedback({
         tone: 'error',
@@ -1984,8 +2004,25 @@ export default function ApplicationReview() {
     }
   };
 
+  const scheduleSoftRefresh = () => {
+    if (softRefreshTimerRef.current) {
+      window.clearTimeout(softRefreshTimerRef.current);
+    }
+
+    softRefreshTimerRef.current = window.setTimeout(() => {
+      softRefreshTimerRef.current = null;
+      loadData({ soft: true });
+    }, 250);
+  };
+
   useEffect(() => {
     loadData();
+
+    return () => {
+      if (softRefreshTimerRef.current) {
+        window.clearTimeout(softRefreshTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -2006,12 +2043,12 @@ export default function ApplicationReview() {
     return () => window.clearInterval(timer);
   }, []);
 
-  useSocketEvent('application:updated', () => loadData({ soft: true }), []);
-  useSocketEvent('application:approved', () => loadData({ soft: true }), []);
-  useSocketEvent('application:rejected', () => loadData({ soft: true }), []);
-  useSocketEvent('application-document:uploaded', () => loadData({ soft: true }), []);
-  useSocketEvent('application-document:reviewed', () => loadData({ soft: true }), []);
-  useSocketEvent('endorsement:updated', () => loadData({ soft: true }), []);
+  useSocketEvent('application:updated', scheduleSoftRefresh, []);
+  useSocketEvent('application:approved', scheduleSoftRefresh, []);
+  useSocketEvent('application:rejected', scheduleSoftRefresh, []);
+  useSocketEvent('application-document:uploaded', scheduleSoftRefresh, []);
+  useSocketEvent('application-document:reviewed', scheduleSoftRefresh, []);
+  useSocketEvent('endorsement:updated', scheduleSoftRefresh, []);
 
   useEffect(() => {
     setPage(1);

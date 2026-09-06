@@ -412,6 +412,25 @@ class MessagingProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> unsendMessage(ChatMessage message) async {
+    if (message.messageId.trim().isEmpty || message.isUnsent) return;
+    try {
+      final updated = await _messageService.unsendMessage(message.messageId);
+      _errorMessage = null;
+      _upsertMessage(updated);
+      if (_activeGroupId != null) {
+        _updateGroupPreview(_activeGroupId!, updated);
+      } else {
+        _privatePreview = _messages.isEmpty ? updated : _messages.first;
+      }
+      _notify();
+    } catch (error) {
+      _errorMessage = _readableError(error);
+      _notify();
+      rethrow;
+    }
+  }
+
   Future<void> markThreadRead() async {
     try {
       if (_activeGroupId != null) {
@@ -647,7 +666,10 @@ class MessagingProvider extends ChangeNotifier {
     );
 
     if (isPrivateForCurrentUser) {
-      _privatePreview = message;
+      if (_privatePreview == null ||
+          !message.sentAt.isBefore(_privatePreview!.sentAt)) {
+        _privatePreview = message;
+      }
 
       // Only place a private message in the visible message list while the
       // private OSFA conversation is open. This prevents private messages from
@@ -904,6 +926,9 @@ class MessagingProvider extends ChangeNotifier {
     if (index < 0) return;
 
     final room = _rooms[index];
+    if (room.lastSentAt != null && message.sentAt.isBefore(room.lastSentAt!)) {
+      return;
+    }
     _rooms[index] = ChatRoom(
       roomId: room.roomId,
       roomName: room.roomName,

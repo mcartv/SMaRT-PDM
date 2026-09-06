@@ -11,6 +11,8 @@ class ChatMessage {
   final bool isRead;
   final String? subject;
   final String? attachmentUrl;
+  final bool isUnsent;
+  final DateTime? unsentAt;
 
   const ChatMessage({
     required this.messageId,
@@ -24,6 +26,8 @@ class ChatMessage {
     required this.isRead,
     this.subject,
     this.attachmentUrl,
+    this.isUnsent = false,
+    this.unsentAt,
   });
 
   static String _pickString(Map<String, dynamic> json, List<String> keys) {
@@ -91,6 +95,11 @@ class ChatMessage {
         'attachmentUrl',
         'attachment_url',
       ]),
+      isUnsent: _pickBool(json, ['isUnsent', 'is_unsent']) ||
+          _pickString(json, ['unsentAt', 'unsent_at']).isNotEmpty ||
+          _pickString(json, ['messageBody', 'message_body']).trim() ==
+              'This message was unsent',
+      unsentAt: DateTime.tryParse(_pickString(json, ['unsentAt', 'unsent_at'])),
     );
   }
 
@@ -106,6 +115,8 @@ class ChatMessage {
     bool? isRead,
     String? subject,
     String? attachmentUrl,
+    bool? isUnsent,
+    DateTime? unsentAt,
   }) {
     return ChatMessage(
       messageId: messageId ?? this.messageId,
@@ -119,6 +130,8 @@ class ChatMessage {
       isRead: isRead ?? this.isRead,
       subject: subject ?? this.subject,
       attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      isUnsent: isUnsent ?? this.isUnsent,
+      unsentAt: unsentAt ?? this.unsentAt,
     );
   }
 }

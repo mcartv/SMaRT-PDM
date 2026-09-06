@@ -7,7 +7,7 @@ import {
   getAdminDeviceId,
   getStoredPortalSession,
   invalidateStoredPortalSession,
-  savePortalSessionFeedback,
+  isSessionInvalidationError,
 } from '@/utils/authStorage';
 
 export class AuthRequestError extends Error {
@@ -285,8 +285,7 @@ export function installAdminSessionLifecycle() {
     } catch (error) {
       if (
         error instanceof AuthRequestError &&
-        error.code !== 'NETWORK_ERROR' &&
-        [401, 403, 409].includes(error.status)
+        isSessionInvalidationError(error)
       ) {
         invalidateStoredPortalSession({
           portalName: active.portalName,
@@ -315,19 +314,13 @@ export function installAdminSessionLifecycle() {
     } catch (error) {
       if (
         error instanceof AuthRequestError &&
-        error.code !== 'NETWORK_ERROR' &&
-        [401, 409].includes(error.status)
+        isSessionInvalidationError(error)
       ) {
-        savePortalSessionFeedback({
+        invalidateStoredPortalSession({
           portalName: 'admin',
           code: error.code,
           message: error.message,
         });
-        clearAuthStorage();
-
-        if (!window.location.pathname.startsWith('/login')) {
-          window.location.replace('/login');
-        }
       }
     }
   };
@@ -348,16 +341,13 @@ export function installAdminSessionLifecycle() {
     } catch (error) {
       if (
         error instanceof AuthRequestError &&
-        error.code !== 'NETWORK_ERROR' &&
-        [401, 409].includes(error.status)
+        isSessionInvalidationError(error)
       ) {
-        savePortalSessionFeedback({
+        invalidateStoredPortalSession({
           portalName: 'admin',
           code: error.code,
           message: error.message,
         });
-        clearAuthStorage();
-        window.location.replace('/login');
       }
     }
   };
@@ -382,6 +372,6 @@ export function installAdminSessionLifecycle() {
   // Browsers may throttle background timers, so focus/visibility listeners
   // above also trigger an immediate validation when the user returns.
   validateCurrentPortal();
-  window.setInterval(validateCurrentPortal, 3_000);
+  window.setInterval(validateCurrentPortal, 60_000);
   window.setInterval(heartbeat, 5 * 60_000);
 }

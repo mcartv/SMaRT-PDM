@@ -65,6 +65,15 @@ function proofName(item) {
   );
 }
 
+function proofReviewKey(item) {
+  if (!item?.payout_proof_id) return '';
+  return [
+    item.payout_proof_id,
+    item.submitted_at || item.updated_at || '',
+    item.signed_url || item.file_url || '',
+  ].join(':');
+}
+
 export default function PayoutProofReviewPanel() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,18 +83,23 @@ export default function PayoutProofReviewPanel() {
   const [selected, setSelected] = useState(null);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
-  const [openedProofId, setOpenedProofId] = useState(null);
+  const [openedProofKeys, setOpenedProofKeys] = useState(() => new Set());
+
+  const selectedProofKey = proofReviewKey(selected);
+  const hasOpenedSelectedProof = Boolean(
+    selectedProofKey && openedProofKeys.has(selectedProofKey)
+  );
 
   const closeReview = () => {
     if (saving) return;
     setSelected(null);
     setComment('');
-    setOpenedProofId(null);
   };
 
-  const openSelectedProof = () => {
-    const url = selected?.signed_url || selected?.file_url;
-    if (!url || !selected?.payout_proof_id) return;
+  const openProof = (item) => {
+    const url = item?.signed_url || item?.file_url;
+    const reviewKey = proofReviewKey(item);
+    if (!url || !reviewKey) return;
 
     const previewWindow = window.open(url, '_blank');
     if (!previewWindow) {
@@ -94,9 +108,15 @@ export default function PayoutProofReviewPanel() {
     }
 
     previewWindow.opener = null;
-    setOpenedProofId(selected.payout_proof_id);
+    setOpenedProofKeys((current) => {
+      const next = new Set(current);
+      next.add(reviewKey);
+      return next;
+    });
     setError('');
   };
+
+  const openSelectedProof = () => openProof(selected);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,6 +164,10 @@ export default function PayoutProofReviewPanel() {
 
   const review = async (nextStatus) => {
     if (!selected?.payout_proof_id) return;
+    if (nextStatus === 'Verified' && !hasOpenedSelectedProof) {
+      setError('Open the submitted proof before verifying it.');
+      return;
+    }
     if (nextStatus !== 'Verified' && !comment.trim()) {
       setError('Add a review comment before requesting resubmission.');
       return;
@@ -169,7 +193,6 @@ export default function PayoutProofReviewPanel() {
       }
       setSelected(null);
       setComment('');
-      setOpenedProofId(null);
       await load();
     } catch (requestError) {
       setError(requestError.message || 'Unable to review payout proof.');
@@ -264,7 +287,7 @@ export default function PayoutProofReviewPanel() {
                       <Button
                         variant="outline"
                         className="flex-1 rounded-xl"
-                        onClick={() => window.open(item.signed_url || item.file_url, '_blank', 'noopener,noreferrer')}
+                        onClick={() => openProof(item)}
                         disabled={!item.signed_url && !item.file_url}
                       >
                         <ExternalLink className="mr-2 h-4 w-4" />
@@ -275,7 +298,6 @@ export default function PayoutProofReviewPanel() {
                         onClick={() => {
                           setSelected(item);
                           setComment(item.admin_comment || '');
-                          setOpenedProofId(null);
                           setError('');
                         }}
                       >
@@ -293,10 +315,10 @@ export default function PayoutProofReviewPanel() {
 
       {selected ? (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={closeReview}
         >
-          <Card className="w-full max-w-lg border-stone-200 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <Card className="max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-b-none border-stone-200 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-stone-100 px-5 py-4">
               <h3 className="font-semibold text-stone-900">Review Payout Proof</h3>
               <p className="mt-1 text-xs text-stone-500">
@@ -314,11 +336,19 @@ export default function PayoutProofReviewPanel() {
                 Open Submitted File
               </Button>
 
-              {openedProofId !== selected.payout_proof_id ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Open the selected proof before verifying it. This is a review reminder, not an audit record.
+              {error ? (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {error}
                 </p>
-              ) : null}
+              ) : !hasOpenedSelectedProof ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Step 1: open and inspect the submitted proof. Verification stays locked until the file is opened.
+                </p>
+              ) : (
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                  Proof opened. You can now verify it or request a resubmission.
+                </p>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-stone-600">Review comment</label>
@@ -343,7 +373,7 @@ export default function PayoutProofReviewPanel() {
                 <Button
                   className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
                   onClick={() => review('Verified')}
-                  disabled={saving || openedProofId !== selected.payout_proof_id}
+                  disabled={saving || !hasOpenedSelectedProof}
                 >
                   {saving ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

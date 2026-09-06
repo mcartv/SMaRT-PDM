@@ -156,6 +156,7 @@ router.post('/message-event', requireInternalSecret, (req, res) => {
 
     const eventName = cleanId(req.body?.event || req.body?.event_name);
     const allowedEvents = new Set([
+        'message:updated',
         'message:read',
         'message:unread',
         'message:thread-archived',

@@ -19,6 +19,20 @@ function getMessageBody(req) {
   return req.body?.messageBody ?? req.body?.message_body ?? req.body?.message;
 }
 
+exports.unsendMessage = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    if (!currentUserId) return res.status(401).json({ error: 'Authentication required.' });
+    const payload = await messageService.unsendMessage(currentUserId, req.params.messageId);
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error('UNSEND MESSAGE ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to unsend message.',
+    });
+  }
+};
+
 exports.getUnreadCount = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);

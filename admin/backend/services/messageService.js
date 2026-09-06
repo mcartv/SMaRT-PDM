@@ -349,6 +349,8 @@ async function fetchMessageWithReply(messageId, viewerId = null, counterpartyId 
       m.message_body,
       m.sent_at,
       m.edited_at,
+      m.unsent_at,
+      m.unsent_by,
       (SELECT COUNT(*)::int FROM message_edit_history meh WHERE meh.message_id = m.message_id) AS edit_count,
       m.is_read,
       m.attachment_url,
@@ -1888,6 +1890,12 @@ exports.editMessage = async (currentUserId, messageId, messageBody) => {
       error.statusCode = 403;
       throw error;
     }
+    if (current.unsent_at) {
+      const error = new Error('An unsent message can no longer be edited.');
+      error.statusCode = 409;
+      error.code = 'MESSAGE_ALREADY_UNSENT';
+      throw error;
+    }
     if (new Date(current.database_now).getTime() - new Date(current.sent_at).getTime() > 15 * 60 * 1000) {
       const error = new Error('Messages can only be edited within 15 minutes of sending.');
       error.statusCode = 409;
@@ -1944,15 +1952,56 @@ exports.editMessage = async (currentUserId, messageId, messageBody) => {
   }
 };
 
+exports.unsendMessage = async (currentUserId, messageId) => {
+  const currentResult = await db.query(
+    `SELECT message_id, sender_id, receiver_id, room_id, subject, unsent_at
+     FROM messages WHERE message_id = $1 LIMIT 1;`,
+    [messageId]
+  );
+  const current = currentResult.rows[0];
+  if (!current) {
+    const error = new Error('Message not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+  if (current.sender_id !== currentUserId) {
+    const error = new Error('You can only unsend your own messages.');
+    error.statusCode = 403;
+    throw error;
+  }
+  if (String(current.subject || '').toLowerCase() === 'system') {
+    const error = new Error('Conversation activity messages cannot be unsent.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (!current.unsent_at) {
+    await db.query(
+      `UPDATE messages
+       SET message_body = 'This message was unsent', attachment_url = NULL,
+           unsent_at = now(), unsent_by = $2
+       WHERE message_id = $1;`,
+      [messageId, currentUserId]
+    );
+  }
+
+  return fetchMessageWithReply(messageId, currentUserId, current.receiver_id);
+};
+
 exports.fetchMessageEditHistory = async (currentUserId, messageId) => {
   const messageResult = await db.query(
-    'SELECT message_id, sender_id, receiver_id, room_id FROM messages WHERE message_id = $1 LIMIT 1;',
+    'SELECT message_id, sender_id, receiver_id, room_id, unsent_at FROM messages WHERE message_id = $1 LIMIT 1;',
     [messageId]
   );
   const message = messageResult.rows[0];
   if (!message) {
     const error = new Error('Message not found.');
     error.statusCode = 404;
+    throw error;
+  }
+  if (message.unsent_at) {
+    const error = new Error('Edit history is unavailable for an unsent message.');
+    error.statusCode = 409;
     throw error;
   }
   if (message.room_id) {

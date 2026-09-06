@@ -76,9 +76,27 @@ const protect = async (req, res, next) => {
             });
         }
 
-        return res.status(401).json({
-            code: 'TOKEN_INVALID',
-            message: 'Token is not valid',
+        if (err?.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                code: 'TOKEN_EXPIRED',
+                message: 'Your session has expired. Please sign in again.',
+            });
+        }
+
+        if (err?.name === 'JsonWebTokenError' || err?.name === 'NotBeforeError') {
+            return res.status(401).json({
+                code: 'TOKEN_INVALID',
+                message: 'Token is not valid',
+            });
+        }
+
+        // Database/network failures during account or managed-session checks do
+        // not prove that the signed token is invalid. Returning TOKEN_INVALID
+        // here caused the web client to erase valid sessions during transient
+        // backend outages.
+        return res.status(503).json({
+            code: 'SESSION_VALIDATION_UNAVAILABLE',
+            message: 'Session validation is temporarily unavailable. Please try again.',
         });
     }
 };

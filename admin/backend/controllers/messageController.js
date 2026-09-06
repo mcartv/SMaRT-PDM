@@ -129,6 +129,13 @@ function toMessagePayload(row = {}) {
     editCount: Number(row.edit_count || 0),
     edit_count: Number(row.edit_count || 0),
 
+    isUnsent: Boolean(row.unsent_at),
+    is_unsent: Boolean(row.unsent_at),
+    unsentAt: row.unsent_at || null,
+    unsent_at: row.unsent_at || null,
+    unsentBy: row.unsent_by || null,
+    unsent_by: row.unsent_by || null,
+
     isRead: row.is_read === true,
     is_read: row.is_read === true,
 
@@ -1446,6 +1453,37 @@ exports.editMessage = async (req, res) => {
     console.error('EDIT MESSAGE ERROR:', err.message);
     return res.status(getStatusCode(err)).json({
       message: 'Failed to edit message',
+      error: err.message,
+    });
+  }
+};
+
+exports.unsendMessage = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    if (!currentUserId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const message = await messageService.unsendMessage(currentUserId, req.params.messageId);
+    const payload = toMessagePayload(message);
+    const targetUserIds = message.room_id
+      ? uniqueIds(await messageService.fetchRoomMemberUserIds(message.room_id), currentUserId)
+      : uniqueIds(currentUserId, message.receiver_id);
+
+    emitToUsers(req.app.get('io'), 'message:updated', payload, targetUserIds);
+    relayToStudentBackend('message:updated', payload, targetUserIds);
+    await logMessageAudit({
+      req,
+      actionTaken: 'UNSEND_MESSAGE',
+      entityType: 'message',
+      entityId: message.message_id,
+      description: 'Unsent a message.',
+      metadata: { message_id: message.message_id, room_id: message.room_id || null },
+    });
+    return res.json(payload);
+  } catch (err) {
+    console.error('UNSEND MESSAGE ERROR:', err.message);
+    return res.status(getStatusCode(err)).json({
+      message: 'Failed to unsend message',
       error: err.message,
     });
   }

@@ -25,6 +25,7 @@ import {
   SendHorizontal,
   ShieldCheck,
   Trash2,
+  Undo2,
   WifiOff,
   UserMinus,
   UserPlus,
@@ -270,6 +271,9 @@ function normalizeMessage(raw = {}) {
     sentAt: raw.sentAt?.toString() || raw.sent_at?.toString() || '',
     editedAt: raw.editedAt?.toString() || raw.edited_at?.toString() || '',
     editCount: Number(raw.editCount ?? raw.edit_count ?? 0),
+    isUnsent: raw.isUnsent === true || raw.is_unsent === true || Boolean(raw.unsentAt || raw.unsent_at) ||
+      String(raw.messageBody ?? raw.message_body ?? '').trim() === 'This message was unsent',
+    unsentAt: raw.unsentAt?.toString() || raw.unsent_at?.toString() || '',
     isRead: raw.isRead === true || raw.is_read === true,
     subject: raw.subject?.toString() || null,
     attachmentUrl: raw.attachmentUrl?.toString() || raw.attachment_url?.toString() || null,
@@ -998,6 +1002,7 @@ function MessageBubble({
   onStartEdit,
   onLoadEditHistory,
   onDelete,
+  onUnsend,
   onRetry,
   onOpenExternalLink,
 }) {
@@ -1063,6 +1068,7 @@ function MessageBubble({
   const isEmojiOnlyMessage = /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(message.messageBody.trim())
   const canEdit = Boolean(
     isOwnSentMessage &&
+    !message.isUnsent &&
     Number.isFinite(editDeadline) &&
     !editWindowExpired &&
     !editLimitReached &&
@@ -1124,7 +1130,7 @@ function MessageBubble({
           role="menu"
           className={`absolute bottom-8 z-30 w-40 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl ${isMine ? 'right-0' : 'left-0'}`}
         >
-          {!editingMode ? (
+          {!editingMode && !message.isUnsent ? (
             <button
               type="button"
               onClick={() => { setActionsOpen(false); onReply?.(message) }}
@@ -1134,14 +1140,14 @@ function MessageBubble({
               <Reply className="h-3.5 w-3.5" /> Reply
             </button>
           ) : null}
-          <button
+          {!message.isUnsent ? <button
             type="button"
             onClick={() => { setActionsOpen(false); onCopy?.(message) }}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50"
             role="menuitem"
           >
             <Copy className="h-3.5 w-3.5" /> Copy
-          </button>
+          </button> : null}
           {canEdit ? (
             <button
               type="button"
@@ -1150,6 +1156,16 @@ function MessageBubble({
               role="menuitem"
             >
               <Pencil className="h-3.5 w-3.5" /> Edit
+            </button>
+          ) : null}
+          {isOwnSentMessage && !message.isUnsent ? (
+            <button
+              type="button"
+              onClick={() => { setActionsOpen(false); onUnsend?.(message) }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+              role="menuitem"
+            >
+              <Undo2 className="h-3.5 w-3.5" /> Unsend
             </button>
           ) : null}
           <button
@@ -1172,10 +1188,10 @@ function MessageBubble({
       ) : null}
 
       <div className={`flex max-w-[88%] flex-col ${isMine ? 'items-end' : 'items-start'} sm:max-w-[76%] lg:max-w-[68%]`}>
-        {((isGroup && !isMine && showSenderName && message.senderName && !message.replyToMessageId) || message.editedAt) ? (
+        {((isGroup && !isMine && showSenderName && message.senderName && !message.replyToMessageId) || (message.editedAt && !message.isUnsent)) ? (
           <p className={`mb-1 flex items-center gap-1 px-1 text-[11px] font-semibold text-stone-600 ${isMine ? 'justify-end text-right' : 'justify-start'}`}>
             <span>{isMine ? 'You' : message.senderName || 'User'}</span>
-            {message.editedAt ? (
+            {message.editedAt && !message.isUnsent ? (
               <><span aria-hidden="true">·</span><button type="button" onClick={toggleEditHistory} className={`rounded px-0.5 transition hover:underline ${historyOpen ? 'font-bold text-stone-900 underline underline-offset-2' : 'font-semibold text-stone-600'}`} aria-expanded={historyOpen}>{historyOpen ? 'Hide edits' : 'Edited'}</button></>
             ) : null}
           </p>
@@ -1235,7 +1251,9 @@ function MessageBubble({
 
           <div className={`relative z-10 flex max-w-full items-center gap-0.5 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
             <div
-              className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 shadow-sm transition ${isMine
+              className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 shadow-sm transition ${message.isUnsent
+                ? 'border border-stone-300 bg-stone-100 italic text-stone-500'
+                : isMine
                 ? `bg-[var(--portal-base)] text-white ${outgoingCornerClass}`
                 : `border border-stone-200 bg-white text-stone-800 ${incomingCornerClass}`
                 } ${isCurrentSearchMatch ? 'ring-2 ring-[var(--portal-base)] ring-offset-2' : isMatch ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
@@ -2215,6 +2233,8 @@ export default function AdminMessages({
   const [replyingTo, setReplyingTo] = useState(null)
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState(null)
   const [deleteMessageBusy, setDeleteMessageBusy] = useState(false)
+  const [pendingUnsendMessage, setPendingUnsendMessage] = useState(null)
+  const [unsendMessageBusy, setUnsendMessageBusy] = useState(false)
   const [pendingExternalLink, setPendingExternalLink] = useState(null)
   const [typingUserIds, setTypingUserIds] = useState([])
 
@@ -3579,6 +3599,37 @@ export default function AdminMessages({
     }
   }
 
+  async function handleUnsendMessage(message) {
+    if (!message?.messageId || message.messageId.startsWith('local:')) return
+    try {
+      setUnsendMessageBusy(true)
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/message/${message.messageId}/unsend`, {
+        method: 'PATCH',
+        headers: buildMessagingHeaders(token),
+      })
+      const updated = normalizeMessage(await parseApiResponse(response, 'Failed to unsend message.'))
+      setMessages((current) => current.map((item) => {
+        if (item.messageId === updated.messageId) return { ...item, ...updated }
+        if (item.replyToMessageId === updated.messageId) {
+          return { ...item, replyMessageBody: updated.messageBody }
+        }
+        return item
+      }))
+      if (editingMessage?.messageId === updated.messageId) cancelMessageEdit()
+      if (replyingTo?.messageId === updated.messageId) setReplyingTo(null)
+      setPendingUnsendMessage(null)
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to unsend message.')
+    } finally {
+      setUnsendMessageBusy(false)
+    }
+  }
+
   async function handleRetryFailedMessage(message) {
     if (!message || sendingRef.current) return
     await sendMessageBody(message.messageBody, {
@@ -4252,6 +4303,8 @@ export default function AdminMessages({
             messageBody: updated.messageBody,
             editedAt: updated.editedAt || new Date().toISOString(),
             editCount: Math.max(Number(message.editCount || 0), Number(updated.editCount || 0)),
+            isUnsent: updated.isUnsent,
+            unsentAt: updated.unsentAt,
           }
         }
         if (message.replyToMessageId === updated.messageId) {
@@ -4694,6 +4747,16 @@ export default function AdminMessages({
         busy={deleteMessageBusy}
         onCancel={() => { if (!deleteMessageBusy) setPendingDeleteMessage(null) }}
         onConfirm={() => handleDeleteMessageForMe(pendingDeleteMessage)}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(pendingUnsendMessage)}
+        title="Unsend message?"
+        description="The message content will be removed for everyone in this conversation. They will see that a message was unsent."
+        confirmLabel="Unsend"
+        busy={unsendMessageBusy}
+        onCancel={() => { if (!unsendMessageBusy) setPendingUnsendMessage(null) }}
+        onConfirm={() => handleUnsendMessage(pendingUnsendMessage)}
       />
 
       <ConfirmActionModal
@@ -5166,6 +5229,7 @@ export default function AdminMessages({
                                     onStartEdit={handleStartEditMessage}
                                     onLoadEditHistory={handleLoadEditHistory}
                                     onDelete={setPendingDeleteMessage}
+                                    onUnsend={setPendingUnsendMessage}
                                     onRetry={handleRetryFailedMessage}
                                     onOpenExternalLink={setPendingExternalLink}
                                   />

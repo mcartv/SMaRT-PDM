@@ -12,6 +12,7 @@ router.patch('/thread/read', protect, messageController.markThreadRead);
 router.patch('/thread/archive', protect, messageController.archiveThread);
 router.patch('/thread/restore', protect, messageController.restoreThread);
 router.get('/archived', protect, messageController.getArchivedThreads);
+router.patch('/message/:messageId/unsend', protect, messageController.unsendMessage);
 
 router.get('/conversations', protect, messageController.getConversations);
 router.get(

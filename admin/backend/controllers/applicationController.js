@@ -650,7 +650,9 @@ exports.approveApplication = async (req, res) => {
             socketEvents.notificationCreated(io, updated.student_user_id, updated.notification);
         }
 
-        await auditLogService.logAudit({
+        // Activation is already committed at this point. Record its audit in
+        // the background so an audit storage delay does not hold the UI open.
+        auditLogService.logAudit({
             req,
             actionTaken: 'ACTIVATE_SCHOLAR',
             module: 'Application Readiness',

@@ -43,16 +43,19 @@ async function requestJson(url, body, fallbackMessage) {
   return data;
 }
 
-function getPasswordChecks(password) {
+function getPasswordAssessment(password) {
   const value = String(password || '');
+  const meetsLength = value.length >= 8;
+  const hasUppercase = /[A-Z]/.test(value);
+  const valid = meetsLength && hasUppercase;
+  const variety = [/[a-z]/, /\d/, /[^A-Za-z0-9]/].filter((rule) => rule.test(value)).length;
 
-  return [
-    { label: 'At least 10 characters', valid: value.length >= 10 },
-    { label: 'Uppercase letter', valid: /[A-Z]/.test(value) },
-    { label: 'Lowercase letter', valid: /[a-z]/.test(value) },
-    { label: 'Number', valid: /\d/.test(value) },
-    { label: 'Special character', valid: /[^A-Za-z0-9]/.test(value) },
-  ];
+  if (!value) return { valid: false, label: 'Enter a password', percent: 0, tone: 'text-stone-500' };
+  if (!valid) return { valid: false, label: 'Weak password', percent: meetsLength || hasUppercase ? 45 : 25, tone: 'text-red-600' };
+  if (value.length >= 12 && variety >= 2) {
+    return { valid: true, label: 'Strong password', percent: 100, tone: 'text-emerald-700' };
+  }
+  return { valid: true, label: 'Good password', percent: 75, tone: 'text-amber-700' };
 }
 
 function normalizeEmail(value) {
@@ -128,8 +131,9 @@ export default function ForgotPassword() {
 
   const otpValue = otp.join('');
   const otpComplete = otpValue.length === 6;
-  const passwordChecks = useMemo(() => getPasswordChecks(newPassword), [newPassword]);
-  const passwordStrong = passwordChecks.every((item) => item.valid);
+  const passwordAssessment = useMemo(() => getPasswordAssessment(newPassword), [newPassword]);
+  const passwordStrengthPercent = passwordAssessment.percent;
+  const passwordStrong = passwordAssessment.valid;
   const passwordsMatch = Boolean(newPassword && confirmPass && newPassword === confirmPass);
   const cardTitle = {
     email: 'Admin Password Recovery',
@@ -243,7 +247,7 @@ export default function ForgotPassword() {
     clearFeedback();
 
     if (!passwordStrong) {
-      setError('Password does not meet the required security rules.');
+      setError('Password must be at least 8 characters and include one uppercase letter.');
       return;
     }
 
@@ -339,7 +343,7 @@ export default function ForgotPassword() {
   });
 
   const primaryButtonClass =
-    'flex h-[48px] w-full items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(78,46,25,0.16)] transition hover:brightness-95 hover:shadow-[0_8px_18px_rgba(78,46,25,0.2)] active:translate-y-px disabled:cursor-wait disabled:opacity-60';
+    'flex h-[48px] w-full items-center justify-center gap-2 rounded-xl text-sm font-extrabold text-white shadow-lg shadow-black/10 transition hover:brightness-95 active:translate-y-px disabled:cursor-wait disabled:opacity-60';
 
   const inputClass =
     'h-[52px] w-full rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-900 outline-none transition placeholder:font-normal placeholder:text-stone-400 focus:ring-2 disabled:cursor-wait disabled:opacity-60';
@@ -513,7 +517,7 @@ export default function ForgotPassword() {
   );
 
   const renderResetStep = () => (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {renderFeedback()}
 
       <form onSubmit={handleReset} className="space-y-4" aria-busy={loading}>
@@ -532,7 +536,8 @@ export default function ForgotPassword() {
               required
               disabled={loading}
               autoComplete="new-password"
-              placeholder="Enter new password"
+              aria-describedby="admin-password-requirements"
+              placeholder="Create a secure password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               className={`${inputClass} pl-10 pr-12`}
@@ -542,7 +547,7 @@ export default function ForgotPassword() {
               type="button"
               disabled={loading}
               onClick={() => setShowNew((current) => !current)}
-              className="absolute right-3.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600 disabled:cursor-wait disabled:opacity-50"
+              className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600 disabled:cursor-wait disabled:opacity-50"
               aria-label={showNew ? 'Hide new password' : 'Show new password'}
             >
               {showNew ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -550,21 +555,26 @@ export default function ForgotPassword() {
           </div>
         </div>
 
-        <div
-          className="grid grid-cols-1 gap-x-3 gap-y-1 rounded-xl border bg-stone-50/80 px-3.5 py-3 sm:grid-cols-2"
-          style={{ borderColor: `${theme.base}16` }}
-        >
-          {passwordChecks.map((item) => (
-            <div
-              key={item.label}
-              className={`flex items-center gap-1.5 text-[11px] font-semibold ${
-                item.valid ? 'text-emerald-700' : 'text-stone-400'
-              }`}
-            >
-              <span aria-hidden="true">{item.valid ? '✓' : '•'}</span>
-              <span>{item.label}</span>
+        <div id="admin-password-requirements" className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-stone-800">Password security</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-stone-500">
+                Minimum 8 characters and 1 uppercase letter
+              </p>
             </div>
-          ))}
+            <span className={`shrink-0 text-xs font-extrabold ${passwordAssessment.tone}`}>
+              {passwordAssessment.label}
+            </span>
+          </div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-200">
+            <div
+              className={`h-full rounded-full transition-[width] duration-200 ${passwordStrong ? '' : 'bg-red-600'}`}
+              style={passwordStrong
+                ? { width: `${passwordStrengthPercent}%`, background: theme.base }
+                : { width: `${passwordStrengthPercent}%` }}
+            />
+          </div>
         </div>
 
         <div>
@@ -582,24 +592,28 @@ export default function ForgotPassword() {
               required
               disabled={loading}
               autoComplete="new-password"
-              placeholder="Confirm new password"
+              aria-invalid={Boolean(confirmPass && !passwordsMatch)}
+              placeholder="Repeat the new password"
               value={confirmPass}
               onChange={(event) => setConfirmPass(event.target.value)}
-              className={`${inputClass} pl-10 pr-12`}
-              style={fieldStyle(Boolean(confirmPass))}
+              className={`${inputClass} pl-10 pr-12 ${confirmPass && !passwordsMatch ? 'border-red-300 focus:ring-red-100' : ''}`}
+              style={fieldStyle(Boolean(confirmPass && passwordsMatch))}
             />
             <button
               type="button"
               disabled={loading}
               onClick={() => setShowConfirm((current) => !current)}
-              className="absolute right-3.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600 disabled:cursor-wait disabled:opacity-50"
+              className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600 disabled:cursor-wait disabled:opacity-50"
               aria-label={showConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
             >
               {showConfirm ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
-          {confirmPass && !passwordsMatch ? (
-            <p className="mt-1.5 text-[11px] font-semibold text-red-600">Passwords do not match.</p>
+          {confirmPass ? (
+            <p className={`mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold ${passwordsMatch ? 'text-emerald-700' : 'text-red-600'}`}>
+              {passwordsMatch ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+              {passwordsMatch ? 'Passwords match.' : 'Passwords do not match.'}
+            </p>
           ) : null}
         </div>
 
@@ -666,7 +680,10 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="smartpdm-auth-page flex min-h-screen flex-col bg-[#f7f4ec]" style={{ minHeight: '100dvh' }}>
+    <div
+      className="smartpdm-auth-page flex min-h-screen flex-col"
+      style={{ minHeight: '100dvh', backgroundColor: theme.soft }}
+    >
 
 
       <LandingInstitutionHeader theme={theme} />
@@ -730,7 +747,7 @@ export default function ForgotPassword() {
           mirrored
         />
 
-        <div className="smartpdm-auth-grid relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
+        <div className="smartpdm-auth-grid relative z-10 mx-auto grid w-full max-w-[92rem] flex-1 items-center gap-8 px-4 py-6 sm:px-6 sm:py-10 md:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(420px,480px)] lg:gap-10 lg:px-10 lg:py-12 xl:gap-14">
           <section className="smartpdm-auth-copy hidden min-w-0 pl-[15vw] lg:block xl:pl-[13vw]">
             <div className="max-w-[560px]">
               <p
@@ -755,7 +772,7 @@ export default function ForgotPassword() {
           </section>
 
           <section
-            className="smartpdm-auth-card mx-auto w-full max-w-[430px] justify-self-center lg:mx-0 lg:justify-self-end"
+            className={`smartpdm-auth-card mx-auto w-full justify-self-center lg:mx-0 lg:justify-self-end ${step === 'reset' ? 'max-w-[480px]' : 'max-w-[430px]'}`}
             aria-labelledby="recovery-heading"
           >
             <div
@@ -786,7 +803,7 @@ export default function ForgotPassword() {
                   <div className="min-w-0">
                     <p
                       id="recovery-heading"
-                      className="text-2xl font-black tracking-[-0.025em] text-stone-900 sm:text-[28px]"
+                      className="text-xl font-black tracking-[-0.025em] text-stone-900 sm:text-[26px]"
                     >
                       {cardTitle}
                     </p>

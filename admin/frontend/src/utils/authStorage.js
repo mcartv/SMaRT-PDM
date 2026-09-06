@@ -121,6 +121,11 @@ const SESSION_INVALIDATION_CODES = new Set([
     'NOT_ADMIN_ACCOUNT',
 ]);
 
+export function isSessionInvalidationError(error = {}) {
+    const code = String(error?.code || '').trim().toUpperCase();
+    return SESSION_INVALIDATION_CODES.has(code);
+}
+
 function makeRandomId() {
     if (globalThis.crypto?.randomUUID) {
         return globalThis.crypto.randomUUID();

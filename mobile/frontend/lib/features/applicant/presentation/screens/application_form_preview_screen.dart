@@ -219,15 +219,10 @@ class _ApplicationFormPreviewScreenState
     });
 
     try {
-      final payload = Map<String, dynamic>.from(_submittedFormPayload);
-      final existingApplication = Map<String, dynamic>.from(
-        payload['application'] as Map? ?? const {},
-      );
-      payload['application'] = {...existingApplication, ..._application};
-
-      final bytes = await _pdfService.generateBytesFromSubmissionPayload(
-        payload,
-      );
+      // Re-fetch at export time so the PDF contains the latest normalized
+      // application, profile, family, and academic data from the database.
+      final bytes = await _pdfService
+          .generateBytesFromMySubmittedApplicationForm();
 
       if (!mounted) return;
 

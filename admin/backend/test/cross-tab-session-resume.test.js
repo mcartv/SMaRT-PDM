@@ -9,6 +9,8 @@ test('cross-tab session resume uses BroadcastChannel request/response hydration'
   const main = read('frontend/src/main.jsx');
 
   assert.match(storage, /BroadcastChannel/);
+  assert.match(storage, /PORTAL_SESSION_STORAGE_EVENT_KEY/);
+  assert.match(storage, /addEventListener\('storage'/);
   assert.match(storage, /SESSION_REQUEST/);
   assert.match(storage, /SESSION_RESPONSE/);
   assert.match(storage, /export async function hydratePortalSessionFromPeerTabs/);
@@ -16,6 +18,7 @@ test('cross-tab session resume uses BroadcastChannel request/response hydration'
   assert.match(storage, /SESSION_ESTABLISHED/);
   assert.match(storage, /broadcastPortalSessionEstablished/);
   assert.match(storage, /writePortalSessionToTab/);
+  assert.match(storage, /getTabPortalSession/);
 
   assert.match(main, /hydratePortalSessionFromPeerTabs/);
   assert.match(main, /getPortalNameFromPath\(window\.location\.pathname\)/);

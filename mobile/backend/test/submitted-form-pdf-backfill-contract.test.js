@@ -10,7 +10,7 @@ const source = fs.readFileSync(
   'utf8'
 );
 
-test('submitted form backfills persisted values without draft contamination', () => {
+test('submitted form uses normalized database values with snapshot fallback', () => {
   assert.match(
     source,
     /async function getMyFormData\(userId,\s*options\s*=\s*\{\}\)/
@@ -25,7 +25,7 @@ test('submitted form backfills persisted values without draft contamination', ()
   );
   assert.match(
     source,
-    /mergeMissingSubmissionValues\(\s*formData,\s*normalizedFormData/
+    /mergeMissingSubmissionValues\(\s*normalizedFormData\s*\|\|\s*\{\},\s*submittedPayload/
   );
   assert.match(
     source,

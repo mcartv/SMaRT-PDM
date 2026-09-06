@@ -265,8 +265,11 @@ class SavedApplicationPrintModel {
       religion: _string(profile['religion']),
       civilStatus: _string(profile['civil_status']),
       sex: _string(profile['sex']),
-      houseLotBlockNo: '',
-      phase: '',
+      houseLotBlockNo: _firstNonEmpty([
+        _string(profile['house_lot_block_no']),
+        _string(profile['unit_bldg_no']),
+      ]),
+      phase: _string(profile['phase']),
       street: _string(profile['street_address']),
       subdivision: _string(profile['subdivision']),
       barangay: _string(student['barangay']),
@@ -479,7 +482,10 @@ class SavedApplicationPrintModel {
       religion: _string(personal['religion']),
       civilStatus: _string(personal['civil_status']),
       sex: _string(personal['sex']),
-      houseLotBlockNo: _string(address['house_lot_block_no']),
+      houseLotBlockNo: _firstNonEmpty([
+        _string(address['house_lot_block_no']),
+        _string(address['unit_bldg_no']),
+      ]),
       phase: _string(address['phase']),
       street: _firstNonEmpty([
         _string(address['street']),

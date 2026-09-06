@@ -314,7 +314,10 @@ function GradeReportPreview({ preview, onClose }) {
 
   return (
     <Dialog open={Boolean(url)} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="flex h-[94vh] w-[96vw] max-w-[96vw] flex-col overflow-hidden rounded-2xl p-0 sm:max-w-[96vw]">
+      <DialogContent
+        overlayClassName="z-[80] bg-black/35"
+        className="z-[90] flex h-[94dvh] w-[96vw] max-w-[96vw] flex-col overflow-hidden rounded-2xl p-0 sm:max-w-[96vw]"
+      >
         <DialogHeader className="shrink-0 border-b border-stone-200 px-5 py-4">
           <DialogTitle>Grade Report Preview</DialogTitle>
           <DialogDescription className="sr-only">

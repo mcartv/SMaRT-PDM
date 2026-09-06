@@ -3696,20 +3696,20 @@ async function getMySubmittedFormData(userId) {
         { includeDraft: false }
     );
 
-    let formData = application.application_payload;
+    const submittedPayload =
+        application.application_payload &&
+        typeof application.application_payload === 'object' &&
+        !Array.isArray(application.application_payload)
+            ? application.application_payload
+            : {};
 
-    if (
-        !formData ||
-        typeof formData !== 'object' ||
-        Array.isArray(formData)
-    ) {
-        formData = normalizedFormData || {};
-    } else {
-        formData = mergeMissingSubmissionValues(
-            formData,
-            normalizedFormData || {}
-        );
-    }
+    // Build printable forms from the current normalized database records.
+    // The submitted snapshot remains a fallback for form-only values that do
+    // not have their own normalized column (for example phase or section).
+    let formData = mergeMissingSubmissionValues(
+        normalizedFormData || {},
+        submittedPayload
+    );
 
     const formApplication =
         formData.application &&

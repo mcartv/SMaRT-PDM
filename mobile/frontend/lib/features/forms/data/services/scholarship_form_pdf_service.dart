@@ -12,6 +12,12 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 class ScholarshipFormPdfService {
   static const double _imageWidth = 2550;
   static const double _imageHeight = 3900;
+  static const String _notAvailable = 'N/A';
+
+  static String _printableValue(String value) {
+    final clean = value.trim();
+    return clean.isEmpty ? _notAvailable : clean;
+  }
 
   Future<Directory> _resolveOutputDirectory() async {
     try {
@@ -70,8 +76,7 @@ class ScholarshipFormPdfService {
       PdfFont? textFont,
       PdfTextAlignment align = PdfTextAlignment.left,
     }) {
-      final clean = value.trim();
-      if (clean.isEmpty) return;
+      final clean = _printableValue(value);
       page.graphics.drawString(
         clean,
         textFont ?? font,
@@ -85,11 +90,12 @@ class ScholarshipFormPdfService {
     }
 
     void drawDateDigits(String value, Rect bounds) {
-      final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+      final clean = _printableValue(value);
+      final digits = clean.replaceAll(RegExp(r'[^0-9]'), '');
 
       if (digits.length != 8) {
         drawText(
-          value,
+          clean,
           bounds,
           textFont: smallFont,
           align: PdfTextAlignment.center,
@@ -121,8 +127,7 @@ class ScholarshipFormPdfService {
       PdfTextAlignment align = PdfTextAlignment.left,
       double minFontSize = 6.5,
     }) {
-      final clean = value.trim();
-      if (clean.isEmpty) return;
+      final clean = _printableValue(value);
 
       PdfFont currentFont = textFont ?? font;
       if (currentFont.measureString(clean).width <= bounds.width) {
@@ -154,8 +159,7 @@ class ScholarshipFormPdfService {
     }
 
     void drawMultiLine(String value, Rect bounds, {PdfFont? textFont}) {
-      final clean = value.trim();
-      if (clean.isEmpty) return;
+      final clean = _printableValue(value);
 
       PdfFont currentFont = textFont ?? smallFont;
       if (clean.length > 800) {
@@ -679,6 +683,11 @@ class ScholarshipFormPdfService {
       14,
       style: PdfFontStyle.bold,
     );
+    final applicantName = [
+      model.firstName.trim(),
+      model.middleName.trim(),
+      model.lastName.trim(),
+    ].where((part) => part.isNotEmpty).join(' ');
 
     page.graphics.drawString(
       'Scholarship Application (Fallback)',
@@ -686,7 +695,7 @@ class ScholarshipFormPdfService {
       bounds: const Rect.fromLTWH(0, 0, 500, 30),
     );
     page.graphics.drawString(
-      'Name: ${model.firstName} ${model.lastName}\nCourse: ${model.currentCourse}\nGWA: ${model.gwa}\nStudent ID: ${model.studentNumber}\nEmail: ${model.email}\nMobile: ${model.mobileNumber}\n\nSelf Description:\n${model.selfDescription}\n\nAims and Ambitions:\n${model.aimsAndAmbitions}',
+      'Name: ${_printableValue(applicantName)}\nCourse: ${_printableValue(model.currentCourse)}\nGWA: ${_printableValue(model.gwa)}\nStudent ID: ${_printableValue(model.studentNumber)}\nEmail: ${_printableValue(model.email)}\nMobile: ${_printableValue(model.mobileNumber)}\n\nSelf Description:\n${_printableValue(model.selfDescription)}\n\nAims and Ambitions:\n${_printableValue(model.aimsAndAmbitions)}',
       font,
       bounds: const Rect.fromLTWH(0, 40, 500, 700),
       format: PdfStringFormat(wordWrap: PdfWordWrapType.word),

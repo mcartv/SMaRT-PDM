@@ -3,7 +3,8 @@ const SESSION_FEEDBACK_KEY = 'smartpdmPortalSessionFeedback';
 const SESSION_FEEDBACK_MAX_AGE_MS = 10 * 60_000;
 const ACTIVE_PORTAL_HINT_KEY = 'smartpdmActivePortal';
 const PORTAL_SESSION_CHANNEL = 'smartpdm-portal-session-sync-v1';
-const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 600;
+const PORTAL_SESSION_STORAGE_EVENT_KEY = 'smartpdmPortalSessionSyncEvent';
+const PORTAL_SESSION_REQUEST_TIMEOUT_MS = 1_800;
 
 export const PORTAL_CONFIG = {
     admin: {
@@ -462,7 +463,33 @@ export function getStoredPortalSession(portalName = null) {
     return null;
 }
 
+function getTabPortalSession(portalName = null) {
+    const entries = portalName
+        ? [[portalName, PORTAL_CONFIG[portalName]]]
+        : Object.entries(PORTAL_CONFIG);
+
+    for (const [name, portal] of entries) {
+        if (!portal) continue;
+
+        const token = sessionStorage.getItem(portal.tokenKey);
+        if (!token) continue;
+
+        let profile = null;
+        try {
+            const rawProfile = sessionStorage.getItem(portal.profileKey);
+            profile = rawProfile ? JSON.parse(rawProfile) : null;
+        } catch {
+            profile = null;
+        }
+
+        return { portalName: name, ...portal, token, profile };
+    }
+
+    return null;
+}
+
 let portalSessionSyncChannel = null;
+let portalSessionSyncInstalled = false;
 
 function createPortalSessionChannel() {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
@@ -474,6 +501,30 @@ function createPortalSessionChannel() {
     } catch {
         return null;
     }
+}
+
+function publishPortalSessionStorageEvent(payload) {
+    if (typeof window === 'undefined') return;
+
+    try {
+        localStorage.setItem(
+            PORTAL_SESSION_STORAGE_EVENT_KEY,
+            JSON.stringify({ ...payload, sourceId: PAGE_INSTANCE_ID, eventId: makeRandomId() })
+        );
+        localStorage.removeItem(PORTAL_SESSION_STORAGE_EVENT_KEY);
+    } catch {
+        // BroadcastChannel remains the primary transport when storage is unavailable.
+    }
+}
+
+function publishPortalSessionMessage(payload, channel = portalSessionSyncChannel) {
+    try {
+        channel?.postMessage(payload);
+    } catch {
+        // The storage event below provides a same-origin fallback.
+    }
+
+    publishPortalSessionStorageEvent(payload);
 }
 
 export async function hydratePortalSessionFromPeerTabs({
@@ -502,8 +553,6 @@ export async function hydratePortalSessionFromPeerTabs({
     if (!requestedPortal) return null;
 
     const channel = createPortalSessionChannel();
-    if (!channel) return null;
-
     const requestId = makeRandomId();
 
     return new Promise((resolve) => {
@@ -512,14 +561,12 @@ export async function hydratePortalSessionFromPeerTabs({
             if (settled) return;
             settled = true;
             window.clearTimeout(timer);
-            channel.close();
+            channel?.close();
+            window.removeEventListener('storage', handleStorageResponse);
             resolve(session);
         };
 
-        const timer = window.setTimeout(() => finish(null), Math.max(40, Number(timeoutMs) || 0));
-
-        channel.onmessage = (event) => {
-            const payload = event?.data || {};
+        const handlePayload = (payload = {}) => {
             if (payload.type !== 'SESSION_RESPONSE' || payload.requestId !== requestId) return;
             if (!isKnownPortalName(payload.portalName) || !payload.token) return;
             if (requestedPortal && payload.portalName !== requestedPortal) return;
@@ -533,28 +580,45 @@ export async function hydratePortalSessionFromPeerTabs({
             finish(session);
         };
 
-        channel.postMessage({
+        const handleStorageResponse = (event) => {
+            if (event.key !== PORTAL_SESSION_STORAGE_EVENT_KEY || !event.newValue) return;
+
+            try {
+                const payload = JSON.parse(event.newValue);
+                if (payload.sourceId === PAGE_INSTANCE_ID) return;
+                handlePayload(payload);
+            } catch {
+                // Ignore malformed cross-tab events.
+            }
+        };
+
+        const timer = window.setTimeout(() => finish(null), Math.max(40, Number(timeoutMs) || 0));
+
+        if (channel) {
+            channel.onmessage = (event) => handlePayload(event?.data || {});
+        }
+        window.addEventListener('storage', handleStorageResponse);
+
+        publishPortalSessionMessage({
             type: 'SESSION_REQUEST',
             requestId,
             portalName: requestedPortal,
-        });
+        }, channel);
     });
 }
 
 export function installPortalSessionSync() {
-    if (portalSessionSyncChannel || typeof window === 'undefined') return;
+    if (portalSessionSyncInstalled || typeof window === 'undefined') return;
 
+    portalSessionSyncInstalled = true;
     portalSessionSyncChannel = createPortalSessionChannel();
-    if (!portalSessionSyncChannel) return;
 
     const current = getStoredPortalSession();
     if (current?.portalName) {
         setActivePortalHint(current.portalName);
     }
 
-    portalSessionSyncChannel.onmessage = (event) => {
-        const payload = event?.data || {};
-
+    const handleSyncPayload = (payload = {}) => {
         if (payload.type === 'SESSION_REQUEST') {
             const requestedPortal = isKnownPortalName(payload.portalName)
                 ? payload.portalName
@@ -565,7 +629,7 @@ export function installPortalSessionSync() {
 
             if (!active?.token) return;
 
-            portalSessionSyncChannel.postMessage({
+            publishPortalSessionMessage({
                 type: 'SESSION_RESPONSE',
                 requestId: payload.requestId,
                 portalName: active.portalName,
@@ -578,7 +642,7 @@ export function installPortalSessionSync() {
         if (payload.type === 'SESSION_ESTABLISHED' && isKnownPortalName(payload.portalName)) {
             if (!payload.token) return;
 
-            const previous = getStoredPortalSession();
+            const previous = getTabPortalSession();
             const session = writePortalSessionToTab({
                 portalName: payload.portalName,
                 token: payload.token,
@@ -606,20 +670,37 @@ export function installPortalSessionSync() {
             redirectPortalToLogin(payload.portalName);
         }
     };
+
+    if (portalSessionSyncChannel) {
+        portalSessionSyncChannel.onmessage = (event) => {
+            handleSyncPayload(event?.data || {});
+        };
+    }
+
+    window.addEventListener('storage', (event) => {
+        if (event.key !== PORTAL_SESSION_STORAGE_EVENT_KEY || !event.newValue) return;
+
+        try {
+            const payload = JSON.parse(event.newValue);
+            if (payload.sourceId === PAGE_INSTANCE_ID) return;
+            handleSyncPayload(payload);
+        } catch {
+            // Ignore malformed cross-tab events.
+        }
+    });
 }
 
 export function broadcastPortalSessionEstablished({ portalName, token, profile }) {
     if (!isKnownPortalName(portalName) || !token) return;
 
     const channel = portalSessionSyncChannel || createPortalSessionChannel();
-    if (!channel) return;
 
-    channel.postMessage({
+    publishPortalSessionMessage({
         type: 'SESSION_ESTABLISHED',
         portalName,
         token,
         profile: profile || {},
-    });
+    }, channel);
 
     if (channel !== portalSessionSyncChannel) {
         channel.close();
@@ -630,12 +711,11 @@ export function broadcastPortalSessionCleared(portalName) {
     if (!isKnownPortalName(portalName)) return;
 
     const channel = portalSessionSyncChannel || createPortalSessionChannel();
-    if (!channel) return;
 
-    channel.postMessage({
+    publishPortalSessionMessage({
         type: 'SESSION_CLEARED',
         portalName,
-    });
+    }, channel);
 
     if (channel !== portalSessionSyncChannel) {
         channel.close();

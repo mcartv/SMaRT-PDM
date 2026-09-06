@@ -45,6 +45,7 @@ void main() {
           'date_of_birth': '2007-02-19',
         },
         'address': {
+          'unit_bldg_no': 'Unit 4B',
           'city_municipality': 'Marilao',
           'province': 'Bulacan',
           'zip_code': '3019',
@@ -124,6 +125,7 @@ void main() {
       });
 
       expect(model.city, 'Marilao');
+      expect(model.houseLotBlockNo, 'Unit 4B');
       expect(model.province, 'Bulacan');
       expect(model.zipCode, '3019');
       expect(model.mobileNumber, '09171234567');
@@ -189,18 +191,12 @@ void main() {
     },
   );
 
-  test('Application Form Preview exports the persisted submitted payload', () {
+  test('Application Form Preview re-fetches persisted database data for export', () {
     final source = File(
       'lib/features/applicant/presentation/screens/application_form_preview_screen.dart',
     ).readAsStringSync();
 
-    expect(
-      source,
-      contains(
-        'final payload = Map<String, dynamic>.from(_submittedFormPayload);',
-      ),
-    );
-    expect(source, contains('generateBytesFromSubmissionPayload('));
+    expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
     expect(source, contains('XFile.fromData('));
     expect(
       source,
@@ -210,5 +206,15 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('PDF renderer labels every empty text field as not available', () {
+    final source = File(
+      'lib/features/forms/data/services/scholarship_form_pdf_service.dart',
+    ).readAsStringSync();
+
+    expect(source, contains("static const String _notAvailable = 'N/A';"));
+    expect(source, contains('return clean.isEmpty ? _notAvailable : clean;'));
+    expect(source, isNot(contains('if (clean.isEmpty) return;')));
   });
 }

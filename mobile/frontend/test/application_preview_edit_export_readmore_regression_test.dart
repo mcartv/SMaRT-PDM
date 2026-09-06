@@ -56,7 +56,7 @@ void main() {
 
     expect(preview, contains('saveAndOpenDownloadedFile('));
     expect(preview, contains("contentType: 'application/pdf'"));
-    expect(preview, contains('generateBytesFromSubmissionPayload('));
+    expect(preview, contains('generateBytesFromMySubmittedApplicationForm()'));
     expect(printable, contains('generateBytesFromSubmissionPayload('));
     expect(pdf, contains('generateBytesFromSavedApplication('));
   });

@@ -162,6 +162,8 @@ void main() {
     expect(source, contains('r(420, 2230, 445, 55),'));
     expect(source, contains('align: PdfTextAlignment.center,'));
     expect(source, contains('minFontSize: 6.0,'));
+    expect(source, contains("static const String _notAvailable = 'N/A';"));
+    expect(source, contains('final clean = _printableValue(value);'));
   });
 
   test('application preview exposes adjacent Edit and Export actions', () {
@@ -172,7 +174,7 @@ void main() {
     expect(source, contains("'Edit Form'"));
     expect(source, contains("'Export PDF'"));
     expect(source, contains('Row('));
-    expect(source, contains('generateBytesFromSubmissionPayload('));
+    expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
     expect(source, contains('saveAndOpenDownloadedFile('));
   });
 }

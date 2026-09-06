@@ -55,6 +55,8 @@ test('Remove PD-only OCR/GWA validation blocking from the frontend', () => {
 
 test('Do not remove Grade Report document visibility', () => {
   assert.match(queue, /Grade Report Preview/);
+  assert.match(queue, /overlayClassName="z-\[80\]/);
+  assert.match(queue, /className="z-\[90\]/);
   assert.match(queue, /A Grade Report is required for Program Director review/);
   assert.match(detail, /document_type.*grade report/i);
   assert.match(controller, /document_type.*grade report/i);

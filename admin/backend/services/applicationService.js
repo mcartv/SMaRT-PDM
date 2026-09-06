@@ -417,6 +417,25 @@ async function getConfirmedPsaBirthCertificateOcrReview(applicationId) {
     return result.rows[0] || null;
 }
 
+async function getUploadedPsaBirthCertificate(applicationId) {
+    const { data, error } = await supabase
+        .from('application_documents')
+        .select('document_id, document_type, file_path, file_url, current_version_id, is_submitted')
+        .eq('application_id', applicationId);
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).find((document) =>
+        normalizeDocumentType(document.document_type) === PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY &&
+        document.is_submitted === true &&
+        Boolean(
+            String(document.file_path || '').trim() ||
+            String(document.file_url || '').trim() ||
+            document.current_version_id
+        )
+    ) || null;
+}
+
 async function resolveRequirementsCompletedAt(applicationId) {
     const result = await pool.query(
         `
@@ -3890,26 +3909,30 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         );
     }
 
-    // The PSA / Birth Certificate is optional to upload from Mobile, but the
-    // physical document must still be scanned and confirmed through IoT OCR
-    // before Admin can complete a successful requirements verification.
+    // PSA is optional on Mobile. When supplied, Admin's manual verification of
+    // the persisted upload is sufficient. When omitted, the physical document
+    // must instead be confirmed through IoT OCR.
     if (derivedVerificationStatus === 'verified') {
-        const confirmedPsaOcrReview =
-            await getConfirmedPsaBirthCertificateOcrReview(applicationId);
-
-        if (!confirmedPsaOcrReview) {
-            throw buildHttpError(
-                400,
-                'Confirm the PSA / Birth Certificate IoT OCR scan before saving the requirements review.'
-            );
-        }
-
         const existingPsaReviewIndex = normalizedReviews.findIndex(
             (review) => review.documentKey === PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY
         );
         const existingPsaReview = existingPsaReviewIndex >= 0
             ? normalizedReviews[existingPsaReviewIndex]
             : null;
+        const uploadedPsa = existingPsaReview?.reviewStatus === 'verified'
+            ? await getUploadedPsaBirthCertificate(applicationId)
+            : null;
+        const confirmedPsaOcrReview = uploadedPsa
+            ? null
+            : await getConfirmedPsaBirthCertificateOcrReview(applicationId);
+
+        if (!uploadedPsa && !confirmedPsaOcrReview) {
+            throw buildHttpError(
+                400,
+                'Verify the uploaded PSA / Birth Certificate or confirm its physical IoT OCR scan before saving the requirements review.'
+            );
+        }
+
         const verifiedPsaReview = {
             source: existingPsaReview?.source || {},
             documentKey: PSA_BIRTH_CERTIFICATE_DOCUMENT_KEY,
@@ -3919,7 +3942,9 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             reasonCode: null,
             comment:
                 existingPsaReview?.comment ||
-                'Verified from confirmed IoT OCR scan of the physical PSA / Birth Certificate.',
+                (uploadedPsa
+                    ? 'Uploaded PSA / Birth Certificate manually verified by Admin.'
+                    : 'Verified from confirmed IoT OCR scan of the physical PSA / Birth Certificate.'),
             url: existingPsaReview?.url || null,
         };
 
@@ -4731,4 +4756,3 @@ module.exports = {
     resolveIotExtractedName,
     resolveStoredExtractedName,
 };
-

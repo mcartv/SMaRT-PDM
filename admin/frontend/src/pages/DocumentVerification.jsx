@@ -540,6 +540,15 @@ function isPsaBirthCertificateOcrVerified(document) {
     .toLowerCase() === 'completed';
 }
 
+function isPsaBirthCertificateRequirementSatisfied(document) {
+  if (document?.id !== 'birth_certificate') return false;
+
+  return (
+    isPsaBirthCertificateOcrVerified(document) ||
+    (isDocumentAvailable(document) && document.status === 'verified')
+  );
+}
+
 function getStructuredOcrFields(document) {
   const structuredFields = document?.ocr?.structured_fields;
   return structuredFields?.fields && typeof structuredFields.fields === 'object'
@@ -2873,7 +2882,8 @@ function ChecklistCard({
       <CardContent className="space-y-1 p-2 sm:p-2.5">
         {docs.map((d) => {
           const psaOcrVerified = isPsaBirthCertificateOcrVerified(d);
-          const effectiveStatus = psaOcrVerified ? 'verified' : d.status;
+          const psaRequirementSatisfied = isPsaBirthCertificateRequirementSatisfied(d);
+          const effectiveStatus = psaRequirementSatisfied ? 'verified' : d.status;
           const baseMeta = getDocumentStatusMeta(effectiveStatus);
           const meta =
             d.id === 'application_form' &&
@@ -2921,11 +2931,13 @@ function ChecklistCard({
                   </p>
                   <p className="mt-0.5 text-xs text-stone-400">
                     {d.id === 'birth_certificate'
-                      ? psaOcrVerified
-                        ? 'Physical document verified by OCR'
+                      ? psaRequirementSatisfied
+                        ? psaOcrVerified
+                          ? 'Physical document verified by OCR'
+                          : 'Mobile upload verified by Admin'
                         : available
-                          ? 'Mobile copy uploaded · OCR verification required'
-                          : 'Mobile upload optional · OCR verification required'
+                          ? 'Mobile copy uploaded · Admin review or OCR required'
+                          : 'Mobile upload optional · physical OCR required'
                       : d.id === 'application_form'
                       ? 'Text-based application data'
                       : available
@@ -2986,7 +2998,8 @@ function VerificationActions({
   canCompleteVerification,
   finalVerificationStatus,
   requirementsReviewAlreadySaved,
-  psaOcrVerified,
+  psaRequirementSatisfied,
+  psaUploaded,
 }) {
   const isSaved = requirementsReviewAlreadySaved === true;
 
@@ -3060,12 +3073,16 @@ function VerificationActions({
       titleColor: 'text-amber-900',
       descriptionColor: 'text-amber-700',
     };
-  } else if (!psaOcrVerified) {
+  } else if (!psaRequirementSatisfied) {
     statusConfig = {
       icon: ScanText,
-      title: 'PSA / Birth Certificate scan required',
+      title: psaUploaded
+        ? 'PSA / Birth Certificate review required'
+        : 'PSA / Birth Certificate scan required',
       description:
-        'Mobile upload is optional, but the physical PSA / Birth Certificate must be scanned and confirmed through IoT OCR before requirements verification can be completed.',
+        psaUploaded
+          ? 'Verify the uploaded PSA / Birth Certificate after reviewing it, or confirm the physical document through IoT OCR.'
+          : 'Mobile upload is optional, but the physical PSA / Birth Certificate must be scanned and confirmed through IoT OCR before requirements verification can be completed.',
       container: 'border-amber-200 bg-amber-50/80',
       iconContainer: 'bg-amber-100 text-amber-700',
       titleColor: 'text-amber-900',
@@ -3104,7 +3121,11 @@ function VerificationActions({
     if (finalVerificationStatus === 'requires_reupload') {
       return 'Save Correction Request';
     }
-    if (!psaOcrVerified) return 'Scan PSA / Birth Certificate First';
+    if (!psaRequirementSatisfied) {
+      return psaUploaded
+        ? 'Verify PSA / Birth Certificate First'
+        : 'Scan PSA / Birth Certificate First';
+    }
     return 'Save Requirements Review';
   })();
 
@@ -3885,14 +3906,14 @@ export default function DocumentVerification() {
     () => docs.find((d) => d.id === 'birth_certificate') || null,
     [docs]
   );
-  const psaOcrVerified = isPsaBirthCertificateOcrVerified(
-    psaBirthCertificateDocument
-  );
+  const psaUploaded = isDocumentAvailable(psaBirthCertificateDocument);
+  const psaRequirementSatisfied =
+    isPsaBirthCertificateRequirementSatisfied(psaBirthCertificateDocument);
 
   const verifiedCount = useMemo(
     () => docs.filter((d) => (
       d.id === 'birth_certificate'
-        ? isPsaBirthCertificateOcrVerified(d)
+        ? isPsaBirthCertificateRequirementSatisfied(d)
         : d.status === 'verified'
     )).length,
     [docs]
@@ -3912,7 +3933,7 @@ export default function DocumentVerification() {
     () =>
       docs.filter((d) => (
         d.id === 'birth_certificate'
-          ? isPsaBirthCertificateOcrVerified(d)
+          ? isPsaBirthCertificateRequirementSatisfied(d)
           : isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
       ))
         .length,
@@ -3945,7 +3966,7 @@ export default function DocumentVerification() {
   const canCompleteVerification =
     allRequiredDocsUploaded &&
     allRequiredDocsReviewed &&
-    (finalVerificationStatus !== 'verified' || psaOcrVerified) &&
+    (finalVerificationStatus !== 'verified' || psaRequirementSatisfied) &&
     !requirementsReviewAlreadySaved;
 
   // SMART-PDM_DOCUMENT_VERIFICATION_ENDORSEMENT_GATE_V1
@@ -5351,11 +5372,11 @@ export default function DocumentVerification() {
             canCompleteVerification={canCompleteVerification}
             finalVerificationStatus={finalVerificationStatus}
             requirementsReviewAlreadySaved={requirementsReviewAlreadySaved}
-            psaOcrVerified={psaOcrVerified}
+            psaRequirementSatisfied={psaRequirementSatisfied}
+            psaUploaded={psaUploaded}
           />
         </div>
       </div>
     </div>
   );
 }
-

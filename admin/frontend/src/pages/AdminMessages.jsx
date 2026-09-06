@@ -1030,7 +1030,11 @@ function MessageBubble({
   }, [actionsOpen])
 
   if (String(message.subject || '').toLowerCase() === 'system') {
-    return <div className="my-4 flex w-full items-center gap-3 text-center text-xs font-medium text-stone-500"><div className="h-px flex-1 bg-stone-200" /><span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span><div className="h-px flex-1 bg-stone-200" /></div>
+    return (
+      <div className="my-4 flex w-full justify-center px-4 text-center text-xs font-medium text-stone-500">
+        <span className="rounded-full bg-stone-100 px-3 py-1">{message.messageBody}</span>
+      </div>
+    )
   }
   const query = searchTerm.trim().toLowerCase()
   const isMatch = Boolean(query && message.messageBody.toLowerCase().includes(query))
@@ -1451,7 +1455,6 @@ function GroupInfoModal({
   loading,
   currentUserId,
   onClose,
-  onSearchChat,
   onViewProfile,
   onMessage,
   onRemove,
@@ -1460,10 +1463,12 @@ function GroupInfoModal({
   onLeave,
 }) {
   const [menuMemberId, setMenuMemberId] = useState('')
+  const [memberSearchQuery, setMemberSearchQuery] = useState('')
 
   useEffect(() => {
-    if (!open) setMenuMemberId('')
-  }, [open])
+    setMenuMemberId('')
+    setMemberSearchQuery('')
+  }, [open, room?.id])
 
   useEffect(() => {
     if (!open) return undefined
@@ -1485,8 +1490,23 @@ function GroupInfoModal({
   const displayedMemberCount = Number(room.memberCount || members.length || 0)
   const mustAssignAdminBeforeLeaving =
     viewerIsAdmin && displayedMemberCount > 1 && adminCount <= 1
-  const adminMembers = members.filter((member) => member.isAdmin)
-  const regularMembers = members.filter((member) => !member.isAdmin)
+  const normalizedMemberSearch = memberSearchQuery.trim().toLowerCase()
+  const visibleMembers = normalizedMemberSearch
+    ? members.filter((member) =>
+        [
+          member.name,
+          member.subtitle,
+          member.studentNumber,
+          member.role,
+          member.email,
+          member.department,
+          member.roArea,
+          member.position,
+        ].some((value) => String(value || '').toLowerCase().includes(normalizedMemberSearch))
+      )
+    : members
+  const adminMembers = visibleMembers.filter((member) => member.isAdmin)
+  const regularMembers = visibleMembers.filter((member) => !member.isAdmin)
 
   const renderMemberRow = (member) => {
     const canPromote =
@@ -1629,14 +1649,20 @@ function GroupInfoModal({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onSearchChat}
-          className="mt-3 flex h-10 w-full items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-left text-sm text-stone-500 transition hover:border-stone-300 hover:bg-white"
-        >
-          <Search className="h-4 w-4 shrink-0" />
-          <span>Search chat</span>
-        </button>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+          <input
+            type="search"
+            value={memberSearchQuery}
+            onChange={(event) => {
+              setMemberSearchQuery(event.target.value)
+              setMenuMemberId('')
+            }}
+            placeholder="Search member"
+            aria-label="Search group members"
+            className="h-10 w-full rounded-xl border border-stone-200 bg-stone-50 pl-9 pr-3 text-sm text-stone-700 outline-none transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[var(--portal-base)] focus:bg-white focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -1663,7 +1689,7 @@ function GroupInfoModal({
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Loading members
           </div>
-        ) : members.length ? (
+        ) : members.length && visibleMembers.length ? (
           <div className="space-y-5">
             {adminMembers.length ? (
               <section>
@@ -1686,6 +1712,10 @@ function GroupInfoModal({
                 </div>
               </section>
             ) : null}
+          </div>
+        ) : members.length ? (
+          <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
+            No members match “{memberSearchQuery.trim()}”.
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
@@ -4587,11 +4617,6 @@ export default function AdminMessages({
       loading={loadingGroupMembers}
       currentUserId={currentUserId}
       onClose={() => setGroupInfoOpen(false)}
-      onSearchChat={() => {
-        setGroupInfoOpen(false)
-        setChatSearchOpen(true)
-        setChatMatchIndex(0)
-      }}
       onViewProfile={setSelectedMemberProfile}
       onMessage={handleMessageMember}
       onRemove={setPendingRemoveMember}
@@ -5017,7 +5042,7 @@ export default function AdminMessages({
                             <button
                               type="button"
                               disabled={Boolean(editingMessage)}
-                              onClick={() => { setChatSearchOpen((current) => !current); setGroupInfoOpen(false); setChatMatchIndex(0) }}
+                              onClick={() => { setChatSearchOpen((current) => !current); setChatMatchIndex(0) }}
                               className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${chatSearchOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:hover:bg-stone-100'}`}
                               title="Search this conversation"
                               aria-label="Search this conversation"
@@ -5029,7 +5054,7 @@ export default function AdminMessages({
                               <button
                                 type="button"
                                 disabled={Boolean(editingMessage)}
-                                onClick={() => { setGroupInfoOpen((current) => !current); setChatSearchOpen(false) }}
+                                onClick={() => setGroupInfoOpen((current) => !current)}
                                 className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${groupInfoOpen ? 'bg-[var(--portal-accent-soft)] text-[var(--portal-base)]' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:hover:bg-stone-100'}`}
                                 title="Group information"
                                 aria-label="Group information"
@@ -5047,7 +5072,7 @@ export default function AdminMessages({
                           </div>
                         ) : null}
 
-                        {chatSearchOpen && !groupInfoOpen ? (
+                        {chatSearchOpen ? (
                           <div className="mt-3 flex items-center gap-2">
                             <div className="relative min-w-0 flex-1">
                               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />

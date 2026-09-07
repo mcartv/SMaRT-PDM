@@ -10,7 +10,7 @@ const source = fs.readFileSync(
   'utf8'
 );
 
-test('submitted form uses normalized database values with snapshot fallback', () => {
+test('submitted form preserves applicant answers with normalized database fallback', () => {
   assert.match(
     source,
     /async function getMyFormData\(userId,\s*options\s*=\s*\{\}\)/
@@ -25,7 +25,7 @@ test('submitted form uses normalized database values with snapshot fallback', ()
   );
   assert.match(
     source,
-    /mergeMissingSubmissionValues\(\s*normalizedFormData\s*\|\|\s*\{\},\s*submittedPayload/
+    /mergeMissingSubmissionValues\(\s*submittedPayload,\s*normalizedFormData\s*\|\|\s*\{\}/
   );
   assert.match(
     source,

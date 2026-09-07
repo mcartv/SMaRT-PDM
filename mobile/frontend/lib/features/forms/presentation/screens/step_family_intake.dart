@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_field_limits.dart';
-import 'package:smartpdm_mobileapp/shared/formatters/philippine_mobile_input_formatter.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/shared/validation/app_field_validators.dart';
 
@@ -54,6 +53,7 @@ class _StepFamilyState extends State<StepFamily> {
   String? selectedParentPreviousTown;
 
   final List<String> educationalOptions = [
+    'N/A',
     'None',
     'Elementary',
     'High School',
@@ -67,32 +67,6 @@ class _StepFamilyState extends State<StepFamily> {
     'Yes, mother only',
     'Yes, both parents',
     'No',
-  ];
-
-  static const List<String> parentPreviousTownOptions = [
-    'Angat',
-    'Balagtas',
-    'Baliwag City',
-    'Bocaue',
-    'Bulakan',
-    'Bustos',
-    'Calumpit',
-    'Doña Remedios Trinidad',
-    'Guiguinto',
-    'Hagonoy',
-    'Malolos City',
-    'Meycauayan City',
-    'Norzagaray',
-    'Obando',
-    'Pandi',
-    'Paombong',
-    'Plaridel',
-    'Pulilan',
-    'San Ildefonso',
-    'San Jose del Monte City',
-    'San Miguel',
-    'San Rafael',
-    'Santa Maria',
   ];
 
   String? selectedFatherEducation;
@@ -132,9 +106,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.fatherMiddleName,
     );
     fatherMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(
-        widget.data.fatherMobile,
-      ),
+      text: ApplicationData.normalizeMobileNumber(widget.data.fatherMobile),
     );
     fatherOccupationController = TextEditingController(
       text: widget.data.fatherOccupation,
@@ -152,9 +124,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.motherMiddleName,
     );
     motherMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(
-        widget.data.motherMobile,
-      ),
+      text: ApplicationData.normalizeMobileNumber(widget.data.motherMobile),
     );
     motherOccupationController = TextEditingController(
       text: widget.data.motherOccupation,
@@ -172,9 +142,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.siblingMiddleName,
     );
     siblingMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(
-        widget.data.siblingMobile,
-      ),
+      text: ApplicationData.normalizeMobileNumber(widget.data.siblingMobile),
     );
     siblingOccupationController = TextEditingController(
       text: widget.data.siblingOccupation,
@@ -195,9 +163,7 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.guardianMiddleName,
     );
     guardianMobileController = TextEditingController(
-      text: AppFieldValidators.normalizePhilippineMobile(
-        widget.data.guardianMobile,
-      ),
+      text: ApplicationData.normalizeMobileNumber(widget.data.guardianMobile),
     );
     widget.data.fatherMobile = fatherMobileController.text;
     widget.data.motherMobile = motherMobileController.text;
@@ -254,11 +220,7 @@ class _StepFamilyState extends State<StepFamily> {
     if (nativeStatus == 'Both parents') nativeStatus = 'Yes, both parents';
     selectedParentNative = parentNativeOptions.contains(nativeStatus)
         ? nativeStatus
-        : parentNativeOptions.first;
-
-    if (guardianOnly && selectedParentNative != 'No') {
-      selectedParentNative = 'Yes, both parents';
-    }
+        : '';
 
     widget.data.parentNativeStatus = selectedParentNative;
 
@@ -372,9 +334,12 @@ class _StepFamilyState extends State<StepFamily> {
 
   void _syncPreviousOrigin() {
     final town = widget.data.parentPreviousTownMunicipality.trim();
-    widget.data.parentPreviousProvince = '';
-    widget.data.parentPreviousTownProvince = town;
-    parentPreviousTownProvinceController.text = town;
+    final origin = [
+      town,
+      widget.data.parentPreviousProvince.trim(),
+    ].where((part) => part.isNotEmpty).join(', ');
+    widget.data.parentPreviousTownProvince = origin;
+    parentPreviousTownProvinceController.text = origin;
   }
 
   void _bind(TextEditingController controller, void Function(String) setter) {
@@ -421,6 +386,7 @@ class _StepFamilyState extends State<StepFamily> {
 
   String _normalizeResidencyDuration(String value) {
     final raw = value.trim();
+    if (raw.toUpperCase() == 'N/A') return 'N/A';
     if (raw.isEmpty) return '';
 
     if (_residencyDurationOptions.containsKey(raw)) {
@@ -451,14 +417,17 @@ class _StepFamilyState extends State<StepFamily> {
       parentMarilaoResidencyDurationController.text,
     );
     if (normalized.isEmpty) return 'Residency duration is required.';
-    if (!_residencyDurationOptions.containsKey(normalized)) {
+    if (normalized.toUpperCase() != 'N/A' &&
+        !_residencyDurationOptions.containsKey(normalized)) {
       return 'Select a valid residency duration.';
     }
     return null;
   }
 
-  List<String> _residencyYearOptions() =>
-      _residencyDurationOptions.keys.toList(growable: false);
+  List<String> _residencyYearOptions() => [
+    ..._residencyDurationOptions.keys,
+    'N/A',
+  ];
 
   String? _primaryCarerError() {
     if (!widget.showErrors) return null;
@@ -568,11 +537,6 @@ class _StepFamilyState extends State<StepFamily> {
         hasMother = false;
         widget.data.fatherPresent = false;
         widget.data.motherPresent = false;
-
-        if (selectedParentNative != 'No') {
-          selectedParentNative = 'Yes, both parents';
-          widget.data.parentNativeStatus = selectedParentNative;
-        }
       } else {
         hasFather = true;
         hasMother = true;
@@ -613,7 +577,58 @@ class _StepFamilyState extends State<StepFamily> {
     widget.onChanged();
   }
 
-  bool get _showGuardianFields => guardianOnly || (!hasFather && !hasMother);
+  bool get _showGuardianFields => true;
+
+  void _copyGuardian(String relation) {
+    final people = {
+      'Father': [
+        fatherLastNameController,
+        fatherFirstNameController,
+        fatherMiddleNameController,
+        fatherMobileController,
+        fatherOccupationController,
+        fatherCompanyController,
+      ],
+      'Mother': [
+        motherLastNameController,
+        motherFirstNameController,
+        motherMiddleNameController,
+        motherMobileController,
+        motherOccupationController,
+        motherCompanyController,
+      ],
+      'Sibling': [
+        siblingLastNameController,
+        siblingFirstNameController,
+        siblingMiddleNameController,
+        siblingMobileController,
+        siblingOccupationController,
+        siblingCompanyController,
+      ],
+    };
+    final target = [
+      guardianLastNameController,
+      guardianFirstNameController,
+      guardianMiddleNameController,
+      guardianMobileController,
+      guardianOccupationController,
+      guardianCompanyController,
+    ];
+    final source = people[relation]!;
+    for (var i = 0; i < target.length; i++) {
+      target[i].text = source[i].text;
+    }
+    setState(() {
+      selectedGuardianEducation = switch (relation) {
+        'Father' => selectedFatherEducation,
+        'Mother' => selectedMotherEducation,
+        _ => selectedSiblingEducation,
+      };
+      widget.data.guardianEducationalAttainment =
+          selectedGuardianEducation ?? '';
+    });
+    widget.onChanged();
+  }
 
   bool _isValidFamilyMobile(String value) {
     return AppFieldValidators.philippineMobile(value, required: false) ==
@@ -623,22 +638,24 @@ class _StepFamilyState extends State<StepFamily> {
 
   String? _familyMobileError(String value) {
     if (!widget.showErrors) return null;
-    return AppFieldValidators.philippineMobile(value, required: false);
+    if (value.trim().toUpperCase() == 'N/A') return null;
+    return AppFieldValidators.philippineMobile(value);
   }
 
   String? _familyNameError(String value, String label, {int minLength = 2}) {
     if (!widget.showErrors) return null;
+    if (value.trim().toUpperCase() == 'N/A') return null;
     return AppFieldValidators.name(
       value,
       label: label,
-      required: false,
+      required: true,
       minLength: minLength,
       maxLength: ApplicationFieldLimits.name,
     );
   }
 
-  List<TextInputFormatter> get _familyMobileInputFormatters => const [
-    PhilippineMobileInputFormatter(),
+  List<TextInputFormatter> get _familyMobileInputFormatters => [
+    LengthLimitingTextInputFormatter(13),
   ];
 
   Widget _personSection({
@@ -672,7 +689,9 @@ class _StepFamilyState extends State<StepFamily> {
               'Last Name',
               TextFormField(
                 controller: lastNameController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
+                ],
                 decoration: _dec(
                   'Last Name',
                   errorText: widget.showErrors
@@ -695,7 +714,9 @@ class _StepFamilyState extends State<StepFamily> {
               'First Name',
               TextFormField(
                 controller: firstNameController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
+                ],
                 decoration: _dec(
                   'First Name',
                   errorText: widget.showErrors
@@ -718,12 +739,14 @@ class _StepFamilyState extends State<StepFamily> {
           const SizedBox(height: 16),
           _row([
             _field(
-              'Middle Name (Optional)',
+              'Middle Name',
               TextFormField(
                 controller: middleNameController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
+                ],
                 decoration: _dec(
-                  'Middle Name (Optional)',
+                  'Middle Name',
                   errorText: _familyNameError(
                     middleNameController.text,
                     'Middle name',
@@ -737,7 +760,7 @@ class _StepFamilyState extends State<StepFamily> {
               'Mobile Number',
               TextFormField(
                 controller: mobileController,
-                keyboardType: TextInputType.phone,
+                keyboardType: TextInputType.text,
                 inputFormatters: _familyMobileInputFormatters,
                 decoration: _dec(
                   '09171234567',
@@ -757,6 +780,7 @@ class _StepFamilyState extends State<StepFamily> {
           _field(
             'Highest Educational Attainment',
             DropdownButtonFormField<String>(
+              isExpanded: true,
               dropdownColor: intakeSurfaceColor(context),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: intakeTextColor(context),
@@ -767,8 +791,13 @@ class _StepFamilyState extends State<StepFamily> {
                 context,
               ).withValues(alpha: 0.45),
               initialValue: selectedEducation,
+              key: ValueKey('$title-$selectedEducation'),
               decoration: _dec(
                 'Select attainment',
+                errorText: _requiredError(
+                  selectedEducation ?? '',
+                  'Educational attainment',
+                ),
                 suffixIcon: intakeCompletionIcon(selectedEducation ?? ''),
               ),
               items: educationalOptions
@@ -787,9 +816,17 @@ class _StepFamilyState extends State<StepFamily> {
             'Occupation',
             TextFormField(
               controller: occupationController,
-              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  ApplicationFieldLimits.shortText,
+                ),
+              ],
               decoration: _dec(
                 'Occupation',
+                errorText: _requiredError(
+                  occupationController.text,
+                  'Occupation',
+                ),
                 suffixIcon: intakeCompletionIcon(occupationController.text),
               ),
             ),
@@ -799,9 +836,17 @@ class _StepFamilyState extends State<StepFamily> {
             'Company Name / Address',
             TextFormField(
               controller: companyController,
-              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.longAddress)],
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  ApplicationFieldLimits.longAddress,
+                ),
+              ],
               decoration: _dec(
                 'Company Name / Address',
+                errorText: _requiredError(
+                  companyController.text,
+                  'Company Name / Address',
+                ),
                 suffixIcon: intakeCompletionIcon(companyController.text),
               ),
             ),
@@ -890,7 +935,11 @@ class _StepFamilyState extends State<StepFamily> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: parentAddressController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.longAddress)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.longAddress,
+                  ),
+                ],
                 readOnly: sameAddress,
                 maxLines: 2,
                 decoration: _dec(
@@ -944,38 +993,36 @@ class _StepFamilyState extends State<StepFamily> {
             ],
           ),
         ),
-        if (hasFather && !guardianOnly)
-          _personSection(
-            title: 'Father\'s Details',
-            lastNameController: fatherLastNameController,
-            firstNameController: fatherFirstNameController,
-            middleNameController: fatherMiddleNameController,
-            mobileController: fatherMobileController,
-            occupationController: fatherOccupationController,
-            companyController: fatherCompanyController,
-            selectedEducation: selectedFatherEducation,
-            onEducationChanged: (value) {
-              setState(() => selectedFatherEducation = value);
-              widget.data.fatherEducationalAttainment = value;
-              widget.onChanged();
-            },
-          ),
-        if (hasMother && !guardianOnly)
-          _personSection(
-            title: 'Mother\'s Details',
-            lastNameController: motherLastNameController,
-            firstNameController: motherFirstNameController,
-            middleNameController: motherMiddleNameController,
-            mobileController: motherMobileController,
-            occupationController: motherOccupationController,
-            companyController: motherCompanyController,
-            selectedEducation: selectedMotherEducation,
-            onEducationChanged: (value) {
-              setState(() => selectedMotherEducation = value);
-              widget.data.motherEducationalAttainment = value;
-              widget.onChanged();
-            },
-          ),
+        _personSection(
+          title: 'Father\'s Details',
+          lastNameController: fatherLastNameController,
+          firstNameController: fatherFirstNameController,
+          middleNameController: fatherMiddleNameController,
+          mobileController: fatherMobileController,
+          occupationController: fatherOccupationController,
+          companyController: fatherCompanyController,
+          selectedEducation: selectedFatherEducation,
+          onEducationChanged: (value) {
+            setState(() => selectedFatherEducation = value);
+            widget.data.fatherEducationalAttainment = value;
+            widget.onChanged();
+          },
+        ),
+        _personSection(
+          title: 'Mother\'s Details',
+          lastNameController: motherLastNameController,
+          firstNameController: motherFirstNameController,
+          middleNameController: motherMiddleNameController,
+          mobileController: motherMobileController,
+          occupationController: motherOccupationController,
+          companyController: motherCompanyController,
+          selectedEducation: selectedMotherEducation,
+          onEducationChanged: (value) {
+            setState(() => selectedMotherEducation = value);
+            widget.data.motherEducationalAttainment = value;
+            widget.onChanged();
+          },
+        ),
         IntakeCard(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(18),
@@ -1022,11 +1069,11 @@ class _StepFamilyState extends State<StepFamily> {
               const SizedBox(height: 16),
               _row([
                 _field(
-                  'Middle Name (Optional)',
+                  'Middle Name',
                   TextFormField(
                     controller: siblingMiddleNameController,
                     decoration: _dec(
-                      'Middle Name (Optional)',
+                      'Middle Name',
                       errorText: _familyNameError(
                         siblingMiddleNameController.text,
                         'Middle name',
@@ -1039,7 +1086,7 @@ class _StepFamilyState extends State<StepFamily> {
                   'Mobile Number',
                   TextFormField(
                     controller: siblingMobileController,
-                    keyboardType: TextInputType.phone,
+                    keyboardType: TextInputType.text,
                     inputFormatters: _familyMobileInputFormatters,
                     decoration: _dec(
                       '09171234567',
@@ -1059,6 +1106,7 @@ class _StepFamilyState extends State<StepFamily> {
               _field(
                 'Highest Educational Attainment',
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   dropdownColor: intakeSurfaceColor(context),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: intakeTextColor(context),
@@ -1069,7 +1117,13 @@ class _StepFamilyState extends State<StepFamily> {
                     context,
                   ).withValues(alpha: 0.45),
                   initialValue: selectedSiblingEducation,
-                  decoration: _dec('Select attainment'),
+                  decoration: _dec(
+                    'Select attainment',
+                    errorText: _requiredError(
+                      selectedSiblingEducation ?? '',
+                      'Educational attainment',
+                    ),
+                  ),
                   items: educationalOptions
                       .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                       .toList(),
@@ -1086,7 +1140,13 @@ class _StepFamilyState extends State<StepFamily> {
                 'Occupation',
                 TextFormField(
                   controller: siblingOccupationController,
-                  decoration: _dec('Occupation'),
+                  decoration: _dec(
+                    'Occupation',
+                    errorText: _requiredError(
+                      siblingOccupationController.text,
+                      'Occupation',
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1094,12 +1154,33 @@ class _StepFamilyState extends State<StepFamily> {
                 'Company Name / Address',
                 TextFormField(
                   controller: siblingCompanyController,
-                  decoration: _dec('Company Name / Address'),
+                  decoration: _dec(
+                    'Company Name / Address',
+                    errorText: _requiredError(
+                      siblingCompanyController.text,
+                      'Company Name / Address',
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
+        if (_showGuardianFields)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final relation in ['Father', 'Mother', 'Sibling'])
+                  OutlinedButton(
+                    onPressed: () => _copyGuardian(relation),
+                    child: Text('Use $relation as Guardian'),
+                  ),
+              ],
+            ),
+          ),
         if (_showGuardianFields)
           _personSection(
             title: 'Guardian\'s Details',
@@ -1116,158 +1197,150 @@ class _StepFamilyState extends State<StepFamily> {
               widget.onChanged();
             },
           ),
-        if (!guardianOnly)
-          IntakeCard(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Are your parents native of Marilao?',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: intakeTextColor(context),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 19,
-                  ),
+        IntakeCard(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are your parents native of Marilao?',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: intakeTextColor(context),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 19,
                 ),
-                const SizedBox(height: 18),
-                ...parentNativeOptions.map(
-                  (option) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: IntakeChoiceCard(
-                      title: option,
-                      subtitle:
-                          'Select the option that best matches your family background.',
-                      selected: selectedParentNative == option,
-                      onTap: () {
-                        setState(() {
-                          selectedParentNative = option;
-                          widget.data.parentNativeStatus = option;
-                          if (option != 'No') {
-                            parentPreviousTownProvinceController.clear();
-                            parentPreviousTownMunicipalityController.clear();
-                            selectedParentPreviousTown = null;
-                            widget.data.parentPreviousTownMunicipality = '';
-                            widget.data.parentPreviousProvince = '';
-                            widget.data.parentPreviousTownProvince = '';
-                          } else {
-                            parentMarilaoResidencyDurationController.clear();
-                            widget.data.parentMarilaoResidencyDuration = '';
-                          }
-                        });
-                        widget.onChanged();
-                      },
-                    ),
-                  ),
-                ),
-                if (selectedParentNative != 'No')
-                  _field(
-                    guardianOnly
-                        ? 'If YES, how long has your guardian been a resident of Marilao? *'
-                        : 'If YES, how long have they been residents of Marilao? *',
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      dropdownColor: intakeSurfaceColor(context),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: intakeTextColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
-                      iconEnabledColor: intakeSubtextColor(context),
-                      iconDisabledColor: intakeSubtextColor(
-                        context,
-                      ).withValues(alpha: 0.45),
-                      initialValue:
-                          _residencyYearOptions().contains(
-                            parentMarilaoResidencyDurationController.text
-                                .trim(),
-                          )
-                          ? parentMarilaoResidencyDurationController.text.trim()
-                          : null,
-                      decoration: _dec(
-                        'Select number of years',
-                        errorText: _parentResidencyDurationError(),
-                        suffixIcon: intakeCompletionIcon(
-                          parentMarilaoResidencyDurationController.text,
-                        ),
-                      ),
-                      items: _residencyYearOptions()
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(
-                                _residencyDurationLabel(value),
-                                style: TextStyle(
-                                  color: intakeTextColor(context),
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          parentMarilaoResidencyDurationController.text =
-                              value ?? '';
-                          widget.data.parentMarilaoResidencyDuration =
-                              value ?? '';
-                        });
-                        widget.onChanged();
-                      },
-                    ),
-                  ),
-                if (selectedParentNative == 'No') ...[
-                  _field(
-                    guardianOnly
-                        ? 'Guardian Previous City / Municipality *'
-                        : 'City / Municipality *',
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      dropdownColor: intakeSurfaceColor(context),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: intakeTextColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
-                      iconEnabledColor: intakeSubtextColor(context),
-                      iconDisabledColor: intakeSubtextColor(
-                        context,
-                      ).withValues(alpha: 0.45),
-                      initialValue: selectedParentPreviousTown,
-                      decoration: _dec('Select city / municipality'),
-                      items:
-                          <String>{
-                                ...parentPreviousTownOptions,
-                                if ((selectedParentPreviousTown ?? '')
-                                    .isNotEmpty)
-                                  selectedParentPreviousTown!,
-                              }
-                              .map(
-                                (town) => DropdownMenuItem(
-                                  value: town,
-                                  child: Text(
-                                    town,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedParentPreviousTown = value;
-                          parentPreviousTownMunicipalityController.text =
-                              value ?? '';
-                          widget.data.parentPreviousTownMunicipality =
-                              value ?? '';
+              ),
+              const SizedBox(height: 18),
+              ...parentNativeOptions.map(
+                (option) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: IntakeChoiceCard(
+                    title: option,
+                    subtitle:
+                        'Select the option that best matches your family background.',
+                    selected: selectedParentNative == option,
+                    onTap: () {
+                      setState(() {
+                        selectedParentNative = option;
+                        widget.data.parentNativeStatus = option;
+                        if (option != 'No') {
+                          parentPreviousTownProvinceController.clear();
+                          parentPreviousTownMunicipalityController.clear();
+                          selectedParentPreviousTown = null;
+                          widget.data.parentPreviousTownMunicipality = '';
                           widget.data.parentPreviousProvince = '';
-                          _syncPreviousOrigin();
-                        });
-                        widget.onChanged();
-                      },
+                          widget.data.parentPreviousTownProvince = '';
+                        } else {
+                          parentMarilaoResidencyDurationController.clear();
+                          widget.data.parentMarilaoResidencyDuration = '';
+                        }
+                      });
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+              ),
+              if (selectedParentNative.startsWith('Yes'))
+                _field(
+                  guardianOnly
+                      ? 'If YES, how long has your guardian been a resident of Marilao? *'
+                      : 'If YES, how long have they been residents of Marilao? *',
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    dropdownColor: intakeSurfaceColor(context),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: intakeTextColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    iconEnabledColor: intakeSubtextColor(context),
+                    iconDisabledColor: intakeSubtextColor(
+                      context,
+                    ).withValues(alpha: 0.45),
+                    initialValue:
+                        _residencyYearOptions().contains(
+                          parentMarilaoResidencyDurationController.text.trim(),
+                        )
+                        ? parentMarilaoResidencyDurationController.text.trim()
+                        : null,
+                    decoration: _dec(
+                      'Select number of years',
+                      errorText: _parentResidencyDurationError(),
+                      suffixIcon: intakeCompletionIcon(
+                        parentMarilaoResidencyDurationController.text,
+                      ),
+                    ),
+                    items: _residencyYearOptions()
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(
+                              _residencyDurationLabel(value),
+                              style: TextStyle(color: intakeTextColor(context)),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        parentMarilaoResidencyDurationController.text =
+                            value ?? '';
+                        widget.data.parentMarilaoResidencyDuration =
+                            value ?? '';
+                      });
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+              if (selectedParentNative == 'No') ...[
+                _field(
+                  guardianOnly
+                      ? 'Guardian Previous City / Municipality *'
+                      : 'City / Municipality *',
+                  TextFormField(
+                    controller: parentPreviousTownMunicipalityController,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(
+                        ApplicationFieldLimits.shortText,
+                      ),
+                    ],
+                    decoration: _dec(
+                      'City / Municipality',
+                      errorText: _requiredError(
+                        parentPreviousTownMunicipalityController.text,
+                        'City / Municipality',
+                      ),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(height: 12),
+                _field(
+                  'Province *',
+                  TextFormField(
+                    initialValue: widget.data.parentPreviousProvince,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(
+                        ApplicationFieldLimits.shortText,
+                      ),
+                    ],
+                    decoration: _dec(
+                      'Province',
+                      errorText: _requiredError(
+                        widget.data.parentPreviousProvince,
+                        'Province',
+                      ),
+                    ),
+                    onChanged: (value) {
+                      widget.data.parentPreviousProvince = value;
+                      _syncPreviousOrigin();
+                      widget.onChanged();
+                    },
+                  ),
+                ),
               ],
-            ),
+            ],
           ),
+        ),
       ],
     );
   }

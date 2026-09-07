@@ -265,7 +265,7 @@ class SavedApplicationPrintModel {
       religion: _string(profile['religion']),
       civilStatus: _string(profile['civil_status']),
       sex: _string(profile['sex']),
-      houseLotBlockNo: _firstNonEmpty([
+      houseLotBlockNo: _joinUniqueNonEmpty([
         _string(profile['house_lot_block_no']),
         _string(profile['unit_bldg_no']),
       ]),
@@ -482,7 +482,7 @@ class SavedApplicationPrintModel {
       religion: _string(personal['religion']),
       civilStatus: _string(personal['civil_status']),
       sex: _string(personal['sex']),
-      houseLotBlockNo: _firstNonEmpty([
+      houseLotBlockNo: _joinUniqueNonEmpty([
         _string(address['house_lot_block_no']),
         _string(address['unit_bldg_no']),
       ]),

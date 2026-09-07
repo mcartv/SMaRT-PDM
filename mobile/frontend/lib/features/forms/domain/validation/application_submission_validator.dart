@@ -308,6 +308,8 @@ class ApplicationSubmissionValidator {
     }
 
     final requiredAddressFields = <String, String>{
+      'street': data.street,
+      'subdivision': data.subdivision,
       'barangay': data.barangay,
       'city': data.city,
       'province': data.province,
@@ -327,7 +329,8 @@ class ApplicationSubmissionValidator {
       }
     }
 
-    final zipError = AppFieldValidators.zipCode(data.zipCode);
+    final zipError = data.zipCode.trim().toUpperCase() == 'N/A'
+        ? null : AppFieldValidators.zipCode(data.zipCode);
     if (zipError != null) {
       issues.add(
         ApplicationSubmissionIssue(
@@ -394,8 +397,46 @@ class ApplicationSubmissionValidator {
       'guardianMiddleName': data.guardianMiddleName,
     };
 
+    final requiredFamilyFields = <String, String>{
+      ...familyNames,
+      'fatherMobile': data.fatherMobile,
+      'fatherEducationalAttainment': data.fatherEducationalAttainment,
+      'fatherOccupation': data.fatherOccupation,
+      'fatherCompanyNameAndAddress': data.fatherCompanyNameAndAddress,
+      'motherMobile': data.motherMobile,
+      'motherEducationalAttainment': data.motherEducationalAttainment,
+      'motherOccupation': data.motherOccupation,
+      'motherCompanyNameAndAddress': data.motherCompanyNameAndAddress,
+      'siblingMobile': data.siblingMobile,
+      'siblingEducationalAttainment': data.siblingEducationalAttainment,
+      'siblingOccupation': data.siblingOccupation,
+      'siblingCompanyNameAndAddress': data.siblingCompanyNameAndAddress,
+      'guardianMobile': data.guardianMobile,
+      'guardianEducationalAttainment': data.guardianEducationalAttainment,
+      'guardianOccupation': data.guardianOccupation,
+      'guardianCompanyNameAndAddress': data.guardianCompanyNameAndAddress,
+    };
+    for (final entry in requiredFamilyFields.entries) {
+      if (!_isBlank(entry.value)) continue;
+      final label = entry.key.replaceAllMapped(
+        RegExp(r'[A-Z]'),
+        (m) => ' ${m[0]}',
+      );
+      issues.add(
+        ApplicationSubmissionIssue(
+          code: 'family.${entry.key}.required',
+          section: ApplicationSubmissionSection.family,
+          field: entry.key,
+          message: '$label is required.',
+          repairAction: 'Complete $label.',
+        ),
+      );
+    }
+
     for (final entry in familyNames.entries) {
-      if (_isBlank(entry.value)) continue;
+      if (_isBlank(entry.value) || entry.value.trim().toUpperCase() == 'N/A') {
+        continue;
+      }
       final error = AppFieldValidators.name(
         entry.value,
         label: 'Name',
@@ -471,6 +512,7 @@ class ApplicationSubmissionValidator {
       required String label,
       required String value,
     }) {
+      if (value.trim().toUpperCase() == 'N/A') return;
       final error = AppFieldValidators.philippineMobile(
         value,
         label: label,
@@ -511,8 +553,25 @@ class ApplicationSubmissionValidator {
       value: data.guardianMobile,
     );
 
-    if (!data.guardianOnly) {
+    {
       final parentNativeStatus = data.parentNativeStatus.trim();
+
+      if (!const [
+        'Yes, father only',
+        'Yes, mother only',
+        'Yes, both parents',
+        'No',
+      ].contains(parentNativeStatus)) {
+        issues.add(
+          const ApplicationSubmissionIssue(
+            code: 'family.native.required',
+            section: ApplicationSubmissionSection.family,
+            field: 'parentNativeStatus',
+            message: 'Select whether your parents are native of Marilao.',
+            repairAction: 'Select a native-of-Marilao answer.',
+          ),
+        );
+      }
 
       if (parentNativeStatus == 'Yes, father only' ||
           parentNativeStatus == 'Yes, mother only' ||
@@ -529,9 +588,11 @@ class ApplicationSubmissionValidator {
                   'Enter how long the parent or parents have lived in Marilao.',
             ),
           );
-        } else if (!RegExp(
-          r'^\d+$',
-        ).hasMatch(data.parentMarilaoResidencyDuration.trim())) {
+        } else if (data.parentMarilaoResidencyDuration.trim().toUpperCase() !=
+                'N/A' &&
+            !RegExp(
+              r'^\d+$',
+            ).hasMatch(data.parentMarilaoResidencyDuration.trim())) {
           issues.add(
             const ApplicationSubmissionIssue(
               code: 'family.residency.invalid',
@@ -543,6 +604,17 @@ class ApplicationSubmissionValidator {
           );
         }
       } else if (parentNativeStatus == 'No') {
+        if (_isBlank(data.parentPreviousProvince)) {
+          issues.add(
+            const ApplicationSubmissionIssue(
+              code: 'family.origin_province.required',
+              section: ApplicationSubmissionSection.family,
+              field: 'parentPreviousProvince',
+              message: 'Previous province is required.',
+              repairAction: 'Enter the previous province.',
+            ),
+          );
+        }
         if (_isBlank(data.parentPreviousTownMunicipality)) {
           issues.add(
             const ApplicationSubmissionIssue(
@@ -621,7 +693,9 @@ class ApplicationSubmissionValidator {
     // "Ongoing" is the canonical value used by the current UI. Accept the
     // legacy "On Going" spelling as well so previously saved drafts continue
     // to validate correctly.
-    if (collegeYear.isNotEmpty && normalizedCollegeYear != 'ongoing') {
+    if (collegeYear.isNotEmpty &&
+        normalizedCollegeYear != 'ongoing' &&
+        normalizedCollegeYear != 'n/a') {
       final parsedCollegeYear = int.tryParse(collegeYear);
       if (parsedCollegeYear == null || parsedCollegeYear < 2026) {
         issues.add(
@@ -692,7 +766,18 @@ class ApplicationSubmissionValidator {
     }
 
     final lrn = data.learnersReferenceNumber.trim();
-    if (lrn.isNotEmpty && !RegExp(r'^\d{12}$').hasMatch(lrn)) {
+    if (lrn.isEmpty) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.lrn.required',
+          section: ApplicationSubmissionSection.academic,
+          field: 'learnersReferenceNumber',
+          message: 'Learner Reference Number is required.',
+          repairAction: 'Complete the Learner Reference Number field.',
+        ),
+      );
+    } else if (lrn.toUpperCase() != 'N/A' &&
+        !RegExp(r'^\d{12}$').hasMatch(lrn)) {
       issues.add(
         const ApplicationSubmissionIssue(
           code: 'academic.lrn.invalid',
@@ -767,6 +852,18 @@ class ApplicationSubmissionValidator {
       );
     }
 
+    if (data.scholarshipHistory && _isBlank(data.scholarshipDetails)) {
+      issues.add(
+        const ApplicationSubmissionIssue(
+          code: 'academic.scholarship_details.required',
+          section: ApplicationSubmissionSection.academic,
+          field: 'scholarshipDetails',
+          message: 'Scholarship details are required.',
+          repairAction: 'Complete the scholarship details.',
+        ),
+      );
+    }
+
     if (data.scholarshipHistory &&
         data.scholarshipOthers &&
         _isBlank(data.scholarshipOthersSpecify)) {
@@ -831,8 +928,10 @@ class ApplicationSubmissionValidator {
           code: 'essay.$field.max_length',
           section: ApplicationSubmissionSection.essay,
           field: field,
-          message: '$label must not exceed ${ApplicationFieldLimits.essay} characters.',
-          repairAction: 'Shorten the response to ${ApplicationFieldLimits.essay} characters or fewer.',
+          message:
+              '$label must not exceed ${ApplicationFieldLimits.essay} characters.',
+          repairAction:
+              'Shorten the response to ${ApplicationFieldLimits.essay} characters or fewer.',
         ),
       ];
     }

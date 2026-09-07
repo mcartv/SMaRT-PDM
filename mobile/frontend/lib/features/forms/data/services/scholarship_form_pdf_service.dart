@@ -1,6 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui' show Rect;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MissingPluginException, rootBundle;
@@ -16,7 +15,9 @@ class ScholarshipFormPdfService {
 
   static String _printableValue(String value) {
     final clean = value.trim();
-    return clean.isEmpty ? _notAvailable : clean;
+    return clean.isEmpty || clean.toLowerCase() == 'n/a'
+        ? _notAvailable
+        : clean;
   }
 
   Future<Directory> _resolveOutputDirectory() async {
@@ -51,12 +52,8 @@ class ScholarshipFormPdfService {
     final blueColor = PdfColor(0, 70, 180);
     final font = PdfStandardFont(PdfFontFamily.helvetica, 9.5);
     final smallFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5);
-    final boldFont = PdfStandardFont(
-      PdfFontFamily.helvetica,
-      9.5,
-      style: PdfFontStyle.bold,
-    );
     final brush = PdfSolidBrush(blueColor);
+    final additionalDetails = <String>[];
 
     final pageWidth = page.size.width;
     final pageHeight = page.size.height;
@@ -64,7 +61,7 @@ class ScholarshipFormPdfService {
     Rect r(double x, double y, double w, double h) {
       return Rect.fromLTWH(
         x * pageWidth / _imageWidth,
-        y * pageHeight / _imageHeight,
+        (y >= 1304 && y <= 1434 ? y - 10 : y) * pageHeight / _imageHeight,
         w * pageWidth / _imageWidth,
         h * pageHeight / _imageHeight,
       );
@@ -77,14 +74,40 @@ class ScholarshipFormPdfService {
       PdfTextAlignment align = PdfTextAlignment.left,
     }) {
       final clean = _printableValue(value);
+      // PDF text is omitted when even one line cannot fit vertically. Many
+      // template cells are only 9–11 points tall, including family names.
+      final requestedFont = textFont ?? font;
+      final measured = requestedFont.measureString(clean);
+      final scale = [
+        1.0,
+        bounds.width / measured.width,
+        (bounds.height - 0.5) / measured.height,
+      ].reduce((a, b) => a < b ? a : b);
+      if (requestedFont.size * scale < 6 && clean != 'N/A') {
+        additionalDetails.add(clean);
+        final reference = 'See detail ${additionalDetails.length}';
+        page.graphics.drawString(
+          reference,
+          PdfStandardFont(PdfFontFamily.helvetica, 6),
+          brush: brush,
+          bounds: bounds,
+          format: PdfStringFormat(wordWrap: PdfWordWrapType.none),
+        );
+        return;
+      }
+      final fittedFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        requestedFont.size * scale,
+      );
       page.graphics.drawString(
         clean,
-        textFont ?? font,
+        fittedFont,
         brush: brush,
         bounds: bounds,
         format: PdfStringFormat(
           alignment: align,
           lineAlignment: PdfVerticalAlignment.middle,
+          wordWrap: PdfWordWrapType.none,
         ),
       );
     }
@@ -168,6 +191,23 @@ class ScholarshipFormPdfService {
         currentFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5);
       }
 
+      if (currentFont
+              .measureString(
+                clean,
+                layoutArea: Size(bounds.width, 0),
+                format: PdfStringFormat(wordWrap: PdfWordWrapType.word),
+              )
+              .height >
+          bounds.height) {
+        additionalDetails.add(clean);
+        drawText(
+          'See detail ${additionalDetails.length} on the attached page.',
+          bounds,
+          textFont: smallFont,
+        );
+        return;
+      }
+
       page.graphics.drawString(
         clean,
         currentFont,
@@ -182,15 +222,20 @@ class ScholarshipFormPdfService {
 
     void drawCheck(bool checked, Rect bounds) {
       if (!checked) return;
-      page.graphics.drawString(
-        'X',
-        boldFont,
-        brush: brush,
-        bounds: bounds,
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.center,
-          lineAlignment: PdfVerticalAlignment.middle,
-        ),
+      final pen = PdfPen(blueColor, width: 1.2);
+      final middle = Offset(
+        bounds.left + bounds.width * .4,
+        bounds.bottom - 1.5,
+      );
+      page.graphics.drawLine(
+        pen,
+        Offset(bounds.left + 1.5, bounds.top + bounds.height * .5),
+        middle,
+      );
+      page.graphics.drawLine(
+        pen,
+        middle,
+        Offset(bounds.right - 1.5, bounds.top + 1.5),
       );
     }
 
@@ -215,8 +260,17 @@ class ScholarshipFormPdfService {
 
     // ── PERMANENT ADDRESS ────────────────────────────────────────────
     // Labels at Y≈1049. Value area at Y≈1085.
-    drawText(model.houseLotBlockNo, r(99, 1085, 310, 45));
-    drawText(model.phase, r(420, 1085, 270, 45));
+    // Replace only the inline block/lot/phase entry row so values cannot
+    // overlap its printed labels. The permanent-address heading stays intact.
+    page.graphics.drawRectangle(
+      brush: PdfBrushes.white,
+      bounds: const Rect.fromLTWH(24, 261, 135, 10),
+    );
+    drawText(
+      'Block/Lot: ${_printableValue(model.houseLotBlockNo)}  Phase: ${_printableValue(model.phase)}',
+      const Rect.fromLTWH(24, 261, 135, 10),
+      textFont: smallFont,
+    );
     drawText(model.street, r(696, 1085, 255, 45), textFont: smallFont);
     drawText(model.subdivision, r(958, 1085, 380, 45), textFont: smallFont);
     drawText(model.barangay, r(1343, 1085, 255, 45), textFont: smallFont);
@@ -394,12 +448,32 @@ class ScholarshipFormPdfService {
     // ── Native of Marilao? ───────────────────────────────────────────
     // "Yes, father only" etc. on line Y≈1736. Checkboxes inline.
     // "If NO" line at Y≈1780.
-    drawCheck(model.isFatherOnlyNative, r(578, 1742, 20, 20));
-    drawCheck(model.isMotherOnlyNative, r(818, 1742, 20, 20));
-    drawCheck(model.isBothParentsNative, r(1058, 1742, 20, 20));
-    drawCheck(model.isNotNative, r(1250, 1742, 20, 20));
-    drawText(model.yearsResident, r(2100, 1736, 310, 40), textFont: smallFont);
-    drawText(model.originProvince, r(2050, 1775, 360, 40), textFont: smallFont);
+    drawCheck(
+      model.isFatherOnlyNative,
+      const Rect.fromLTWH(121.75, 426.02, 12.5, 9.15),
+    );
+    drawCheck(
+      model.isMotherOnlyNative,
+      const Rect.fromLTWH(182.85, 426.12, 12.5, 9.15),
+    );
+    drawCheck(
+      model.isBothParentsNative,
+      const Rect.fromLTWH(245.55, 426.52, 12.5, 9.15),
+    );
+    drawCheck(
+      model.isNotNative,
+      const Rect.fromLTWH(288.05, 426.52, 12.5, 9.15),
+    );
+    drawText(
+      model.yearsResident,
+      const Rect.fromLTWH(509, 416, 70, 9),
+      textFont: smallFont,
+    );
+    drawText(
+      model.originProvince,
+      const Rect.fromLTWH(491, 426, 88, 9),
+      textFont: smallFont,
+    );
 
     // ── III. ACADEMIC INFORMATION ────────────────────────────────────
     // Header row labels at Y≈1870. Data rows below.
@@ -549,9 +623,18 @@ class ScholarshipFormPdfService {
     // Financial Support checkboxes are aligned to the printed Parents,
     // Scholarship and Loan boxes. "Other, specify" is an underline, not
     // a separate checkbox on the template.
-    drawCheck(model.supportParents, r(1755, 2238, 28, 28));
-    drawCheck(model.supportScholarship, r(1938, 2238, 28, 28));
-    drawCheck(model.supportLoan, r(2085, 2238, 28, 28));
+    drawCheck(
+      model.supportParents,
+      const Rect.fromLTWH(407.8, 532.54, 12.5, 9.15),
+    );
+    drawCheck(
+      model.supportScholarship,
+      const Rect.fromLTWH(450.75, 532.94, 12.5, 9.15),
+    );
+    drawCheck(
+      model.supportLoan,
+      const Rect.fromLTWH(485.2, 532.94, 12.5, 9.15),
+    );
     drawFittingText(
       model.supportOther ? model.financialSupportOther : '',
       r(2205, 2230, 250, 55),
@@ -561,12 +644,30 @@ class ScholarshipFormPdfService {
 
     // ── Scholarship history ──────────────────────────────────────────
     // Yes / No plus the four printed scholarship-level checkboxes.
-    drawCheck(model.hadScholarship, r(157, 2342, 24, 24));
-    drawCheck(model.noScholarshipHistory, r(305, 2342, 24, 24));
-    drawCheck(model.scholarshipElementary, r(610, 2342, 24, 24));
-    drawCheck(model.scholarshipHighSchool, r(795, 2342, 24, 24));
-    drawCheck(model.scholarshipCollege, r(960, 2342, 24, 24));
-    drawCheck(model.scholarshipOthers, r(1110, 2342, 24, 24));
+    drawCheck(
+      model.hadScholarship,
+      const Rect.fromLTWH(26.25, 555.19, 13.75, 8.1),
+    );
+    drawCheck(
+      model.noScholarshipHistory,
+      const Rect.fromLTWH(66.95, 555.19, 12.5, 8.1),
+    );
+    drawCheck(
+      model.scholarshipElementary,
+      const Rect.fromLTWH(140.8, 555.19, 13.75, 8.1),
+    );
+    drawCheck(
+      model.scholarshipHighSchool,
+      const Rect.fromLTWH(183.25, 555.09, 12.5, 8.7),
+    );
+    drawCheck(
+      model.scholarshipCollege,
+      const Rect.fromLTWH(222.1, 555.09, 12.5, 8.7),
+    );
+    drawCheck(
+      model.scholarshipOthers,
+      const Rect.fromLTWH(255.35, 555.19, 12.5, 8.1),
+    );
 
     final scholarshipHistoryDetails = [
       if (model.scholarshipOthers &&
@@ -578,17 +679,23 @@ class ScholarshipFormPdfService {
 
     drawFittingText(
       scholarshipHistoryDetails,
-      r(1300, 2360, 1090, 32),
+      const Rect.fromLTWH(510, 555, 69, 9),
       textFont: smallFont,
       minFontSize: 6.0,
     );
 
     // ── Disciplinary record ──────────────────────────────────────────
-    drawCheck(model.hasDisciplinaryRecord, r(157, 2435, 24, 24));
-    drawCheck(model.noDisciplinaryRecord, r(305, 2435, 24, 24));
+    drawCheck(
+      model.hasDisciplinaryRecord,
+      const Rect.fromLTWH(29.95, 575.72, 13.75, 8.1),
+    );
+    drawCheck(
+      model.noDisciplinaryRecord,
+      const Rect.fromLTWH(66.8, 575.72, 13.75, 8.1),
+    );
     drawFittingText(
       model.disciplinaryDetails,
-      r(1340, 2450, 1050, 32),
+      const Rect.fromLTWH(300, 577, 279, 9),
       textFont: smallFont,
       minFontSize: 6.0,
     );
@@ -636,6 +743,26 @@ class ScholarshipFormPdfService {
       align: PdfTextAlignment.center,
     );
 
+    if (additionalDetails.isNotEmpty) {
+      final extraPage = document.pages.add();
+      final detailsText = additionalDetails.asMap().entries
+          .map((entry) => 'Detail ${entry.key + 1}\n${entry.value}').join('\n\n');
+      PdfTextElement(
+        text:
+            'APPLICATION FORM - ADDITIONAL DETAILS\n${model.applicantPrintedName}\n\n$detailsText',
+        font: PdfStandardFont(PdfFontFamily.helvetica, 10),
+        brush: brush,
+      ).draw(
+        page: extraPage,
+        bounds: Rect.fromLTWH(
+          24,
+          24,
+          extraPage.size.width - 48,
+          extraPage.size.height - 48,
+        ),
+        format: PdfLayoutFormat(layoutType: PdfLayoutType.paginate),
+      );
+    }
     final bytes = Uint8List.fromList(document.saveSync());
     document.dispose();
     return bytes;
@@ -704,13 +831,5 @@ class ScholarshipFormPdfService {
     final bytes = Uint8List.fromList(document.saveSync());
     document.dispose();
     return bytes;
-  }
-
-  Future<File> _generateFallbackPdf(SavedApplicationPrintModel model) async {
-    final bytes = await _generateFallbackPdfBytes(model);
-    final dir = await _resolveOutputDirectory();
-    final file = File('${dir.path}/fallback_scholarship_form.pdf');
-    await file.writeAsBytes(bytes, flush: true);
-    return file;
   }
 }

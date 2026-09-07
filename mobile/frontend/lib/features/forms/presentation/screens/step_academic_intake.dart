@@ -117,7 +117,11 @@ class _StepAcademicState extends State<StepAcademic> {
     final isLegacyOngoing = normalizedCollegeYear == 'ongoing';
     selectedCollegeStatus = isLegacyOngoing
         ? 'Ongoing'
-        : (int.tryParse(initialCollegeYear) != null ? 'Graduated' : null);
+        : (initialCollegeYear.toUpperCase() == 'N/A'
+              ? 'N/A'
+              : (int.tryParse(initialCollegeYear) != null
+                    ? 'Graduated'
+                    : null));
     collegeYearController = TextEditingController(
       text: isLegacyOngoing ? 'Ongoing' : initialCollegeYear,
     );
@@ -407,16 +411,22 @@ class _StepAcademicState extends State<StepAcademic> {
 
   List<String> _academicYearOptions(String title) {
     if (title == 'College') {
-      return List<String>.generate(
-        DateTime.now().year - _minimumGraduationYear + 1,
-        (index) => (DateTime.now().year - index).toString(),
-      );
+      return [
+        'N/A',
+        ...List<String>.generate(
+          DateTime.now().year - _minimumGraduationYear + 1,
+          (index) => (DateTime.now().year - index).toString(),
+        ),
+      ];
     }
 
-    return List<String>.generate(
-      DateTime.now().year - 1949,
-      (index) => (DateTime.now().year - index).toString(),
-    );
+    return [
+      'N/A',
+      ...List<String>.generate(
+        DateTime.now().year - 1949,
+        (index) => (DateTime.now().year - index).toString(),
+      ),
+    ];
   }
 
   bool _isValidAcademicYear(String title, String value) {
@@ -544,7 +554,11 @@ class _StepAcademicState extends State<StepAcademic> {
             'School *',
             TextFormField(
               controller: school,
-              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.schoolName)],
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  ApplicationFieldLimits.schoolName,
+                ),
+              ],
               decoration: _dec(
                 'School',
                 errorText: _academicTextError(school, 'School'),
@@ -557,7 +571,11 @@ class _StepAcademicState extends State<StepAcademic> {
             'Address *',
             TextFormField(
               controller: address,
-              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.schoolAddress)],
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  ApplicationFieldLimits.schoolAddress,
+                ),
+              ],
               decoration: _dec(
                 'Address',
                 errorText: _academicTextError(address, 'Address'),
@@ -572,7 +590,11 @@ class _StepAcademicState extends State<StepAcademic> {
                 'Honors / Awards',
                 TextFormField(
                   controller: honors,
-                  inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.honorsOrClub)],
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      ApplicationFieldLimits.honorsOrClub,
+                    ),
+                  ],
                   decoration: _dec(
                     'Honors / Awards',
                     suffixIcon: intakeCompletionIcon(honors.text),
@@ -583,7 +605,11 @@ class _StepAcademicState extends State<StepAcademic> {
                 'Club / Org',
                 TextFormField(
                   controller: club,
-                  inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.honorsOrClub)],
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      ApplicationFieldLimits.honorsOrClub,
+                    ),
+                  ],
                   decoration: _dec(
                     'Club / Org',
                     suffixIcon: intakeCompletionIcon(club.text),
@@ -619,6 +645,7 @@ class _StepAcademicState extends State<StepAcademic> {
                       ),
                     ),
                     items: const [
+                      DropdownMenuItem(value: 'N/A', child: Text('N/A')),
                       DropdownMenuItem(
                         value: 'Ongoing',
                         child: Text('Ongoing'),
@@ -631,8 +658,8 @@ class _StepAcademicState extends State<StepAcademic> {
                     onChanged: (value) {
                       setState(() {
                         selectedCollegeStatus = value;
-                        if (value == 'Ongoing') {
-                          year.text = 'Ongoing';
+                        if (value == 'Ongoing' || value == 'N/A') {
+                          year.text = value!;
                         } else if (year.text.trim().toLowerCase().replaceAll(
                               ' ',
                               '',
@@ -1052,6 +1079,26 @@ class _StepAcademicState extends State<StepAcademic> {
                 ],
                 flexes: const [2, 2, 3],
               ),
+              const SizedBox(height: 16),
+              _field(
+                'Learner Reference Number *',
+                TextFormField(
+                  initialValue: widget.data.learnersReferenceNumber,
+                  inputFormatters: [LengthLimitingTextInputFormatter(12)],
+                  decoration: _dec(
+                    'Learner Reference Number',
+                    errorText:
+                        widget.showErrors &&
+                            widget.data.learnersReferenceNumber.trim().isEmpty
+                        ? 'Learner Reference Number is required.'
+                        : null,
+                  ),
+                  onChanged: (value) {
+                    widget.data.learnersReferenceNumber = value;
+                    widget.onChanged();
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -1077,7 +1124,11 @@ class _StepAcademicState extends State<StepAcademic> {
                   'Specify',
                   TextFormField(
                     controller: financialSupportOtherController,
-                    inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.otherSpecify)],
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(
+                        ApplicationFieldLimits.otherSpecify,
+                      ),
+                    ],
                     decoration: _dec(
                       'Specify other financial support',
                       errorText: _otherSupportError(),
@@ -1188,7 +1239,11 @@ class _StepAcademicState extends State<StepAcademic> {
                     'If Other, specify',
                     TextFormField(
                       controller: scholarshipOthersSpecifyController,
-                      inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.otherSpecify)],
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(
+                          ApplicationFieldLimits.otherSpecify,
+                        ),
+                      ],
                       decoration: _dec(
                         'Specify',
                         errorText: _scholarshipOtherError(),
@@ -1201,9 +1256,19 @@ class _StepAcademicState extends State<StepAcademic> {
                   'Please indicate details of scholarship such as name of school, course, year level, inclusive semester/s and school year/s and amount granted.',
                   TextFormField(
                     controller: scholarshipDetailsController,
-                    inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.details)],
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(
+                        ApplicationFieldLimits.details,
+                      ),
+                    ],
                     maxLines: 4,
-                    decoration: _dec('School, course, school year, amount'),
+                    decoration: _dec(
+                      'School, course, school year, amount',
+                      errorText: _academicTextError(
+                        scholarshipDetailsController,
+                        'Scholarship details',
+                      ),
+                    ),
                   ),
                 ),
                 if (_scholarshipHistoryError() != null) ...[
@@ -1259,7 +1324,11 @@ class _StepAcademicState extends State<StepAcademic> {
                   'Please explain briefly',
                   TextFormField(
                     controller: disciplinaryExplanationController,
-                    inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.longExplanation)],
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(
+                        ApplicationFieldLimits.longExplanation,
+                      ),
+                    ],
                     maxLines: 4,
                     decoration: _dec('Explain the disciplinary action'),
                   ),

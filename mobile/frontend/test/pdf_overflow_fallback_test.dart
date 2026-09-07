@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/scholarship_form_pdf_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
@@ -120,4 +122,87 @@ void main() {
     expect(file.existsSync(), true);
     expect(await file.length() > 0, true);
   });
+
+  test(
+    'official PDF renders small address and family cells instead of omitting them',
+    () async {
+      final bytes = await ScholarshipFormPdfService()
+          .generateBytesFromSavedApplication(dummyModel);
+      final document = PdfDocument(inputBytes: bytes);
+      final text = PdfTextExtractor(document).extractText();
+      for (final value in [
+        'Papa',
+        'Mama',
+        'Bro',
+        'Guard',
+        '099999999',
+        '088888888',
+        '09123456789',
+        '1234567',
+        '1000',
+        'Province',
+        'N/A',
+      ]) {
+        expect(
+          text,
+          contains(value),
+          reason: '$value must be visible in the generated PDF',
+        );
+      }
+    expect(text, isNot(contains('Scholarship Application (Fallback)')));
+    final compact = text.replaceAll(RegExp(r'\s+'), '');
+    expect(compact, contains('A' * 900));
+    expect(compact, contains('B' * 600));
+      final output = File('build/test-artifacts/application-form-preview.pdf');
+      await output.parent.create(recursive: true);
+      await output.writeAsBytes(bytes);
+      document.dispose();
+    },
+  );
+
+  test(
+    'empty text cells print N/A and affirmative details survive export',
+    () async {
+      final model = SavedApplicationPrintModel.fromSavedFormData({
+        'personal': {'first_name': 'Example', 'last_name': 'Applicant'},
+        'family': {
+          'parent_native_status': 'No',
+          'parent_previous_town_municipality': 'Bocaue',
+          'parent_previous_province': 'Bulacan',
+        },
+        'support': {
+          'financial_support': 'Parents, Scholarship, Loan, Other',
+          'financial_support_other': 'Work',
+          'scholarship_history': true,
+          'scholarship_elementary': true,
+          'scholarship_high_school': true,
+          'scholarship_college': true,
+          'scholarship_others': true,
+          'scholarship_others_specify': 'Grant',
+          'scholarship_details': 'School grant 2025',
+        },
+        'discipline': {
+          'disciplinary_action': true,
+          'disciplinary_explanation': 'Attendance warning',
+        },
+      });
+      final bytes = await ScholarshipFormPdfService()
+          .generateBytesFromSavedApplication(model);
+      final document = PdfDocument(inputBytes: bytes);
+      final text = PdfTextExtractor(document).extractText();
+      expect('N/A'.allMatches(text).length, greaterThan(45));
+      for (final value in [
+        'Bocaue, Bulacan',
+        'Work',
+        'School grant 2025',
+        'Attendance warning',
+      ]) {
+        expect(text, contains(value));
+      }
+      await File(
+        'build/test-artifacts/application-form-checked.pdf',
+      ).writeAsBytes(bytes);
+      document.dispose();
+    },
+  );
 }

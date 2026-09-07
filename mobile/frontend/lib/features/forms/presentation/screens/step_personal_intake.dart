@@ -35,6 +35,7 @@ class _StepPersonalState extends State<StepPersonal> {
   late final TextEditingController religionController;
   late final TextEditingController unitBldgNoController;
   late final TextEditingController houseLotBlockNoController;
+  late final TextEditingController phaseController;
   late final TextEditingController streetController;
   late final TextEditingController subdivisionController;
   late final TextEditingController provinceController;
@@ -352,6 +353,7 @@ class _StepPersonalState extends State<StepPersonal> {
       (value) => widget.data.houseLotBlockNo = value,
     );
     _bind(streetController, (value) => widget.data.street = value);
+    _bind(phaseController, (value) => widget.data.phase = value);
     _bind(subdivisionController, (value) => widget.data.subdivision = value);
     _bind(provinceController, (value) => widget.data.province = value);
     _bind(barangayController, (value) => widget.data.barangay = value);
@@ -381,6 +383,7 @@ class _StepPersonalState extends State<StepPersonal> {
       text: widget.data.houseLotBlockNo,
     );
     streetController = TextEditingController(text: widget.data.street);
+    phaseController = TextEditingController(text: widget.data.phase);
     subdivisionController = TextEditingController(
       text: widget.data.subdivision,
     );
@@ -524,6 +527,7 @@ class _StepPersonalState extends State<StepPersonal> {
 
   String? _zipCodeError() {
     if (!widget.showErrors) return null;
+    if (zipCodeController.text.trim().toUpperCase() == 'N/A') return null;
     return AppFieldValidators.zipCode(zipCodeController.text);
   }
 
@@ -734,7 +738,9 @@ class _StepPersonalState extends State<StepPersonal> {
     if (cities.isEmpty) {
       return _textField(
         controller: cityController,
-        inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText),
+        ],
         label: 'City / Municipality *',
         hint: 'Enter city / municipality',
         errorText: _requiredError(widget.data.city, 'City / Municipality'),
@@ -791,7 +797,11 @@ class _StepPersonalState extends State<StepPersonal> {
           const SizedBox(height: 10),
           _textField(
             controller: cityController,
-            inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(
+                ApplicationFieldLimits.shortText,
+              ),
+            ],
             label: 'Enter City / Municipality *',
             hint: 'Enter city / municipality',
             errorText: _requiredError(widget.data.city, 'City / Municipality'),
@@ -816,7 +826,9 @@ class _StepPersonalState extends State<StepPersonal> {
     if (_manualCityEntry) {
       return _textField(
         controller: barangayController,
-        inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText),
+        ],
         label: 'Barangay *',
         hint: 'Enter barangay',
         errorText: _requiredError(widget.data.barangay, 'Barangay'),
@@ -839,7 +851,9 @@ class _StepPersonalState extends State<StepPersonal> {
     if (barangays.isEmpty) {
       return _textField(
         controller: barangayController,
-        inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText),
+        ],
         label: 'Barangay *',
         hint: 'Enter barangay',
         errorText: _requiredError(widget.data.barangay, 'Barangay'),
@@ -881,7 +895,11 @@ class _StepPersonalState extends State<StepPersonal> {
           const SizedBox(height: 10),
           _textField(
             controller: barangayController,
-            inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(
+                ApplicationFieldLimits.shortText,
+              ),
+            ],
             label: 'Enter Barangay *',
             hint: 'Enter barangay',
             errorText: _requiredError(widget.data.barangay, 'Barangay'),
@@ -905,6 +923,7 @@ class _StepPersonalState extends State<StepPersonal> {
     unitBldgNoController.dispose();
     houseLotBlockNoController.dispose();
     streetController.dispose();
+    phaseController.dispose();
     subdivisionController.dispose();
     provinceController.dispose();
     barangayController.dispose();
@@ -938,7 +957,9 @@ class _StepPersonalState extends State<StepPersonal> {
               ),
               _textField(
                 controller: firstNameController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
+                ],
                 label: 'First Name *',
                 hint: 'Jomar Paul',
                 errorText: _nameError(firstNameController.text, 'First name'),
@@ -948,7 +969,9 @@ class _StepPersonalState extends State<StepPersonal> {
             _row([
               _textField(
                 controller: middleNameController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
+                ],
                 label: 'Middle Name (Optional)',
                 hint: 'Gutierrez',
                 errorText: _nameError(
@@ -960,7 +983,9 @@ class _StepPersonalState extends State<StepPersonal> {
               ),
               _textField(
                 controller: maidenNameController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.name)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(ApplicationFieldLimits.name),
+                ],
                 label: 'Maiden Name (if married)',
                 hint: 'Enter maiden name if applicable',
                 errorText: _nameError(
@@ -1008,7 +1033,11 @@ class _StepPersonalState extends State<StepPersonal> {
               ),
               _textField(
                 controller: placeOfBirthController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.shortText,
+                  ),
+                ],
                 label: 'Place of Birth *',
                 hint: 'Marilao',
                 errorText: _requiredError(
@@ -1021,7 +1050,11 @@ class _StepPersonalState extends State<StepPersonal> {
             _row([
               _textField(
                 controller: citizenshipController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.shortText,
+                  ),
+                ],
                 label: 'Citizenship *',
                 hint: 'Filipino',
                 errorText: _requiredError(
@@ -1069,7 +1102,11 @@ class _StepPersonalState extends State<StepPersonal> {
               const SizedBox(height: 16),
               _textField(
                 controller: religionController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.shortText)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.shortText,
+                  ),
+                ],
                 label: 'Specify Religion *',
                 hint: 'Other',
                 errorText: _requiredError(widget.data.religion, 'Religion'),
@@ -1083,30 +1120,65 @@ class _StepPersonalState extends State<StepPersonal> {
             _row([
               _textField(
                 controller: unitBldgNoController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.addressPart)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.addressPart,
+                  ),
+                ],
                 label: 'RM/FLR/UNIT NO. BLDG NAME',
                 hint: 'Unit 5, Bldg. 12',
               ),
               _textField(
                 controller: houseLotBlockNoController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.addressPart)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.addressPart,
+                  ),
+                ],
                 label: 'HOUSE/LOT/BLOCK NO.',
                 hint: 'Lot 8, Block 3',
+              ),
+              _textField(
+                controller: phaseController,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.addressPart,
+                  ),
+                ],
+                label: 'Phase',
+                hint: 'Phase',
               ),
             ]),
             const SizedBox(height: 16),
             _row([
               _textField(
                 controller: streetController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.addressPart)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.addressPart,
+                  ),
+                ],
                 label: 'Street',
                 hint: '288 Quezon Blvd, Brgy. Baritan',
+                errorText:
+                    widget.showErrors && streetController.text.trim().isEmpty
+                    ? 'Street is required.'
+                    : null,
               ),
               _textField(
                 controller: subdivisionController,
-                inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.addressPart)],
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    ApplicationFieldLimits.addressPart,
+                  ),
+                ],
                 label: 'Subdivision',
-                hint: 'Enter subdivision (optional)',
+                hint: 'Enter subdivision',
+                errorText:
+                    widget.showErrors &&
+                        subdivisionController.text.trim().isEmpty
+                    ? 'Subdivision is required.'
+                    : null,
               ),
             ]),
             const SizedBox(height: 16),
@@ -1145,11 +1217,8 @@ class _StepPersonalState extends State<StepPersonal> {
                 controller: zipCodeController,
                 label: 'ZIP Code *',
                 hint: '3019',
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
-                ],
+                keyboardType: TextInputType.text,
+                inputFormatters: [LengthLimitingTextInputFormatter(4)],
                 errorText: _zipCodeError(),
               ),
             ]),
@@ -1161,7 +1230,11 @@ class _StepPersonalState extends State<StepPersonal> {
           children: [
             _textField(
               controller: landlineController,
-              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.landline)],
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  ApplicationFieldLimits.landline,
+                ),
+              ],
               label: 'Landline',
               hint: '(044) XXX-XXXX',
               keyboardType: TextInputType.phone,
@@ -1178,7 +1251,9 @@ class _StepPersonalState extends State<StepPersonal> {
             const SizedBox(height: 16),
             _textField(
               controller: emailController,
-              inputFormatters: [LengthLimitingTextInputFormatter(ApplicationFieldLimits.email)],
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(ApplicationFieldLimits.email),
+              ],
               label: 'Email Address *',
               hint: 'name@example.com',
               keyboardType: TextInputType.emailAddress,

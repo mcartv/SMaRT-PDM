@@ -191,22 +191,25 @@ void main() {
     },
   );
 
-  test('Application Form Preview re-fetches persisted database data for export', () {
-    final source = File(
-      'lib/features/applicant/presentation/screens/application_form_preview_screen.dart',
-    ).readAsStringSync();
+  test(
+    'Application Form Preview re-fetches persisted database data for export',
+    () {
+      final source = File(
+        'lib/features/applicant/presentation/screens/application_form_preview_screen.dart',
+      ).readAsStringSync();
 
-    expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
-    expect(source, contains('XFile.fromData('));
-    expect(
-      source,
-      isNot(
-        contains(
-          'generateBytesFromSubmissionPayload(\\n        data.toSubmissionPayload()',
+      expect(source, contains('generateBytesFromMySubmittedApplicationForm()'));
+      expect(source, contains('saveAndOpenDownloadedFile('));
+      expect(
+        source,
+        isNot(
+          contains(
+            'generateBytesFromSubmissionPayload(\\n        data.toSubmissionPayload()',
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('PDF renderer labels every empty text field as not available', () {
     final source = File(
@@ -214,7 +217,7 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains("static const String _notAvailable = 'N/A';"));
-    expect(source, contains('return clean.isEmpty ? _notAvailable : clean;'));
+    expect(source, contains('_printableValue(value)'));
     expect(source, isNot(contains('if (clean.isEmpty) return;')));
   });
 }

@@ -21,6 +21,7 @@ class ApplicationData {
   // Permanent Address
   String unitBldgNo = '';
   String houseLotBlockNo = '';
+  String phase = '';
   String street = '';
   String subdivision = '';
   String barangay = '';
@@ -72,7 +73,7 @@ class ApplicationData {
   String guardianOccupation = '';
   String guardianCompanyNameAndAddress = '';
 
-  String parentNativeStatus = 'Yes, father only';
+  String parentNativeStatus = '';
   String parentMarilaoResidencyDuration = '';
   String parentPreviousTownProvince = '';
   String parentPreviousTownMunicipality = '';
@@ -138,6 +139,7 @@ class ApplicationData {
   }
 
   static String normalizeMobileNumber(String value) {
+    if (value.trim().toUpperCase() == 'N/A') return 'N/A';
     final trimmed = value.trim().replaceAll(RegExp(r'\s+|-'), '');
     if (trimmed.startsWith('+63') && trimmed.length == 13) {
       return '0${trimmed.substring(3)}';
@@ -250,7 +252,8 @@ class ApplicationData {
     return parsed?.toIso8601String().split('T').first;
   }
 
-  String _title(String value) => toTitleCase(value);
+  String _title(String value) =>
+      value.trim().toUpperCase() == 'N/A' ? 'N/A' : toTitleCase(value);
 
   void applyOpeningSelection({
     required String openingId,
@@ -421,6 +424,7 @@ class ApplicationData {
       (value) => houseLotBlockNo = value,
       _firstSavedString(address, ['house_lot_block_no', 'houseLotBlockNo']),
     );
+    _setIfPresent((value) => phase = value, _savedString(address['phase']));
     _setIfPresent(
       (value) => street = value,
       _firstSavedString(address, ['street', 'street_address', 'streetAddress']),
@@ -852,6 +856,7 @@ class ApplicationData {
         'religion': _title(religion),
       },
       'address': {
+        'phase': phase.trim(),
         'unit_bldg_no': _title(unitBldgNo),
         'house_lot_block_no': _title(houseLotBlockNo),
         'street': _title(street),

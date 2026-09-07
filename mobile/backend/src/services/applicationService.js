@@ -3184,7 +3184,7 @@ function isBlankSubmissionValue(value) {
     );
 }
 
-function mergeMissingSubmissionValues(primary, fallback) {
+function mergeMissingSubmissionValues(primary, fallback, preserveBlank = false) {
     if (
         fallback === null ||
         fallback === undefined ||
@@ -3210,12 +3210,13 @@ function mergeMissingSubmissionValues(primary, fallback) {
         ) {
             merged[key] = mergeMissingSubmissionValues(
                 primaryValue,
-                fallbackValue
+                fallbackValue,
+                preserveBlank
             );
             return;
         }
 
-        if (isBlankSubmissionValue(primaryValue)) {
+        if (isBlankSubmissionValue(primaryValue) && (!preserveBlank || primaryValue === undefined)) {
             merged[key] = fallbackValue;
         }
     });
@@ -3229,8 +3230,17 @@ function collectMissingSubmissionFields(payload = {}) {
     const contact = payload.contact || {};
     const academic = payload.academic || {};
     const essays = payload.essays || {};
+    const family = payload.family || {};
+    const support = payload.support || {};
 
     const requiredFields = [
+        { label: 'Street', value: address.street || address.street_address },
+        { label: 'Subdivision', value: address.subdivision },
+        { label: 'ZIP code', value: address.zip_code },
+        { label: 'Parent or guardian address', value: family.parent_guardian_address },
+        { label: 'Parents native of Marilao', value: family.parent_native_status },
+        { label: 'Learner Reference Number', value: academic.lrn || academic.learners_reference_number },
+        { label: 'Financial support', value: support.financial_support || support.financial_support_type },
         {
             label: 'First name',
             value: personal.first_name || personal.firstName,
@@ -3314,6 +3324,27 @@ function collectMissingSubmissionFields(payload = {}) {
         },
     ];
 
+    for (const relation of ['father', 'mother', 'sibling', 'guardian']) {
+        const member = family[relation] || {};
+        for (const [label, value] of [
+            ['last name', member.last_name], ['first name', member.first_name],
+            ['middle name', member.middle_name], ['mobile number', member.mobile || member.mobile_number],
+            ['educational attainment', member.educational_attainment || member.highest_educational_attainment],
+            ['occupation', member.occupation],
+            ['company name/address', member.company_name_and_address || member.company_name_address],
+        ]) requiredFields.push({ label: `${relation} ${label}`, value });
+    }
+    for (const level of ['college', 'high_school', 'senior_high', 'elementary']) {
+        for (const field of ['school', 'address', 'year_graduated']) {
+            requiredFields.push({ label: `${level.replaceAll('_', ' ')} ${field.replaceAll('_', ' ')}`, value: academic[`${level}_${field}`] });
+        }
+    }
+    if (payload.support?.scholarship_history === true) {
+        requiredFields.push({ label: 'Scholarship details', value: payload.support.scholarship_details });
+    }
+    if (payload.discipline?.disciplinary_action === true) {
+        requiredFields.push({ label: 'Disciplinary explanation', value: payload.discipline.disciplinary_explanation });
+    }
     return requiredFields
         .filter((field) => !safeText(field.value))
         .map((field) => field.label);
@@ -3367,8 +3398,28 @@ function validateApplicationSubmissionPayload(payload = {}) {
 
     const family = payload.family || {};
     const nativeStatus = safeText(family.parent_native_status).toLowerCase();
+    if (!['yes, father only', 'yes, mother only', 'yes, both parents', 'no'].includes(nativeStatus)) {
+        throw createHttpError(400, 'Select whether your parents are native of Marilao.');
+    }
     const isNative = nativeStatus.startsWith('yes');
     const isNotNative = nativeStatus === 'no';
+
+    const support = payload.support || {};
+    const discipline = payload.discipline || {};
+    for (const [label, answered, value] of [
+        ['Scholarship history', support.scholarship_history_answered, support.scholarship_history],
+        ['Disciplinary action', discipline.disciplinary_action_answered, discipline.disciplinary_action],
+    ]) {
+        if (answered === false || typeof value !== 'boolean') {
+            throw createHttpError(400, `${label}: select Yes or No.`);
+        }
+    }
+    if (support.scholarship_history === true && !['scholarship_elementary', 'scholarship_high_school', 'scholarship_college', 'scholarship_others'].some((key) => support[key] === true)) {
+        throw createHttpError(400, 'Select at least one scholarship history level.');
+    }
+    if (safeText(support.financial_support).toLowerCase().split(',').map((v) => v.trim()).includes('other') && !safeText(support.financial_support_other)) {
+        throw createHttpError(400, 'Specify the other financial support.');
+    }
 
     if (isNative) {
         const residencyRaw = safeText(
@@ -3378,7 +3429,7 @@ function validateApplicationSubmissionPayload(payload = {}) {
             ? Number.parseInt(residencyRaw, 10)
             : Number.NaN;
 
-        if (!Number.isInteger(residencyYears) || residencyYears < 0 || residencyYears > 120) {
+        if (residencyRaw.toUpperCase() !== 'N/A' && (!Number.isInteger(residencyYears) || residencyYears < 0 || residencyYears > 120)) {
             throw createHttpError(
                 400,
                 'Residency duration is invalid.'
@@ -3429,7 +3480,9 @@ function validateApplicationSubmissionPayload(payload = {}) {
         throw createHttpError(400, 'College academic status is required.');
     }
 
-    if (isOngoing) {
+    if (collegeYearRaw.toUpperCase() === 'N/A') {
+        payload.academic = { ...academic, college_year_graduated: 'N/A' };
+    } else if (isOngoing) {
         payload.academic = {
             ...academic,
             college_year_graduated: 'Ongoing',
@@ -3703,12 +3756,13 @@ async function getMySubmittedFormData(userId) {
             ? application.application_payload
             : {};
 
-    // Build printable forms from the current normalized database records.
-    // The submitted snapshot remains a fallback for form-only values that do
-    // not have their own normalized column (for example phase or section).
+    // The application snapshot preserves the applicant's explicit answers,
+    // including N/A, false, and fields absent from normalized profile columns.
+    // Older applications without a snapshot fall back to database records.
     let formData = mergeMissingSubmissionValues(
+        submittedPayload,
         normalizedFormData || {},
-        submittedPayload
+        true
     );
 
     const formApplication =
@@ -3809,7 +3863,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
     // registry/profile database. Rehydrate only blank values before validation
     // so valid stored information is not requested from the applicant again.
     const storedFormData = await getMyFormData(userId);
-    payload = mergeMissingSubmissionValues(payload, storedFormData || {});
+    payload = mergeMissingSubmissionValues(payload, storedFormData || {}, true);
 
     const student = await ensureStudentForUser(userId);
     const lifecycleStudent = await getStudent(userId);
@@ -4195,14 +4249,14 @@ async function submitMyApplicationForm(userId, payload = {}) {
             student.student_id,
             'Father',
             family.father || {},
-            familyExtra
+            { ...familyExtra, is_marilao_native: isNative === null ? null : isNative && !nativeStatus.toLowerCase().includes('mother only') }
         ),
 
         familyPayload(
             student.student_id,
             'Mother',
             family.mother || {},
-            familyExtra
+            { ...familyExtra, is_marilao_native: isNative === null ? null : isNative && !nativeStatus.toLowerCase().includes('father only') }
         ),
 
         familyPayload(

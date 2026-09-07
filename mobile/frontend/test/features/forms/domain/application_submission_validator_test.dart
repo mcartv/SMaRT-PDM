@@ -6,6 +6,44 @@ void main() {
   group('ApplicationSubmissionValidator', () {
     const validator = ApplicationSubmissionValidator();
 
+    test('requires every family entry while accepting explicit N/A', () {
+      final data = _validApplicationData();
+      expect(validator.validateFamilyProgression(data).isValid, isTrue);
+      data.guardianMobile = '  ';
+      expect(
+        validator
+            .validateFamilyProgression(data)
+            .issueForField('guardianMobile'),
+        isNotNull,
+      );
+      data.guardianMobile = 'N/A';
+      expect(validator.validateFamilyProgression(data).isValid, isTrue);
+      data.parentNativeStatus = '';
+      expect(
+        validator
+            .validateFamilyProgression(data)
+            .issueForField('parentNativeStatus'),
+        isNotNull,
+      );
+    });
+
+    test(
+      'address requires street and subdivision but block and phase may be empty',
+      () {
+        final data = _validApplicationData()
+          ..houseLotBlockNo = ''
+          ..phase = '';
+        expect(validator.validatePersonalProgression(data).isValid, isTrue);
+        data.street = '';
+        expect(
+          validator.validatePersonalProgression(data).issueForField('street'),
+          isNotNull,
+        );
+        data.street = 'N/A';
+        expect(validator.validatePersonalProgression(data).isValid, isTrue);
+      },
+    );
+
     test('essay fields are required but do not have a minimum word count', () {
       final shortEssay = _validApplicationData()
         ..describeYourselfEssay = 'I am a student.'
@@ -106,7 +144,10 @@ void main() {
       final result = validator.validateAcademicProgression(data);
 
       expect(result.isValid, isFalse);
-      expect(result.issueForField('currentSection')?.message, 'Section is required.');
+      expect(
+        result.issueForField('currentSection')?.message,
+        'Section is required.',
+      );
     });
 
     test('accepts only sections A through D', () {
@@ -131,7 +172,8 @@ void main() {
     });
 
     test('rejects a non-12-digit LRN when one is present', () {
-      final data = _validApplicationData()..learnersReferenceNumber = '12345678901';
+      final data = _validApplicationData()
+        ..learnersReferenceNumber = '12345678901';
       final result = validator.validateAcademicProgression(data);
       expect(
         result.issueForField('learnersReferenceNumber')?.message,
@@ -140,7 +182,8 @@ void main() {
     });
 
     test('accepts a short non-empty essay', () {
-      final data = _validApplicationData()..describeYourselfEssay = 'I am a student.';
+      final data = _validApplicationData()
+        ..describeYourselfEssay = 'I am a student.';
       final result = validator.validateEssayProgression(data);
       expect(result.issueForField('describeYourselfEssay'), isNull);
     });
@@ -180,22 +223,25 @@ void main() {
       );
     });
 
-    test('non-native parent origin only requires a city or municipality', () {
-      final data = _validApplicationData()
-        ..parentNativeStatus = 'No'
-        ..parentPreviousTownMunicipality = 'Meycauayan City'
-        ..parentPreviousProvince = '';
+    test(
+      'non-native parent origin requires a city or municipality and province',
+      () {
+        final data = _validApplicationData()
+          ..parentNativeStatus = 'No'
+          ..parentPreviousTownMunicipality = 'Meycauayan City'
+          ..parentPreviousProvince = 'Bulacan';
 
-      final result = validator.validateFamilyProgression(data);
+        final result = validator.validateFamilyProgression(data);
 
-      expect(
-        result.isValid,
-        isTrue,
-        reason: result.issues
-            .map((issue) => '${issue.field}: ${issue.message}')
-            .join(' | '),
-      );
-    });
+        expect(
+          result.isValid,
+          isTrue,
+          reason: result.issues
+              .map((issue) => '${issue.field}: ${issue.message}')
+              .join(' | '),
+        );
+      },
+    );
 
     test(
       'Marilao residency years are numeric and are not capped by applicant age',
@@ -249,6 +295,33 @@ ApplicationData _validApplicationData() {
     ..email = 'teresa.tolentino79@gmail.com'
     ..unitBldgNo = 'Unit 5'
     ..street = '295 Aguinaldo St.'
+    ..subdivision = 'N/A'
+    ..learnersReferenceNumber = 'N/A'
+    ..fatherMiddleName = 'N/A'
+    ..fatherMobile = 'N/A'
+    ..fatherEducationalAttainment = 'N/A'
+    ..fatherOccupation = 'N/A'
+    ..fatherCompanyNameAndAddress = 'N/A'
+    ..motherMiddleName = 'N/A'
+    ..motherMobile = 'N/A'
+    ..motherEducationalAttainment = 'N/A'
+    ..motherOccupation = 'N/A'
+    ..motherCompanyNameAndAddress = 'N/A'
+    ..siblingFirstName = 'N/A'
+    ..siblingMiddleName = 'N/A'
+    ..siblingLastName = 'N/A'
+    ..siblingMobile = 'N/A'
+    ..siblingEducationalAttainment = 'N/A'
+    ..siblingOccupation = 'N/A'
+    ..siblingCompanyNameAndAddress = 'N/A'
+    ..guardianFirstName = 'N/A'
+    ..guardianMiddleName = 'N/A'
+    ..guardianLastName = 'N/A'
+    ..guardianMobile = 'N/A'
+    ..guardianEducationalAttainment = 'N/A'
+    ..guardianOccupation = 'N/A'
+    ..guardianCompanyNameAndAddress = 'N/A'
+    ..parentPreviousProvince = 'Bulacan'
     ..barangay = 'Longos'
     ..city = 'Meycauayan'
     ..province = 'Bulacan'

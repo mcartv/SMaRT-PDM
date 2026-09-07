@@ -298,6 +298,85 @@ async function resolveFixedAdminUserId({ forceRefresh = false } = {}) {
   return fixedAdminUserIdPromise;
 }
 
+function isActiveSupportProfile(userId, profiles) {
+  const user = profiles.userMap.get(userId);
+  const adminProfile = profiles.adminMap.get(userId);
+
+  return Boolean(
+    user?.user_id &&
+      adminProfileLooksActive(adminProfile) &&
+      userLooksAdmin(user, adminProfile)
+  );
+}
+
+async function resolveSupportCounterpartyId(userId, requestedCounterpartyId = null) {
+  const normalizedUserId = safeText(userId);
+  const normalizedRequestedId = safeText(requestedCounterpartyId);
+
+  if (!normalizedUserId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  if (normalizedRequestedId) {
+    if (!isUuid(normalizedRequestedId) || normalizedRequestedId === normalizedUserId) {
+      throw createHttpError(400, 'A valid support contact is required.');
+    }
+
+    const requestedProfiles = await fetchConversationProfiles([normalizedRequestedId]);
+    if (!isActiveSupportProfile(normalizedRequestedId, requestedProfiles)) {
+      throw createHttpError(403, 'The selected support contact is not available.');
+    }
+
+    const existingRows = await fetchAllPrivateMessagesForUser(normalizedUserId);
+    const hasExistingThread = existingRows.some((row) =>
+      (row.sender_id === normalizedUserId && row.receiver_id === normalizedRequestedId) ||
+      (row.sender_id === normalizedRequestedId && row.receiver_id === normalizedUserId)
+    );
+
+    if (!hasExistingThread) {
+      const defaultAdminUserId = await resolveFixedAdminUserId();
+      if (normalizedRequestedId !== defaultAdminUserId) {
+        throw createHttpError(
+          403,
+          'You can reply only to an existing support conversation.'
+        );
+      }
+    }
+
+    return normalizedRequestedId;
+  }
+
+  // The mobile UI presents one OSFA Support thread. Keep that compatibility
+  // thread attached to the staff member who most recently contacted the scholar
+  // so messages from SDO, Guidance/GCO, PD, and RO Coordinator are visible and
+  // the scholar's reply returns to the correct office.
+  const rows = await fetchAllPrivateMessagesForUser(normalizedUserId);
+  const candidateIds = [];
+
+  for (const row of rows) {
+    const candidateId = row.sender_id === normalizedUserId
+      ? row.receiver_id
+      : row.sender_id;
+
+    if (candidateId && !candidateIds.includes(candidateId)) {
+      candidateIds.push(candidateId);
+    }
+  }
+
+  if (candidateIds.length) {
+    const profiles = await fetchConversationProfiles(candidateIds);
+    const latestActiveSupportId = candidateIds.find((candidateId) =>
+      isActiveSupportProfile(candidateId, profiles)
+    );
+
+    if (latestActiveSupportId) {
+      return latestActiveSupportId;
+    }
+  }
+
+  return resolveFixedAdminUserId();
+}
+
 async function ensureMobileThreadActor(userId) {
   const normalizedUserId = safeText(userId);
   const adminUserId = await resolveFixedAdminUserId();
@@ -1051,31 +1130,31 @@ async function fetchRoomUnreadCounts(userId, roomIds = []) {
 }
 
 async function listFixedThread(userId) {
-  const adminUserId = await ensureMobileThreadActor(userId);
+  const supportUserId = await resolveSupportCounterpartyId(userId);
 
   return {
-    counterpartyId: adminUserId,
-    counterparty_id: adminUserId,
-    items: await fetchThreadMessages(userId, adminUserId),
+    counterpartyId: supportUserId,
+    counterparty_id: supportUserId,
+    items: await fetchThreadMessages(userId, supportUserId),
   };
 }
 
-async function sendToFixedThread(userId, messageBody) {
-  const adminUserId = await ensureMobileThreadActor(userId);
+async function sendToFixedThread(userId, messageBody, counterpartyId = null) {
+  const supportUserId = await resolveSupportCounterpartyId(userId, counterpartyId);
 
   return createMessage({
     senderId: userId,
-    receiverId: adminUserId,
+    receiverId: supportUserId,
     messageBody,
   });
 }
 
-async function markFixedThreadRead(userId) {
-  const adminUserId = await ensureMobileThreadActor(userId);
+async function markFixedThreadRead(userId, counterpartyId = null) {
+  const supportUserId = await resolveSupportCounterpartyId(userId, counterpartyId);
 
   return markThreadRead({
     readerId: userId,
-    senderId: adminUserId,
+    senderId: supportUserId,
   });
 }
 

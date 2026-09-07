@@ -19,6 +19,16 @@ function getMessageBody(req) {
   return req.body?.messageBody ?? req.body?.message_body ?? req.body?.message;
 }
 
+function getSupportCounterpartyId(req) {
+  return (
+    req.body?.counterpartyId ??
+    req.body?.counterparty_id ??
+    req.query?.counterpartyId ??
+    req.query?.counterparty_id ??
+    null
+  );
+}
+
 exports.unsendMessage = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);
@@ -85,7 +95,8 @@ exports.sendThreadMessage = async (req, res) => {
 
     const payload = await messageService.sendToFixedThread(
       currentUserId,
-      String(messageBody).trim()
+      String(messageBody).trim(),
+      getSupportCounterpartyId(req)
     );
 
     return res.status(201).json(payload);
@@ -105,7 +116,10 @@ exports.markThreadRead = async (req, res) => {
       return res.status(401).json({ error: 'Authentication required.' });
     }
 
-    const payload = await messageService.markFixedThreadRead(currentUserId);
+    const payload = await messageService.markFixedThreadRead(
+      currentUserId,
+      getSupportCounterpartyId(req)
+    );
     return res.status(200).json(payload);
   } catch (error) {
     console.error('MARK MESSAGE THREAD READ ERROR:', error);

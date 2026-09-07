@@ -184,8 +184,12 @@ class MessageService {
   Future<MessageThreadResult> fetchThread() async {
     try {
       final response = await _apiClient.getObject('/api/messages/thread');
+      _lastConversationCounterpartyId =
+          response['counterpartyId']?.toString().trim() ??
+          response['counterparty_id']?.toString().trim() ??
+          '';
       return MessageThreadResult(
-        counterpartyId: response['counterpartyId']?.toString() ?? '',
+        counterpartyId: _lastConversationCounterpartyId,
         items: _parseItems(response['items']),
       );
     } on ApiException catch (error) {
@@ -221,7 +225,11 @@ class MessageService {
     try {
       final response = await _apiClient.postJson(
         '/api/messages/thread',
-        body: {'messageBody': messageBody},
+        body: {
+          'messageBody': messageBody,
+          if (_lastConversationCounterpartyId.isNotEmpty)
+            'counterpartyId': _lastConversationCounterpartyId,
+        },
       );
 
       return ChatMessage.fromJson(response);
@@ -253,7 +261,16 @@ class MessageService {
 
   Future<MessageReadResult> markThreadRead({String? counterpartyId}) async {
     try {
-      final response = await _apiClient.patchJson('/api/messages/thread/read');
+      final targetCounterpartyId = (counterpartyId ?? '').trim().isNotEmpty
+          ? counterpartyId!.trim()
+          : _lastConversationCounterpartyId;
+      final response = await _apiClient.patchJson(
+        '/api/messages/thread/read',
+        body: {
+          if (targetCounterpartyId.isNotEmpty)
+            'counterpartyId': targetCounterpartyId,
+        },
+      );
       return MessageReadResult(
         updatedCount: (response['updatedCount'] as num?)?.toInt() ?? 0,
         messageIds: ((response['messageIds'] as List<dynamic>?) ?? const [])

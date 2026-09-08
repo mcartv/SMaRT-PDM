@@ -385,7 +385,7 @@ class BirthCalibrationApp:
         image = self._registered_photo()
         self.images = [image]
         self.canvas.create_image(0, 0, image=image, anchor="nw")
-        colors = ("#ef4444", "#f59e0b", "#2563eb")
+        colors = ("#ef4444", "#f59e0b", "#704b33")
         for index, row in enumerate(self.rows):
             color = colors[index]
             xs = [row["left"], row["first_right"], row["middle_right"], row["right"]]
@@ -632,6 +632,38 @@ def main() -> int:
     except (TypeError, ValueError):
         initial_config = PSABirthRowCropperConfig()
     saved_corners = calibration_metadata.get("normalized_corners")
+    root = tk.Tk()
+    # Row coordinates and their source transform are one calibration. Reopening
+    # the editor must use the same canvas as the worker, even when automatic
+    # registration can find a different grid in this capture.
+    source_height, source_width = original.shape[:2]
+    saved_size = calibration_metadata.get("source_size") or {}
+    if (calibration_metadata.get("status") == "loaded"
+            and saved_size.get("width") == source_width
+            and saved_size.get("height") == source_height):
+        try:
+            registered, _homography = warp_birth_station_capture(original, saved_corners)
+        except (ValueError, TypeError, np.linalg.LinAlgError):
+            pass
+        else:
+            BirthCalibrationApp(
+                root, original, registered,
+                initial_config=initial_config,
+                calibration_status="loaded",
+                registration_mode="manual_station_quad",
+                normalized_corners=saved_corners,
+            )
+            root.mainloop()
+            return 0
+
+    # A new transform needs newly aligned rows. Never transplant coordinates
+    # from the saved manual canvas onto an automatic or resized canvas.
+    initial_config = PSABirthRowCropperConfig()
+    calibration_status = (
+        "recalibration_required" if calibration_metadata.get("status") == "loaded"
+        else str(calibration_metadata.get("status") or "unknown")
+    )
+    saved_corners = None
     registration_mode = "strict_grid"
     registration = register_psa_birth_form(original)
     if not registration.success:
@@ -643,14 +675,13 @@ def main() -> int:
     if not registration.success:
         registration = register_psa_birth_form_grid_envelope(original)
         registration_mode = "validated_grid_envelope"
-    root = tk.Tk()
     if not registration.success or registration.data is None:
         ManualCornerApp(
             root,
             original,
             initial_corners=saved_corners,
             initial_config=initial_config,
-            calibration_status=str(calibration_metadata.get("status") or "unknown"),
+            calibration_status=calibration_status,
         )
         root.mainloop()
         return 0
@@ -660,13 +691,13 @@ def main() -> int:
             original.shape,
         )
     except (ValueError, TypeError, np.linalg.LinAlgError):
-        automatic_corners = saved_corners
+        automatic_corners = None
     if automatic_corners is None:
         ManualCornerApp(
             root,
             original,
             initial_config=initial_config,
-            calibration_status=str(calibration_metadata.get("status") or "unknown"),
+            calibration_status=calibration_status,
         )
         root.mainloop()
         return 0
@@ -675,7 +706,7 @@ def main() -> int:
         original,
         registration.data.registered_image,
         initial_config=initial_config,
-        calibration_status=str(calibration_metadata.get("status") or "unknown"),
+        calibration_status=calibration_status,
         registration_mode=registration_mode,
         normalized_corners=automatic_corners,
     )

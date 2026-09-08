@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,17 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogMedia,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
     Plus,
     Search,
@@ -33,9 +45,9 @@ import {
     Lock,
     Unlock,
     SlidersHorizontal,
+    AlertTriangle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
-import { confirmArchive } from '@/utils/confirmArchive';
 
 const C = {
     brownMid: 'var(--portal-base)',
@@ -844,6 +856,126 @@ function CreateOpeningConfirmModal({
     );
 }
 
+const OPENING_ACTION_META = {
+    open: {
+        title: 'Open scholarship opening?',
+        confirmLabel: 'Open Opening',
+        warning: 'Applicants will be able to see this opening and submit applications while it remains open.',
+    },
+    close: {
+        title: 'Close scholarship opening?',
+        confirmLabel: 'Close Opening',
+        warning: 'The opening will stop accepting new applications. Existing applications and scholarship records will remain unchanged.',
+    },
+    draft: {
+        title: 'Move scholarship opening to draft?',
+        confirmLabel: 'Move to Draft',
+        warning: 'The opening will be hidden from applicants until an administrator opens it again.',
+    },
+    reopen: {
+        title: 'Reopen scholarship opening?',
+        confirmLabel: 'Reopen Opening',
+        warning: 'The opening will become visible again and applicants will be able to submit applications.',
+    },
+    archive: {
+        title: 'Archive scholarship opening?',
+        confirmLabel: 'Archive Opening',
+        warning: 'The opening will move to Archived and will no longer be available to applicants. Existing applications and records will be preserved.',
+    },
+    restore: {
+        title: 'Restore scholarship opening?',
+        confirmLabel: 'Restore Opening',
+        warning: 'The opening will return to active records. Its restored status will be selected from its current dates, capacity, and filled slots.',
+    },
+};
+
+function OpeningActionConfirmModal({ action, working, error, buttonColor, onCancel, onConfirm }) {
+    const meta = action ? OPENING_ACTION_META[action.type] : null;
+    const openingName = action?.opening?.opening_title || 'This scholarship opening';
+
+    return (
+        <AlertDialog open={Boolean(action)} onOpenChange={(open) => !open && !working && onCancel()}>
+            {meta ? (
+                <AlertDialogContent className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-md">
+                    <AlertDialogHeader className="gap-2 border-b border-stone-100 px-5 py-4">
+                        <div className="flex items-start gap-3">
+                            <AlertDialogMedia className="size-10 shrink-0 rounded-xl bg-amber-100 text-amber-700 *:[svg]:size-5">
+                                <AlertTriangle />
+                            </AlertDialogMedia>
+                            <div className="min-w-0">
+                                <AlertDialogTitle className="text-base font-semibold text-stone-900">
+                                    {meta.title}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="mt-1 break-words text-sm text-stone-500">
+                                    {openingName}
+                                </AlertDialogDescription>
+                            </div>
+                        </div>
+                    </AlertDialogHeader>
+
+                    <div className="space-y-3 px-5 py-4">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action warning</p>
+                            <p className="mt-1 text-sm leading-5 text-amber-800">{meta.warning}</p>
+                        </div>
+                        {action.type === 'restore' && action.nextStatus ? (
+                            <p className="text-xs text-stone-500">
+                                This opening will be restored as <span className="font-semibold capitalize text-stone-700">{action.nextStatus}</span>.
+                            </p>
+                        ) : null}
+                        {error ? (
+                            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {error}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <AlertDialogFooter className="border-t border-stone-100 px-5 py-4">
+                        <AlertDialogCancel disabled={working}>Cancel</AlertDialogCancel>
+                        <Button
+                            type="button"
+                            disabled={working}
+                            onClick={onConfirm}
+                            className="min-w-32 border-none font-semibold text-white hover:opacity-90"
+                            style={{ backgroundColor: buttonColor }}
+                        >
+                            {working ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {meta.confirmLabel}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            ) : null}
+        </AlertDialog>
+    );
+}
+
+function OpeningNoticeModal({ notice, buttonColor, onClose }) {
+    return (
+        <AlertDialog open={Boolean(notice)} onOpenChange={(open) => !open && onClose()}>
+            {notice ? (
+                <AlertDialogContent className="rounded-2xl sm:max-w-md">
+                    <AlertDialogHeader>
+                        <AlertDialogMedia className="bg-amber-100 text-amber-700">
+                            <AlertTriangle />
+                        </AlertDialogMedia>
+                        <AlertDialogTitle>{notice.title || 'Scholarship opening notice'}</AlertDialogTitle>
+                        <AlertDialogDescription>{notice.description}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            onClick={onClose}
+                            className="border-none text-white hover:opacity-90"
+                            style={{ backgroundColor: buttonColor }}
+                        >
+                            Okay
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            ) : null}
+        </AlertDialog>
+    );
+}
+
 function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
     if (!open || !opening) return null;
 
@@ -1092,7 +1224,7 @@ function OpeningCard({
                             <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleCloseOpening(opening.opening_id)}
+                                onClick={() => handleCloseOpening(opening)}
                                 className="h-8 rounded-lg border-amber-200 px-3 text-xs font-medium text-amber-700 hover:bg-amber-50"
                                 disabled={isBusy}
                             >
@@ -1176,6 +1308,7 @@ function OpeningCard({
 
 export default function ScholarshipOpenings() {
     const navigate = useNavigate();
+    const { theme } = usePortalTheme('admin');
 
     const [templates, setTemplates] = useState([]);
     const [openings, setOpenings] = useState([]);
@@ -1199,6 +1332,9 @@ export default function ScholarshipOpenings() {
     const [openedFromTemplate, setOpenedFromTemplate] = useState(false);
     const [editingOpeningId, setEditingOpeningId] = useState(null);
     const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
+    const [pendingStatusAction, setPendingStatusAction] = useState(null);
+    const [statusActionError, setStatusActionError] = useState('');
+    const [notice, setNotice] = useState(null);
 
     const [postCreateOpen, setPostCreateOpen] = useState(false);
     const [newOpeningForPrompt, setNewOpeningForPrompt] = useState(null);
@@ -1291,7 +1427,10 @@ export default function ScholarshipOpenings() {
             });
         } catch (err) {
             console.error('SCHOLARSHIP OPENINGS FETCH ERROR:', err);
-            alert(err.message || 'Failed to load scholarship openings.');
+            setNotice({
+                title: 'Unable to load scholarship openings',
+                description: err.message || 'Failed to load scholarship openings.',
+            });
         } finally {
             if (!silent) {
                 setLoading(false);
@@ -1550,17 +1689,17 @@ export default function ScholarshipOpenings() {
     const handleSaveOpening = async (forcedStatus = null) => {
         try {
             if (!form.program_id) {
-                alert('Program is required.');
+                setNotice({ title: 'Program required', description: 'Select a scholarship program before saving this opening.' });
                 return;
             }
 
             if (!form.opening_title?.trim()) {
-                alert('Opening title is required.');
+                setNotice({ title: 'Opening title required', description: 'Enter an opening title before saving.' });
                 return;
             }
 
             if (!form.academic_year_id) {
-                alert('Academic year is required.');
+                setNotice({ title: 'Academic year required', description: 'Select an academic year before saving this opening.' });
                 return;
             }
 
@@ -1573,7 +1712,7 @@ export default function ScholarshipOpenings() {
                     : Number(form.financial_allocation);
 
             if (!isTemplateLaunch && allocatedSlots <= 0) {
-                alert('Allocated slots must be greater than 0.');
+                setNotice({ title: 'Invalid allocated slots', description: 'Allocated slots must be greater than 0.' });
                 return;
             }
 
@@ -1581,7 +1720,7 @@ export default function ScholarshipOpenings() {
                 financialAllocation !== null &&
                 (!Number.isFinite(financialAllocation) || financialAllocation < 0)
             ) {
-                alert('Financial allocation must be zero or greater.');
+                setNotice({ title: 'Invalid financial allocation', description: 'Financial allocation must be zero or greater.' });
                 return;
             }
 
@@ -1604,9 +1743,10 @@ export default function ScholarshipOpenings() {
                     is_archived: false,
                 })
             ) {
-                alert(
-                    'This opening cannot be opened yet. Complete the required configuration and make sure at least one scholarship slot is available.'
-                );
+                setNotice({
+                    title: 'Opening is not ready',
+                    description: 'Complete the required configuration and make sure at least one scholarship slot is available.',
+                });
                 return;
             }
 
@@ -1673,7 +1813,10 @@ export default function ScholarshipOpenings() {
             }
         } catch (err) {
             console.error('SAVE OPENING ERROR:', err);
-            alert(err.message || 'Failed to save scholarship opening');
+            setNotice({
+                title: 'Unable to save scholarship opening',
+                description: err.message || 'Failed to save scholarship opening.',
+            });
         } finally {
             setSaving(false);
         }
@@ -1718,23 +1861,27 @@ export default function ScholarshipOpenings() {
             }
 
             await fetchData({ silent: true });
+            return true;
         } catch (err) {
             console.error('UPDATE OPENING STATUS ERROR:', err);
-            alert(err.message || 'Failed to update opening status');
+            setStatusActionError(err.message || 'Failed to update opening status.');
+            return false;
         } finally {
             setActionLoadingId(null);
         }
     };
 
-    const handleArchiveOpening = async (openingId) => {
-        const opening = openings.find((item) => item.opening_id === openingId);
-        const openingName = opening?.opening_title || opening?.title || 'this scholarship opening';
-        if (!(await confirmArchive({ itemName: openingName }))) return;
-
-        await updateOpeningStatus(openingId, 'archived', { is_archived: true });
+    const requestStatusAction = (type, opening, nextStatus = null) => {
+        setStatusActionError('');
+        setPendingStatusAction({ type, opening, nextStatus });
     };
 
-    const handleRestoreOpening = async (opening) => {
+    const handleArchiveOpening = (openingId) => {
+        const opening = openings.find((item) => item.opening_id === openingId);
+        if (opening) requestStatusAction('archive', opening, 'archived');
+    };
+
+    const handleRestoreOpening = (opening) => {
         const restoredCandidate = {
             ...opening,
             posting_status: 'open',
@@ -1747,44 +1894,38 @@ export default function ScholarshipOpenings() {
                 ? 'closed'
                 : 'draft';
 
-        await updateOpeningStatus(opening.opening_id, nextStatus, {
-            is_archived: false,
-        });
+        requestStatusAction('restore', opening, nextStatus);
     };
 
-    const handleOpenDraftOpening = async (opening) => {
+    const handleOpenDraftOpening = (opening) => {
         if (!canOpeningBeOpened(opening)) {
-            alert(
-                'This draft cannot be opened yet. Make sure it has an opening title, academic year, and allocated slots greater than 0.'
-            );
+            setNotice({
+                title: 'Opening is not ready',
+                description: 'This draft cannot be opened yet. Make sure it has an opening title, academic year, and allocated slots greater than 0.',
+            });
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'open', {
-            is_archived: false,
-        });
+        requestStatusAction('open', opening, 'open');
     };
 
-    const handleCloseOpening = async (openingId) => {
-        await updateOpeningStatus(openingId, 'closed', {
-            is_archived: false,
-        });
+    const handleCloseOpening = (opening) => {
+        requestStatusAction('close', opening, 'closed');
     };
 
-    const handleMoveToDraft = async (opening) => {
+    const handleMoveToDraft = (opening) => {
         if (getFilledSlots(opening) > 0) {
-            alert(
-                'This opening cannot be moved to draft because it already has approved/filled slots.'
-            );
+            setNotice({
+                title: 'Cannot move opening to draft',
+                description: 'This opening already has approved or filled slots and cannot be moved to draft.',
+            });
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'draft', {
-            is_archived: false,
-        });
+        requestStatusAction('draft', opening, 'draft');
     };
 
-    const handleReopenOpening = async (opening) => {
+    const handleReopenOpening = (opening) => {
         const reopenCandidate = {
             ...opening,
             posting_status: 'open',
@@ -1792,15 +1933,30 @@ export default function ScholarshipOpenings() {
         };
 
         if (!canOpeningBeOpened(reopenCandidate)) {
-            alert(
-                'This opening cannot be reopened yet. Check its title, program, academic year, capacity, and available scholarship slots.'
-            );
+            setNotice({
+                title: 'Opening cannot be reopened',
+                description: 'Check its title, program, academic year, capacity, and available scholarship slots before reopening it.',
+            });
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'open', {
-            is_archived: false,
-        });
+        requestStatusAction('reopen', opening, 'open');
+    };
+
+    const confirmStatusAction = async () => {
+        if (!pendingStatusAction?.opening?.opening_id) return;
+
+        const { type, opening, nextStatus } = pendingStatusAction;
+        const successful = await updateOpeningStatus(
+            opening.opening_id,
+            nextStatus,
+            { is_archived: type === 'archive' }
+        );
+
+        if (successful) {
+            setPendingStatusAction(null);
+            setStatusActionError('');
+        }
     };
 
     const handleCreateAnnouncementRedirect = () => {
@@ -1855,6 +2011,27 @@ export default function ScholarshipOpenings() {
                 onClose={() => setCreateConfirmOpen(false)}
                 onOpenNow={() => handleSaveOpening('open')}
                 onSaveDraft={() => handleSaveOpening('draft')}
+            />
+
+            <OpeningActionConfirmModal
+                action={pendingStatusAction}
+                buttonColor={theme.base}
+                working={Boolean(
+                    pendingStatusAction?.opening?.opening_id &&
+                    actionLoadingId === pendingStatusAction.opening.opening_id
+                )}
+                error={statusActionError}
+                onCancel={() => {
+                    setPendingStatusAction(null);
+                    setStatusActionError('');
+                }}
+                onConfirm={confirmStatusAction}
+            />
+
+            <OpeningNoticeModal
+                notice={notice}
+                buttonColor={theme.base}
+                onClose={() => setNotice(null)}
             />
 
             <PostCreatePrompt

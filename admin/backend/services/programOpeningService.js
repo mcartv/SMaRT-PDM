@@ -6,6 +6,96 @@ function normalizeStatus(value) {
     return (value || '').toString().trim().toLowerCase();
 }
 
+function applicationSortTimestamp(application = {}) {
+    const candidates = [
+        application.submission_date,
+        application.created_at,
+    ];
+
+    for (const value of candidates) {
+        if (!value) continue;
+
+        const timestamp = new Date(value).getTime();
+
+        if (Number.isFinite(timestamp)) {
+            return timestamp;
+        }
+    }
+
+    return 0;
+}
+
+function dedupeOpeningApplications(rows = []) {
+    const canonicalByStudentOpening = new Map();
+
+    for (const row of rows || []) {
+        const studentId = String(row?.student_id || '').trim();
+        const openingId = String(row?.opening_id || '').trim();
+
+        if (!studentId || !openingId) {
+            continue;
+        }
+
+        const key = `${studentId}:${openingId}`;
+        const existing = canonicalByStudentOpening.get(key);
+
+        if (!existing) {
+            canonicalByStudentOpening.set(key, row);
+            continue;
+        }
+
+        const currentApplicationId = String(
+            row?.students?.current_application_id ||
+            existing?.students?.current_application_id ||
+            ''
+        ).trim();
+
+        const rowIsCurrent =
+            currentApplicationId &&
+            String(row.application_id || '') === currentApplicationId;
+
+        const existingIsCurrent =
+            currentApplicationId &&
+            String(existing.application_id || '') === currentApplicationId;
+
+        // Canonical student.current_application_id always wins when it
+        // belongs to this student/opening group.
+        if (rowIsCurrent && !existingIsCurrent) {
+            canonicalByStudentOpening.set(key, row);
+            continue;
+        }
+
+        if (!rowIsCurrent && existingIsCurrent) {
+            continue;
+        }
+
+        // Fallback for legacy data where current_application_id is unavailable:
+        // retain the newest application for the same student + opening.
+        const rowTimestamp = applicationSortTimestamp(row);
+        const existingTimestamp = applicationSortTimestamp(existing);
+
+        if (rowTimestamp > existingTimestamp) {
+            canonicalByStudentOpening.set(key, row);
+            continue;
+        }
+
+        if (rowTimestamp < existingTimestamp) {
+            continue;
+        }
+
+        // Deterministic final tie-breaker.
+        if (
+            String(row.application_id || '').localeCompare(
+                String(existing.application_id || '')
+            ) > 0
+        ) {
+            canonicalByStudentOpening.set(key, row);
+        }
+    }
+
+    return Array.from(canonicalByStudentOpening.values());
+}
+
 function toRequiredNumber(value, fallback = 0) {
     const num = Number(value ?? fallback);
     return Number.isNaN(num) ? fallback : num;
@@ -475,6 +565,7 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
       can_reapply,
       reapplication_reason,
       submission_date,
+      created_at,
       is_disqualified,
       rejection_reason,
       remarks,
@@ -493,14 +584,15 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
         course_id,
         year_level,
         profile_photo_url,
+        current_application_id,
         is_archived,
 
         academic_course (
-          course_id,
-          course_code,
-          course_name
+            course_id,
+            course_code,
+            course_name
         )
-      ),
+    ),
 
       scholarship_program (
         program_id,
@@ -552,76 +644,85 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
         readinessResult.rows.map((row) => [row.application_id, row])
     );
 
-    return (data || [])
+    const operationalApplications = (data || [])
         .filter((app) => app.is_archived !== true)
-        .filter((app) => app.students && app.students.is_archived !== true)
+        .filter(
+            (app) =>
+                app.students &&
+                app.students.is_archived !== true
+        );
+
+    const canonicalApplications =
+        dedupeOpeningApplications(operationalApplications);
+
+    return canonicalApplications
         .map((app) => {
             const readiness = readinessByApplication.get(app.application_id) || {};
 
             return {
-            id: app.application_id,
-            application_id: app.application_id,
-            student_id: app.student_id,
-            opening_id: app.opening_id,
-            program_id: app.program_id,
+                id: app.application_id,
+                application_id: app.application_id,
+                student_id: app.student_id,
+                opening_id: app.opening_id,
+                program_id: app.program_id,
 
-            name: `${app.students?.last_name || 'Unknown'}, ${app.students?.first_name || 'Student'}${app.students?.middle_name ? ` ${app.students.middle_name}` : ''
-                }`,
-            student_name: [app.students?.first_name, app.students?.middle_name, app.students?.last_name]
-                .filter(Boolean)
-                .join(' '),
-            student_number: app.students?.pdm_id || 'N/A',
-            pdm_id: app.students?.pdm_id || 'N/A',
+                name: `${app.students?.last_name || 'Unknown'}, ${app.students?.first_name || 'Student'}${app.students?.middle_name ? ` ${app.students.middle_name}` : ''
+                    }`,
+                student_name: [app.students?.first_name, app.students?.middle_name, app.students?.last_name]
+                    .filter(Boolean)
+                    .join(' '),
+                student_number: app.students?.pdm_id || 'N/A',
+                pdm_id: app.students?.pdm_id || 'N/A',
 
-            gwa: app.students?.gwa ?? null,
-            sdo_status: app.students?.sdo_status || 'Clear',
-            course:
-                app.students?.academic_course?.course_code ||
-                app.students?.academic_course?.course_name ||
-                null,
-            year_level: app.students?.year_level ?? null,
+                gwa: app.students?.gwa ?? null,
+                sdo_status: app.students?.sdo_status || 'Clear',
+                course:
+                    app.students?.academic_course?.course_code ||
+                    app.students?.academic_course?.course_name ||
+                    null,
+                year_level: app.students?.year_level ?? null,
 
-            program_name: app.scholarship_program?.program_name || 'No Program',
-            opening_title: app.program_openings?.opening_title || 'Untitled Opening',
+                program_name: app.scholarship_program?.program_name || 'No Program',
+                opening_title: app.program_openings?.opening_title || 'Untitled Opening',
 
-            application_status: normalizeStatus(app.application_status || 'pending'),
-            document_status: normalizeStatus(app.document_status || 'missing docs'),
-            verification_status: normalizeStatus(app.verification_status || 'pending'),
-            selection_status: app.selection_status || 'Unranked',
-            requirements_completed_at: app.requirements_completed_at || null,
-            requirements_verified_at: app.requirements_verified_at || null,
-            queue_position: app.queue_position ?? null,
-            waitlist_position: app.waitlist_position ?? null,
-            selection_batch_id: app.selection_batch_id || null,
-            activation_status: app.activation_status || 'Not Activated',
-            activated_at: app.activated_at || null,
-            can_reapply: app.can_reapply === true,
-            reapplication_reason: app.reapplication_reason || null,
-            ocr_status: '',
-            remarks: app.remarks || '',
-            submitted: app.submission_date || null,
-            submission_date: app.submission_date || null,
-            disqualified: !!app.is_disqualified,
-            is_disqualified: !!app.is_disqualified,
-            disqReason: app.rejection_reason || null,
-            rejection_reason: app.rejection_reason || null,
-            endorsement_status: readiness.endorsement_status || null,
-            normalized_endorsement_status: readiness.endorsement_status || null,
-            endorsement_current_stage: readiness.endorsement_current_stage || null,
-            endorsement_slip_id: readiness.endorsement_slip_id || null,
-            scholar_activation_ready: readiness.scholar_activation_ready === true,
-            fcfs_completed_at: readiness.fcfs_completed_at || null,
-            queue_position: readiness.queue_position ?? app.queue_position ?? null,
-            waitlist_position: readiness.waitlist_position ?? app.waitlist_position ?? null,
-            selection_status: readiness.selection_status || app.selection_status || 'Unranked',
-            requirements_completed_at:
-                readiness.requirements_completed_at || app.requirements_completed_at || null,
-            requirements_verified_at:
-                readiness.requirements_verified_at || app.requirements_verified_at || null,
-            is_scholar:
-                ['approved', 'accepted'].includes(normalizeStatus(app.application_status)) ||
-                ['selected', 'promoted'].includes(normalizeStatus(readiness.selection_status || app.selection_status)),
-        };
+                application_status: normalizeStatus(app.application_status || 'pending'),
+                document_status: normalizeStatus(app.document_status || 'missing docs'),
+                verification_status: normalizeStatus(app.verification_status || 'pending'),
+                selection_status: app.selection_status || 'Unranked',
+                requirements_completed_at: app.requirements_completed_at || null,
+                requirements_verified_at: app.requirements_verified_at || null,
+                queue_position: app.queue_position ?? null,
+                waitlist_position: app.waitlist_position ?? null,
+                selection_batch_id: app.selection_batch_id || null,
+                activation_status: app.activation_status || 'Not Activated',
+                activated_at: app.activated_at || null,
+                can_reapply: app.can_reapply === true,
+                reapplication_reason: app.reapplication_reason || null,
+                ocr_status: '',
+                remarks: app.remarks || '',
+                submitted: app.submission_date || null,
+                submission_date: app.submission_date || null,
+                disqualified: !!app.is_disqualified,
+                is_disqualified: !!app.is_disqualified,
+                disqReason: app.rejection_reason || null,
+                rejection_reason: app.rejection_reason || null,
+                endorsement_status: readiness.endorsement_status || null,
+                normalized_endorsement_status: readiness.endorsement_status || null,
+                endorsement_current_stage: readiness.endorsement_current_stage || null,
+                endorsement_slip_id: readiness.endorsement_slip_id || null,
+                scholar_activation_ready: readiness.scholar_activation_ready === true,
+                fcfs_completed_at: readiness.fcfs_completed_at || null,
+                queue_position: readiness.queue_position ?? app.queue_position ?? null,
+                waitlist_position: readiness.waitlist_position ?? app.waitlist_position ?? null,
+                selection_status: readiness.selection_status || app.selection_status || 'Unranked',
+                requirements_completed_at:
+                    readiness.requirements_completed_at || app.requirements_completed_at || null,
+                requirements_verified_at:
+                    readiness.requirements_verified_at || app.requirements_verified_at || null,
+                is_scholar:
+                    ['approved', 'accepted'].includes(normalizeStatus(app.application_status)) ||
+                    ['selected', 'promoted'].includes(normalizeStatus(readiness.selection_status || app.selection_status)),
+            };
         });
 };
 

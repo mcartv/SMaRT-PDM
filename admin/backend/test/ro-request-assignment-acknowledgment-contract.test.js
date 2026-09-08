@@ -67,3 +67,16 @@ test('request-originated placements notify scholars and require their existing a
   assert.match(read('admin/frontend/src/pages/ROScholarRequestsPanel.jsx'), /Replaced/);
   assert.match(read('admin/frontend/src/pages/ROCoordinatorScholarRequests.jsx'), /Replaced/);
 });
+
+test('RO assignment writes stay aligned with the database status constraint', () => {
+  const migration = read('supabase/migrations/20260730090000_fix_ro_assignment_status_constraint.sql');
+  const adminService = read('admin/backend/services/roService.js');
+  const coordinatorController = read('admin/backend/controllers/roCoordinatorController.js');
+
+  assert.match(migration, /'Pending Coordinator Approval'/);
+  assert.match(migration, /'Coordinator Rejected'/);
+  assert.match(adminService, /assignment_status:\s*scholarRequest\s*\?\s*'Assigned'\s*:\s*'Pending Coordinator Approval'/);
+  assert.match(coordinatorController, /\? 'Pending Coordinator Approval'\s*:\s*'Coordinator Rejected'/);
+  assert.doesNotMatch(adminService, /Pending Personnel-In-Charge Approval/);
+  assert.doesNotMatch(coordinatorController, /Personnel-In-Charge Rejected/);
+});

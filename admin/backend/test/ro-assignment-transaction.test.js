@@ -10,12 +10,14 @@ const writes = source.slice(source.indexOf('async function createPlacementReques
 
 function harness(failPlacement) {
   const statements = [];
+  const queryValues = [];
   let saved = [];
   let pending = [];
   let notifications = 0;
   const client = {
-    async query(sql) {
+    async query(sql, values = []) {
       statements.push(sql);
+      queryValues.push(values);
       if (sql === 'BEGIN') pending = [...saved];
       if (sql === 'COMMIT') saved = pending;
       if (sql === 'ROLLBACK') pending = [];
@@ -55,7 +57,7 @@ function harness(failPlacement) {
   vm.runInContext(writes + '\n' + assignment, context);
   return {
     run: () => context.exports.assignScholarRO('student', { assignedArea: 'Library' }),
-    saved: () => saved, notifications: () => notifications, statements,
+    saved: () => saved, notifications: () => notifications, statements, queryValues,
   };
 }
 
@@ -73,5 +75,13 @@ test('successful assignment commits both records before notifying', async () => 
   await h.run();
   assert.deepEqual(h.saved(), ['assignment', 'placement']);
   assert.equal(h.notifications(), 1);
+  assert.ok(
+    h.queryValues.some((values) => values.includes('Pending Coordinator Approval')),
+    'direct assignments must use the assignment status accepted by the database constraint'
+  );
+  assert.ok(
+    h.queryValues.every((values) => !values.includes('Pending Personnel-In-Charge Approval')),
+    'the UI role label must not be persisted as an assignment status'
+  );
   assert.equal(h.statements.at(-1), 'RELEASE');
 });

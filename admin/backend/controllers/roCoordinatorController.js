@@ -559,8 +559,8 @@ exports.decideRequest = async (req, res) => {
       const parentAssignmentStatus = hasApprovedPlacement
         ? 'Assigned'
         : hasPendingPlacement
-          ? 'Pending Personnel-In-Charge Approval'
-          : 'Personnel-In-Charge Rejected';
+          ? 'Pending Coordinator Approval'
+          : 'Coordinator Rejected';
 
       await client.query(
         `UPDATE return_of_obligations

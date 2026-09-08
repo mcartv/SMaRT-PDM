@@ -2274,7 +2274,10 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         assigned_area: assignedDepartmentName,
         remarks: cleanText(payload.remarks) || null,
 
-        assignment_status: scholarRequest ? 'Assigned' : 'Pending Personnel-In-Charge Approval',
+        // Keep the persisted workflow value aligned with the database contract.
+        // "RO Personnel-In-Charge" is the UI label for the coordinator role,
+        // but existing mobile clients and the CHECK constraint use this value.
+        assignment_status: scholarRequest ? 'Assigned' : 'Pending Coordinator Approval',
         coordinator_status: scholarRequest ? 'Approved' : 'Pending',
         coordinator_remarks: scholarRequest
             ? 'Personnel-In-Charge approval satisfied by the originating scholar request.'
@@ -2304,7 +2307,7 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
                     ? existingRO.assignment_status
                     : scholarRequest
                         ? 'Assigned'
-                        : 'Pending Personnel-In-Charge Approval',
+                        : 'Pending Coordinator Approval',
                 coordinator_status: preserveActivePlacement || scholarRequest ? 'Approved' : 'Pending',
                 coordinator_remarks: preserveActivePlacement
                     ? existingRO.coordinator_remarks

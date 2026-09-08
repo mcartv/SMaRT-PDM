@@ -32,11 +32,14 @@ import {
   UsersRound,
 } from 'lucide-react';
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import { buildApiUrl } from '@/api';
 
@@ -729,24 +732,65 @@ export default function AdminDashboard() {
                       minWidth={0}
                       minHeight={1}
                     >
-                      <PieChart>
-                        <Pie
-                          data={dashboard.scholarsByBenefactor}
+                      <BarChart
+                        data={dashboard.scholarsByBenefactor}
+                        layout="vertical"
+                        margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
+                        accessibilityLayer
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          horizontal={false}
+                          stroke={C.border}
+                        />
+                        <XAxis
+                          type="number"
+                          allowDecimals={false}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: C.muted, fontSize: 11 }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={104}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: C.text, fontSize: 11 }}
+                          tickFormatter={(value) => {
+                            const label = String(value || '');
+                            return label.length > 16
+                              ? `${label.slice(0, 15)}…`
+                              : label;
+                          }}
+                        />
+                        <Tooltip
+                          {...TOOLTIP_STYLE}
+                          formatter={(value) => [
+                            formatNumber(value),
+                            'Active Scholars',
+                          ]}
+                        />
+                        <Bar
                           dataKey="value"
-                          nameKey="name"
-                          innerRadius={54}
-                          outerRadius={88}
-                          paddingAngle={2}
+                          name="Active Scholars"
+                          radius={[0, 8, 8, 0]}
+                          maxBarSize={28}
                         >
-                          {dashboard.scholarsByBenefactor.map((entry, index) => (
-                            <Cell
-                              key={`${entry.name}-${index}`}
-                              fill={CHART_COLORS[index % CHART_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip {...TOOLTIP_STYLE} />
-                      </PieChart>
+                          {dashboard.scholarsByBenefactor.map(
+                            (entry, index) => (
+                              <Cell
+                                key={`${entry.name}-${index}`}
+                                fill={
+                                  CHART_COLORS[
+                                    index % CHART_COLORS.length
+                                  ]
+                                }
+                              />
+                            )
+                          )}
+                        </Bar>
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
 

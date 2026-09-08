@@ -129,6 +129,29 @@ function getEndorsementMap(endorsements = []) {
     );
 }
 
+function getOpeningMap(openings = []) {
+    return new Map(
+        openings
+            .filter((row) => row?.opening_id)
+            .map((row) => [String(row.opening_id), row])
+    );
+}
+
+function isOperationalOpening(opening) {
+    return (
+        !!opening &&
+        !isRecordArchived(opening) &&
+        normalizeLower(opening.posting_status || opening.status) === 'open'
+    );
+}
+
+function isApplicationInOperationalOpening(application, openingMap) {
+    const openingId = String(application?.opening_id || '');
+    if (!openingId) return false;
+
+    return isOperationalOpening(openingMap.get(openingId));
+}
+
 function getWorkflowStage(application, endorsementMap) {
     const applicationStatus = normalizeLower(application?.application_status);
     const selectionStatus = normalizeLower(application?.selection_status);
@@ -184,8 +207,9 @@ function getWorkflowStage(application, endorsementMap) {
     return 'Processing';
 }
 
-function buildApplicationPipeline(applications, endorsements) {
+function buildApplicationPipeline(applications, endorsements, openings) {
     const endorsementMap = getEndorsementMap(endorsements);
+    const openingMap = getOpeningMap(openings);
 
     const buckets = {
         'Requirements Review': 0,
@@ -208,9 +232,23 @@ function buildApplicationPipeline(applications, endorsements) {
         ) {
             buckets['Endorsement Review'] += 1;
         } else if (stage === 'Ready for Activation') {
-            buckets['Ready for Activation'] += 1;
+            if (
+                isApplicationInOperationalOpening(
+                    application,
+                    openingMap
+                )
+            ) {
+                buckets['Ready for Activation'] += 1;
+            }
         } else if (stage === 'Waitlisted') {
-            buckets['Waiting List'] += 1;
+            if (
+                isApplicationInOperationalOpening(
+                    application,
+                    openingMap
+                )
+            ) {
+                buckets['Waiting List'] += 1;
+            }
         } else if (stage === 'Activated') {
             buckets.Activated += 1;
         } else if (
@@ -416,8 +454,22 @@ function buildRecentApplications(
                     getApplicationStatus(application),
                 document_status:
                     getRequirementsStatus(application),
-                workflow_status:
-                    getWorkflowStage(application, endorsementMap),
+                workflow_status: (() => {
+                    const stage = getWorkflowStage(
+                        application,
+                        endorsementMap
+                    );
+
+                    if (
+                        (stage === 'Ready for Activation' ||
+                            stage === 'Waitlisted') &&
+                        !isOperationalOpening(opening)
+                    ) {
+                        return 'Opening Closed';
+                    }
+
+                    return stage;
+                })(),
                 submission_date:
                     application.submission_date ||
                     application.created_at ||
@@ -507,6 +559,7 @@ function buildSummaryCards({
         .filter(isActiveScholar);
 
     const endorsementMap = getEndorsementMap(endorsements);
+    const openingMap = getOpeningMap(openings);
 
     const needsAction = countBy(activeApplications, (application) => {
         if (isTerminalApplication(application)) return false;
@@ -535,7 +588,11 @@ function buildSummaryCards({
 
             return (
                 !applicationStatus.includes('approved') &&
-                ['reserved', 'promoted'].includes(selectionStatus)
+                ['reserved', 'promoted'].includes(selectionStatus) &&
+                isApplicationInOperationalOpening(
+                    application,
+                    openingMap
+                )
             );
         }
     );
@@ -544,7 +601,11 @@ function buildSummaryCards({
         activeApplications,
         (application) =>
             normalizeLower(application.selection_status) ===
-            'waitlisted'
+                'waitlisted' &&
+            isApplicationInOperationalOpening(
+                application,
+                openingMap
+            )
     );
 
     const openOpenings = countBy(
@@ -586,7 +647,7 @@ function buildSummaryCards({
             key: 'ready_for_activation',
             label: 'Ready for Activation',
             value: readyForActivation,
-            sub: 'Reserved or promoted applicants',
+            sub: 'Reserved or promoted applicants in open scholarship openings',
             accent: 'var(--portal-chart-positive)',
             soft: 'color-mix(in srgb, var(--portal-chart-positive) 12%, white)',
         },
@@ -594,7 +655,7 @@ function buildSummaryCards({
             key: 'waitlisted',
             label: 'Waiting List',
             value: waitlisted,
-            sub: 'Qualified applicants waiting for a slot',
+            sub: 'Qualified applicants waiting in open scholarship openings',
             accent: 'var(--portal-chart-secondary)',
             soft: 'var(--portal-surface-soft)',
         },
@@ -635,6 +696,7 @@ function buildSummaryCards({
 
 function buildActionSummary({
     applications,
+    openings,
     endorsements,
     renewals,
     returnOfObligations,
@@ -646,6 +708,7 @@ function buildActionSummary({
         (row) => !isRecordArchived(row)
     );
     const endorsementMap = getEndorsementMap(endorsements);
+    const openingMap = getOpeningMap(openings);
 
     const requirementsReview = countBy(
         activeApplications,
@@ -686,7 +749,11 @@ function buildActionSummary({
         activeApplications,
         (application) =>
             normalizeLower(application.selection_status) ===
-            'waitlisted'
+                'waitlisted' &&
+            isApplicationInOperationalOpening(
+                application,
+                openingMap
+            )
     );
 
     const renewalsPending = countBy(
@@ -895,6 +962,7 @@ async function buildAdminDashboard() {
 
         actionSummary: buildActionSummary({
             applications,
+            openings,
             endorsements,
             renewals,
             returnOfObligations,
@@ -905,7 +973,8 @@ async function buildAdminDashboard() {
 
         applicationPipeline: buildApplicationPipeline(
             activeApplications,
-            endorsements
+            endorsements,
+            openings
         ),
 
         scholarsByBenefactor: buildScholarsByBenefactor(
@@ -925,15 +994,28 @@ async function buildAdminDashboard() {
     };
 }
 
-exports.getAdminDashboard = async () => {
+exports.getAdminDashboard = async (options = {}) => {
+    const bypassCache = options?.bypassCache === true;
     const now = Date.now();
 
-    if (dashboardCache && now < dashboardCacheExpiresAt) {
+    if (
+        !bypassCache &&
+        dashboardCache &&
+        now < dashboardCacheExpiresAt
+    ) {
         return dashboardCache;
     }
 
-    if (dashboardInFlight) {
+    if (!bypassCache && dashboardInFlight) {
         return dashboardInFlight;
+    }
+
+    if (bypassCache) {
+        const result = await buildAdminDashboard();
+        dashboardCache = result;
+        dashboardCacheExpiresAt =
+            Date.now() + DASHBOARD_CACHE_TTL_MS;
+        return result;
     }
 
     dashboardInFlight = buildAdminDashboard();

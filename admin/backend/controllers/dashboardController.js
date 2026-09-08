@@ -88,7 +88,10 @@ async function writeDashboardAudit(req, dashboardPayload) {
 exports.getAdminDashboard = async (req, res) => {
     try {
         const payload =
-            await dashboardService.getAdminDashboard();
+            await dashboardService.getAdminDashboard({
+                bypassCache:
+                    String(req.query.fresh || '') === '1',
+            });
 
         if (String(req.query.audit || '') === '1') {
             await writeDashboardAudit(req, payload);

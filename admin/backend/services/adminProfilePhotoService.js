@@ -109,14 +109,20 @@ async function getStudentsByIds(studentIds = []) {
       email_address,
       phone_number,
       profile_photo_url,
-      course_id
+      course_id,
+      user_id,
+      is_archived
     `)
     .in('student_id', uniqueStudentIds);
 
   if (studentError) throw studentError;
 
+  const visibleStudents = (students || []).filter(
+    (student) => student?.is_archived !== true
+  );
+
   const courseIds = Array.from(
-    new Set((students || []).map((student) => safeText(student.course_id)).filter(Boolean))
+    new Set(visibleStudents.map((student) => safeText(student.course_id)).filter(Boolean))
   );
 
   let courseById = new Map();
@@ -135,7 +141,7 @@ async function getStudentsByIds(studentIds = []) {
   }
 
   return new Map(
-    (students || []).map((student) => [
+    visibleStudents.map((student) => [
       safeText(student.student_id),
       {
         ...student,
@@ -204,11 +210,37 @@ function reviewSelect() {
   `;
 }
 
-async function hydrateReviews(rows = []) {
-  const studentsById = await getStudentsByIds(rows.map((row) => row.student_id));
+function filterReviewsWithVisibleStudents(rows = [], studentsById = new Map()) {
+  return (rows || []).filter((row) => {
+    const student = studentsById.get(safeText(row?.student_id));
+    if (!student) return false;
+
+    const studentUserId = safeText(student.user_id);
+    const reviewUserId = safeText(row?.user_id);
+
+    return (
+      !!studentUserId &&
+      !!reviewUserId &&
+      studentUserId === reviewUserId
+    );
+  });
+}
+
+async function hydrateReviews(rows = [], existingStudentsById = null) {
+  const studentsById = existingStudentsById ||
+    await getStudentsByIds(rows.map((row) => row.student_id));
+  const visibleRows = filterReviewsWithVisibleStudents(
+    rows,
+    studentsById
+  );
 
   return Promise.all(
-    (rows || []).map((row) => serializeReview(row, studentsById.get(safeText(row.student_id))))
+    visibleRows.map((row) =>
+      serializeReview(
+        row,
+        studentsById.get(safeText(row.student_id))
+      )
+    )
   );
 }
 
@@ -231,11 +263,24 @@ async function getProfilePhotoReviews({ adminUserId, query = {} }) {
     request,
     supabase
       .from('profile_photo_reviews')
-      .select('status'),
+      .select('review_id, student_id, user_id, status'),
   ]);
 
   if (queueResult.error) throw queueResult.error;
   if (statusResult.error) throw statusResult.error;
+
+  const allStatusRows = statusResult.data || [];
+  const studentsById = await getStudentsByIds(
+    allStatusRows.map((row) => row.student_id)
+  );
+  const visibleStatusRows = filterReviewsWithVisibleStudents(
+    allStatusRows,
+    studentsById
+  );
+  const visibleQueueRows = filterReviewsWithVisibleStudents(
+    queueResult.data || [],
+    studentsById
+  );
 
   const statusCounts = {
     pending: 0,
@@ -244,7 +289,7 @@ async function getProfilePhotoReviews({ adminUserId, query = {} }) {
     superseded: 0,
   };
 
-  for (const row of statusResult.data || []) {
+  for (const row of visibleStatusRows) {
     const rowStatus = safeText(row.status).toLowerCase();
     if (Object.prototype.hasOwnProperty.call(statusCounts, rowStatus)) {
       statusCounts[rowStatus] += 1;
@@ -252,7 +297,10 @@ async function getProfilePhotoReviews({ adminUserId, query = {} }) {
   }
 
   return {
-    items: await hydrateReviews(queueResult.data || []),
+    items: await hydrateReviews(
+      visibleQueueRows,
+      studentsById
+    ),
     status_counts: statusCounts,
   };
 }
@@ -276,6 +324,17 @@ async function getProfilePhotoReviewById({ adminUserId, reviewId }) {
     throw createHttpError(404, 'Profile photo review not found.');
   }
 
+  const reviewMap = await getStudentsByIds([review.student_id]);
+  const student = reviewMap.get(safeText(review.student_id));
+  const visibleReview = filterReviewsWithVisibleStudents(
+    [review],
+    reviewMap
+  );
+
+  if (!student || visibleReview.length !== 1) {
+    throw createHttpError(404, 'Profile photo review not found.');
+  }
+
   const { data: history, error: historyError } = await supabase
     .from('profile_photo_reviews')
     .select(reviewSelect())
@@ -284,14 +343,9 @@ async function getProfilePhotoReviewById({ adminUserId, reviewId }) {
 
   if (historyError) throw historyError;
 
-  const [reviewMap, historyItems] = await Promise.all([
-    getStudentsByIds([review.student_id]),
-    hydrateReviews(history || []),
-  ]);
-
   return {
-    review: await serializeReview(review, reviewMap.get(safeText(review.student_id))),
-    history: historyItems,
+    review: await serializeReview(review, student),
+    history: await hydrateReviews(history || [], reviewMap),
   };
 }
 

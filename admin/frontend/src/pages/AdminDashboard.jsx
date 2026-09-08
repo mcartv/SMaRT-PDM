@@ -207,6 +207,7 @@ export default function AdminDashboard() {
   const loadDashboard = useCallback(async (options = {}) => {
     const silent = options.silent === true;
     const audit = options.audit === true;
+    const fresh = options.fresh === true;
 
     try {
       if (!silent) setLoading(true);
@@ -214,8 +215,14 @@ export default function AdminDashboard() {
       setError('');
 
       const token = sessionStorage.getItem('adminToken') || '';
+      const query = [
+        audit ? 'audit=1' : '',
+        fresh ? 'fresh=1' : '',
+      ]
+        .filter(Boolean)
+        .join('&');
       const res = await fetch(
-        buildApiUrl(`/api/dashboard${audit ? '?audit=1' : ''}`),
+        buildApiUrl(`/api/dashboard${query ? `?${query}` : ''}`),
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -261,11 +268,11 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    loadDashboard({ audit: true });
+    loadDashboard({ audit: true, fresh: true });
   }, [loadDashboard]);
 
   const refreshRealtime = useCallback(() => {
-    loadDashboard({ silent: true });
+    loadDashboard({ silent: true, fresh: true });
   }, [loadDashboard]);
 
   useSocketEvent('dashboard:updated', refreshRealtime, [refreshRealtime]);
@@ -491,7 +498,7 @@ export default function AdminDashboard() {
           <p className="mt-1 text-xs text-red-600">{error}</p>
 
           <Button
-            onClick={() => loadDashboard({ audit: true })}
+            onClick={() => loadDashboard({ audit: true, fresh: true })}
             variant="outline"
             className="mt-4 border-red-200 text-red-600"
           >
@@ -565,7 +572,7 @@ export default function AdminDashboard() {
               variant="outline"
               className="h-9 bg-white px-3 text-xs font-medium"
               style={{ borderColor: theme.border, color: 'var(--portal-fg-accent)' }}
-              onClick={() => loadDashboard({ audit: true })}
+              onClick={() => loadDashboard({ audit: true, fresh: true })}
             >
               <RefreshCw className="mr-2 h-3.5 w-3.5" />
               Refresh

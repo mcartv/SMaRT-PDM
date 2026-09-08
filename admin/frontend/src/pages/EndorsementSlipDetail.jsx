@@ -1,3 +1,4 @@
+import { formatSystemLabel } from '@/utils/profileDisplay';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
@@ -53,11 +54,7 @@ function formatDate(value) {
 }
 
 function formatStageBadgeLabel(value = '') {
-  return (
-    String(value || '')
-      .replaceAll('_', ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Pending'
-  );
+  return formatSystemLabel(value || 'Pending');
 }
 
 function StageIcon({ status }) {
@@ -125,7 +122,7 @@ function OfficeResultCard({ title, result, note, detailLines = [] }) {
   return (
     <div className="rounded-[22px] border border-stone-200 bg-white p-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">{title}</p>
-      <p className="mt-2 text-base font-semibold text-stone-900">{result || 'Pending'}</p>
+      <p className="mt-2 text-base font-semibold text-stone-900">{formatSystemLabel(result || 'Pending')}</p>
       {note ? <p className="mt-2 text-xs text-stone-500">{note}</p> : null}
       {detailLines.length ? (
         <div className="mt-3 space-y-1 text-xs text-stone-600">

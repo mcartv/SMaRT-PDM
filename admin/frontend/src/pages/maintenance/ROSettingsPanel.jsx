@@ -121,7 +121,7 @@ function DepartmentModal({
                 <CardContent className="space-y-3 p-4">
                     <div className="space-y-1.5">
                         <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                            Department / Office / Faculty Name
+                            Organizational Unit
                         </label>
 
                         <Input

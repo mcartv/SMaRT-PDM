@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
+import { getProfileDisplay } from '@/utils/profileDisplay';
 import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -168,6 +169,8 @@ export default function AdminProfile() {
             '',
     });
 
+    const display = getProfileDisplay(adminData);
+
     const [recentActivity, setRecentActivity] = useState([]);
     const [activityLoading, setActivityLoading] = useState(true);
     const [activityError, setActivityError] = useState('');
@@ -285,15 +288,15 @@ export default function AdminProfile() {
                                         variant="outline"
                                         className="border-stone-200 bg-white text-stone-600"
                                     >
-                                        {adminData.role}
+                                        {display.accountRole}
                                     </Badge>
                                 </div>
 
                                 <p className="mt-2 text-sm font-medium text-stone-700">
-                                    {adminData.position}
+                                    {display.position}
                                 </p>
                                 <p className="mt-1 text-xs uppercase tracking-wider text-stone-400">
-                                    {adminData.department}
+                                    {display.organizationalUnit}
                                 </p>
 
                                 <div className="mt-4 flex flex-wrap gap-2">
@@ -343,9 +346,10 @@ export default function AdminProfile() {
                         icon={Shield}
                     >
                         <div className="space-y-3">
-                            <InfoRow icon={Shield} label="Status" value={adminData.status} />
-                            <InfoRow icon={BadgeCheck} label="Access Level" value={adminData.role} />
-                            <InfoRow icon={Building2} label="Assigned Office" value={adminData.department} />
+                            <InfoRow icon={Shield} label="Account Status" value={adminData.status} />
+                            <InfoRow icon={BadgeCheck} label="Account Role" value={display.accountRole} />
+                            <InfoRow icon={BadgeCheck} label="Position" value={display.position} />
+                            <InfoRow icon={Building2} label="Organizational Unit" value={display.organizationalUnit} />
                         </div>
                     </SectionCard>
 

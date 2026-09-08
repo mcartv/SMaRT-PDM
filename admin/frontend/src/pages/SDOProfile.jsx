@@ -15,7 +15,7 @@ export default function SDOProfile() {
       portalName="SDO"
       positionFallback="Student Disciplinary Officer"
       departmentFallback="Student Disciplinary Office"
-      roleFallback="SDO User"
+      roleFallback="sdo"
       avatarTone={theme.base}
       accountConfig={sdoMaintenanceConfig}
       palette={palette}

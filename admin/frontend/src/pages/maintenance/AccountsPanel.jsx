@@ -279,7 +279,7 @@ function DepartmentField({
 
     return (
         <div className="min-w-0">
-            <FieldLabel>Department / Office</FieldLabel>
+            <FieldLabel>Organizational Unit</FieldLabel>
             <Select value={value ?? ''} onValueChange={onChange} disabled={disabled}>
                 <SelectTrigger
                     className="h-9 w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
@@ -1284,7 +1284,7 @@ function AccountProfileModal({ account, onClose, onEdit }) {
                         <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
                             <div className="flex items-center gap-2 text-stone-400">
                                 <Building2 className="h-3.5 w-3.5" />
-                                <span className="text-[10px] font-semibold uppercase tracking-wide">Department</span>
+                                <span className="text-[10px] font-semibold uppercase tracking-wide">Organizational Unit</span>
                             </div>
                             <p className="mt-1.5 text-sm font-medium text-stone-800">{account.department || 'Not provided'}</p>
                         </div>

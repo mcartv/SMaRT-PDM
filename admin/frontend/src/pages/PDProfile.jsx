@@ -14,8 +14,8 @@ export default function PDProfile() {
       maintenancePath="/pd/settings"
       portalName="Program Director"
       positionFallback="Program Director"
-      departmentFallback="Program Director Office"
-      roleFallback="Program Director"
+      departmentFallback="Not assigned"
+      roleFallback="pd"
       avatarTone={theme.base}
       accountConfig={pdMaintenanceConfig}
       palette={palette}

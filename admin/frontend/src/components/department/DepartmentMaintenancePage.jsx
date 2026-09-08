@@ -1,3 +1,4 @@
+import { getProfileDisplay } from '@/utils/profileDisplay';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/api';
 import { showAppToast } from '@/utils/appToast';
@@ -496,6 +497,7 @@ function useDepartmentAccountManager({
     accountFeedback,
     accountFieldErrors,
     account,
+    profileData,
     currentProfileImage,
     displayName,
     feedbackIsError,
@@ -613,12 +615,14 @@ export function DepartmentAccountPanel({
   onProfileUpdated,
 }) {
   const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
+  const [editingPosition, setEditingPosition] = useState(false);
   const {
     loadingProfile,
     savingAccount,
     accountFeedback,
     accountFieldErrors,
     account,
+    profileData,
     currentProfileImage,
     displayName,
     feedbackIsError,
@@ -640,6 +644,9 @@ export function DepartmentAccountPanel({
     profileStorageKey,
     onProfileUpdated,
   });
+  const display = getProfileDisplay({ ...profileData, ...account }, {
+    SDO: 'sdo', Guidance: 'guidance', PD: 'pd', 'RO Coordinator': 'ro_coordinator',
+  }[config.shortName]);
 
   return (
     <div className="space-y-5">
@@ -814,7 +821,9 @@ export function DepartmentAccountPanel({
             <div className="space-y-1.5">
               <FieldLabel>Position</FieldLabel>
               <Input
-                value={account.position}
+                value={editingPosition ? account.position : display.position}
+                onFocus={() => setEditingPosition(true)}
+                onBlur={() => setEditingPosition(false)}
                 onChange={(e) => handleFieldChange('position', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                 disabled={loadingProfile || savingAccount || config.lockIdentityFields === true}
@@ -822,21 +831,21 @@ export function DepartmentAccountPanel({
             </div>
 
             <div className="space-y-1.5">
-              <FieldLabel>Department</FieldLabel>
+              <FieldLabel>Organizational Unit</FieldLabel>
               <Input
-                value={account.department}
+                value={display.organizationalUnit}
                 className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm text-stone-500"
                 disabled
                 aria-readonly="true"
-                title="Department assignments are managed by Admin."
+                title="Organizational unit assignments are managed by Admin."
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-wide text-stone-400">Role</p>
-              <p className="mt-1 text-sm font-medium text-stone-800">{account.role}</p>
+              <p className="text-[10px] uppercase tracking-wide text-stone-400">Account Role</p>
+              <p className="mt-1 text-sm font-medium text-stone-800">{display.accountRole}</p>
             </div>
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
               <p className="text-[10px] uppercase tracking-wide text-stone-400">Account Status</p>
@@ -861,7 +870,7 @@ export function DepartmentAccountPanel({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-stone-900">Endorsement Slip Identity</p>
                   <p className="mt-1 text-xs leading-5 text-stone-500">
-                    These are the office details that should appear on endorsement slips and office-side records.
+                    These details identify your profile in the office portal.
                   </p>
                 </div>
               </div>
@@ -872,8 +881,8 @@ export function DepartmentAccountPanel({
                   <p className="mt-1 text-sm font-semibold text-stone-800">{displayName}</p>
                 </div>
                 <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                  <p className="text-[10px] uppercase tracking-wide text-stone-400">Office / Department</p>
-                  <p className="mt-1 text-sm font-semibold text-stone-800">{account.department || config.account.department}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-stone-400">Organizational Unit</p>
+                  <p className="mt-1 text-sm font-semibold text-stone-800">{display.organizationalUnit}</p>
                 </div>
               </div>
             </div>

@@ -1,3 +1,5 @@
+import { formatSystemLabel } from '@/utils/profileDisplay';
+
 const STEP_TONES = {
   completed: {
     dot: 'bg-green-600 border-green-600',
@@ -34,7 +36,7 @@ function getOfficeLabel(step = {}) {
 }
 
 function formatWorkflowLabel(value = '') {
-  return String(value || '')
+  return formatSystemLabel(value)
     .replace(/Guidance/g, 'GCO')
     .replace(/Program Director/g, 'PD');
 }
@@ -95,7 +97,7 @@ export default function EndorsementProgressTracker({
                         : 'Waiting'}
                 </p>
                 {!compact && step.decision ? (
-                  <p className="text-[11px] text-stone-400">{step.decision}</p>
+                  <p className="text-[11px] text-stone-400">{formatSystemLabel(step.decision)}</p>
                 ) : null}
               </div>
             </div>

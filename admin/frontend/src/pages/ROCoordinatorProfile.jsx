@@ -27,8 +27,8 @@ export default function ROCoordinatorProfile() {
       maintenancePath="/ro-coordinator/settings"
       portalName="RO Coordinator"
       positionFallback="RO Coordinator"
-      departmentFallback="Assigned RO Area"
-      roleFallback="RO Coordinator"
+      departmentFallback="Not assigned"
+      roleFallback="ro_coordinator"
       avatarTone={theme.base}
       accountConfig={roCoordinatorAccountConfig}
       palette={palette}

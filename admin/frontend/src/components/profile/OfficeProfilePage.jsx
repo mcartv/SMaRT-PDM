@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
+import { getProfileDisplay } from '@/utils/profileDisplay';
 import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 
 function DetailItem({ icon, label, value }) {
@@ -80,6 +81,8 @@ export default function OfficeProfilePage({
     };
   }, [departmentFallback, portalName, positionFallback, profile, roleFallback]);
 
+  const display = getProfileDisplay({ ...profile, ...account }, roleFallback);
+
   const fullName = `${account.firstName} ${account.lastName}`.trim();
   const initials = `${account.firstName?.[0] || ''}${account.lastName?.[0] || ''}`.toUpperCase()
     || portalName.slice(0, 2).toUpperCase();
@@ -137,8 +140,8 @@ export default function OfficeProfilePage({
                       {account.status}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-stone-700">{account.position}</p>
-                  <p className="mt-1 text-sm text-stone-500">{account.department}</p>
+                  <p className="mt-2 text-sm font-semibold text-stone-700">{display.position}</p>
+                  <p className="mt-1 text-sm text-stone-500">{display.organizationalUnit}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {account.email ? (
                       <a href={`mailto:${account.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">
@@ -154,16 +157,11 @@ export default function OfficeProfilePage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:min-w-[300px]">
+              <div className="grid grid-cols-1 gap-3 sm:min-w-[300px] lg:max-w-sm">
                 <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur">
                   <ShieldCheck className="h-5 w-5" style={{ color: avatarTone }} aria-hidden="true" />
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">Access level</p>
-                  <p className="mt-1 text-sm font-bold text-stone-900">{account.role}</p>
-                </div>
-                <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur">
-                  <Building2 className="h-5 w-5" style={{ color: avatarTone }} aria-hidden="true" />
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">Portal</p>
-                  <p className="mt-1 text-sm font-bold text-stone-900">{portalName}</p>
+                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">Account Role</p>
+                  <p className="mt-1 text-sm font-bold text-stone-900">{display.accountRole}</p>
                 </div>
               </div>
             </div>
@@ -195,9 +193,10 @@ export default function OfficeProfilePage({
                 </div>
               </div>
               <div className="mt-4 space-y-3">
-                <DetailItem icon={BriefcaseBusiness} label="Position" value={account.position} />
-                <DetailItem icon={Building2} label="Office" value={account.department} />
-                <DetailItem icon={LockKeyhole} label="Role" value={account.role} />
+                <DetailItem icon={BadgeCheck} label="Account Status" value={account.status} />
+                <DetailItem icon={BriefcaseBusiness} label="Position" value={display.position} />
+                <DetailItem icon={Building2} label="Organizational Unit" value={display.organizationalUnit} />
+                <DetailItem icon={LockKeyhole} label="Account Role" value={display.accountRole} />
               </div>
             </CardContent>
           </Card>

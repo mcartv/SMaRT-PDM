@@ -49,7 +49,7 @@ async function resolveReportAccess(req) {
         : false;
 
     if (role === 'ro_coordinator' && !hasRoCoordinatorAccess) {
-        const error = new Error('An active RO Area coordinator assignment is required to access RO reports.');
+        const error = new Error('An active RO Area personnel-in-charge assignment is required to access RO reports.');
         error.statusCode = 403;
         throw error;
     }
@@ -77,7 +77,7 @@ function getScopedServiceQuery(req, access) {
     if (!access.allowedReportTypes.includes(reportType)) {
         const error = new Error(
             reportType === 'ro'
-                ? 'An active RO Area coordinator assignment is required to access the RO Coordinator report.'
+                ? 'An active RO Area personnel-in-charge assignment is required to access the RO Personnel-In-Charge report.'
                 : 'This account is not allowed to access the requested report.'
         );
         error.statusCode = access.role === 'admin' ? 400 : 403;

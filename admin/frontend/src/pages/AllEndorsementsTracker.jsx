@@ -114,7 +114,7 @@ function getActiveRowsForOffice(rows, tokenStorageKey) {
 function getOfficeConfig(tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return {
-      eyebrow: 'Student Discipline Office',
+      eyebrow: 'Student Welfare and Development Office',
       shortLabel: 'SDO',
       stage: 'pending_sdo',
       resultKey: 'sdo',

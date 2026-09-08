@@ -1,45 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { getProfileDisplay } from '@/utils/profileDisplay';
 import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { buildApiUrl } from '@/api';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
-import { useSocketEvent } from '@/hooks/useSocket';
-import { formatSystemLogDescription } from '@/utils/systemLogText';
-import SystemLogIcon from '@/components/system/SystemLogIcon';
 import {
     Building2,
     Shield,
-    Activity,
     BadgeCheck,
     Settings,
-    Loader2,
-    AlertCircle,
     Mail,
     Phone,
 } from 'lucide-react';
 
 
-
-function formatDateTime(value) {
-    if (!value) return 'Unknown time';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Unknown time';
-
-    return date.toLocaleString('en-PH', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
-}
 
 function _parseDevice(userAgent = '') {
     const ua = String(userAgent || '').toLowerCase();
@@ -75,10 +53,6 @@ function _parseDevice(userAgent = '') {
                 ? 'mobile'
                 : 'desktop',
     };
-}
-
-function formatAuditAction(item = {}) {
-    return formatSystemLogDescription(item);
 }
 
 function SectionCard({ title, subtitle, icon, children, action }) {
@@ -171,10 +145,6 @@ export default function AdminProfile() {
 
     const display = getProfileDisplay(adminData);
 
-    const [recentActivity, setRecentActivity] = useState([]);
-    const [activityLoading, setActivityLoading] = useState(true);
-    const [activityError, setActivityError] = useState('');
-
     const handleProfileUpdated = useCallback((profile = {}) => {
         setAdminData((current) => ({
             ...current,
@@ -194,46 +164,6 @@ export default function AdminProfile() {
                 '',
         }));
     }, []);
-
-    const loadRecentActivity = useCallback(async () => {
-        try {
-            setActivityLoading(true);
-            setActivityError('');
-
-            const response = await fetch(
-                buildApiUrl('/api/audit-logs/recent-activity?limit=5'),
-                {
-                    headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                    },
-                }
-            );
-
-            const payload = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                throw new Error(
-                    payload.message ||
-                    payload.error ||
-                    'Failed to load recent activity.'
-                );
-            }
-
-            setRecentActivity(Array.isArray(payload.items) ? payload.items : []);
-        } catch (error) {
-            setActivityError(error.message || 'Failed to load recent activity.');
-        } finally {
-            setActivityLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadRecentActivity();
-    }, [loadRecentActivity]);
-
-    useSocketEvent('audit:created', () => {
-        loadRecentActivity();
-    }, [loadRecentActivity]);
 
     const fullName = `${adminData.firstName} ${adminData.lastName}`.trim();
 
@@ -353,49 +283,6 @@ export default function AdminProfile() {
                         </div>
                     </SectionCard>
 
-                    <SectionCard
-                        title="Recent Activity"
-                        subtitle="Latest actions recorded in System Logs."
-                        icon={Activity}
-                    >
-                        {activityLoading ? (
-                            <div className="flex items-center justify-center gap-2 py-6 text-sm text-stone-500">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading activity...
-                            </div>
-                        ) : activityError ? (
-                            <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>{activityError}</span>
-                            </div>
-                        ) : recentActivity.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-500">
-                                No recent activity has been recorded yet.
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {recentActivity.map((item) => (
-                                    <div
-                                        key={item.log_id}
-                                        className="flex min-w-0 items-start gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3 shadow-sm"
-                                    >
-                                        <SystemLogIcon item={item} />
-                                        <div className="min-w-0 flex-1">
-                                            <p className="line-clamp-2 text-xs font-semibold leading-5 text-stone-700">
-                                                {formatAuditAction(item)}
-                                            </p>
-                                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-stone-400">
-                                                <span className="font-semibold uppercase tracking-wide">
-                                                    {item.module || 'System activity'}
-                                                </span>
-                                                <span>{formatDateTime(item.timestamp)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </SectionCard>
                 </div>
             </div>
         </main>

@@ -580,7 +580,7 @@ function ScholarshipProcessModal({ steps, theme, onClose, obligationsOnly = fals
     {
       title: 'Return of Obligation (RO)',
       icon: Clock3,
-      description: 'Scholars may be assigned service hours and a placement. Coordinate with the RO Coordinator, submit valid time records, and complete the required hours for clearance.',
+      description: 'Scholars may be assigned service hours and a placement. Coordinate with the RO Personnel-In-Charge, submit valid time records, and complete the required hours for clearance.',
     },
     {
       title: 'Scholarship Renewal',

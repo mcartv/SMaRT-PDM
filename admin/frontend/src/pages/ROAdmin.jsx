@@ -329,7 +329,7 @@ function getMainStatusCapsule(scholar) {
   }
 
   if (assignmentStatus === 'coordinator rejected') {
-    return { label: 'Returned by Coordinator', tone: 'red' };
+    return { label: 'Returned by Personnel-In-Charge', tone: 'red' };
   }
 
   if (

@@ -53,7 +53,7 @@ async function resolveAttendanceProofUrl(proof = {}) {
 
   if (error) {
     console.error(
-      'RO COORDINATOR PROOF SIGNED URL ERROR:',
+      'RO PERSONNEL-IN-CHARGE PROOF SIGNED URL ERROR:',
       error.message
     );
     return '';
@@ -108,7 +108,7 @@ async function getCoordinator(req) {
   );
 
   if (!result.rows.length) {
-    const error = new Error('You do not have an active RO Area coordinator assignment.');
+    const error = new Error('You do not have an active RO Area personnel-in-charge assignment.');
     error.statusCode = 403;
     throw error;
   }
@@ -190,7 +190,7 @@ exports.getSummary = async (req, res) => {
       ...(result.rows[0] || {}),
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to load RO coordinator summary.' });
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to load RO personnel-in-charge summary.' });
   }
 };
 
@@ -418,7 +418,7 @@ exports.createScholarRequest = async (req, res) => {
       req,
       userId: coordinator.userId,
       actionTaken: 'CREATE_RO_SCHOLAR_REQUEST',
-      module: 'RO Coordinator',
+      module: 'RO Personnel-In-Charge',
       entityType: 'ro_scholar_request',
       entityId: request.request_id,
       description: `Requested ${requestedCount} scholar${requestedCount === 1 ? '' : 's'} for ${assignment.department}.`,
@@ -559,8 +559,8 @@ exports.decideRequest = async (req, res) => {
       const parentAssignmentStatus = hasApprovedPlacement
         ? 'Assigned'
         : hasPendingPlacement
-          ? 'Pending Coordinator Approval'
-          : 'Coordinator Rejected';
+          ? 'Pending Personnel-In-Charge Approval'
+          : 'Personnel-In-Charge Rejected';
 
       await client.query(
         `UPDATE return_of_obligations
@@ -602,13 +602,13 @@ exports.decideRequest = async (req, res) => {
       req,
       userId: coordinator.userId,
       actionTaken: `RO_COORDINATOR_${nextStatus.toUpperCase()}`,
-      module: 'RO Coordinator',
+      module: 'RO Personnel-In-Charge',
       entityType: 'return_of_obligation',
       entityId: request.placement_id,
       description: `${nextStatus} RO request for ${coordinator.department}.`,
       metadata: { department: coordinator.department, remarks: remarks || null },
     }).catch((auditError) => {
-      console.error('RO COORDINATOR AUDIT ERROR:', auditError.message || auditError);
+      console.error('RO PERSONNEL-IN-CHARGE AUDIT ERROR:', auditError.message || auditError);
     });
     emitUpdate(req, {
       action: nextStatus.toLowerCase(),
@@ -934,7 +934,7 @@ exports.validateAttendance = async (req, res) => {
         : decision === 'approve'
           ? 'RO_ATTENDANCE_APPROVED'
           : 'RO_ATTENDANCE_RETURNED',
-      module: 'RO Coordinator',
+      module: 'RO Personnel-In-Charge',
       entityType: 'ro_time_log',
       entityId: log.log_id,
       description: manualAdjustment

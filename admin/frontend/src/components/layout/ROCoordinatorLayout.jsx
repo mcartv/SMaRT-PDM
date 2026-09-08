@@ -4,7 +4,7 @@ export default function ROCoordinatorLayout() {
   return (
     <DepartmentPortalLayout
       portalKey="ro_coordinator"
-      officeName="RO Coordinator"
+      officeName="Return of Obligation"
       loginPath="/ro-coordinator/login"
       dashboardPath="/ro-coordinator/dashboard"
       profilePath="/ro-coordinator/profile"

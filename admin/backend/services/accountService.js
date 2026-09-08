@@ -31,7 +31,7 @@ const ROLE_CONFIG = {
     ro_coordinator: {
         dbRole: 'Admin',
         department: '',
-        position: 'RO Coordinator',
+        position: 'RO Personnel-In-Charge',
     },
 };
 
@@ -106,7 +106,7 @@ const staffAccountSchema = z
         email: staffEmailSchema,
         phone_number: optionalPhoneNumberSchema,
         role: z.enum(OPERATIONAL_ROLE_VALUES, {
-            error: 'Select Program Director, SDO, Guidance, or RO Coordinator.',
+            error: 'Select Program Director, SDO, Guidance, or RO Personnel-In-Charge.',
         }),
         department: z.string().trim().optional().default(''),
         password: passwordSchema,
@@ -317,7 +317,7 @@ async function assertNoPendingRoRequests(department, client = db) {
     if (pendingCount > 0) {
         throw createHttpError(
             409,
-            `This RO Coordinator still has ${pendingCount} pending request${pendingCount === 1 ? '' : 's'}. Resolve or reassign them first.`
+            `This RO Personnel-In-Charge still has ${pendingCount} pending request${pendingCount === 1 ? '' : 's'}. Resolve or reassign them first.`
         );
     }
 }

@@ -85,7 +85,7 @@ export default function ROCoordinatorDashboard() {
       setSummary(summaryPayload);
       setRequests(Array.isArray(queuePayload.items) ? queuePayload.items.slice(0, 5) : []);
     } catch (loadError) {
-      setError(loadError.message || 'Failed to load RO Coordinator dashboard.');
+      setError(loadError.message || 'Failed to load RO Personnel-In-Charge dashboard.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -99,7 +99,7 @@ export default function ROCoordinatorDashboard() {
   useSocketEvent('ro:updated', () => loadDashboard({ soft: true }), [loadDashboard]);
 
   if (loading) {
-    return <PageLoadingSkeleton label="Loading RO Coordinator dashboard" variant="dashboard" />;
+    return <PageLoadingSkeleton label="Loading RO Personnel-In-Charge dashboard" variant="dashboard" />;
   }
 
   return (
@@ -112,7 +112,7 @@ export default function ROCoordinatorDashboard() {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">Assigned RO Area</p>
             <h1 className="mt-2 max-w-3xl text-2xl font-semibold md:text-3xl">
-              {summary.department || 'RO Coordinator Dashboard'}
+              {summary.department || 'RO Personnel-In-Charge Dashboard'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-white/75">
               Review incoming Return of Obligation requests before scholars begin their assigned work.

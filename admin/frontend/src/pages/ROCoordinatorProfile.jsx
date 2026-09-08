@@ -3,16 +3,16 @@ import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
 const roCoordinatorAccountConfig = {
-  shortName: 'RO Coordinator',
+  shortName: 'RO Personnel-In-Charge',
   lockIdentityFields: true,
   account: {
     first_name: 'RO',
-    last_name: 'Coordinator',
+    last_name: 'Personnel-In-Charge',
     email: 'ro.coordinator@pdm.edu.ph',
     phone_number: '',
-    position: 'RO Coordinator',
+    position: 'RO Personnel-In-Charge',
     department: 'Assigned RO Area',
-    role: 'RO Coordinator',
+    role: 'RO Personnel-In-Charge',
   },
 };
 
@@ -23,10 +23,10 @@ export default function ROCoordinatorProfile() {
   return (
     <OfficeProfilePage
       storageKey="roCoordinatorProfile"
-      heading="RO Coordinator Profile"
+      heading="RO Personnel-In-Charge Profile"
       maintenancePath="/ro-coordinator/settings"
-      portalName="RO Coordinator"
-      positionFallback="RO Coordinator"
+      portalName="RO Personnel-In-Charge"
+      positionFallback="RO Personnel-In-Charge"
       departmentFallback="Not assigned"
       roleFallback="ro_coordinator"
       avatarTone={theme.base}
@@ -35,7 +35,7 @@ export default function ROCoordinatorProfile() {
       tokenStorageKey="roCoordinatorToken"
       responsibilities={[
         'Review placement approval requests for the assigned RO area.',
-        'Coordinate scholar placement availability with Admin.',
+        'Coordinate scholar placement availability with OSFA.',
         'Validate attendance evidence and monitor assigned scholars.',
       ]}
     />

@@ -220,7 +220,7 @@ exports.assignScholarsToRequest = async (req, res) => {
       req,
       'ASSIGN_RO_REQUEST_SCHOLARS',
       req.params.requestId,
-      'Assigned scholars to an RO Coordinator scholar request.',
+      'Assigned scholars to an RO Personnel-In-Charge scholar request.',
       {
         selected_student_ids: req.body?.studentIds || req.body?.student_ids || [],
         success_count: data?.success_count || 0,
@@ -254,7 +254,7 @@ exports.assignScholarRO = async (req, res) => {
       req,
       'SEND_RO_COORDINATOR_REQUEST',
       data?.assignment?.ro_id || req.params.studentId,
-      'Sent Return of Obligation request to an RO Coordinator.',
+      'Sent Return of Obligation request to an RO Personnel-In-Charge.',
       {
         student_id: req.params.studentId,
         body_keys: Object.keys(req.body || {}),

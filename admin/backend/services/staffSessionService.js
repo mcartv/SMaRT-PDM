@@ -2,7 +2,7 @@ const db = require('../config/db');
 
 const TOKEN_VERSION_FALLBACK = 1;
 
-// The current schema stores PD, Guidance, RO Coordinator, and Admin accounts
+// The current schema stores PD, Guidance, RO Personnel-In-Charge, and Admin accounts
 // under users.role = 'Admin'. SDO uses users.role = 'SDO'. The portal role is
 // carried in the JWT and is revoked with users.token_version when Admin changes
 // that primary role through Account Maintenance.

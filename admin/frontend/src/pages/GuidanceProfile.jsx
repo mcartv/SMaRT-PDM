@@ -13,6 +13,7 @@ export default function GuidanceProfile() {
       heading="Guidance Profile"
       maintenancePath="/guidance/settings"
       portalName="Guidance"
+      heroPosition="Psychologist"
       positionFallback="Guidance Counselor"
       departmentFallback="Guidance and Counselling Office"
       roleFallback="guidance"

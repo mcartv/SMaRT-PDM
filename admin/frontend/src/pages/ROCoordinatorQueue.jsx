@@ -114,7 +114,7 @@ const MANUAL_ADJUSTMENT_REASONS = [
   'Forgot to Time In',
   'Device/App Issue',
   'Poor/No Internet Connection',
-  'Coordinator-Verified Attendance',
+  'Personnel-In-Charge-Verified Attendance',
   'Other',
 ];
 
@@ -600,7 +600,7 @@ export default function ROCoordinatorQueue({
                       </div>
                       {request.coordinator_remarks ? (
                         <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Coordinator Remarks</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Personnel-In-Charge Remarks</p>
                           <p className="mt-1 text-sm text-amber-900">{request.coordinator_remarks}</p>
                         </div>
                       ) : null}

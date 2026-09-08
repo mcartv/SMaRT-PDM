@@ -126,7 +126,7 @@ async function getReportMetadata() {
             },
             {
                 id: 'ro',
-                name: 'RO Coordinator Report',
+                name: 'RO Personnel-In-Charge Report',
                 sub: 'Assigned scholars, placement status, validated hours, and RO progress for your assigned area',
             },
         ],
@@ -789,7 +789,7 @@ async function getRoRows({
     roUserId,
 }) {
     if (!roUserId) {
-        throw createHttpError(403, 'RO Coordinator assignment is required for this report.');
+        throw createHttpError(403, 'RO Personnel-In-Charge assignment is required for this report.');
     }
 
     const params = [roUserId];
@@ -1331,7 +1331,7 @@ async function generateExcelReport(query = {}) {
     }
 
     if (normalized.reportType === 'ro') {
-        sheet = workbook.addWorksheet('RO Coordinator');
+        sheet = workbook.addWorksheet('RO Personnel-In-Charge');
         sheet.columns = [
             { header: 'RO ID', key: 'ro_id' },
             { header: 'Student Number', key: 'pdm_id' },

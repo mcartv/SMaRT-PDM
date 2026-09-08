@@ -27,7 +27,7 @@ const MODULE_RULES = [
     [/^\/api\/scholars(?:\/|$)/i, { name: 'Scholars', key: 'SCHOLAR', entityType: 'scholar' }],
     [/^\/api\/renewals(?:\/|$)/i, { name: 'Renewals', key: 'RENEWAL', entityType: 'renewal' }],
     [/^\/api\/payouts(?:\/|$)/i, { name: 'Payout Management', key: 'PAYOUT', entityType: 'payout' }],
-    [/^\/api\/ro-coordinator(?:\/|$)/i, { name: 'RO Coordinator', key: 'RO_COORDINATOR', entityType: 'ro' }],
+    [/^\/api\/ro-coordinator(?:\/|$)/i, { name: 'RO Personnel-In-Charge', key: 'RO_COORDINATOR', entityType: 'ro' }],
     [/^\/api\/ro(?:\/|$)/i, { name: 'Return of Obligation', key: 'RO', entityType: 'ro' }],
     [/^\/api\/program-openings(?:\/|$)/i, { name: 'Scholarship Openings', key: 'SCHOLARSHIP_OPENING', entityType: 'opening' }],
     [/^\/api\/announcements(?:\/|$)/i, { name: 'Announcements', key: 'ANNOUNCEMENT', entityType: 'announcement' }],

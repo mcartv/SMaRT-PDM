@@ -401,7 +401,7 @@ function mapQueueRow(row, actorRole = '') {
     const stages = [
         {
             key: 'sdo',
-            label: 'Student Discipline Office',
+            label: 'Student Welfare and Development Office',
             status: row.sdo_status || null,
             result_label: officeResults.sdo || null,
             acted_at: row.sdo_acted_at || null,
@@ -843,7 +843,7 @@ async function fetchSlipDetail(slipId, actor = null) {
         stages: [
             {
                 key: 'sdo',
-                label: 'Student Discipline Office',
+                label: 'Student Welfare and Development Office',
                 status: row.sdo_status || (row.current_stage === 'pending_sdo' ? 'pending' : 'not_started'),
                 result_label: officeResults.sdo,
                 acted_at: row.sdo_acted_at,

@@ -17,7 +17,7 @@ const PORTAL_LABELS = {
   sdo: 'SDO',
   guidance: 'Guidance',
   pd: 'Program Director',
-  ro_coordinator: 'RO Coordinator',
+  ro_coordinator: 'RO Personnel-In-Charge',
 };
 
 const PORTAL_HELPERS = {

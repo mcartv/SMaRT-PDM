@@ -255,7 +255,7 @@ html.smartpdm-force-dark .portal-shell {
 
 /* Every authenticated workspace derives its component-library colors from the
  * signed-in user's selected portal preset. This covers Admin, SDO, Guidance,
- * Program Director, and RO Coordinator without changing semantic status hues. */
+ * Program Director, and RO Personnel-In-Charge without changing semantic status hues. */
 .portal-shell {
   --primary: var(--portal-button);
   --primary-foreground: #ffffff;
@@ -1904,6 +1904,42 @@ html.smartpdm-admin-active.smartpdm-force-dark {
   max-width: none !important;
 }
 
+/* Account columns use their available card width efficiently and switch
+ * between table and stacked rows based on real content width after the
+ * sidebar, browser zoom, and shell gutters are accounted for. */
+.accounts-registry-header {
+  display: none;
+}
+
+.accounts-registry-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container admin-content (min-width: 960px) {
+  .accounts-registry-header,
+  .accounts-registry-row {
+    grid-template-columns:
+      minmax(13rem, 1.35fr)
+      minmax(7.5rem, 0.65fr)
+      minmax(16rem, 1.7fr)
+      minmax(8.5rem, 0.75fr)
+      minmax(6rem, 0.45fr);
+    align-items: center;
+  }
+
+  .accounts-registry-header {
+    display: grid;
+  }
+
+  .accounts-registry-mobile-label {
+    display: none;
+  }
+
+  .accounts-registry-actions {
+    justify-content: flex-end;
+  }
+}
+
 /* Allow ordinary Admin pages to use more of QHD/ultrawide monitors without
  * stretching them edge-to-edge. Wide review workspaces already opt out. */
 @media (min-width: 1920px) {
@@ -2247,7 +2283,7 @@ html.smartpdm-admin-active.smartpdm-admin-modal-open :is(
 /* ========================================================================== */
 /*
  * Shared responsiveness for the public site, unified authentication, Admin,
- * SDO, Guidance, PD and RO Coordinator portals. These rules preserve each
+ * SDO, Guidance, PD and RO Personnel-In-Charge portals. These rules preserve each
  * page's visual hierarchy; they only release fixed widths, wrap controls, and
  * adapt spacing to the actual viewport/content width.
  */
@@ -3970,4 +4006,3 @@ html.smartpdm-admin-active .portal-shell
   z-index: 20 !important;
   touch-action: manipulation;
 }
-

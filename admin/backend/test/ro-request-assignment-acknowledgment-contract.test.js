@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..', '..', '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('RO Coordinator scholar requests are linked to real placements and cannot be manually fulfilled', () => {
+test('RO Personnel-In-Charge scholar requests are linked to real placements and cannot be manually fulfilled', () => {
   const migration = read('supabase/migrations/20260904000200_link_ro_placements_to_scholar_requests.sql');
   const hardeningMigration = read('supabase/migrations/20260905000100_harden_alpha_lifecycle_and_ro_requests.sql');
   const routes = read('admin/backend/routes/roRoutes.js');

@@ -104,7 +104,7 @@ async function getUserSummary(userId) {
       ? row.student_number
       : row.ro_area || (
           resolvedRole === 'ro_coordinator'
-            ? row.position || 'RO Coordinator'
+            ? row.position || 'RO Personnel-In-Charge'
             : row.department || row.position || resolvedRole
         ),
     department: resolvedRole === 'ro_coordinator' ? null : row.department,

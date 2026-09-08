@@ -1,24 +1,24 @@
 // Presentation only: never use these labels for authorization or save payloads.
 const PROFILE_DISPLAY = {
   sdo: {
-    accountRole: 'Student Discipline Office Administrator',
-    position: 'Student Discipline Office Coordinator',
-    organizationalUnit: 'Student Discipline Office',
+    accountRole: 'Student Discipline Officer',
+    position: 'Student Discipline Officer',
+    organizationalUnit: 'Student Welfare and Development Office',
   },
   guidance: {
-    accountRole: 'Guidance and Counseling Administrator',
-    position: 'Psychologist',
+    accountRole: 'Guidance Counselor',
+    position: 'Guidance Counselor',
     organizationalUnit: 'Guidance and Counseling Office',
   },
-  pd: { accountRole: 'Program Director Administrator' },
-  ro_coordinator: { accountRole: 'RO Coordinator', position: 'RO Coordinator' },
+  pd: { accountRole: 'Program Director' },
+  ro_coordinator: { accountRole: 'RO Personnel-In-Charge', position: 'RO Personnel-In-Charge' },
 };
 
 const SYSTEM_LABELS = {
   pending_sdo: 'Pending SDO',
   pending_guidance: 'Pending Guidance',
   pending_pd: 'Pending Program Director',
-  ro_coordinator: 'RO Coordinator',
+  ro_coordinator: 'RO Personnel-In-Charge',
   sdo: 'SDO',
   pd: 'Program Director',
 };
@@ -39,6 +39,7 @@ export function getProfileDisplay(profile = {}, fallbackRole = '') {
     'guidance officer': 'guidance',
     'program director': 'pd',
     'ro coordinator': 'ro_coordinator',
+    'ro personnel-in-charge': 'ro_coordinator',
   }[rawRole] || rawRole;
   const labels = PROFILE_DISPLAY[role] || {};
   // Registrar is a position in the existing account model, not a new role.

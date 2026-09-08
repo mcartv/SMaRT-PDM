@@ -8,13 +8,13 @@ test('approved office labels never modify stored identity or operational role', 
   const { getProfileDisplay } = await displayModule;
   for (const [role, position, department, expected] of [
     ['sdo', 'Student Discipline Officer', 'Student Welfare and Development Office', {
-      accountRole: 'Student Discipline Office Administrator',
-      position: 'Student Discipline Office Coordinator',
-      organizationalUnit: 'Student Discipline Office',
+      accountRole: 'Student Discipline Officer',
+      position: 'Student Discipline Officer',
+      organizationalUnit: 'Student Welfare and Development Office',
     }],
     ['guidance', 'Guidance Counselor', 'Guidance and Counselling Office', {
-      accountRole: 'Guidance and Counseling Administrator',
-      position: 'Psychologist',
+      accountRole: 'Guidance Counselor',
+      position: 'Guidance Counselor',
       organizationalUnit: 'Guidance and Counseling Office',
     }],
     ['admin', 'Registrar', 'Student Personnel Services', {
@@ -37,21 +37,21 @@ test('PD and RO labels retain real assignments and do not invent a program', asy
   const { getProfileDisplay } = await displayModule;
   const courses = Object.freeze([Object.freeze({ course_name: 'BS Computer Science', course_code: 'BSCS' })]);
   assert.deepEqual(getProfileDisplay(Object.freeze({ role: 'pd', assigned_courses: courses })), {
-    accountRole: 'Program Director Administrator',
+    accountRole: 'Program Director',
     position: 'Program Director – BS Computer Science',
     organizationalUnit: 'BS Computer Science',
   });
   assert.deepEqual(getProfileDisplay({ role: 'pd' }), {
-    accountRole: 'Program Director Administrator', position: 'Program Director', organizationalUnit: '—',
+    accountRole: 'Program Director', position: 'Program Director', organizationalUnit: '—',
   });
   assert.equal(getProfileDisplay({ role: 'ro_coordinator', department: 'Library' }).organizationalUnit, 'Library');
-  assert.equal(getProfileDisplay({ role: 'ro_coordinator', department: 'Library' }).accountRole, 'RO Coordinator');
+  assert.equal(getProfileDisplay({ role: 'ro_coordinator', department: 'Library' }).accountRole, 'RO Personnel-In-Charge');
 });
 
 test('fallback profiles and unknown labels remain readable', async () => {
   const { getProfileDisplay, formatSystemLabel } = await displayModule;
-  assert.equal(getProfileDisplay({}, 'guidance').position, 'Psychologist');
-  assert.equal(getProfileDisplay({ role: 'SDO User' }).accountRole, 'Student Discipline Office Administrator');
+  assert.equal(getProfileDisplay({}, 'guidance').position, 'Guidance Counselor');
+  assert.equal(getProfileDisplay({ role: 'SDO User' }).accountRole, 'Student Discipline Officer');
   assert.equal(getProfileDisplay({ role: 'custom_reviewer' }).accountRole, 'Custom Reviewer');
   assert.equal(formatSystemLabel('BSCS / IT Office'), 'BSCS / IT Office');
   assert.equal(formatSystemLabel(null), '—');

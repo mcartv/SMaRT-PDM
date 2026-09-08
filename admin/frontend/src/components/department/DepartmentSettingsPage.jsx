@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import ThemePanel from '@/pages/maintenance/ThemePanel';
+import { getProfileDisplay } from '@/utils/profileDisplay';
 
 const SETTINGS_TABS = [
   { key: 'account', label: 'Account', icon: UserRound },
@@ -24,10 +25,10 @@ const SETTINGS_TABS = [
 
 function roleLabel(role) {
   const labels = {
-    sdo: 'Student Discipline Office',
-    guidance: 'Guidance Office',
+    sdo: 'Student Discipline Officer',
+    guidance: 'Guidance Counselor',
     pd: 'Program Director',
-    ro_coordinator: 'RO Coordinator',
+    ro_coordinator: 'RO Personnel-In-Charge',
   };
   return labels[role] || role || 'User';
 }
@@ -101,6 +102,10 @@ export default function DepartmentSettingsPage({
   const activeMeta = useMemo(
     () => SETTINGS_TABS.find((item) => item.key === activeTab) || SETTINGS_TABS[0],
     [activeTab]
+  );
+  const profileDisplay = useMemo(
+    () => getProfileDisplay(profile || {}, portalKey),
+    [portalKey, profile]
   );
 
   const loadAccount = useCallback(async () => {
@@ -243,9 +248,9 @@ export default function DepartmentSettingsPage({
           <div className="grid overflow-hidden rounded-2xl border border-stone-200 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ['Sign-in email', profile.email || '—'],
-              ['Role', roleLabel(profile.role)],
-              ['Position', profile.position || '—'],
-              ['Department', profile.department || '—'],
+              ['Role', profileDisplay.accountRole || roleLabel(profile.role)],
+              ['Position', profileDisplay.position],
+              ['Department', profileDisplay.organizationalUnit],
             ].map(([label, value], index) => (
               <div
                 key={label}

@@ -505,7 +505,7 @@ export default function ROScholarRequestsPanel({ token }) {
                       {request.assigned_area}
                     </p>
                     <p className="mt-1 text-xs text-stone-400">
-                      {request.requested_by_name || 'RO Coordinator'} - {formatDate(request.created_at, true)}
+                      {request.requested_by_name || 'RO Personnel-In-Charge'} - {formatDate(request.created_at, true)}
                     </p>
                   </div>
                   <span

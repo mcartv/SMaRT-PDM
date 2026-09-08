@@ -210,7 +210,7 @@ async function loginUnified(req, res) {
             pd: 'PD',
             guidance: 'Guidance',
             sdo: 'SDO',
-            ro_coordinator: 'RO Coordinator',
+            ro_coordinator: 'RO Personnel-In-Charge',
         };
 
         const displayName =
@@ -270,7 +270,7 @@ async function loginUnified(req, res) {
                 department:
                     user.department ||
                     (tokenRole === 'sdo'
-                        ? 'Student Disciplinary Office'
+                        ? 'Student Welfare and Development Office'
                         : null),
                 role: tokenRole,
                 profile_photo_url: user.profile_photo_url || null,

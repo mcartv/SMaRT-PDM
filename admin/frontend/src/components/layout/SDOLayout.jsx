@@ -236,7 +236,7 @@ export default function SDOLayout() {
   };
 
   const getDisplayPosition = () => {
-    return profile?.position || 'Student Disciplinary Office';
+    return 'Student Discipline Officer';
   };
 
   const profileImage = resolveProfileImage(profile);
@@ -322,7 +322,7 @@ export default function SDOLayout() {
                 PDM · SDO
               </p>
               <p className="text-[11px] truncate" style={{ color: theme.sub }}>
-                Student Disciplinary Office
+                Student Welfare and Development Office
               </p>
             </div>
           )}

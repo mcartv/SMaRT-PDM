@@ -227,9 +227,13 @@ export default function DepartmentPortalLayout({
 
   const profileImage = resolveProfileImage(profile);
   const displayName = profile?.name || officeName;
-  const displayPosition = profile?.position || officeName;
+  const displayPosition = portalKey === 'ro_coordinator'
+    ? 'RO Personnel-In-Charge'
+    : profile?.position || officeName;
   const portalDisplayName = portalKey === 'pd'
     ? 'PD'
+    : portalKey === 'ro_coordinator'
+      ? 'RO - PIC'
     : portalKey
       .split('_')
       .map((part) => part.toLowerCase() === 'ro'

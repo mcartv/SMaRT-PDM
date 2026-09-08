@@ -73,7 +73,7 @@ const processStages = [
     title: 'Inter-Office Endorsement',
     summary: 'Applications that complete requirements verification proceed through the required institutional reviews.',
     steps: [
-      ['Student Discipline review', 'The application proceeds to the Student Discipline Office for the required endorsement or review.'],
+      ['Student Discipline review', 'The application proceeds to the Student Welfare and Development Office for the required endorsement or review.'],
       ['Guidance review', 'The application proceeds to Guidance for the required endorsement or review.'],
       ['Program Director review', 'The Program Director completes the academic or program-level endorsement required by the scholarship workflow.'],
     ],

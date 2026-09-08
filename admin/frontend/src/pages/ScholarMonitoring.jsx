@@ -1199,7 +1199,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                           className="text-sm font-semibold"
                           style={{ color: sdoMeta.color }}
                         >
-                          Student Disciplinary Office
+                          Student Welfare and Development Office
                         </p>
                         <p
                           className="mt-0.5 text-xs font-medium"

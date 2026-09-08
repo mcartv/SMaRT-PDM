@@ -30,7 +30,7 @@ test('fallback covers major SMaRT-PDM mutation modules', () => {
         'Scholars',
         'Renewals',
         'Payout Management',
-        'RO Coordinator',
+        'RO Personnel-In-Charge',
         'Return of Obligation',
         'Scholarship Openings',
         'Announcements',

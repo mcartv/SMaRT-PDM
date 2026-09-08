@@ -732,7 +732,7 @@ async function findRoCoordinator(department) {
     if (!coordinator?.user_id) {
         throw createHttpError(
             400,
-            `No active RO Coordinator is assigned to ${department.department_name}. Assign a coordinator first.`
+            `No active RO Personnel-In-Charge is assigned to ${department.department_name}. Assign a personnel-in-charge first.`
         );
     }
     return coordinator;
@@ -943,7 +943,7 @@ async function createPlacementRequest({
         placement_status: coordinatorPreapproved ? 'Approved' : 'Pending',
         admin_remarks: cleanText(remarks) || null,
         coordinator_remarks: coordinatorPreapproved
-            ? 'Placement created from this RO Area coordinator scholar request.'
+            ? 'Placement created from this RO Area personnel-in-charge scholar request.'
             : null,
         requested_by_user_id: adminUserId,
         requested_at: now,
@@ -986,13 +986,13 @@ async function sendCoordinatorRequestNotification({ coordinator, roId, student, 
             userId: coordinator.user_id,
             type: 'Return of Obligation',
             title: 'RO approval request',
-            message: `Admin sent an RO request for ${fullName(student) || 'a scholar'} to ${assignedArea}. Review the request in your RO Coordinator queue.`,
+            message: `OSFA sent an RO request for ${fullName(student) || 'a scholar'} to ${assignedArea}. Review the request in your RO Personnel-In-Charge queue.`,
             referenceId: roId,
             referenceType: 'return_of_obligation',
             createdAt: new Date().toISOString(),
         });
     } catch (error) {
-        console.error('RO COORDINATOR NOTIFICATION ERROR:', error.message || error);
+        console.error('RO PERSONNEL-IN-CHARGE NOTIFICATION ERROR:', error.message || error);
         return null;
     }
 }
@@ -2274,10 +2274,10 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         assigned_area: assignedDepartmentName,
         remarks: cleanText(payload.remarks) || null,
 
-        assignment_status: scholarRequest ? 'Assigned' : 'Pending Coordinator Approval',
+        assignment_status: scholarRequest ? 'Assigned' : 'Pending Personnel-In-Charge Approval',
         coordinator_status: scholarRequest ? 'Approved' : 'Pending',
         coordinator_remarks: scholarRequest
-            ? 'Coordinator approval satisfied by the originating scholar request.'
+            ? 'Personnel-In-Charge approval satisfied by the originating scholar request.'
             : null,
         coordinator_user_id: scholarRequest ? coordinator.user_id : null,
         coordinator_decided_at: scholarRequest ? now : null,
@@ -2304,12 +2304,12 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
                     ? existingRO.assignment_status
                     : scholarRequest
                         ? 'Assigned'
-                        : 'Pending Coordinator Approval',
+                        : 'Pending Personnel-In-Charge Approval',
                 coordinator_status: preserveActivePlacement || scholarRequest ? 'Approved' : 'Pending',
                 coordinator_remarks: preserveActivePlacement
                     ? existingRO.coordinator_remarks
                     : scholarRequest
-                        ? 'Coordinator approval satisfied by the originating scholar request.'
+                        ? 'Personnel-In-Charge approval satisfied by the originating scholar request.'
                         : null,
                 coordinator_user_id: preserveActivePlacement
                     ? existingRO.coordinator_user_id

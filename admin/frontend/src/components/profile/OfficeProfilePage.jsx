@@ -1,43 +1,25 @@
-import { createElement, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   BadgeCheck,
-  BriefcaseBusiness,
-  Building2,
   CheckCircle2,
   ChevronRight,
-  LockKeyhole,
   Mail,
   Phone,
-  ShieldCheck,
-  UserRound,
 } from 'lucide-react';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 import ProfilePhotoPreviewDialog from '@/components/profile/ProfilePhotoPreviewDialog';
 import { getProfileDisplay } from '@/utils/profileDisplay';
 import pdmFacade from '@/assets/PDM-Facade-optimized.jpg';
 
-function DetailItem({ icon, label, value }) {
-  return (
-    <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-stone-200 bg-white/90 p-4 shadow-sm">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white bg-white text-[var(--portal-base)] shadow-sm">
-        {createElement(icon, { className: 'h-4 w-4', 'aria-hidden': true })}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-400">{label}</p>
-        <p className="mt-1 break-words text-sm font-semibold text-stone-800">{value || 'Not provided'}</p>
-      </div>
-    </div>
-  );
-}
-
 export default function OfficeProfilePage({
   storageKey,
   maintenancePath,
   portalName,
+  heroPosition,
   positionFallback,
   departmentFallback,
   roleFallback,
@@ -112,7 +94,7 @@ export default function OfficeProfilePage({
               <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/35" />
             </div>
             <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-10" style={{ backgroundColor: avatarTone }} />
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
                 <button
                   type="button"
@@ -140,8 +122,10 @@ export default function OfficeProfilePage({
                       {account.status}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-stone-700">{display.position}</p>
-                  <p className="mt-1 text-sm text-stone-500">{display.organizationalUnit}</p>
+                  <p className="mt-2 text-sm font-semibold text-stone-700">{heroPosition || display.position}</p>
+                  {display.organizationalUnit ? (
+                    <p className="mt-1 text-sm text-stone-500">{display.organizationalUnit}</p>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {account.email ? (
                       <a href={`mailto:${account.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900">
@@ -157,13 +141,6 @@ export default function OfficeProfilePage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:min-w-[300px] lg:max-w-sm">
-                <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur">
-                  <ShieldCheck className="h-5 w-5" style={{ color: avatarTone }} aria-hidden="true" />
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">Account Role</p>
-                  <p className="mt-1 text-sm font-bold text-stone-900">{display.accountRole}</p>
-                </div>
-              </div>
             </div>
           </div>
         </CardContent>
@@ -183,26 +160,6 @@ export default function OfficeProfilePage({
         <aside className="space-y-5">
           <Card className="relative overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[var(--portal-base)]">
             <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--portal-accent-soft)] text-[var(--portal-base)] ring-1 ring-[var(--portal-border)]">
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-stone-900">Account overview</h3>
-                  <p className="text-xs text-stone-500">Information tied to your office access.</p>
-                </div>
-              </div>
-              <div className="mt-4 space-y-3">
-                <DetailItem icon={BadgeCheck} label="Account Status" value={account.status} />
-                <DetailItem icon={BriefcaseBusiness} label="Position" value={display.position} />
-                <DetailItem icon={Building2} label="Organizational Unit" value={display.organizationalUnit} />
-                <DetailItem icon={LockKeyhole} label="Account Role" value={display.accountRole} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden rounded-2xl border-[var(--portal-border)] bg-white shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[var(--portal-base)]">
-            <CardContent className="p-5">
               <h3 className="text-sm font-bold text-stone-900">Role responsibilities</h3>
               <p className="mt-1 text-xs text-stone-500">Primary tasks available in this portal.</p>
               <ul className="mt-4 space-y-3">
@@ -218,8 +175,8 @@ export default function OfficeProfilePage({
 
           <Link to={maintenancePath} className="group flex items-center justify-between rounded-2xl border border-[var(--portal-base)] bg-[var(--portal-base)] p-5 text-white shadow-sm transition hover:brightness-95">
             <div>
-              <p className="text-sm font-bold">Account</p>
-              <p className="mt-1 text-xs text-stone-300">Update profile and portal preferences.</p>
+              <p className="text-sm font-bold">Portal Settings</p>
+              <p className="mt-1 text-xs text-stone-300">Manage theme and account security.</p>
             </div>
             <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
           </Link>

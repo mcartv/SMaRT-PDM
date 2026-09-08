@@ -2383,7 +2383,7 @@ exports.getMessagingContacts = async (req, res) => {
         row.email ||
         'Account';
       const roleLabel = row.role === 'ro_coordinator'
-        ? 'RO Coordinator'
+        ? 'RO Personnel-In-Charge'
         : String(row.role || 'user')
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (character) => character.toUpperCase());

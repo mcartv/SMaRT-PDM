@@ -11,7 +11,7 @@ function resolveStaffRole(profile = {}) {
     const department = safeText(profile.department).toLowerCase();
     const position = safeText(profile.position).toLowerCase();
 
-    if (explicitUserRole === 'ro_coordinator' || includesAny(position, ['ro coordinator', 'return of obligation coordinator'])) {
+    if (explicitUserRole === 'ro_coordinator' || includesAny(position, ['ro coordinator', 'return of obligation coordinator', 'ro personnel-in-charge'])) {
         return 'ro_coordinator';
     }
     if (explicitUserRole === 'pd' || includesAny(department, ['program department', 'pd']) || includesAny(position, ['program director', 'program chair', 'department chair', 'pd reviewer'])) {

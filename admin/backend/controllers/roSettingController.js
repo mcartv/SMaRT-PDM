@@ -277,7 +277,7 @@ async function setDepartmentCoordinator(req, res) {
         await writeRoSettingAudit(
             req,
             'ASSIGN_RO_AREA_COORDINATOR',
-            'Updated an RO Area coordinator assignment.',
+            'Updated an RO Area personnel-in-charge assignment.',
             'ro_area',
             req.params.departmentId,
             result,
@@ -288,7 +288,7 @@ async function setDepartmentCoordinator(req, res) {
     } catch (error) {
         console.error('SET RO AREA COORDINATOR ERROR:', error);
         return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to update the RO Area coordinator.',
+            error: error.message || 'Failed to update the RO Area personnel-in-charge.',
         });
     }
 }

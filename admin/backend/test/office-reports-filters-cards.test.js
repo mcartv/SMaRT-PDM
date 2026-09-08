@@ -12,7 +12,7 @@ test('endorsement queue keeps current office review/filter surfaces', () => {
   assert.match(queue, /Search applicant or PDM ID/);
 });
 
-test('RO Coordinator dashboard keeps operational request and scholar information without enforcing obsolete card wording', () => {
+test('RO Personnel-In-Charge dashboard keeps operational request and scholar information without enforcing obsolete card wording', () => {
   const dashboard = read('frontend/src/pages/ROCoordinatorDashboard.jsx');
 
   assert.match(dashboard, /RO/i);

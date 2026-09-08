@@ -88,7 +88,7 @@ const ROLE_OPTIONS = [
     },
     {
         value: 'ro_coordinator',
-        label: 'RO Coordinator',
+        label: 'RO Personnel-In-Charge',
         department: '',
     },
 ];
@@ -469,6 +469,18 @@ function roleTone(role) {
     return 'bg-stone-50 text-stone-700 border-stone-100';
 }
 
+function accountPositionLabel(account = {}) {
+    return ROLE_OPTIONS.find((option) => option.value === account.role)?.label
+        || account.position
+        || 'Not provided';
+}
+
+function accountDepartmentLabel(account = {}) {
+    if (account.role === 'sdo') return 'Student Welfare and Development Office';
+    if (account.role === 'guidance') return 'Guidance and Counseling Office';
+    return account.department || 'Not provided';
+}
+
 function formatAccountCreatedDate(value) {
     if (!value) return 'Not available';
 
@@ -528,7 +540,7 @@ function validateCreateForm(form, roAreas = [], accounts = []) {
     }
 
     if (!OPERATIONAL_ROLE_OPTIONS.some((option) => option.value === form.role)) {
-        return 'Create Account is only for Program Director, SDO, Guidance, or RO Coordinator.';
+        return 'Create Account is only for Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge.';
     }
     const departmentOptions = form.role === 'ro_coordinator'
         ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
@@ -679,7 +691,7 @@ function AccountCreateModal({
                             Create Account
                         </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
-                            Create a Program Director, SDO, Guidance, or RO Coordinator account.
+                            Create a Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge account.
                         </p>
                     </div>
 
@@ -1119,7 +1131,7 @@ function AccountEditModal({
                             <p className="mt-1 text-[11px] text-stone-500">
                                 {form.role === 'admin'
                                     ? 'Admin accounts stay Admin. Archive and create a department account instead of converting it.'
-                                    : 'Department roles can change among PD, SDO, Guidance, and RO Coordinator, but cannot become Admin.'}
+                                    : 'Department roles can change among Program Director, Student Discipline Officer, Guidance Counselor, and RO Personnel-In-Charge, but cannot become OSFA Coordinator.'}
                             </p>
                         </div>
 
@@ -1286,11 +1298,11 @@ function AccountProfileModal({ account, onClose, onEdit }) {
                                 <Building2 className="h-3.5 w-3.5" />
                                 <span className="text-[10px] font-semibold uppercase tracking-wide">Organizational Unit</span>
                             </div>
-                            <p className="mt-1.5 text-sm font-medium text-stone-800">{account.department || 'Not provided'}</p>
+                            <p className="mt-1.5 text-sm font-medium text-stone-800">{accountDepartmentLabel(account)}</p>
                         </div>
                         <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Position</p>
-                            <p className="mt-1.5 text-sm font-medium text-stone-800">{account.position || 'Not provided'}</p>
+                            <p className="mt-1.5 text-sm font-medium text-stone-800">{accountPositionLabel(account)}</p>
                         </div>
                         <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
                             <div className="flex items-center gap-2 text-stone-400">
@@ -1951,7 +1963,7 @@ export default function AccountsPanel() {
                                                         <SelectItem value="sdo">Student Discipline Officer</SelectItem>
                                                         <SelectItem value="guidance">Guidance Counselor (GCO)</SelectItem>
                                                         <SelectItem value="pd">Program Director</SelectItem>
-                                                        <SelectItem value="ro_coordinator">RO Coordinator</SelectItem>
+                                                        <SelectItem value="ro_coordinator">RO Personnel-In-Charge</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <p className="mt-1.5 text-[11px] leading-4 text-stone-500">
@@ -2038,7 +2050,7 @@ export default function AccountsPanel() {
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                <div className="accounts-registry overflow-hidden rounded-xl border border-stone-200 bg-white">
                     {loading ? (
                         <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
                             <Loader2 className="h-5 w-5 animate-spin" />
@@ -2067,7 +2079,7 @@ export default function AccountsPanel() {
                         </div>
                     ) : (
                         <div>
-                            <div className="hidden grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] gap-4 border-b border-stone-200 bg-stone-50 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500 lg:grid">
+                            <div className="accounts-registry-header gap-3 border-b border-stone-200 bg-stone-50 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
                                 <span>Account</span>
                                 <span>Access</span>
                                 <span>Office / Position</span>
@@ -2098,7 +2110,7 @@ export default function AccountsPanel() {
                                     return (
                                         <div
                                             key={item.key}
-                                            className={`grid gap-3 px-4 py-3 transition-colors lg:grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] lg:items-center lg:gap-4 ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
+                                            className={`accounts-registry-row grid min-w-0 gap-3 px-4 py-3 transition-colors ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
                                         >
                                             <div className="flex min-w-0 items-center gap-2.5">
                                                 <PreviewableProfileAvatar
@@ -2124,22 +2136,22 @@ export default function AccountsPanel() {
                                             </div>
 
                                             <div className="flex items-center gap-2 lg:block">
-                                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400 lg:hidden">Access</span>
+                                                <span className="accounts-registry-mobile-label w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400">Access</span>
                                                 <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${roleTone(account.role)}`}>
                                                     {roleLabel}
                                                 </span>
                                             </div>
 
                                             <div className="flex min-w-0 gap-2 text-xs lg:block">
-                                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400 lg:hidden">Office</span>
+                                                <span className="accounts-registry-mobile-label w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400">Office</span>
                                                 <div className="min-w-0">
-                                                    <p className="truncate font-medium text-stone-700">{account.department || 'No department'}</p>
-                                                    <p className="mt-0.5 truncate text-stone-500">{account.position || 'No position'}</p>
+                                                    <p className="font-medium leading-4 text-stone-700">{accountDepartmentLabel(account)}</p>
+                                                    <p className="mt-1 leading-4 text-stone-500">{accountPositionLabel(account)}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400 lg:hidden">Courses</span>
+                                                <span className="accounts-registry-mobile-label w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400">Courses</span>
                                                 {account.role === 'pd' ? (
                                                     <>
                                                         {(account.assigned_courses || []).slice(0, 3).map((course) => (
@@ -2163,7 +2175,7 @@ export default function AccountsPanel() {
                                                 )}
                                             </div>
 
-                                            <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                                            <div className="accounts-registry-actions flex flex-wrap gap-1.5">
                                                 <Button
                                                     size="sm"
                                                     variant="outline"

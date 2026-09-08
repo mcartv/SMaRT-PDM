@@ -381,13 +381,13 @@ export default function ROSettingsPanel() {
             );
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(payload.error || 'Failed to update the RO Area coordinator.');
+                throw new Error(payload.error || 'Failed to update the RO Area personnel-in-charge.');
             }
 
-            showAppToast('success', 'Coordinator updated', payload.message || 'RO Area coordinator updated.');
+            showAppToast('success', 'Personnel-In-Charge updated', payload.message || 'RO Area personnel-in-charge updated.');
             await loadSettings();
         } catch (actionError) {
-            setError(actionError.message || 'Failed to update the RO Area coordinator.');
+            setError(actionError.message || 'Failed to update the RO Area personnel-in-charge.');
         } finally {
             setDepartmentActionId('');
         }
@@ -723,7 +723,7 @@ export default function ROSettingsPanel() {
                                         </p>
                                         <p className={`mt-1 truncate text-xs font-medium ${department.coordinator ? 'text-cyan-700' : 'text-amber-700'}`}>
                                             {department.coordinator
-                                                ? `Coordinator: ${department.coordinator.name}`
+                                                ? `Personnel-In-Charge: ${department.coordinator.name}`
                                                 : 'No active coordinator assigned'}
                                         </p>
                                     </div>
@@ -737,7 +737,7 @@ export default function ROSettingsPanel() {
                                                 }
                                                 disabled={loadingThis}
                                                 className="h-8 max-w-[230px] rounded-lg border border-stone-200 bg-white px-2 text-xs text-stone-700 outline-none focus:border-orange-700"
-                                                aria-label={`Coordinator for ${department.department_name}`}
+                                                aria-label={`Personnel-In-Charge for ${department.department_name}`}
                                             >
                                                 <option value="">No coordinator</option>
                                                 {coordinatorCandidates.map((candidate) => (

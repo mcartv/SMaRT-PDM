@@ -8,8 +8,8 @@ export const sdoMaintenanceConfig = {
     last_name: 'Officer',
     email: 'sdo@pdm.edu.ph',
     phone_number: '',
-    position: 'Student Disciplinary Officer',
-    department: 'Student Disciplinary Office',
+    position: 'Student Discipline Officer',
+    department: 'Student Welfare and Development Office',
     role: 'SDO User',
   },
 };
@@ -21,7 +21,7 @@ export default function SDOMaintenance() {
       tokenStorageKey="sdoToken"
       profilePath="/sdo/profile"
       themeTitle="Theme"
-      themeSubtitle="Choose the appearance used for the Student Discipline Office workspace."
+      themeSubtitle="Choose the appearance used for the Student Welfare and Development Office workspace."
     />
   );
 }

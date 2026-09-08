@@ -541,7 +541,7 @@ async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = n
             if (!isRoCoordinatorCapableStaff(profileResult.rows[0])) {
                 throw createHttpError(
                     400,
-                    'Only Program Director, SDO, Guidance, or RO Coordinator accounts can be assigned to an RO Area.'
+                    'Only Program Director, Student Discipline Officer, Guidance Counselor, or RO Personnel-In-Charge accounts can be assigned to an RO Area.'
                 );
             }
 
@@ -607,8 +607,8 @@ async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = n
         await client.query('COMMIT');
         return {
             message: userId
-                ? 'RO Area coordinator assigned successfully.'
-                : 'RO Area coordinator removed successfully.',
+                ? 'RO Area personnel-in-charge assigned successfully.'
+                : 'RO Area personnel-in-charge removed successfully.',
             assignment,
         };
     } catch (error) {
@@ -694,7 +694,7 @@ async function updateDepartment(departmentId, body = {}) {
                 UPDATE admin_profiles
                 SET department = $2
                 WHERE LOWER(TRIM(COALESCE(department, ''))) = LOWER(TRIM($1))
-                  AND LOWER(TRIM(COALESCE(position, ''))) = 'ro coordinator'
+                  AND LOWER(TRIM(COALESCE(position, ''))) IN ('ro coordinator', 'ro personnel-in-charge')
                 `,
                 [existing.department_name, departmentName]
             );
@@ -758,7 +758,7 @@ async function toggleDepartment(departmentId) {
                 [existing.department_id]
             );
             if (coordinatorResult.rows.length) {
-                throw createHttpError(409, 'Archive or reassign the active RO Coordinator before deactivating this RO Area.');
+                throw createHttpError(409, 'Archive or reassign the active RO Personnel-In-Charge before deactivating this RO Area.');
             }
         }
 

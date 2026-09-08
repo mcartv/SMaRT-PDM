@@ -424,7 +424,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
 
             <div className="grid gap-3 md:grid-cols-3">
               <OfficeResultCard
-                title="Student Discipline Office"
+                title="Student Welfare and Development Office"
                 result={slip.office_results?.sdo}
                 note="No offense and minor offense continue to Guidance; major offense stops the endorsement."
               />

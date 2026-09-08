@@ -25,7 +25,7 @@ test('browser theme cache is isolated by user id even for two accounts with the 
   assert.match(hook, /!userId \|\| !payloadUserId \|\| payloadUserId !== userId/);
 });
 
-test('fresh theme schema supports personal RO Coordinator themes', () => {
+test('fresh theme schema supports personal RO Personnel-In-Charge themes', () => {
   const schema = read('backend/sql/portal_theme_settings_schema.sql');
   const migration = read('../supabase/migrations/20260729_add_ro_coordinator_workflow.sql');
 

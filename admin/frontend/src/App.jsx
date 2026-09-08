@@ -349,7 +349,7 @@ export default function App() {
           <Route path="maintenance" element={<Navigate to="/sdo/settings" replace />} />
         </Route>
 
-        {/* --- PROTECTED RO COORDINATOR PANEL --- */}
+        {/* --- PROTECTED RO PERSONNEL-IN-CHARGE PANEL --- */}
         <Route
           path="/ro-coordinator"
           element={

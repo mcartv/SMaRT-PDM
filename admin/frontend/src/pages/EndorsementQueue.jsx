@@ -67,7 +67,7 @@ import {
 const QUEUE_META = {
   sdo: {
     title: 'For Endorsement',
-    eyebrow: 'Student Discipline Office',
+    eyebrow: 'Student Welfare and Development Office',
     subtitle: 'Review applicants awaiting disciplinary standing assessment.',
     endpoint: '/api/endorsement-slips/sdo',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/sdo-action`,
@@ -613,7 +613,7 @@ function ReviewDrawer({ queueKey, row, state, onChange, onSubmit, saving, onClos
             <section className="rounded-xl border border-stone-200 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">Previous Endorsements</p>
               <div className="mt-3 space-y-3">
-                <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700" /><div><p className="text-sm font-medium text-stone-900">Student Discipline Office</p><p className="text-xs text-stone-500">{row.office_results?.sdo || 'Pending'}</p></div></div>
+                <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700" /><div><p className="text-sm font-medium text-stone-900">Student Welfare and Development Office</p><p className="text-xs text-stone-500">{row.office_results?.sdo || 'Pending'}</p></div></div>
                 {queueKey === 'pd' ? <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700" /><div><p className="text-sm font-medium text-stone-900">Guidance Office</p><p className="text-xs text-stone-500">{row.office_results?.guidance || 'Pending'}</p></div></div> : null}
               </div>
             </section>

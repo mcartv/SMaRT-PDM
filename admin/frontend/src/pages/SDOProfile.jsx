@@ -13,8 +13,8 @@ export default function SDOProfile() {
       heading="SDO Profile"
       maintenancePath="/sdo/settings"
       portalName="SDO"
-      positionFallback="Student Disciplinary Officer"
-      departmentFallback="Student Disciplinary Office"
+      positionFallback="Student Discipline Officer"
+      departmentFallback="Student Welfare and Development Office"
       roleFallback="sdo"
       avatarTone={theme.base}
       accountConfig={sdoMaintenanceConfig}

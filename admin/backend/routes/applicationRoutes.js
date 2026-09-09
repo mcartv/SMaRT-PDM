@@ -28,6 +28,7 @@ router.post('/:id/documents/:documentKey/iot-ocr/:requestId/retry', ...adminOnly
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/cancel', ...adminOnly, applicationController.cancelApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/reject', ...adminOnly, applicationController.rejectApplicationDocumentIotOcr);
 router.post('/:id/documents/:documentKey/iot-ocr/:requestId/rescan', ...adminOnly, applicationController.rescanApplicationDocumentIotOcr);
+router.get('/:id/documents/:documentKey/iot-ocr/:requestId/captured-image', ...adminOnly, applicationController.streamApplicationCapturedOcrImage);
 router.get('/:id/documents/:documentKey/iot-ocr/:requestId/review-image', ...adminOnly, applicationController.streamApplicationBirthOcrImage);
 router.get('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.getApplicationDocumentOcrSnapshot);
 router.post('/:id/documents/:documentKey/ocr-snapshot', ...adminOnly, applicationController.saveApplicationDocumentOcrSnapshot);

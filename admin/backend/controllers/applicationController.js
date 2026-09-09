@@ -1132,3 +1132,23 @@ exports.exportApplicationsExcel = async (req, res) => {
         module.exports[functionName] = wrapped;
     });
 })();
+
+exports.streamApplicationCapturedOcrImage = async (req, res) => {
+    try {
+        const services = {
+            student_grade_forms: '../services/gradeOcrV2Service',
+            certificate_of_indigency: '../services/indigencyOcrV2Service',
+        };
+        const servicePath = Object.hasOwn(services, req.params.documentKey) && services[req.params.documentKey];
+        if (!servicePath) return res.status(404).json({ error: 'Captured image not found' });
+        const image = await require(servicePath).streamOriginal({
+            requestId: req.params.requestId, applicationId: req.params.id,
+        });
+        res.setHeader('Content-Type', image.mime_type);
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.status(200).send(image.bytes);
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({ error: 'Captured image unavailable' });
+    }
+};

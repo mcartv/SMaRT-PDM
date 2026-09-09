@@ -4,6 +4,7 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import ScannedDocumentPreview from '@/components/ScannedDocumentPreview';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -1976,6 +1977,8 @@ function OCRPanel({
             {iotOcrError}
           </div>
         )}
+
+        {(isGradeReview || isIndigencyReview) && <ScannedDocumentPreview candidate={reviewCandidate} documentKey={activeDoc.id} />}
 
         {isGradeReview && (
           <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : ''}`} style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)' } : undefined}>

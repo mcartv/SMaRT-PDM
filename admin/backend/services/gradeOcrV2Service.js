@@ -159,3 +159,17 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
 };
 
 module.exports = { ...exports, FIELD_KEYS, GRADE_SCHEMA, normalizeFields };
+
+module.exports.streamOriginal = async ({ requestId, applicationId }) => {
+    const request = await iotOcrRequestService.getRequestById({ requestId });
+    if (!request || String(request.application_id) !== String(applicationId)
+        || request.document_key !== 'student_grade_forms' || request.ocr_version !== 'v2'
+        || !['review_required', 'completed'].includes(request.status)) {
+        throw httpError(404, 'Captured image not found');
+    }
+    const image = await downloadOriginal(requestId);
+    if (!['image/jpeg', 'image/png'].includes(image.mime_type)) {
+        throw httpError(415, 'Unsupported captured image type');
+    }
+    return { mime_type: image.mime_type, bytes: image.bytes };
+};

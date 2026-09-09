@@ -1978,7 +1978,7 @@ function OCRPanel({
           </div>
         )}
 
-        {(isGradeReview || isIndigencyReview) && <ScannedDocumentPreview candidate={reviewCandidate} documentKey={activeDoc.id} />}
+        {['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id) && <ScannedDocumentPreview candidate={reviewCandidate} request={getActiveIotRequest(activeDoc)} documentKey={activeDoc.id} />}
 
         {isGradeReview && (
           <div className={`rounded-xl border p-4 space-y-4 ${gradeReviewCompleted ? 'border-green-200 bg-green-50' : ''}`} style={!gradeReviewCompleted ? { background: 'var(--portal-accent-soft)', borderColor: 'var(--portal-sub)' } : undefined}>

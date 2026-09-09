@@ -205,11 +205,13 @@ exports.authorizeBirthV2Uploads = async (req, res) => {
 };
 
 exports.completeBirthV2Uploads = async (req, res) => {
+    let enhancedDocumentKey = null;
     try {
         iotOcrPresenceService.checkIn(req.piAuth?.deviceId);
         const requestRow = await iotOcrRequestService.getRequestById({ requestId: req.params.requestId });
         const isGradeV2 = requestRow?.document_key === 'student_grade_forms' && requestRow?.ocr_version === 'v2';
         const isIndigencyV2 = requestRow?.document_key === 'certificate_of_indigency' && requestRow?.ocr_version === 'v2';
+        enhancedDocumentKey = isGradeV2 || isIndigencyV2 ? requestRow.document_key : null;
         const service = isGradeV2
             ? require('../services/gradeOcrV2Service')
             : isIndigencyV2
@@ -239,6 +241,28 @@ exports.completeBirthV2Uploads = async (req, res) => {
             data,
         });
     } catch (error) {
+        if (enhancedDocumentKey) {
+            if (error.request?.status === 'failed') {
+                socketEvents.applicationOcrStatus(req.app?.get?.('io'), {
+                    request_id: error.request.request_id,
+                    application_id: error.request.application_id,
+                    document_key: enhancedDocumentKey,
+                    ocr_version: 'v2', status: 'failed',
+                    updated_at: error.request.updated_at,
+                });
+            }
+            const failure = require('../services/enhancedOcrErrors').normalizeEnhancedOcrError(error);
+            console.error('ENHANCED_OCR_UPLOAD_COMPLETION_ERROR', {
+                request_id: String(req.params?.requestId || '').slice(0, 8),
+                document_key: enhancedDocumentKey,
+                code: failure.code,
+                provider_status: error.providerStatus || failure.providerStatus,
+                status_code: error.statusCode || failure.statusCode,
+            });
+            return res.status(error.statusCode || failure.statusCode).json({
+                code: failure.code, error: failure.message,
+            });
+        }
         console.error('BIRTH_V2_UPLOAD_COMPLETION_ERROR', {
             request_id: String(req.params?.requestId || '').slice(0, 8),
             code: error.code || null,

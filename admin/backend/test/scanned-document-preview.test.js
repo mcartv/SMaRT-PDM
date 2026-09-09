@@ -20,8 +20,8 @@ for (const [service, documentKey] of [['gradeOcrV2Service', 'student_grade_forms
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../services', `${service}.js`), 'utf8'), context);
     return { run: () => context.module.exports.streamOriginal({ requestId: 'request', applicationId: 'application' }), downloads: () => downloads };
   }
-  test(`${service}: returns original for review and completed requests`, async () => {
-    for (const status of ['review_required', 'completed']) {
+  test(`${service}: returns original for review, completed and failed requests`, async () => {
+    for (const status of ['review_required', 'completed', 'failed']) {
       const f = fixture({ status }); const image = await f.run();
       assert.equal(image.mime_type, 'image/png'); assert.equal(image.bytes.toString(), 'test captured image');
     }

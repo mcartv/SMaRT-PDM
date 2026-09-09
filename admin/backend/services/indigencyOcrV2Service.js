@@ -136,6 +136,10 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
     }
     if (request.status !== 'processing') throw httpError(409, `Cannot complete uploads from ${request.status}`);
     const original = await downloadOriginal(requestId);
+    await pool.query(`
+        UPDATE public.iot_ocr_capture_artifacts SET upload_status = 'available', uploaded_at = COALESCE(uploaded_at, NOW()), updated_at = NOW()
+        WHERE request_id = $1::uuid AND artifact_kind = 'original' AND upload_status = 'pending'
+    `, [requestId]);
     let result;
     try {
         result = await getEnhancedOcrProvider().extract({
@@ -145,14 +149,16 @@ exports.completeUploads = async ({ requestId, deviceId }) => {
             instruction: 'Read the Certificate of Indigency literally. Extract certificate_subject_name and residency_address exactly as printed. Do not guess, infer, or add fields.',
         });
     } catch (error) {
-        await iotOcrRequestService.completeRequest({
+        const failure = require('./enhancedOcrErrors').normalizeEnhancedOcrError(error);
+        const failed = await iotOcrRequestService.completeRequest({
             requestId,
             status: 'failed',
-            errorCode: error.code || 'INDIGENCY_V2_EXTRACTION_FAILED',
-            errorMessage: 'Enhanced Indigency OCR failed',
+            errorCode: failure.code,
+            errorMessage: failure.message,
             claimedBy: deviceId,
         });
-        throw error;
+        failure.request = failed.request;
+        throw failure;
     }
     const fields = normalizeFields(result.fields);
     return iotOcrRequestService.completeRequest({
@@ -180,7 +186,7 @@ module.exports.streamOriginal = async ({ requestId, applicationId }) => {
     const request = await iotOcrRequestService.getRequestById({ requestId });
     if (!request || String(request.application_id) !== String(applicationId)
         || request.document_key !== 'certificate_of_indigency' || request.ocr_version !== 'v2'
-        || !['review_required', 'completed'].includes(request.status)) {
+        || !['review_required', 'completed', 'failed'].includes(request.status)) {
         throw httpError(404, 'Captured image not found');
     }
     const image = await downloadOriginal(requestId);

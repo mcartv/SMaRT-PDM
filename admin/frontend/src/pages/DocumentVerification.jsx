@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import ScannedDocumentPreview from '@/components/ScannedDocumentPreview';
+import { currentOcrCandidate } from '@/lib/currentOcrCandidate';
 import PreviewableProfileAvatar from '@/components/profile/PreviewableProfileAvatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -1767,7 +1768,7 @@ function OCRPanel({
   iotOcrStatus,
   iotOcrError,
   rawOcrSnapshot,
-  reviewCandidate,
+  reviewCandidate: suppliedReviewCandidate,
   correctedFields,
   onCorrectedFieldsChange,
   onConfirmCandidate,
@@ -1793,6 +1794,9 @@ function OCRPanel({
   onRescanCandidate,
 }) {
   const [activeBirthRegion, setActiveBirthRegion] = useState('item1_first');
+  const reviewCandidate = ['student_grade_forms', 'certificate_of_indigency'].includes(activeDoc?.id)
+    ? currentOcrCandidate(suppliedReviewCandidate, getActiveIotRequest(activeDoc), activeDoc.id)
+    : suppliedReviewCandidate;
   const canRunIotOcr = Boolean(
     activeDoc?.id && !IOT_OCR_DISABLED_DOCUMENT_KEYS.has(activeDoc.id)
   );

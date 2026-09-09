@@ -1149,6 +1149,8 @@ exports.streamApplicationCapturedOcrImage = async (req, res) => {
         res.setHeader('X-Content-Type-Options', 'nosniff');
         return res.status(200).send(image.bytes);
     } catch (error) {
-        return res.status(error.statusCode || 500).json({ error: 'Captured image unavailable' });
+        return res.status(error.statusCode || 500).json({ error: error.statusCode === 409
+            ? 'This scan did not store a complete capture. Request a new scan; reloading cannot recover the missing image.'
+            : 'Captured image unavailable' });
     }
 };

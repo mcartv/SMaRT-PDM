@@ -189,7 +189,10 @@ exports.authorizeBirthV2Uploads = async (req, res) => {
             deviceId: req.piAuth?.deviceId,
             artifacts: req.body?.artifacts,
         });
-        return res.status(200).json({ message: 'Private artifact uploads authorized', data });
+        const enhanced = request?.ocr_version === 'v2'
+            && ['student_grade_forms', 'certificate_of_indigency'].includes(request.document_key);
+        return res.status(200).json({ message: 'Private artifact uploads authorized',
+            data: enhanced ? require('../services/captureUploadRelay').authorize(req, data) : data });
     } catch (error) {
         console.error('BIRTH_V2_UPLOAD_AUTHORIZATION_ERROR', {
             request_id: String(req.params?.requestId || '').slice(0, 8),

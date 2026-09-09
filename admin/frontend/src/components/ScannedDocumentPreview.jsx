@@ -25,7 +25,10 @@ export default function ScannedDocumentPreview({ candidate, request, documentKey
       headers: { Authorization: `Bearer ${sessionStorage.getItem('adminToken')}` },
       cache: 'no-store', signal: controller.signal,
     }).then(async (response) => {
-      if (!response.ok) throw new Error('The captured image is unavailable. It may have expired; request a rescan.');
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'The captured image is unavailable. Request a rescan.');
+      }
       if (!/^image\/(jpeg|png)(;|$)/i.test(response.headers.get('content-type') || '')) {
         throw new Error('The captured image has an unsupported file type.');
       }
